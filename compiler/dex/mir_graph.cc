@@ -511,9 +511,8 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
 
 /* Process instructions with the kSwitch flag */
 BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset,
-                                       int width, int flags,
+                                       int width, int flags ATTRIBUTE_UNUSED,
                                        ScopedArenaVector<uint16_t>* dex_pc_to_block_map) {
-  UNUSED(flags);
   const uint16_t* switch_data =
       reinterpret_cast<const uint16_t*>(GetCurrentInsns() + cur_offset +
           static_cast<int32_t>(insn->dalvikInsn.vB));
@@ -592,11 +591,15 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
 }
 
 /* Process instructions with the kThrow flag */
-BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset,
-                                      int width, int flags, ArenaBitVector* try_block_addr,
-                                      const uint16_t* code_ptr, const uint16_t* code_end,
+BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block,
+                                      MIR* insn,
+                                      DexOffset cur_offset,
+                                      int width,
+                                      int flags ATTRIBUTE_UNUSED,
+                                      ArenaBitVector* try_block_addr,
+                                      const uint16_t* code_ptr,
+                                      const uint16_t* code_end,
                                       ScopedArenaVector<uint16_t>* dex_pc_to_block_map) {
-  UNUSED(flags);
   bool in_try_block = try_block_addr->IsBitSet(cur_offset);
   bool is_throw = (insn->dalvikInsn.opcode == Instruction::THROW);
 

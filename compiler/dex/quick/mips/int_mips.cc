@@ -279,8 +279,7 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
 
 void MipsMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                                    int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                                   RegisterClass dest_reg_class) {
-  UNUSED(dest_reg_class);
+                                   RegisterClass dest_reg_class ATTRIBUTE_UNUSED) {
   // Implement as a branch-over.
   // TODO: Conditional move?
   LoadConstant(rs_dest, true_val);
@@ -290,13 +289,12 @@ void MipsMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, Cond
   ne_branchover->target = target_label;
 }
 
-void MipsMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
-  UNUSED(bb, mir);
+void MipsMir2Lir::GenSelect(BasicBlock* bb ATTRIBUTE_UNUSED, MIR* mir ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "Need codegen for select";
 }
 
-void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
-  UNUSED(bb, mir);
+void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb ATTRIBUTE_UNUSED,
+                                        MIR* mir ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
 }
 
@@ -327,39 +325,40 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int 
   return rl_result;
 }
 
-RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
-                                   bool is_div, int flags) {
-  UNUSED(rl_dest, rl_src1, rl_src2, is_div, flags);
+RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                   RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                   RegLocation rl_src2 ATTRIBUTE_UNUSED,
+                                   bool is_div ATTRIBUTE_UNUSED,
+                                   int flags ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Mips";
   UNREACHABLE();
 }
 
-RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit,
-                                      bool is_div) {
-  UNUSED(rl_dest, rl_src1, lit, is_div);
+RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                      RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                      int lit ATTRIBUTE_UNUSED,
+                                      bool is_div ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for Mips";
   UNREACHABLE();
 }
 
-bool MipsMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
-  UNUSED(info, is_long, is_object);
+bool MipsMir2Lir::GenInlinedCas(CallInfo* info ATTRIBUTE_UNUSED,
+                                bool is_long ATTRIBUTE_UNUSED,
+                                bool is_object ATTRIBUTE_UNUSED) {
   return false;
 }
 
-bool MipsMir2Lir::GenInlinedAbsFloat(CallInfo* info) {
-  UNUSED(info);
+bool MipsMir2Lir::GenInlinedAbsFloat(CallInfo* info ATTRIBUTE_UNUSED) {
   // TODO: add Mips implementation.
   return false;
 }
 
-bool MipsMir2Lir::GenInlinedAbsDouble(CallInfo* info) {
-  UNUSED(info);
+bool MipsMir2Lir::GenInlinedAbsDouble(CallInfo* info ATTRIBUTE_UNUSED) {
   // TODO: add Mips implementation.
   return false;
 }
 
-bool MipsMir2Lir::GenInlinedSqrt(CallInfo* info) {
-  UNUSED(info);
+bool MipsMir2Lir::GenInlinedSqrt(CallInfo* info ATTRIBUTE_UNUSED) {
   return false;
 }
 
@@ -408,27 +407,26 @@ bool MipsMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   return true;
 }
 
-void MipsMir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
-  UNUSED(reg, target);
+void MipsMir2Lir::OpPcRelLoad(RegStorage reg ATTRIBUTE_UNUSED, LIR* target ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for Mips";
   UNREACHABLE();
 }
 
-LIR* MipsMir2Lir::OpVldm(RegStorage r_base, int count) {
-  UNUSED(r_base, count);
+LIR* MipsMir2Lir::OpVldm(RegStorage r_base ATTRIBUTE_UNUSED, int count ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpVldm for Mips";
   UNREACHABLE();
 }
 
-LIR* MipsMir2Lir::OpVstm(RegStorage r_base, int count) {
-  UNUSED(r_base, count);
+LIR* MipsMir2Lir::OpVstm(RegStorage r_base ATTRIBUTE_UNUSED, int count ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpVstm for Mips";
   UNREACHABLE();
 }
 
-void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
-                                                int first_bit, int second_bit) {
-  UNUSED(lit);
+void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
+                                                RegLocation rl_result,
+                                                int lit ATTRIBUTE_UNUSED,
+                                                int first_bit,
+                                                int second_bit) {
   RegStorage t_reg = AllocTemp();
   OpRegRegImm(kOpLsl, t_reg, rl_src.reg, second_bit - first_bit);
   OpRegRegReg(kOpAdd, rl_result.reg, rl_src.reg, t_reg);
@@ -462,27 +460,28 @@ LIR* MipsMir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* targ
   return OpCmpImmBranch(c_code, reg, 0, target);
 }
 
-bool MipsMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
-                                     RegLocation rl_src, RegLocation rl_dest, int lit) {
-  UNUSED(dalvik_opcode, is_div, rl_src, rl_dest, lit);
-  LOG(FATAL) << "Unexpected use of smallLiteralDive in Mips";
+bool MipsMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode ATTRIBUTE_UNUSED,
+                                     bool is_div ATTRIBUTE_UNUSED,
+                                     RegLocation rl_src ATTRIBUTE_UNUSED,
+                                     RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                     int lit ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Unexpected use of smallLiteralDivRem in Mips";
   UNREACHABLE();
 }
 
-bool MipsMir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
-  UNUSED(rl_src, rl_dest, lit);
+bool MipsMir2Lir::EasyMultiply(RegLocation rl_src ATTRIBUTE_UNUSED,
+                               RegLocation rl_dest ATTRIBUTE_UNUSED,
+                               int lit ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of easyMultiply in Mips";
   UNREACHABLE();
 }
 
-LIR* MipsMir2Lir::OpIT(ConditionCode cond, const char* guide) {
-  UNUSED(cond, guide);
+LIR* MipsMir2Lir::OpIT(ConditionCode cond ATTRIBUTE_UNUSED, const char* guide ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpIT in Mips";
   UNREACHABLE();
 }
 
-void MipsMir2Lir::OpEndIT(LIR* it) {
-  UNUSED(it);
+void MipsMir2Lir::OpEndIT(LIR* it ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpEndIT in Mips";
 }
 
@@ -621,9 +620,12 @@ void MipsMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1, RegLocati
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                                RegLocation rl_src2, bool is_div, int flags) {
-  UNUSED(opcode);
+void MipsMir2Lir::GenDivRemLong(Instruction::Code opcode ATTRIBUTE_UNUSED,
+                                RegLocation rl_dest,
+                                RegLocation rl_src1,
+                                RegLocation rl_src2,
+                                bool is_div,
+                                int flags) {
   // TODO: Implement easy div/rem?
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
@@ -855,9 +857,11 @@ void MipsMir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest, 
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                    RegLocation rl_src1, RegLocation rl_shift, int flags) {
-  UNUSED(flags);
+void MipsMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
+                                    RegLocation rl_dest,
+                                    RegLocation rl_src1,
+                                    RegLocation rl_shift,
+                                    int flags ATTRIBUTE_UNUSED) {
   if (!cu_->target64) {
     // Default implementation is just to ignore the constant case.
     GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);

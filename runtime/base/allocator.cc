@@ -49,15 +49,13 @@ class NoopAllocator FINAL : public Allocator {
   explicit NoopAllocator() {}
   ~NoopAllocator() {}
 
-  void* Alloc(size_t size) {
-    UNUSED(size);
+  void* Alloc(size_t size ATTRIBUTE_UNUSED) {
     LOG(FATAL) << "NoopAllocator::Alloc should not be called";
     UNREACHABLE();
   }
 
-  void Free(void* p) {
+  void Free(void* p ATTRIBUTE_UNUSED) {
     // Noop.
-    UNUSED(p);
   }
 
  private:

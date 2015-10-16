@@ -521,10 +521,9 @@ static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const RegStorage* alt_fro
  * kArg1 here rather than the standard GenDalvikArgs.
  */
 static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
-                         int state, const MethodReference& target_method,
+                         int state, const MethodReference& target_method ATTRIBUTE_UNUSED,
                          uint32_t method_idx, uintptr_t, uintptr_t,
                          InvokeType) {
-  UNUSED(target_method);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   /*
    * This is the fast path in which the target virtual method is
@@ -607,10 +606,12 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
   return state + 1;
 }
 
-static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info,
-                            QuickEntrypointEnum trampoline, int state,
-                            const MethodReference& target_method, uint32_t method_idx) {
-  UNUSED(info, method_idx);
+static int NextInvokeInsnSP(CompilationUnit* cu,
+                            CallInfo* info ATTRIBUTE_UNUSED,
+                            QuickEntrypointEnum trampoline,
+                            int state,
+                            const MethodReference& target_method,
+                            uint32_t method_idx ATTRIBUTE_UNUSED) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
 
   /*
@@ -1266,35 +1267,31 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   return true;
 }
 
-bool Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
+bool Mir2Lir::GenInlinedReverseBits(CallInfo* info ATTRIBUTE_UNUSED, OpSize size ATTRIBUTE_UNUSED) {
   // Currently implemented only for ARM64.
-  UNUSED(info, size);
   return false;
 }
 
-bool Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
+bool Mir2Lir::GenInlinedMinMaxFP(CallInfo* info ATTRIBUTE_UNUSED,
+                                 bool is_min ATTRIBUTE_UNUSED,
+                                 bool is_double ATTRIBUTE_UNUSED) {
   // Currently implemented only for ARM64.
-  UNUSED(info, is_min, is_double);
   return false;
 }
 
-bool Mir2Lir::GenInlinedCeil(CallInfo* info) {
-  UNUSED(info);
+bool Mir2Lir::GenInlinedCeil(CallInfo* info ATTRIBUTE_UNUSED) {
   return false;
 }
 
-bool Mir2Lir::GenInlinedFloor(CallInfo* info) {
-  UNUSED(info);
+bool Mir2Lir::GenInlinedFloor(CallInfo* info ATTRIBUTE_UNUSED) {
   return false;
 }
 
-bool Mir2Lir::GenInlinedRint(CallInfo* info) {
-  UNUSED(info);
+bool Mir2Lir::GenInlinedRint(CallInfo* info ATTRIBUTE_UNUSED) {
   return false;
 }
 
-bool Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
-  UNUSED(info, is_double);
+bool Mir2Lir::GenInlinedRound(CallInfo* info ATTRIBUTE_UNUSED, bool is_double ATTRIBUTE_UNUSED) {
   return false;
 }
 
@@ -1328,8 +1325,7 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
   return true;
 }
 
-bool Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
-  UNUSED(info);
+bool Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info ATTRIBUTE_UNUSED) {
   return false;
 }
 

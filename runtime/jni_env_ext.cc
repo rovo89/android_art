@@ -93,8 +93,7 @@ void JNIEnvExt::DumpReferenceTables(std::ostream& os) {
   monitors.Dump(os);
 }
 
-void JNIEnvExt::PushFrame(int capacity) {
-  UNUSED(capacity);  // cpplint gets confused with (int) and thinks its a cast.
+void JNIEnvExt::PushFrame(int capacity ATTRIBUTE_UNUSED) {
   // TODO: take 'capacity' into account.
   stacked_local_ref_cookies.push_back(local_ref_cookie);
   local_ref_cookie = locals.GetSegmentState();
