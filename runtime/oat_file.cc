@@ -18,6 +18,7 @@
 
 #include <dlfcn.h>
 #include <string.h>
+#include <type_traits>
 #include <unistd.h>
 
 #include <cstdlib>
@@ -388,13 +389,13 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
   // Readjust to be non-inclusive upper bound.
   end_ += sizeof(uint32_t);
 
-  bss_begin_ = elf_file_->FindDynamicSymbolAddress("oatbss");
+  bss_begin_ = const_cast<uint8_t*>(elf_file_->FindDynamicSymbolAddress("oatbss"));
   if (bss_begin_ == nullptr) {
     // No .bss section. Clear dlerror().
     bss_end_ = nullptr;
     dlerror();
   } else {
-    bss_end_ = elf_file_->FindDynamicSymbolAddress("oatbsslastword");
+    bss_end_ = const_cast<uint8_t*>(elf_file_->FindDynamicSymbolAddress("oatbsslastword"));
     if (bss_end_ == nullptr) {
       *error_msg = StringPrintf("Failed to find oatbasslastword symbol in '%s'",
                                 file->GetPath().c_str());
@@ -407,10 +408,31 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
   return Setup(abs_dex_location, error_msg);
 }
 
+// Read an unaligned entry from the OatDexFile data in OatFile and advance the read
+// position by the number of bytes read, i.e. sizeof(T).
+// Return true on success, false if the read would go beyond the end of the OatFile.
+template <typename T>
+ALWAYS_INLINE static bool ReadOatDexFileData(const OatFile& oat_file,
+                                             /*inout*/const uint8_t** oat,
+                                             /*out*/T* value) {
+  DCHECK(oat != nullptr);
+  DCHECK(value != nullptr);
+  DCHECK_LE(*oat, oat_file.End());
+  if (UNLIKELY(static_cast<size_t>(oat_file.End() - *oat) < sizeof(T))) {
+    return false;
+  }
+  static_assert(std::is_trivial<T>::value, "T must be a trivial type");
+  typedef __attribute__((__aligned__(1))) T unaligned_type;
+  *value = *reinterpret_cast<const unaligned_type*>(*oat);
+  *oat += sizeof(T);
+  return true;
+}
+
 bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
   if (!GetOatHeader().IsValid()) {
     std::string cause = GetOatHeader().GetValidationErrorMessage();
-    *error_msg = StringPrintf("Invalid oat header for '%s': %s", GetLocation().c_str(),
+    *error_msg = StringPrintf("Invalid oat header for '%s': %s",
+                              GetLocation().c_str(),
                               cause.c_str());
     return false;
   }
@@ -424,35 +446,42 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
   oat += GetOatHeader().GetKeyValueStoreSize();
   if (oat > End()) {
     *error_msg = StringPrintf("In oat file '%s' found truncated variable-size data: "
-                              "%p + %zd + %ud <= %p", GetLocation().c_str(),
-                              Begin(), sizeof(OatHeader), GetOatHeader().GetKeyValueStoreSize(),
+                                  "%p + %zu + %u <= %p",
+                              GetLocation().c_str(),
+                              Begin(),
+                              sizeof(OatHeader),
+                              GetOatHeader().GetKeyValueStoreSize(),
                               End());
     return false;
   }
 
   size_t pointer_size = GetInstructionSetPointerSize(GetOatHeader().GetInstructionSet());
-  const uint8_t* dex_cache_arrays = bss_begin_;
+  uint8_t* dex_cache_arrays = bss_begin_;
   uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
   oat_dex_files_storage_.reserve(dex_file_count);
   for (size_t i = 0; i < dex_file_count; i++) {
-    uint32_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
-    if (UNLIKELY(dex_file_location_size == 0U)) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd with empty location name",
-                                GetLocation().c_str(), i);
+    uint32_t dex_file_location_size;
+    if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &dex_file_location_size))) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu truncated after dex file "
+                                    "location size",
+                                GetLocation().c_str(),
+                                i);
       return false;
     }
-    oat += sizeof(dex_file_location_size);
-    if (UNLIKELY(oat > End())) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd truncated after dex file "
-                                "location size", GetLocation().c_str(), i);
+    if (UNLIKELY(dex_file_location_size == 0U)) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu with empty location name",
+                                GetLocation().c_str(),
+                                i);
       return false;
     }
 
     const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
     oat += dex_file_location_size;
     if (UNLIKELY(oat > End())) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd with truncated dex file "
-                                "location", GetLocation().c_str(), i);
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu with truncated dex file "
+                                    "location",
+                                GetLocation().c_str(),
+                                i);
       return false;
     }
 
@@ -460,46 +489,61 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
         abs_dex_location,
         std::string(dex_file_location_data, dex_file_location_size));
 
-    uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
-    oat += sizeof(dex_file_checksum);
-    if (UNLIKELY(oat > End())) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' truncated after "
-                                "dex file checksum", GetLocation().c_str(), i,
+    uint32_t dex_file_checksum;
+    if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &dex_file_checksum))) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' truncated after "
+                                    "dex file checksum",
+                                GetLocation().c_str(),
+                                i,
                                 dex_file_location.c_str());
       return false;
     }
 
-    uint32_t dex_file_offset = *reinterpret_cast<const uint32_t*>(oat);
+    uint32_t dex_file_offset;
+    if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &dex_file_offset))) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' truncated "
+                                    "after dex file offsets",
+                                GetLocation().c_str(),
+                                i,
+                                dex_file_location.c_str());
+      return false;
+    }
     if (UNLIKELY(dex_file_offset == 0U)) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with zero dex "
-                                "file offset", GetLocation().c_str(), i, dex_file_location.c_str());
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with zero dex "
+                                    "file offset",
+                                GetLocation().c_str(),
+                                i,
+                                dex_file_location.c_str());
       return false;
     }
     if (UNLIKELY(dex_file_offset > Size())) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with dex file "
-                                "offset %ud > %zd", GetLocation().c_str(), i,
-                                dex_file_location.c_str(), dex_file_offset, Size());
-      return false;
-    }
-    oat += sizeof(dex_file_offset);
-    if (UNLIKELY(oat > End())) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' truncated "
-                                "after dex file offsets", GetLocation().c_str(), i,
-                                dex_file_location.c_str());
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with dex file "
+                                    "offset %u > %zu",
+                                GetLocation().c_str(),
+                                i,
+                                dex_file_location.c_str(),
+                                dex_file_offset,
+                                Size());
       return false;
     }
 
     const uint8_t* dex_file_pointer = Begin() + dex_file_offset;
     if (UNLIKELY(!DexFile::IsMagicValid(dex_file_pointer))) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with invalid "
-                                "dex file magic '%s'", GetLocation().c_str(), i,
-                                dex_file_location.c_str(), dex_file_pointer);
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with invalid "
+                                    "dex file magic '%s'",
+                                GetLocation().c_str(),
+                                i,
+                                dex_file_location.c_str(),
+                                dex_file_pointer);
       return false;
     }
     if (UNLIKELY(!DexFile::IsVersionValid(dex_file_pointer))) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with invalid "
-                                "dex file version '%s'", GetLocation().c_str(), i,
-                                dex_file_location.c_str(), dex_file_pointer);
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with invalid "
+                                    "dex file version '%s'",
+                                GetLocation().c_str(),
+                                i,
+                                dex_file_location.c_str(),
+                                dex_file_pointer);
       return false;
     }
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
@@ -507,21 +551,26 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
     if (UNLIKELY(oat > End())) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
-                                "method offsets", GetLocation().c_str(), i,
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with truncated "
+                                    "method offsets",
+                                GetLocation().c_str(),
+                                i,
                                 dex_file_location.c_str());
       return false;
     }
 
-    const uint8_t* current_dex_cache_arrays = nullptr;
+    uint8_t* current_dex_cache_arrays = nullptr;
     if (dex_cache_arrays != nullptr) {
       DexCacheArraysLayout layout(pointer_size, *header);
       if (layout.Size() != 0u) {
         if (static_cast<size_t>(bss_end_ - dex_cache_arrays) < layout.Size()) {
-          *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with "
-                                    "truncated dex cache arrays, %zd < %zd.",
-                                    GetLocation().c_str(), i, dex_file_location.c_str(),
-                                    static_cast<size_t>(bss_end_ - dex_cache_arrays), layout.Size());
+          *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with "
+                                        "truncated dex cache arrays, %zu < %zu.",
+                                    GetLocation().c_str(),
+                                    i,
+                                    dex_file_location.c_str(),
+                                    static_cast<size_t>(bss_end_ - dex_cache_arrays),
+                                    layout.Size());
           return false;
         }
         current_dex_cache_arrays = dex_cache_arrays;
@@ -553,7 +602,7 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
   if (dex_cache_arrays != bss_end_) {
     // We expect the bss section to be either empty (dex_cache_arrays and bss_end_
     // both null) or contain just the dex cache arrays and nothing else.
-    *error_msg = StringPrintf("In oat file '%s' found unexpected bss size bigger by %zd bytes.",
+    *error_msg = StringPrintf("In oat file '%s' found unexpected bss size bigger by %zu bytes.",
                               GetLocation().c_str(),
                               static_cast<size_t>(bss_end_ - dex_cache_arrays));
     return false;
@@ -661,7 +710,7 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 uint32_t dex_file_location_checksum,
                                 const uint8_t* dex_file_pointer,
                                 const uint32_t* oat_class_offsets_pointer,
-                                const uint8_t* dex_cache_arrays)
+                                uint8_t* dex_cache_arrays)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
       canonical_dex_file_location_(canonical_dex_file_location),
