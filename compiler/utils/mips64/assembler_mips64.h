@@ -230,6 +230,7 @@ class Mips64Assembler FINAL : public Assembler {
   void Cvtdw(FpuRegister fd, FpuRegister fs);
   void Cvtsd(FpuRegister fd, FpuRegister fs);
   void Cvtds(FpuRegister fd, FpuRegister fs);
+  void Cvtsl(FpuRegister fd, FpuRegister fs);
   void Cvtdl(FpuRegister fd, FpuRegister fs);
 
   void Mfc1(GpuRegister rt, FpuRegister fs);
