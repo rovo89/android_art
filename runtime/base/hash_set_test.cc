@@ -196,6 +196,24 @@ TEST_F(HashSetTest, TestShrink) {
   }
 }
 
+TEST_F(HashSetTest, TestLoadFactor) {
+  HashSet<std::string, IsEmptyFnString> hash_set;
+  static constexpr size_t kStringCount = 1000;
+  static constexpr double kEpsilon = 0.01;
+  for (size_t i = 0; i < kStringCount; ++i) {
+    hash_set.Insert(RandomString(i % 10 + 1));
+  }
+  // Check that changing the load factor resizes the table to be within the target range.
+  EXPECT_GE(hash_set.CalculateLoadFactor() + kEpsilon, hash_set.GetMinLoadFactor());
+  EXPECT_LE(hash_set.CalculateLoadFactor() - kEpsilon, hash_set.GetMaxLoadFactor());
+  hash_set.SetLoadFactor(0.1, 0.3);
+  EXPECT_DOUBLE_EQ(0.1, hash_set.GetMinLoadFactor());
+  EXPECT_DOUBLE_EQ(0.3, hash_set.GetMaxLoadFactor());
+  EXPECT_LE(hash_set.CalculateLoadFactor() - kEpsilon, hash_set.GetMaxLoadFactor());
+  hash_set.SetLoadFactor(0.6, 0.8);
+  EXPECT_LE(hash_set.CalculateLoadFactor() - kEpsilon, hash_set.GetMaxLoadFactor());
+}
+
 TEST_F(HashSetTest, TestStress) {
   HashSet<std::string, IsEmptyFnString> hash_set;
   std::unordered_multiset<std::string> std_set;

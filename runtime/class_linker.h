@@ -529,6 +529,8 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
+  // Unlike GetOrCreateAllocatorForClassLoader, GetAllocatorForClassLoader asserts that the
+  // allocator for this class loader is already created.
   static LinearAlloc* GetAllocatorForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_);
 

@@ -580,6 +580,9 @@ class Runtime {
     return *oat_file_manager_;
   }
 
+  double GetHashTableMinLoadFactor() const;
+  double GetHashTableMaxLoadFactor() const;
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -779,6 +782,9 @@ class Runtime {
 
   // Oat file manager, keeps track of what oat files are open.
   OatFileManager* oat_file_manager_;
+
+  // Whether or not we are on a low RAM device.
+  bool is_low_memory_mode_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

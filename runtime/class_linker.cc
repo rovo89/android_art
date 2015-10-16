@@ -1213,13 +1213,8 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
       dex_file.NumMethodIds() != 0u || dex_file.NumFieldIds() != 0u) {
     // NOTE: We "leak" the raw_arrays because we never destroy the dex cache.
     DCHECK(image_pointer_size_ == 4u || image_pointer_size_ == 8u);
-    // When cross-compiling for a 32-bit target on a 64-bit host, we need these arrays
-    // in the low 4GiB address space so that we can store pointers in 32-bit fields.
-    // This is conveniently provided by the linear allocator.
-    raw_arrays = reinterpret_cast<uint8_t*>(
-        (sizeof(void*) == 8u && image_pointer_size_ == 4u)
-        ? Runtime::Current()->GetLinearAlloc()->Alloc(self, layout.Size())  // Zero-initialized.
-        : linear_alloc->Alloc(self, layout.Size()));  // Zero-initialized.
+    // Zero-initialized.
+    raw_arrays = reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
   }
   GcRoot<mirror::String>* strings = (dex_file.NumStringIds() == 0u) ? nullptr :
       reinterpret_cast<GcRoot<mirror::String>*>(raw_arrays + layout.StringsOffset());
