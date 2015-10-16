@@ -756,7 +756,9 @@ void ReferenceTypePropagation::ProcessWorklist() {
   while (!worklist_.empty()) {
     HInstruction* instruction = worklist_.back();
     worklist_.pop_back();
-    if (UpdateNullability(instruction) || UpdateReferenceTypeInfo(instruction)) {
+    bool updated_nullability = UpdateNullability(instruction);
+    bool updated_reference_type = UpdateReferenceTypeInfo(instruction);
+    if (updated_nullability || updated_reference_type) {
       AddDependentInstructionsToWorklist(instruction);
     }
   }
