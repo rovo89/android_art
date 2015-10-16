@@ -19,7 +19,6 @@ LOCAL_PATH := $(call my-dir)
 include art/build/Android.common_build.mk
 
 LIBART_COMMON_SRC_FILES := \
-  art_code.cc \
   art_field.cc \
   art_method.cc \
   atomic.cc.arm \
@@ -156,6 +155,7 @@ LIBART_COMMON_SRC_FILES := \
   oat_file.cc \
   oat_file_assistant.cc \
   oat_file_manager.cc \
+  oat_quick_method_header.cc \
   object_lock.cc \
   offsets.cc \
   os_linux.cc \

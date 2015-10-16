@@ -26,6 +26,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/stack_trace_element.h"
+#include "oat_quick_method_header.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
@@ -169,7 +170,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   r->SetInstructionSet(kRuntimeISA);
   ArtMethod* save_method = r->CreateCalleeSaveMethod();
   r->SetCalleeSaveMethod(save_method, Runtime::kSaveAll);
-  QuickMethodFrameInfo frame_info = ArtCode(save_method).GetQuickFrameInfo();
+  QuickMethodFrameInfo frame_info = r->GetRuntimeMethodFrameInfo(save_method);
 
   ASSERT_EQ(kStackAlignment, 16U);
   // ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
@@ -186,15 +187,15 @@ TEST_F(ExceptionTest, StackTraceElement) {
     fake_stack.push_back(0);
   }
 
-  fake_stack.push_back(
-      ArtCode(method_g_).ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
+  fake_stack.push_back(method_g_->GetOatQuickMethodHeader(0)->ToNativeQuickPc(
+      method_g_, dex_pc, /* is_catch_handler */ false));  // return pc
 
   // Create/push fake 16byte stack frame for method g
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
   fake_stack.push_back(0);
   fake_stack.push_back(0);
-  fake_stack.push_back(
-      ArtCode(method_g_).ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
+  fake_stack.push_back(method_g_->GetOatQuickMethodHeader(0)->ToNativeQuickPc(
+      method_g_, dex_pc, /* is_catch_handler */ false));  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
