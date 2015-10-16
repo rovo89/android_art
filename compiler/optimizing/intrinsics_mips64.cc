@@ -43,6 +43,93 @@ ArenaAllocator* IntrinsicCodeGeneratorMIPS64::GetAllocator() {
   return codegen_->GetGraph()->GetArena();
 }
 
+#define __ codegen->GetAssembler()->
+
+static void MoveFromReturnRegister(Location trg,
+                                   Primitive::Type type,
+                                   CodeGeneratorMIPS64* codegen) {
+  if (!trg.IsValid()) {
+    DCHECK_EQ(type, Primitive::kPrimVoid);
+    return;
+  }
+
+  DCHECK_NE(type, Primitive::kPrimVoid);
+
+  if (Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) {
+    GpuRegister trg_reg = trg.AsRegister<GpuRegister>();
+    if (trg_reg != V0) {
+      __ Move(V0, trg_reg);
+    }
+  } else {
+    FpuRegister trg_reg = trg.AsFpuRegister<FpuRegister>();
+    if (trg_reg != F0) {
+      if (type == Primitive::kPrimFloat) {
+        __ MovS(F0, trg_reg);
+      } else {
+        __ MovD(F0, trg_reg);
+      }
+    }
+  }
+}
+
+static void MoveArguments(HInvoke* invoke, CodeGeneratorMIPS64* codegen) {
+  InvokeDexCallingConventionVisitorMIPS64 calling_convention_visitor;
+  IntrinsicVisitor::MoveArguments(invoke, codegen, &calling_convention_visitor);
+}
+
+// Slow-path for fallback (calling the managed code to handle the
+// intrinsic) in an intrinsified call. This will copy the arguments
+// into the positions for a regular call.
+//
+// Note: The actual parameters are required to be in the locations
+//       given by the invoke's location summary. If an intrinsic
+//       modifies those locations before a slowpath call, they must be
+//       restored!
+class IntrinsicSlowPathMIPS64 : public SlowPathCodeMIPS64 {
+ public:
+  explicit IntrinsicSlowPathMIPS64(HInvoke* invoke) : invoke_(invoke) { }
+
+  void EmitNativeCode(CodeGenerator* codegen_in) OVERRIDE {
+    CodeGeneratorMIPS64* codegen = down_cast<CodeGeneratorMIPS64*>(codegen_in);
+
+    __ Bind(GetEntryLabel());
+
+    SaveLiveRegisters(codegen, invoke_->GetLocations());
+
+    MoveArguments(invoke_, codegen);
+
+    if (invoke_->IsInvokeStaticOrDirect()) {
+      codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
+                                          Location::RegisterLocation(A0));
+      codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
+    } else {
+      UNIMPLEMENTED(FATAL) << "Non-direct intrinsic slow-path not yet implemented";
+      UNREACHABLE();
+    }
+
+    // Copy the result back to the expected output.
+    Location out = invoke_->GetLocations()->Out();
+    if (out.IsValid()) {
+      DCHECK(out.IsRegister());  // TODO: Replace this when we support output in memory.
+      DCHECK(!invoke_->GetLocations()->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
+      MoveFromReturnRegister(out, invoke_->GetType(), codegen);
+    }
+
+    RestoreLiveRegisters(codegen, invoke_->GetLocations());
+    __ B(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "IntrinsicSlowPathMIPS64"; }
+
+ private:
+  // The instruction where this slow path is happening.
+  HInvoke* const invoke_;
+
+  DISALLOW_COPY_AND_ASSIGN(IntrinsicSlowPathMIPS64);
+};
+
+#undef __
+
 bool IntrinsicLocationsBuilderMIPS64::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
@@ -765,6 +852,270 @@ void IntrinsicCodeGeneratorMIPS64::VisitThreadCurrentThread(HInvoke* invoke) {
                     Thread::PeerOffset<kMips64PointerSize>().Int32Value());
 }
 
+// char java.lang.String.charAt(int index)
+void IntrinsicLocationsBuilderMIPS64::VisitStringCharAt(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnSlowPath,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringCharAt(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Mips64Assembler* assembler = GetAssembler();
+
+  // Location of reference to data array
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count
+  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
+
+  GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister idx = locations->InAt(1).AsRegister<GpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  // TODO: Maybe we can support range check elimination. Overall,
+  //       though, I think it's not worth the cost.
+  // TODO: For simplicity, the index parameter is requested in a
+  //       register, so different from Quick we will not optimize the
+  //       code for constants (which would save a register).
+
+  SlowPathCodeMIPS64* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS64(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Load the string size
+  __ Lw(TMP, obj, count_offset);
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  // Revert to slow path if idx is too large, or negative
+  __ Bgeuc(idx, TMP, slow_path->GetEntryLabel());
+
+  // out = obj[2*idx].
+  __ Sll(TMP, idx, 1);                  // idx * 2
+  __ Daddu(TMP, TMP, obj);              // Address of char at location idx
+  __ Lhu(out, TMP, value_offset);       // Load char at location idx
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
+// int java.lang.String.compareTo(String anotherString)
+void IntrinsicLocationsBuilderMIPS64::VisitStringCompareTo(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->SetOut(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringCompareTo(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Note that the null check must have been done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
+
+  GpuRegister argument = locations->InAt(1).AsRegister<GpuRegister>();
+  SlowPathCodeMIPS64* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ Beqzc(argument, slow_path->GetEntryLabel());
+
+  __ LoadFromOffset(kLoadDoubleword,
+                    TMP,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize,
+                                            pStringCompareTo).Int32Value());
+  __ Jalr(TMP);
+  __ Nop();
+  __ Bind(slow_path->GetExitLabel());
+}
+
+static void GenerateStringIndexOf(HInvoke* invoke,
+                                  Mips64Assembler* assembler,
+                                  CodeGeneratorMIPS64* codegen,
+                                  ArenaAllocator* allocator,
+                                  bool start_at_zero) {
+  LocationSummary* locations = invoke->GetLocations();
+  GpuRegister tmp_reg = start_at_zero ? locations->GetTemp(0).AsRegister<GpuRegister>() : TMP;
+
+  // Note that the null check must have been done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
+
+  // Check for code points > 0xFFFF. Either a slow-path check when we
+  // don't know statically, or directly dispatch if we have a constant.
+  SlowPathCodeMIPS64* slow_path = nullptr;
+  if (invoke->InputAt(1)->IsIntConstant()) {
+    if (!IsUint<16>(invoke->InputAt(1)->AsIntConstant()->GetValue())) {
+      // Always needs the slow-path. We could directly dispatch to it,
+      // but this case should be rare, so for simplicity just put the
+      // full slow-path down and branch unconditionally.
+      slow_path = new (allocator) IntrinsicSlowPathMIPS64(invoke);
+      codegen->AddSlowPath(slow_path);
+      __ B(slow_path->GetEntryLabel());
+      __ Bind(slow_path->GetExitLabel());
+      return;
+    }
+  } else {
+    GpuRegister char_reg = locations->InAt(1).AsRegister<GpuRegister>();
+    __ LoadConst32(tmp_reg, std::numeric_limits<uint16_t>::max());
+    slow_path = new (allocator) IntrinsicSlowPathMIPS64(invoke);
+    codegen->AddSlowPath(slow_path);
+    __ Bltuc(tmp_reg, char_reg, slow_path->GetEntryLabel());    // UTF-16 required
+  }
+
+  if (start_at_zero) {
+    DCHECK_EQ(tmp_reg, A2);
+    // Start-index = 0.
+    __ Clear(tmp_reg);
+  } else {
+    __ Slt(TMP, A2, ZERO);      // if fromIndex < 0
+    __ Seleqz(A2, A2, TMP);     //     fromIndex = 0
+  }
+
+  __ LoadFromOffset(kLoadDoubleword,
+                    TMP,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pIndexOf).Int32Value());
+  __ Jalr(TMP);
+  __ Nop();
+
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
+}
+
+// int java.lang.String.indexOf(int ch)
+void IntrinsicLocationsBuilderMIPS64::VisitStringIndexOf(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  // We have a hand-crafted assembly stub that follows the runtime
+  // calling convention. So it's best to align the inputs accordingly.
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->SetOut(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+
+  // Need a temp for slow-path codepoint compare, and need to send start-index=0.
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOf(HInvoke* invoke) {
+  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), true);
+}
+
+// int java.lang.String.indexOf(int ch, int fromIndex)
+void IntrinsicLocationsBuilderMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  // We have a hand-crafted assembly stub that follows the runtime
+  // calling convention. So it's best to align the inputs accordingly.
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->SetOut(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
+  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), false);
+}
+
+// java.lang.String.String(byte[] bytes)
+void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(3, Location::RegisterLocation(calling_convention.GetRegisterAt(3)));
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->SetOut(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  GpuRegister byte_array = locations->InAt(0).AsRegister<GpuRegister>();
+  SlowPathCodeMIPS64* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ Beqzc(byte_array, slow_path->GetEntryLabel());
+
+  __ LoadFromOffset(kLoadDoubleword,
+                    TMP,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pAllocStringFromBytes).Int32Value());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Jalr(TMP);
+  __ Nop();
+  __ Bind(slow_path->GetExitLabel());
+}
+
+// java.lang.String.String(char[] value)
+void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromChars(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->SetOut(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+
+  __ LoadFromOffset(kLoadDoubleword,
+                    TMP,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pAllocStringFromChars).Int32Value());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Jalr(TMP);
+  __ Nop();
+}
+
+// java.lang.String.String(String original)
+void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromString(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->SetOut(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromString(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  GpuRegister string_to_copy = locations->InAt(0).AsRegister<GpuRegister>();
+  SlowPathCodeMIPS64* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ Beqzc(string_to_copy, slow_path->GetEntryLabel());
+
+  __ LoadFromOffset(kLoadDoubleword,
+                    TMP,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pAllocStringFromString).Int32Value());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Jalr(TMP);
+  __ Nop();
+  __ Bind(slow_path->GetExitLabel());
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -794,14 +1145,7 @@ UNIMPLEMENTED_INTRINSIC(UnsafePutLongVolatile)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASInt)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
-UNIMPLEMENTED_INTRINSIC(StringCharAt)
-UNIMPLEMENTED_INTRINSIC(StringCompareTo)
 UNIMPLEMENTED_INTRINSIC(StringEquals)
-UNIMPLEMENTED_INTRINSIC(StringIndexOf)
-UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
-UNIMPLEMENTED_INTRINSIC(StringNewStringFromBytes)
-UNIMPLEMENTED_INTRINSIC(StringNewStringFromChars)
-UNIMPLEMENTED_INTRINSIC(StringNewStringFromString)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongNumberOfTrailingZeros)
