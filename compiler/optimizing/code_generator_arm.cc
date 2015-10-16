@@ -1141,8 +1141,7 @@ void LocationsBuilderARM::VisitExit(HExit* exit) {
   exit->SetLocations(nullptr);
 }
 
-void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
-  UNUSED(exit);
+void InstructionCodeGeneratorARM::VisitExit(HExit* exit ATTRIBUTE_UNUSED) {
 }
 
 void InstructionCodeGeneratorARM::GenerateCompareWithImmediate(Register left, int32_t right) {
@@ -1570,9 +1569,8 @@ void LocationsBuilderARM::VisitLoadLocal(HLoadLocal* load) {
   load->SetLocations(nullptr);
 }
 
-void InstructionCodeGeneratorARM::VisitLoadLocal(HLoadLocal* load) {
+void InstructionCodeGeneratorARM::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNUSED) {
   // Nothing to do, this is driven by the code generator.
-  UNUSED(load);
 }
 
 void LocationsBuilderARM::VisitStoreLocal(HStoreLocal* store) {
@@ -1599,8 +1597,7 @@ void LocationsBuilderARM::VisitStoreLocal(HStoreLocal* store) {
   }
 }
 
-void InstructionCodeGeneratorARM::VisitStoreLocal(HStoreLocal* store) {
-  UNUSED(store);
+void InstructionCodeGeneratorARM::VisitStoreLocal(HStoreLocal* store ATTRIBUTE_UNUSED) {
 }
 
 void LocationsBuilderARM::VisitIntConstant(HIntConstant* constant) {
@@ -1609,9 +1606,8 @@ void LocationsBuilderARM::VisitIntConstant(HIntConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
+void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
-  UNUSED(constant);
 }
 
 void LocationsBuilderARM::VisitNullConstant(HNullConstant* constant) {
@@ -1620,9 +1616,8 @@ void LocationsBuilderARM::VisitNullConstant(HNullConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARM::VisitNullConstant(HNullConstant* constant) {
+void InstructionCodeGeneratorARM::VisitNullConstant(HNullConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
-  UNUSED(constant);
 }
 
 void LocationsBuilderARM::VisitLongConstant(HLongConstant* constant) {
@@ -1631,9 +1626,8 @@ void LocationsBuilderARM::VisitLongConstant(HLongConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARM::VisitLongConstant(HLongConstant* constant) {
+void InstructionCodeGeneratorARM::VisitLongConstant(HLongConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
-  UNUSED(constant);
 }
 
 void LocationsBuilderARM::VisitFloatConstant(HFloatConstant* constant) {
@@ -1642,9 +1636,8 @@ void LocationsBuilderARM::VisitFloatConstant(HFloatConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARM::VisitFloatConstant(HFloatConstant* constant) {
+void InstructionCodeGeneratorARM::VisitFloatConstant(HFloatConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
-  UNUSED(constant);
 }
 
 void LocationsBuilderARM::VisitDoubleConstant(HDoubleConstant* constant) {
@@ -1653,9 +1646,8 @@ void LocationsBuilderARM::VisitDoubleConstant(HDoubleConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARM::VisitDoubleConstant(HDoubleConstant* constant) {
+void InstructionCodeGeneratorARM::VisitDoubleConstant(HDoubleConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
-  UNUSED(constant);
 }
 
 void LocationsBuilderARM::VisitMemoryBarrier(HMemoryBarrier* memory_barrier) {
@@ -1670,8 +1662,7 @@ void LocationsBuilderARM::VisitReturnVoid(HReturnVoid* ret) {
   ret->SetLocations(nullptr);
 }
 
-void InstructionCodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret) {
-  UNUSED(ret);
+void InstructionCodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret ATTRIBUTE_UNUSED) {
   codegen_->GenerateFrameExit();
 }
 
@@ -1681,8 +1672,7 @@ void LocationsBuilderARM::VisitReturn(HReturn* ret) {
   locations->SetInAt(0, parameter_visitor_.GetReturnLocation(ret->InputAt(0)->GetType()));
 }
 
-void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
-  UNUSED(ret);
+void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret ATTRIBUTE_UNUSED) {
   codegen_->GenerateFrameExit();
 }
 
@@ -3328,8 +3318,7 @@ void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
   locations->SetOut(Location::Any());
 }
 
-void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
-  UNUSED(instruction);
+void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unreachable";
 }
 
@@ -4290,13 +4279,11 @@ void LocationsBuilderARM::VisitTemporary(HTemporary* temp) {
   temp->SetLocations(nullptr);
 }
 
-void InstructionCodeGeneratorARM::VisitTemporary(HTemporary* temp) {
+void InstructionCodeGeneratorARM::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
   // Nothing to do, this is driven by the code generator.
-  UNUSED(temp);
 }
 
-void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction) {
-  UNUSED(instruction);
+void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unreachable";
 }
 
@@ -5344,15 +5331,13 @@ Literal* CodeGeneratorARM::DeduplicateMethodCodeLiteral(MethodReference target_m
   return DeduplicateMethodLiteral(target_method, &call_patches_);
 }
 
-void LocationsBuilderARM::VisitBoundType(HBoundType* instruction) {
+void LocationsBuilderARM::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, this should be removed during prepare for register allocator.
-  UNUSED(instruction);
   LOG(FATAL) << "Unreachable";
 }
 
-void InstructionCodeGeneratorARM::VisitBoundType(HBoundType* instruction) {
+void InstructionCodeGeneratorARM::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, this should be removed during prepare for register allocator.
-  UNUSED(instruction);
   LOG(FATAL) << "Unreachable";
 }
 

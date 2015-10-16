@@ -2102,15 +2102,15 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
 }
 
 /* Call out to helper assembly routine that will null check obj and then lock it. */
-void Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
-  UNUSED(opt_flags);  // TODO: avoid null check with specialized non-null helper.
+void Mir2Lir::GenMonitorEnter(int opt_flags ATTRIBUTE_UNUSED, RegLocation rl_src) {
+  // TODO: avoid null check with specialized non-null helper.
   FlushAllRegs();
   CallRuntimeHelperRegLocation(kQuickLockObject, rl_src, true);
 }
 
 /* Call out to helper assembly routine that will null check obj and then unlock it. */
-void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
-  UNUSED(opt_flags);  // TODO: avoid null check with specialized non-null helper.
+void Mir2Lir::GenMonitorExit(int opt_flags ATTRIBUTE_UNUSED, RegLocation rl_src) {
+  // TODO: avoid null check with specialized non-null helper.
   FlushAllRegs();
   CallRuntimeHelperRegLocation(kQuickUnlockObject, rl_src, true);
 }

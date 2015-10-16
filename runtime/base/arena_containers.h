@@ -176,8 +176,8 @@ class ArenaAllocatorAdapter : private ArenaAllocatorAdapterKind {
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
 
-  pointer allocate(size_type n, ArenaAllocatorAdapter<void>::pointer hint = nullptr) {
-    UNUSED(hint);
+  pointer allocate(size_type n,
+                   ArenaAllocatorAdapter<void>::pointer hint ATTRIBUTE_UNUSED = nullptr) {
     DCHECK_LE(n, max_size());
     return arena_allocator_->AllocArray<T>(n, ArenaAllocatorAdapterKind::Kind());
   }

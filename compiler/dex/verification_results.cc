@@ -34,7 +34,6 @@ VerificationResults::VerificationResults(const CompilerOptions* compiler_options
       verified_methods_(),
       rejected_classes_lock_("compiler rejected classes lock"),
       rejected_classes_() {
-  UNUSED(compiler_options);
 }
 
 VerificationResults::~VerificationResults() {

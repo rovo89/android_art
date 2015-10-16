@@ -38,8 +38,7 @@ ManagedRegister X86_64JniCallingConvention::ReturnScratchRegister() const {
   return ManagedRegister::NoRegister();  // No free regs, so assembler uses push/pop
 }
 
-static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni) {
-  UNUSED(jni);
+static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni ATTRIBUTE_UNUSED) {
   if (shorty[0] == 'F' || shorty[0] == 'D') {
     return X86_64ManagedRegister::FromXmmRegister(XMM0);
   } else if (shorty[0] == 'J') {

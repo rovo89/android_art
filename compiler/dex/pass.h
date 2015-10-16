@@ -53,10 +53,7 @@ class Pass {
    * @param data the PassDataHolder.
    * @return whether or not to execute the pass.
    */
-  virtual bool Gate(const PassDataHolder* data) const {
-    // Unused parameter.
-    UNUSED(data);
-
+  virtual bool Gate(const PassDataHolder* data ATTRIBUTE_UNUSED) const {
     // Base class says yes.
     return true;
   }
@@ -64,17 +61,13 @@ class Pass {
   /**
    * @brief Start of the pass: called before the Worker function.
    */
-  virtual void Start(PassDataHolder* data) const {
-    // Unused parameter.
-    UNUSED(data);
+  virtual void Start(PassDataHolder* data ATTRIBUTE_UNUSED) const {
   }
 
   /**
    * @brief End of the pass: called after the WalkBasicBlocks function.
    */
-  virtual void End(PassDataHolder* data) const {
-    // Unused parameter.
-    UNUSED(data);
+  virtual void End(PassDataHolder* data ATTRIBUTE_UNUSED) const {
   }
 
   /**

@@ -248,10 +248,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
 #ifdef __APPLE__
   // The dl_iterate_phdr syscall is missing.  There is similar API on OSX,
   // but let's fallback to the custom loading code for the time being.
-  UNUSED(elf_filename);
-  UNUSED(requested_base);
-  UNUSED(abs_dex_location);
-  UNUSED(error_msg);
+  UNUSED(elf_filename, requested_base, abs_dex_location, error_msg);
   return false;
 #else
   {

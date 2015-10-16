@@ -125,8 +125,7 @@ class PassDriver {
    * @brief Dispatch a patch.
    * Gives the ability to add logic when running the patch.
    */
-  virtual void DispatchPass(const Pass* pass) {
-    UNUSED(pass);
+  virtual void DispatchPass(const Pass* pass ATTRIBUTE_UNUSED) {
   }
 
   /** @brief List of passes: provides the order to execute the passes.

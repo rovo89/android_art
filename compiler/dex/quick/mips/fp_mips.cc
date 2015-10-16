@@ -115,17 +115,17 @@ void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenMultiplyByConstantFloat(RegLocation rl_dest, RegLocation rl_src1,
-                                             int32_t constant) {
+void MipsMir2Lir::GenMultiplyByConstantFloat(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                             RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                             int32_t constant ATTRIBUTE_UNUSED) {
   // TODO: need mips implementation.
-  UNUSED(rl_dest, rl_src1, constant);
   LOG(FATAL) << "Unimplemented GenMultiplyByConstantFloat in mips";
 }
 
-void MipsMir2Lir::GenMultiplyByConstantDouble(RegLocation rl_dest, RegLocation rl_src1,
-                                              int64_t constant) {
+void MipsMir2Lir::GenMultiplyByConstantDouble(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                              RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                              int64_t constant ATTRIBUTE_UNUSED) {
   // TODO: need mips implementation.
-  UNUSED(rl_dest, rl_src1, constant);
   LOG(FATAL) << "Unimplemented GenMultiplyByConstantDouble in mips";
 }
 
@@ -254,8 +254,10 @@ void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLoc
   StoreValue(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) {
-  UNUSED(bb, mir, gt_bias, is_double);
+void MipsMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb ATTRIBUTE_UNUSED,
+                                      MIR* mir ATTRIBUTE_UNUSED,
+                                      bool gt_bias ATTRIBUTE_UNUSED,
+                                      bool is_double ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
 }
 
@@ -288,9 +290,10 @@ void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-bool MipsMir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
+bool MipsMir2Lir::GenInlinedMinMax(CallInfo* info ATTRIBUTE_UNUSED,
+                                   bool is_min ATTRIBUTE_UNUSED,
+                                   bool is_long ATTRIBUTE_UNUSED) {
   // TODO: need Mips implementation.
-  UNUSED(info, is_min, is_long);
   return false;
 }
 

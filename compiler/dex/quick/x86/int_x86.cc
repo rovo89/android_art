@@ -270,8 +270,7 @@ void X86Mir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, Condi
   }
 }
 
-void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
-  UNUSED(bb);
+void X86Mir2Lir::GenSelect(BasicBlock* bb ATTRIBUTE_UNUSED, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
@@ -597,8 +596,10 @@ void X86Mir2Lir::CalculateMagicAndShift(int64_t divisor, int64_t& magic, int& sh
   shift = (is_long) ? p - 64 : p - 32;
 }
 
-RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div) {
-  UNUSED(rl_dest, reg_lo, lit, is_div);
+RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                     RegStorage reg_lo ATTRIBUTE_UNUSED,
+                                     int lit ATTRIBUTE_UNUSED,
+                                     bool is_div ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for x86";
   UNREACHABLE();
 }
@@ -766,16 +767,19 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
   return rl_result;
 }
 
-RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi,
-                                  bool is_div) {
-  UNUSED(rl_dest, reg_lo, reg_hi, is_div);
+RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                  RegStorage reg_lo ATTRIBUTE_UNUSED,
+                                  RegStorage reg_hi ATTRIBUTE_UNUSED,
+                                  bool is_div ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivRem for x86";
   UNREACHABLE();
 }
 
-RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                                  RegLocation rl_src2, bool is_div, int flags) {
-  UNUSED(rl_dest);
+RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                  RegLocation rl_src1,
+                                  RegLocation rl_src2,
+                                  bool is_div,
+                                  int flags) {
   // We have to use fixed registers, so flush all the temps.
 
   // Prepare for explicit register usage.
@@ -1449,22 +1453,21 @@ void X86Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, R
   }
 }
 
-LIR* X86Mir2Lir::OpVldm(RegStorage r_base, int count) {
-  UNUSED(r_base, count);
+LIR* X86Mir2Lir::OpVldm(RegStorage r_base ATTRIBUTE_UNUSED, int count ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpVldm for x86";
   UNREACHABLE();
 }
 
-LIR* X86Mir2Lir::OpVstm(RegStorage r_base, int count) {
-  UNUSED(r_base, count);
+LIR* X86Mir2Lir::OpVstm(RegStorage r_base ATTRIBUTE_UNUSED, int count ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpVstm for x86";
   UNREACHABLE();
 }
 
 void X86Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
-                                               RegLocation rl_result, int lit,
-                                               int first_bit, int second_bit) {
-  UNUSED(lit);
+                                               RegLocation rl_result,
+                                               int lit ATTRIBUTE_UNUSED,
+                                               int first_bit,
+                                               int second_bit) {
   RegStorage t_reg = AllocTemp();
   OpRegRegImm(kOpLsl, t_reg, rl_src.reg, second_bit - first_bit);
   OpRegRegReg(kOpAdd, rl_result.reg, rl_src.reg, t_reg);
@@ -1595,27 +1598,28 @@ LIR* X86Mir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* targe
   return OpCondBranch(c_code, target);
 }
 
-bool X86Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
-                                    RegLocation rl_src, RegLocation rl_dest, int lit) {
-  UNUSED(dalvik_opcode, is_div, rl_src, rl_dest, lit);
-  LOG(FATAL) << "Unexpected use of smallLiteralDive in x86";
+bool X86Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode ATTRIBUTE_UNUSED,
+                                    bool is_div ATTRIBUTE_UNUSED,
+                                    RegLocation rl_src ATTRIBUTE_UNUSED,
+                                    RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                    int lit ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Unexpected use of smallLiteralDivRem in x86";
   UNREACHABLE();
 }
 
-bool X86Mir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
-  UNUSED(rl_src, rl_dest, lit);
+bool X86Mir2Lir::EasyMultiply(RegLocation rl_src ATTRIBUTE_UNUSED,
+                              RegLocation rl_dest ATTRIBUTE_UNUSED,
+                              int lit ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of easyMultiply in x86";
   UNREACHABLE();
 }
 
-LIR* X86Mir2Lir::OpIT(ConditionCode cond, const char* guide) {
-  UNUSED(cond, guide);
+LIR* X86Mir2Lir::OpIT(ConditionCode cond ATTRIBUTE_UNUSED, const char* guide ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpIT in x86";
   UNREACHABLE();
 }
 
-void X86Mir2Lir::OpEndIT(LIR* it) {
-  UNUSED(it);
+void X86Mir2Lir::OpEndIT(LIR* it ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpEndIT in x86";
   UNREACHABLE();
 }
@@ -1634,8 +1638,10 @@ void X86Mir2Lir::GenImulRegImm(RegStorage dest, RegStorage src, int val) {
   }
 }
 
-void X86Mir2Lir::GenImulMemImm(RegStorage dest, int sreg, int displacement, int val) {
-  UNUSED(sreg);
+void X86Mir2Lir::GenImulMemImm(RegStorage dest,
+                               int sreg ATTRIBUTE_UNUSED,
+                               int displacement,
+                               int val) {
   // All memory accesses below reference dalvik regs.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
 
@@ -2548,9 +2554,11 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 }
 
-RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                          RegLocation rl_src, int shift_amount, int flags) {
-  UNUSED(flags);
+RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
+                                          RegLocation rl_dest,
+                                          RegLocation rl_src,
+                                          int shift_amount,
+                                          int flags ATTRIBUTE_UNUSED) {
   RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
   if (cu_->target64) {
     OpKind op = static_cast<OpKind>(0);    /* Make gcc happy */
