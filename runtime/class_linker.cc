@@ -6369,6 +6369,21 @@ void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   }
 }
 
+void ClassLinker::InsertDexFileInToClassLoader(mirror::Object* dex_file,
+                                               mirror::ClassLoader* class_loader) {
+  DCHECK(dex_file != nullptr);
+  DCHECK(class_loader != nullptr);
+  Thread* const self = Thread::Current();
+  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  ClassTable* const table = class_loader->GetClassTable();
+  DCHECK(table != nullptr);
+  if (table->InsertDexFile(dex_file)) {
+    // It was not already inserted, perform the write barrier to let the GC know the class loader's
+    // class table was modified.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+  }
+}
+
 void ClassLinker::CleanupClassLoaders() {
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
