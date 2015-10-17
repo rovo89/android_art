@@ -852,6 +852,241 @@ void IntrinsicCodeGeneratorMIPS64::VisitThreadCurrentThread(HInvoke* invoke) {
                     Thread::PeerOffset<kMips64PointerSize>().Int32Value());
 }
 
+static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+static void GenUnsafeGet(HInvoke* invoke,
+                         Primitive::Type type,
+                         bool is_volatile,
+                         CodeGeneratorMIPS64* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
+  DCHECK((type == Primitive::kPrimInt) ||
+         (type == Primitive::kPrimLong) ||
+         (type == Primitive::kPrimNot));
+  Mips64Assembler* assembler = codegen->GetAssembler();
+  // Object pointer.
+  GpuRegister base = locations->InAt(1).AsRegister<GpuRegister>();
+  // Long offset.
+  GpuRegister offset = locations->InAt(2).AsRegister<GpuRegister>();
+  GpuRegister trg = locations->Out().AsRegister<GpuRegister>();
+
+  __ Daddu(TMP, base, offset);
+  if (is_volatile) {
+    __ Sync(0);
+  }
+  switch (type) {
+    case Primitive::kPrimInt:
+      __ Lw(trg, TMP, 0);
+      break;
+
+    case Primitive::kPrimNot:
+      __ Lwu(trg, TMP, 0);
+      break;
+
+    case Primitive::kPrimLong:
+      __ Ld(trg, TMP, 0);
+      break;
+
+    default:
+      LOG(FATAL) << "Unsupported op size " << type;
+      UNREACHABLE();
+  }
+}
+
+// int sun.misc.Unsafe.getInt(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGet(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGet(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimInt, false, codegen_);
+}
+
+// int sun.misc.Unsafe.getIntVolatile(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimInt, true, codegen_);
+}
+
+// long sun.misc.Unsafe.getLong(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimLong, false, codegen_);
+}
+
+// long sun.misc.Unsafe.getLongVolatile(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimLong, true, codegen_);
+}
+
+// Object sun.misc.Unsafe.getObject(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimNot, false, codegen_);
+}
+
+// Object sun.misc.Unsafe.getObjectVolatile(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimNot, true, codegen_);
+}
+
+static void CreateIntIntIntIntToVoid(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+}
+
+static void GenUnsafePut(LocationSummary* locations,
+                         Primitive::Type type,
+                         bool is_volatile,
+                         bool is_ordered,
+                         CodeGeneratorMIPS64* codegen) {
+  DCHECK((type == Primitive::kPrimInt) ||
+         (type == Primitive::kPrimLong) ||
+         (type == Primitive::kPrimNot));
+  Mips64Assembler* assembler = codegen->GetAssembler();
+  // Object pointer.
+  GpuRegister base = locations->InAt(1).AsRegister<GpuRegister>();
+  // Long offset.
+  GpuRegister offset = locations->InAt(2).AsRegister<GpuRegister>();
+  GpuRegister value = locations->InAt(3).AsRegister<GpuRegister>();
+
+  __ Daddu(TMP, base, offset);
+  if (is_volatile || is_ordered) {
+    __ Sync(0);
+  }
+  switch (type) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+      __ Sw(value, TMP, 0);
+      break;
+
+    case Primitive::kPrimLong:
+      __ Sd(value, TMP, 0);
+      break;
+
+    default:
+      LOG(FATAL) << "Unsupported op size " << type;
+      UNREACHABLE();
+  }
+  if (is_volatile) {
+    __ Sync(0);
+  }
+
+  if (type == Primitive::kPrimNot) {
+    codegen->MarkGCCard(base, value);
+  }
+}
+
+// void sun.misc.Unsafe.putInt(Object o, long offset, int x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePut(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePut(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, false, false, codegen_);
+}
+
+// void sun.misc.Unsafe.putOrderedInt(Object o, long offset, int x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutOrdered(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, false, true, codegen_);
+}
+
+// void sun.misc.Unsafe.putIntVolatile(Object o, long offset, int x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutVolatile(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, true, false, codegen_);
+}
+
+// void sun.misc.Unsafe.putObject(Object o, long offset, Object x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutObject(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutObject(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, false, false, codegen_);
+}
+
+// void sun.misc.Unsafe.putOrderedObject(Object o, long offset, Object x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, false, true, codegen_);
+}
+
+// void sun.misc.Unsafe.putObjectVolatile(Object o, long offset, Object x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, true, false, codegen_);
+}
+
+// void sun.misc.Unsafe.putLong(Object o, long offset, long x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutLong(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLong(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, false, false, codegen_);
+}
+
+// void sun.misc.Unsafe.putOrderedLong(Object o, long offset, long x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, false, true, codegen_);
+}
+
+// void sun.misc.Unsafe.putLongVolatile(Object o, long offset, long x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
+  CreateIntIntIntIntToVoid(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, true, false, codegen_);
+}
+
 // char java.lang.String.charAt(int index)
 void IntrinsicLocationsBuilderMIPS64::VisitStringCharAt(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
@@ -1127,21 +1362,6 @@ void IntrinsicCodeGeneratorMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
 
-UNIMPLEMENTED_INTRINSIC(UnsafeGet)
-UNIMPLEMENTED_INTRINSIC(UnsafeGetVolatile)
-UNIMPLEMENTED_INTRINSIC(UnsafeGetLong)
-UNIMPLEMENTED_INTRINSIC(UnsafeGetLongVolatile)
-UNIMPLEMENTED_INTRINSIC(UnsafeGetObject)
-UNIMPLEMENTED_INTRINSIC(UnsafeGetObjectVolatile)
-UNIMPLEMENTED_INTRINSIC(UnsafePut)
-UNIMPLEMENTED_INTRINSIC(UnsafePutOrdered)
-UNIMPLEMENTED_INTRINSIC(UnsafePutVolatile)
-UNIMPLEMENTED_INTRINSIC(UnsafePutObject)
-UNIMPLEMENTED_INTRINSIC(UnsafePutObjectOrdered)
-UNIMPLEMENTED_INTRINSIC(UnsafePutObjectVolatile)
-UNIMPLEMENTED_INTRINSIC(UnsafePutLong)
-UNIMPLEMENTED_INTRINSIC(UnsafePutLongOrdered)
-UNIMPLEMENTED_INTRINSIC(UnsafePutLongVolatile)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASInt)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
