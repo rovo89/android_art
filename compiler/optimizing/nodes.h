@@ -1079,14 +1079,23 @@ class HLoopInformationOutwardIterator : public ValueObject {
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)
 
+#ifndef ART_ENABLE_CODEGEN_arm64
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
+#else
+#define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                          \
+  M(Arm64IntermediateAddress, Instruction)
+#endif
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS64(M)
 
+#ifndef ART_ENABLE_CODEGEN_x86
+#define FOR_EACH_CONCRETE_INSTRUCTION_X86(M)
+#else
 #define FOR_EACH_CONCRETE_INSTRUCTION_X86(M)                            \
   M(X86ComputeBaseMethodAddress, Instruction)                           \
   M(X86LoadFromConstantTable, Instruction)                              \
   M(X86PackedSwitch, Instruction)
+#endif
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_X86_64(M)
 
@@ -1368,6 +1377,10 @@ class SideEffects : public ValueObject {
 
   SideEffects Exclusion(SideEffects other) const {
     return SideEffects(flags_ & ~other.flags_);
+  }
+
+  void Add(SideEffects other) {
+    flags_ |= other.flags_;
   }
 
   bool Includes(SideEffects other) const {
@@ -1943,6 +1956,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   }
 
   SideEffects GetSideEffects() const { return side_effects_; }
+  void AddSideEffects(SideEffects other) { side_effects_.Add(other); }
 
   size_t GetLifetimePosition() const { return lifetime_position_; }
   void SetLifetimePosition(size_t position) { lifetime_position_ = position; }
@@ -2012,7 +2026,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   // order of blocks where this instruction's live interval start.
   size_t lifetime_position_;
 
-  const SideEffects side_effects_;
+  SideEffects side_effects_;
 
   // TODO: for primitive types this should be marked as invalid.
   ReferenceTypeInfo reference_type_info_;
@@ -4424,8 +4438,11 @@ class HArrayGet : public HExpression<2> {
   HArrayGet(HInstruction* array,
             HInstruction* index,
             Primitive::Type type,
-            uint32_t dex_pc)
-      : HExpression(type, SideEffects::ArrayReadOfType(type), dex_pc) {
+            uint32_t dex_pc,
+            SideEffects additional_side_effects = SideEffects::None())
+      : HExpression(type,
+                    SideEffects::ArrayReadOfType(type).Union(additional_side_effects),
+                    dex_pc) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
   }
@@ -4460,10 +4477,13 @@ class HArraySet : public HTemplateInstruction<3> {
             HInstruction* index,
             HInstruction* value,
             Primitive::Type expected_component_type,
-            uint32_t dex_pc)
+            uint32_t dex_pc,
+            SideEffects additional_side_effects = SideEffects::None())
       : HTemplateInstruction(
             SideEffects::ArrayWriteOfType(expected_component_type).Union(
-                SideEffectsForArchRuntimeCalls(value->GetType())), dex_pc),
+                SideEffectsForArchRuntimeCalls(value->GetType())).Union(
+                    additional_side_effects),
+            dex_pc),
         expected_component_type_(expected_component_type),
         needs_type_check_(value->GetType() == Primitive::kPrimNot),
         value_can_be_null_(true),
@@ -4516,6 +4536,10 @@ class HArraySet : public HTemplateInstruction<3> {
     return ((value_type == Primitive::kPrimFloat) || (value_type == Primitive::kPrimDouble))
         ? value_type
         : expected_component_type_;
+  }
+
+  Primitive::Type GetRawExpectedComponentType() const {
+    return expected_component_type_;
   }
 
   static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type value_type) {
@@ -4576,6 +4600,7 @@ class HBoundsCheck : public HExpression<2> {
 
   bool CanThrow() const OVERRIDE { return true; }
 
+  HInstruction* GetIndex() const { return InputAt(0); }
 
   DECLARE_INSTRUCTION(BoundsCheck);
 
@@ -5389,6 +5414,9 @@ class HParallelMove : public HTemplateInstruction<0> {
 
 }  // namespace art
 
+#ifdef ART_ENABLE_CODEGEN_arm64
+#include "nodes_arm64.h"
+#endif
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "nodes_x86.h"
 #endif
