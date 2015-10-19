@@ -301,10 +301,10 @@ class OatFile FINAL {
   const uint8_t* end_;
 
   // Pointer to the .bss section, if present, otherwise null.
-  const uint8_t* bss_begin_;
+  uint8_t* bss_begin_;
 
   // Pointer to the end of the .bss section, if present, otherwise null.
-  const uint8_t* bss_end_;
+  uint8_t* bss_end_;
 
   // Was this oat_file loaded executable?
   const bool is_executable_;
@@ -396,7 +396,7 @@ class OatDexFile FINAL {
   // Returns the offset to the OatClass information. Most callers should use GetOatClass.
   uint32_t GetOatClassOffset(uint16_t class_def_index) const;
 
-  const uint8_t* GetDexCacheArrays() const {
+  uint8_t* GetDexCacheArrays() const {
     return dex_cache_arrays_;
   }
 
@@ -409,7 +409,7 @@ class OatDexFile FINAL {
              uint32_t dex_file_checksum,
              const uint8_t* dex_file_pointer,
              const uint32_t* oat_class_offsets_pointer,
-             const uint8_t* dex_cache_arrays);
+             uint8_t* dex_cache_arrays);
 
   const OatFile* const oat_file_;
   const std::string dex_file_location_;
@@ -417,7 +417,7 @@ class OatDexFile FINAL {
   const uint32_t dex_file_location_checksum_;
   const uint8_t* const dex_file_pointer_;
   const uint32_t* const oat_class_offsets_pointer_;
-  const uint8_t* const dex_cache_arrays_;
+  uint8_t* const dex_cache_arrays_;
 
   friend class OatFile;
   DISALLOW_COPY_AND_ASSIGN(OatDexFile);
