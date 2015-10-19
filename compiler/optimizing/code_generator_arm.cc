@@ -1377,8 +1377,7 @@ void LocationsBuilderARM::VisitDeoptimize(HDeoptimize* deoptimize) {
   LocationSummary* locations = new (GetGraph()->GetArena())
       LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
   HInstruction* cond = deoptimize->InputAt(0);
-  DCHECK(cond->IsCondition());
-  if (cond->AsCondition()->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
 }
