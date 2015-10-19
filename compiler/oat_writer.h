@@ -281,7 +281,7 @@ class OatWriter {
 
   // Offsets of the dex cache arrays for each app dex file. For the
   // boot image, this information is provided by the ImageWriter.
-  SafeMap<const DexFile*, size_t> dex_cache_arrays_offsets_;
+  SafeMap<const DexFile*, size_t> dex_cache_arrays_offsets_;  // DexFiles not owned.
 
   // Offset of the oat data from the start of the mmapped region of the elf file.
   size_t oat_data_offset_;
