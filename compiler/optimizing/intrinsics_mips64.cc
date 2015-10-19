@@ -336,6 +336,67 @@ void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfTrailingZeros(HInvoke* invok
   GenNumberOfTrailingZeroes(invoke->GetLocations(), true, GetAssembler());
 }
 
+static void GenRotateRight(HInvoke* invoke,
+                           Primitive::Type type,
+                           Mips64Assembler* assembler) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  LocationSummary* locations = invoke->GetLocations();
+  GpuRegister in = locations->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  if (invoke->InputAt(1)->IsIntConstant()) {
+    uint32_t shift = static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue());
+    if (type == Primitive::kPrimInt) {
+      shift &= 0x1f;
+      __ Rotr(out, in, shift);
+    } else {
+      shift &= 0x3f;
+      if (shift < 32) {
+        __ Drotr(out, in, shift);
+      } else {
+        shift &= 0x1f;
+        __ Drotr32(out, in, shift);
+      }
+    }
+  } else {
+    GpuRegister shamt = locations->InAt(1).AsRegister<GpuRegister>();
+    if (type == Primitive::kPrimInt) {
+      __ Rotrv(out, in, shamt);
+    } else {
+      __ Drotrv(out, in, shamt);
+    }
+  }
+}
+
+// int java.lang.Integer.rotateRight(int i, int distance)
+void IntrinsicLocationsBuilderMIPS64::VisitIntegerRotateRight(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitIntegerRotateRight(HInvoke* invoke) {
+  GenRotateRight(invoke, Primitive::kPrimInt, GetAssembler());
+}
+
+// int java.lang.Long.rotateRight(long i, int distance)
+void IntrinsicLocationsBuilderMIPS64::VisitLongRotateRight(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitLongRotateRight(HInvoke* invoke) {
+  GenRotateRight(invoke, Primitive::kPrimLong, GetAssembler());
+}
+
 static void GenReverse(LocationSummary* locations,
                        Primitive::Type type,
                        Mips64Assembler* assembler) {
@@ -1402,9 +1463,7 @@ UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
 UNIMPLEMENTED_INTRINSIC(StringEquals)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
