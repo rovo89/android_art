@@ -447,6 +447,11 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     return true;
   }
 
+  if (!file.GetOatHeader().IsXposedOatVersionValid()) {
+    VLOG(oat) << "Xposed oat version is outdated";
+    return true;
+  }
+
   // The checksums are all good; the dex file is not out of date.
   return false;
 }
@@ -666,7 +671,12 @@ bool OatFileAssistant::GenerateOatFile(std::string* error_msg) {
   }
 
   std::vector<std::string> args;
-  args.push_back("--dex-file=" + std::string(dex_location_));
+  // Recompile the odex file if we generate to the Dalvik cache
+  if (StartsWith(oat_file_name, DalvikCacheDirectory().c_str()) && OdexFileExists()) {
+    args.push_back("--dex-file=" + *OdexFileName());
+  } else {
+    args.push_back("--dex-file=" + std::string(dex_location_));
+  }
   args.push_back("--oat-file=" + oat_file_name);
 
   // dex2oat ignores missing dex files and doesn't report an error.
@@ -847,6 +857,7 @@ const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
         if (odex_dex_file != nullptr) {
           cached_required_dex_checksum_ = odex_dex_file->GetDexFileLocationChecksum();
           required_dex_checksum_found_ = true;
+          has_original_dex_files_ = true;
         }
       }
     }
