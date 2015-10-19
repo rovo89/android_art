@@ -335,6 +335,10 @@ void Mips64Assembler::Sllv(GpuRegister rd, GpuRegister rt, GpuRegister rs) {
   EmitR(0, rs, rt, rd, 0, 0x04);
 }
 
+void Mips64Assembler::Rotrv(GpuRegister rd, GpuRegister rt, GpuRegister rs) {
+  EmitR(0, rs, rt, rd, 1, 0x06);
+}
+
 void Mips64Assembler::Srlv(GpuRegister rd, GpuRegister rt, GpuRegister rs) {
   EmitR(0, rs, rt, rd, 0, 0x06);
 }
@@ -351,6 +355,10 @@ void Mips64Assembler::Dsrl(GpuRegister rd, GpuRegister rt, int shamt) {
   EmitR(0, static_cast<GpuRegister>(0), rt, rd, shamt, 0x3a);
 }
 
+void Mips64Assembler::Drotr(GpuRegister rd, GpuRegister rt, int shamt) {
+  EmitR(0, static_cast<GpuRegister>(1), rt, rd, shamt, 0x3a);
+}
+
 void Mips64Assembler::Dsra(GpuRegister rd, GpuRegister rt, int shamt) {
   EmitR(0, static_cast<GpuRegister>(0), rt, rd, shamt, 0x3b);
 }
@@ -363,6 +371,10 @@ void Mips64Assembler::Dsrl32(GpuRegister rd, GpuRegister rt, int shamt) {
   EmitR(0, static_cast<GpuRegister>(0), rt, rd, shamt, 0x3e);
 }
 
+void Mips64Assembler::Drotr32(GpuRegister rd, GpuRegister rt, int shamt) {
+  EmitR(0, static_cast<GpuRegister>(1), rt, rd, shamt, 0x3e);
+}
+
 void Mips64Assembler::Dsra32(GpuRegister rd, GpuRegister rt, int shamt) {
   EmitR(0, static_cast<GpuRegister>(0), rt, rd, shamt, 0x3f);
 }
@@ -373,6 +385,10 @@ void Mips64Assembler::Dsllv(GpuRegister rd, GpuRegister rt, GpuRegister rs) {
 
 void Mips64Assembler::Dsrlv(GpuRegister rd, GpuRegister rt, GpuRegister rs) {
   EmitR(0, rs, rt, rd, 0, 0x16);
+}
+
+void Mips64Assembler::Drotrv(GpuRegister rd, GpuRegister rt, GpuRegister rs) {
+  EmitR(0, rs, rt, rd, 1, 0x16);
 }
 
 void Mips64Assembler::Dsrav(GpuRegister rd, GpuRegister rt, GpuRegister rs) {

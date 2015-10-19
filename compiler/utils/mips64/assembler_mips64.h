@@ -123,15 +123,19 @@ class Mips64Assembler FINAL : public Assembler {
   void Sra(GpuRegister rd, GpuRegister rt, int shamt);
   void Sllv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
   void Srlv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
+  void Rotrv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
   void Srav(GpuRegister rd, GpuRegister rt, GpuRegister rs);
   void Dsll(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsrl(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Drotr(GpuRegister rd, GpuRegister rt, int shamt);
   void Dsra(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsll32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsrl32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Drotr32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsra32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsllv(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
   void Dsrlv(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
+  void Drotrv(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
   void Dsrav(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
 
   void Lb(GpuRegister rt, GpuRegister rs, uint16_t imm16);
