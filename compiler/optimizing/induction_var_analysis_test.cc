@@ -20,7 +20,6 @@
 #include "builder.h"
 #include "gtest/gtest.h"
 #include "induction_var_analysis.h"
-#include "induction_var_range.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 
@@ -520,36 +519,6 @@ TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
   EXPECT_STREQ("periodic((100), (0))", GetInductionInfo(mul, 0).c_str());
   EXPECT_STREQ("periodic((2), (0))", GetInductionInfo(shl, 0).c_str());
   EXPECT_STREQ("periodic(( - (1)), (0))", GetInductionInfo(neg, 0).c_str());
-}
-
-TEST_F(InductionVarAnalysisTest, FindRange) {
-  // Setup:
-  // for (int i = 0; i < 100; i++) {
-  //   k = i << 1;
-  //   k = k + 1;
-  //   a[k] = 0;
-  // }
-  BuildLoopNest(1);
-  HInstruction *shl = InsertInstruction(
-      new (&allocator_) HShl(Primitive::kPrimInt, InsertLocalLoad(basic_[0], 0), constant1_), 0);
-  InsertLocalStore(induc_, shl, 0);
-  HInstruction *add = InsertInstruction(
-      new (&allocator_) HAdd(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant1_), 0);
-  InsertLocalStore(induc_, add, 0);
-  HInstruction* store = InsertArrayStore(induc_, 0);
-  PerformInductionVarAnalysis();
-
-  EXPECT_STREQ("((2) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
-
-  InductionVarRange range(iva_);
-  InductionVarRange::Value v_min = range.GetMinInduction(store, store->InputAt(1));
-  InductionVarRange::Value v_max = range.GetMaxInduction(store, store->InputAt(1));
-  ASSERT_TRUE(v_min.is_known);
-  EXPECT_EQ(0, v_min.a_constant);
-  EXPECT_EQ(1, v_min.b_constant);
-  ASSERT_TRUE(v_max.is_known);
-  EXPECT_EQ(0, v_max.a_constant);
-  EXPECT_EQ(199, v_max.b_constant);
 }
 
 TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
