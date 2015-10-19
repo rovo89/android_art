@@ -137,4 +137,15 @@ std::size_t ClassTable::ClassDescriptorHashEquals::operator()(const char* descri
   return ComputeModifiedUtf8Hash(descriptor);
 }
 
+bool ClassTable::InsertDexFile(mirror::Object* dex_file) {
+  DCHECK(dex_file != nullptr);
+  for (GcRoot<mirror::Object>& root : dex_files_) {
+    if (root.Read() == dex_file) {
+      return false;
+    }
+  }
+  dex_files_.push_back(GcRoot<mirror::Object>(dex_file));
+  return true;
+}
+
 }  // namespace art
