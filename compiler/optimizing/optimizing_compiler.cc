@@ -388,19 +388,9 @@ static void MaybeRunInliner(HGraph* graph,
     return;
   }
 
-  ArenaAllocator* arena = graph->GetArena();
-  HInliner* inliner = new (arena) HInliner(
+  HInliner* inliner = new (graph->GetArena()) HInliner(
     graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
-  ReferenceTypePropagation* type_propagation =
-    new (arena) ReferenceTypePropagation(graph, handles,
-        "reference_type_propagation_after_inlining");
-
-  HOptimization* optimizations[] = {
-    inliner,
-    // Run another type propagation phase: inlining will open up more opportunities
-    // to remove checkcast/instanceof and null checks.
-    type_propagation,
-  };
+  HOptimization* optimizations[] = { inliner };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
 }
