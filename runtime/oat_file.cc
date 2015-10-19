@@ -412,9 +412,9 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
 // position by the number of bytes read, i.e. sizeof(T).
 // Return true on success, false if the read would go beyond the end of the OatFile.
 template <typename T>
-ALWAYS_INLINE static bool ReadOatDexFileData(const OatFile& oat_file,
-                                             /*inout*/const uint8_t** oat,
-                                             /*out*/T* value) {
+inline static bool ReadOatDexFileData(const OatFile& oat_file,
+                                      /*inout*/const uint8_t** oat,
+                                      /*out*/T* value) {
   DCHECK(oat != nullptr);
   DCHECK(value != nullptr);
   DCHECK_LE(*oat, oat_file.End());
