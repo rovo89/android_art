@@ -272,7 +272,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitShortReverseBytes(HInvoke* invoke) {
   GenReverseBytes(invoke->GetLocations(), Primitive::kPrimShort, GetAssembler());
 }
 
-static void GenCountZeroes(LocationSummary* locations, bool is64bit, Mips64Assembler* assembler) {
+static void GenNumberOfLeadingZeroes(LocationSummary* locations, bool is64bit, Mips64Assembler* assembler) {
   GpuRegister in  = locations->InAt(0).AsRegister<GpuRegister>();
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
 
@@ -289,7 +289,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitIntegerNumberOfLeadingZeros(HInvoke* 
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  GenCountZeroes(invoke->GetLocations(), false, GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), false, GetAssembler());
 }
 
 // int java.lang.Long.numberOfLeadingZeros(long i)
@@ -298,7 +298,42 @@ void IntrinsicLocationsBuilderMIPS64::VisitLongNumberOfLeadingZeros(HInvoke* inv
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  GenCountZeroes(invoke->GetLocations(), true, GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), true, GetAssembler());
+}
+
+static void GenNumberOfTrailingZeroes(LocationSummary* locations, bool is64bit, Mips64Assembler* assembler) {
+  Location in = locations->InAt(0);
+  Location out = locations->Out();
+
+  if (is64bit) {
+    __ Dsbh(out.AsRegister<GpuRegister>(), in.AsRegister<GpuRegister>());
+    __ Dshd(out.AsRegister<GpuRegister>(), out.AsRegister<GpuRegister>());
+    __ Dbitswap(out.AsRegister<GpuRegister>(), out.AsRegister<GpuRegister>());
+    __ Dclz(out.AsRegister<GpuRegister>(), out.AsRegister<GpuRegister>());
+  } else {
+    __ Rotr(out.AsRegister<GpuRegister>(), in.AsRegister<GpuRegister>(), 16);
+    __ Wsbh(out.AsRegister<GpuRegister>(), out.AsRegister<GpuRegister>());
+    __ Bitswap(out.AsRegister<GpuRegister>(), out.AsRegister<GpuRegister>());
+    __ Clz(out.AsRegister<GpuRegister>(), out.AsRegister<GpuRegister>());
+  }
+}
+
+// int java.lang.Integer.numberOfTrailingZeros(int i)
+void IntrinsicLocationsBuilderMIPS64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), false, GetAssembler());
+}
+
+// int java.lang.Long.numberOfTrailingZeros(long i)
+void IntrinsicLocationsBuilderMIPS64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), true, GetAssembler());
 }
 
 static void GenReverse(LocationSummary* locations,
@@ -1368,10 +1403,8 @@ UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
 UNIMPLEMENTED_INTRINSIC(StringEquals)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongNumberOfTrailingZeros)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerNumberOfTrailingZeros)
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
