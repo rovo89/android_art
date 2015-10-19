@@ -37,6 +37,9 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
       visitor.VisitRoot(root.AddressWithoutBarrier());
     }
   }
+  for (GcRoot<mirror::Object>& root : dex_files_) {
+    visitor.VisitRoot(root.AddressWithoutBarrier());
+  }
 }
 
 }  // namespace art

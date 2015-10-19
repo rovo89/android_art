@@ -526,8 +526,8 @@ class ClassLinker {
 
   // Clean up class loaders, this needs to happen after JNI weak globals are cleared.
   void CleanupClassLoaders()
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!Locks::classlinker_classes_lock_);
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Unlike GetOrCreateAllocatorForClassLoader, GetAllocatorForClassLoader asserts that the
   // allocator for this class loader is already created.
@@ -537,8 +537,12 @@ class ClassLinker {
   // Return the linear alloc for a class loader if it is already allocated, otherwise allocate and
   // set it. TODO: Consider using a lock other than classlinker_classes_lock_.
   static LinearAlloc* GetOrCreateAllocatorForClassLoader(mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!Locks::classlinker_classes_lock_);
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void InsertDexFileInToClassLoader(mirror::Object* dex_file, mirror::ClassLoader* class_loader)
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   struct ClassLoaderData {
