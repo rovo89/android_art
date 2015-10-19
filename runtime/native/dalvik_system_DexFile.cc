@@ -243,7 +243,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
                                         jclass,
                                         jstring javaName,
                                         jobject javaLoader,
-                                        jobject cookie) {
+                                        jobject cookie,
+                                        jobject dexFile) {
   std::vector<const DexFile*> dex_files;
   const OatFile* oat_file;
   if (!ConvertJavaArrayToDexFiles(env, cookie, /*out*/ dex_files, /*out*/ oat_file)) {
@@ -276,6 +277,10 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
                                                         class_loader,
                                                         *dex_file,
                                                         *dex_class_def);
+      // Add the used dex file. This only required for the DexFile.loadClass API since normal
+      // class loaders already keep their dex files live.
+      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object*>(dexFile),
+                                                 class_loader.Get());
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result
                            << " for " << class_name.c_str();
@@ -424,8 +429,13 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
-  NATIVE_METHOD(DexFile, defineClassNative,
-                "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Object;)Ljava/lang/Class;"),
+  NATIVE_METHOD(DexFile,
+                defineClassNative,
+                "(Ljava/lang/String;"
+                "Ljava/lang/ClassLoader;"
+                "Ljava/lang/Object;"
+                "Ldalvik/system/DexFile;"
+                ")Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, getDexOptNeeded,

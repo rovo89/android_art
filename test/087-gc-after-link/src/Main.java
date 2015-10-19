@@ -91,6 +91,7 @@ public class Main {
                      * is an error we can't recover from.
                      */
                     meth.invoke(dexFile, name, this);
+                    System.out.println("Unreachable");
                 } finally {
                     if (dexFile != null) {
                         /* close the DexFile to make CloseGuard happy */
