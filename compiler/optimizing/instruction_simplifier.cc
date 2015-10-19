@@ -73,6 +73,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
   void VisitFakeString(HFakeString* fake_string) OVERRIDE;
   void VisitInvoke(HInvoke* invoke) OVERRIDE;
+  void VisitDeoptimize(HDeoptimize* deoptimize) OVERRIDE;
 
   bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
@@ -1148,6 +1149,18 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     SimplifyStringEquals(instruction);
   } else if (instruction->GetIntrinsic() == Intrinsics::kSystemArrayCopy) {
     SimplifySystemArrayCopy(instruction);
+  }
+}
+
+void InstructionSimplifierVisitor::VisitDeoptimize(HDeoptimize* deoptimize) {
+  HInstruction* cond = deoptimize->InputAt(0);
+  if (cond->IsConstant()) {
+    if (cond->AsIntConstant()->IsZero()) {
+      // Never deopt: instruction can be removed.
+      deoptimize->GetBlock()->RemoveInstruction(deoptimize);
+    } else {
+      // Always deopt.
+    }
   }
 }
 
