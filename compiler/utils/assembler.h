@@ -227,6 +227,8 @@ class AssemblerBuffer {
   // Returns the position in the instruction stream.
   int GetPosition() { return  cursor_ - contents_; }
 
+  void ExtendCapacity(size_t min_capacity = 0u);
+
  private:
   // The limit is set to kMinimumGap bytes before the end of the data area.
   // This leaves enough space for the longest possible instruction and allows
@@ -260,8 +262,6 @@ class AssemblerBuffer {
   static uint8_t* ComputeLimit(uint8_t* data, size_t capacity) {
     return data + capacity - kMinimumGap;
   }
-
-  void ExtendCapacity(size_t min_capacity = 0u);
 
   friend class AssemblerFixup;
 };
