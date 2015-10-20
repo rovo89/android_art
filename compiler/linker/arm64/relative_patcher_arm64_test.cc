@@ -16,6 +16,7 @@
 
 #include "linker/relative_patcher_test.h"
 #include "linker/arm64/relative_patcher_arm64.h"
+#include "oat_quick_method_header.h"
 
 namespace art {
 namespace linker {

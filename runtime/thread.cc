@@ -32,7 +32,6 @@
 #include <sstream>
 
 #include "arch/context.h"
-#include "art_code.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/bit_utils.h"
@@ -58,6 +57,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
+#include "oat_quick_method_header.h"
 #include "object_lock.h"
 #include "quick_exception_handler.h"
 #include "quick/quick_method_frame_info.h"
@@ -1496,8 +1496,7 @@ void Thread::DumpStack(std::ostream& os) const {
     if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
       ArtMethod* method = GetCurrentMethod(nullptr, !dump_for_abort);
-      ArtCode art_code(method);
-      DumpNativeStack(os, GetTid(), "  native: ", method, &art_code);
+      DumpNativeStack(os, GetTid(), "  native: ", method);
     }
     DumpJavaStack(os);
   } else {
@@ -2640,38 +2639,15 @@ class ReferenceMapVisitor : public StackVisitor {
     VisitDeclaringClass(m);
     DCHECK(m != nullptr);
     size_t num_regs = shadow_frame->NumberOfVRegs();
-    if (m->IsNative() || shadow_frame->HasReferenceArray()) {
-      // handle scope for JNI or References for interpreter.
-      for (size_t reg = 0; reg < num_regs; ++reg) {
-        mirror::Object* ref = shadow_frame->GetVRegReference(reg);
-        if (ref != nullptr) {
-          mirror::Object* new_ref = ref;
-          visitor_(&new_ref, reg, this);
-          if (new_ref != ref) {
-            shadow_frame->SetVRegReference(reg, new_ref);
-          }
-        }
-      }
-    } else {
-      // Java method.
-      // Portable path use DexGcMap and store in Method.native_gc_map_.
-      const uint8_t* gc_map = GetCurrentCode().GetNativeGcMap(sizeof(void*));
-      CHECK(gc_map != nullptr) << PrettyMethod(m);
-      verifier::DexPcToReferenceMap dex_gc_map(gc_map);
-      uint32_t dex_pc = shadow_frame->GetDexPC();
-      const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
-      DCHECK(reg_bitmap != nullptr);
-      num_regs = std::min(dex_gc_map.RegWidth() * 8, num_regs);
-      for (size_t reg = 0; reg < num_regs; ++reg) {
-        if (TestBitmap(reg, reg_bitmap)) {
-          mirror::Object* ref = shadow_frame->GetVRegReference(reg);
-          if (ref != nullptr) {
-            mirror::Object* new_ref = ref;
-            visitor_(&new_ref, reg, this);
-            if (new_ref != ref) {
-              shadow_frame->SetVRegReference(reg, new_ref);
-            }
-          }
+    DCHECK(m->IsNative() || shadow_frame->HasReferenceArray());
+    // handle scope for JNI or References for interpreter.
+    for (size_t reg = 0; reg < num_regs; ++reg) {
+      mirror::Object* ref = shadow_frame->GetVRegReference(reg);
+      if (ref != nullptr) {
+        mirror::Object* new_ref = ref;
+        visitor_(&new_ref, reg, this);
+        if (new_ref != ref) {
+          shadow_frame->SetVRegReference(reg, new_ref);
         }
       }
     }
@@ -2702,11 +2678,12 @@ class ReferenceMapVisitor : public StackVisitor {
 
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-      if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      if (method_header->IsOptimized()) {
         auto* vreg_base = reinterpret_cast<StackReference<mirror::Object>*>(
             reinterpret_cast<uintptr_t>(cur_quick_frame));
-        uintptr_t native_pc_offset = GetCurrentCode().NativeQuickPcOffset(GetCurrentQuickFramePc());
-        CodeInfo code_info = GetCurrentCode().GetOptimizedCodeInfo();
+        uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
+        CodeInfo code_info = method_header->GetOptimizedCodeInfo();
         StackMapEncoding encoding = code_info.ExtractEncoding();
         StackMap map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
         DCHECK(map.IsValid());
@@ -2736,7 +2713,7 @@ class ReferenceMapVisitor : public StackVisitor {
           }
         }
       } else {
-        const uint8_t* native_gc_map = GetCurrentCode().GetNativeGcMap(sizeof(void*));
+        const uint8_t* native_gc_map = method_header->GetNativeGcMap();
         CHECK(native_gc_map != nullptr) << PrettyMethod(m);
         const DexFile::CodeItem* code_item = m->GetCodeItem();
         // Can't be null or how would we compile its instructions?
@@ -2744,12 +2721,11 @@ class ReferenceMapVisitor : public StackVisitor {
         NativePcOffsetToReferenceMap map(native_gc_map);
         size_t num_regs = map.RegWidth() * 8;
         if (num_regs > 0) {
-          uintptr_t native_pc_offset =
-              GetCurrentCode().NativeQuickPcOffset(GetCurrentQuickFramePc());
+          uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
           const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
           DCHECK(reg_bitmap != nullptr);
-          const VmapTable vmap_table(GetCurrentCode().GetVmapTable(sizeof(void*)));
-          QuickMethodFrameInfo frame_info = GetCurrentCode().GetQuickFrameInfo();
+          const VmapTable vmap_table(method_header->GetVmapTable());
+          QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
           // For all dex registers in the bitmap
           DCHECK(cur_quick_frame != nullptr);
           for (size_t reg = 0; reg < num_regs; ++reg) {

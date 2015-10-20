@@ -17,7 +17,6 @@
 #include "quick_exception_handler.h"
 
 #include "arch/context.h"
-#include "art_code.h"
 #include "art_method-inl.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
@@ -27,6 +26,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/throwable.h"
+#include "oat_quick_method_header.h"
 #include "stack_map.h"
 #include "verifier/method_verifier.h"
 
@@ -36,13 +36,19 @@ static constexpr bool kDebugExceptionDelivery = false;
 static constexpr size_t kInvalidFrameDepth = 0xffffffff;
 
 QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimization)
-  : self_(self), context_(self->GetLongJumpContext()), is_deoptimization_(is_deoptimization),
-    method_tracing_active_(is_deoptimization ||
-                           Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
-    handler_quick_frame_(nullptr), handler_quick_frame_pc_(0), handler_quick_arg0_(0),
-    handler_method_(nullptr), handler_dex_pc_(0), clear_exception_(false),
-    handler_frame_depth_(kInvalidFrameDepth) {
-}
+    : self_(self),
+      context_(self->GetLongJumpContext()),
+      is_deoptimization_(is_deoptimization),
+      method_tracing_active_(is_deoptimization ||
+                             Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
+      handler_quick_frame_(nullptr),
+      handler_quick_frame_pc_(0),
+      handler_method_header_(nullptr),
+      handler_quick_arg0_(0),
+      handler_method_(nullptr),
+      handler_dex_pc_(0),
+      clear_exception_(false),
+      handler_frame_depth_(kInvalidFrameDepth) {}
 
 // Finds catch handler.
 class CatchBlockStackVisitor FINAL : public StackVisitor {
@@ -62,6 +68,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
       exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
+      exception_handler_->SetHandlerMethodHeader(GetCurrentOatQuickMethodHeader());
       uint32_t next_dex_pc;
       ArtMethod* next_art_method;
       bool has_next = GetNextMethodAndDexPc(&next_art_method, &next_dex_pc);
@@ -101,8 +108,10 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
         exception_handler_->SetHandlerMethod(method);
         exception_handler_->SetHandlerDexPc(found_dex_pc);
         exception_handler_->SetHandlerQuickFramePc(
-            GetCurrentCode().ToNativeQuickPc(found_dex_pc, /* is_catch_handler */ true));
+            GetCurrentOatQuickMethodHeader()->ToNativeQuickPc(
+                method, found_dex_pc, /* is_catch_handler */ true));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
+        exception_handler_->SetHandlerMethodHeader(GetCurrentOatQuickMethodHeader());
         return false;  // End stack walk.
       } else if (UNLIKELY(GetThread()->HasDebuggerShadowFrames())) {
         // We are going to unwind this frame. Did we prepare a shadow frame for debugging?
@@ -160,8 +169,8 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   }
   // If the handler is in optimized code, we need to set the catch environment.
   if (*handler_quick_frame_ != nullptr &&
-      handler_method_ != nullptr &&
-      ArtCode(handler_quick_frame_).IsOptimized(sizeof(void*))) {
+      handler_method_header_ != nullptr &&
+      handler_method_header_->IsOptimized()) {
     SetCatchEnvironmentForOptimizedHandler(&visitor);
   }
 }
@@ -202,14 +211,14 @@ static VRegKind ToVRegKind(DexRegisterLocation::Kind kind) {
 void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor* stack_visitor) {
   DCHECK(!is_deoptimization_);
   DCHECK(*handler_quick_frame_ != nullptr) << "Method should not be called on upcall exceptions";
-  DCHECK(handler_method_ != nullptr && ArtCode(handler_quick_frame_).IsOptimized(sizeof(void*)));
+  DCHECK(handler_method_ != nullptr && handler_method_header_->IsOptimized());
 
   if (kDebugExceptionDelivery) {
     self_->DumpStack(LOG(INFO) << "Setting catch phis: ");
   }
 
   const size_t number_of_vregs = handler_method_->GetCodeItem()->registers_size_;
-  CodeInfo code_info = ArtCode(handler_quick_frame_).GetOptimizedCodeInfo();
+  CodeInfo code_info = handler_method_header_->GetOptimizedCodeInfo();
   StackMapEncoding encoding = code_info.ExtractEncoding();
 
   // Find stack map of the throwing instruction.
@@ -285,6 +294,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       // and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
       exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
+      exception_handler_->SetHandlerMethodHeader(GetCurrentOatQuickMethodHeader());
       if (!stacked_shadow_frame_pushed_) {
         // In case there is no deoptimized shadow frame for this upcall, we still
         // need to push a nullptr to the stack since there is always a matching pop after

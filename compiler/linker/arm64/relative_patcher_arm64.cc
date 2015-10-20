@@ -22,6 +22,7 @@
 #include "driver/compiler_driver.h"
 #include "utils/arm64/assembler_arm64.h"
 #include "oat.h"
+#include "oat_quick_method_header.h"
 #include "output_stream.h"
 
 namespace art {

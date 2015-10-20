@@ -16,10 +16,8 @@
 
 #include "context_x86_64.h"
 
-#include "art_code.h"
 #include "base/bit_utils.h"
 #include "quick/quick_method_frame_info.h"
-#include "stack.h"
 
 namespace art {
 namespace x86_64 {
@@ -37,9 +35,7 @@ void X86_64Context::Reset() {
   arg0_ = 0;
 }
 
-void X86_64Context::FillCalleeSaves(const StackVisitor& fr) {
-  ArtCode code = fr.GetCurrentCode();
-  const QuickMethodFrameInfo frame_info = code.GetQuickFrameInfo();
+void X86_64Context::FillCalleeSaves(uint8_t* frame, const QuickMethodFrameInfo& frame_info) {
   int spill_pos = 0;
 
   // Core registers come first, from the highest down to the lowest.
@@ -47,7 +43,7 @@ void X86_64Context::FillCalleeSaves(const StackVisitor& fr) {
       frame_info.CoreSpillMask() & ~(static_cast<uint32_t>(-1) << kNumberOfCpuRegisters);
   DCHECK_EQ(1, POPCOUNT(frame_info.CoreSpillMask() & ~core_regs));  // Return address spill.
   for (uint32_t core_reg : HighToLowBits(core_regs)) {
-    gprs_[core_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    gprs_[core_reg] = CalleeSaveAddress(frame, spill_pos, frame_info.FrameSizeInBytes());
     ++spill_pos;
   }
   DCHECK_EQ(spill_pos, POPCOUNT(frame_info.CoreSpillMask()) - 1);
@@ -57,7 +53,7 @@ void X86_64Context::FillCalleeSaves(const StackVisitor& fr) {
   DCHECK_EQ(0u, fp_regs & (static_cast<uint32_t>(-1) << kNumberOfFloatRegisters));
   for (uint32_t fp_reg : HighToLowBits(fp_regs)) {
     fprs_[fp_reg] = reinterpret_cast<uint64_t*>(
-        fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes()));
+        CalleeSaveAddress(frame, spill_pos, frame_info.FrameSizeInBytes()));
     ++spill_pos;
   }
   DCHECK_EQ(spill_pos,

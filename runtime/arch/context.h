@@ -25,7 +25,7 @@
 
 namespace art {
 
-class StackVisitor;
+class QuickMethodFrameInfo;
 
 // Representation of a thread's context on the executing machine, used to implement long jumps in
 // the quick stack frame layout.
@@ -39,10 +39,18 @@ class Context {
   // Re-initializes the registers for context re-use.
   virtual void Reset() = 0;
 
+  static uintptr_t* CalleeSaveAddress(uint8_t* frame, int num, size_t frame_size) {
+    // Callee saves are held at the top of the frame
+    uint8_t* save_addr = frame + frame_size - ((num + 1) * sizeof(void*));
+#if defined(__i386__) || defined(__x86_64__)
+    save_addr -= sizeof(void*);  // account for return address
+#endif
+    return reinterpret_cast<uintptr_t*>(save_addr);
+  }
+
   // Reads values from callee saves in the given frame. The frame also holds
   // the method that holds the layout.
-  virtual void FillCalleeSaves(const StackVisitor& fr)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+  virtual void FillCalleeSaves(uint8_t* frame, const QuickMethodFrameInfo& fr) = 0;
 
   // Sets the stack pointer value.
   virtual void SetSP(uintptr_t new_sp) = 0;

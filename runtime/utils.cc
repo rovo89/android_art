@@ -25,7 +25,6 @@
 #include <unistd.h>
 #include <memory>
 
-#include "art_code.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stl_util.h"
@@ -37,6 +36,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
+#include "oat_quick_method_header.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "utf-inl.h"
@@ -1092,8 +1092,18 @@ static void Addr2line(const std::string& map_src, uintptr_t offset, std::ostream
 }
 #endif
 
+static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFETY_ANALYSIS {
+  uintptr_t code = reinterpret_cast<uintptr_t>(EntryPointToCodePointer(
+      method->GetEntryPointFromQuickCompiledCode()));
+  if (code == 0) {
+    return pc == 0;
+  }
+  uintptr_t code_size = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].code_size_;
+  return code <= pc && pc <= (code + code_size);
+}
+
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
-    ArtMethod* current_method, ArtCode* current_code, void* ucontext_ptr) {
+    ArtMethod* current_method, void* ucontext_ptr) {
 #if __linux__
   // b/18119146
   if (RUNNING_ON_MEMORY_TOOL != 0) {
@@ -1147,10 +1157,10 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
           os << "+" << it->func_offset;
         }
         try_addr2line = true;
-      } else if (
-          current_method != nullptr && Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
-          current_code->PcIsWithinQuickCode(it->pc)) {
-        const void* start_of_code = current_code->GetQuickOatEntryPoint(sizeof(void*));
+      } else if (current_method != nullptr &&
+          Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
+          PcIsWithinQuickCode(current_method, it->pc)) {
+        const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
       } else {
