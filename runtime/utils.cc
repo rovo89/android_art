@@ -1174,7 +1174,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     }
   }
 #else
-  UNUSED(os, tid, prefix, current_method, current_code, ucontext_ptr);
+  UNUSED(os, tid, prefix, current_method, ucontext_ptr);
 #endif
 }
 
