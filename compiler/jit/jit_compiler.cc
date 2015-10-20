@@ -30,6 +30,7 @@
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "oat_file-inl.h"
+#include "oat_quick_method_header.h"
 #include "object_lock.h"
 #include "thread_list.h"
 #include "verifier/method_verifier-inl.h"

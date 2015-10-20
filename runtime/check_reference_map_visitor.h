@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_CHECK_REFERENCE_MAP_VISITOR_H_
 #define ART_RUNTIME_CHECK_REFERENCE_MAP_VISITOR_H_
 
-#include "art_code.h"
 #include "art_method-inl.h"
 #include "gc_map.h"
+#include "oat_quick_method_header.h"
 #include "scoped_thread_state_change.h"
 #include "stack_map.h"
 
@@ -54,7 +54,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
   void CheckReferences(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+    if (GetCurrentOatQuickMethodHeader()->IsOptimized()) {
       CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
     } else {
       CheckQuickMethod(registers, number_of_references, native_pc_offset);
@@ -65,7 +65,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
   void CheckOptimizedMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
-    CodeInfo code_info = GetCurrentCode().GetOptimizedCodeInfo();
+    CodeInfo code_info = GetCurrentOatQuickMethodHeader()->GetOptimizedCodeInfo();
     StackMapEncoding encoding = code_info.ExtractEncoding();
     StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
     uint16_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
@@ -109,7 +109,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
   void CheckQuickMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
-    NativePcOffsetToReferenceMap map(GetCurrentCode().GetNativeGcMap(sizeof(void*)));
+    NativePcOffsetToReferenceMap map(GetCurrentOatQuickMethodHeader()->GetNativeGcMap());
     const uint8_t* ref_bitmap = map.FindBitMap(native_pc_offset);
     CHECK(ref_bitmap);
     for (int i = 0; i < number_of_references; ++i) {

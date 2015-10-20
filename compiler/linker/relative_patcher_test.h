@@ -30,6 +30,7 @@
 #include "linker/relative_patcher.h"
 #include "method_reference.h"
 #include "oat.h"
+#include "oat_quick_method_header.h"
 #include "utils/array_ref.h"
 #include "vector_output_stream.h"
 
