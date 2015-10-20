@@ -1090,7 +1090,6 @@ static void Addr2line(const std::string& map_src, uintptr_t offset, std::ostream
                                    map_src.c_str(), offset));
   RunCommand(cmdline.c_str(), &os, prefix);
 }
-#endif
 
 static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFETY_ANALYSIS {
   uintptr_t code = reinterpret_cast<uintptr_t>(EntryPointToCodePointer(
@@ -1101,6 +1100,7 @@ static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFET
   uintptr_t code_size = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].code_size_;
   return code <= pc && pc <= (code + code_size);
 }
+#endif
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     ArtMethod* current_method, void* ucontext_ptr) {
