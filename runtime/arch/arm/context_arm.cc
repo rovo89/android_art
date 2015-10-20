@@ -16,9 +16,9 @@
 
 #include "context_arm.h"
 
-#include "art_method-inl.h"
 #include "base/bit_utils.h"
 #include "quick/quick_method_frame_info.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace arm {
@@ -37,23 +37,21 @@ void ArmContext::Reset() {
   arg0_ = 0;
 }
 
-void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
-  ArtCode art_code = fr.GetCurrentCode();
-  const QuickMethodFrameInfo frame_info = art_code.GetQuickFrameInfo();
+void ArmContext::FillCalleeSaves(uint8_t* frame, const QuickMethodFrameInfo& frame_info) {
   int spill_pos = 0;
 
   // Core registers come first, from the highest down to the lowest.
   uint32_t core_regs = frame_info.CoreSpillMask();
   DCHECK_EQ(0u, core_regs & (static_cast<uint32_t>(-1) << kNumberOfCoreRegisters));
   for (uint32_t core_reg : HighToLowBits(core_regs)) {
-    gprs_[core_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    gprs_[core_reg] = CalleeSaveAddress(frame, spill_pos, frame_info.FrameSizeInBytes());
     ++spill_pos;
   }
   DCHECK_EQ(spill_pos, POPCOUNT(frame_info.CoreSpillMask()));
 
   // FP registers come second, from the highest down to the lowest.
   for (uint32_t fp_reg : HighToLowBits(frame_info.FpSpillMask())) {
-    fprs_[fp_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    fprs_[fp_reg] = CalleeSaveAddress(frame, spill_pos, frame_info.FrameSizeInBytes());
     ++spill_pos;
   }
   DCHECK_EQ(spill_pos, POPCOUNT(frame_info.CoreSpillMask()) + POPCOUNT(frame_info.FpSpillMask()));

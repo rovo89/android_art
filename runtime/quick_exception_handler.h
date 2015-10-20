@@ -71,6 +71,10 @@ class QuickExceptionHandler {
     handler_quick_frame_pc_ = handler_quick_frame_pc;
   }
 
+  void SetHandlerMethodHeader(const OatQuickMethodHeader* handler_method_header) {
+    handler_method_header_ = handler_method_header;
+  }
+
   void SetHandlerQuickArg0(uintptr_t handler_quick_arg0) {
     handler_quick_arg0_ = handler_quick_arg0;
   }
@@ -115,6 +119,8 @@ class QuickExceptionHandler {
   ArtMethod** handler_quick_frame_;
   // PC to branch to for the handler.
   uintptr_t handler_quick_frame_pc_;
+  // Quick code of the handler.
+  const OatQuickMethodHeader* handler_method_header_;
   // The value for argument 0.
   uintptr_t handler_quick_arg0_;
   // The handler method to report to the debugger.

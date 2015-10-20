@@ -50,6 +50,10 @@ class PACKED(4) QuickMethodFrameInfo {
     return fp_spill_mask_;
   }
 
+  size_t GetReturnPcOffset() const {
+    return FrameSizeInBytes() - sizeof(void*);
+  }
+
  private:
   uint32_t frame_size_in_bytes_;
   uint32_t core_spill_mask_;

@@ -15,9 +15,9 @@
  */
 
 #include "arch/context.h"
-#include "art_code.h"
 #include "art_method-inl.h"
 #include "jni.h"
+#include "oat_quick_method_header.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"
 #include "thread.h"
@@ -44,7 +44,7 @@ class TestVisitor : public StackVisitor {
       found_method_ = true;
       uint32_t value = 0;
       if (GetCurrentQuickFrame() != nullptr &&
-          GetCurrentCode().IsOptimized(sizeof(void*)) &&
+          GetCurrentOatQuickMethodHeader()->IsOptimized() &&
           !Runtime::Current()->IsDebuggable()) {
         CHECK_EQ(GetVReg(m, 0, kIntVReg, &value), false);
       } else {

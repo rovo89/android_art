@@ -21,6 +21,7 @@
 #include "dex/compiler_ir.h"
 #include "dex/quick/mir_to_lir.h"
 #include "oat.h"
+#include "oat_quick_method_header.h"
 #include "utils.h"
 #include "x86_lir.h"
 

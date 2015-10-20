@@ -20,7 +20,6 @@
 #include <jni.h>
 #include <stdint.h>
 
-#include "art_code.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "dex_instruction.h"
@@ -40,6 +39,7 @@ namespace mirror {
 
 class ArtField;
 class ArtMethod;
+class OatQuickMethodHeader;
 class ScopedObjectAccessAlreadyRunnable;
 class Thread;
 
@@ -184,10 +184,6 @@ inline INT_TYPE art_float_to_integral(FLOAT_TYPE f);
 ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
                                      Runtime::CalleeSaveType type,
                                      bool do_caller_check = false);
-
-inline ArtCode GetCallingCodeFrom(ArtMethod** sp) {
-  return ArtCode(sp);
-}
 
 }  // namespace art
 
