@@ -46,7 +46,7 @@ inline bool SpaceBitmap<kAlignment>::AtomicTestAndSet(const mirror::Object* obj)
       DCHECK(Test(obj));
       return true;
     }
-  } while (!atomic_entry->CompareExchangeWeakSequentiallyConsistent(old_word, old_word | mask));
+  } while (!atomic_entry->CompareExchangeWeakRelaxed(old_word, old_word | mask));
   DCHECK(Test(obj));
   return false;
 }

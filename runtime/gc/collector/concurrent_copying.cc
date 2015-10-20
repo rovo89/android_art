@@ -1649,7 +1649,7 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
       // It was updated by the mutator.
       break;
     }
-  } while (!obj->CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier<
+  } while (!obj->CasFieldWeakRelaxedObjectWithoutWriteBarrier<
       false, false, kVerifyNone>(offset, expected_ref, new_ref));
 }
 
@@ -1674,7 +1674,7 @@ void ConcurrentCopying::VisitRoots(
         // It was updated by the mutator.
         break;
       }
-    } while (!addr->CompareExchangeWeakSequentiallyConsistent(expected_ref, new_ref));
+    } while (!addr->CompareExchangeWeakRelaxed(expected_ref, new_ref));
   }
 }
 
@@ -1695,7 +1695,7 @@ void ConcurrentCopying::MarkRoot(mirror::CompressedReference<mirror::Object>* ro
         // It was updated by the mutator.
         break;
       }
-    } while (!addr->CompareExchangeWeakSequentiallyConsistent(expected_ref, new_ref));
+    } while (!addr->CompareExchangeWeakRelaxed(expected_ref, new_ref));
   }
 }
 
