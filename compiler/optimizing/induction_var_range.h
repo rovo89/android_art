@@ -68,6 +68,33 @@ class InductionVarRange {
    */
   Value GetMaxInduction(HInstruction* context, HInstruction* instruction);
 
+  /**
+   * Returns true if range analysis is able to generate code for the lower and upper bound
+   * expressions on the instruction in the given context. Output parameter top_test denotes
+   * whether a top test is needed to protect the trip-count expression evaluation.
+   */
+  bool CanGenerateCode(HInstruction* context, HInstruction* instruction, /*out*/bool* top_test);
+
+  /**
+   * Generates the actual code in the HIR for the lower and upper bound expressions on the
+   * instruction in the given context. Code for the lower and upper bound expression are
+   * generated in given block and graph and are returned in lower and upper, respectively.
+   * For a loop invariant, lower is not set.
+   *
+   * For example, given expression x+i with range [0, 5] for i, calling this method
+   * will generate the following sequence:
+   *
+   * block:
+   *   lower: add x, 0
+   *   upper: add x, 5
+   */
+  bool GenerateCode(HInstruction* context,
+                    HInstruction* instruction,
+                    HGraph* graph,
+                    HBasicBlock* block,
+                    /*out*/HInstruction** lower,
+                    /*out*/HInstruction** upper);
+
  private:
   //
   // Private helper methods.
@@ -101,6 +128,27 @@ class InductionVarRange {
   static Value MulValue(Value v1, Value v2);
   static Value DivValue(Value v1, Value v2);
   static Value MergeVal(Value v1, Value v2, bool is_min);
+
+  /**
+   * Generates code for lower/upper expression in the HIR. Returns true on success.
+   * With graph == nullptr, the method can be used to determine if code generation
+   * would be successful without generating actual code yet.
+   */
+  bool GenerateCode(HInstruction* context,
+                    HInstruction* instruction,
+                    HGraph* graph,
+                    HBasicBlock* block,
+                    /*out*/HInstruction** lower,
+                    /*out*/HInstruction** upper,
+                    bool* top_test);
+
+  static bool GenerateCode(HInductionVarAnalysis::InductionInfo* info,
+                           HInductionVarAnalysis::InductionInfo* trip,
+                           HGraph* graph,
+                           HBasicBlock* block,
+                           /*out*/HInstruction** result,
+                           bool in_body,
+                           bool is_min);
 
   /** Results of prior induction variable analysis. */
   HInductionVarAnalysis *induction_analysis_;
