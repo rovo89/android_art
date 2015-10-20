@@ -537,10 +537,18 @@ class Dex2Oat FINAL {
     // the runtime.
     LogCompletionTime();
 
-    if (kIsDebugBuild || (RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
-      delete runtime_;  // See field declaration for why this is manual.
-      delete driver_;
-      delete verification_results_;
+    if (!kIsDebugBuild && !(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
+      // We want to just exit on non-debug builds, not bringing the runtime down
+      // in an orderly fashion. So release the following fields.
+      driver_.release();
+      image_writer_.release();
+      for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files_) {
+        dex_file.release();
+      }
+      oat_file_.release();
+      runtime_.release();
+      verification_results_.release();
+      key_value_store_.release();
     }
   }
 
@@ -1241,9 +1249,9 @@ class Dex2Oat FINAL {
       runtime_options.push_back(std::make_pair(runtime_args_[i], nullptr));
     }
 
-    verification_results_ = new VerificationResults(compiler_options_.get());
+    verification_results_.reset(new VerificationResults(compiler_options_.get()));
     callbacks_.reset(new QuickCompilerCallbacks(
-        verification_results_,
+        verification_results_.get(),
         &method_inliner_map_,
         image_ ?
             CompilerCallbacks::CallbackMode::kCompileBootImage :
@@ -1468,24 +1476,24 @@ class Dex2Oat FINAL {
       class_loader = class_linker->CreatePathClassLoader(self, class_path_files);
     }
 
-    driver_ = new CompilerDriver(compiler_options_.get(),
-                                 verification_results_,
-                                 &method_inliner_map_,
-                                 compiler_kind_,
-                                 instruction_set_,
-                                 instruction_set_features_.get(),
-                                 image_,
-                                 image_classes_.release(),
-                                 compiled_classes_.release(),
-                                 nullptr,
-                                 thread_count_,
-                                 dump_stats_,
-                                 dump_passes_,
-                                 dump_cfg_file_name_,
-                                 dump_cfg_append_,
-                                 compiler_phases_timings_.get(),
-                                 swap_fd_,
-                                 profile_file_);
+    driver_.reset(new CompilerDriver(compiler_options_.get(),
+                                     verification_results_.get(),
+                                     &method_inliner_map_,
+                                     compiler_kind_,
+                                     instruction_set_,
+                                     instruction_set_features_.get(),
+                                     image_,
+                                     image_classes_.release(),
+                                     compiled_classes_.release(),
+                                     nullptr,
+                                     thread_count_,
+                                     dump_stats_,
+                                     dump_passes_,
+                                     dump_cfg_file_name_,
+                                     dump_cfg_append_,
+                                     compiler_phases_timings_.get(),
+                                     swap_fd_,
+                                     profile_file_));
 
     driver_->CompileAll(class_loader, dex_files_, timings_);
   }
@@ -1587,7 +1595,7 @@ class Dex2Oat FINAL {
       oat_writer.reset(new OatWriter(dex_files_, image_file_location_oat_checksum,
                                      image_file_location_oat_data_begin,
                                      image_patch_delta,
-                                     driver_,
+                                     driver_.get(),
                                      image_writer_.get(),
                                      timings_,
                                      key_value_store_.get()));
@@ -1776,22 +1784,21 @@ class Dex2Oat FINAL {
       LOG(ERROR) << "Failed to create runtime";
       return false;
     }
-    Runtime* runtime = Runtime::Current();
-    runtime->SetInstructionSet(instruction_set_);
+    runtime_.reset(Runtime::Current());
+    runtime_->SetInstructionSet(instruction_set_);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
-      if (!runtime->HasCalleeSaveMethod(type)) {
-        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(), type);
+      if (!runtime_->HasCalleeSaveMethod(type)) {
+        runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(), type);
       }
     }
-    runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
+    runtime_->GetClassLinker()->FixupDexCaches(runtime_->GetResolutionMethod());
 
     // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
     // set up.
     interpreter::UnstartedRuntime::Initialize();
 
-    runtime->GetClassLinker()->RunRootClinits();
-    runtime_ = runtime;
+    runtime_->GetClassLinker()->RunRootClinits();
 
     return true;
   }
@@ -1940,9 +1947,7 @@ class Dex2Oat FINAL {
 
   std::unique_ptr<SafeMap<std::string, std::string> > key_value_store_;
 
-  // Not a unique_ptr as we want to just exit on non-debug builds, not bringing the compiler down
-  // in an orderly fashion. The destructor takes care of deleting this.
-  VerificationResults* verification_results_;
+  std::unique_ptr<VerificationResults> verification_results_;
 
   DexFileToMethodInlinerMap method_inliner_map_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
@@ -1950,9 +1955,7 @@ class Dex2Oat FINAL {
   // Ownership for the class path files.
   std::vector<std::unique_ptr<const DexFile>> class_path_files_;
 
-  // Not a unique_ptr as we want to just exit on non-debug builds, not bringing the runtime down
-  // in an orderly fashion. The destructor takes care of deleting this.
-  Runtime* runtime_;
+  std::unique_ptr<Runtime> runtime_;
 
   size_t thread_count_;
   uint64_t start_ns_;
@@ -1981,16 +1984,14 @@ class Dex2Oat FINAL {
   std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
   bool image_;
-  std::unique_ptr<ImageWriter> image_writer_;
   bool is_host_;
   std::string android_root_;
   std::vector<const DexFile*> dex_files_;
   std::vector<jobject> dex_caches_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
-  // Not a unique_ptr as we want to just exit on non-debug builds, not bringing the driver down
-  // in an orderly fashion. The destructor takes care of deleting this.
-  CompilerDriver* driver_;
+  std::unique_ptr<ImageWriter> image_writer_;
+  std::unique_ptr<CompilerDriver> driver_;
 
   std::vector<std::string> verbose_methods_;
   bool dump_stats_;
