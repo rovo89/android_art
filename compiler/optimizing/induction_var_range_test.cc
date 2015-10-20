@@ -415,7 +415,8 @@ TEST_F(InductionVarRangeTest, FindRangeConstantTripCount) {
 }
 
 TEST_F(InductionVarRangeTest, FindRangeSymbolicTripCount) {
-  HInstruction* parameter = new (&allocator_) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* parameter = new (&allocator_) HParameterValue(
+      graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
   entry_block_->AddInstruction(parameter);
   BuildLoop(parameter);
   PerformInductionVarAnalysis();
@@ -433,7 +434,8 @@ TEST_F(InductionVarRangeTest, FindRangeSymbolicTripCount) {
 }
 
 TEST_F(InductionVarRangeTest, CodeGeneration) {
-  HInstruction* parameter = new (&allocator_) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* parameter = new (&allocator_) HParameterValue(
+      graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
   entry_block_->AddInstruction(parameter);
   BuildLoop(parameter);
   PerformInductionVarAnalysis();
