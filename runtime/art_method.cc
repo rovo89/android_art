@@ -384,4 +384,28 @@ const uint8_t* ArtMethod::GetQuickenedInfo() {
   return oat_method.GetVmapTable();
 }
 
+const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
+  if (IsRuntimeMethod() || IsProxyMethod()) {
+    return nullptr;
+  }
+
+  Runtime* runtime = Runtime::Current();
+  const void* code = runtime->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*));
+  DCHECK(code != nullptr);
+
+  if (runtime->GetClassLinker()->IsQuickGenericJniStub(code)) {
+    // The generic JNI does not have any method header.
+    return nullptr;
+  }
+
+  code = EntryPointToCodePointer(code);
+  OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(
+      reinterpret_cast<uintptr_t>(code) - sizeof(OatQuickMethodHeader));
+
+  // TODO(ngeoffray): validate the pc. Note that unit tests can give unrelated pcs (for
+  // example arch_test).
+  UNUSED(pc);
+  return method_header;
+}
+
 }  // namespace art

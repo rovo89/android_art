@@ -20,13 +20,13 @@
 #include <stdint.h>
 #include <string>
 
-#include "art_code.h"
 #include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "mirror/object_reference.h"
+#include "quick/quick_method_frame_info.h"
 #include "read_barrier.h"
 #include "verify_object.h"
 
@@ -40,6 +40,7 @@ class ArtMethod;
 class Context;
 class HandleScope;
 class InlineInfo;
+class OatQuickMethodHeader;
 class ScopedObjectAccess;
 class ShadowFrame;
 class StackVisitor;
@@ -561,18 +562,6 @@ class StackVisitor {
 
   size_t GetNativePcOffset() const SHARED_REQUIRES(Locks::mutator_lock_);
 
-  uintptr_t* CalleeSaveAddress(int num, size_t frame_size) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    // Callee saves are held at the top of the frame
-    DCHECK(GetMethod() != nullptr);
-    uint8_t* save_addr =
-        reinterpret_cast<uint8_t*>(cur_quick_frame_) + frame_size - ((num + 1) * sizeof(void*));
-#if defined(__i386__) || defined(__x86_64__)
-    save_addr -= sizeof(void*);  // account for return address
-#endif
-    return reinterpret_cast<uintptr_t*>(save_addr);
-  }
-
   // Returns the height of the stack in the managed stack frames, including transitions.
   size_t GetFrameHeight() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetNumFrames() - cur_depth_ - 1;
@@ -735,7 +724,11 @@ class StackVisitor {
 
   static void DescribeStack(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtCode GetCurrentCode() const { return ArtCode(cur_quick_frame_); }
+  const OatQuickMethodHeader* GetCurrentOatQuickMethodHeader() const {
+    return cur_oat_quick_method_header_;
+  }
+
+  QuickMethodFrameInfo GetCurrentQuickFrameInfo() const SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   // Private constructor known in the case that num_frames_ has already been computed.
@@ -813,6 +806,7 @@ class StackVisitor {
   ShadowFrame* cur_shadow_frame_;
   ArtMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;
+  const OatQuickMethodHeader* cur_oat_quick_method_header_;
   // Lazily computed, number of frames in the stack.
   size_t num_frames_;
   // Depth of the frame we're currently at.

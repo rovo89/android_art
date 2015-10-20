@@ -31,6 +31,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/string.h"
 #include "oat.h"
+#include "oat_quick_method_header.h"
 #include "x86_lir.h"
 
 namespace art {

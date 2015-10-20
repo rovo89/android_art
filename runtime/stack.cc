@@ -17,7 +17,6 @@
 #include "stack.h"
 
 #include "arch/context.h"
-#include "art_code.h"
 #include "art_method-inl.h"
 #include "base/hex_dump.h"
 #include "entrypoints/entrypoint_utils-inl.h"
@@ -25,10 +24,13 @@
 #include "gc_map.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "linear_alloc.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "oat_quick_method_header.h"
 #include "quick/quick_method_frame_info.h"
 #include "runtime.h"
 #include "thread.h"
@@ -103,6 +105,7 @@ StackVisitor::StackVisitor(Thread* thread,
       cur_shadow_frame_(nullptr),
       cur_quick_frame_(nullptr),
       cur_quick_frame_pc_(0),
+      cur_oat_quick_method_header_(nullptr),
       num_frames_(num_frames),
       cur_depth_(0),
       current_inlining_depth_(0),
@@ -111,9 +114,9 @@ StackVisitor::StackVisitor(Thread* thread,
 }
 
 InlineInfo StackVisitor::GetCurrentInlineInfo() const {
-  ArtCode outer_code = GetCurrentCode();
-  uint32_t native_pc_offset = outer_code.NativeQuickPcOffset(cur_quick_frame_pc_);
-  CodeInfo code_info = outer_code.GetOptimizedCodeInfo();
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  uint32_t native_pc_offset = method_header->NativeQuickPcOffset(cur_quick_frame_pc_);
+  CodeInfo code_info = method_header->GetOptimizedCodeInfo();
   StackMapEncoding encoding = code_info.ExtractEncoding();
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
   DCHECK(stack_map.IsValid());
@@ -142,8 +145,11 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
       return GetCurrentInlineInfo().GetDexPcAtDepth(depth_in_stack_map);
+    } else if (cur_oat_quick_method_header_ == nullptr) {
+      return DexFile::kDexNoIndex;
     } else {
-      return GetCurrentCode().ToDexPc(cur_quick_frame_pc_, abort_on_failure);
+      return cur_oat_quick_method_header_->ToDexPc(
+          GetMethod(), cur_quick_frame_pc_, abort_on_failure);
     }
   } else {
     return 0;
@@ -161,8 +167,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
   } else if (m->IsNative()) {
     if (cur_quick_frame_ != nullptr) {
       HandleScope* hs = reinterpret_cast<HandleScope*>(
-          reinterpret_cast<char*>(cur_quick_frame_) +
-            GetCurrentCode().GetHandleScopeOffset().SizeValue());
+          reinterpret_cast<char*>(cur_quick_frame_) + sizeof(ArtMethod*));
       return hs->GetReference(0);
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
@@ -192,7 +197,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
 
 size_t StackVisitor::GetNativePcOffset() const {
   DCHECK(!IsShadowFrame());
-  return GetCurrentCode().NativeQuickPcOffset(cur_quick_frame_pc_);
+  return GetCurrentOatQuickMethodHeader()->NativeQuickPcOffset(cur_quick_frame_pc_);
 }
 
 bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
@@ -201,10 +206,11 @@ bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
   if (m->IsNative() || m->IsRuntimeMethod() || m->IsProxyMethod()) {
     return false;
   }
-  if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  if (method_header->IsOptimized()) {
     return true;  // TODO: Implement.
   }
-  const uint8_t* native_gc_map = GetCurrentCode().GetNativeGcMap(sizeof(void*));
+  const uint8_t* native_gc_map = method_header->GetNativeGcMap();
   CHECK(native_gc_map != nullptr) << PrettyMethod(m);
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   // Can't be null or how would we compile its instructions?
@@ -213,7 +219,7 @@ bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
   size_t num_regs = std::min(map.RegWidth() * 8, static_cast<size_t>(code_item->registers_size_));
   const uint8_t* reg_bitmap = nullptr;
   if (num_regs > 0) {
-    uintptr_t native_pc_offset = GetCurrentCode().NativeQuickPcOffset(GetCurrentQuickFramePc());
+    uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
     reg_bitmap = map.FindBitMap(native_pc_offset);
     DCHECK(reg_bitmap != nullptr);
   }
@@ -252,7 +258,7 @@ bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t*
     if (GetVRegFromDebuggerShadowFrame(vreg, kind, val)) {
       return true;
     }
-    if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+    if (cur_oat_quick_method_header_->IsOptimized()) {
       return GetVRegFromOptimizedCode(m, vreg, kind, val);
     } else {
       return GetVRegFromQuickCode(m, vreg, kind, val);
@@ -267,8 +273,9 @@ bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t*
 bool StackVisitor::GetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                         uint32_t* val) const {
   DCHECK_EQ(m, GetMethod());
-  const VmapTable vmap_table(GetCurrentCode().GetVmapTable(sizeof(void*)));
-  QuickMethodFrameInfo frame_info = GetCurrentCode().GetQuickFrameInfo();
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
+  const VmapTable vmap_table(method_header->GetVmapTable());
   uint32_t vmap_offset;
   // TODO: IsInContext stops before spotting floating point registers.
   if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
@@ -294,10 +301,11 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
                                                     // its instructions?
   uint16_t number_of_dex_registers = code_item->registers_size_;
   DCHECK_LT(vreg, code_item->registers_size_);
-  CodeInfo code_info = GetCurrentCode().GetOptimizedCodeInfo();
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  CodeInfo code_info = method_header->GetOptimizedCodeInfo();
   StackMapEncoding encoding = code_info.ExtractEncoding();
 
-  uint32_t native_pc_offset = GetCurrentCode().NativeQuickPcOffset(cur_quick_frame_pc_);
+  uint32_t native_pc_offset = method_header->NativeQuickPcOffset(cur_quick_frame_pc_);
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
   DCHECK(stack_map.IsValid());
   size_t depth_in_stack_map = current_inlining_depth_ - 1;
@@ -402,7 +410,7 @@ bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+    if (cur_oat_quick_method_header_->IsOptimized()) {
       return GetVRegPairFromOptimizedCode(m, vreg, kind_lo, kind_hi, val);
     } else {
       return GetVRegPairFromQuickCode(m, vreg, kind_lo, kind_hi, val);
@@ -417,8 +425,9 @@ bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
 bool StackVisitor::GetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
                                             VRegKind kind_hi, uint64_t* val) const {
   DCHECK_EQ(m, GetMethod());
-  const VmapTable vmap_table(GetCurrentCode().GetVmapTable(sizeof(void*)));
-  QuickMethodFrameInfo frame_info = GetCurrentCode().GetQuickFrameInfo();
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
+  const VmapTable vmap_table(method_header->GetVmapTable());
   uint32_t vmap_offset_lo, vmap_offset_hi;
   // TODO: IsInContext stops before spotting floating point registers.
   if (vmap_table.IsInContext(vreg, kind_lo, &vmap_offset_lo) &&
@@ -477,7 +486,7 @@ bool StackVisitor::SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+    if (cur_oat_quick_method_header_->IsOptimized()) {
       return false;
     } else {
       return SetVRegFromQuickCode(m, vreg, new_value, kind);
@@ -492,8 +501,9 @@ bool StackVisitor::SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t ne
                                         VRegKind kind) {
   DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
   DCHECK(m == GetMethod());
-  const VmapTable vmap_table(GetCurrentCode().GetVmapTable(sizeof(void*)));
-  QuickMethodFrameInfo frame_info = GetCurrentCode().GetQuickFrameInfo();
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
+  const VmapTable vmap_table(method_header->GetVmapTable());
   uint32_t vmap_offset;
   // TODO: IsInContext stops before spotting floating point registers.
   if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
@@ -584,7 +594,7 @@ bool StackVisitor::SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    if (GetCurrentCode().IsOptimized(sizeof(void*))) {
+    if (cur_oat_quick_method_header_->IsOptimized()) {
       return false;
     } else {
       return SetVRegPairFromQuickCode(m, vreg, new_value, kind_lo, kind_hi);
@@ -599,8 +609,9 @@ bool StackVisitor::SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
 bool StackVisitor::SetVRegPairFromQuickCode(
     ArtMethod* m, uint16_t vreg, uint64_t new_value, VRegKind kind_lo, VRegKind kind_hi) {
   DCHECK_EQ(m, GetMethod());
-  const VmapTable vmap_table(GetCurrentCode().GetVmapTable(sizeof(void*)));
-  QuickMethodFrameInfo frame_info = GetCurrentCode().GetQuickFrameInfo();
+  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
+  const VmapTable vmap_table(method_header->GetVmapTable());
   uint32_t vmap_offset_lo, vmap_offset_hi;
   // TODO: IsInContext stops before spotting floating point registers.
   if (vmap_table.IsInContext(vreg, kind_lo, &vmap_offset_lo) &&
@@ -717,14 +728,14 @@ void StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
 uintptr_t StackVisitor::GetReturnPc() const {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   DCHECK(sp != nullptr);
-  uint8_t* pc_addr = sp + GetCurrentCode().GetReturnPcOffset().SizeValue();
+  uint8_t* pc_addr = sp + GetCurrentQuickFrameInfo().GetReturnPcOffset();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   CHECK(sp != nullptr);
-  uint8_t* pc_addr = sp + GetCurrentCode().GetReturnPcOffset().SizeValue();
+  uint8_t* pc_addr = sp + GetCurrentQuickFrameInfo().GetReturnPcOffset();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
@@ -821,6 +832,45 @@ static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(
   return thread->GetInstrumentationStack()->at(depth);
 }
 
+static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyMethod()) {
+    return;
+  }
+
+  if (pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
+    return;
+  }
+
+  const void* code = method->GetEntryPointFromQuickCompiledCode();
+  if (code == GetQuickInstrumentationEntryPoint()) {
+    return;
+  }
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  if (class_linker->IsQuickToInterpreterBridge(code) ||
+      class_linker->IsQuickResolutionStub(code)) {
+    return;
+  }
+
+  // If we are the JIT then we may have just compiled the method after the
+  // IsQuickToInterpreterBridge check.
+  jit::Jit* const jit = Runtime::Current()->GetJit();
+  if (jit != nullptr &&
+      jit->GetCodeCache()->ContainsCodePtr(reinterpret_cast<const void*>(code))) {
+    return;
+  }
+
+  uint32_t code_size = reinterpret_cast<const OatQuickMethodHeader*>(
+      EntryPointToCodePointer(code))[-1].code_size_;
+  uintptr_t code_start = reinterpret_cast<uintptr_t>(code);
+  CHECK(code_start <= pc && pc <= (code_start + code_size))
+      << PrettyMethod(method)
+      << " pc=" << std::hex << pc
+      << " code=" << code
+      << " size=" << code_size;
+}
+
 void StackVisitor::SanityCheckFrame() const {
   if (kIsDebugBuild) {
     ArtMethod* method = GetMethod();
@@ -859,9 +909,9 @@ void StackVisitor::SanityCheckFrame() const {
       }
     }
     if (cur_quick_frame_ != nullptr) {
-      GetCurrentCode().AssertPcIsWithinQuickCode(cur_quick_frame_pc_);
+      AssertPcIsWithinQuickCode(method, cur_quick_frame_pc_);
       // Frame sanity.
-      size_t frame_size = GetCurrentCode().GetFrameSizeInBytes();
+      size_t frame_size = GetCurrentQuickFrameInfo().FrameSizeInBytes();
       CHECK_NE(frame_size, 0u);
       // A rough guess at an upper size we expect to see for a frame.
       // 256 registers
@@ -871,11 +921,78 @@ void StackVisitor::SanityCheckFrame() const {
       // TODO: 083-compiler-regressions ManyFloatArgs shows this estimate is wrong.
       // const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
       const size_t kMaxExpectedFrameSize = 2 * KB;
-      CHECK_LE(frame_size, kMaxExpectedFrameSize);
-      size_t return_pc_offset = GetCurrentCode().GetReturnPcOffset().SizeValue();
+      CHECK_LE(frame_size, kMaxExpectedFrameSize) << PrettyMethod(method);
+      size_t return_pc_offset = GetCurrentQuickFrameInfo().GetReturnPcOffset();
       CHECK_LT(return_pc_offset, frame_size);
     }
   }
+}
+
+// Counts the number of references in the parameter list of the corresponding method.
+// Note: Thus does _not_ include "this" for non-static methods.
+static uint32_t GetNumberOfReferenceArgsWithoutReceiver(ArtMethod* method)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t shorty_len;
+  const char* shorty = method->GetShorty(&shorty_len);
+  uint32_t refs = 0;
+  for (uint32_t i = 1; i < shorty_len ; ++i) {
+    if (shorty[i] == 'L') {
+      refs++;
+    }
+  }
+  return refs;
+}
+
+QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
+  if (cur_oat_quick_method_header_ != nullptr) {
+    return cur_oat_quick_method_header_->GetFrameInfo();
+  }
+
+  ArtMethod* method = GetMethod();
+  Runtime* runtime = Runtime::Current();
+
+  if (method->IsAbstract()) {
+    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+  }
+
+  // This goes before IsProxyMethod since runtime methods have a null declaring class.
+  if (method->IsRuntimeMethod()) {
+    return runtime->GetRuntimeMethodFrameInfo(method);
+  }
+
+  // For Proxy method we add special handling for the direct method case  (there is only one
+  // direct method - constructor). Direct method is cloned from original
+  // java.lang.reflect.Proxy class together with code and as a result it is executed as usual
+  // quick compiled method without any stubs. So the frame info should be returned as it is a
+  // quick method not a stub. However, if instrumentation stubs are installed, the
+  // instrumentation->GetQuickCodeFor() returns the artQuickProxyInvokeHandler instead of an
+  // oat code pointer, thus we have to add a special case here.
+  if (method->IsProxyMethod()) {
+    if (method->IsDirect()) {
+      CHECK(method->IsConstructor());
+      const void* code_pointer =
+          EntryPointToCodePointer(method->GetEntryPointFromQuickCompiledCode());
+      return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
+    } else {
+      return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+    }
+  }
+
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  DCHECK(method->IsNative());
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(method, sizeof(void*));
+  DCHECK(class_linker->IsQuickGenericJniStub(entry_point)) << PrettyMethod(method);
+  // Generic JNI frame.
+  uint32_t handle_refs = GetNumberOfReferenceArgsWithoutReceiver(method) + 1;
+  size_t scope_size = HandleScope::SizeOf(handle_refs);
+  QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+
+  // Callee saves + handle scope + method ref + alignment
+  // Note: -sizeof(void*) since callee-save frame stores a whole method pointer.
+  size_t frame_size = RoundUp(
+      callee_info.FrameSizeInBytes() - sizeof(void*) + sizeof(ArtMethod*) + scope_size,
+      kStackAlignment);
+  return QuickMethodFrameInfo(frame_size, callee_info.CoreSpillMask(), callee_info.FpSpillMask());
 }
 
 void StackVisitor::WalkStack(bool include_transitions) {
@@ -890,19 +1007,23 @@ void StackVisitor::WalkStack(bool include_transitions) {
     cur_shadow_frame_ = current_fragment->GetTopShadowFrame();
     cur_quick_frame_ = current_fragment->GetTopQuickFrame();
     cur_quick_frame_pc_ = 0;
+    cur_oat_quick_method_header_ = nullptr;
 
     if (cur_quick_frame_ != nullptr) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == nullptr);
       ArtMethod* method = *cur_quick_frame_;
       while (method != nullptr) {
+        cur_oat_quick_method_header_ = method->GetOatQuickMethodHeader(cur_quick_frame_pc_);
         SanityCheckFrame();
 
         if ((walk_kind_ == StackWalkKind::kIncludeInlinedFrames)
-            && GetCurrentCode().IsOptimized(sizeof(void*))) {
-          CodeInfo code_info = GetCurrentCode().GetOptimizedCodeInfo();
+            && (cur_oat_quick_method_header_ != nullptr)
+            && cur_oat_quick_method_header_->IsOptimized()) {
+          CodeInfo code_info = cur_oat_quick_method_header_->GetOptimizedCodeInfo();
           StackMapEncoding encoding = code_info.ExtractEncoding();
-          uint32_t native_pc_offset = GetCurrentCode().NativeQuickPcOffset(cur_quick_frame_pc_);
+          uint32_t native_pc_offset =
+              cur_oat_quick_method_header_->NativeQuickPcOffset(cur_quick_frame_pc_);
           StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
           if (stack_map.IsValid() && stack_map.HasInlineInfo(encoding)) {
             InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
@@ -925,14 +1046,16 @@ void StackVisitor::WalkStack(bool include_transitions) {
           return;
         }
 
+        QuickMethodFrameInfo frame_info = GetCurrentQuickFrameInfo();
         if (context_ != nullptr) {
-          context_->FillCalleeSaves(*this);
+          context_->FillCalleeSaves(reinterpret_cast<uint8_t*>(cur_quick_frame_), frame_info);
         }
-        size_t frame_size = GetCurrentCode().GetFrameSizeInBytes();
         // Compute PC for next stack frame from return PC.
-        size_t return_pc_offset = GetCurrentCode().GetReturnPcOffset().SizeValue();
+        size_t frame_size = frame_info.FrameSizeInBytes();
+        size_t return_pc_offset = frame_size - sizeof(void*);
         uint8_t* return_pc_addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
+
         if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
@@ -963,7 +1086,6 @@ void StackVisitor::WalkStack(bool include_transitions) {
             return_pc = instrumentation_frame.return_pc_;
           }
         }
-        ArtCode code = GetCurrentCode();
 
         cur_quick_frame_pc_ = return_pc;
         uint8_t* next_frame = reinterpret_cast<uint8_t*>(cur_quick_frame_) + frame_size;
@@ -971,8 +1093,11 @@ void StackVisitor::WalkStack(bool include_transitions) {
 
         if (kDebugStackWalk) {
           LOG(INFO) << PrettyMethod(method) << "@" << method << " size=" << frame_size
-              << " optimized=" << code.IsOptimized(sizeof(void*))
+              << std::boolalpha
+              << " optimized=" << (cur_oat_quick_method_header_ != nullptr &&
+                                   cur_oat_quick_method_header_->IsOptimized())
               << " native=" << method->IsNative()
+              << std::noboolalpha
               << " entrypoints=" << method->GetEntryPointFromQuickCompiledCode()
               << "," << method->GetEntryPointFromJni()
               << " next=" << *cur_quick_frame_;

@@ -18,6 +18,7 @@
 
 #include "compiled_method.h"
 #include "oat.h"
+#include "oat_quick_method_header.h"
 #include "output_stream.h"
 
 namespace art {

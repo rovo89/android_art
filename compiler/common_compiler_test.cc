@@ -32,6 +32,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object-inl.h"
+#include "oat_quick_method_header.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 #include "utils.h"

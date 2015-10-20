@@ -32,6 +32,7 @@
 namespace art {
 
 union JValue;
+class OatQuickMethodHeader;
 class ProfilingInfo;
 class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
@@ -433,6 +434,11 @@ class ArtMethod FINAL {
   }
 
   const uint8_t* GetQuickenedInfo() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Returns the method header for the compiled code containing 'pc'. Note that runtime
+  // methods will return null for this method, as they are not oat based.
+  const OatQuickMethodHeader* GetOatQuickMethodHeader(uintptr_t pc)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

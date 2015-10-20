@@ -39,6 +39,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
+#include "oat_quick_method_header.h"
 #include "os.h"
 #include "output_stream.h"
 #include "safe_map.h"

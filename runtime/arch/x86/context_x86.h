@@ -34,7 +34,7 @@ class X86Context : public Context {
 
   void Reset() OVERRIDE;
 
-  void FillCalleeSaves(const StackVisitor& fr) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
+  void FillCalleeSaves(uint8_t* frame, const QuickMethodFrameInfo& fr) OVERRIDE;
 
   void SetSP(uintptr_t new_sp) OVERRIDE {
     SetGPR(ESP, new_sp);
