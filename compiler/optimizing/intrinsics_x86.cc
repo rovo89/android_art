@@ -1837,6 +1837,14 @@ void IntrinsicLocationsBuilderX86::VisitUnsafeCASLong(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic does not always work when heap
+  // poisoning is enabled (it breaks several libcore tests); turn it
+  // off temporarily as a quick fix.
+  // TODO(rpl): Fix it and turn it back on.
+  if (kPoisonHeapReferences) {
+    return;
+  }
+
   CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimNot, invoke);
 }
 
