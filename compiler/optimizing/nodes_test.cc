@@ -34,7 +34,8 @@ TEST(Node, RemoveInstruction) {
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
   entry->AddInstruction(new (&allocator) HGoto());
 
@@ -76,8 +77,10 @@ TEST(Node, InsertInstruction) {
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter1 = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
-  HInstruction* parameter2 = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter1 = new (&allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
+  HInstruction* parameter2 = new (&allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
   entry->AddInstruction(new (&allocator) HExit());
@@ -102,7 +105,8 @@ TEST(Node, AddInstruction) {
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   ASSERT_FALSE(parameter->HasUses());
@@ -122,7 +126,8 @@ TEST(Node, ParentEnvironment) {
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter1 = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter1 = new (&allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   HInstruction* with_environment = new (&allocator) HNullCheck(parameter1, 0);
   entry->AddInstruction(parameter1);
   entry->AddInstruction(with_environment);
