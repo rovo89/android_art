@@ -565,24 +565,58 @@ ArtMethod* Class::FindClassInitializer(size_t pointer_size) {
   return nullptr;
 }
 
-ArtField* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
-  // Is the field in this class?
-  // Interfaces are not relevant because they can't contain instance fields.
-  for (size_t i = 0; i < NumInstanceFields(); ++i) {
-    ArtField* f = GetInstanceField(i);
-    if (name == f->GetName() && type == f->GetTypeDescriptor()) {
-      return f;
+// Custom binary search to avoid double comparisons from std::binary_search.
+static ArtField* FindFieldByNameAndType(LengthPrefixedArray<ArtField>* fields,
+                                        const StringPiece& name,
+                                        const StringPiece& type)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (fields == nullptr) {
+    return nullptr;
+  }
+  size_t low = 0;
+  size_t high = fields->Length();
+  ArtField* ret = nullptr;
+  while (low < high) {
+    size_t mid = (low + high) / 2;
+    ArtField& field = fields->At(mid);
+    // Fields are sorted by class, then name, then type descriptor. This is verified in dex file
+    // verifier. There can be multiple fields with the same in the same class name due to proguard.
+    int result = StringPiece(field.GetName()).Compare(name);
+    if (result == 0) {
+      result = StringPiece(field.GetTypeDescriptor()).Compare(type);
+    }
+    if (result < 0) {
+      low = mid + 1;
+    } else if (result > 0) {
+      high = mid;
+    } else {
+      ret = &field;
+      break;
     }
   }
-  return nullptr;
+  if (kIsDebugBuild) {
+    ArtField* found = nullptr;
+    for (ArtField& field : MakeIterationRangeFromLengthPrefixedArray(fields)) {
+      if (name == field.GetName() && type == field.GetTypeDescriptor()) {
+        found = &field;
+        break;
+      }
+    }
+    CHECK_EQ(found, ret) << "Found " << PrettyField(found) << " vs  " << PrettyField(ret);
+  }
+  return ret;
+}
+
+ArtField* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
+  // Binary search by name. Interfaces are not relevant because they can't contain instance fields.
+  return FindFieldByNameAndType(GetIFieldsPtr(), name, type);
 }
 
 ArtField* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
   if (GetDexCache() == dex_cache) {
-    for (size_t i = 0; i < NumInstanceFields(); ++i) {
-      ArtField* f = GetInstanceField(i);
-      if (f->GetDexFieldIndex() == dex_field_idx) {
-        return f;
+    for (ArtField& field : GetIFields()) {
+      if (field.GetDexFieldIndex() == dex_field_idx) {
+        return &field;
       }
     }
   }
@@ -615,21 +649,14 @@ ArtField* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field
 
 ArtField* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& type) {
   DCHECK(type != nullptr);
-  for (size_t i = 0; i < NumStaticFields(); ++i) {
-    ArtField* f = GetStaticField(i);
-    if (name == f->GetName() && type == f->GetTypeDescriptor()) {
-      return f;
-    }
-  }
-  return nullptr;
+  return FindFieldByNameAndType(GetSFieldsPtr(), name, type);
 }
 
 ArtField* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
   if (dex_cache == GetDexCache()) {
-    for (size_t i = 0; i < NumStaticFields(); ++i) {
-      ArtField* f = GetStaticField(i);
-      if (f->GetDexFieldIndex() == dex_field_idx) {
-        return f;
+    for (ArtField& field : GetSFields()) {
+      if (field.GetDexFieldIndex() == dex_field_idx) {
+        return &field;
       }
     }
   }
