@@ -39,10 +39,6 @@ class JitCompiler {
   virtual ~JitCompiler();
   bool CompileMethod(Thread* self, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  // This is in the compiler since the runtime doesn't have access to the compiled method
-  // structures.
-  bool AddToCodeCache(ArtMethod* method, const CompiledMethod* compiled_method,
-                      OatFile::OatMethod* out_method) SHARED_REQUIRES(Locks::mutator_lock_);
   CompilerCallbacks* GetCompilerCallbacks() const;
   size_t GetTotalCompileTime() const {
     return total_time_;
@@ -58,12 +54,13 @@ class JitCompiler {
   std::unique_ptr<CompilerDriver> compiler_driver_;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;
 
-  explicit JitCompiler();
-  uint8_t* WriteMethodHeaderAndCode(
-      const CompiledMethod* compiled_method, uint8_t* reserve_begin, uint8_t* reserve_end,
-      const uint8_t* mapping_table, const uint8_t* vmap_table, const uint8_t* gc_map);
-  bool MakeExecutable(CompiledMethod* compiled_method, ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  JitCompiler();
+
+  // This is in the compiler since the runtime doesn't have access to the compiled method
+  // structures.
+  bool AddToCodeCache(ArtMethod* method,
+                      const CompiledMethod* compiled_method,
+                      OatFile::OatMethod* out_method) SHARED_REQUIRES(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(JitCompiler);
 };
