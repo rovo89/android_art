@@ -129,20 +129,24 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   size_t fp_spill_mask,
                                   const uint8_t* code,
                                   size_t code_size) {
-  size_t total_size = RoundUp(sizeof(OatQuickMethodHeader) + code_size + 32, sizeof(void*));
+  size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
+  // Ensure the header ends up at expected instruction alignment.
+  size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
+  size_t total_size = header_size + code_size;
+
   OatQuickMethodHeader* method_header = nullptr;
-  uint8_t* code_ptr;
+  uint8_t* code_ptr = nullptr;
 
   MutexLock mu(self, lock_);
   {
     ScopedCodeCacheWrite scc(code_map_.get());
-    uint8_t* result = reinterpret_cast<uint8_t*>(mspace_malloc(code_mspace_, total_size));
+    uint8_t* result = reinterpret_cast<uint8_t*>(
+        mspace_memalign(code_mspace_, alignment, total_size));
     if (result == nullptr) {
       return nullptr;
     }
-    code_ptr = reinterpret_cast<uint8_t*>(
-        RoundUp(reinterpret_cast<size_t>(result + sizeof(OatQuickMethodHeader)),
-                GetInstructionSetAlignment(kRuntimeISA)));
+    code_ptr = result + header_size;
+    DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(code_ptr), alignment);
 
     std::copy(code, code + code_size, code_ptr);
     method_header = reinterpret_cast<OatQuickMethodHeader*>(code_ptr) - 1;
