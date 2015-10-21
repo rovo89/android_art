@@ -1171,6 +1171,13 @@ static JdwpError CLR_VisibleClasses(JdwpState*, Request* request, ExpandBuf* pRe
   return VM_AllClassesImpl(pReply, false, false);
 }
 
+// Delete function class to use std::unique_ptr with JdwpEvent.
+struct JdwpEventDeleter {
+  void operator()(JdwpEvent* event) {
+    EventFree(event);
+  }
+};
+
 /*
  * Set an event trigger.
  *
@@ -1184,7 +1191,7 @@ static JdwpError ER_Set(JdwpState* state, Request* request, ExpandBuf* pReply)
 
   CHECK_LT(modifier_count, 256);    /* reasonableness check */
 
-  JdwpEvent* pEvent = EventAlloc(modifier_count);
+  std::unique_ptr<JDWP::JdwpEvent, JdwpEventDeleter> pEvent(EventAlloc(modifier_count));
   pEvent->eventKind = event_kind;
   pEvent->suspend_policy = suspend_policy;
   pEvent->modCount = modifier_count;
@@ -1293,8 +1300,6 @@ static JdwpError ER_Set(JdwpState* state, Request* request, ExpandBuf* pReply)
       break;
     default:
       LOG(WARNING) << "Unsupported modifier " << mod.modKind << " for event " << pEvent->eventKind;
-      // Free allocated event to avoid leak before leaving.
-      EventFree(pEvent);
       return JDWP::ERR_NOT_IMPLEMENTED;
     }
   }
@@ -1310,13 +1315,14 @@ static JdwpError ER_Set(JdwpState* state, Request* request, ExpandBuf* pReply)
   VLOG(jdwp) << StringPrintf("    --> event requestId=%#x", requestId);
 
   /* add it to the list */
-  JdwpError err = state->RegisterEvent(pEvent);
+  JdwpError err = state->RegisterEvent(pEvent.get());
   if (err != ERR_NONE) {
     /* registration failed, probably because event is bogus */
-    EventFree(pEvent);
     LOG(WARNING) << "WARNING: event request rejected";
+    return err;
   }
-  return err;
+  pEvent.release();
+  return ERR_NONE;
 }
 
 static JdwpError ER_Clear(JdwpState* state, Request* request, ExpandBuf*)
