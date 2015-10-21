@@ -157,7 +157,8 @@ class ReflectionTest : public CommonCompilerTest {
     result = InvokeWithJValues(soa, receiver_ref.get(), soa.EncodeMethod(method), args);
     EXPECT_EQ(SCHAR_MAX, result.GetB());
 
-    args[0].b = (SCHAR_MIN << 24) >> 24;
+    static_assert(SCHAR_MIN == -128, "SCHAR_MIN unexpected");
+    args[0].b = SCHAR_MIN;
     result = InvokeWithJValues(soa, receiver_ref.get(), soa.EncodeMethod(method), args);
     EXPECT_EQ(SCHAR_MIN, result.GetB());
   }

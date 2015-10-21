@@ -569,7 +569,7 @@ TEST(ConstantFolding, IntConstantFoldingAndJumps) {
     Instruction::ADD_INT_LIT16 | 1 << 8 | 0 << 12, 5,
     Instruction::GOTO | 4 << 8,
     Instruction::ADD_INT_LIT16 | 0 << 8 | 2 << 12, 4,
-    static_cast<uint16_t>(Instruction::GOTO | -5 << 8),
+    static_cast<uint16_t>(Instruction::GOTO | 0xFFFFFFFB << 8),
     Instruction::ADD_INT_LIT16 | 2 << 8 | 1 << 12, 8,
     Instruction::RETURN | 2 << 8);
 
