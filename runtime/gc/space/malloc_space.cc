@@ -56,7 +56,7 @@ MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
     mark_bitmap_.reset(accounting::ContinuousSpaceBitmap::Create(
         StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
         Begin(), NonGrowthLimitCapacity()));
-    CHECK(live_bitmap_.get() != nullptr) << "could not create allocspace mark bitmap #"
+    CHECK(mark_bitmap_.get() != nullptr) << "could not create allocspace mark bitmap #"
         << bitmap_index;
   }
   for (auto& freed : recent_freed_objects_) {
