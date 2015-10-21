@@ -594,7 +594,7 @@ static void CompileMethod(Thread* self,
     }
   } else if ((access_flags & kAccAbstract) != 0) {
     // Abstract methods don't have code.
-  } else {
+  } else if (Runtime::Current()->IsAotCompiler()) {
     const VerifiedMethod* verified_method =
         driver->GetVerificationResults()->GetVerifiedMethod(method_ref);
     bool compile = compilation_enabled &&
@@ -633,6 +633,13 @@ static void CompileMethod(Thread* self,
               ? dex_to_dex_compilation_level
               : optimizer::DexToDexCompilationLevel::kRequired);
     }
+  } else {
+    // This is for the JIT compiler, which has already ensured the class is verified.
+    // We can go straight to compiling.
+    DCHECK(Runtime::Current()->UseJit());
+    compiled_method = driver->GetCompiler()->Compile(code_item, access_flags, invoke_type,
+                                                     class_def_idx, method_idx, class_loader,
+                                                     dex_file, dex_cache);
   }
   if (kTimeCompileMethod) {
     uint64_t duration_ns = NanoTime() - start_ns;
