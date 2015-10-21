@@ -495,6 +495,9 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   number_of_inlined_instructions_ += number_of_instructions;
 
   HInstruction* return_replacement = callee_graph->InlineInto(graph_, invoke_instruction);
+  if (return_replacement != nullptr) {
+    DCHECK_EQ(graph_, return_replacement->GetBlock()->GetGraph());
+  }
 
   // When merging the graph we might create a new NullConstant in the caller graph which does
   // not have the chance to be typed. We assign the correct type here so that we can keep the
