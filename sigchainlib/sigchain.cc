@@ -150,10 +150,15 @@ extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context)
   // Do we have a managed handler? If so, run it first.
   SpecialSignalHandlerFn managed = user_sigactions[sig].GetSpecialHandler();
   if (managed != nullptr) {
+    sigset_t mask, old_mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_BLOCK, &mask, &old_mask);
     // Call the handler. If it succeeds, we're done.
     if (managed(sig, info, context)) {
+      sigprocmask(SIG_SETMASK, &old_mask, nullptr);
       return;
     }
+    sigprocmask(SIG_SETMASK, &old_mask, nullptr);
   }
 
   const struct sigaction& action = user_sigactions[sig].GetAction();
@@ -166,7 +171,10 @@ extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context)
     }
   } else {
     if (action.sa_sigaction != nullptr) {
+      sigset_t old_mask;
+      sigprocmask(SIG_BLOCK, &action.sa_mask, &old_mask);
       action.sa_sigaction(sig, info, context);
+      sigprocmask(SIG_SETMASK, &old_mask, nullptr);
     } else {
       signal(sig, SIG_DFL);
       raise(sig);
