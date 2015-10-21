@@ -797,6 +797,10 @@ TEST_F(LocalValueNumberingTest, DivZeroCheck) {
   }
 }
 
+static constexpr int64_t shift_minus_1(size_t by) {
+  return static_cast<int64_t>(static_cast<uint64_t>(INT64_C(-1)) << by);
+}
+
 TEST_F(LocalValueNumberingTest, ConstWide) {
   static const MIRDef mirs[] = {
       // Core reg constants.
@@ -804,45 +808,45 @@ TEST_F(LocalValueNumberingTest, ConstWide) {
       DEF_CONST(Instruction::CONST_WIDE_16, 2u, 1),
       DEF_CONST(Instruction::CONST_WIDE_16, 4u, -1),
       DEF_CONST(Instruction::CONST_WIDE_32, 6u, 1 << 16),
-      DEF_CONST(Instruction::CONST_WIDE_32, 8u, -1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 8u, shift_minus_1(16)),
       DEF_CONST(Instruction::CONST_WIDE_32, 10u, (1 << 16) + 1),
       DEF_CONST(Instruction::CONST_WIDE_32, 12u, (1 << 16) - 1),
       DEF_CONST(Instruction::CONST_WIDE_32, 14u, -(1 << 16) + 1),
       DEF_CONST(Instruction::CONST_WIDE_32, 16u, -(1 << 16) - 1),
       DEF_CONST(Instruction::CONST_WIDE, 18u, INT64_C(1) << 32),
-      DEF_CONST(Instruction::CONST_WIDE, 20u, INT64_C(-1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 20u, shift_minus_1(32)),
       DEF_CONST(Instruction::CONST_WIDE, 22u, (INT64_C(1) << 32) + 1),
       DEF_CONST(Instruction::CONST_WIDE, 24u, (INT64_C(1) << 32) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 26u, (INT64_C(-1) << 32) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 28u, (INT64_C(-1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 26u, shift_minus_1(32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 28u, shift_minus_1(32) - 1),
       DEF_CONST(Instruction::CONST_WIDE_HIGH16, 30u, 1),       // Effectively 1 << 48.
       DEF_CONST(Instruction::CONST_WIDE_HIGH16, 32u, 0xffff),  // Effectively -1 << 48.
       DEF_CONST(Instruction::CONST_WIDE, 34u, (INT64_C(1) << 48) + 1),
       DEF_CONST(Instruction::CONST_WIDE, 36u, (INT64_C(1) << 48) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 38u, (INT64_C(-1) << 48) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 40u, (INT64_C(-1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 38u, shift_minus_1(48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 40u, shift_minus_1(48) - 1),
       // FP reg constants.
       DEF_CONST(Instruction::CONST_WIDE_16, 42u, 0),
       DEF_CONST(Instruction::CONST_WIDE_16, 44u, 1),
       DEF_CONST(Instruction::CONST_WIDE_16, 46u, -1),
       DEF_CONST(Instruction::CONST_WIDE_32, 48u, 1 << 16),
-      DEF_CONST(Instruction::CONST_WIDE_32, 50u, -1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 50u, shift_minus_1(16)),
       DEF_CONST(Instruction::CONST_WIDE_32, 52u, (1 << 16) + 1),
       DEF_CONST(Instruction::CONST_WIDE_32, 54u, (1 << 16) - 1),
       DEF_CONST(Instruction::CONST_WIDE_32, 56u, -(1 << 16) + 1),
       DEF_CONST(Instruction::CONST_WIDE_32, 58u, -(1 << 16) - 1),
       DEF_CONST(Instruction::CONST_WIDE, 60u, INT64_C(1) << 32),
-      DEF_CONST(Instruction::CONST_WIDE, 62u, INT64_C(-1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 62u, shift_minus_1(32)),
       DEF_CONST(Instruction::CONST_WIDE, 64u, (INT64_C(1) << 32) + 1),
       DEF_CONST(Instruction::CONST_WIDE, 66u, (INT64_C(1) << 32) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 68u, (INT64_C(-1) << 32) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 70u, (INT64_C(-1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 68u, shift_minus_1(32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 70u, shift_minus_1(32) - 1),
       DEF_CONST(Instruction::CONST_WIDE_HIGH16, 72u, 1),       // Effectively 1 << 48.
       DEF_CONST(Instruction::CONST_WIDE_HIGH16, 74u, 0xffff),  // Effectively -1 << 48.
       DEF_CONST(Instruction::CONST_WIDE, 76u, (INT64_C(1) << 48) + 1),
       DEF_CONST(Instruction::CONST_WIDE, 78u, (INT64_C(1) << 48) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 80u, (INT64_C(-1) << 48) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 82u, (INT64_C(-1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 80u, shift_minus_1(48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 82u, shift_minus_1(48) - 1),
   };
 
   PrepareMIRs(mirs);
@@ -868,7 +872,7 @@ TEST_F(LocalValueNumberingTest, Const) {
       DEF_CONST(Instruction::CONST_4, 1u, 1),
       DEF_CONST(Instruction::CONST_4, 2u, -1),
       DEF_CONST(Instruction::CONST_16, 3u, 1 << 4),
-      DEF_CONST(Instruction::CONST_16, 4u, -1 << 4),
+      DEF_CONST(Instruction::CONST_16, 4u, shift_minus_1(4)),
       DEF_CONST(Instruction::CONST_16, 5u, (1 << 4) + 1),
       DEF_CONST(Instruction::CONST_16, 6u, (1 << 4) - 1),
       DEF_CONST(Instruction::CONST_16, 7u, -(1 << 4) + 1),
@@ -877,14 +881,14 @@ TEST_F(LocalValueNumberingTest, Const) {
       DEF_CONST(Instruction::CONST_HIGH16, 10u, 0xffff),  // Effectively -1 << 16.
       DEF_CONST(Instruction::CONST, 11u, (1 << 16) + 1),
       DEF_CONST(Instruction::CONST, 12u, (1 << 16) - 1),
-      DEF_CONST(Instruction::CONST, 13u, (-1 << 16) + 1),
-      DEF_CONST(Instruction::CONST, 14u, (-1 << 16) - 1),
+      DEF_CONST(Instruction::CONST, 13u, shift_minus_1(16) + 1),
+      DEF_CONST(Instruction::CONST, 14u, shift_minus_1(16) - 1),
       // FP reg constants.
       DEF_CONST(Instruction::CONST_4, 15u, 0),
       DEF_CONST(Instruction::CONST_4, 16u, 1),
       DEF_CONST(Instruction::CONST_4, 17u, -1),
       DEF_CONST(Instruction::CONST_16, 18u, 1 << 4),
-      DEF_CONST(Instruction::CONST_16, 19u, -1 << 4),
+      DEF_CONST(Instruction::CONST_16, 19u, shift_minus_1(4)),
       DEF_CONST(Instruction::CONST_16, 20u, (1 << 4) + 1),
       DEF_CONST(Instruction::CONST_16, 21u, (1 << 4) - 1),
       DEF_CONST(Instruction::CONST_16, 22u, -(1 << 4) + 1),
@@ -893,8 +897,8 @@ TEST_F(LocalValueNumberingTest, Const) {
       DEF_CONST(Instruction::CONST_HIGH16, 25u, 0xffff),  // Effectively -1 << 16.
       DEF_CONST(Instruction::CONST, 26u, (1 << 16) + 1),
       DEF_CONST(Instruction::CONST, 27u, (1 << 16) - 1),
-      DEF_CONST(Instruction::CONST, 28u, (-1 << 16) + 1),
-      DEF_CONST(Instruction::CONST, 29u, (-1 << 16) - 1),
+      DEF_CONST(Instruction::CONST, 28u, shift_minus_1(16) + 1),
+      DEF_CONST(Instruction::CONST, 29u, shift_minus_1(16) - 1),
       // null reference constant.
       DEF_CONST(Instruction::CONST_4, 30u, 0),
   };
