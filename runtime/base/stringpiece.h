@@ -148,6 +148,19 @@ class StringPiece {
 
   StringPiece substr(size_type pos, size_type n = npos) const;
 
+  int Compare(const StringPiece& rhs) const {
+    const int r = memcmp(data(), rhs.data(), std::min(size(), rhs.size()));
+    if (r != 0) {
+      return r;
+    }
+    if (size() < rhs.size()) {
+      return -1;
+    } else if (size() > rhs.size()) {
+      return 1;
+    }
+    return 0;
+  }
+
  private:
   // Pointer to char data, not necessarily zero terminated.
   const char* ptr_;
@@ -201,9 +214,7 @@ inline bool operator!=(const StringPiece& x, const char* y) {
 }
 
 inline bool operator<(const StringPiece& x, const StringPiece& y) {
-  const int r = memcmp(x.data(), y.data(),
-                       std::min(x.size(), y.size()));
-  return ((r < 0) || ((r == 0) && (x.size() < y.size())));
+  return x.Compare(y) < 0;
 }
 
 inline bool operator>(const StringPiece& x, const StringPiece& y) {
