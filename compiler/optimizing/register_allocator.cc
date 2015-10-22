@@ -85,12 +85,13 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
 
 bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph ATTRIBUTE_UNUSED,
                                                 InstructionSet instruction_set) {
-  return instruction_set == kArm64
-      || instruction_set == kX86_64
+  return instruction_set == kArm
+      || instruction_set == kArm64
+      || instruction_set == kMips
       || instruction_set == kMips64
-      || instruction_set == kArm
+      || instruction_set == kThumb2
       || instruction_set == kX86
-      || instruction_set == kThumb2;
+      || instruction_set == kX86_64;
 }
 
 static bool ShouldProcess(bool processing_core_registers, LiveInterval* interval) {
