@@ -315,7 +315,43 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       CHECK_EQ(GetFrameDepth(), 1U);
       return true;
     } else {
-      HandleDeoptimization(method);
+      // Check if a shadow frame already exists for debugger's set-local-value purpose.
+      const size_t frame_id = GetFrameId();
+      ShadowFrame* new_frame = GetThread()->FindDebuggerShadowFrame(frame_id);
+      const bool* updated_vregs;
+      const size_t num_regs = method->GetCodeItem()->registers_size_;
+      if (new_frame == nullptr) {
+        new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, method, GetDexPc());
+        updated_vregs = nullptr;
+      } else {
+        updated_vregs = GetThread()->GetUpdatedVRegFlags(frame_id);
+        DCHECK(updated_vregs != nullptr);
+      }
+      if (GetCurrentOatQuickMethodHeader()->IsOptimized()) {
+        HandleOptimizingDeoptimization(method, new_frame, updated_vregs);
+      } else {
+        HandleQuickDeoptimization(method, new_frame, updated_vregs);
+      }
+      if (updated_vregs != nullptr) {
+        // Calling Thread::RemoveDebuggerShadowFrameMapping will also delete the updated_vregs
+        // array so this must come after we processed the frame.
+        GetThread()->RemoveDebuggerShadowFrameMapping(frame_id);
+        DCHECK(GetThread()->FindDebuggerShadowFrame(frame_id) == nullptr);
+      }
+      if (prev_shadow_frame_ != nullptr) {
+        prev_shadow_frame_->SetLink(new_frame);
+      } else {
+        // Will be popped after the long jump after DeoptimizeStack(),
+        // right before interpreter::EnterInterpreterFromDeoptimize().
+        stacked_shadow_frame_pushed_ = true;
+        GetThread()->PushStackedShadowFrame(
+            new_frame,
+            single_frame_deopt_
+                ? StackedShadowFrameType::kSingleFrameDeoptimizationShadowFrame
+                : StackedShadowFrameType::kDeoptimizationShadowFrame);
+      }
+      prev_shadow_frame_ = new_frame;
+
       if (single_frame_deopt_ && !IsInInlinedFrame()) {
         // Single-frame deopt ends at the first non-inlined frame and needs to store that method.
         exception_handler_->SetHandlerQuickArg0(reinterpret_cast<uintptr_t>(method));
@@ -326,16 +362,103 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   }
 
  private:
+  void HandleOptimizingDeoptimization(ArtMethod* m,
+                                      ShadowFrame* new_frame,
+                                      const bool* updated_vregs)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+    CodeInfo code_info = method_header->GetOptimizedCodeInfo();
+    uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
+    StackMapEncoding encoding = code_info.ExtractEncoding();
+    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
+    const size_t number_of_vregs = m->GetCodeItem()->registers_size_;
+    DexRegisterMap vreg_map = code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
+    MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
+    uint32_t register_mask = stack_map.GetRegisterMask(encoding);
+
+    for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
+      if (updated_vregs != nullptr && updated_vregs[vreg]) {
+        // Keep the value set by debugger.
+        continue;
+      }
+
+      DexRegisterLocation::Kind location =
+          vreg_map.GetLocationKind(vreg, number_of_vregs, code_info, encoding);
+      static constexpr uint32_t kDeadValue = 0xEBADDE09;
+      uint32_t value = kDeadValue;
+      bool is_reference = false;
+
+      switch (location) {
+        case DexRegisterLocation::Kind::kInStack: {
+          const int32_t offset = vreg_map.GetStackOffsetInBytes(vreg,
+                                                                number_of_vregs,
+                                                                code_info,
+                                                                encoding);
+          const uint8_t* addr = reinterpret_cast<const uint8_t*>(GetCurrentQuickFrame()) + offset;
+          value = *reinterpret_cast<const uint32_t*>(addr);
+          uint32_t bit = (offset >> 2);
+          if (stack_mask.size_in_bits() > bit && stack_mask.LoadBit(bit)) {
+            is_reference = true;
+          }
+          break;
+        }
+        case DexRegisterLocation::Kind::kInRegister:
+        case DexRegisterLocation::Kind::kInRegisterHigh:
+        case DexRegisterLocation::Kind::kInFpuRegister:
+        case DexRegisterLocation::Kind::kInFpuRegisterHigh: {
+          uint32_t reg = vreg_map.GetMachineRegister(vreg, number_of_vregs, code_info, encoding);
+          bool result = GetRegisterIfAccessible(reg, ToVRegKind(location), &value);
+          CHECK(result);
+          if (location == DexRegisterLocation::Kind::kInRegister) {
+            if (((1u << reg) & register_mask) != 0) {
+              is_reference = true;
+            }
+          }
+          break;
+        }
+        case DexRegisterLocation::Kind::kConstant: {
+          value = vreg_map.GetConstant(vreg, number_of_vregs, code_info, encoding);
+          if (value == 0) {
+            // Make it a reference for extra safety.
+            is_reference = true;
+          }
+          break;
+        }
+        case DexRegisterLocation::Kind::kNone: {
+          break;
+        }
+        default: {
+          LOG(FATAL)
+              << "Unexpected location kind"
+              << DexRegisterLocation::PrettyDescriptor(
+                    vreg_map.GetLocationInternalKind(vreg,
+                                                     number_of_vregs,
+                                                     code_info,
+                                                     encoding));
+          UNREACHABLE();
+        }
+      }
+      if (is_reference) {
+        new_frame->SetVRegReference(vreg, reinterpret_cast<mirror::Object*>(value));
+      } else {
+        new_frame->SetVReg(vreg, value);
+      }
+    }
+  }
+
   static VRegKind GetVRegKind(uint16_t reg, const std::vector<int32_t>& kinds) {
     return static_cast<VRegKind>(kinds.at(reg * 2));
   }
 
-  void HandleDeoptimization(ArtMethod* m) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void HandleQuickDeoptimization(ArtMethod* m,
+                                 ShadowFrame* new_frame,
+                                 const bool* updated_vregs)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
     CHECK(code_item != nullptr) << "No code item for " << PrettyMethod(m);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
-    StackHandleScope<2> hs(GetThread());  // Dex cache, class loader and method.
+    StackHandleScope<2> hs(GetThread());  // Dex cache and class loader.
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
@@ -345,17 +468,6 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       true, true);
     bool verifier_success = verifier.Verify();
     CHECK(verifier_success) << PrettyMethod(m);
-    // Check if a shadow frame already exists for debugger's set-local-value purpose.
-    const size_t frame_id = GetFrameId();
-    ShadowFrame* new_frame = GetThread()->FindDebuggerShadowFrame(frame_id);
-    const bool* updated_vregs;
-    if (new_frame == nullptr) {
-      new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
-      updated_vregs = nullptr;
-    } else {
-      updated_vregs = GetThread()->GetUpdatedVRegFlags(frame_id);
-      DCHECK(updated_vregs != nullptr);
-    }
     {
       ScopedStackedShadowFramePusher pusher(GetThread(), new_frame,
                                             StackedShadowFrameType::kShadowFrameUnderConstruction);
@@ -462,25 +574,6 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         }
       }
     }
-    if (updated_vregs != nullptr) {
-      // Calling Thread::RemoveDebuggerShadowFrameMapping will also delete the updated_vregs
-      // array so this must come after we processed the frame.
-      GetThread()->RemoveDebuggerShadowFrameMapping(frame_id);
-      DCHECK(GetThread()->FindDebuggerShadowFrame(frame_id) == nullptr);
-    }
-    if (prev_shadow_frame_ != nullptr) {
-      prev_shadow_frame_->SetLink(new_frame);
-    } else {
-      // Will be popped after the long jump after DeoptimizeStack(),
-      // right before interpreter::EnterInterpreterFromDeoptimize().
-      stacked_shadow_frame_pushed_ = true;
-      GetThread()->PushStackedShadowFrame(
-          new_frame,
-          single_frame_deopt_
-              ? StackedShadowFrameType::kSingleFrameDeoptimizationShadowFrame
-              : StackedShadowFrameType::kDeoptimizationShadowFrame);
-    }
-    prev_shadow_frame_ = new_frame;
   }
 
   QuickExceptionHandler* const exception_handler_;

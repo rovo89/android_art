@@ -533,6 +533,9 @@ class StackVisitor {
   StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  public:
   virtual ~StackVisitor() {}
 
@@ -766,8 +769,6 @@ class StackVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                 uint32_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool GetVRegPairFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
