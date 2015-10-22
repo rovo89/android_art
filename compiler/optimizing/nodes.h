@@ -1081,6 +1081,8 @@ class HLoopInformationOutwardIterator : public ValueObject {
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
 
+#define FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)
+
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS64(M)
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_X86(M)                            \
@@ -1094,6 +1096,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   FOR_EACH_CONCRETE_INSTRUCTION_COMMON(M)                               \
   FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)                                  \
   FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                                \
+  FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)                                 \
   FOR_EACH_CONCRETE_INSTRUCTION_MIPS64(M)                               \
   FOR_EACH_CONCRETE_INSTRUCTION_X86(M)                                  \
   FOR_EACH_CONCRETE_INSTRUCTION_X86_64(M)
@@ -4165,7 +4168,7 @@ class HTypeConversion : public HExpression<1> {
   Primitive::Type GetInputType() const { return GetInput()->GetType(); }
   Primitive::Type GetResultType() const { return GetType(); }
 
-  // Required by the x86 and ARM code generators when producing calls
+  // Required by the x86, ARM, MIPS and MIPS64 code generators when producing calls
   // to the runtime.
 
   bool CanBeMoved() const OVERRIDE { return true; }
@@ -4819,7 +4822,8 @@ class HStaticFieldGet : public HExpression<1> {
                   uint32_t dex_pc)
       : HExpression(
             field_type,
-            SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
+            SideEffects::FieldReadOfType(field_type, is_volatile),
+            dex_pc),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache) {
     SetRawInputAt(0, cls);
   }
@@ -4861,7 +4865,8 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   Handle<mirror::DexCache> dex_cache,
                   uint32_t dex_pc)
       : HTemplateInstruction(
-          SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
+          SideEffects::FieldWriteOfType(field_type, is_volatile),
+          dex_pc),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache),
         value_can_be_null_(true) {
     SetRawInputAt(0, cls);

@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-archs_list = ['ARM', 'ARM64', 'MIPS64', 'X86', 'X86_64']
+archs_list = ['ARM', 'ARM64', 'MIPS', 'MIPS64', 'X86', 'X86_64']
