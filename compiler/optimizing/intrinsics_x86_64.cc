@@ -1605,7 +1605,7 @@ static void CreateIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* invoke) 
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrInt32LongConstant(invoke->InputAt(1)));
+  locations->SetInAt(1, Location::RegisterOrInt32Constant(invoke->InputAt(1)));
 }
 
 static void GenPoke(LocationSummary* locations, Primitive::Type size, X86_64Assembler* assembler) {

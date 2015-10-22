@@ -17,6 +17,7 @@
 #include "locations.h"
 
 #include "nodes.h"
+#include "code_generator.h"
 
 namespace art {
 
@@ -47,24 +48,38 @@ Location Location::RegisterOrConstant(HInstruction* instruction) {
       : Location::RequiresRegister();
 }
 
-Location Location::RegisterOrInt32LongConstant(HInstruction* instruction) {
-  if (instruction->IsIntConstant() || instruction->IsNullConstant()) {
-    return Location::ConstantLocation(instruction->AsConstant());
-  } else if (instruction->IsLongConstant()) {
-    // Does the long constant fit in a 32 bit int?
-    int64_t value = instruction->AsLongConstant()->GetValue();
-    return IsInt<32>(value)
-        ? Location::ConstantLocation(instruction->AsConstant())
-        : Location::RequiresRegister();
-  } else {
-    return Location::RequiresRegister();
+Location Location::RegisterOrInt32Constant(HInstruction* instruction) {
+  HConstant* constant = instruction->AsConstant();
+  if (constant != nullptr) {
+    int64_t value = CodeGenerator::GetInt64ValueOf(constant);
+    if (IsInt<32>(value)) {
+      return Location::ConstantLocation(constant);
+    }
   }
+  return Location::RequiresRegister();
+}
+
+Location Location::FpuRegisterOrInt32Constant(HInstruction* instruction) {
+  HConstant* constant = instruction->AsConstant();
+  if (constant != nullptr) {
+    int64_t value = CodeGenerator::GetInt64ValueOf(constant);
+    if (IsInt<32>(value)) {
+      return Location::ConstantLocation(constant);
+    }
+  }
+  return Location::RequiresFpuRegister();
 }
 
 Location Location::ByteRegisterOrConstant(int reg, HInstruction* instruction) {
   return instruction->IsConstant()
       ? Location::ConstantLocation(instruction->AsConstant())
       : Location::RegisterLocation(reg);
+}
+
+Location Location::FpuRegisterOrConstant(HInstruction* instruction) {
+  return instruction->IsConstant()
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RequiresFpuRegister();
 }
 
 std::ostream& operator<<(std::ostream& os, const Location& location) {

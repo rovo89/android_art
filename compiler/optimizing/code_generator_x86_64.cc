@@ -2562,7 +2562,7 @@ void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       // We can use a leaq or addq if the constant can fit in an immediate.
-      locations->SetInAt(1, Location::RegisterOrInt32LongConstant(add->InputAt(1)));
+      locations->SetInAt(1, Location::RegisterOrInt32Constant(add->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
@@ -2682,7 +2682,7 @@ void LocationsBuilderX86_64::VisitSub(HSub* sub) {
     }
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RegisterOrInt32LongConstant(sub->InputAt(1)));
+      locations->SetInAt(1, Location::RegisterOrInt32Constant(sub->InputAt(1)));
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -3755,14 +3755,25 @@ void LocationsBuilderX86_64::HandleFieldSet(HInstruction* instruction,
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   Primitive::Type field_type = field_info.GetFieldType();
+  bool is_volatile = field_info.IsVolatile();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1));
 
   locations->SetInAt(0, Location::RequiresRegister());
   if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
-    locations->SetInAt(1, Location::RequiresFpuRegister());
+    if (is_volatile) {
+      // In order to satisfy the semantics of volatile, this must be a single instruction store.
+      locations->SetInAt(1, Location::FpuRegisterOrInt32Constant(instruction->InputAt(1)));
+    } else {
+      locations->SetInAt(1, Location::FpuRegisterOrConstant(instruction->InputAt(1)));
+    }
   } else {
-    locations->SetInAt(1, Location::RegisterOrInt32LongConstant(instruction->InputAt(1)));
+    if (is_volatile) {
+      // In order to satisfy the semantics of volatile, this must be a single instruction store.
+      locations->SetInAt(1, Location::RegisterOrInt32Constant(instruction->InputAt(1)));
+    } else {
+      locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+    }
   }
   if (needs_write_barrier) {
     // Temporary registers for the write barrier.
@@ -3790,11 +3801,13 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
   }
 
+  bool maybe_record_implicit_null_check_done = false;
+
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
       if (value.IsConstant()) {
-        int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        int8_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
         __ movb(Address(base, offset), Immediate(v));
       } else {
         __ movb(Address(base, offset), value.AsRegister<CpuRegister>());
@@ -3805,7 +3818,7 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
       if (value.IsConstant()) {
-        int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        int16_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
         __ movw(Address(base, offset), Immediate(v));
       } else {
         __ movw(Address(base, offset), value.AsRegister<CpuRegister>());
@@ -3838,9 +3851,11 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case Primitive::kPrimLong: {
       if (value.IsConstant()) {
         int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-        DCHECK(IsInt<32>(v));
-        int32_t v_32 = v;
-        __ movq(Address(base, offset), Immediate(v_32));
+        codegen_->MoveInt64ToAddress(Address(base, offset),
+                                     Address(base, offset + sizeof(int32_t)),
+                                     v,
+                                     instruction);
+        maybe_record_implicit_null_check_done = true;
       } else {
         __ movq(Address(base, offset), value.AsRegister<CpuRegister>());
       }
@@ -3848,12 +3863,28 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     }
 
     case Primitive::kPrimFloat: {
-      __ movss(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      if (value.IsConstant()) {
+        int32_t v =
+            bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
+        __ movl(Address(base, offset), Immediate(v));
+      } else {
+        __ movss(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ movsd(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      if (value.IsConstant()) {
+        int64_t v =
+            bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
+        codegen_->MoveInt64ToAddress(Address(base, offset),
+                                     Address(base, offset + sizeof(int32_t)),
+                                     v,
+                                     instruction);
+        maybe_record_implicit_null_check_done = true;
+      } else {
+        __ movsd(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      }
       break;
     }
 
@@ -3862,7 +3893,9 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
       UNREACHABLE();
   }
 
-  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  if (!maybe_record_implicit_null_check_done) {
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
 
   if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
     CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
@@ -4170,13 +4203,9 @@ void LocationsBuilderX86_64::VisitArraySet(HArraySet* instruction) {
       may_need_runtime_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
 
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(
-      1, Location::RegisterOrConstant(instruction->InputAt(1)));
-  locations->SetInAt(2, Location::RequiresRegister());
-  if (value_type == Primitive::kPrimLong) {
-    locations->SetInAt(2, Location::RegisterOrInt32LongConstant(instruction->InputAt(2)));
-  } else if (value_type == Primitive::kPrimFloat || value_type == Primitive::kPrimDouble) {
-    locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  if (Primitive::IsFloatingPointType(value_type)) {
+    locations->SetInAt(2, Location::FpuRegisterOrConstant(instruction->InputAt(2)));
   } else {
     locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
   }
@@ -4330,13 +4359,15 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
           : Address(array, index.AsRegister<CpuRegister>(), TIMES_8, offset);
       if (value.IsRegister()) {
         __ movq(address, value.AsRegister<CpuRegister>());
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
       } else {
         int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-        DCHECK(IsInt<32>(v));
-        int32_t v_32 = v;
-        __ movq(address, Immediate(v_32));
+        Address address_high = index.IsConstant()
+            ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) +
+                offset + sizeof(int32_t))
+            : Address(array, index.AsRegister<CpuRegister>(), TIMES_8, offset + sizeof(int32_t));
+        codegen_->MoveInt64ToAddress(address, address_high, v, instruction);
       }
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
@@ -4345,8 +4376,14 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
       Address address = index.IsConstant()
           ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
           : Address(array, index.AsRegister<CpuRegister>(), TIMES_4, offset);
-      DCHECK(value.IsFpuRegister());
-      __ movss(address, value.AsFpuRegister<XmmRegister>());
+      if (value.IsFpuRegister()) {
+        __ movss(address, value.AsFpuRegister<XmmRegister>());
+      } else {
+        DCHECK(value.IsConstant());
+        int32_t v =
+            bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
+        __ movl(address, Immediate(v));
+      }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
@@ -4356,9 +4393,18 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
       Address address = index.IsConstant()
           ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + offset)
           : Address(array, index.AsRegister<CpuRegister>(), TIMES_8, offset);
-      DCHECK(value.IsFpuRegister());
-      __ movsd(address, value.AsFpuRegister<XmmRegister>());
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      if (value.IsFpuRegister()) {
+        __ movsd(address, value.AsFpuRegister<XmmRegister>());
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      } else {
+        int64_t v =
+            bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
+        Address address_high = index.IsConstant()
+            ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) +
+                offset + sizeof(int32_t))
+            : Address(array, index.AsRegister<CpuRegister>(), TIMES_8, offset + sizeof(int32_t));
+        codegen_->MoveInt64ToAddress(address, address_high, v, instruction);
+      }
       break;
     }
 
@@ -5562,6 +5608,24 @@ Address CodeGeneratorX86_64::LiteralCaseTable(HPackedSwitch* switch_instr) {
   // We have to populate the jump tables.
   fixups_to_jump_tables_.push_back(table_fixup);
   return Address::RIP(table_fixup);
+}
+
+void CodeGeneratorX86_64::MoveInt64ToAddress(const Address& addr_low,
+                                             const Address& addr_high,
+                                             int64_t v,
+                                             HInstruction* instruction) {
+  if (IsInt<32>(v)) {
+    int32_t v_32 = v;
+    __ movq(addr_low, Immediate(v_32));
+    MaybeRecordImplicitNullCheck(instruction);
+  } else {
+    // Didn't fit in a register.  Do it in pieces.
+    int32_t low_v = Low32Bits(v);
+    int32_t high_v = High32Bits(v);
+    __ movl(addr_low, Immediate(low_v));
+    MaybeRecordImplicitNullCheck(instruction);
+    __ movl(addr_high, Immediate(high_v));
+  }
 }
 
 #undef __
