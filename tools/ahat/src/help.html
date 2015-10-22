@@ -54,3 +54,38 @@ limitations under the License.
     </ul>
   </li>
 </ul>
+
+<h2>Tips:</h2>
+<h3>Heaps</h3>
+<p>
+Android heap dumps contain information for multiple heaps. The <b>app</b> heap
+is the memory used by your application. The <b>zygote</b> and <b>image</b>
+heaps are used by the system. You should ignore everything in the zygote and
+image heap and look only at the app heap. This is because changes in your
+application will not effect the zygote or image heaps, and because the zygote
+and image heaps are shared, they don't contribute significantly to your
+applications PSS.
+</p>
+
+<h3>Bitmaps</h3>
+<p>
+Bitmaps store their data using byte[] arrays. Whenever you see a large
+byte[], check if it is a bitmap by looking to see if there is a single
+android.graphics.Bitmap object referring to it. The byte[] will be marked as a
+root, but it is really being retained by the android.graphics.Bitmap object.
+</p>
+
+<h3>DexCaches</h3>
+<p>
+For each DexFile you load, there will be a corresponding DexCache whose size
+is proportional to the number of strings, fields, methods, and classes in your
+dex file. The DexCache entries may or may not be visible depending on the
+version of the Android platform the heap dump is from.
+</p>
+
+<h3>FinalizerReferences</h3>
+<p>
+A FinalizerReference is allocated for every object on the heap that has a
+non-trivial finalizer. These are stored in a linked list reachable from the
+FinalizerReference class object.
+</p>
