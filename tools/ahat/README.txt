@@ -10,8 +10,6 @@ Usage:
 
 TODO:
  * Add more tips to the help page.
-   - Note that only 'app' heap matters, not 'zygote' or 'image'.
-   - Say what a dex cache is.
    - Recommend how to start looking at a heap dump.
    - Say how to enable allocation sites.
    - Where to submit feedback, questions, and bug reports.
@@ -24,6 +22,7 @@ TODO:
  * Show site context and heap and class filter in "Objects" view?
  * Have a menu at the top of an object view with links to the sections?
  * Include ahat version and hprof file in the menu at the top of the page?
+ * Show root types.
  * Heaped Table
    - Make sortable by clicking on headers.
    - Use consistent order for heap columns.
@@ -86,7 +85,6 @@ Perflib Requests:
    index.
  * What's the difference between getId and getUniqueId?
  * I see objects with duplicate references.
- * Don't store stack trace by heap (CL 157252)
  * A way to get overall retained size by heap.
  * A method Instance.isReachable()
 
@@ -97,6 +95,9 @@ Things to move to perflib:
  * Computing, for each instance, the other instances it dominates.
 
 Release History:
+ 0.2 Oct 20, 2015
+   Take into account 'count' and 'offset' when displaying strings.
+
  0.1ss Aug 04, 2015
    Enable stack allocations code (using custom modified perflib).
    Sort objects in 'objects/' with default sort.
