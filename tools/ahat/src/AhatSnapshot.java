@@ -18,14 +18,12 @@ package com.android.ahat;
 
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Heap;
-import com.android.tools.perflib.heap.HprofParser;
 import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.RootObj;
 import com.android.tools.perflib.heap.Snapshot;
 import com.android.tools.perflib.heap.StackFrame;
 import com.android.tools.perflib.heap.StackTrace;
-import com.android.tools.perflib.heap.io.HprofBuffer;
-import com.android.tools.perflib.heap.io.MemoryMappedFileBuffer;
+import com.android.tools.perflib.captures.MemoryMappedFileBuffer;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import java.io.File;
@@ -56,8 +54,7 @@ class AhatSnapshot {
    * Create an AhatSnapshot from an hprof file.
    */
   public static AhatSnapshot fromHprof(File hprof) throws IOException {
-    HprofBuffer buffer = new MemoryMappedFileBuffer(hprof);
-    Snapshot snapshot = (new HprofParser(buffer)).parse();
+    Snapshot snapshot = Snapshot.createSnapshot(new MemoryMappedFileBuffer(hprof));
     snapshot.computeDominators();
     return new AhatSnapshot(snapshot);
   }
@@ -185,20 +182,17 @@ class AhatSnapshot {
 
   // Return the stack where the given instance was allocated.
   private static StackTrace getStack(Instance inst) {
-    // TODO: return inst.getStack() once perflib is fixed.
-    return null;
+    return inst.getStack();
   }
 
   // Return the list of stack frames for a stack trace.
   private static StackFrame[] getStackFrames(StackTrace stack) {
-    // TODO: Use stack.getFrames() once perflib is fixed.
-    return null;
+    return stack.getFrames();
   }
 
   // Return the serial number of the given stack trace.
   private static int getStackTraceSerialNumber(StackTrace stack) {
-    // TODO: Use stack.getSerialNumber() once perflib is fixed.
-    return 0;
+    return stack.getSerialNumber();
   }
 
   // Get the site associated with the given stack id and depth.
