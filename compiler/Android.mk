@@ -152,6 +152,7 @@ LIBART_COMPILER_SRC_FILES_mips := \
 	dex/quick/mips/target_mips.cc \
 	dex/quick/mips/utility_mips.cc \
 	jni/quick/mips/calling_convention_mips.cc \
+	optimizing/code_generator_mips.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
 

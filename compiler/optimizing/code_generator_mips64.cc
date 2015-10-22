@@ -342,8 +342,7 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
-                                                        : locations->Out();
+    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0) : locations->Out();
     uint32_t dex_pc = instruction_->GetDexPc();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
