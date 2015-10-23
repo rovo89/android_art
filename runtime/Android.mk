@@ -25,6 +25,7 @@ LIBART_COMMON_SRC_FILES := \
   barrier.cc \
   base/allocator.cc \
   base/arena_allocator.cc \
+  base/arena_bit_vector.cc \
   base/bit_vector.cc \
   base/hex_dump.cc \
   base/logging.cc \

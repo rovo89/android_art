@@ -15,8 +15,9 @@
  */
 
 #include "stack_map.h"
+
+#include "base/arena_bit_vector.h"
 #include "stack_map_stream.h"
-#include "utils/arena_bit_vector.h"
 
 #include "gtest/gtest.h"
 

@@ -94,7 +94,6 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/ssa_phi_elimination.cc \
 	optimizing/stack_map_stream.cc \
 	trampolines/trampoline_compiler.cc \
-	utils/arena_bit_vector.cc \
 	utils/assembler.cc \
 	utils/swap_space.cc \
 	buffered_output_stream.cc \
