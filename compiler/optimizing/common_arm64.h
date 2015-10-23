@@ -203,19 +203,23 @@ static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
 
   int64_t value = CodeGenerator::GetInt64ValueOf(constant);
 
-  if (instr->IsAdd() || instr->IsSub() || instr->IsCondition() ||
-      instr->IsCompare() || instr->IsBoundsCheck()) {
+  if (instr->IsAnd() || instr->IsOr() || instr->IsXor()) {
+    // Uses logical operations.
+    return vixl::Assembler::IsImmLogical(value, vixl::kXRegSize);
+  } else if (instr->IsNeg()) {
+    // Uses mov -immediate.
+    return vixl::Assembler::IsImmMovn(value, vixl::kXRegSize);
+  } else {
+    DCHECK(instr->IsAdd() ||
+           instr->IsArm64IntermediateAddress() ||
+           instr->IsBoundsCheck() ||
+           instr->IsCompare() ||
+           instr->IsCondition() ||
+           instr->IsSub());
     // Uses aliases of ADD/SUB instructions.
     // If `value` does not fit but `-value` does, VIXL will automatically use
     // the 'opposite' instruction.
     return vixl::Assembler::IsImmAddSub(value) || vixl::Assembler::IsImmAddSub(-value);
-  } else if (instr->IsAnd() || instr->IsOr() || instr->IsXor()) {
-    // Uses logical operations.
-    return vixl::Assembler::IsImmLogical(value, vixl::kXRegSize);
-  } else {
-    DCHECK(instr->IsNeg());
-    // Uses mov -immediate.
-    return vixl::Assembler::IsImmMovn(value, vixl::kXRegSize);
   }
 }
 
