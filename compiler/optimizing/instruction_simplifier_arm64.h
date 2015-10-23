@@ -35,6 +35,14 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
     }
   }
 
+  void TryExtractArrayAccessAddress(HInstruction* access,
+                                    HInstruction* array,
+                                    HInstruction* index,
+                                    int access_size);
+
+  void VisitArrayGet(HArrayGet* instruction) OVERRIDE;
+  void VisitArraySet(HArraySet* instruction) OVERRIDE;
+
   OptimizingCompilerStats* stats_;
 };
 

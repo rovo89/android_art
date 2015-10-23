@@ -1580,6 +1580,21 @@ void InstructionCodeGeneratorARM64::VisitAnd(HAnd* instruction) {
   HandleBinaryOp(instruction);
 }
 
+void LocationsBuilderARM64::VisitArm64IntermediateAddress(HArm64IntermediateAddress* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, ARM64EncodableConstantOrRegister(instruction->GetOffset(), instruction));
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM64::VisitArm64IntermediateAddress(
+    HArm64IntermediateAddress* instruction) {
+  __ Add(OutputRegister(instruction),
+         InputRegisterAt(instruction, 0),
+         Operand(InputOperandAt(instruction, 1)));
+}
+
 void LocationsBuilderARM64::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
@@ -1593,14 +1608,16 @@ void LocationsBuilderARM64::VisitArrayGet(HArrayGet* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
   Primitive::Type type = instruction->GetType();
   Register obj = InputRegisterAt(instruction, 0);
-  Location index = locations->InAt(1);
+  Location index = instruction->GetLocations()->InAt(1);
   size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(type)).Uint32Value();
   MemOperand source = HeapOperand(obj);
+  CPURegister dest = OutputCPURegister(instruction);
+
   MacroAssembler* masm = GetVIXLAssembler();
   UseScratchRegisterScope temps(masm);
+  // Block pools between `Load` and `MaybeRecordImplicitNullCheck`.
   BlockPoolsScope block_pools(masm);
 
   if (index.IsConstant()) {
@@ -1608,15 +1625,26 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
     source = HeapOperand(obj, offset);
   } else {
     Register temp = temps.AcquireSameSizeAs(obj);
-    __ Add(temp, obj, offset);
+    if (instruction->GetArray()->IsArm64IntermediateAddress()) {
+      // We do not need to compute the intermediate address from the array: the
+      // input instruction has done it already. See the comment in
+      // `InstructionSimplifierArm64::TryExtractArrayAccessAddress()`.
+      if (kIsDebugBuild) {
+        HArm64IntermediateAddress* tmp = instruction->GetArray()->AsArm64IntermediateAddress();
+        DCHECK(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64() == offset);
+      }
+      temp = obj;
+    } else {
+      __ Add(temp, obj, offset);
+    }
     source = HeapOperand(temp, XRegisterFrom(index), LSL, Primitive::ComponentSizeShift(type));
   }
 
-  codegen_->Load(type, OutputCPURegister(instruction), source);
+  codegen_->Load(type, dest, source);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
 
-  if (type == Primitive::kPrimNot) {
-    GetAssembler()->MaybeUnpoisonHeapReference(OutputCPURegister(instruction).W());
+  if (instruction->GetType() == Primitive::kPrimNot) {
+    GetAssembler()->MaybeUnpoisonHeapReference(dest.W());
   }
 }
 
@@ -1670,7 +1698,18 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
     } else {
       UseScratchRegisterScope temps(masm);
       Register temp = temps.AcquireSameSizeAs(array);
-      __ Add(temp, array, offset);
+      if (instruction->GetArray()->IsArm64IntermediateAddress()) {
+        // We do not need to compute the intermediate address from the array: the
+        // input instruction has done it already. See the comment in
+        // `InstructionSimplifierArm64::TryExtractArrayAccessAddress()`.
+        if (kIsDebugBuild) {
+          HArm64IntermediateAddress* tmp = instruction->GetArray()->AsArm64IntermediateAddress();
+          DCHECK(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64() == offset);
+        }
+        temp = array;
+      } else {
+        __ Add(temp, array, offset);
+      }
       destination = HeapOperand(temp,
                                 XRegisterFrom(index),
                                 LSL,
@@ -1680,6 +1719,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   } else {
     DCHECK(needs_write_barrier);
+    DCHECK(!instruction->GetArray()->IsArm64IntermediateAddress());
     vixl::Label done;
     SlowPathCodeARM64* slow_path = nullptr;
     {
