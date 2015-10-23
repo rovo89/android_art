@@ -46,7 +46,9 @@
 #include <sys/syscall.h>
 #endif
 
-#include <backtrace/Backtrace.h>  // For DumpNativeStack.
+// For DumpNativeStack.
+#include <backtrace/Backtrace.h>
+#include <backtrace/BacktraceMap.h>
 
 #if defined(__linux__)
 #include <linux/unistd.h>
@@ -1102,7 +1104,7 @@ static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFET
 }
 #endif
 
-void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
+void DumpNativeStack(std::ostream& os, pid_t tid, BacktraceMap* existing_map, const char* prefix,
     ArtMethod* current_method, void* ucontext_ptr) {
 #if __linux__
   // b/18119146
@@ -1110,7 +1112,13 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     return;
   }
 
-  std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
+  BacktraceMap* map = existing_map;
+  std::unique_ptr<BacktraceMap> tmp_map;
+  if (map == nullptr) {
+    tmp_map.reset(BacktraceMap::Create(tid));
+    map = tmp_map.get();
+  }
+  std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid, map));
   if (!backtrace->Unwind(0, reinterpret_cast<ucontext*>(ucontext_ptr))) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
     return;
@@ -1174,7 +1182,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     }
   }
 #else
-  UNUSED(os, tid, prefix, current_method, ucontext_ptr);
+  UNUSED(os, tid, existing_map, prefix, current_method, ucontext_ptr);
 #endif
 }
 
