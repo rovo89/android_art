@@ -1297,7 +1297,6 @@ DEFINE_FUNCTION art_quick_set64_static
     RETURN_IF_EAX_ZERO                   // return or deliver exception
 END_FUNCTION art_quick_set64_static
 
-
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI
 
@@ -1308,6 +1307,60 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     movq %rax, %xmm0                        // Copy return value in case of float returns.
     RETURN_OR_DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_proxy_invoke_handler
+
+// Forward call from boxed innate lambda to the underlying lambda closure's target method.
+DEFINE_FUNCTION art_quick_lambda_proxy_invoke_handler
+    // This function is always called when the lambda is innate.
+    // Therefore we can assume the box is to an innate lambda.
+    // TODO: perhaps there should be a DCHECK to make sure it's innate?
+
+#if LAMBDA_PROXY_SETUP_FRAME
+    // Set up a quick frame when debugging so we can see that it's going through a stub.
+    // Our stack traces will contain the quick lambda proxy hander.
+    // Note that we *must* go through the handler (when spilling) otherwise we won't know how
+    // to move the spilled GC references from the caller to this stub.
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI
+
+    movq %gs:THREAD_SELF_OFFSET, %rdx       // Pass Thread::Current().
+    movq %rsp, %rcx                         // Pass SP.
+    call SYMBOL(artQuickLambdaProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    movq %rax, %xmm0                        // Copy return value in case of float returns.
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+#else
+    // Set up the new correct method receiver (swap object with closure).
+    // -- The original object is no longer available after this.
+    //
+    // (Before)
+    // rsi == mirror::Object* boxed_lambda;  // lambda proxy object.
+    movq MIRROR_OBJECT_BOXED_INNATE_LAMBDA_CLOSURE_POINTER_OFFSET(%rsi), %rsi
+    // (After)
+    // lambda::Closure* closure = boxed_lambda->closure_;  // Overwrite receiver object.
+    // rsi == closure
+
+    // Look up the new correct method target.
+    // -- The original method target is no longer available after this.
+    movq LAMBDA_CLOSURE_METHOD_OFFSET(%rsi), %rdi          // Overwrite old receiver method.
+    // (After)
+    // ArtLambdaMethod* lambda_method_target = closure->lambda_info_;
+    // rdi == lambda_method_target
+
+    // TODO: avoid extra indirect load by subclass ArtLambdaMethod from ArtMethod.
+
+    // Set up the correct method target from the lambda info.
+    movq ART_LAMBDA_METHOD_ART_METHOD_OFFSET(%rdi), %rdi  // Write new receiver method.
+    // (After)
+    // ArtMethod* method_target = lambda_method_target->target_;
+    // rdi == method_target
+
+    // Forward the call to the overwritten receiver method.
+    // -- Arguments [2,N] are left completely untouched since the signature is otherwise identical.
+    // Do not use 'call' here since the stack would be misaligned (8b instead of 16b).
+    // Also the stack visitors wouldn't know how to visit this frame if we used a call.
+    jmp *ART_METHOD_QUICK_CODE_OFFSET_64(%rdi)   // tailcall (new method, new receiver, old args...)
+#endif
+
+END_FUNCTION art_quick_lambda_proxy_invoke_handler
 
     /*
      * Called to resolve an imt conflict.

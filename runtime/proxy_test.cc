@@ -121,7 +121,7 @@ TEST_F(ProxyTest, ProxyClassHelper) {
       GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces)));
   interfaces.clear();  // Don't least possibly stale objects in the array as good practice.
   ASSERT_TRUE(proxy_class.Get() != nullptr);
-  ASSERT_TRUE(proxy_class->IsProxyClass());
+  ASSERT_TRUE(proxy_class->IsReflectProxyClass());
   ASSERT_TRUE(proxy_class->IsInitialized());
 
   EXPECT_EQ(2U, proxy_class->NumDirectInterfaces());  // Interfaces$I and Interfaces$J.
@@ -157,7 +157,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   }
 
   ASSERT_TRUE(proxyClass.Get() != nullptr);
-  ASSERT_TRUE(proxyClass->IsProxyClass());
+  ASSERT_TRUE(proxyClass->IsReflectProxyClass());
   ASSERT_TRUE(proxyClass->IsInitialized());
 
   EXPECT_TRUE(proxyClass->GetIFieldsPtr() == nullptr);
@@ -208,10 +208,10 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   }
 
   ASSERT_TRUE(proxyClass0.Get() != nullptr);
-  ASSERT_TRUE(proxyClass0->IsProxyClass());
+  ASSERT_TRUE(proxyClass0->IsReflectProxyClass());
   ASSERT_TRUE(proxyClass0->IsInitialized());
   ASSERT_TRUE(proxyClass1.Get() != nullptr);
-  ASSERT_TRUE(proxyClass1->IsProxyClass());
+  ASSERT_TRUE(proxyClass1->IsReflectProxyClass());
   ASSERT_TRUE(proxyClass1->IsInitialized());
 
   LengthPrefixedArray<ArtField>* static_fields0 = proxyClass0->GetSFieldsPtr();

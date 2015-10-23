@@ -65,6 +65,7 @@ Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
 Mutex* Locks::lambda_table_lock_ = nullptr;
+Mutex* Locks::lambda_class_table_lock_ = nullptr;
 Uninterruptible Roles::uninterruptible_;
 
 struct AllMutexData {
@@ -954,6 +955,7 @@ void Locks::Init() {
     DCHECK(trace_lock_ != nullptr);
     DCHECK(unexpected_signal_lock_ != nullptr);
     DCHECK(lambda_table_lock_ != nullptr);
+    DCHECK(lambda_class_table_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
     LockLevel current_lock_level = kInstrumentEntrypointsLock;
@@ -1071,6 +1073,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kLambdaTableLock);
     DCHECK(lambda_table_lock_ == nullptr);
     lambda_table_lock_ = new Mutex("lambda table lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kLambdaClassTableLock);
+    DCHECK(lambda_class_table_lock_ == nullptr);
+    lambda_class_table_lock_ = new Mutex("lambda class table lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
     DCHECK(abort_lock_ == nullptr);

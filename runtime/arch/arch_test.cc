@@ -46,9 +46,15 @@ class ArchTest : public CommonRuntimeTest {
   }
 };
 
+}  // namespace art
+
 // Common tests are declared next to the constants.
 #define ADD_TEST_EQ(x, y) EXPECT_EQ(x, y);
 #include "asm_support.h"
+// Important: Do not include this inside of another namespace, since asm_support.h
+// defines its own namespace which must not be nested.
+
+namespace art {
 
 TEST_F(ArchTest, CheckCommonOffsetsAndSizes) {
   CheckAsmSupportOffsetsAndSizes();

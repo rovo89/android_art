@@ -17,6 +17,10 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_RUNTIME_ASM_ENTRYPOINTS_H_
 #define ART_RUNTIME_ENTRYPOINTS_RUNTIME_ASM_ENTRYPOINTS_H_
 
+// Define entry points to assembly routines.
+// All extern "C" functions here are defined in a corresponding assembly-only file.
+// The exact file paths are runtime/arch/$ISA/quick_entrypoints_$ISA.s
+
 namespace art {
 
 #ifndef BUILDING_LIBART
@@ -50,6 +54,13 @@ static inline const void* GetQuickGenericJniStub() {
 extern "C" void art_quick_proxy_invoke_handler();
 static inline const void* GetQuickProxyInvokeHandler() {
   return reinterpret_cast<const void*>(art_quick_proxy_invoke_handler);
+}
+
+// Return the address of quick stub code for handling transitions into the lambda proxy
+// invoke handler.
+extern "C" void art_quick_lambda_proxy_invoke_handler();
+static inline const void* GetQuickLambdaProxyInvokeHandler() {
+  return reinterpret_cast<const void*>(art_quick_lambda_proxy_invoke_handler);
 }
 
 // Return the address of quick stub code for resolving a method at first call.
