@@ -97,16 +97,6 @@ void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
 
 static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  Runtime* const runtime = Runtime::Current();
-  jit::Jit* jit = runtime->GetJit();
-  if (jit != nullptr) {
-    const void* old_code_ptr = method->GetEntryPointFromQuickCompiledCode();
-    jit::JitCodeCache* code_cache = jit->GetCodeCache();
-    if (code_cache->ContainsCodePtr(old_code_ptr)) {
-      // Save the old compiled code since we need it to implement ClassLinker::GetQuickOatCodeFor.
-      code_cache->SaveCompiledCode(method, old_code_ptr);
-    }
-  }
   method->SetEntryPointFromQuickCompiledCode(quick_code);
 }
 

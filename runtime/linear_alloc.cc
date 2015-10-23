@@ -48,4 +48,8 @@ bool LinearAlloc::Contains(void* ptr) const {
   return allocator_.Contains(ptr);
 }
 
+bool LinearAlloc::ContainsUnsafe(void* ptr) const {
+  return allocator_.Contains(ptr);
+}
+
 }  // namespace art

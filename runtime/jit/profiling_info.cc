@@ -28,15 +28,10 @@ namespace art {
 ProfilingInfo* ProfilingInfo::Create(ArtMethod* method) {
   // Walk over the dex instructions of the method and keep track of
   // instructions we are interested in profiling.
-  const uint16_t* code_ptr = nullptr;
-  const uint16_t* code_end = nullptr;
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    DCHECK(!method->IsNative());
-    const DexFile::CodeItem& code_item = *method->GetCodeItem();
-    code_ptr = code_item.insns_;
-    code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
-  }
+  DCHECK(!method->IsNative());
+  const DexFile::CodeItem& code_item = *method->GetCodeItem();
+  const uint16_t* code_ptr = code_item.insns_;
+  const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
 
   uint32_t dex_pc = 0;
   std::vector<uint32_t> entries;
@@ -91,7 +86,7 @@ void ProfilingInfo::AddInvokeInfo(Thread* self, uint32_t dex_pc, mirror::Class* 
 
   ScopedObjectAccess soa(self);
   for (size_t i = 0; i < InlineCache::kIndividualCacheSize; ++i) {
-    mirror::Class* existing = cache->classes_[i].Read<kWithoutReadBarrier>();
+    mirror::Class* existing = cache->classes_[i].Read();
     if (existing == cls) {
       // Receiver type is already in the cache, nothing else to do.
       return;

@@ -59,8 +59,8 @@ class JitCompiler {
   // This is in the compiler since the runtime doesn't have access to the compiled method
   // structures.
   bool AddToCodeCache(ArtMethod* method,
-                      const CompiledMethod* compiled_method,
-                      OatFile::OatMethod* out_method) SHARED_REQUIRES(Locks::mutator_lock_);
+                      const CompiledMethod* compiled_method)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(JitCompiler);
 };

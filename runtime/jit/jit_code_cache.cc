@@ -19,8 +19,12 @@
 #include <sstream>
 
 #include "art_method-inl.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
+#include "gc/accounting/bitmap-inl.h"
+#include "linear_alloc.h"
 #include "mem_map.h"
 #include "oat_file-inl.h"
+#include "thread_list.h"
 
 namespace art {
 namespace jit {
@@ -74,14 +78,10 @@ JitCodeCache* JitCodeCache::Create(size_t capacity, std::string* error_msg) {
 
 JitCodeCache::JitCodeCache(MemMap* code_map, MemMap* data_map)
     : lock_("Jit code cache", kJitCodeCacheLock),
+      lock_cond_("Jit code cache variable", lock_),
+      collection_in_progress_(false),
       code_map_(code_map),
-      data_map_(data_map),
-      num_methods_(0) {
-
-  VLOG(jit) << "Created jit code cache: data size="
-            << PrettySize(data_map_->Size())
-            << ", code size="
-            << PrettySize(code_map_->Size());
+      data_map_(data_map) {
 
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_map_->Size(), false /*locked*/);
   data_mspace_ = create_mspace_with_base(data_map_->Begin(), data_map_->Size(), false /*locked*/);
@@ -96,13 +96,22 @@ JitCodeCache::JitCodeCache(MemMap* code_map, MemMap* data_map)
 
   CHECKED_MPROTECT(code_map_->Begin(), code_map_->Size(), kProtCode);
   CHECKED_MPROTECT(data_map_->Begin(), data_map_->Size(), kProtData);
+
+  live_bitmap_.reset(CodeCacheBitmap::Create("code-cache-bitmap",
+                                             reinterpret_cast<uintptr_t>(code_map_->Begin()),
+                                             reinterpret_cast<uintptr_t>(code_map_->End())));
+
+  if (live_bitmap_.get() == nullptr) {
+    PLOG(FATAL) << "creating bitmaps for the JIT code cache failed";
+  }
+
+  VLOG(jit) << "Created jit code cache: data size="
+            << PrettySize(data_map_->Size())
+            << ", code size="
+            << PrettySize(code_map_->Size());
 }
 
-bool JitCodeCache::ContainsMethod(ArtMethod* method) const {
-  return ContainsCodePtr(method->GetEntryPointFromQuickCompiledCode());
-}
-
-bool JitCodeCache::ContainsCodePtr(const void* ptr) const {
+bool JitCodeCache::ContainsPc(const void* ptr) const {
   return code_map_->Begin() <= ptr && ptr < code_map_->End();
 }
 
@@ -121,6 +130,7 @@ class ScopedCodeCacheWrite {
 };
 
 uint8_t* JitCodeCache::CommitCode(Thread* self,
+                                  ArtMethod* method,
                                   const uint8_t* mapping_table,
                                   const uint8_t* vmap_table,
                                   const uint8_t* gc_map,
@@ -129,6 +139,93 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   size_t fp_spill_mask,
                                   const uint8_t* code,
                                   size_t code_size) {
+  uint8_t* result = CommitCodeInternal(self,
+                                       method,
+                                       mapping_table,
+                                       vmap_table,
+                                       gc_map,
+                                       frame_size_in_bytes,
+                                       core_spill_mask,
+                                       fp_spill_mask,
+                                       code,
+                                       code_size);
+  if (result == nullptr) {
+    // Retry.
+    GarbageCollectCache(self);
+    result = CommitCodeInternal(self,
+                                method,
+                                mapping_table,
+                                vmap_table,
+                                gc_map,
+                                frame_size_in_bytes,
+                                core_spill_mask,
+                                fp_spill_mask,
+                                code,
+                                code_size);
+  }
+  return result;
+}
+
+bool JitCodeCache::WaitForPotentialCollectionToComplete(Thread* self) {
+  bool in_collection = false;
+  while (collection_in_progress_) {
+    in_collection = true;
+    lock_cond_.Wait(self);
+  }
+  return in_collection;
+}
+
+static uintptr_t FromCodeToAllocation(const void* code) {
+  size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
+  return reinterpret_cast<uintptr_t>(code) - RoundUp(sizeof(OatQuickMethodHeader), alignment);
+}
+
+void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UNUSED) {
+  uintptr_t allocation = FromCodeToAllocation(code_ptr);
+  const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+  const uint8_t* data = method_header->GetNativeGcMap();
+  if (data != nullptr) {
+    mspace_free(data_mspace_, const_cast<uint8_t*>(data));
+  }
+  data = method_header->GetMappingTable();
+  if (data != nullptr) {
+    mspace_free(data_mspace_, const_cast<uint8_t*>(data));
+  }
+  // Use the offset directly to prevent sanity check that the method is
+  // compiled with optimizing.
+  // TODO(ngeoffray): Clean up.
+  if (method_header->vmap_table_offset_ != 0) {
+    data = method_header->code_ - method_header->vmap_table_offset_;
+    mspace_free(data_mspace_, const_cast<uint8_t*>(data));
+  }
+  mspace_free(code_mspace_, reinterpret_cast<uint8_t*>(allocation));
+}
+
+void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
+  MutexLock mu(self, lock_);
+  // We do not check if a code cache GC is in progress, as this method comes
+  // with the classlinker_classes_lock_ held, and suspending ourselves could
+  // lead to a deadlock.
+  for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+    if (alloc.ContainsUnsafe(it->second)) {
+      FreeCode(it->first, it->second);
+      it = method_code_map_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
+                                          ArtMethod* method,
+                                          const uint8_t* mapping_table,
+                                          const uint8_t* vmap_table,
+                                          const uint8_t* gc_map,
+                                          size_t frame_size_in_bytes,
+                                          size_t core_spill_mask,
+                                          size_t fp_spill_mask,
+                                          const uint8_t* code,
+                                          size_t code_size) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   // Ensure the header ends up at expected instruction alignment.
   size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
@@ -137,7 +234,9 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
   OatQuickMethodHeader* method_header = nullptr;
   uint8_t* code_ptr = nullptr;
 
+  ScopedThreadSuspension sts(self, kSuspended);
   MutexLock mu(self, lock_);
+  WaitForPotentialCollectionToComplete(self);
   {
     ScopedCodeCacheWrite scc(code_map_.get());
     uint8_t* result = reinterpret_cast<uint8_t*>(
@@ -149,7 +248,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
     DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(code_ptr), alignment);
 
     std::copy(code, code + code_size, code_ptr);
-    method_header = reinterpret_cast<OatQuickMethodHeader*>(code_ptr) - 1;
+    method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
     new (method_header) OatQuickMethodHeader(
         (mapping_table == nullptr) ? 0 : code_ptr - mapping_table,
         (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
@@ -162,8 +261,12 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
 
   __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
                           reinterpret_cast<char*>(code_ptr + code_size));
-
-  ++num_methods_;  // TODO: This is hacky but works since each method has exactly one code region.
+  method_code_map_.Put(code_ptr, method);
+  // We have checked there was no collection in progress earlier. If we
+  // were, setting the entry point of a method would be unsafe, as the collection
+  // could delete it.
+  DCHECK(!collection_in_progress_);
+  method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
   return reinterpret_cast<uint8_t*>(method_header);
 }
 
@@ -181,10 +284,32 @@ size_t JitCodeCache::DataCacheSize() {
   return bytes_allocated;
 }
 
+size_t JitCodeCache::NumberOfCompiledCode() {
+  MutexLock mu(Thread::Current(), lock_);
+  return method_code_map_.size();
+}
+
 uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
   size = RoundUp(size, sizeof(void*));
-  MutexLock mu(self, lock_);
-  return reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, size));
+  uint8_t* result = nullptr;
+
+  {
+    ScopedThreadSuspension sts(self, kSuspended);
+    MutexLock mu(self, lock_);
+    WaitForPotentialCollectionToComplete(self);
+    result = reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, size));
+  }
+
+  if (result == nullptr) {
+    // Retry.
+    GarbageCollectCache(self);
+    ScopedThreadSuspension sts(self, kSuspended);
+    MutexLock mu(self, lock_);
+    WaitForPotentialCollectionToComplete(self);
+    result = reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, size));
+  }
+
+  return result;
 }
 
 uint8_t* JitCodeCache::AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end) {
@@ -196,29 +321,143 @@ uint8_t* JitCodeCache::AddDataArray(Thread* self, const uint8_t* begin, const ui
   return result;
 }
 
-const void* JitCodeCache::GetCodeFor(ArtMethod* method) {
-  const void* code = method->GetEntryPointFromQuickCompiledCode();
-  if (ContainsCodePtr(code)) {
-    return code;
+class MarkCodeVisitor FINAL : public StackVisitor {
+ public:
+  MarkCodeVisitor(Thread* thread_in, JitCodeCache* code_cache_in)
+      : StackVisitor(thread_in, nullptr, StackVisitor::StackWalkKind::kSkipInlinedFrames),
+        code_cache_(code_cache_in),
+        bitmap_(code_cache_->GetLiveBitmap()) {}
+
+  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+    if (method_header == nullptr) {
+      return true;
+    }
+    const void* code = method_header->GetCode();
+    if (code_cache_->ContainsPc(code)) {
+      // Use the atomic set version, as multiple threads are executing this code.
+      bitmap_->AtomicTestAndSet(FromCodeToAllocation(code));
+    }
+    return true;
   }
-  MutexLock mu(Thread::Current(), lock_);
-  auto it = method_code_map_.find(method);
-  if (it != method_code_map_.end()) {
-    return it->second;
+
+ private:
+  JitCodeCache* const code_cache_;
+  CodeCacheBitmap* const bitmap_;
+};
+
+class MarkCodeClosure FINAL : public Closure {
+ public:
+  MarkCodeClosure(JitCodeCache* code_cache, Barrier* barrier)
+      : code_cache_(code_cache), barrier_(barrier) {}
+
+  void Run(Thread* thread) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(thread == Thread::Current() || thread->IsSuspended());
+    MarkCodeVisitor visitor(thread, code_cache_);
+    visitor.WalkStack();
+    if (thread->GetState() == kRunnable) {
+      barrier_->Pass(Thread::Current());
+    }
   }
-  return nullptr;
+
+ private:
+  JitCodeCache* const code_cache_;
+  Barrier* const barrier_;
+};
+
+void JitCodeCache::GarbageCollectCache(Thread* self) {
+  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+    LOG(INFO) << "Clearing code cache, code="
+              << PrettySize(CodeCacheSize())
+              << ", data=" << PrettySize(DataCacheSize());
+  }
+
+  size_t map_size = 0;
+  ScopedThreadSuspension sts(self, kSuspended);
+
+  // Walk over all compiled methods and set the entry points of these
+  // methods to interpreter.
+  {
+    MutexLock mu(self, lock_);
+    if (WaitForPotentialCollectionToComplete(self)) {
+      return;
+    }
+    collection_in_progress_ = true;
+    map_size = method_code_map_.size();
+    for (auto& it : method_code_map_) {
+      it.second->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+    }
+  }
+
+  // Run a checkpoint on all threads to mark the JIT compiled code they are running.
+  {
+    Barrier barrier(0);
+    MarkCodeClosure closure(this, &barrier);
+    size_t threads_running_checkpoint =
+        Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+    if (threads_running_checkpoint != 0) {
+      barrier.Increment(self, threads_running_checkpoint);
+    }
+  }
+
+  // Free unused compiled code, and restore the entry point of used compiled code.
+  {
+    MutexLock mu(self, lock_);
+    DCHECK_EQ(map_size, method_code_map_.size());
+    ScopedCodeCacheWrite scc(code_map_.get());
+    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+      const void* code_ptr = it->first;
+      ArtMethod* method = it->second;
+      uintptr_t allocation = FromCodeToAllocation(code_ptr);
+      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+      if (GetLiveBitmap()->Test(allocation)) {
+        method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
+        ++it;
+      } else {
+        method->ClearCounter();
+        DCHECK_NE(method->GetEntryPointFromQuickCompiledCode(), method_header->GetEntryPoint());
+        FreeCode(code_ptr, method);
+        it = method_code_map_.erase(it);
+      }
+    }
+    GetLiveBitmap()->Bitmap::Clear();
+    collection_in_progress_ = false;
+    lock_cond_.Broadcast(self);
+  }
+
+  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+    LOG(INFO) << "After clearing code cache, code="
+              << PrettySize(CodeCacheSize())
+              << ", data=" << PrettySize(DataCacheSize());
+  }
 }
 
-void JitCodeCache::SaveCompiledCode(ArtMethod* method, const void* old_code_ptr) {
-  DCHECK_EQ(method->GetEntryPointFromQuickCompiledCode(), old_code_ptr);
-  DCHECK(ContainsCodePtr(old_code_ptr)) << PrettyMethod(method) << " old_code_ptr="
-      << old_code_ptr;
-  MutexLock mu(Thread::Current(), lock_);
-  auto it = method_code_map_.find(method);
-  if (it != method_code_map_.end()) {
-    return;
+
+OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* method) {
+  static_assert(kRuntimeISA != kThumb2, "kThumb2 cannot be a runtime ISA");
+  if (kRuntimeISA == kArm) {
+    // On Thumb-2, the pc is offset by one.
+    --pc;
   }
-  method_code_map_.Put(method, old_code_ptr);
+  if (!ContainsPc(reinterpret_cast<const void*>(pc))) {
+    return nullptr;
+  }
+
+  MutexLock mu(Thread::Current(), lock_);
+  if (method_code_map_.empty()) {
+    return nullptr;
+  }
+  auto it = method_code_map_.lower_bound(reinterpret_cast<const void*>(pc));
+  --it;
+
+  const void* code_ptr = it->first;
+  OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+  if (!method_header->Contains(pc)) {
+    return nullptr;
+  }
+  DCHECK_EQ(it->second, method)
+      << PrettyMethod(method) << " " << PrettyMethod(it->second) << " " << std::hex << pc;
+  return method_header;
 }
 
 }  // namespace jit
