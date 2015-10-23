@@ -42,6 +42,8 @@
 #include "stack.h"
 #include "thread_state.h"
 
+class BacktraceMap;
+
 namespace art {
 
 namespace gc {
@@ -184,7 +186,7 @@ class Thread {
   void ShortDump(std::ostream& os) const;
 
   // Dumps the detailed thread state and the thread stack (used for SIGQUIT).
-  void Dump(std::ostream& os) const
+  void Dump(std::ostream& os, BacktraceMap* backtrace_map = nullptr) const
       REQUIRES(!Locks::thread_suspend_count_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1042,7 +1044,7 @@ class Thread {
   void VerifyStackImpl() SHARED_REQUIRES(Locks::mutator_lock_);
 
   void DumpState(std::ostream& os) const SHARED_REQUIRES(Locks::mutator_lock_);
-  void DumpStack(std::ostream& os) const
+  void DumpStack(std::ostream& os, BacktraceMap* backtrace_map = nullptr) const
       REQUIRES(!Locks::thread_suspend_count_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
