@@ -45,7 +45,7 @@ IntrinsicLocationsBuilderX86::IntrinsicLocationsBuilderX86(CodeGeneratorX86* cod
 
 
 X86Assembler* IntrinsicCodeGeneratorX86::GetAssembler() {
-  return reinterpret_cast<X86Assembler*>(codegen_->GetAssembler());
+  return down_cast<X86Assembler*>(codegen_->GetAssembler());
 }
 
 ArenaAllocator* IntrinsicCodeGeneratorX86::GetAllocator() {
@@ -1728,7 +1728,7 @@ static void GenUnsafePut(LocationSummary* locations,
                          Primitive::Type type,
                          bool is_volatile,
                          CodeGeneratorX86* codegen) {
-  X86Assembler* assembler = reinterpret_cast<X86Assembler*>(codegen->GetAssembler());
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen->GetAssembler());
   Register base = locations->InAt(1).AsRegister<Register>();
   Register offset = locations->InAt(2).AsRegisterPairLow<Register>();
   Location value_loc = locations->InAt(3);
@@ -1822,7 +1822,7 @@ static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, Primitive::Type ty
   locations->SetOut(Location::RegisterLocation(EAX));
   if (type == Primitive::kPrimNot) {
     // Need temp registers for card-marking.
-    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
     // Need a byte register for marking.
     locations->AddTemp(Location::RegisterLocation(ECX));
   }
@@ -1837,20 +1837,11 @@ void IntrinsicLocationsBuilderX86::VisitUnsafeCASLong(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitUnsafeCASObject(HInvoke* invoke) {
-  // The UnsafeCASObject intrinsic does not always work when heap
-  // poisoning is enabled (it breaks several libcore tests); turn it
-  // off temporarily as a quick fix.
-  // TODO(rpl): Fix it and turn it back on.
-  if (kPoisonHeapReferences) {
-    return;
-  }
-
   CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimNot, invoke);
 }
 
 static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* codegen) {
-  X86Assembler* assembler =
-    reinterpret_cast<X86Assembler*>(codegen->GetAssembler());
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
 
   Register base = locations->InAt(1).AsRegister<Register>();
@@ -1858,47 +1849,92 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* code
   Location out = locations->Out();
   DCHECK_EQ(out.AsRegister<Register>(), EAX);
 
-  if (type == Primitive::kPrimLong) {
-    DCHECK_EQ(locations->InAt(3).AsRegisterPairLow<Register>(), EAX);
-    DCHECK_EQ(locations->InAt(3).AsRegisterPairHigh<Register>(), EDX);
-    DCHECK_EQ(locations->InAt(4).AsRegisterPairLow<Register>(), EBX);
-    DCHECK_EQ(locations->InAt(4).AsRegisterPairHigh<Register>(), ECX);
-    __ LockCmpxchg8b(Address(base, offset, TIMES_1, 0));
-  } else {
-    // Integer or object.
+  if (type == Primitive::kPrimNot) {
     Register expected = locations->InAt(3).AsRegister<Register>();
+    // Ensure `expected` is in EAX (required by the CMPXCHG instruction).
     DCHECK_EQ(expected, EAX);
     Register value = locations->InAt(4).AsRegister<Register>();
-    if (type == Primitive::kPrimNot) {
-      // Mark card for object assuming new value is stored.
-      bool value_can_be_null = true;  // TODO: Worth finding out this information?
-      codegen->MarkGCCard(locations->GetTemp(0).AsRegister<Register>(),
-                          locations->GetTemp(1).AsRegister<Register>(),
-                          base,
-                          value,
-                          value_can_be_null);
 
-      if (kPoisonHeapReferences) {
-        __ PoisonHeapReference(expected);
-        __ PoisonHeapReference(value);
+    // Mark card for object assuming new value is stored.
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(locations->GetTemp(0).AsRegister<Register>(),
+                        locations->GetTemp(1).AsRegister<Register>(),
+                        base,
+                        value,
+                        value_can_be_null);
+
+    bool base_equals_value = (base == value);
+    if (kPoisonHeapReferences) {
+      if (base_equals_value) {
+        // If `base` and `value` are the same register location, move
+        // `value` to a temporary register.  This way, poisoning
+        // `value` won't invalidate `base`.
+        value = locations->GetTemp(0).AsRegister<Register>();
+        __ movl(value, base);
       }
+
+      // Check that the register allocator did not assign the location
+      // of `expected` (EAX) to `value` nor to `base`, so that heap
+      // poisoning (when enabled) works as intended below.
+      // - If `value` were equal to `expected`, both references would
+      //   be poisoned twice, meaning they would not be poisoned at
+      //   all, as heap poisoning uses address negation.
+      // - If `base` were equal to `expected`, poisoning `expected`
+      //   would invalidate `base`.
+      DCHECK_NE(value, expected);
+      DCHECK_NE(base, expected);
+
+      __ PoisonHeapReference(expected);
+      __ PoisonHeapReference(value);
     }
 
     __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
-  }
 
-  // locked cmpxchg has full barrier semantics, and we don't need scheduling
-  // barriers at this time.
+    // locked cmpxchg has full barrier semantics, and we don't need
+    // scheduling barriers at this time.
 
-  // Convert ZF into the boolean result.
-  __ setb(kZero, out.AsRegister<Register>());
-  __ movzxb(out.AsRegister<Register>(), out.AsRegister<ByteRegister>());
+    // Convert ZF into the boolean result.
+    __ setb(kZero, out.AsRegister<Register>());
+    __ movzxb(out.AsRegister<Register>(), out.AsRegister<ByteRegister>());
 
-  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
-    Register value = locations->InAt(4).AsRegister<Register>();
-    __ UnpoisonHeapReference(value);
-    // Do not unpoison the reference contained in register `expected`,
-    // as it is the same as register `out`.
+    if (kPoisonHeapReferences) {
+      if (base_equals_value) {
+        // `value` has been moved to a temporary register, no need to
+        // unpoison it.
+      } else {
+        // Ensure `value` is different from `out`, so that unpoisoning
+        // the former does not invalidate the latter.
+        DCHECK_NE(value, out.AsRegister<Register>());
+        __ UnpoisonHeapReference(value);
+      }
+      // Do not unpoison the reference contained in register
+      // `expected`, as it is the same as register `out` (EAX).
+    }
+  } else {
+    if (type == Primitive::kPrimInt) {
+      // Ensure the expected value is in EAX (required by the CMPXCHG
+      // instruction).
+      DCHECK_EQ(locations->InAt(3).AsRegister<Register>(), EAX);
+      __ LockCmpxchgl(Address(base, offset, TIMES_1, 0),
+                      locations->InAt(4).AsRegister<Register>());
+    } else if (type == Primitive::kPrimLong) {
+      // Ensure the expected value is in EAX:EDX and that the new
+      // value is in EBX:ECX (required by the CMPXCHG8B instruction).
+      DCHECK_EQ(locations->InAt(3).AsRegisterPairLow<Register>(), EAX);
+      DCHECK_EQ(locations->InAt(3).AsRegisterPairHigh<Register>(), EDX);
+      DCHECK_EQ(locations->InAt(4).AsRegisterPairLow<Register>(), EBX);
+      DCHECK_EQ(locations->InAt(4).AsRegisterPairHigh<Register>(), ECX);
+      __ LockCmpxchg8b(Address(base, offset, TIMES_1, 0));
+    } else {
+      LOG(FATAL) << "Unexpected CAS type " << type;
+    }
+
+    // locked cmpxchg has full barrier semantics, and we don't need
+    // scheduling barriers at this time.
+
+    // Convert ZF into the boolean result.
+    __ setb(kZero, out.AsRegister<Register>());
+    __ movzxb(out.AsRegister<Register>(), out.AsRegister<ByteRegister>());
   }
 }
 
@@ -1936,8 +1972,7 @@ static void SwapBits(Register reg, Register temp, int32_t shift, int32_t mask,
 }
 
 void IntrinsicCodeGeneratorX86::VisitIntegerReverse(HInvoke* invoke) {
-  X86Assembler* assembler =
-    reinterpret_cast<X86Assembler*>(codegen_->GetAssembler());
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
 
   Register reg = locations->InAt(0).AsRegister<Register>();
@@ -1968,8 +2003,7 @@ void IntrinsicLocationsBuilderX86::VisitLongReverse(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitLongReverse(HInvoke* invoke) {
-  X86Assembler* assembler =
-    reinterpret_cast<X86Assembler*>(codegen_->GetAssembler());
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
 
   Register reg_low = locations->InAt(0).AsRegisterPairLow<Register>();

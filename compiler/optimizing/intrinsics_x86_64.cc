@@ -41,7 +41,7 @@ IntrinsicLocationsBuilderX86_64::IntrinsicLocationsBuilderX86_64(CodeGeneratorX8
 
 
 X86_64Assembler* IntrinsicCodeGeneratorX86_64::GetAssembler() {
-  return reinterpret_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  return down_cast<X86_64Assembler*>(codegen_->GetAssembler());
 }
 
 ArenaAllocator* IntrinsicCodeGeneratorX86_64::GetAllocator() {
@@ -1822,7 +1822,7 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafePutLongVolatile(HInvoke* invoke
 // memory model.
 static void GenUnsafePut(LocationSummary* locations, Primitive::Type type, bool is_volatile,
                          CodeGeneratorX86_64* codegen) {
-  X86_64Assembler* assembler = reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler());
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
   CpuRegister base = locations->InAt(1).AsRegister<CpuRegister>();
   CpuRegister offset = locations->InAt(2).AsRegister<CpuRegister>();
   CpuRegister value = locations->InAt(3).AsRegister<CpuRegister>();
@@ -1895,7 +1895,7 @@ static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, Primitive::Type ty
   locations->SetOut(Location::RequiresRegister());
   if (type == Primitive::kPrimNot) {
     // Need temp registers for card-marking.
-    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
     locations->AddTemp(Location::RequiresRegister());
   }
 }
@@ -1909,61 +1909,95 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASLong(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
-  // The UnsafeCASObject intrinsic does not always work when heap
-  // poisoning is enabled (it breaks several libcore tests); turn it
-  // off temporarily as a quick fix.
-  // TODO(rpl): Fix it and turn it back on.
-  if (kPoisonHeapReferences) {
-    return;
-  }
-
   CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimNot, invoke);
 }
 
 static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86_64* codegen) {
-  X86_64Assembler* assembler =
-    reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler());
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
 
   CpuRegister base = locations->InAt(1).AsRegister<CpuRegister>();
   CpuRegister offset = locations->InAt(2).AsRegister<CpuRegister>();
   CpuRegister expected = locations->InAt(3).AsRegister<CpuRegister>();
+  // Ensure `expected` is in RAX (required by the CMPXCHG instruction).
   DCHECK_EQ(expected.AsRegister(), RAX);
   CpuRegister value = locations->InAt(4).AsRegister<CpuRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
 
-  if (type == Primitive::kPrimLong) {
-    __ LockCmpxchgq(Address(base, offset, TIMES_1, 0), value);
-  } else {
-    // Integer or object.
-    if (type == Primitive::kPrimNot) {
-      // Mark card for object assuming new value is stored.
-      bool value_can_be_null = true;  // TODO: Worth finding out this information?
-      codegen->MarkGCCard(locations->GetTemp(0).AsRegister<CpuRegister>(),
-                          locations->GetTemp(1).AsRegister<CpuRegister>(),
-                          base,
-                          value,
-                          value_can_be_null);
+  if (type == Primitive::kPrimNot) {
+    // Mark card for object assuming new value is stored.
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(locations->GetTemp(0).AsRegister<CpuRegister>(),
+                        locations->GetTemp(1).AsRegister<CpuRegister>(),
+                        base,
+                        value,
+                        value_can_be_null);
 
-      if (kPoisonHeapReferences) {
-        __ PoisonHeapReference(expected);
-        __ PoisonHeapReference(value);
+    bool base_equals_value = (base.AsRegister() == value.AsRegister());
+    Register value_reg = value.AsRegister();
+    if (kPoisonHeapReferences) {
+      if (base_equals_value) {
+        // If `base` and `value` are the same register location, move
+        // `value_reg` to a temporary register.  This way, poisoning
+        // `value_reg` won't invalidate `base`.
+        value_reg = locations->GetTemp(0).AsRegister<CpuRegister>().AsRegister();
+        __ movl(CpuRegister(value_reg), base);
       }
+
+      // Check that the register allocator did not assign the location
+      // of `expected` (RAX) to `value` nor to `base`, so that heap
+      // poisoning (when enabled) works as intended below.
+      // - If `value` were equal to `expected`, both references would
+      //   be poisoned twice, meaning they would not be poisoned at
+      //   all, as heap poisoning uses address negation.
+      // - If `base` were equal to `expected`, poisoning `expected`
+      //   would invalidate `base`.
+      DCHECK_NE(value_reg, expected.AsRegister());
+      DCHECK_NE(base.AsRegister(), expected.AsRegister());
+
+      __ PoisonHeapReference(expected);
+      __ PoisonHeapReference(CpuRegister(value_reg));
     }
 
-    __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
-  }
+    __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), CpuRegister(value_reg));
 
-  // locked cmpxchg has full barrier semantics, and we don't need scheduling
-  // barriers at this time.
+    // locked cmpxchg has full barrier semantics, and we don't need
+    // scheduling barriers at this time.
 
-  // Convert ZF into the boolean result.
-  __ setcc(kZero, out);
-  __ movzxb(out, out);
+    // Convert ZF into the boolean result.
+    __ setcc(kZero, out);
+    __ movzxb(out, out);
 
-  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
-    __ UnpoisonHeapReference(value);
-    __ UnpoisonHeapReference(expected);
+    if (kPoisonHeapReferences) {
+      if (base_equals_value) {
+        // `value_reg` has been moved to a temporary register, no need
+        // to unpoison it.
+      } else {
+        // Ensure `value` is different from `out`, so that unpoisoning
+        // the former does not invalidate the latter.
+        DCHECK_NE(value_reg, out.AsRegister());
+        __ UnpoisonHeapReference(CpuRegister(value_reg));
+      }
+      // Ensure `expected` is different from `out`, so that unpoisoning
+      // the former does not invalidate the latter.
+      DCHECK_NE(expected.AsRegister(), out.AsRegister());
+      __ UnpoisonHeapReference(expected);
+    }
+  } else {
+    if (type == Primitive::kPrimInt) {
+      __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
+    } else if (type == Primitive::kPrimLong) {
+      __ LockCmpxchgq(Address(base, offset, TIMES_1, 0), value);
+    } else {
+      LOG(FATAL) << "Unexpected CAS type " << type;
+    }
+
+    // locked cmpxchg has full barrier semantics, and we don't need
+    // scheduling barriers at this time.
+
+    // Convert ZF into the boolean result.
+    __ setcc(kZero, out);
+    __ movzxb(out, out);
   }
 }
 
@@ -2001,8 +2035,7 @@ static void SwapBits(CpuRegister reg, CpuRegister temp, int32_t shift, int32_t m
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitIntegerReverse(HInvoke* invoke) {
-  X86_64Assembler* assembler =
-    reinterpret_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
 
   CpuRegister reg = locations->InAt(0).AsRegister<CpuRegister>();
@@ -2046,8 +2079,7 @@ static void SwapBits64(CpuRegister reg, CpuRegister temp, CpuRegister temp_mask,
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitLongReverse(HInvoke* invoke) {
-  X86_64Assembler* assembler =
-    reinterpret_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
 
   CpuRegister reg = locations->InAt(0).AsRegister<CpuRegister>();
