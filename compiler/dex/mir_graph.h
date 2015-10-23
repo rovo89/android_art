@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "base/arena_bit_vector.h"
 #include "base/arena_containers.h"
 #include "base/bit_utils.h"
 #include "base/scoped_arena_containers.h"
@@ -30,7 +31,6 @@
 #include "mir_method_info.h"
 #include "reg_location.h"
 #include "reg_storage.h"
-#include "utils/arena_bit_vector.h"
 
 namespace art {
 
