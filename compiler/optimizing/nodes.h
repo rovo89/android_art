@@ -21,6 +21,7 @@
 #include <array>
 #include <type_traits>
 
+#include "base/arena_bit_vector.h"
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/stl_util.h"
@@ -34,7 +35,6 @@
 #include "mirror/class.h"
 #include "offsets.h"
 #include "primitive.h"
-#include "utils/arena_bit_vector.h"
 
 namespace art {
 

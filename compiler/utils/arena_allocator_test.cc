@@ -15,8 +15,8 @@
  */
 
 #include "base/arena_allocator.h"
+#include "base/arena_bit_vector.h"
 #include "gtest/gtest.h"
-#include "utils/arena_bit_vector.h"
 
 namespace art {
 
