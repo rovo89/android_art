@@ -31,6 +31,16 @@ class ScopedArenaAllocator;
 template <typename T>
 class ScopedArenaAllocatorAdapter;
 
+// Tag associated with each allocation to help prevent double free.
+enum class ArenaFreeTag : uint8_t {
+  // Allocation is used and has not yet been destroyed.
+  kUsed,
+  // Allocation has been destroyed.
+  kFree,
+};
+
+static constexpr size_t kArenaAlignment = 8;
+
 // Holds a list of Arenas for use by ScopedArenaAllocator stack.
 class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryTool {
  public:
@@ -49,6 +59,12 @@ class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryToo
   }
 
   MemStats GetPeakStats() const;
+
+  // Return the arena tag associated with a pointer.
+  static ArenaFreeTag& ArenaTagForAllocation(void* ptr) {
+    DCHECK(kIsDebugBuild) << "Only debug builds have tags";
+    return *(reinterpret_cast<ArenaFreeTag*>(ptr) - 1);
+  }
 
  private:
   struct Peak;
@@ -72,13 +88,18 @@ class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryToo
     if (UNLIKELY(IsRunningOnMemoryTool())) {
       return AllocWithMemoryTool(bytes, kind);
     }
-    size_t rounded_bytes = RoundUp(bytes, 8);
+    // Add kArenaAlignment for the free or used tag. Required to preserve alignment.
+    size_t rounded_bytes = RoundUp(bytes + (kIsDebugBuild ? kArenaAlignment : 0u), kArenaAlignment);
     uint8_t* ptr = top_ptr_;
     if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
       ptr = AllocateFromNextArena(rounded_bytes);
     }
     CurrentStats()->RecordAlloc(bytes, kind);
     top_ptr_ = ptr + rounded_bytes;
+    if (kIsDebugBuild) {
+      ptr += kArenaAlignment;
+      ArenaTagForAllocation(ptr) = ArenaFreeTag::kUsed;
+    }
     return ptr;
   }
 
