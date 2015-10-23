@@ -18,6 +18,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 
+#include <backtrace/BacktraceMap.h>
 #include <cutils/trace.h>
 #include <dirent.h>
 #include <ScopedLocalRef.h>
@@ -109,9 +110,10 @@ pid_t ThreadList::GetLockOwner() {
 
 void ThreadList::DumpNativeStacks(std::ostream& os) {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid()));
   for (const auto& thread : list_) {
     os << "DUMPING THREAD " << thread->GetTid() << "\n";
-    DumpNativeStack(os, thread->GetTid(), "\t");
+    DumpNativeStack(os, thread->GetTid(), map.get(), "\t");
     os << "\n";
   }
 }
@@ -138,7 +140,7 @@ static void DumpUnattachedThread(std::ostream& os, pid_t tid) NO_THREAD_SAFETY_A
   // TODO: Reenable this when the native code in system_server can handle it.
   // Currently "adb shell kill -3 `pid system_server`" will cause it to exit.
   if (false) {
-    DumpNativeStack(os, tid, "  native: ");
+    DumpNativeStack(os, tid, nullptr, "  native: ");
   }
   os << "\n";
 }
@@ -175,7 +177,8 @@ static constexpr uint32_t kDumpWaitTimeout = kIsTargetBuild ? 10000 : 20000;
 // A closure used by Thread::Dump.
 class DumpCheckpoint FINAL : public Closure {
  public:
-  explicit DumpCheckpoint(std::ostream* os) : os_(os), barrier_(0) {}
+  explicit DumpCheckpoint(std::ostream* os)
+      : os_(os), barrier_(0), backtrace_map_(BacktraceMap::Create(GetTid())) {}
 
   void Run(Thread* thread) OVERRIDE {
     // Note thread and self may not be equal if thread was already suspended at the point of the
@@ -184,7 +187,7 @@ class DumpCheckpoint FINAL : public Closure {
     std::ostringstream local_os;
     {
       ScopedObjectAccess soa(self);
-      thread->Dump(local_os);
+      thread->Dump(local_os, backtrace_map_.get());
     }
     local_os << "\n";
     {
@@ -213,6 +216,8 @@ class DumpCheckpoint FINAL : public Closure {
   std::ostream* const os_;
   // The barrier to be passed through and for the requestor to wait upon.
   Barrier barrier_;
+  // A backtrace map, so that all threads use a shared info and don't reacquire/parse separately.
+  std::unique_ptr<BacktraceMap> backtrace_map_;
 };
 
 void ThreadList::Dump(std::ostream& os) {
@@ -1217,7 +1222,7 @@ void ThreadList::Unregister(Thread* self) {
       std::string thread_name;
       self->GetThreadName(thread_name);
       std::ostringstream os;
-      DumpNativeStack(os, GetTid(), "  native: ", nullptr);
+      DumpNativeStack(os, GetTid(), nullptr, "  native: ", nullptr);
       LOG(ERROR) << "Request to unregister unattached thread " << thread_name << "\n" << os.str();
       break;
     } else {
