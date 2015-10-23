@@ -1087,6 +1087,14 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeCASLong(HInvoke* invoke) {
   CreateIntIntIntIntIntToInt(arena_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic does not always work when heap
+  // poisoning is enabled (it breaks run-test 004-UnsafeTest); turn it
+  // off temporarily as a quick fix.
+  // TODO(rpl): Fix it and turn it back on.
+  if (kPoisonHeapReferences) {
+    return;
+  }
+
   CreateIntIntIntIntIntToInt(arena_, invoke);
 }
 
