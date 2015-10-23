@@ -391,8 +391,28 @@ TEST_F(AssemblerMIPS64Test, Srl) {
   DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Srl, 5, "srl ${reg1}, ${reg2}, {imm}"), "srl");
 }
 
+TEST_F(AssemblerMIPS64Test, Rotr) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Rotr, 5, "rotr ${reg1}, ${reg2}, {imm}"), "rotr");
+}
+
 TEST_F(AssemblerMIPS64Test, Sra) {
   DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Sra, 5, "sra ${reg1}, ${reg2}, {imm}"), "sra");
+}
+
+TEST_F(AssemblerMIPS64Test, Sllv) {
+  DriverStr(RepeatRRR(&mips64::Mips64Assembler::Sllv, "sllv ${reg1}, ${reg2}, ${reg3}"), "sllv");
+}
+
+TEST_F(AssemblerMIPS64Test, Srlv) {
+  DriverStr(RepeatRRR(&mips64::Mips64Assembler::Srlv, "srlv ${reg1}, ${reg2}, ${reg3}"), "srlv");
+}
+
+TEST_F(AssemblerMIPS64Test, Rotrv) {
+  DriverStr(RepeatRRR(&mips64::Mips64Assembler::Rotrv, "rotrv ${reg1}, ${reg2}, ${reg3}"), "rotrv");
+}
+
+TEST_F(AssemblerMIPS64Test, Srav) {
+  DriverStr(RepeatRRR(&mips64::Mips64Assembler::Srav, "srav ${reg1}, ${reg2}, ${reg3}"), "srav");
 }
 
 TEST_F(AssemblerMIPS64Test, Dsll) {
@@ -403,20 +423,33 @@ TEST_F(AssemblerMIPS64Test, Dsrl) {
   DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsrl, 5, "dsrl ${reg1}, ${reg2}, {imm}"), "dsrl");
 }
 
+TEST_F(AssemblerMIPS64Test, Drotr) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Drotr, 5, "drotr ${reg1}, ${reg2}, {imm}"),
+            "drotr");
+}
+
 TEST_F(AssemblerMIPS64Test, Dsra) {
   DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsra, 5, "dsra ${reg1}, ${reg2}, {imm}"), "dsra");
 }
 
 TEST_F(AssemblerMIPS64Test, Dsll32) {
-  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsll32, 5, "dsll32 ${reg1}, ${reg2}, {imm}"), "dsll32");
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsll32, 5, "dsll32 ${reg1}, ${reg2}, {imm}"),
+            "dsll32");
 }
 
 TEST_F(AssemblerMIPS64Test, Dsrl32) {
-  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsrl32, 5, "dsrl32 ${reg1}, ${reg2}, {imm}"), "dsrl32");
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsrl32, 5, "dsrl32 ${reg1}, ${reg2}, {imm}"),
+            "dsrl32");
+}
+
+TEST_F(AssemblerMIPS64Test, Drotr32) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Drotr32, 5, "drotr32 ${reg1}, ${reg2}, {imm}"),
+            "drotr32");
 }
 
 TEST_F(AssemblerMIPS64Test, Dsra32) {
-  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsra32, 5, "dsra32 ${reg1}, ${reg2}, {imm}"), "dsra32");
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsra32, 5, "dsra32 ${reg1}, ${reg2}, {imm}"),
+            "dsra32");
 }
 
 TEST_F(AssemblerMIPS64Test, Sc) {
@@ -433,10 +466,6 @@ TEST_F(AssemblerMIPS64Test, Ll) {
 
 TEST_F(AssemblerMIPS64Test, Lld) {
   DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Lld, -9, "lld ${reg1}, {imm}(${reg2})"), "lld");
-}
-
-TEST_F(AssemblerMIPS64Test, Rotr) {
-  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Rotr, 5, "rotr ${reg1}, ${reg2}, {imm}"), "rotr");
 }
 
 TEST_F(AssemblerMIPS64Test, Seleqz) {
