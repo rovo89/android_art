@@ -20,6 +20,7 @@
 #include <deque>
 #include <queue>
 #include <set>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -218,12 +219,19 @@ class ArenaDelete {
   }
 };
 
-// Declare but do not define a partial specialization for T[].
-// This is to prevent accidental use of this unsupported use case.
+// In general we lack support for arrays. We would need to call the destructor on each element,
+// which requires access to the array size. Support for that is future work.
+//
+// However, we can support trivially destructible component types, as then a destructor doesn't
+// need to be called.
 template <typename T>
 class ArenaDelete<T[]> {
  public:
-  void operator()(T* ptr) const = delete;
+  void operator()(T* ptr ATTRIBUTE_UNUSED) const {
+    static_assert(std::is_trivially_destructible<T>::value,
+                  "ArenaUniquePtr does not support non-trivially-destructible arrays.");
+    // TODO: Implement debug checks, and MEMORY_TOOL support.
+  }
 };
 
 // Arena unique ptr that only calls the destructor of the element.
