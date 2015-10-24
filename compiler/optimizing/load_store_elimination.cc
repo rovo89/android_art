@@ -695,12 +695,15 @@ class LSEVisitor : public HGraphVisitor {
       } else {
         redundant_store = true;
       }
+      // TODO: eliminate the store if the singleton object is not finalizable.
+      redundant_store = false;
     }
     if (redundant_store) {
       removed_instructions_.push_back(instruction);
       substitute_instructions_.push_back(nullptr);
       TryRemovingNullCheck(instruction);
     }
+
     heap_values[idx] = value;
     // This store may kill values in other heap locations due to aliasing.
     for (size_t i = 0; i < heap_values.size(); i++) {
