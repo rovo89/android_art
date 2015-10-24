@@ -56,7 +56,7 @@ public class Main {
 
   /// CHECK-START: double Main.calcCircleArea(double) load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
   static double calcCircleArea(double radius) {
@@ -117,8 +117,7 @@ public class Main {
   /// CHECK: InstanceFieldGet
   /// CHECK: InstanceFieldSet
   /// CHECK: NewInstance
-  /// CHECK-NOT: NullCheck
-  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
   // A new allocation shouldn't alias with pre-existing values.
@@ -224,7 +223,7 @@ public class Main {
 
   /// CHECK-START: int Main.test8() load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
   /// CHECK: InvokeVirtual
   /// CHECK-NOT: NullCheck
   /// CHECK-NOT: InstanceFieldGet
