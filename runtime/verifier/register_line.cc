@@ -412,12 +412,9 @@ void RegisterLine::PopMonitor(MethodVerifier* verifier, uint32_t reg_idx) {
   }
 }
 
-// Check whether there is another register in the search map that is locked the same way as the
-// register in the src map. This establishes an alias.
-static bool FindLockAliasedRegister(
-    uint32_t src,
-    const AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier>& src_map,
-    const AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier>& search_map) {
+bool FindLockAliasedRegister(uint32_t src,
+                             const RegisterLine::RegToLockDepthsMap& src_map,
+                             const RegisterLine::RegToLockDepthsMap& search_map) {
   auto it = src_map.find(src);
   if (it == src_map.end()) {
     // "Not locked" is trivially aliased.

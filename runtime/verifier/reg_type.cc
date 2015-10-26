@@ -16,6 +16,7 @@
 
 #include "reg_type-inl.h"
 
+#include "base/arena_bit_vector.h"
 #include "base/bit_vector-inl.h"
 #include "base/casts.h"
 #include "class_linker-inl.h"
@@ -46,20 +47,17 @@ const DoubleLoType* DoubleLoType::instance_ = nullptr;
 const DoubleHiType* DoubleHiType::instance_ = nullptr;
 const IntegerType* IntegerType::instance_ = nullptr;
 
-PrimitiveType::PrimitiveType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    SHARED_REQUIRES(Locks::mutator_lock_)
+PrimitiveType::PrimitiveType(mirror::Class* klass, const StringPiece& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
   CHECK(klass != nullptr);
   CHECK(!descriptor.empty());
 }
 
-Cat1Type::Cat1Type(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    SHARED_REQUIRES(Locks::mutator_lock_)
+Cat1Type::Cat1Type(mirror::Class* klass, const StringPiece& descriptor, uint16_t cache_id)
     : PrimitiveType(klass, descriptor, cache_id) {
 }
 
-Cat2Type::Cat2Type(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    SHARED_REQUIRES(Locks::mutator_lock_)
+Cat2Type::Cat2Type(mirror::Class* klass, const StringPiece& descriptor, uint16_t cache_id)
     : PrimitiveType(klass, descriptor, cache_id) {
 }
 
@@ -121,11 +119,11 @@ std::string DoubleHiType::Dump() const {
 }
 
 std::string IntegerType::Dump() const {
-    return "Integer";
+  return "Integer";
 }
 
 const DoubleHiType* DoubleHiType::CreateInstance(mirror::Class* klass,
-                                                 const std::string& descriptor,
+                                                 const StringPiece& descriptor,
                                                  uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new DoubleHiType(klass, descriptor, cache_id);
@@ -140,7 +138,7 @@ void DoubleHiType::Destroy() {
 }
 
 const DoubleLoType* DoubleLoType::CreateInstance(mirror::Class* klass,
-                                                 const std::string& descriptor,
+                                                 const StringPiece& descriptor,
                                                  uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new DoubleLoType(klass, descriptor, cache_id);
@@ -154,14 +152,14 @@ void DoubleLoType::Destroy() {
   }
 }
 
-const LongLoType* LongLoType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const LongLoType* LongLoType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                              uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new LongLoType(klass, descriptor, cache_id);
   return instance_;
 }
 
-const LongHiType* LongHiType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const LongHiType* LongHiType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                              uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new LongHiType(klass, descriptor, cache_id);
@@ -182,7 +180,7 @@ void LongLoType::Destroy() {
   }
 }
 
-const FloatType* FloatType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const FloatType* FloatType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                            uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new FloatType(klass, descriptor, cache_id);
@@ -196,7 +194,7 @@ void FloatType::Destroy() {
   }
 }
 
-const CharType* CharType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const CharType* CharType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                          uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new CharType(klass, descriptor, cache_id);
@@ -210,7 +208,7 @@ void CharType::Destroy() {
   }
 }
 
-const ShortType* ShortType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const ShortType* ShortType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                            uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new ShortType(klass, descriptor, cache_id);
@@ -224,7 +222,7 @@ void ShortType::Destroy() {
   }
 }
 
-const ByteType* ByteType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const ByteType* ByteType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                          uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new ByteType(klass, descriptor, cache_id);
@@ -238,7 +236,7 @@ void ByteType::Destroy() {
   }
 }
 
-const IntegerType* IntegerType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const IntegerType* IntegerType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                                uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new IntegerType(klass, descriptor, cache_id);
@@ -253,7 +251,7 @@ void IntegerType::Destroy() {
 }
 
 const ConflictType* ConflictType::CreateInstance(mirror::Class* klass,
-                                                 const std::string& descriptor,
+                                                 const StringPiece& descriptor,
                                                  uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new ConflictType(klass, descriptor, cache_id);
@@ -267,7 +265,7 @@ void ConflictType::Destroy() {
   }
 }
 
-const BooleanType* BooleanType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+const BooleanType* BooleanType::CreateInstance(mirror::Class* klass, const StringPiece& descriptor,
                                          uint16_t cache_id) {
   CHECK(BooleanType::instance_ == nullptr);
   instance_ = new BooleanType(klass, descriptor, cache_id);
@@ -286,7 +284,7 @@ std::string UndefinedType::Dump() const SHARED_REQUIRES(Locks::mutator_lock_) {
 }
 
 const UndefinedType* UndefinedType::CreateInstance(mirror::Class* klass,
-                                                   const std::string& descriptor,
+                                                   const StringPiece& descriptor,
                                                    uint16_t cache_id) {
   CHECK(instance_ == nullptr);
   instance_ = new UndefinedType(klass, descriptor, cache_id);
@@ -300,7 +298,7 @@ void UndefinedType::Destroy() {
   }
 }
 
-PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const std::string& descriptor,
+PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const StringPiece& descriptor,
                                            uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
   // Note: no check for IsInstantiable() here. We may produce this in case an InstantiationError
@@ -335,14 +333,14 @@ std::string UnresolvedSuperClass::Dump() const {
 
 std::string UnresolvedReferenceType::Dump() const {
   std::stringstream result;
-  result << "Unresolved Reference" << ": " << PrettyDescriptor(GetDescriptor().c_str());
+  result << "Unresolved Reference" << ": " << PrettyDescriptor(GetDescriptor().as_string().c_str());
   return result.str();
 }
 
 std::string UnresolvedUninitializedRefType::Dump() const {
   std::stringstream result;
   result << "Unresolved And Uninitialized Reference" << ": "
-      << PrettyDescriptor(GetDescriptor().c_str())
+      << PrettyDescriptor(GetDescriptor().as_string().c_str())
       << " Allocation PC: " << GetAllocationPc();
   return result.str();
 }
@@ -350,7 +348,7 @@ std::string UnresolvedUninitializedRefType::Dump() const {
 std::string UnresolvedUninitializedThisRefType::Dump() const {
   std::stringstream result;
   result << "Unresolved And Uninitialized This Reference"
-      << PrettyDescriptor(GetDescriptor().c_str());
+      << PrettyDescriptor(GetDescriptor().as_string().c_str());
   return result.str();
 }
 

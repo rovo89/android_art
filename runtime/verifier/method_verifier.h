@@ -21,7 +21,10 @@
 #include <sstream>
 #include <vector>
 
+#include "base/arena_allocator.h"
 #include "base/macros.h"
+#include "base/scoped_arena_containers.h"
+#include "base/stl_util.h"
 #include "dex_file.h"
 #include "handle.h"
 #include "instruction_flags.h"
@@ -107,7 +110,7 @@ enum RegisterTrackingMode {
 // execution of that instruction.
 class PcToRegisterLineTable {
  public:
-  PcToRegisterLineTable() : size_(0) {}
+  explicit PcToRegisterLineTable(ScopedArenaAllocator& arena);
   ~PcToRegisterLineTable();
 
   // Initialize the RegisterTable. Every instruction address can have a different set of information
@@ -116,14 +119,12 @@ class PcToRegisterLineTable {
   void Init(RegisterTrackingMode mode, InstructionFlags* flags, uint32_t insns_size,
             uint16_t registers_size, MethodVerifier* verifier);
 
-  RegisterLine* GetLine(size_t idx) {
-    DCHECK_LT(idx, size_);
-    return register_lines_[idx];
+  RegisterLine* GetLine(size_t idx) const {
+    return register_lines_[idx].get();
   }
 
  private:
-  std::unique_ptr<RegisterLine*[]> register_lines_;
-  size_t size_;
+  ScopedArenaVector<ArenaUniquePtr<RegisterLine>> register_lines_;
 
   DISALLOW_COPY_AND_ASSIGN(PcToRegisterLineTable);
 };
@@ -240,7 +241,8 @@ class MethodVerifier {
   // Accessors used by the compiler via CompilerCallback
   const DexFile::CodeItem* CodeItem() const;
   RegisterLine* GetRegLine(uint32_t dex_pc);
-  const InstructionFlags& GetInstructionFlags(size_t index) const;
+  ALWAYS_INLINE const InstructionFlags& GetInstructionFlags(size_t index) const;
+  ALWAYS_INLINE InstructionFlags& GetInstructionFlags(size_t index);
   mirror::ClassLoader* GetClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::DexCache* GetDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
   MethodReference GetMethodReference() const;
@@ -275,7 +277,14 @@ class MethodVerifier {
     return IsConstructor() && !IsStatic();
   }
 
+  ScopedArenaAllocator& GetArena() {
+    return arena_;
+  }
+
  private:
+  void UninstantiableError(const char* descriptor);
+  static bool IsInstantiableOrPrimitive(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Is the method being verified a constructor? See the comment on the field.
   bool IsConstructor() const {
     return is_constructor_;
@@ -687,19 +696,23 @@ class MethodVerifier {
   // The thread we're verifying on.
   Thread* const self_;
 
+  // Arena allocator.
+  ArenaStack arena_stack_;
+  ScopedArenaAllocator arena_;
+
   RegTypeCache reg_types_;
 
   PcToRegisterLineTable reg_table_;
 
   // Storage for the register status we're currently working on.
-  std::unique_ptr<RegisterLine> work_line_;
+  ArenaUniquePtr<RegisterLine> work_line_;
 
   // The address of the instruction we're currently working on, note that this is in 2 byte
   // quantities
   uint32_t work_insn_idx_;
 
   // Storage for the register status we're saving for later.
-  std::unique_ptr<RegisterLine> saved_line_;
+  ArenaUniquePtr<RegisterLine> saved_line_;
 
   const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
@@ -715,7 +728,8 @@ class MethodVerifier {
   const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.
-  std::unique_ptr<InstructionFlags[]> insn_flags_;
+  // Owned, but not unique_ptr since insn_flags_ are allocated in arenas.
+  ArenaUniquePtr<InstructionFlags[]> insn_flags_;
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,

@@ -19,6 +19,7 @@
 
 #include "base/casts.h"
 #include "base/macros.h"
+#include "base/scoped_arena_containers.h"
 #include "object_callbacks.h"
 #include "reg_type.h"
 #include "runtime.h"
@@ -31,15 +32,19 @@ namespace mirror {
   class Class;
   class ClassLoader;
 }  // namespace mirror
+class ScopedArenaAllocator;
 class StringPiece;
 
 namespace verifier {
 
 class RegType;
 
+// Use 8 bytes since that is the default arena allocator alignment.
+static constexpr size_t kDefaultArenaBitVectorBytes = 8;
+
 class RegTypeCache {
  public:
-  explicit RegTypeCache(bool can_load_classes);
+  explicit RegTypeCache(bool can_load_classes, ScopedArenaAllocator& arena);
   ~RegTypeCache();
   static void Init() SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!RegTypeCache::primitive_initialized_) {
@@ -53,6 +58,13 @@ class RegTypeCache {
   const art::verifier::RegType& GetFromId(uint16_t id) const;
   const RegType& From(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  // Find a RegType, returns null if not found.
+  const RegType* FindClass(mirror::Class* klass, bool precise) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  // Insert a new class with a specified descriptor, must not already be in the cache.
+  const RegType* InsertClass(const StringPiece& descriptor, mirror::Class* klass, bool precise)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  // Get or insert a reg type for a description, klass, and precision.
   const RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
       SHARED_REQUIRES(Locks::mutator_lock_);
   const ConstantType& FromCat1Const(int32_t value, bool precise)
@@ -150,7 +162,13 @@ class RegTypeCache {
   const ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void AddEntry(RegType* new_entry);
+  // Returns the pass in RegType.
+  template <class RegTypeType>
+  RegTypeType& AddEntry(RegTypeType* new_entry) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Add a string piece to the arena allocator so that it stays live for the lifetime of the
+  // verifier.
+  StringPiece AddString(const StringPiece& string_piece);
 
   template <class Type>
   static const Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
@@ -160,7 +178,8 @@ class RegTypeCache {
   // A quick look up for popular small constants.
   static constexpr int32_t kMinSmallConstant = -1;
   static constexpr int32_t kMaxSmallConstant = 4;
-  static const PreciseConstType* small_precise_constants_[kMaxSmallConstant - kMinSmallConstant + 1];
+  static const PreciseConstType* small_precise_constants_[kMaxSmallConstant -
+                                                          kMinSmallConstant + 1];
 
   static constexpr size_t kNumPrimitivesAndSmallConstants =
       12 + (kMaxSmallConstant - kMinSmallConstant + 1);
@@ -172,10 +191,16 @@ class RegTypeCache {
   static uint16_t primitive_count_;
 
   // The actual storage for the RegTypes.
-  std::vector<const RegType*> entries_;
+  ScopedArenaVector<const RegType*> entries_;
+
+  // Fast lookup for quickly finding entries that have a matching class.
+  ScopedArenaVector<std::pair<GcRoot<mirror::Class>, const RegType*>> klass_entries_;
 
   // Whether or not we're allowed to load classes.
   const bool can_load_classes_;
+
+  // Arena allocator.
+  ScopedArenaAllocator& arena_;
 
   DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
 };

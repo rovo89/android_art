@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/scoped_arena_containers.h"
 #include "safe_map.h"
 
 namespace art {
@@ -58,11 +59,11 @@ enum class LockOp {
 // stack of entered monitors (identified by code unit offset).
 class RegisterLine {
  public:
-  static RegisterLine* Create(size_t num_regs, MethodVerifier* verifier) {
-    void* memory = operator new(sizeof(RegisterLine) + (num_regs * sizeof(uint16_t)));
-    RegisterLine* rl = new (memory) RegisterLine(num_regs, verifier);
-    return rl;
-  }
+  // A map from register to a bit vector of indices into the monitors_ stack.
+  using RegToLockDepthsMap = ScopedArenaSafeMap<uint32_t, uint32_t>;
+
+  // Create a register line of num_regs registers.
+  static RegisterLine* Create(size_t num_regs, MethodVerifier* verifier);
 
   // Implement category-1 "move" instructions. Copy a 32-bit value from "vsrc" to "vdst".
   void CopyRegister1(MethodVerifier* verifier, uint32_t vdst, uint32_t vsrc, TypeCategory cat)
@@ -311,11 +312,11 @@ class RegisterLine {
   // Write a bit at each register location that holds a reference.
   void WriteReferenceBitMap(MethodVerifier* verifier, std::vector<uint8_t>* data, size_t max_bytes);
 
-  size_t GetMonitorEnterCount() {
+  size_t GetMonitorEnterCount() const {
     return monitors_.size();
   }
 
-  uint32_t GetMonitorEnterDexPc(size_t i) {
+  uint32_t GetMonitorEnterDexPc(size_t i) const {
     return monitors_[i];
   }
 
@@ -375,11 +376,7 @@ class RegisterLine {
     reg_to_lock_depths_.erase(reg);
   }
 
-  RegisterLine(size_t num_regs, MethodVerifier* verifier)
-      : num_regs_(num_regs), this_initialized_(false) {
-    memset(&line_, 0, num_regs_ * sizeof(uint16_t));
-    SetResultTypeToUnknown(verifier);
-  }
+  RegisterLine(size_t num_regs, MethodVerifier* verifier);
 
   // Storage for the result register's type, valid after an invocation.
   uint16_t result_[2];
@@ -388,17 +385,18 @@ class RegisterLine {
   const uint32_t num_regs_;
 
   // A stack of monitor enter locations.
-  std::vector<uint32_t, TrackingAllocator<uint32_t, kAllocatorTagVerifier>> monitors_;
+  ScopedArenaVector<uint32_t> monitors_;
+
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5.
-  AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier> reg_to_lock_depths_;
+  RegToLockDepthsMap reg_to_lock_depths_;
 
   // Whether "this" initialization (a constructor supercall) has happened.
   bool this_initialized_;
 
   // An array of RegType Ids associated with each dex register.
-  uint16_t line_[0];
+  uint16_t line_[1];
 
   DISALLOW_COPY_AND_ASSIGN(RegisterLine);
 };
