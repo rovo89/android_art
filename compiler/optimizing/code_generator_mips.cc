@@ -3025,7 +3025,7 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
       FALLTHROUGH_INTENDED;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // T9 = callee_method->entry_point_from_quick_compiled_code_;
-      __ LoadFromOffset(kLoadDoubleword,
+      __ LoadFromOffset(kLoadWord,
                         T9,
                         callee_method.AsRegister<Register>(),
                         ArtMethod::EntryPointFromQuickCompiledCodeOffset(
