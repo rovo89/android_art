@@ -18,7 +18,7 @@
 set -e
 
 # Generate the smali Main.smali file or fail
-./util-src/generate_smali.py ./smali
+${ANDROID_BUILD_TOP}/art/test/utils/python/generate_smali_main.py ./smali
 
 if [[ $@ == *"--jvm"* ]]; then
   # Build the Java files if we are running a --jvm test
@@ -29,5 +29,5 @@ if [[ $@ == *"--jvm"* ]]; then
 fi
 
 # Build the smali files and make a dex
-${SMALI} -JXmx256m --experimental --api-level 23 --output classes.dex $(find smali -name '*.smali')
+${SMALI} -JXmx256m ${SMALI_ARGS} --output classes.dex $(find smali -name '*.smali')
 zip "$TEST_NAME.jar" classes.dex

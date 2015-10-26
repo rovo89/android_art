@@ -15,4 +15,4 @@
 # limitations under the License.
 
 # Ensure that the lambda experimental opcodes are turned on for dalvikvm and dex2oat
-${RUN} "$@" --runtime-option -Xexperimental:lambdas -Xcompiler-option --runtime-arg -Xcompiler-option -Xexperimental:lambdas
+${RUN} "$@" --experimental lambdas
