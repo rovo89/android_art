@@ -58,12 +58,14 @@ static constexpr bool gDebugVerify = false;
 // On VLOG(verifier), should we dump the whole state when we run into a hard failure?
 static constexpr bool kDumpRegLinesOnHardFailureIfVLOG = true;
 
+PcToRegisterLineTable::PcToRegisterLineTable(ScopedArenaAllocator& arena)
+    : register_lines_(arena.Adapter(kArenaAllocVerifier)) {}
+
 void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* flags,
                                  uint32_t insns_size, uint16_t registers_size,
                                  MethodVerifier* verifier) {
   DCHECK_GT(insns_size, 0U);
-  register_lines_.reset(new RegisterLine*[insns_size]());
-  size_ = insns_size;
+  register_lines_.resize(insns_size);
   for (uint32_t i = 0; i < insns_size; i++) {
     bool interesting = false;
     switch (mode) {
@@ -80,19 +82,12 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
         break;
     }
     if (interesting) {
-      register_lines_[i] = RegisterLine::Create(registers_size, verifier);
+      register_lines_[i].reset(RegisterLine::Create(registers_size, verifier));
     }
   }
 }
 
-PcToRegisterLineTable::~PcToRegisterLineTable() {
-  for (size_t i = 0; i < size_; i++) {
-    delete register_lines_[i];
-    if (kIsDebugBuild) {
-      register_lines_[i] = nullptr;
-    }
-  }
-}
+PcToRegisterLineTable::~PcToRegisterLineTable() {}
 
 // Note: returns true on failure.
 ALWAYS_INLINE static inline bool FailOrAbort(MethodVerifier* verifier, bool condition,
@@ -398,7 +393,10 @@ MethodVerifier::MethodVerifier(Thread* self,
                                bool need_precise_constants, bool verify_to_dump,
                                bool allow_thread_suspension)
     : self_(self),
-      reg_types_(can_load_classes),
+      arena_stack_(Runtime::Current()->GetArenaPool()),
+      arena_(&arena_stack_),
+      reg_types_(can_load_classes, arena_),
+      reg_table_(arena_),
       work_insn_idx_(DexFile::kDexNoIndex),
       dex_method_idx_(dex_method_idx),
       mirror_method_(method),
@@ -702,7 +700,11 @@ bool MethodVerifier::Verify() {
   }
 
   // Allocate and initialize an array to hold instruction data.
-  insn_flags_.reset(new InstructionFlags[code_item_->insns_size_in_code_units_]());
+  insn_flags_.reset(arena_.AllocArray<InstructionFlags>(code_item_->insns_size_in_code_units_));
+  DCHECK(insn_flags_ != nullptr);
+  std::uninitialized_fill_n(insn_flags_.get(),
+                            code_item_->insns_size_in_code_units_,
+                            InstructionFlags());
   // Run through the instructions and see if the width checks out.
   bool result = ComputeWidthsAndCountOps();
   // Flag instructions guarded by a "try" block and check exception handlers.
@@ -848,7 +850,7 @@ bool MethodVerifier::ComputeWidthsAndCountOps() {
         break;
     }
     size_t inst_size = inst->SizeInCodeUnits();
-    insn_flags_[dex_pc].SetIsOpcode();
+    GetInstructionFlags(dex_pc).SetIsOpcode();
     dex_pc += inst_size;
     inst = inst->RelativeAt(inst_size);
   }
@@ -881,7 +883,7 @@ bool MethodVerifier::ScanTryCatchBlocks() {
                                         << " endAddr=" << end << " (size=" << insns_size << ")";
       return false;
     }
-    if (!insn_flags_[start].IsOpcode()) {
+    if (!GetInstructionFlags(start).IsOpcode()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD)
           << "'try' block starts inside an instruction (" << start << ")";
       return false;
@@ -889,7 +891,7 @@ bool MethodVerifier::ScanTryCatchBlocks() {
     uint32_t dex_pc = start;
     const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
     while (dex_pc < end) {
-      insn_flags_[dex_pc].SetInTry();
+      GetInstructionFlags(dex_pc).SetInTry();
       size_t insn_size = inst->SizeInCodeUnits();
       dex_pc += insn_size;
       inst = inst->RelativeAt(insn_size);
@@ -903,7 +905,7 @@ bool MethodVerifier::ScanTryCatchBlocks() {
     CatchHandlerIterator iterator(handlers_ptr);
     for (; iterator.HasNext(); iterator.Next()) {
       uint32_t dex_pc= iterator.GetHandlerAddress();
-      if (!insn_flags_[dex_pc].IsOpcode()) {
+      if (!GetInstructionFlags(dex_pc).IsOpcode()) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD)
             << "exception handler starts at bad address (" << dex_pc << ")";
         return false;
@@ -913,7 +915,7 @@ bool MethodVerifier::ScanTryCatchBlocks() {
             << "exception handler begins with move-result* (" << dex_pc << ")";
         return false;
       }
-      insn_flags_[dex_pc].SetBranchTarget();
+      GetInstructionFlags(dex_pc).SetBranchTarget();
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
       if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
@@ -935,8 +937,8 @@ bool MethodVerifier::VerifyInstructions() {
   const Instruction* inst = Instruction::At(code_item_->insns_);
 
   /* Flag the start of the method as a branch target, and a GC point due to stack overflow errors */
-  insn_flags_[0].SetBranchTarget();
-  insn_flags_[0].SetCompileTimeInfoPoint();
+  GetInstructionFlags(0).SetBranchTarget();
+  GetInstructionFlags(0).SetCompileTimeInfoPoint();
 
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
@@ -948,18 +950,18 @@ bool MethodVerifier::VerifyInstructions() {
     // All invoke points are marked as "Throw" points already.
     // We are relying on this to also count all the invokes as interesting.
     if (inst->IsBranch()) {
-      insn_flags_[dex_pc].SetCompileTimeInfoPoint();
+      GetInstructionFlags(dex_pc).SetCompileTimeInfoPoint();
       // The compiler also needs safepoints for fall-through to loop heads.
       // Such a loop head must be a target of a branch.
       int32_t offset = 0;
       bool cond, self_ok;
       bool target_ok = GetBranchOffset(dex_pc, &offset, &cond, &self_ok);
       DCHECK(target_ok);
-      insn_flags_[dex_pc + offset].SetCompileTimeInfoPoint();
+      GetInstructionFlags(dex_pc + offset).SetCompileTimeInfoPoint();
     } else if (inst->IsSwitch() || inst->IsThrow()) {
-      insn_flags_[dex_pc].SetCompileTimeInfoPoint();
+      GetInstructionFlags(dex_pc).SetCompileTimeInfoPoint();
     } else if (inst->IsReturn()) {
-      insn_flags_[dex_pc].SetCompileTimeInfoPointAndReturn();
+      GetInstructionFlags(dex_pc).SetCompileTimeInfoPointAndReturn();
     }
     dex_pc += inst->SizeInCodeUnits();
     inst = inst->Next();
@@ -1202,7 +1204,7 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   }
   // Make sure the array-data is marked as an opcode. This ensures that it was reached when
   // traversing the code item linearly. It is an approximation for a by-spec padding value.
-  if (!insn_flags_[cur_offset + array_data_offset].IsOpcode()) {
+  if (!GetInstructionFlags(cur_offset + array_data_offset).IsOpcode()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array data table at " << cur_offset
                                       << ", data offset " << array_data_offset
                                       << " not correctly visited, probably bad padding.";
@@ -1245,13 +1247,13 @@ bool MethodVerifier::CheckBranchTarget(uint32_t cur_offset) {
   int32_t abs_offset = cur_offset + offset;
   if (abs_offset < 0 ||
       (uint32_t) abs_offset >= insn_count ||
-      !insn_flags_[abs_offset].IsOpcode()) {
+      !GetInstructionFlags(abs_offset).IsOpcode()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid branch target " << offset << " (-> "
                                       << reinterpret_cast<void*>(abs_offset) << ") at "
                                       << reinterpret_cast<void*>(cur_offset);
     return false;
   }
-  insn_flags_[abs_offset].SetBranchTarget();
+  GetInstructionFlags(abs_offset).SetBranchTarget();
   return true;
 }
 
@@ -1315,7 +1317,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   }
   // Make sure the switch data is marked as an opcode. This ensures that it was reached when
   // traversing the code item linearly. It is an approximation for a by-spec padding value.
-  if (!insn_flags_[cur_offset + switch_offset].IsOpcode()) {
+  if (!GetInstructionFlags(cur_offset + switch_offset).IsOpcode()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "switch table at " << cur_offset
                                       << ", switch offset " << switch_offset
                                       << " not correctly visited, probably bad padding.";
@@ -1387,14 +1389,14 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
     int32_t abs_offset = cur_offset + offset;
     if (abs_offset < 0 ||
         abs_offset >= static_cast<int32_t>(insn_count) ||
-        !insn_flags_[abs_offset].IsOpcode()) {
+        !GetInstructionFlags(abs_offset).IsOpcode()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch target " << offset
                                         << " (-> " << reinterpret_cast<void*>(abs_offset) << ") at "
                                         << reinterpret_cast<void*>(cur_offset)
                                         << "[" << targ << "]";
       return false;
     }
-    insn_flags_[abs_offset].SetBranchTarget();
+    GetInstructionFlags(abs_offset).SetBranchTarget();
   }
   return true;
 }
@@ -1434,7 +1436,6 @@ bool MethodVerifier::VerifyCodeFlow() {
                   insns_size,
                   registers_size,
                   this);
-
 
   work_line_.reset(RegisterLine::Create(registers_size, this));
   saved_line_.reset(RegisterLine::Create(registers_size, this));
@@ -1491,7 +1492,7 @@ void MethodVerifier::Dump(VariableIndentationOutputStream* vios) {
       vios->Stream() << reg_line->Dump(this) << "\n";
     }
     vios->Stream()
-        << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].ToString() << " ";
+        << StringPrintf("0x%04zx", dex_pc) << ": " << GetInstructionFlags(dex_pc).ToString() << " ";
     const bool kDumpHexOfInstruction = false;
     if (kDumpHexOfInstruction) {
       vios->Stream() << inst->DumpHex(5) << " ";
@@ -1677,7 +1678,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
   const uint32_t insns_size = code_item_->insns_size_in_code_units_;
 
   /* Begin by marking the first instruction as "changed". */
-  insn_flags_[0].SetChanged();
+  GetInstructionFlags(0).SetChanged();
   uint32_t start_guess = 0;
 
   /* Continue until no instructions are marked "changed". */
@@ -1688,7 +1689,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     // Find the first marked one. Use "start_guess" as a way to find one quickly.
     uint32_t insn_idx = start_guess;
     for (; insn_idx < insns_size; insn_idx++) {
-      if (insn_flags_[insn_idx].IsChanged())
+      if (GetInstructionFlags(insn_idx).IsChanged())
         break;
     }
     if (insn_idx == insns_size) {
@@ -1708,7 +1709,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     // situation where we have a stray "changed" flag set on an instruction that isn't a branch
     // target.
     work_insn_idx_ = insn_idx;
-    if (insn_flags_[insn_idx].IsBranchTarget()) {
+    if (GetInstructionFlags(insn_idx).IsBranchTarget()) {
       work_line_->CopyFromLine(reg_table_.GetLine(insn_idx));
     } else if (kIsDebugBuild) {
       /*
@@ -1734,8 +1735,8 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
       return false;
     }
     /* Clear "changed" and mark as visited. */
-    insn_flags_[insn_idx].SetVisited();
-    insn_flags_[insn_idx].ClearChanged();
+    GetInstructionFlags(insn_idx).SetVisited();
+    GetInstructionFlags(insn_idx).ClearChanged();
   }
 
   if (gDebugVerify) {
@@ -1762,10 +1763,10 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
            (insns[insn_idx + 1] == Instruction::kPackedSwitchSignature ||
             insns[insn_idx + 1] == Instruction::kSparseSwitchSignature ||
             insns[insn_idx + 1] == Instruction::kArrayDataSignature))) {
-        insn_flags_[insn_idx].SetVisited();
+        GetInstructionFlags(insn_idx).SetVisited();
       }
 
-      if (!insn_flags_[insn_idx].IsVisited()) {
+      if (!GetInstructionFlags(insn_idx).IsVisited()) {
         if (dead_start < 0)
           dead_start = insn_idx;
       } else if (dead_start >= 0) {
@@ -1895,8 +1896,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   // We need to ensure the work line is consistent while performing validation. When we spot a
   // peephole pattern we compute a new line for either the fallthrough instruction or the
   // branch target.
-  std::unique_ptr<RegisterLine> branch_line;
-  std::unique_ptr<RegisterLine> fallthrough_line;
+  ArenaUniquePtr<RegisterLine> branch_line;
+  ArenaUniquePtr<RegisterLine> fallthrough_line;
 
   switch (inst->Opcode()) {
     case Instruction::NOP:
@@ -2144,9 +2145,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       work_line_->PushMonitor(this, inst->VRegA_11x(), work_insn_idx_);
       // Check whether the previous instruction is a move-object with vAA as a source, creating
       // untracked lock aliasing.
-      if (0 != work_insn_idx_ && !insn_flags_[work_insn_idx_].IsBranchTarget()) {
+      if (0 != work_insn_idx_ && !GetInstructionFlags(work_insn_idx_).IsBranchTarget()) {
         uint32_t prev_idx = work_insn_idx_ - 1;
-        while (0 != prev_idx && !insn_flags_[prev_idx].IsOpcode()) {
+        while (0 != prev_idx && !GetInstructionFlags(prev_idx).IsOpcode()) {
           prev_idx--;
         }
         const Instruction* prev_inst = Instruction::At(code_item_->insns_ + prev_idx);
@@ -2427,10 +2428,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       uint32_t instance_of_idx = 0;
       if (0 != work_insn_idx_) {
         instance_of_idx = work_insn_idx_ - 1;
-        while (0 != instance_of_idx && !insn_flags_[instance_of_idx].IsOpcode()) {
+        while (0 != instance_of_idx && !GetInstructionFlags(instance_of_idx).IsOpcode()) {
           instance_of_idx--;
         }
-        if (FailOrAbort(this, insn_flags_[instance_of_idx].IsOpcode(),
+        if (FailOrAbort(this, GetInstructionFlags(instance_of_idx).IsOpcode(),
                         "Unable to get previous instruction of if-eqz/if-nez for work index ",
                         work_insn_idx_)) {
           break;
@@ -2486,15 +2487,15 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           update_line->SetRegisterType<LockOp::kKeep>(this,
                                                       instance_of_inst->VRegB_22c(),
                                                       cast_type);
-          if (!insn_flags_[instance_of_idx].IsBranchTarget() && 0 != instance_of_idx) {
+          if (!GetInstructionFlags(instance_of_idx).IsBranchTarget() && 0 != instance_of_idx) {
             // See if instance-of was preceded by a move-object operation, common due to the small
             // register encoding space of instance-of, and propagate type information to the source
             // of the move-object.
             uint32_t move_idx = instance_of_idx - 1;
-            while (0 != move_idx && !insn_flags_[move_idx].IsOpcode()) {
+            while (0 != move_idx && !GetInstructionFlags(move_idx).IsOpcode()) {
               move_idx--;
             }
-            if (FailOrAbort(this, insn_flags_[move_idx].IsOpcode(),
+            if (FailOrAbort(this, GetInstructionFlags(move_idx).IsOpcode(),
                             "Unable to get previous instruction of if-eqz/if-nez for work index ",
                             work_insn_idx_)) {
               break;
@@ -2786,8 +2787,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         work_line_->MarkRefsAsInitialized(this, this_type, this_reg, work_insn_idx_);
       }
       if (return_type == nullptr) {
-        return_type = &reg_types_.FromDescriptor(GetClassLoader(), return_type_descriptor,
-                                                 false);
+        return_type = &reg_types_.FromDescriptor(GetClassLoader(), return_type_descriptor, false);
       }
       if (!return_type->IsLowHalf()) {
         work_line_->SetResultRegisterType(this, *return_type);
@@ -2860,7 +2860,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-        descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
+        descriptor = dex_file_->StringByTypeIdx(return_type_idx);
       } else {
         descriptor = abs_method->GetReturnTypeDescriptor();
       }
@@ -3309,7 +3309,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       return false;
     }
     /* update branch target, set "changed" if appropriate */
-    if (nullptr != branch_line.get()) {
+    if (nullptr != branch_line) {
       if (!UpdateRegisters(work_insn_idx_ + branch_target, branch_line.get(), false)) {
         return false;
       }
@@ -3364,7 +3364,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * Handle instructions that can throw and that are sitting in a "try" block. (If they're not in a
    * "try" block when they throw, control transfers out of the method.)
    */
-  if ((opcode_flags & Instruction::kThrow) != 0 && insn_flags_[work_insn_idx_].IsInTry()) {
+  if ((opcode_flags & Instruction::kThrow) != 0 && GetInstructionFlags(work_insn_idx_).IsInTry()) {
     bool has_catch_all_handler = false;
     CatchHandlerIterator iterator(*code_item_, work_insn_idx_);
 
@@ -3434,11 +3434,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
       return false;
     }
-    if (nullptr != fallthrough_line.get()) {
+    if (nullptr != fallthrough_line) {
       // Make workline consistent with fallthrough computed from peephole optimization.
       work_line_->CopyFromLine(fallthrough_line.get());
     }
-    if (insn_flags_[next_insn_idx].IsReturn()) {
+    if (GetInstructionFlags(next_insn_idx).IsReturn()) {
       // For returns we only care about the operand to the return, all other registers are dead.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn_idx);
       AdjustReturnLine(this, ret_inst, work_line_.get());
@@ -3456,7 +3456,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * We're not recording register data for the next instruction, so we don't know what the
        * prior state was. We have to assume that something has changed and re-evaluate it.
        */
-      insn_flags_[next_insn_idx].SetChanged();
+      GetInstructionFlags(next_insn_idx).SetChanged();
     }
   }
 
@@ -3480,7 +3480,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   }
 
   DCHECK_LT(*start_guess, code_item_->insns_size_in_code_units_);
-  DCHECK(insn_flags_[*start_guess].IsOpcode());
+  DCHECK(GetInstructionFlags(*start_guess).IsOpcode());
 
   if (have_pending_runtime_throw_failure_) {
     have_any_pending_runtime_throw_failure_ = true;
@@ -3491,30 +3491,55 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   return true;
 }  // NOLINT(readability/fn_size)
 
+void MethodVerifier::UninstantiableError(const char* descriptor) {
+  Fail(VerifyError::VERIFY_ERROR_NO_CLASS) << "Could not create precise reference for "
+                                           << "non-instantiable klass " << descriptor;
+}
+
+inline bool MethodVerifier::IsInstantiableOrPrimitive(mirror::Class* klass) {
+  return klass->IsInstantiable() || klass->IsPrimitive();
+}
+
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
-  const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
-  const RegType& referrer = GetDeclaringClass();
   mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
-  const RegType& result = klass != nullptr ?
-      FromClass(descriptor, klass, klass->CannotBeAssignedFromOtherTypes()) :
-      reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
-  if (result.IsConflict()) {
-    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
-        << "' in " << referrer;
-    return result;
+  const RegType* result = nullptr;
+  if (klass != nullptr) {
+    bool precise = klass->CannotBeAssignedFromOtherTypes();
+    if (precise && !IsInstantiableOrPrimitive(klass)) {
+      const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
+      UninstantiableError(descriptor);
+      precise = false;
+    }
+    result = reg_types_.FindClass(klass, precise);
+    if (result == nullptr) {
+      const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
+      result = reg_types_.InsertClass(descriptor, klass, precise);
+    }
+  } else {
+    const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
+    result = &reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
   }
-  if (klass == nullptr && !result.IsUnresolvedTypes()) {
-    dex_cache_->SetResolvedType(class_idx, result.GetClass());
+  DCHECK(result != nullptr);
+  if (result->IsConflict()) {
+    const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
+    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
+        << "' in " << GetDeclaringClass();
+    return *result;
+  }
+  if (klass == nullptr && !result->IsUnresolvedTypes()) {
+    dex_cache_->SetResolvedType(class_idx, result->GetClass());
   }
   // Check if access is allowed. Unresolved types use xxxWithAccessCheck to
   // check at runtime if access is allowed and so pass here. If result is
   // primitive, skip the access check.
-  if (result.IsNonZeroReferenceTypes() && !result.IsUnresolvedTypes() &&
-      !referrer.IsUnresolvedTypes() && !referrer.CanAccess(result)) {
-    Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
-                                    << referrer << "' -> '" << result << "'";
+  if (result->IsNonZeroReferenceTypes() && !result->IsUnresolvedTypes()) {
+    const RegType& referrer = GetDeclaringClass();
+    if (!referrer.IsUnresolvedTypes() && !referrer.CanAccess(*result)) {
+      Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
+                                      << referrer << "' -> '" << result << "'";
+    }
   }
-  return result;
+  return *result;
 }
 
 const RegType& MethodVerifier::GetCaughtExceptionType() {
@@ -3720,9 +3745,10 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
       } else {
         const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const uint16_t class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
-        res_method_class = &reg_types_.FromDescriptor(GetClassLoader(),
-                                                      dex_file_->StringByTypeIdx(class_idx),
-                                                      false);
+        res_method_class = &reg_types_.FromDescriptor(
+            GetClassLoader(),
+            dex_file_->StringByTypeIdx(class_idx),
+            false);
       }
       if (!res_method_class->IsAssignableFrom(actual_arg_type)) {
         Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS:
@@ -4476,14 +4502,16 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         field->GetType<false>();
 
     if (field_type_class != nullptr) {
-      field_type = &FromClass(field->GetTypeDescriptor(), field_type_class,
+      field_type = &FromClass(field->GetTypeDescriptor(),
+                              field_type_class,
                               field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       Thread* self = Thread::Current();
       DCHECK(!can_load_classes_ || self->IsExceptionPending());
       self->ClearException();
       field_type = &reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
-                                              field->GetTypeDescriptor(), false);
+                                              field->GetTypeDescriptor(),
+                                              false);
     }
     if (field_type == nullptr) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field type from " << inst->Name();
@@ -4604,14 +4632,14 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
                                      bool update_merge_line) {
   bool changed = true;
   RegisterLine* target_line = reg_table_.GetLine(next_insn);
-  if (!insn_flags_[next_insn].IsVisitedOrChanged()) {
+  if (!GetInstructionFlags(next_insn).IsVisitedOrChanged()) {
     /*
      * We haven't processed this instruction before, and we haven't touched the registers here, so
      * there's nothing to "merge". Copy the registers over and mark it as changed. (This is the
      * only way a register can transition out of "unknown", so this is not just an optimization.)
      */
     target_line->CopyFromLine(merge_line);
-    if (insn_flags_[next_insn].IsReturn()) {
+    if (GetInstructionFlags(next_insn).IsReturn()) {
       // Verify that the monitor stack is empty on return.
       merge_line->VerifyMonitorStackEmpty(this);
 
@@ -4621,10 +4649,9 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       AdjustReturnLine(this, ret_inst, target_line);
     }
   } else {
-    std::unique_ptr<RegisterLine> copy(gDebugVerify ?
-                                 RegisterLine::Create(target_line->NumRegs(), this) :
-                                 nullptr);
+    ArenaUniquePtr<RegisterLine> copy;
     if (gDebugVerify) {
+      copy.reset(RegisterLine::Create(target_line->NumRegs(), this));
       copy->CopyFromLine(target_line);
     }
     changed = target_line->MergeRegisters(this, merge_line);
@@ -4643,13 +4670,13 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
     }
   }
   if (changed) {
-    insn_flags_[next_insn].SetChanged();
+    GetInstructionFlags(next_insn).SetChanged();
   }
   return true;
 }
 
 InstructionFlags* MethodVerifier::CurrentInsnFlags() {
-  return &insn_flags_[work_insn_idx_];
+  return &GetInstructionFlags(work_insn_idx_);
 }
 
 const RegType& MethodVerifier::GetMethodReturnType() {
@@ -4685,8 +4712,7 @@ const RegType& MethodVerifier::GetDeclaringClass() {
         = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
     if (mirror_method_ != nullptr) {
       mirror::Class* klass = mirror_method_->GetDeclaringClass();
-      declaring_class_ = &FromClass(descriptor, klass,
-                                    klass->CannotBeAssignedFromOtherTypes());
+      declaring_class_ = &FromClass(descriptor, klass, klass->CannotBeAssignedFromOtherTypes());
     } else {
       declaring_class_ = &reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
     }
