@@ -23,7 +23,7 @@
 # inline any methods from array classes, this bug cannot be triggered and we
 # verify it using Checker.
 
-## CHECK-START: void TestCase.testInliner() reference_type_propagation_after_inlining (before)
+## CHECK-START: void TestCase.testInliner() inliner (after)
 ## CHECK-DAG:             CheckCast [<<Phi:l\d+>>,{{l\d+}}]
 ## CHECK-DAG:    <<Phi>>  Phi klass:java.lang.Object[] exact:false
 

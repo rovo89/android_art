@@ -512,6 +512,9 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
 
   if ((return_replacement != nullptr)
       && (return_replacement->GetType() == Primitive::kPrimNot)) {
+    // TODO(calin): If valid, return_replacement could still be object (as a result of a merge).
+    // This happens because we don't implement the smallest common type and merge to Object.
+    // In this case, we should bound its type to the type of the invoke.
     if (!return_replacement->GetReferenceTypeInfo().IsValid()) {
       // Make sure that we have a valid type for the return. We may get an invalid one when
       // we inline invokes with multiple branches and create a Phi for the result.
@@ -520,9 +523,18 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       DCHECK(return_replacement->IsPhi());
       size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       ReferenceTypeInfo::TypeHandle return_handle =
-        handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
+          handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
       return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
          return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+    }
+
+    // Check if the actual return type is a subtype of the declared invoke type.
+    // If so, run a limited type propagation to update the types in the original graph.
+    ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
+    ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
+    if (!return_rti.IsEqual(invoke_rti) && invoke_rti.IsSupertypeOf(return_rti)) {
+      ReferenceTypePropagation rtp_fixup(graph_, handles_);
+      rtp_fixup.Run(return_replacement);
     }
   }
 
