@@ -88,7 +88,8 @@ while true; do
   fi
 done
 
-vm_args="--vm-arg $image"
+vm_args="--vm-arg $image --vm-arg -Xusejit:true"
+debuggee_args="$debuggee_args -Xusejit:true"
 if [[ $debug == "yes" ]]; then
   art="$art -d"
   art_debugee="$art_debugee -d"
