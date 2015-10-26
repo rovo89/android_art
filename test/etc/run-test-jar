@@ -18,6 +18,7 @@ DALVIKVM="dalvikvm32"
 DEBUGGER="n"
 DEV_MODE="n"
 DEX2OAT=""
+EXPERIMENTAL=""
 FALSE_BIN="/system/bin/false"
 FLAGS=""
 GDB=""
@@ -196,6 +197,13 @@ while true; do
         FLAGS="${FLAGS} -Xcompiler-option --compile-pic"
         COMPILE_FLAGS="${COMPILE_FLAGS} --compile-pic"
         shift
+    elif [ "x$1" = "x--experimental" ]; then
+        if [ "$#" -lt 2 ]; then
+            echo "missing --experimental option" 1>&2
+            exit 1
+        fi
+        EXPERIMENTAL="$EXPERIMENTAL $2"
+        shift 2
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         exit 1
@@ -203,6 +211,13 @@ while true; do
         break
     fi
 done
+
+if [ "$USE_JVM" = "n" ]; then
+    for feature in ${EXPERIMENTAL}; do
+        FLAGS="${FLAGS} -Xexperimental:${feature}"
+        COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xexperimental:${feature}"
+    done
+fi
 
 if [ "x$1" = "x" ] ; then
   MAIN="Main"
