@@ -96,7 +96,7 @@ fi
 
 if [ -d smali ]; then
   # Compile Smali classes
-  ${SMALI} -JXmx256m --experimental --api-level 23 --output smali_classes.dex `find smali -name '*.smali'`
+  ${SMALI} -JXmx256m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
 
   # Don't bother with dexmerger if we provide our own main function in a smali file.
   if [ ${SKIP_DX_MERGER} = "false" ]; then
