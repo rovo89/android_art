@@ -14,8 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if echo $@ | grep -q -- "--jvm"; then
-  ${RUN} "$@"
-else
-  ${RUN} "$@" --runtime-option -Xexperimental:default-methods -Xcompiler-option --runtime-arg -Xcompiler-option -Xexperimental:default-methods
-fi
+${RUN} --experimental default-methods "$@"

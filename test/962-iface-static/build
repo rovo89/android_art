@@ -26,5 +26,5 @@ if [[ $@ == *"--jvm"* ]]; then
 fi
 
 # Build the smali files and make a dex
-${SMALI} -JXmx512m --experimental --api-level 23 --output classes.dex $(find smali -name '*.smali')
+${SMALI} -JXmx512m ${SMALI_ARGS} --output classes.dex $(find smali -name '*.smali')
 zip $TEST_NAME.jar classes.dex
