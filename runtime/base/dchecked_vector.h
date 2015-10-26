@@ -59,8 +59,10 @@ class dchecked_vector : private std::vector<T, Alloc> {
       : Base() { }
   explicit dchecked_vector(const allocator_type& alloc)
       : Base(alloc) { }
+  // Note that we cannot forward to std::vector(size_type, const allocator_type&) because it is not
+  // available in C++11, which is the latest GCC can support. http://b/25022512
   explicit dchecked_vector(size_type n, const allocator_type& alloc = allocator_type())
-      : Base(n, alloc) { }
+      : Base(alloc) { resize(n); }
   dchecked_vector(size_type n,
                   const value_type& value,
                   const allocator_type& alloc = allocator_type())
