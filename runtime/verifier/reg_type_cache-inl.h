@@ -118,6 +118,18 @@ inline const RegType& RegTypeCache::JavaLangObject(bool precise) {
   }
 }
 
+template <class RegTypeType>
+inline RegTypeType& RegTypeCache::AddEntry(RegTypeType* new_entry) {
+  DCHECK(new_entry != nullptr);
+  entries_.push_back(new_entry);
+  if (new_entry->HasClass()) {
+    mirror::Class* klass = new_entry->GetClass();
+    DCHECK(!klass->IsPrimitive());
+    klass_entries_.push_back(std::make_pair(GcRoot<mirror::Class>(klass), new_entry));
+  }
+  return *new_entry;
+}
+
 }  // namespace verifier
 }  // namespace art
 #endif  // ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_

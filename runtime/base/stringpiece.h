@@ -165,7 +165,7 @@ class StringPiece {
   // Pointer to char data, not necessarily zero terminated.
   const char* ptr_;
   // Length of data.
-  size_type   length_;
+  size_type length_;
 };
 
 // This large function is defined inline so that in a fairly common case where
