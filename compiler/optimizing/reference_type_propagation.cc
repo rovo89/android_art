@@ -99,9 +99,17 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
   }
 }
 
-void ReferenceTypePropagation::ValidateTypes() {
-  // TODO: move this to the graph checker.
+void ReferenceTypePropagation::Run() {
+  // To properly propagate type info we need to visit in the dominator-based order.
+  // Reverse post order guarantees a node's dominators are visited first.
+  // We take advantage of this order in `VisitBasicBlock`.
+  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
+    VisitBasicBlock(it.Current());
+  }
+  ProcessWorklist();
+
   if (kIsDebugBuild) {
+    // TODO: move this to the graph checker.
     ScopedObjectAccess soa(Thread::Current());
     for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
       HBasicBlock* block = it.Current();
@@ -125,28 +133,6 @@ void ReferenceTypePropagation::ValidateTypes() {
       }
     }
   }
-}
-
-void ReferenceTypePropagation::Run() {
-  // To properly propagate type info we need to visit in the dominator-based order.
-  // Reverse post order guarantees a node's dominators are visited first.
-  // We take advantage of this order in `VisitBasicBlock`.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    VisitBasicBlock(it.Current());
-  }
-
-  ProcessWorklist();
-  ValidateTypes();
-}
-
-void ReferenceTypePropagation::Run(HInstruction* start_from) {
-  DCHECK(start_from != nullptr);
-  DCHECK_EQ(graph_, start_from->GetBlock()->GetGraph());
-  DCHECK_EQ(Primitive::kPrimNot, start_from->GetType());
-
-  AddDependentInstructionsToWorklist(start_from);
-  ProcessWorklist();
-  ValidateTypes();
 }
 
 void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
