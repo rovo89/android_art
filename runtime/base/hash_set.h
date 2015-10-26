@@ -420,6 +420,19 @@ class HashSet {
     Resize(Size() / max_load_factor_);
   }
 
+  // Reserve enough room to insert until Size() == num_elements without requiring to grow the hash
+  // set. No-op if the hash set is already large enough to do this.
+  void Reserve(size_t num_elements) {
+    size_t num_buckets = num_elements / max_load_factor_;
+    // Deal with rounding errors. Add one for rounding.
+    while (static_cast<size_t>(num_buckets * max_load_factor_) <= num_elements + 1u) {
+      ++num_buckets;
+    }
+    if (num_buckets > NumBuckets()) {
+      Resize(num_buckets);
+    }
+  }
+
   // To distance that inserted elements were probed. Used for measuring how good hash functions
   // are.
   size_t TotalProbeDistance() const {
@@ -488,6 +501,15 @@ class HashSet {
     }
   }
 
+  // The hash set expands when Size() reaches ElementsUntilExpand().
+  size_t ElementsUntilExpand() const {
+    return elements_until_expand_;
+  }
+
+  size_t NumBuckets() const {
+    return num_buckets_;
+  }
+
  private:
   T& ElementForIndex(size_t index) {
     DCHECK_LT(index, NumBuckets());
@@ -541,10 +563,6 @@ class HashSet {
 
   bool IsFreeSlot(size_t index) const {
     return emptyfn_.IsEmpty(ElementForIndex(index));
-  }
-
-  size_t NumBuckets() const {
-    return num_buckets_;
   }
 
   // Allocate a number of buckets.
