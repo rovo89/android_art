@@ -36,9 +36,6 @@ class ReferenceTypePropagation : public HOptimization {
                            const char* name = kReferenceTypePropagationPassName);
 
   void Run() OVERRIDE;
-  // Run the type propagation and propagate information only for the
-  // instructions dominated by `start_from`.
-  void Run(HInstruction* start_from);
 
   static constexpr const char* kReferenceTypePropagationPassName = "reference_type_propagation";
 
@@ -58,8 +55,6 @@ class ReferenceTypePropagation : public HOptimization {
 
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  void ValidateTypes();
 
   StackHandleScopeCollection* handles_;
 
