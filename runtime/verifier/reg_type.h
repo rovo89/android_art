@@ -22,9 +22,11 @@
 #include <set>
 #include <string>
 
+#include "base/arena_object.h"
 #include "base/bit_vector.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "base/stringpiece.h"
 #include "gc_root.h"
 #include "handle_scope.h"
 #include "object_callbacks.h"
@@ -34,6 +36,9 @@ namespace art {
 namespace mirror {
 class Class;
 }  // namespace mirror
+
+class ArenaBitVector;
+class ScopedArenaAllocator;
 
 namespace verifier {
 
@@ -173,7 +178,7 @@ class RegType {
   bool IsJavaLangObjectArray() const
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsInstantiableTypes() const SHARED_REQUIRES(Locks::mutator_lock_);
-  const std::string& GetDescriptor() const {
+  const StringPiece& GetDescriptor() const {
     DCHECK(HasClass() ||
            (IsUnresolvedTypes() && !IsUnresolvedMergedReference() &&
             !IsUnresolvedSuperClass()));
@@ -274,10 +279,20 @@ class RegType {
   void VisitRoots(RootVisitor* visitor, const RootInfo& root_info) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static void* operator new(size_t size) noexcept {
+    return ::operator new(size);
+  }
+
+  static void* operator new(size_t size, ArenaAllocator* arena) = delete;
+  static void* operator new(size_t size, ScopedArenaAllocator* arena);
+
  protected:
-  RegType(mirror::Class* klass, const std::string& descriptor,
+  RegType(mirror::Class* klass,
+          const StringPiece& descriptor,
           uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
-      : descriptor_(descriptor), klass_(klass), cache_id_(cache_id) {
+      : descriptor_(descriptor),
+        klass_(klass),
+        cache_id_(cache_id) {
     if (kIsDebugBuild) {
       CheckInvariants();
     }
@@ -285,9 +300,8 @@ class RegType {
 
   void CheckInvariants() const SHARED_REQUIRES(Locks::mutator_lock_);
 
-  const std::string descriptor_;
-  mutable GcRoot<mirror::Class>
-      klass_;  // Non-const only due to moving classes.
+  const StringPiece descriptor_;
+  mutable GcRoot<mirror::Class> klass_;  // Non-const only due to moving classes.
   const uint16_t cache_id_;
 
   friend class RegTypeCache;
@@ -311,7 +325,7 @@ class ConflictType FINAL : public RegType {
 
   // Create the singleton instance.
   static const ConflictType* CreateInstance(mirror::Class* klass,
-                                            const std::string& descriptor,
+                                            const StringPiece& descriptor,
                                             uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -319,7 +333,7 @@ class ConflictType FINAL : public RegType {
   static void Destroy();
 
  private:
-  ConflictType(mirror::Class* klass, const std::string& descriptor,
+  ConflictType(mirror::Class* klass, const StringPiece& descriptor,
                uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : RegType(klass, descriptor, cache_id) {}
 
@@ -340,7 +354,7 @@ class UndefinedType FINAL : public RegType {
 
   // Create the singleton instance.
   static const UndefinedType* CreateInstance(mirror::Class* klass,
-                                             const std::string& descriptor,
+                                             const StringPiece& descriptor,
                                              uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -348,7 +362,7 @@ class UndefinedType FINAL : public RegType {
   static void Destroy();
 
  private:
-  UndefinedType(mirror::Class* klass, const std::string& descriptor,
+  UndefinedType(mirror::Class* klass, const StringPiece& descriptor,
                 uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : RegType(klass, descriptor, cache_id) {}
 
@@ -357,7 +371,7 @@ class UndefinedType FINAL : public RegType {
 
 class PrimitiveType : public RegType {
  public:
-  PrimitiveType(mirror::Class* klass, const std::string& descriptor,
+  PrimitiveType(mirror::Class* klass, const StringPiece& descriptor,
                 uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool HasClassVirtual() const OVERRIDE { return true; }
@@ -365,7 +379,7 @@ class PrimitiveType : public RegType {
 
 class Cat1Type : public PrimitiveType {
  public:
-  Cat1Type(mirror::Class* klass, const std::string& descriptor,
+  Cat1Type(mirror::Class* klass, const StringPiece& descriptor,
            uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_);
 };
 
@@ -374,14 +388,14 @@ class IntegerType : public Cat1Type {
   bool IsInteger() const OVERRIDE { return true; }
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   static const IntegerType* CreateInstance(mirror::Class* klass,
-                                           const std::string& descriptor,
+                                           const StringPiece& descriptor,
                                            uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const IntegerType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  IntegerType(mirror::Class* klass, const std::string& descriptor,
+  IntegerType(mirror::Class* klass, const StringPiece& descriptor,
               uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat1Type(klass, descriptor, cache_id) {}
   static const IntegerType* instance_;
@@ -392,14 +406,14 @@ class BooleanType FINAL : public Cat1Type {
   bool IsBoolean() const OVERRIDE { return true; }
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   static const BooleanType* CreateInstance(mirror::Class* klass,
-                                           const std::string& descriptor,
+                                           const StringPiece& descriptor,
                                            uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const BooleanType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  BooleanType(mirror::Class* klass, const std::string& descriptor,
+  BooleanType(mirror::Class* klass, const StringPiece& descriptor,
               uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat1Type(klass, descriptor, cache_id) {}
 
@@ -411,14 +425,14 @@ class ByteType FINAL : public Cat1Type {
   bool IsByte() const OVERRIDE { return true; }
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   static const ByteType* CreateInstance(mirror::Class* klass,
-                                        const std::string& descriptor,
+                                        const StringPiece& descriptor,
                                         uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const ByteType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  ByteType(mirror::Class* klass, const std::string& descriptor,
+  ByteType(mirror::Class* klass, const StringPiece& descriptor,
            uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat1Type(klass, descriptor, cache_id) {}
   static const ByteType* instance_;
@@ -429,14 +443,14 @@ class ShortType FINAL : public Cat1Type {
   bool IsShort() const OVERRIDE { return true; }
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   static const ShortType* CreateInstance(mirror::Class* klass,
-                                         const std::string& descriptor,
+                                         const StringPiece& descriptor,
                                          uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const ShortType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  ShortType(mirror::Class* klass, const std::string& descriptor,
+  ShortType(mirror::Class* klass, const StringPiece& descriptor,
             uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat1Type(klass, descriptor, cache_id) {}
   static const ShortType* instance_;
@@ -447,14 +461,14 @@ class CharType FINAL : public Cat1Type {
   bool IsChar() const OVERRIDE { return true; }
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   static const CharType* CreateInstance(mirror::Class* klass,
-                                        const std::string& descriptor,
+                                        const StringPiece& descriptor,
                                         uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const CharType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  CharType(mirror::Class* klass, const std::string& descriptor,
+  CharType(mirror::Class* klass, const StringPiece& descriptor,
            uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat1Type(klass, descriptor, cache_id) {}
   static const CharType* instance_;
@@ -465,14 +479,14 @@ class FloatType FINAL : public Cat1Type {
   bool IsFloat() const OVERRIDE { return true; }
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   static const FloatType* CreateInstance(mirror::Class* klass,
-                                         const std::string& descriptor,
+                                         const StringPiece& descriptor,
                                          uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const FloatType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  FloatType(mirror::Class* klass, const std::string& descriptor,
+  FloatType(mirror::Class* klass, const StringPiece& descriptor,
             uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat1Type(klass, descriptor, cache_id) {}
   static const FloatType* instance_;
@@ -480,7 +494,7 @@ class FloatType FINAL : public Cat1Type {
 
 class Cat2Type : public PrimitiveType {
  public:
-  Cat2Type(mirror::Class* klass, const std::string& descriptor,
+  Cat2Type(mirror::Class* klass, const StringPiece& descriptor,
            uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_);
 };
 
@@ -490,14 +504,14 @@ class LongLoType FINAL : public Cat2Type {
   bool IsLongLo() const OVERRIDE { return true; }
   bool IsLong() const OVERRIDE { return true; }
   static const LongLoType* CreateInstance(mirror::Class* klass,
-                                          const std::string& descriptor,
+                                          const StringPiece& descriptor,
                                           uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const LongLoType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  LongLoType(mirror::Class* klass, const std::string& descriptor,
+  LongLoType(mirror::Class* klass, const StringPiece& descriptor,
              uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat2Type(klass, descriptor, cache_id) {}
   static const LongLoType* instance_;
@@ -508,14 +522,14 @@ class LongHiType FINAL : public Cat2Type {
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsLongHi() const OVERRIDE { return true; }
   static const LongHiType* CreateInstance(mirror::Class* klass,
-                                          const std::string& descriptor,
+                                          const StringPiece& descriptor,
                                           uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const LongHiType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  LongHiType(mirror::Class* klass, const std::string& descriptor,
+  LongHiType(mirror::Class* klass, const StringPiece& descriptor,
              uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat2Type(klass, descriptor, cache_id) {}
   static const LongHiType* instance_;
@@ -527,14 +541,14 @@ class DoubleLoType FINAL : public Cat2Type {
   bool IsDoubleLo() const OVERRIDE { return true; }
   bool IsDouble() const OVERRIDE { return true; }
   static const DoubleLoType* CreateInstance(mirror::Class* klass,
-                                            const std::string& descriptor,
+                                            const StringPiece& descriptor,
                                             uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const DoubleLoType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  DoubleLoType(mirror::Class* klass, const std::string& descriptor,
+  DoubleLoType(mirror::Class* klass, const StringPiece& descriptor,
                uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat2Type(klass, descriptor, cache_id) {}
   static const DoubleLoType* instance_;
@@ -545,14 +559,14 @@ class DoubleHiType FINAL : public Cat2Type {
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   virtual bool IsDoubleHi() const OVERRIDE { return true; }
   static const DoubleHiType* CreateInstance(mirror::Class* klass,
-                                      const std::string& descriptor,
+                                      const StringPiece& descriptor,
                                       uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static const DoubleHiType* GetInstance() PURE;
   static void Destroy();
 
  private:
-  DoubleHiType(mirror::Class* klass, const std::string& descriptor,
+  DoubleHiType(mirror::Class* klass, const StringPiece& descriptor,
                uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : Cat2Type(klass, descriptor, cache_id) {}
   static const DoubleHiType* instance_;
@@ -677,7 +691,7 @@ class ImpreciseConstHiType FINAL : public ConstantType {
 // instructions and must be passed to a constructor.
 class UninitializedType : public RegType {
  public:
-  UninitializedType(mirror::Class* klass, const std::string& descriptor,
+  UninitializedType(mirror::Class* klass, const StringPiece& descriptor,
                     uint32_t allocation_pc, uint16_t cache_id)
       : RegType(klass, descriptor, cache_id), allocation_pc_(allocation_pc) {}
 
@@ -697,7 +711,7 @@ class UninitializedType : public RegType {
 class UninitializedReferenceType FINAL : public UninitializedType {
  public:
   UninitializedReferenceType(mirror::Class* klass,
-                             const std::string& descriptor,
+                             const StringPiece& descriptor,
                              uint32_t allocation_pc, uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : UninitializedType(klass, descriptor, allocation_pc, cache_id) {}
@@ -713,7 +727,7 @@ class UninitializedReferenceType FINAL : public UninitializedType {
 // constructor.
 class UnresolvedUninitializedRefType FINAL : public UninitializedType {
  public:
-  UnresolvedUninitializedRefType(const std::string& descriptor,
+  UnresolvedUninitializedRefType(const StringPiece& descriptor,
                                  uint32_t allocation_pc, uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : UninitializedType(nullptr, descriptor, allocation_pc, cache_id) {
@@ -737,7 +751,7 @@ class UnresolvedUninitializedRefType FINAL : public UninitializedType {
 class UninitializedThisReferenceType FINAL : public UninitializedType {
  public:
   UninitializedThisReferenceType(mirror::Class* klass,
-                                 const std::string& descriptor,
+                                 const StringPiece& descriptor,
                                  uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : UninitializedType(klass, descriptor, 0, cache_id) {
@@ -758,7 +772,7 @@ class UninitializedThisReferenceType FINAL : public UninitializedType {
 
 class UnresolvedUninitializedThisRefType FINAL : public UninitializedType {
  public:
-  UnresolvedUninitializedThisRefType(const std::string& descriptor,
+  UnresolvedUninitializedThisRefType(const StringPiece& descriptor,
                                      uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : UninitializedType(nullptr, descriptor, 0, cache_id) {
@@ -781,7 +795,7 @@ class UnresolvedUninitializedThisRefType FINAL : public UninitializedType {
 // sub-class.
 class ReferenceType FINAL : public RegType {
  public:
-  ReferenceType(mirror::Class* klass, const std::string& descriptor,
+  ReferenceType(mirror::Class* klass, const StringPiece& descriptor,
                 uint16_t cache_id) SHARED_REQUIRES(Locks::mutator_lock_)
       : RegType(klass, descriptor, cache_id) {}
 
@@ -799,7 +813,7 @@ class ReferenceType FINAL : public RegType {
 // type.
 class PreciseReferenceType FINAL : public RegType {
  public:
-  PreciseReferenceType(mirror::Class* klass, const std::string& descriptor,
+  PreciseReferenceType(mirror::Class* klass, const StringPiece& descriptor,
                        uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -815,7 +829,7 @@ class PreciseReferenceType FINAL : public RegType {
 // Common parent of unresolved types.
 class UnresolvedType : public RegType {
  public:
-  UnresolvedType(const std::string& descriptor, uint16_t cache_id)
+  UnresolvedType(const StringPiece& descriptor, uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : RegType(nullptr, descriptor, cache_id) {}
 
@@ -827,7 +841,7 @@ class UnresolvedType : public RegType {
 // of this type must be conservative.
 class UnresolvedReferenceType FINAL : public UnresolvedType {
  public:
-  UnresolvedReferenceType(const std::string& descriptor, uint16_t cache_id)
+  UnresolvedReferenceType(const StringPiece& descriptor, uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : UnresolvedType(descriptor, cache_id) {
     if (kIsDebugBuild) {
@@ -882,8 +896,10 @@ class UnresolvedSuperClass FINAL : public UnresolvedType {
 class UnresolvedMergedType FINAL : public UnresolvedType {
  public:
   // Note: the constructor will copy the unresolved BitVector, not use it directly.
-  UnresolvedMergedType(const RegType& resolved, const BitVector& unresolved,
-                       const RegTypeCache* reg_type_cache, uint16_t cache_id)
+  UnresolvedMergedType(const RegType& resolved,
+                       const BitVector& unresolved,
+                       const RegTypeCache* reg_type_cache,
+                       uint16_t cache_id)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // The resolved part. See description below.
