@@ -26,6 +26,7 @@
 
 #include "art_field-inl.h"
 #include "base/allocator.h"
+#include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/stl_util.h"
@@ -1258,11 +1259,11 @@ void Heap::DoPendingCollectorTransition() {
 }
 
 void Heap::Trim(Thread* self) {
+  Runtime* const runtime = Runtime::Current();
   if (!CareAboutPauseTimes()) {
     ATRACE_BEGIN("Deflating monitors");
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
-    Runtime* runtime = Runtime::Current();
     {
       ScopedSuspendAll ssa(__FUNCTION__);
       uint64_t start_time = NanoTime();
@@ -1274,6 +1275,10 @@ void Heap::Trim(Thread* self) {
   }
   TrimIndirectReferenceTables(self);
   TrimSpaces(self);
+  // Trim arenas that may have been used by JIT or verifier.
+  ATRACE_BEGIN("Trimming arena maps");
+  runtime->GetArenaPool()->TrimMaps();
+  ATRACE_END();
 }
 
 class TrimIndirectReferenceTableClosure : public Closure {
