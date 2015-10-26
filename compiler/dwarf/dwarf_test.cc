@@ -122,12 +122,12 @@ TEST_F(DwarfTest, DebugFrame) {
   DW_CHECK_NEXT("DW_CFA_restore: r5 (ebp)");
 
   DebugFrameOpCodeWriter<> initial_opcodes;
-  WriteDebugFrameCIE(is64bit, DW_EH_PE_absptr, Reg(is64bit ? 16 : 8),
-                     initial_opcodes, kCFIFormat, &debug_frame_data_);
+  WriteCIE(is64bit, Reg(is64bit ? 16 : 8),
+           initial_opcodes, kCFIFormat, &debug_frame_data_);
   std::vector<uintptr_t> debug_frame_patches;
   std::vector<uintptr_t> expected_patches { 28 };  // NOLINT
-  WriteDebugFrameFDE(is64bit, 0, 0x01000000, 0x01000000, ArrayRef<const uint8_t>(*opcodes.data()),
-                     kCFIFormat, &debug_frame_data_, &debug_frame_patches);
+  WriteFDE(is64bit, 0, 0, 0x01000000, 0x01000000, ArrayRef<const uint8_t>(*opcodes.data()),
+           kCFIFormat, 0, &debug_frame_data_, &debug_frame_patches);
 
   EXPECT_EQ(expected_patches, debug_frame_patches);
   CheckObjdumpOutput(is64bit, "-W");
@@ -136,14 +136,14 @@ TEST_F(DwarfTest, DebugFrame) {
 TEST_F(DwarfTest, DebugFrame64) {
   constexpr bool is64bit = true;
   DebugFrameOpCodeWriter<> initial_opcodes;
-  WriteDebugFrameCIE(is64bit, DW_EH_PE_absptr, Reg(16),
-                     initial_opcodes, kCFIFormat, &debug_frame_data_);
+  WriteCIE(is64bit, Reg(16),
+           initial_opcodes, kCFIFormat, &debug_frame_data_);
   DebugFrameOpCodeWriter<> opcodes;
   std::vector<uintptr_t> debug_frame_patches;
   std::vector<uintptr_t> expected_patches { 32 };  // NOLINT
-  WriteDebugFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
-                     ArrayRef<const uint8_t>(*opcodes.data()),
-                     kCFIFormat, &debug_frame_data_, &debug_frame_patches);
+  WriteFDE(is64bit, 0, 0, 0x0100000000000000, 0x0200000000000000,
+           ArrayRef<const uint8_t>(*opcodes.data()),
+                     kCFIFormat, 0, &debug_frame_data_, &debug_frame_patches);
   DW_CHECK("FDE cie=00000000 pc=100000000000000..300000000000000");
 
   EXPECT_EQ(expected_patches, debug_frame_patches);
@@ -176,12 +176,12 @@ TEST_F(DwarfTest, x86_64_RegisterMapping) {
   DW_CHECK_NEXT("DW_CFA_offset: r14 (r14)");
   DW_CHECK_NEXT("DW_CFA_offset: r15 (r15)");
   DebugFrameOpCodeWriter<> initial_opcodes;
-  WriteDebugFrameCIE(is64bit, DW_EH_PE_absptr, Reg(16),
-                     initial_opcodes, kCFIFormat, &debug_frame_data_);
+  WriteCIE(is64bit, Reg(16),
+           initial_opcodes, kCFIFormat, &debug_frame_data_);
   std::vector<uintptr_t> debug_frame_patches;
-  WriteDebugFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
-                     ArrayRef<const uint8_t>(*opcodes.data()),
-                     kCFIFormat, &debug_frame_data_, &debug_frame_patches);
+  WriteFDE(is64bit, 0, 0, 0x0100000000000000, 0x0200000000000000,
+           ArrayRef<const uint8_t>(*opcodes.data()),
+                     kCFIFormat, 0, &debug_frame_data_, &debug_frame_patches);
 
   CheckObjdumpOutput(is64bit, "-W");
 }
