@@ -454,7 +454,7 @@ public class Main {
   /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:SubclassC exact:false
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
-  /// CHECK-START: SubclassC Main.inlineGenerics() reference_type_propagation_after_inlining (after)
+  /// CHECK-START: SubclassC Main.inlineGenerics() inliner (after)
   /// CHECK:      <<BoundType:l\d+>> BoundType klass:SubclassC exact:false
   /// CHECK:                         Return [<<BoundType>>]
   private SubclassC inlineGenerics() {
@@ -466,7 +466,7 @@ public class Main {
   /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Final exact:true
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
-  /// CHECK-START: Final Main.inlineGenericsFinal() reference_type_propagation_after_inlining (after)
+  /// CHECK-START: Final Main.inlineGenericsFinal() inliner (after)
   /// CHECK:      <<BoundType:l\d+>> BoundType klass:Final exact:true
   /// CHECK:                         Return [<<BoundType>>]
   private Final inlineGenericsFinal() {
@@ -474,7 +474,7 @@ public class Main {
     return f;
   }
 
-  /// CHECK-START: void Main.boundOnlyOnceIfNotNull(java.lang.Object) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: void Main.boundOnlyOnceIfNotNull(java.lang.Object) inliner (after)
   /// CHECK:      BoundType
   /// CHECK-NOT:  BoundType
   private void boundOnlyOnceIfNotNull(Object o) {
@@ -483,7 +483,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.boundOnlyOnceIfInstanceOf(java.lang.Object) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: void Main.boundOnlyOnceIfInstanceOf(java.lang.Object) inliner (after)
   /// CHECK:      BoundType
   /// CHECK-NOT:  BoundType
   private void boundOnlyOnceIfInstanceOf(Object o) {
@@ -492,7 +492,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: Final Main.boundOnlyOnceCheckCast(Generic) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: Final Main.boundOnlyOnceCheckCast(Generic) inliner (after)
   /// CHECK:      BoundType
   /// CHECK-NOT:  BoundType
   private Final boundOnlyOnceCheckCast(Generic<Final> o) {
@@ -508,7 +508,7 @@ public class Main {
   /// CHECK:      <<Phi:l\d+>> Phi klass:Super
   /// CHECK:                   NullCheck [<<Phi>>] klass:Super
 
-  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) inliner (after)
   /// CHECK:      <<Phi:l\d+>> Phi klass:SubclassA
   /// CHECK:                   NullCheck [<<Phi>>] klass:SubclassA
   private void updateNodesInTheSameBlockAsPhi(boolean cond) {
@@ -519,7 +519,7 @@ public class Main {
     s.$noinline$f();
   }
 
-  /// CHECK-START: java.lang.String Main.checkcastPreserveNullCheck(java.lang.Object) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: java.lang.String Main.checkcastPreserveNullCheck(java.lang.Object) inliner (after)
   /// CHECK:      <<This:l\d+>>     ParameterValue
   /// CHECK:      <<Param:l\d+>>    ParameterValue
   /// CHECK:      <<Clazz:l\d+>>    LoadClass
