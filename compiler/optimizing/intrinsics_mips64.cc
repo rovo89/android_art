@@ -272,7 +272,9 @@ void IntrinsicCodeGeneratorMIPS64::VisitShortReverseBytes(HInvoke* invoke) {
   GenReverseBytes(invoke->GetLocations(), Primitive::kPrimShort, GetAssembler());
 }
 
-static void GenNumberOfLeadingZeroes(LocationSummary* locations, bool is64bit, Mips64Assembler* assembler) {
+static void GenNumberOfLeadingZeroes(LocationSummary* locations,
+                                     bool is64bit,
+                                     Mips64Assembler* assembler) {
   GpuRegister in  = locations->InAt(0).AsRegister<GpuRegister>();
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
 
@@ -301,7 +303,9 @@ void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfLeadingZeros(HInvoke* invoke
   GenNumberOfLeadingZeroes(invoke->GetLocations(), true, GetAssembler());
 }
 
-static void GenNumberOfTrailingZeroes(LocationSummary* locations, bool is64bit, Mips64Assembler* assembler) {
+static void GenNumberOfTrailingZeroes(LocationSummary* locations,
+                                      bool is64bit,
+                                      Mips64Assembler* assembler) {
   Location in = locations->InAt(0);
   Location out = locations->Out();
 
@@ -383,7 +387,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitIntegerRotateRight(HInvoke* invoke) {
   GenRotateRight(invoke, Primitive::kPrimInt, GetAssembler());
 }
 
-// int java.lang.Long.rotateRight(long i, int distance)
+// long java.lang.Long.rotateRight(long i, int distance)
 void IntrinsicLocationsBuilderMIPS64::VisitLongRotateRight(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
@@ -446,7 +450,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitIntegerRotateLeft(HInvoke* invoke) {
   GenRotateLeft(invoke, Primitive::kPrimInt, GetAssembler());
 }
 
-// int java.lang.Long.rotateLeft(long i, int distance)
+// long java.lang.Long.rotateLeft(long i, int distance)
 void IntrinsicLocationsBuilderMIPS64::VisitLongRotateLeft(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
@@ -754,17 +758,19 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathSqrt(HInvoke* invoke) {
   __ SqrtD(out, in);
 }
 
-static void CreateFPToFP(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateFPToFP(ArenaAllocator* arena,
+                         HInvoke* invoke,
+                         Location::OutputOverlap overlaps = Location::kOutputOverlap) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
-  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  locations->SetOut(Location::RequiresFpuRegister(), overlaps);
 }
 
 // double java.lang.Math.rint(double)
 void IntrinsicLocationsBuilderMIPS64::VisitMathRint(HInvoke* invoke) {
-  CreateFPToFP(arena_, invoke);
+  CreateFPToFP(arena_, invoke, Location::kNoOutputOverlap);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathRint(HInvoke* invoke) {
@@ -788,15 +794,22 @@ const constexpr uint16_t kFPLeaveUnchanged = kPositiveZero |
                                              kQuietNaN |
                                              kSignalingNaN;
 
-void IntrinsicCodeGeneratorMIPS64::VisitMathFloor(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-  Mips64Assembler* assembler = GetAssembler();
+enum FloatRoundingMode {
+  kFloor,
+  kCeil,
+};
+
+static void GenRoundingMode(LocationSummary* locations,
+                            FloatRoundingMode mode,
+                            Mips64Assembler* assembler) {
   FpuRegister in = locations->InAt(0).AsFpuRegister<FpuRegister>();
   FpuRegister out = locations->Out().AsFpuRegister<FpuRegister>();
 
+  DCHECK_NE(in, out);
+
   Label done;
 
-  // double floor(double in) {
+  // double floor/ceil(double in) {
   //     if in.isNaN || in.isInfinite || in.isZero {
   //         return in;
   //     }
@@ -806,19 +819,23 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathFloor(HInvoke* invoke) {
   __ MovD(out, in);
   __ Bnezc(AT, &done);
 
-  //     Long outLong = floor(in);
+  //     Long outLong = floor/ceil(in);
   //     if outLong == Long.MAX_VALUE {
-  //         // floor() has almost certainly returned a value which
-  //         // can't be successfully represented as a signed 64-bit
-  //         // number.  Java expects that the input value will be
-  //         // returned in these cases.
-  //         // There is also a small probability that floor(in)
-  //         // correctly truncates the input value to Long.MAX_VALUE.  In
-  //         // that case, this exception handling code still does the
-  //         // correct thing.
+  //         // floor()/ceil() has almost certainly returned a value
+  //         // which can't be successfully represented as a signed
+  //         // 64-bit number.  Java expects that the input value will
+  //         // be returned in these cases.
+  //         // There is also a small probability that floor(in)/ceil(in)
+  //         // correctly truncates/rounds up the input value to
+  //         // Long.MAX_VALUE.  In that case, this exception handling
+  //         // code still does the correct thing.
   //         return in;
   //     }
-  __ FloorLD(out, in);
+  if (mode == kFloor) {
+    __ FloorLD(out, in);
+  } else  if (mode == kCeil) {
+    __ CeilLD(out, in);
+  }
   __ Dmfc1(AT, out);
   __ MovD(out, in);
   __ LoadConst64(TMP, kPrimLongMax);
@@ -830,6 +847,10 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathFloor(HInvoke* invoke) {
   __ Cvtdl(out, out);
   __ Bind(&done);
   // }
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMathFloor(HInvoke* invoke) {
+  GenRoundingMode(invoke->GetLocations(), kFloor, GetAssembler());
 }
 
 // double java.lang.Math.ceil(double)
@@ -838,47 +859,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathCeil(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathCeil(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-  Mips64Assembler* assembler = GetAssembler();
-  FpuRegister in = locations->InAt(0).AsFpuRegister<FpuRegister>();
-  FpuRegister out = locations->Out().AsFpuRegister<FpuRegister>();
-
-  Label done;
-
-  // double ceil(double in) {
-  //     if in.isNaN || in.isInfinite || in.isZero {
-  //         return in;
-  //     }
-  __ ClassD(out, in);
-  __ Dmfc1(AT, out);
-  __ Andi(AT, AT, kFPLeaveUnchanged);   // +0.0 | +Inf | -0.0 | -Inf | qNaN | sNaN
-  __ MovD(out, in);
-  __ Bnezc(AT, &done);
-
-  //     Long outLong = ceil(in);
-  //     if outLong == Long.MAX_VALUE {
-  //         // ceil() has almost certainly returned a value which
-  //         // can't be successfully represented as a signed 64-bit
-  //         // number.  Java expects that the input value will be
-  //         // returned in these cases.
-  //         // There is also a small probability that ceil(in)
-  //         // correctly rounds up the input value to Long.MAX_VALUE.  In
-  //         // that case, this exception handling code still does the
-  //         // correct thing.
-  //         return in;
-  //     }
-  __ CeilLD(out, in);
-  __ Dmfc1(AT, out);
-  __ MovD(out, in);
-  __ LoadConst64(TMP, kPrimLongMax);
-  __ Beqc(AT, TMP, &done);
-
-  //     double out = outLong;
-  //     return out;
-  __ Dmtc1(AT, out);
-  __ Cvtdl(out, out);
-  __ Bind(&done);
-  // }
+  GenRoundingMode(invoke->GetLocations(), kCeil, GetAssembler());
 }
 
 // byte libcore.io.Memory.peekByte(long address)
