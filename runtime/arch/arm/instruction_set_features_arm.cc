@@ -88,7 +88,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromVariant(
         "arm1136j-s", "arm1136jf-s",
         "arm1156t2-s", "arm1156t2f-s", "arm1176jz-s", "arm1176jzf-s",
         "cortex-a5", "cortex-a8", "cortex-a9", "cortex-a9-mp", "cortex-r4f",
-        "marvell-pj4", "mpcore", "mpcorenovfp"
+        "marvell-pj4", "mpcore", "mpcorenovfp", "scorpion"
     };
     if (!FindVariantInArray(arm_variants_without_known_features,
                             arraysize(arm_variants_without_known_features),
