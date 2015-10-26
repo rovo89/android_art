@@ -1731,6 +1731,13 @@ class ReferenceTypeInfo : ValueObject {
     return GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
   }
 
+  bool IsStrictSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    DCHECK(rti.IsValid());
+    return GetTypeHandle().Get() != rti.GetTypeHandle().Get() &&
+        GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
+  }
+
   // Returns true if the type information provide the same amount of details.
   // Note that it does not mean that the instructions have the same actual type
   // (because the type can be the result of a merge).
