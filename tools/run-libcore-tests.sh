@@ -102,4 +102,4 @@ vogar_args="$vogar_args --timeout 480"
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $vogar_args --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
+vogar $vogar_args --vm-arg -Xusejit:true --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
