@@ -27,7 +27,7 @@
 .class public LDisplayer;
 .super Ljava/lang/Object;
 
-.method public static <clinit>()V
+.method static constructor <clinit>()V
     .locals 3
     sget-object v1, Ljava/lang/System;->out:Ljava/io/PrintStream;
     const-string v0, "init"
