@@ -172,6 +172,7 @@ class CodeGenerator {
                                OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGenerator() {}
 
+  // Get the graph. This is the outermost graph, never the graph of a method being inlined.
   HGraph* GetGraph() const { return graph_; }
 
   HBasicBlock* GetNextBlockToEmit() const;
@@ -430,6 +431,12 @@ class CodeGenerator {
                              HInstruction* instruction,
                              uint32_t dex_pc,
                              SlowPathCode* slow_path) = 0;
+
+  // Check if the desired_dispatch_info is supported. If it is, return it,
+  // otherwise return a fall-back info that should be used instead.
+  virtual HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method) = 0;
 
   // Generate a call to a static or direct method.
   virtual void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) = 0;

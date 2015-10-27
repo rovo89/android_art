@@ -335,6 +335,12 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return false;
   }
 
+  // Check if the desired_dispatch_info is supported. If it is, return it,
+  // otherwise return a fall-back info that should be used instead.
+  HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method) OVERRIDE;
+
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
