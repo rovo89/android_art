@@ -1148,7 +1148,7 @@ void ThreadList::Unregister(Thread* self) {
     }
     // We failed to remove the thread due to a suspend request, loop and try again.
   }
-  delete self;
+  Thread::DeleteThread(self);
 
   // Release the thread ID after the thread is finished and deleted to avoid cases where we can
   // temporarily have multiple threads with the same thread id. When this occurs, it causes

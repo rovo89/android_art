@@ -511,26 +511,29 @@ MemMap::~MemMap() {
   if (base_begin_ == nullptr && base_size_ == 0) {
     return;
   }
+
+  // Remove it from maps_.
+  {
+    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+    bool found = false;
+    DCHECK(maps_ != nullptr);
+    for (auto it = maps_->lower_bound(base_begin_), end = maps_->end();
+        it != end && it->first == base_begin_; ++it) {
+      if (it->second == this) {
+        found = true;
+        maps_->erase(it);
+        break;
+      }
+    }
+    CHECK(found) << "MemMap not found";
+  }
+
   if (!reuse_) {
     int result = munmap(base_begin_, base_size_);
     if (result == -1) {
       PLOG(FATAL) << "munmap failed";
     }
   }
-
-  // Remove it from maps_.
-  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-  bool found = false;
-  DCHECK(maps_ != nullptr);
-  for (auto it = maps_->lower_bound(base_begin_), end = maps_->end();
-       it != end && it->first == base_begin_; ++it) {
-    if (it->second == this) {
-      found = true;
-      maps_->erase(it);
-      break;
-    }
-  }
-  CHECK(found) << "MemMap not found";
 }
 
 MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin,

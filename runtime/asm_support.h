@@ -89,7 +89,11 @@ ADD_TEST_EQ(THREAD_ID_OFFSET,
             art::Thread::ThinLockIdOffset<__SIZEOF_POINTER__>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.card_table.
-#define THREAD_CARD_TABLE_OFFSET 128
+#if defined(__LP64__)
+#define THREAD_CARD_TABLE_OFFSET 160
+#else
+#define THREAD_CARD_TABLE_OFFSET 144
+#endif
 ADD_TEST_EQ(THREAD_CARD_TABLE_OFFSET,
             art::Thread::CardTableOffset<__SIZEOF_POINTER__>().Int32Value())
 
@@ -104,11 +108,16 @@ ADD_TEST_EQ(THREAD_TOP_QUICK_FRAME_OFFSET,
             art::Thread::TopOfManagedStackOffset<__SIZEOF_POINTER__>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.managed_stack.top_quick_frame_.
-#define THREAD_SELF_OFFSET (THREAD_CARD_TABLE_OFFSET + (9 * __SIZEOF_POINTER__))
+#if defined(__LP64__)
+#define THREAD_SELF_OFFSET 2112
+#else
+#define THREAD_SELF_OFFSET 1120
+#endif
+// (THREAD_CARD_TABLE_OFFSET + (9 * __SIZEOF_POINTER__))
 ADD_TEST_EQ(THREAD_SELF_OFFSET,
             art::Thread::SelfOffset<__SIZEOF_POINTER__>().Int32Value())
 
-#define THREAD_LOCAL_POS_OFFSET (THREAD_CARD_TABLE_OFFSET + 147 * __SIZEOF_POINTER__)
+#define THREAD_LOCAL_POS_OFFSET (THREAD_CARD_TABLE_OFFSET + 31 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_POS_OFFSET,
             art::Thread::ThreadLocalPosOffset<__SIZEOF_POINTER__>().Int32Value())
 #define THREAD_LOCAL_END_OFFSET (THREAD_LOCAL_POS_OFFSET + __SIZEOF_POINTER__)

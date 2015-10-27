@@ -137,7 +137,7 @@ void Thread::InitCpu() {
 }
 
 void Thread::CleanupCpu() {
-  MutexLock mu(this, *Locks::modify_ldt_lock_);
+  MutexLock mu(nullptr, *Locks::modify_ldt_lock_);
 
   // Sanity check that reads from %fs point to this Thread*.
   Thread* self_check;

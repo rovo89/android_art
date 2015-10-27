@@ -96,9 +96,11 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
-  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.interpreter_entrypoints);
-  uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) +
-      sizeof(tlsPtr_.quick_entrypoints));
+  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.quick_entrypoints);
+  uintptr_t* end = reinterpret_cast<uintptr_t*>(
+      reinterpret_cast<uint8_t*>(&tlsPtr_.interpreter_entrypoints) +
+      sizeof(tlsPtr_.interpreter_entrypoints));
+  DCHECK_LT(begin, end);
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
@@ -106,7 +108,90 @@ void Thread::InitTlsEntryPoints() {
                   &tlsPtr_.quick_entrypoints);
 }
 
+static constexpr bool kUseWriteProtectScheme = true;
+
+static size_t GetProtectionOffset() {
+  return RoundUp(QUICK_ENTRYPOINT_OFFSET(sizeof(void*), pInstanceofNonTrivial).Uint32Value(), 16);
+}
+
+// Allocate a thread. This might do some magic to use two pages.
+Thread* Thread::AllocateThread(bool is_daemon) {
+  if (!kUseWriteProtectScheme) {
+    return new Thread(is_daemon);
+  }
+
+  std::string error_msg;
+  MemMap* mem_map = MemMap::MapAnonymous("some thread",
+                                         nullptr,
+                                         2 * kPageSize,
+                                         PROT_READ | PROT_WRITE,
+                                         false,
+                                         false,
+                                         &error_msg);
+  if (mem_map == nullptr) {
+    PLOG(FATAL) << error_msg;
+  }
+
+  uint8_t* second_page_address = mem_map->Begin() + kPageSize;
+  const uint32_t offset = GetProtectionOffset();
+  uintptr_t start_address = reinterpret_cast<uintptr_t>(second_page_address) - offset;
+  DCHECK_GE(start_address, reinterpret_cast<uintptr_t>(mem_map->Begin()) + sizeof(void*));
+  void* start_address_ptr = reinterpret_cast<void*>(start_address);
+  Thread* t = new (start_address_ptr) Thread(is_daemon);
+
+  // Store a pointer to the MemMap at the bottom.
+  *reinterpret_cast<MemMap**>(mem_map->Begin()) = mem_map;
+
+  return t;
+}
+
+static void ProtectThread(Thread* thread) {
+  if (!kUseWriteProtectScheme) {
+    return;
+  }
+
+  uintptr_t thread_addr = reinterpret_cast<uintptr_t>(thread);
+  DCHECK_EQ(RoundUp(thread_addr, kPageSize), thread_addr + GetProtectionOffset());
+  void* page_address = reinterpret_cast<void*>(RoundUp(thread_addr, kPageSize));
+  mprotect(page_address, kPageSize, PROT_READ);
+}
+
+static void UnprotectThread(Thread* thread) {
+  if (!kUseWriteProtectScheme) {
+    return;
+  }
+
+  uintptr_t thread_addr = reinterpret_cast<uintptr_t>(thread);
+  DCHECK_EQ(RoundUp(thread_addr, kPageSize), thread_addr + GetProtectionOffset());
+  void* page_address = reinterpret_cast<void*>(RoundUp(thread_addr, kPageSize));
+  mprotect(page_address, kPageSize, PROT_READ | PROT_WRITE);
+}
+
+void Thread::DeleteThread(Thread* thread) {
+  if (!kUseWriteProtectScheme) {
+    delete thread;
+    return;
+  }
+
+  if (thread == nullptr) {
+    return;
+  }
+
+  UnprotectThread(thread);
+  thread->~Thread();
+
+  // There should be the MemMap* at the bottom.
+  MemMap* mem_map =
+      *reinterpret_cast<MemMap**>(RoundDown(reinterpret_cast<uintptr_t>(thread), kPageSize));
+
+  delete mem_map;
+}
+
 void Thread::InitStringEntryPoints() {
+  // Ensure things are writable. This may be a late initialization of the entrypoints for the main
+  // thread.
+  UnprotectThread(this);
+
   ScopedObjectAccess soa(this);
   QuickEntryPoints* qpoints = &tlsPtr_.quick_entrypoints;
   qpoints->pNewEmptyString = reinterpret_cast<void(*)()>(
@@ -141,6 +226,9 @@ void Thread::InitStringEntryPoints() {
       soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromStringBuffer));
   qpoints->pNewStringFromStringBuilder = reinterpret_cast<void(*)()>(
       soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromStringBuilder));
+
+  // This is a good time to protect things, now that all entrypoints are set.
+  ProtectThread(this);
 }
 
 void Thread::ResetQuickAllocEntryPointsForThread() {
@@ -406,7 +494,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     return;
   }
 
-  Thread* child_thread = new Thread(is_daemon);
+  Thread* child_thread = AllocateThread(is_daemon);
   // Use global JNI ref to hold peer live while child thread starts.
   child_thread->tlsPtr_.jpeer = env->NewGlobalRef(java_peer);
   stack_size = FixStackSize(stack_size);
@@ -454,7 +542,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   // Manually delete the global reference since Thread::Init will not have been run.
   env->DeleteGlobalRef(child_thread->tlsPtr_.jpeer);
   child_thread->tlsPtr_.jpeer = nullptr;
-  delete child_thread;
+  DeleteThread(child_thread);
   child_thread = nullptr;
   // TODO: remove from thread group?
   env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
@@ -525,11 +613,11 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
       return nullptr;
     } else {
       Runtime::Current()->StartThreadBirth();
-      self = new Thread(as_daemon);
+      self = AllocateThread(as_daemon);
       bool init_success = self->Init(runtime->GetThreadList(), runtime->GetJavaVM());
       Runtime::Current()->EndThreadBirth();
       if (!init_success) {
-        delete self;
+        DeleteThread(self);
         return nullptr;
       }
     }

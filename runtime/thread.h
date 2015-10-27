@@ -531,7 +531,8 @@ class Thread {
  private:
   template<size_t pointer_size>
   static ThreadOffset<pointer_size> ThreadOffsetFromTlsPtr(size_t tls_ptr_offset) {
-    size_t base = OFFSETOF_MEMBER(Thread, tlsPtr_);
+    size_t base =  /* OFFSETOF_MEMBER(Thread, tlsPtr_); */
+        pointer_size == 8u ? 160 : 144;
     size_t scale;
     size_t shrink;
     if (pointer_size == sizeof(void*)) {
@@ -951,6 +952,8 @@ class Thread {
   ~Thread() LOCKS_EXCLUDED(Locks::mutator_lock_,
                            Locks::thread_suspend_count_lock_);
   void Destroy();
+  static Thread* AllocateThread(bool is_daemon);
+  static void DeleteThread(Thread* thread);
 
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
 
@@ -1132,19 +1135,31 @@ class Thread {
     RuntimeStats stats;
   } tls64_;
 
-  struct PACKED(4) tls_ptr_sized_values {
-      tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
-      managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), tmp_jni_env(nullptr),
-      self(nullptr), opeer(nullptr), jpeer(nullptr), stack_begin(nullptr), stack_size(0),
-      stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
-      top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
-      instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
-      stacked_shadow_frame_record(nullptr), deoptimization_return_value_stack(nullptr),
-      name(nullptr), pthread_self(0),
-      last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
-      thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
-      thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
-      nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr) {
+  // Guards the 'interrupted_' and 'wait_monitor_' members.
+  Mutex* wait_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+  // Condition variable waited upon during a wait.
+  ConditionVariable* wait_cond_ GUARDED_BY(wait_mutex_);
+  // Pointer to the monitor lock we're currently waiting on or null if not waiting.
+  Monitor* wait_monitor_ GUARDED_BY(wait_mutex_);
+
+  // Thread "interrupted" status; stays raised until queried or thrown.
+  bool interrupted_ GUARDED_BY(wait_mutex_);
+
+  struct PACKED(sizeof(void*)) tls_ptr_sized_values {
+    tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
+        managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), tmp_jni_env(nullptr),
+        opeer(nullptr), jpeer(nullptr), stack_begin(nullptr), stack_size(0),
+        stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
+        top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
+        instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
+        stacked_shadow_frame_record(nullptr), deoptimization_return_value_stack(nullptr),
+        name(nullptr), pthread_self(0),
+        last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
+        thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
+        thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
+        nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr),
+        self(nullptr) {
       std::fill(held_mutexes, held_mutexes + kLockLevelCount, nullptr);
     }
 
@@ -1171,11 +1186,6 @@ class Thread {
     // Temporary storage to transfer a pre-allocated JNIEnvExt from the creating thread to the
     // created thread.
     JNIEnvExt* tmp_jni_env;
-
-    // Initialized to "this". On certain architectures (such as x86) reading off of Thread::Current
-    // is easy but getting the address of Thread::Current is hard. This field can be read off of
-    // Thread::Current to give the address.
-    Thread* self;
 
     // Our managed peer (an instance of java.lang.Thread). The jobject version is used during thread
     // start up, until the thread is registered and the local opeer_ is used.
@@ -1238,12 +1248,6 @@ class Thread {
     // Locks::thread_suspend_count_lock_.
     Closure* checkpoint_functions[kMaxCheckpoints];
 
-    // Entrypoint function pointers.
-    // TODO: move this to more of a global offset table model to avoid per-thread duplication.
-    InterpreterEntryPoints interpreter_entrypoints;
-    JniEntryPoints jni_entrypoints;
-    QuickEntryPoints quick_entrypoints;
-
     // Thread-local allocation pointer.
     uint8_t* thread_local_start;
     uint8_t* thread_local_pos;
@@ -1268,18 +1272,18 @@ class Thread {
 
     // Current method verifier, used for root marking.
     verifier::MethodVerifier* method_verifier;
+
+    // Entrypoint function pointers.
+    // TODO: move this to more of a global offset table model to avoid per-thread duplication.
+    QuickEntryPoints quick_entrypoints;
+    JniEntryPoints jni_entrypoints;
+    InterpreterEntryPoints interpreter_entrypoints;
+
+    // Initialized to "this". On certain architectures (such as x86) reading off of Thread::Current
+    // is easy but getting the address of Thread::Current is hard. This field can be read off of
+    // Thread::Current to give the address.
+    Thread* self;
   } tlsPtr_;
-
-  // Guards the 'interrupted_' and 'wait_monitor_' members.
-  Mutex* wait_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-
-  // Condition variable waited upon during a wait.
-  ConditionVariable* wait_cond_ GUARDED_BY(wait_mutex_);
-  // Pointer to the monitor lock we're currently waiting on or null if not waiting.
-  Monitor* wait_monitor_ GUARDED_BY(wait_mutex_);
-
-  // Thread "interrupted" status; stays raised until queried or thrown.
-  bool interrupted_ GUARDED_BY(wait_mutex_);
 
   friend class Dbg;  // For SetStateUnsafe.
   friend class gc::collector::SemiSpace;  // For getting stack traces.

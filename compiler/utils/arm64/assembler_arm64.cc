@@ -526,7 +526,7 @@ void Arm64Assembler::JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister
   CHECK(scratch.IsXRegister()) << scratch;
   // Remove base and scratch form the temp list - higher level API uses IP1, IP0.
   vixl::UseScratchRegisterScope temps(vixl_masm_);
-  temps.Exclude(reg_x(base.AsXRegister()), reg_x(scratch.AsXRegister()));
+  temps.Exclude(reg_x(base.AsXRegister()));
   ___ Ldr(reg_x(scratch.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
   ___ Br(reg_x(scratch.AsXRegister()));
 }
