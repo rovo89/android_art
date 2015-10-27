@@ -775,7 +775,7 @@ static void dumpInstruction(const DexFile* pDexFile,
     // case Instruction::k35ms:       // [opt] invoke-virtual+super
     // case Instruction::k35mi:       // [opt] inline invoke
       {
-        u4 arg[5];
+        u4 arg[Instruction::kMaxVarArgRegs];
         pDecInsn->GetVarArgs(arg);
         fputs(" {", gOutFile);
         for (int i = 0, n = pDecInsn->VRegA(); i < n; i++) {
@@ -786,6 +786,21 @@ static void dumpInstruction(const DexFile* pDexFile,
           }
         }  // for
         fprintf(gOutFile, "}, %s", indexBuf);
+      }
+      break;
+    case Instruction::k25x:        // op vC, {vD, vE, vF, vG} (B: count)
+      {
+        u4 arg[Instruction::kMaxVarArgRegs25x];
+        pDecInsn->GetAllArgs25x(arg);
+        fprintf(gOutFile, " v%d, {", arg[0]);
+        for (int i = 0, n = pDecInsn->VRegB(); i < n; i++) {
+          if (i == 0) {
+            fprintf(gOutFile, "v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
+          } else {
+            fprintf(gOutFile, ", v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
+          }
+        }  // for
+        fputc('}', gOutFile);
       }
       break;
     case Instruction::k3rc:        // op {vCCCC .. v(CCCC+AA-1)}, thing@BBBB
