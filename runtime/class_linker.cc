@@ -1174,13 +1174,24 @@ ClassLinker::~ClassLinker() {
   mirror::LongArray::ResetArrayClass();
   mirror::ShortArray::ResetArrayClass();
   Thread* const self = Thread::Current();
-  JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
   for (const ClassLoaderData& data : class_loaders_) {
-    vm->DeleteWeakGlobalRef(self, data.weak_root);
-    delete data.allocator;
-    delete data.class_table;
+    DeleteClassLoader(self, data);
   }
   class_loaders_.clear();
+}
+
+void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data) {
+  Runtime* const runtime = Runtime::Current();
+  JavaVMExt* const vm = runtime->GetJavaVM();
+  vm->DeleteWeakGlobalRef(self, data.weak_root);
+  if (runtime->GetJit() != nullptr) {
+    jit::JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
+    if (code_cache != nullptr) {
+      code_cache->RemoveMethodsIn(self, *data.allocator);
+    }
+  }
+  delete data.allocator;
+  delete data.class_table;
 }
 
 mirror::PointerArray* ClassLinker::AllocPointerArray(Thread* self, size_t length) {
@@ -1833,13 +1844,6 @@ const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
       return code;
     }
   }
-  jit::Jit* const jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    auto* code = jit->GetCodeCache()->GetCodeFor(method);
-    if (code != nullptr) {
-      return code;
-    }
-  }
   if (method->IsNative()) {
     // No code and native? Use generic trampoline.
     return GetQuickGenericJniStub();
@@ -1855,13 +1859,6 @@ const void* ClassLinker::GetOatMethodQuickCodeFor(ArtMethod* method) {
   OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
   if (found) {
     return oat_method.GetQuickCode();
-  }
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    auto* code = jit->GetCodeCache()->GetCodeFor(method);
-    if (code != nullptr) {
-      return code;
-    }
   }
   return nullptr;
 }
@@ -6387,7 +6384,6 @@ void ClassLinker::InsertDexFileInToClassLoader(mirror::Object* dex_file,
 void ClassLinker::CleanupClassLoaders() {
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
   for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
     const ClassLoaderData& data = *it;
     // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
@@ -6395,10 +6391,7 @@ void ClassLinker::CleanupClassLoaders() {
     if (class_loader != nullptr) {
       ++it;
     } else {
-      // Weak reference was cleared, delete the data associated with this class loader.
-      delete data.class_table;
-      delete data.allocator;
-      vm->DeleteWeakGlobalRef(self, data.weak_root);
+      DeleteClassLoader(self, data);
       it = class_loaders_.erase(it);
     }
   }
