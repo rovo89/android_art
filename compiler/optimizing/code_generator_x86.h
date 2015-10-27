@@ -333,6 +333,12 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Check if the desired_dispatch_info is supported. If it is, return it,
+  // otherwise return a fall-back info that should be used instead.
+  HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method) OVERRIDE;
+
   // Generate a call to a static or direct method.
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   // Generate a call to a virtual method.

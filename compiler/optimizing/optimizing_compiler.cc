@@ -63,6 +63,7 @@
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
+#include "sharpening.h"
 #include "side_effects_analysis.h"
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
@@ -378,6 +379,7 @@ static void RunOptimizations(HOptimization* optimizations[],
 }
 
 static void MaybeRunInliner(HGraph* graph,
+                            CodeGenerator* codegen,
                             CompilerDriver* driver,
                             OptimizingCompilerStats* stats,
                             const DexCompilationUnit& dex_compilation_unit,
@@ -392,7 +394,7 @@ static void MaybeRunInliner(HGraph* graph,
 
   ArenaAllocator* arena = graph->GetArena();
   HInliner* inliner = new (arena) HInliner(
-    graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
+    graph, codegen, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
   ReferenceTypePropagation* type_propagation =
     new (arena) ReferenceTypePropagation(graph, handles,
         "reference_type_propagation_after_inlining");
@@ -445,6 +447,7 @@ static void RunArchOptimizations(InstructionSet instruction_set,
 }
 
 static void RunOptimizations(HGraph* graph,
+                             CodeGenerator* codegen,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
                              const DexCompilationUnit& dex_compilation_unit,
@@ -467,6 +470,7 @@ static void RunOptimizations(HGraph* graph,
   BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, induction);
   ReferenceTypePropagation* type_propagation =
       new (arena) ReferenceTypePropagation(graph, handles);
+  HSharpening* sharpening = new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver);
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_after_types");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
@@ -481,6 +485,7 @@ static void RunOptimizations(HGraph* graph,
     fold1,
     simplify1,
     type_propagation,
+    sharpening,
     dce1,
     simplify2
   };
@@ -502,7 +507,7 @@ static void RunOptimizations(HGraph* graph,
 
     RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
   } else {
-    MaybeRunInliner(graph, driver, stats, dex_compilation_unit, pass_observer, handles);
+    MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, handles);
 
     HOptimization* optimizations2[] = {
       // BooleanSimplifier depends on the InstructionSimplifier removing
@@ -577,8 +582,13 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScopeCollection handles(soa.Self());
   soa.Self()->TransitionFromRunnableToSuspended(kNative);
-  RunOptimizations(graph, compiler_driver, compilation_stats_.get(),
-                   dex_compilation_unit, pass_observer, &handles);
+  RunOptimizations(graph,
+                   codegen,
+                   compiler_driver,
+                   compilation_stats_.get(),
+                   dex_compilation_unit,
+                   pass_observer,
+                   &handles);
 
   AllocateRegisters(graph, codegen, pass_observer);
 

@@ -3757,6 +3757,34 @@ void InstructionCodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
   }
 }
 
+HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method ATTRIBUTE_UNUSED) {
+  if (desired_dispatch_info.method_load_kind ==
+      HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative) {
+    // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
+    return HInvokeStaticOrDirect::DispatchInfo {
+      HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
+      HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+      0u,
+      0u
+    };
+  }
+  switch (desired_dispatch_info.code_ptr_location) {
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
+      // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
+      // (Though the direct CALL ptr16:32 is available for consideration).
+      return HInvokeStaticOrDirect::DispatchInfo {
+        desired_dispatch_info.method_load_kind,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        desired_dispatch_info.method_load_data,
+        0u
+      };
+    default:
+      return desired_dispatch_info;
+  }
+}
 
 void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
@@ -3777,8 +3805,10 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
-      FALLTHROUGH_INTENDED;
+      // TODO: Implement this type.
+      // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
+      LOG(FATAL) << "Unsupported";
+      UNREACHABLE();
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
       Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
       Register method_reg;
@@ -3814,9 +3844,9 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
     }
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
-      // (Though the direct CALL ptr16:32 is available for consideration).
-      FALLTHROUGH_INTENDED;
+      // Filtered out by GetSupportedInvokeStaticOrDirectDispatch().
+      LOG(FATAL) << "Unsupported";
+      UNREACHABLE();
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // (callee_method + offset_of_quick_compiled_code)()
       __ call(Address(callee_method.AsRegister<Register>(),

@@ -1911,8 +1911,8 @@ bool HInvoke::NeedsEnvironment() const {
   return !opt.GetDoesNotNeedEnvironment();
 }
 
-bool HInvokeStaticOrDirect::NeedsDexCache() const {
-  if (IsRecursive() || IsStringInit()) {
+bool HInvokeStaticOrDirect::NeedsDexCacheOfDeclaringClass() const {
+  if (GetMethodLoadKind() != MethodLoadKind::kDexCacheViaMethod) {
     return false;
   }
   if (!IsIntrinsic()) {

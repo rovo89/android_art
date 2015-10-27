@@ -32,6 +32,7 @@
 #include "optimizing_compiler.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
+#include "sharpening.h"
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
@@ -396,12 +397,14 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   HDeadCodeElimination dce(callee_graph, stats_);
   HConstantFolding fold(callee_graph);
   ReferenceTypePropagation type_propagation(callee_graph, handles_);
+  HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
   InstructionSimplifier simplify(callee_graph, stats_);
   IntrinsicsRecognizer intrinsics(callee_graph, compiler_driver_);
 
   HOptimization* optimizations[] = {
     &intrinsics,
     &type_propagation,
+    &sharpening,
     &simplify,
     &dce,
     &fold,
@@ -415,6 +418,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   size_t number_of_instructions_budget = kMaximumNumberOfHInstructions;
   if (depth_ + 1 < compiler_driver_->GetCompilerOptions().GetInlineDepthLimit()) {
     HInliner inliner(callee_graph,
+                     codegen_,
                      outer_compilation_unit_,
                      dex_compilation_unit,
                      compiler_driver_,
@@ -484,7 +488,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
         return false;
       }
 
-      if (!same_dex_file && current->NeedsDexCache()) {
+      if (!same_dex_file && current->NeedsDexCacheOfDeclaringClass()) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " it is in a different dex file and requires access to the dex cache";

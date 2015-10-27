@@ -326,6 +326,12 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const { return false; }
 
+  // Check if the desired_dispatch_info is supported. If it is, return it,
+  // otherwise return a fall-back info that should be used instead.
+  HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method) OVERRIDE;
+
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke ATTRIBUTE_UNUSED,
                            Location temp ATTRIBUTE_UNUSED) OVERRIDE {
