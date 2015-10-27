@@ -30,6 +30,7 @@
 #include "class_reference.h"
 #include "compiler.h"
 #include "dex_file.h"
+#include "driver/compiled_method_storage.h"
 #include "invoke_type.h"
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
@@ -38,10 +39,7 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
-#include "utils/array_ref.h"
-#include "utils/dedupe_set.h"
 #include "utils/dex_cache_arrays_layout.h"
-#include "utils/swap_space.h"
 
 namespace art {
 
@@ -79,8 +77,6 @@ enum EntryPointCallingConvention {
   // ABI of calls to a method's quick code entry point.
   kQuickAbi
 };
-
-static constexpr bool kUseMurmur3Hash = true;
 
 class CompilerDriver {
  public:
@@ -388,10 +384,6 @@ class CompilerDriver {
     support_boot_image_fixup_ = support_boot_image_fixup;
   }
 
-  SwapAllocator<void>& GetSwapSpaceAllocator() {
-    return *swap_space_allocator_.get();
-  }
-
   bool WriteElf(const std::string& android_root,
                 bool is_host,
                 const std::vector<const DexFile*>& dex_files,
@@ -431,10 +423,10 @@ class CompilerDriver {
   }
 
   void SetDedupeEnabled(bool dedupe_enabled) {
-    dedupe_enabled_ = dedupe_enabled;
+    compiled_method_storage_.SetDedupeEnabled(dedupe_enabled);
   }
   bool DedupeEnabled() const {
-    return dedupe_enabled_;
+    return compiled_method_storage_.DedupeEnabled();
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -455,13 +447,6 @@ class CompilerDriver {
                                        uint16_t class_def_idx,
                                        const DexFile& dex_file) const;
 
-  SwapVector<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
-  SwapSrcMap* DeduplicateSrcMappingTable(const ArrayRef<SrcMapElem>& src_map);
-  SwapVector<uint8_t>* DeduplicateMappingTable(const ArrayRef<const uint8_t>& code);
-  SwapVector<uint8_t>* DeduplicateVMapTable(const ArrayRef<const uint8_t>& code);
-  SwapVector<uint8_t>* DeduplicateGCMap(const ArrayRef<const uint8_t>& code);
-  SwapVector<uint8_t>* DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info);
-
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);
 
@@ -477,6 +462,10 @@ class CompilerDriver {
 
   Compiler::Kind GetCompilerKind() {
     return compiler_kind_;
+  }
+
+  CompiledMethodStorage* GetCompiledMethodStorage() {
+    return &compiled_method_storage_;
   }
 
  private:
@@ -599,11 +588,6 @@ class CompilerDriver {
                       ThreadPool* thread_pool, TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
-  // Swap pool and allocator used for native allocations. May be file-backed. Needs to be first
-  // as other fields rely on this.
-  std::unique_ptr<SwapSpace> swap_space_;
-  std::unique_ptr<SwapAllocator<void> > swap_space_allocator_;
-
   ProfileFile profile_file_;
   bool profile_present_;
 
@@ -663,7 +647,6 @@ class CompilerDriver {
   class AOTCompilationStats;
   std::unique_ptr<AOTCompilationStats> stats_;
 
-  bool dedupe_enabled_;
   bool dump_stats_;
   const bool dump_passes_;
   const std::string dump_cfg_file_name_;
@@ -678,93 +661,7 @@ class CompilerDriver {
 
   bool support_boot_image_fixup_;
 
-  // DeDuplication data structures, these own the corresponding byte arrays.
-  template <typename ContentType>
-  class DedupeHashFunc {
-   public:
-    size_t operator()(const ArrayRef<ContentType>& array) const {
-      const uint8_t* data = reinterpret_cast<const uint8_t*>(array.data());
-      static_assert(IsPowerOfTwo(sizeof(ContentType)),
-          "ContentType is not power of two, don't know whether array layout is as assumed");
-      uint32_t len = sizeof(ContentType) * array.size();
-      if (kUseMurmur3Hash) {
-        static constexpr uint32_t c1 = 0xcc9e2d51;
-        static constexpr uint32_t c2 = 0x1b873593;
-        static constexpr uint32_t r1 = 15;
-        static constexpr uint32_t r2 = 13;
-        static constexpr uint32_t m = 5;
-        static constexpr uint32_t n = 0xe6546b64;
-
-        uint32_t hash = 0;
-
-        const int nblocks = len / 4;
-        typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
-        const unaligned_uint32_t *blocks = reinterpret_cast<const uint32_t*>(data);
-        int i;
-        for (i = 0; i < nblocks; i++) {
-          uint32_t k = blocks[i];
-          k *= c1;
-          k = (k << r1) | (k >> (32 - r1));
-          k *= c2;
-
-          hash ^= k;
-          hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
-        }
-
-        const uint8_t *tail = reinterpret_cast<const uint8_t*>(data + nblocks * 4);
-        uint32_t k1 = 0;
-
-        switch (len & 3) {
-          case 3:
-            k1 ^= tail[2] << 16;
-            FALLTHROUGH_INTENDED;
-          case 2:
-            k1 ^= tail[1] << 8;
-            FALLTHROUGH_INTENDED;
-          case 1:
-            k1 ^= tail[0];
-
-            k1 *= c1;
-            k1 = (k1 << r1) | (k1 >> (32 - r1));
-            k1 *= c2;
-            hash ^= k1;
-        }
-
-        hash ^= len;
-        hash ^= (hash >> 16);
-        hash *= 0x85ebca6b;
-        hash ^= (hash >> 13);
-        hash *= 0xc2b2ae35;
-        hash ^= (hash >> 16);
-
-        return hash;
-      } else {
-        size_t hash = 0x811c9dc5;
-        for (uint32_t i = 0; i < len; ++i) {
-          hash = (hash * 16777619) ^ data[i];
-        }
-        hash += hash << 13;
-        hash ^= hash >> 7;
-        hash += hash << 3;
-        hash ^= hash >> 17;
-        hash += hash << 5;
-        return hash;
-      }
-    }
-  };
-
-  DedupeSet<ArrayRef<const uint8_t>,
-            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_code_;
-  DedupeSet<ArrayRef<SrcMapElem>,
-            SwapSrcMap, size_t, DedupeHashFunc<SrcMapElem>, 4> dedupe_src_mapping_table_;
-  DedupeSet<ArrayRef<const uint8_t>,
-            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_mapping_table_;
-  DedupeSet<ArrayRef<const uint8_t>,
-            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_vmap_table_;
-  DedupeSet<ArrayRef<const uint8_t>,
-            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_gc_map_;
-  DedupeSet<ArrayRef<const uint8_t>,
-            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_cfi_info_;
+  CompiledMethodStorage compiled_method_storage_;
 
   friend class CompileClassVisitor;
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);

@@ -74,8 +74,8 @@ class RelativePatcherTest : public testing::Test {
     compiled_method_refs_.push_back(method_ref);
     compiled_methods_.emplace_back(new CompiledMethod(
         &driver_, instruction_set_, code,
-        0u, 0u, 0u, nullptr, ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
-        ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
+        0u, 0u, 0u, ArrayRef<const SrcMapElem>(), ArrayRef<const uint8_t>(),
+        ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
         patches));
   }
 
@@ -93,7 +93,7 @@ class RelativePatcherTest : public testing::Test {
 
       offset += sizeof(OatQuickMethodHeader);
       uint32_t quick_code_offset = offset + compiled_method->CodeDelta();
-      const auto& code = *compiled_method->GetQuickCode();
+      const auto code = compiled_method->GetQuickCode();
       offset += code.size();
 
       method_offset_map_.map.Put(compiled_method_refs_[idx], quick_code_offset);
@@ -125,7 +125,7 @@ class RelativePatcherTest : public testing::Test {
 
       out_.WriteFully(dummy_header, sizeof(OatQuickMethodHeader));
       offset += sizeof(OatQuickMethodHeader);
-      ArrayRef<const uint8_t> code(*compiled_method->GetQuickCode());
+      ArrayRef<const uint8_t> code = compiled_method->GetQuickCode();
       if (!compiled_method->GetPatches().empty()) {
         patched_code_.assign(code.begin(), code.end());
         code = ArrayRef<const uint8_t>(patched_code_);
@@ -164,7 +164,7 @@ class RelativePatcherTest : public testing::Test {
       ++idx;
     }
     CHECK_NE(idx, compiled_method_refs_.size());
-    CHECK_EQ(compiled_methods_[idx]->GetQuickCode()->size(), expected_code.size());
+    CHECK_EQ(compiled_methods_[idx]->GetQuickCode().size(), expected_code.size());
 
     auto result = method_offset_map_.FindMethodOffset(method_ref);
     CHECK(result.first);  // Must have been linked.

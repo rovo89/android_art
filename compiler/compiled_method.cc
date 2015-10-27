@@ -15,27 +15,22 @@
  */
 
 #include "compiled_method.h"
+
+#include "driver/compiled_method_storage.h"
 #include "driver/compiler_driver.h"
+#include "utils/swap_space.h"
 
 namespace art {
 
 CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-                           const ArrayRef<const uint8_t>& quick_code, bool owns_code_array)
-    : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
-      owns_code_array_(owns_code_array), quick_code_(nullptr) {
-  if (owns_code_array_) {
-    // If we are supposed to own the code, don't deduplicate it.
-    quick_code_ = new SwapVector<uint8_t>(quick_code.begin(), quick_code.end(),
-                                          compiler_driver_->GetSwapSpaceAllocator());
-  } else {
-    quick_code_ = compiler_driver_->DeduplicateCode(quick_code);
-  }
+                           const ArrayRef<const uint8_t>& quick_code)
+    : compiler_driver_(compiler_driver),
+      instruction_set_(instruction_set),
+      quick_code_(compiler_driver_->GetCompiledMethodStorage()->DeduplicateCode(quick_code)) {
 }
 
 CompiledCode::~CompiledCode() {
-  if (owns_code_array_) {
-    delete quick_code_;
-  }
+  compiler_driver_->GetCompiledMethodStorage()->ReleaseCode(quick_code_);
 }
 
 bool CompiledCode::operator==(const CompiledCode& rhs) const {
@@ -104,59 +99,28 @@ const void* CompiledCode::CodePointer(const void* code_pointer,
   }
 }
 
-const std::vector<uint32_t>& CompiledCode::GetOatdataOffsetsToCompliledCodeOffset() const {
-  CHECK_NE(0U, oatdata_offsets_to_compiled_code_offset_.size());
-  return oatdata_offsets_to_compiled_code_offset_;
-}
-
-void CompiledCode::AddOatdataOffsetToCompliledCodeOffset(uint32_t offset) {
-  oatdata_offsets_to_compiled_code_offset_.push_back(offset);
-}
-
 CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                InstructionSet instruction_set,
                                const ArrayRef<const uint8_t>& quick_code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
-                               DefaultSrcMap* src_mapping_table,
+                               const ArrayRef<const SrcMapElem>& src_mapping_table,
                                const ArrayRef<const uint8_t>& mapping_table,
                                const ArrayRef<const uint8_t>& vmap_table,
                                const ArrayRef<const uint8_t>& native_gc_map,
                                const ArrayRef<const uint8_t>& cfi_info,
                                const ArrayRef<const LinkerPatch>& patches)
-    : CompiledCode(driver, instruction_set, quick_code, !driver->DedupeEnabled()),
-      owns_arrays_(!driver->DedupeEnabled()),
+    : CompiledCode(driver, instruction_set, quick_code),
       frame_size_in_bytes_(frame_size_in_bytes), core_spill_mask_(core_spill_mask),
       fp_spill_mask_(fp_spill_mask),
-      patches_(patches.begin(), patches.end(), driver->GetSwapSpaceAllocator()) {
-  if (owns_arrays_) {
-    if (src_mapping_table == nullptr) {
-      src_mapping_table_ = new SwapSrcMap(driver->GetSwapSpaceAllocator());
-    } else {
-      src_mapping_table_ = new SwapSrcMap(src_mapping_table->begin(), src_mapping_table->end(),
-                                          driver->GetSwapSpaceAllocator());
-    }
-    mapping_table_ = mapping_table.empty() ?
-        nullptr : new SwapVector<uint8_t>(mapping_table.begin(), mapping_table.end(),
-                                          driver->GetSwapSpaceAllocator());
-    vmap_table_ = new SwapVector<uint8_t>(vmap_table.begin(), vmap_table.end(),
-                                          driver->GetSwapSpaceAllocator());
-    gc_map_ = native_gc_map.empty() ? nullptr :
-        new SwapVector<uint8_t>(native_gc_map.begin(), native_gc_map.end(),
-                                driver->GetSwapSpaceAllocator());
-    cfi_info_ = cfi_info.empty() ? nullptr :
-        new SwapVector<uint8_t>(cfi_info.begin(), cfi_info.end(), driver->GetSwapSpaceAllocator());
-  } else {
-    src_mapping_table_ = src_mapping_table == nullptr ?
-        driver->DeduplicateSrcMappingTable(ArrayRef<SrcMapElem>()) :
-        driver->DeduplicateSrcMappingTable(ArrayRef<SrcMapElem>(*src_mapping_table));
-    mapping_table_ = mapping_table.empty() ?
-        nullptr : driver->DeduplicateMappingTable(mapping_table);
-    vmap_table_ = driver->DeduplicateVMapTable(vmap_table);
-    gc_map_ = native_gc_map.empty() ? nullptr : driver->DeduplicateGCMap(native_gc_map);
-    cfi_info_ = cfi_info.empty() ? nullptr : driver->DeduplicateCFIInfo(cfi_info);
-  }
+      src_mapping_table_(
+          driver->GetCompiledMethodStorage()->DeduplicateSrcMappingTable(src_mapping_table)),
+      mapping_table_(driver->GetCompiledMethodStorage()->DeduplicateMappingTable(mapping_table)),
+      vmap_table_(driver->GetCompiledMethodStorage()->DeduplicateVMapTable(vmap_table)),
+      gc_map_(driver->GetCompiledMethodStorage()->DeduplicateGCMap(native_gc_map)),
+      cfi_info_(driver->GetCompiledMethodStorage()->DeduplicateCFIInfo(cfi_info)),
+      patches_(driver->GetCompiledMethodStorage()->DeduplicateLinkerPatches(patches)) {
 }
 
 CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
@@ -166,13 +130,13 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
     const size_t frame_size_in_bytes,
     const uint32_t core_spill_mask,
     const uint32_t fp_spill_mask,
-    DefaultSrcMap* src_mapping_table,
+    const ArrayRef<const SrcMapElem>& src_mapping_table,
     const ArrayRef<const uint8_t>& mapping_table,
     const ArrayRef<const uint8_t>& vmap_table,
     const ArrayRef<const uint8_t>& native_gc_map,
     const ArrayRef<const uint8_t>& cfi_info,
     const ArrayRef<const LinkerPatch>& patches) {
-  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
+  SwapAllocator<CompiledMethod> alloc(driver->GetCompiledMethodStorage()->GetSwapSpaceAllocator());
   CompiledMethod* ret = alloc.allocate(1);
   alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
                   fp_spill_mask, src_mapping_table, mapping_table, vmap_table, native_gc_map,
@@ -180,22 +144,20 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
   return ret;
 }
 
-
-
 void CompiledMethod::ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, CompiledMethod* m) {
-  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
+  SwapAllocator<CompiledMethod> alloc(driver->GetCompiledMethodStorage()->GetSwapSpaceAllocator());
   alloc.destroy(m);
   alloc.deallocate(m, 1);
 }
 
 CompiledMethod::~CompiledMethod() {
-  if (owns_arrays_) {
-    delete src_mapping_table_;
-    delete mapping_table_;
-    delete vmap_table_;
-    delete gc_map_;
-    delete cfi_info_;
-  }
+  CompiledMethodStorage* storage = GetCompilerDriver()->GetCompiledMethodStorage();
+  storage->ReleaseLinkerPatches(patches_);
+  storage->ReleaseCFIInfo(cfi_info_);
+  storage->ReleaseGCMap(gc_map_);
+  storage->ReleaseVMapTable(vmap_table_);
+  storage->ReleaseMappingTable(mapping_table_);
+  storage->ReleaseSrcMappingTable(src_mapping_table_);
 }
 
 }  // namespace art

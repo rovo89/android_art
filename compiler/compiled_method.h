@@ -23,19 +23,20 @@
 
 #include "arch/instruction_set.h"
 #include "base/bit_utils.h"
+#include "length_prefixed_array.h"
 #include "method_reference.h"
 #include "utils/array_ref.h"
-#include "utils/swap_space.h"
 
 namespace art {
 
 class CompilerDriver;
+class CompiledMethodStorage;
 
 class CompiledCode {
  public:
   // For Quick to supply an code blob
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const ArrayRef<const uint8_t>& quick_code, bool owns_code_array);
+               const ArrayRef<const uint8_t>& quick_code);
 
   virtual ~CompiledCode();
 
@@ -43,8 +44,8 @@ class CompiledCode {
     return instruction_set_;
   }
 
-  const SwapVector<uint8_t>* GetQuickCode() const {
-    return quick_code_;
+  ArrayRef<const uint8_t> GetQuickCode() const {
+    return GetArray(quick_code_);
   }
 
   bool operator==(const CompiledCode& rhs) const;
@@ -66,40 +67,45 @@ class CompiledCode {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
-  const std::vector<uint32_t>& GetOatdataOffsetsToCompliledCodeOffset() const;
-  void AddOatdataOffsetToCompliledCodeOffset(uint32_t offset);
+ protected:
+  template <typename T>
+  static ArrayRef<const T> GetArray(const LengthPrefixedArray<T>* array) {
+    if (array == nullptr) {
+      return ArrayRef<const T>();
+    }
+    DCHECK_NE(array->size(), 0u);
+    return ArrayRef<const T>(&array->At(0), array->size());
+  }
+
+  CompilerDriver* GetCompilerDriver() {
+    return compiler_driver_;
+  }
 
  private:
   CompilerDriver* const compiler_driver_;
 
   const InstructionSet instruction_set_;
 
-  // If we own the code array (means that we free in destructor).
-  const bool owns_code_array_;
-
   // Used to store the PIC code for Quick.
-  SwapVector<uint8_t>* quick_code_;
-
-  // There are offsets from the oatdata symbol to where the offset to
-  // the compiled method will be found. These are computed by the
-  // OatWriter and then used by the ElfWriter to add relocations so
-  // that MCLinker can update the values to the location in the linked .so.
-  std::vector<uint32_t> oatdata_offsets_to_compiled_code_offset_;
+  const LengthPrefixedArray<uint8_t>* const quick_code_;
 };
 
 class SrcMapElem {
  public:
   uint32_t from_;
   int32_t to_;
-
-  // Lexicographical compare.
-  bool operator<(const SrcMapElem& other) const {
-    if (from_ != other.from_) {
-      return from_ < other.from_;
-    }
-    return to_ < other.to_;
-  }
 };
+
+inline bool operator<(const SrcMapElem& lhs, const SrcMapElem& rhs) {
+  if (lhs.from_ != rhs.from_) {
+    return lhs.from_ < rhs.from_;
+  }
+  return lhs.to_ < rhs.to_;
+}
+
+inline bool operator==(const SrcMapElem& lhs, const SrcMapElem& rhs) {
+  return lhs.from_ == rhs.from_ && lhs.to_ == rhs.to_;
+}
 
 template <class Allocator>
 class SrcMap FINAL : public std::vector<SrcMapElem, Allocator> {
@@ -151,7 +157,6 @@ class SrcMap FINAL : public std::vector<SrcMapElem, Allocator> {
 };
 
 using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
-using SwapSrcMap = SrcMap<SwapAllocator<SrcMapElem>>;
 
 
 enum LinkerPatchType {
@@ -273,6 +278,9 @@ class LinkerPatch {
     uint32_t method_idx_;       // Method index for Call/Method patches.
     uint32_t type_idx_;         // Type index for Type patches.
     uint32_t element_offset_;   // Element offset in the dex cache arrays.
+    static_assert(sizeof(method_idx_) == sizeof(cmp1_), "needed by relational operators");
+    static_assert(sizeof(type_idx_) == sizeof(cmp1_), "needed by relational operators");
+    static_assert(sizeof(element_offset_) == sizeof(cmp1_), "needed by relational operators");
   };
   union {
     uint32_t cmp2_;             // Used for relational operators.
@@ -313,7 +321,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 DefaultSrcMap* src_mapping_table,
+                 const ArrayRef<const SrcMapElem>& src_mapping_table,
                  const ArrayRef<const uint8_t>& mapping_table,
                  const ArrayRef<const uint8_t>& vmap_table,
                  const ArrayRef<const uint8_t>& native_gc_map,
@@ -329,7 +337,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const size_t frame_size_in_bytes,
       const uint32_t core_spill_mask,
       const uint32_t fp_spill_mask,
-      DefaultSrcMap* src_mapping_table,
+      const ArrayRef<const SrcMapElem>& src_mapping_table,
       const ArrayRef<const uint8_t>& mapping_table,
       const ArrayRef<const uint8_t>& vmap_table,
       const ArrayRef<const uint8_t>& native_gc_map,
@@ -350,35 +358,31 @@ class CompiledMethod FINAL : public CompiledCode {
     return fp_spill_mask_;
   }
 
-  const SwapSrcMap& GetSrcMappingTable() const {
-    DCHECK(src_mapping_table_ != nullptr);
-    return *src_mapping_table_;
+  ArrayRef<const SrcMapElem> GetSrcMappingTable() const {
+    return GetArray(src_mapping_table_);
   }
 
-  SwapVector<uint8_t> const* GetMappingTable() const {
-    return mapping_table_;
+  ArrayRef<const uint8_t> GetMappingTable() const {
+    return GetArray(mapping_table_);
   }
 
-  const SwapVector<uint8_t>* GetVmapTable() const {
-    DCHECK(vmap_table_ != nullptr);
-    return vmap_table_;
+  ArrayRef<const uint8_t> GetVmapTable() const {
+    return GetArray(vmap_table_);
   }
 
-  SwapVector<uint8_t> const* GetGcMap() const {
-    return gc_map_;
+  ArrayRef<const uint8_t> GetGcMap() const {
+    return GetArray(gc_map_);
   }
 
-  const SwapVector<uint8_t>* GetCFIInfo() const {
-    return cfi_info_;
+  ArrayRef<const uint8_t> GetCFIInfo() const {
+    return GetArray(cfi_info_);
   }
 
   ArrayRef<const LinkerPatch> GetPatches() const {
-    return ArrayRef<const LinkerPatch>(patches_);
+    return GetArray(patches_);
   }
 
  private:
-  // Whether or not the arrays are owned by the compiled method or dedupe sets.
-  const bool owns_arrays_;
   // For quick code, the size of the activation used by the code.
   const size_t frame_size_in_bytes_;
   // For quick code, a bit mask describing spilled GPR callee-save registers.
@@ -386,19 +390,19 @@ class CompiledMethod FINAL : public CompiledCode {
   // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
   // For quick code, a set of pairs (PC, DEX) mapping from native PC offset to DEX offset.
-  SwapSrcMap* src_mapping_table_;
+  const LengthPrefixedArray<SrcMapElem>* const src_mapping_table_;
   // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
   // native PC offset. Size prefixed.
-  SwapVector<uint8_t>* mapping_table_;
+  const LengthPrefixedArray<uint8_t>* const mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
-  SwapVector<uint8_t>* vmap_table_;
+  const LengthPrefixedArray<uint8_t>* const vmap_table_;
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
   // are live.
-  SwapVector<uint8_t>* gc_map_;
+  const LengthPrefixedArray<uint8_t>* const gc_map_;
   // For quick code, a FDE entry for the debug_frame section.
-  SwapVector<uint8_t>* cfi_info_;
+  const LengthPrefixedArray<uint8_t>* const cfi_info_;
   // For quick code, linker patches needed by the method.
-  const SwapVector<LinkerPatch> patches_;
+  const LengthPrefixedArray<LinkerPatch>* const patches_;
 };
 
 }  // namespace art

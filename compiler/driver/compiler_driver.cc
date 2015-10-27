@@ -348,9 +348,8 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                const std::string& dump_cfg_file_name, bool dump_cfg_append,
                                CumulativeLogger* timer, int swap_fd,
                                const std::string& profile_file)
-    : swap_space_(swap_fd == -1 ? nullptr : new SwapSpace(swap_fd, 10 * MB)),
-      swap_space_allocator_(new SwapAllocator<void>(swap_space_.get())),
-      profile_present_(false), compiler_options_(compiler_options),
+    : profile_present_(false),
+      compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
       compiler_(Compiler::Create(this, compiler_kind)),
@@ -369,7 +368,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       had_hard_verifier_failure_(false),
       thread_count_(thread_count),
       stats_(new AOTCompilationStats),
-      dedupe_enabled_(true),
       dump_stats_(dump_stats),
       dump_passes_(dump_passes),
       dump_cfg_file_name_(dump_cfg_file_name),
@@ -377,12 +375,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       timings_logger_(timer),
       compiler_context_(nullptr),
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
-      dedupe_code_("dedupe code", *swap_space_allocator_),
-      dedupe_src_mapping_table_("dedupe source mapping table", *swap_space_allocator_),
-      dedupe_mapping_table_("dedupe mapping table", *swap_space_allocator_),
-      dedupe_vmap_table_("dedupe vmap table", *swap_space_allocator_),
-      dedupe_gc_map_("dedupe gc map", *swap_space_allocator_),
-      dedupe_cfi_info_("dedupe cfi info", *swap_space_allocator_) {
+      compiled_method_storage_(swap_fd) {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(verification_results_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
@@ -402,36 +395,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
   }
 }
 
-SwapVector<uint8_t>* CompilerDriver::DeduplicateCode(const ArrayRef<const uint8_t>& code) {
-  DCHECK(dedupe_enabled_);
-  return dedupe_code_.Add(Thread::Current(), code);
-}
-
-SwapSrcMap* CompilerDriver::DeduplicateSrcMappingTable(const ArrayRef<SrcMapElem>& src_map) {
-  DCHECK(dedupe_enabled_);
-  return dedupe_src_mapping_table_.Add(Thread::Current(), src_map);
-}
-
-SwapVector<uint8_t>* CompilerDriver::DeduplicateMappingTable(const ArrayRef<const uint8_t>& code) {
-  DCHECK(dedupe_enabled_);
-  return dedupe_mapping_table_.Add(Thread::Current(), code);
-}
-
-SwapVector<uint8_t>* CompilerDriver::DeduplicateVMapTable(const ArrayRef<const uint8_t>& code) {
-  DCHECK(dedupe_enabled_);
-  return dedupe_vmap_table_.Add(Thread::Current(), code);
-}
-
-SwapVector<uint8_t>* CompilerDriver::DeduplicateGCMap(const ArrayRef<const uint8_t>& code) {
-  DCHECK(dedupe_enabled_);
-  return dedupe_gc_map_.Add(Thread::Current(), code);
-}
-
-SwapVector<uint8_t>* CompilerDriver::DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info) {
-  DCHECK(dedupe_enabled_);
-  return dedupe_cfi_info_.Add(Thread::Current(), cfi_info);
-}
-
 CompilerDriver::~CompilerDriver() {
   Thread* self = Thread::Current();
   {
@@ -446,6 +409,7 @@ CompilerDriver::~CompilerDriver() {
   }
   compiler_->UnInit();
 }
+
 
 #define CREATE_TRAMPOLINE(type, abi, offset) \
     if (Is64BitInstructionSet(instruction_set_)) { \
@@ -2642,16 +2606,7 @@ std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   oss << " native alloc=" << PrettySize(allocated_space) << " free="
       << PrettySize(free_space);
 #endif
-  if (swap_space_.get() != nullptr) {
-    oss << " swap=" << PrettySize(swap_space_->GetSize());
-  }
-  if (extended) {
-    oss << "\nCode dedupe: " << dedupe_code_.DumpStats();
-    oss << "\nMapping table dedupe: " << dedupe_mapping_table_.DumpStats();
-    oss << "\nVmap table dedupe: " << dedupe_vmap_table_.DumpStats();
-    oss << "\nGC map dedupe: " << dedupe_gc_map_.DumpStats();
-    oss << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats();
-  }
+  compiled_method_storage_.DumpMemoryUsage(oss, extended);
   return oss.str();
 }
 

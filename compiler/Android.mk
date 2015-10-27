@@ -54,6 +54,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
 	dex/quick_compiler_callbacks.cc \
+	driver/compiled_method_storage.cc \
 	driver/compiler_driver.cc \
 	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
