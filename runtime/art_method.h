@@ -433,6 +433,10 @@ class ArtMethod FINAL {
     return ++hotness_count_;
   }
 
+  void ClearCounter() {
+    hotness_count_ = 0;
+  }
+
   const uint8_t* GetQuickenedInfo() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the method header for the compiled code containing 'pc'. Note that runtime
