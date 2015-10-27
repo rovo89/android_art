@@ -551,6 +551,10 @@ class ClassLinker {
     LinearAlloc* allocator;
   };
 
+  static void DeleteClassLoader(Thread* self, const ClassLoaderData& data)
+      REQUIRES(Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   void VisitClassLoaders(ClassLoaderVisitor* visitor) const
       SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 

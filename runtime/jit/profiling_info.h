@@ -36,7 +36,7 @@ class Class;
  */
 class ProfilingInfo {
  public:
-  static ProfilingInfo* Create(ArtMethod* method);
+  static ProfilingInfo* Create(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Add information from an executed INVOKE instruction to the profile.
   void AddInvokeInfo(Thread* self, uint32_t dex_pc, mirror::Class* cls);

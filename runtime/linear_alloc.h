@@ -47,6 +47,10 @@ class LinearAlloc {
   // Return true if the linear alloc contrains an address.
   bool Contains(void* ptr) const REQUIRES(!lock_);
 
+  // Unsafe version of 'Contains' only to be used when the allocator is going
+  // to be deleted.
+  bool ContainsUnsafe(void* ptr) const NO_THREAD_SAFETY_ANALYSIS;
+
  private:
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ArenaAllocator allocator_ GUARDED_BY(lock_);

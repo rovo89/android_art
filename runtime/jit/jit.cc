@@ -49,7 +49,7 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
 void Jit::DumpInfo(std::ostream& os) {
   os << "Code cache size=" << PrettySize(code_cache_->CodeCacheSize())
      << " data cache size=" << PrettySize(code_cache_->DataCacheSize())
-     << " num methods=" << code_cache_->NumMethods()
+     << " number of compiled code=" << code_cache_->NumberOfCompiledCode()
      << "\n";
   cumulative_timings_.Dump(os);
 }

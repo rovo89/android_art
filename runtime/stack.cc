@@ -856,13 +856,11 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
   // If we are the JIT then we may have just compiled the method after the
   // IsQuickToInterpreterBridge check.
   jit::Jit* const jit = Runtime::Current()->GetJit();
-  if (jit != nullptr &&
-      jit->GetCodeCache()->ContainsCodePtr(reinterpret_cast<const void*>(code))) {
+  if (jit != nullptr && jit->GetCodeCache()->ContainsPc(code)) {
     return;
   }
 
-  uint32_t code_size = reinterpret_cast<const OatQuickMethodHeader*>(
-      EntryPointToCodePointer(code))[-1].code_size_;
+  uint32_t code_size = OatQuickMethodHeader::FromEntryPoint(code)->code_size_;
   uintptr_t code_start = reinterpret_cast<uintptr_t>(code);
   CHECK(code_start <= pc && pc <= (code_start + code_size))
       << PrettyMethod(method)
