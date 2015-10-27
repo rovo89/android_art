@@ -928,22 +928,22 @@ inline bool Class::IsAssignableFrom(Class* src) {
 
 inline uint32_t Class::NumDirectMethods() {
   LengthPrefixedArray<ArtMethod>* arr = GetDirectMethodsPtrUnchecked();
-  return arr != nullptr ? arr->Length() : 0u;
+  return arr != nullptr ? arr->size() : 0u;
 }
 
 inline uint32_t Class::NumVirtualMethods() {
   LengthPrefixedArray<ArtMethod>* arr = GetVirtualMethodsPtrUnchecked();
-  return arr != nullptr ? arr->Length() : 0u;
+  return arr != nullptr ? arr->size() : 0u;
 }
 
 inline uint32_t Class::NumInstanceFields() {
   LengthPrefixedArray<ArtField>* arr = GetIFieldsPtrUnchecked();
-  return arr != nullptr ? arr->Length() : 0u;
+  return arr != nullptr ? arr->size() : 0u;
 }
 
 inline uint32_t Class::NumStaticFields() {
   LengthPrefixedArray<ArtField>* arr = GetSFieldsPtrUnchecked();
-  return arr != nullptr ? arr->Length() : 0u;
+  return arr != nullptr ? arr->size() : 0u;
 }
 
 }  // namespace mirror

@@ -19,6 +19,8 @@
 
 #include <iterator>
 
+#include "base/logging.h"
+
 namespace art {
 
 template<typename T>

@@ -25,6 +25,7 @@
 #include "dwarf/dwarf_constants.h"
 #include "dwarf/register.h"
 #include "dwarf/writer.h"
+#include "utils/array_ref.h"
 
 namespace art {
 namespace dwarf {
@@ -70,21 +71,19 @@ void WriteDebugFrameCIE(bool is64bit,
       writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata4);  // R: Pointer encoding.
     }
   }
-  writer.PushData(opcodes.data());
+  writer.PushData(*opcodes.data());
   writer.Pad(is64bit ? 8 : 4);
   writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
 }
 
 // Write frame description entry (FDE) to .debug_frame or .eh_frame section.
-template<typename Vector>
+inline
 void WriteDebugFrameFDE(bool is64bit, size_t cie_offset,
                         uint64_t initial_address, uint64_t address_range,
-                        const Vector* opcodes,
+                        const ArrayRef<const uint8_t>& opcodes,
                         CFIFormat format,
                         std::vector<uint8_t>* debug_frame,
                         std::vector<uintptr_t>* debug_frame_patches) {
-  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
-
   Writer<> writer(debug_frame);
   size_t fde_header_start = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
@@ -125,7 +124,7 @@ void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
   writer.PushUint32(debug_abbrev_offset);
   writer.PushUint8(entries.Is64bit() ? 8 : 4);
   size_t entries_offset = writer.data()->size();
-  writer.PushData(entries.data());
+  writer.PushData(*entries.data());
   writer.UpdateUint32(start, writer.data()->size() - start - 4);
   // Copy patch locations and make them relative to .debug_info section.
   for (uintptr_t patch_location : entries.GetPatchLocations()) {
@@ -181,7 +180,7 @@ void WriteDebugLineTable(const std::vector<std::string>& include_directories,
   writer.PushUint8(0);  // Terminate file list.
   writer.UpdateUint32(header_length_pos, writer.data()->size() - header_length_pos - 4);
   size_t opcodes_offset = writer.data()->size();
-  writer.PushData(opcodes.data());
+  writer.PushData(*opcodes.data());
   writer.UpdateUint32(header_start, writer.data()->size() - header_start - 4);
   // Copy patch locations and make them relative to .debug_line section.
   for (uintptr_t patch_location : opcodes.GetPatchLocations()) {

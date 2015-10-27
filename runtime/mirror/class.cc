@@ -574,7 +574,7 @@ static ArtField* FindFieldByNameAndType(LengthPrefixedArray<ArtField>* fields,
     return nullptr;
   }
   size_t low = 0;
-  size_t high = fields->Length();
+  size_t high = fields->size();
   ArtField* ret = nullptr;
   while (low < high) {
     size_t mid = (low + high) / 2;
