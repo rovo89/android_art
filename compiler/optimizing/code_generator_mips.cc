@@ -1000,6 +1000,9 @@ void CodeGeneratorMIPS::Move(HInstruction* instruction,
 void CodeGeneratorMIPS::AddLocationAsTemp(Location location, LocationSummary* locations) {
   if (location.IsRegister()) {
     locations->AddTemp(location);
+  } else if (location.IsRegisterPair()) {
+    locations->AddTemp(Location::RegisterLocation(location.AsRegisterPairLow<Register>()));
+    locations->AddTemp(Location::RegisterLocation(location.AsRegisterPairHigh<Register>()));
   } else {
     UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
   }
