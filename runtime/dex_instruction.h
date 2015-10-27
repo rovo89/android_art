@@ -185,6 +185,7 @@ class Instruction {
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
   static constexpr uint32_t kMaxVarArgRegs25x = 6;  // lambdas are 2 registers.
+  static constexpr uint32_t kLambdaVirtualRegisterWidth = 2;
 
   // Returns the size (in 2 byte code units) of this instruction.
   size_t SizeInCodeUnits() const {
