@@ -390,21 +390,70 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
 
   Runtime* runtime = Runtime::Current();
-  const void* code = runtime->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*));
-  DCHECK(code != nullptr);
+  const void* existing_entry_point = GetEntryPointFromQuickCompiledCode();
+  DCHECK(existing_entry_point != nullptr);
+  ClassLinker* class_linker = runtime->GetClassLinker();
 
-  if (runtime->GetClassLinker()->IsQuickGenericJniStub(code)) {
+  if (class_linker->IsQuickGenericJniStub(existing_entry_point)) {
     // The generic JNI does not have any method header.
     return nullptr;
   }
 
-  code = EntryPointToCodePointer(code);
-  OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(
-      reinterpret_cast<uintptr_t>(code) - sizeof(OatQuickMethodHeader));
+  // Check whether the current entry point contains this pc.
+  if (!class_linker->IsQuickResolutionStub(existing_entry_point) &&
+      !class_linker->IsQuickToInterpreterBridge(existing_entry_point)) {
+    OatQuickMethodHeader* method_header =
+        OatQuickMethodHeader::FromEntryPoint(existing_entry_point);
 
-  // TODO(ngeoffray): validate the pc. Note that unit tests can give unrelated pcs (for
-  // example arch_test).
-  UNUSED(pc);
+    if (method_header->Contains(pc)) {
+      return method_header;
+    }
+  }
+
+  // Check whether the pc is in the JIT code cache.
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit::JitCodeCache* code_cache = jit->GetCodeCache();
+    OatQuickMethodHeader* method_header = code_cache->LookupMethodHeader(pc, this);
+    if (method_header != nullptr) {
+      DCHECK(method_header->Contains(pc));
+      return method_header;
+    } else {
+      DCHECK(!code_cache->ContainsPc(reinterpret_cast<const void*>(pc))) << std::hex << pc;
+    }
+  }
+
+  // The code has to be in an oat file.
+  bool found;
+  OatFile::OatMethod oat_method = class_linker->FindOatMethodFor(this, &found);
+  if (!found) {
+    // Only for unit tests.
+    // TODO(ngeoffray): Update these tests to pass the right pc?
+    return OatQuickMethodHeader::FromEntryPoint(existing_entry_point);
+  }
+  const void* oat_entry_point = oat_method.GetQuickCode();
+  if (oat_entry_point == nullptr || class_linker->IsQuickGenericJniStub(oat_entry_point)) {
+    DCHECK(IsNative());
+    return nullptr;
+  }
+
+  OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromEntryPoint(oat_entry_point);
+  if (pc == 0) {
+    // This is a downcall, it can only happen for a native method.
+    DCHECK(IsNative());
+    return method_header;
+  }
+
+  if (pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
+    // If we're instrumenting, just return the compiled OAT code.
+    // TODO(ngeoffray): Avoid this call path.
+    return method_header;
+  }
+
+  DCHECK(method_header->Contains(pc))
+      << PrettyMethod(this)
+      << std::hex << pc << " " << oat_entry_point
+      << " " << (uintptr_t)(method_header->code_ + method_header->code_size_);
   return method_header;
 }
 

@@ -160,7 +160,7 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   Runtime* runtime = Runtime::Current();
 
   // Check if the method is already compiled.
-  if (runtime->GetJit()->GetCodeCache()->ContainsMethod(method)) {
+  if (runtime->GetJit()->GetCodeCache()->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
     VLOG(jit) << "Already compiled " << PrettyMethod(method);
     return true;
   }
@@ -207,10 +207,7 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
     result = true;
   } else {
     TimingLogger::ScopedTiming t2("LinkCode", &logger);
-    OatFile::OatMethod oat_method(nullptr, 0);
-    if (AddToCodeCache(method, compiled_method, &oat_method)) {
-      oat_method.LinkMethod(method);
-      CHECK(runtime->GetJit()->GetCodeCache()->ContainsMethod(method)) << PrettyMethod(method);
+    if (AddToCodeCache(method, compiled_method)) {
       result = true;
     }
   }
@@ -227,8 +224,7 @@ CompilerCallbacks* JitCompiler::GetCompilerCallbacks() const {
 }
 
 bool JitCompiler::AddToCodeCache(ArtMethod* method,
-                                 const CompiledMethod* compiled_method,
-                                 OatFile::OatMethod* out_method) {
+                                 const CompiledMethod* compiled_method) {
   Runtime* runtime = Runtime::Current();
   JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
   const auto* quick_code = compiled_method->GetQuickCode();
@@ -270,6 +266,7 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method,
   }
 
   uint8_t* const code = code_cache->CommitCode(self,
+                                               method,
                                                mapping_table_ptr,
                                                vmap_table_ptr,
                                                gc_map_ptr,
@@ -285,13 +282,6 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method,
 
   const size_t thumb_offset = compiled_method->CodeDelta();
   const uint32_t code_offset = sizeof(OatQuickMethodHeader) + thumb_offset;
-  *out_method = OatFile::OatMethod(code, code_offset);
-  DCHECK_EQ(out_method->GetGcMap(), gc_map_ptr);
-  DCHECK_EQ(out_method->GetMappingTable(), mapping_table_ptr);
-  DCHECK_EQ(out_method->GetVmapTable(), vmap_table_ptr);
-  DCHECK_EQ(out_method->GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
-  DCHECK_EQ(out_method->GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
-  DCHECK_EQ(out_method->GetFpSpillMask(), compiled_method->GetFpSpillMask());
   VLOG(jit)
       << "JIT added "
       << PrettyMethod(method) << "@" << method

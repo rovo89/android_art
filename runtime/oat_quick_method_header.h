@@ -21,6 +21,7 @@
 #include "base/macros.h"
 #include "quick/quick_method_frame_info.h"
 #include "stack_map.h"
+#include "utils.h"
 
 namespace art {
 
@@ -38,6 +39,18 @@ class PACKED(4) OatQuickMethodHeader {
                        uint32_t code_size = 0U);
 
   ~OatQuickMethodHeader();
+
+  static OatQuickMethodHeader* FromCodePointer(const void* code_ptr) {
+    uintptr_t code = reinterpret_cast<uintptr_t>(code_ptr);
+    uintptr_t header = code - OFFSETOF_MEMBER(OatQuickMethodHeader, code_);
+    DCHECK(IsAlignedParam(code, GetInstructionSetAlignment(kRuntimeISA)) ||
+           IsAlignedParam(header, GetInstructionSetAlignment(kRuntimeISA)));
+    return reinterpret_cast<OatQuickMethodHeader*>(header);
+  }
+
+  static OatQuickMethodHeader* FromEntryPoint(const void* entry_point) {
+    return FromCodePointer(EntryPointToCodePointer(entry_point));
+  }
 
   OatQuickMethodHeader& operator=(const OatQuickMethodHeader&) = default;
 
@@ -74,6 +87,11 @@ class PACKED(4) OatQuickMethodHeader {
 
   bool Contains(uintptr_t pc) const {
     uintptr_t code_start = reinterpret_cast<uintptr_t>(code_);
+    static_assert(kRuntimeISA != kThumb2, "kThumb2 cannot be a runtime ISA");
+    if (kRuntimeISA == kArm) {
+      // On Thumb-2, the pc is offset by one.
+      code_start++;
+    }
     return code_start <= pc && pc <= (code_start + code_size_);
   }
 
