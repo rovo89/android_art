@@ -441,11 +441,8 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 # Known broken tests for the mips32 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
     441-checker-inliner \
-    449-checker-bce \
     510-checker-try-catch \
     521-checker-array-set-null \
-    529-checker-unresolved \
-    534-checker-bce-deoptimization \
     536-checker-intrinsic-optimization \
 
 ifeq (mips,$(TARGET_ARCH))
