@@ -36,13 +36,16 @@ namespace art {
 namespace gc {
 namespace collector {
 
+static constexpr size_t kDefaultGcMarkStackSize = 2 * MB;
+
 ConcurrentCopying::ConcurrentCopying(Heap* heap, const std::string& name_prefix)
     : GarbageCollector(heap,
                        name_prefix + (name_prefix.empty() ? "" : " ") +
                        "concurrent copying + mark sweep"),
       region_space_(nullptr), gc_barrier_(new Barrier(0)),
       gc_mark_stack_(accounting::ObjectStack::Create("concurrent copying gc mark stack",
-                                                     2 * MB, 2 * MB)),
+                                                     kDefaultGcMarkStackSize,
+                                                     kDefaultGcMarkStackSize)),
       mark_stack_lock_("concurrent copying mark stack lock", kMarkSweepMarkStackLock),
       thread_running_gc_(nullptr),
       is_marking_(false), is_active_(false), is_asserting_to_space_invariant_(false),
@@ -577,6 +580,18 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
   Locks::mutator_lock_->SharedLock(self);
 }
 
+void ConcurrentCopying::ExpandGcMarkStack() {
+  DCHECK(gc_mark_stack_->IsFull());
+  const size_t new_size = gc_mark_stack_->Capacity() * 2;
+  std::vector<StackReference<mirror::Object>> temp(gc_mark_stack_->Begin(),
+                                                   gc_mark_stack_->End());
+  gc_mark_stack_->Resize(new_size);
+  for (auto& ref : temp) {
+    gc_mark_stack_->PushBack(ref.AsMirrorPtr());
+  }
+  DCHECK(!gc_mark_stack_->IsFull());
+}
+
 void ConcurrentCopying::PushOntoMarkStack(mirror::Object* to_ref) {
   CHECK_EQ(is_mark_stack_push_disallowed_.LoadRelaxed(), 0)
       << " " << to_ref << " " << PrettyTypeOf(to_ref);
@@ -587,7 +602,9 @@ void ConcurrentCopying::PushOntoMarkStack(mirror::Object* to_ref) {
     if (self == thread_running_gc_) {
       // If GC-running thread, use the GC mark stack instead of a thread-local mark stack.
       CHECK(self->GetThreadLocalMarkStack() == nullptr);
-      CHECK(!gc_mark_stack_->IsFull());
+      if (UNLIKELY(gc_mark_stack_->IsFull())) {
+        ExpandGcMarkStack();
+      }
       gc_mark_stack_->PushBack(to_ref);
     } else {
       // Otherwise, use a thread-local mark stack.
@@ -621,7 +638,9 @@ void ConcurrentCopying::PushOntoMarkStack(mirror::Object* to_ref) {
   } else if (mark_stack_mode == kMarkStackModeShared) {
     // Access the shared GC mark stack with a lock.
     MutexLock mu(self, mark_stack_lock_);
-    CHECK(!gc_mark_stack_->IsFull());
+    if (UNLIKELY(gc_mark_stack_->IsFull())) {
+      ExpandGcMarkStack();
+    }
     gc_mark_stack_->PushBack(to_ref);
   } else {
     CHECK_EQ(static_cast<uint32_t>(mark_stack_mode),
@@ -633,7 +652,9 @@ void ConcurrentCopying::PushOntoMarkStack(mirror::Object* to_ref) {
         << "Only GC-running thread should access the mark stack "
         << "in the GC exclusive mark stack mode";
     // Access the GC mark stack without a lock.
-    CHECK(!gc_mark_stack_->IsFull());
+    if (UNLIKELY(gc_mark_stack_->IsFull())) {
+      ExpandGcMarkStack();
+    }
     gc_mark_stack_->PushBack(to_ref);
   }
 }
