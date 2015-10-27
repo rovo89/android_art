@@ -18,6 +18,7 @@
 
 #include "mir_to_lir-inl.h"
 
+#include "base/stringprintf.h"
 #include "dex/compiler_ir.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/mir_graph.h"

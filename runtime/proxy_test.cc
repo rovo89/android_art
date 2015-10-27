@@ -216,10 +216,10 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
 
   LengthPrefixedArray<ArtField>* static_fields0 = proxyClass0->GetSFieldsPtr();
   ASSERT_TRUE(static_fields0 != nullptr);
-  ASSERT_EQ(2u, static_fields0->Length());
+  ASSERT_EQ(2u, static_fields0->size());
   LengthPrefixedArray<ArtField>* static_fields1 = proxyClass1->GetSFieldsPtr();
   ASSERT_TRUE(static_fields1 != nullptr);
-  ASSERT_EQ(2u, static_fields1->Length());
+  ASSERT_EQ(2u, static_fields1->size());
 
   EXPECT_EQ(static_fields0->At(0).GetDeclaringClass(), proxyClass0.Get());
   EXPECT_EQ(static_fields0->At(1).GetDeclaringClass(), proxyClass0.Get());

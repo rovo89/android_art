@@ -796,7 +796,7 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
                   offset, kNativeObjectRelocationTypeArtFieldArray });
           offset += header_size;
           // Forward individual fields so that we can quickly find where they belong.
-          for (size_t i = 0, count = cur_fields->Length(); i < count; ++i) {
+          for (size_t i = 0, count = cur_fields->size(); i < count; ++i) {
             // Need to forward arrays separate of fields.
             ArtField* field = &cur_fields->At(i);
             auto it2 = native_object_relocations_.find(field);

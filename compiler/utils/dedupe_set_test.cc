@@ -18,15 +18,18 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <vector>
 
+#include "dedupe_set-inl.h"
 #include "gtest/gtest.h"
 #include "thread-inl.h"
+#include "utils/array_ref.h"
 
 namespace art {
 
-class DedupeHashFunc {
+class DedupeSetTestHashFunc {
  public:
-  size_t operator()(const std::vector<uint8_t>& array) const {
+  size_t operator()(const ArrayRef<const uint8_t>& array) const {
     size_t hash = 0;
     for (uint8_t c : array) {
       hash += c;
@@ -36,46 +39,52 @@ class DedupeHashFunc {
     return hash;
   }
 };
+
+class DedupeSetTestAlloc {
+ public:
+  const std::vector<uint8_t>* Copy(const ArrayRef<const uint8_t>& src) {
+    return new std::vector<uint8_t>(src.begin(), src.end());
+  }
+
+  void Destroy(const std::vector<uint8_t>* key) {
+    delete key;
+  }
+};
+
 TEST(DedupeSetTest, Test) {
   Thread* self = Thread::Current();
-  typedef std::vector<uint8_t> ByteArray;
-  SwapAllocator<void> swap(nullptr);
-  DedupeSet<ByteArray, SwapVector<uint8_t>, size_t, DedupeHashFunc> deduplicator("test", swap);
-  SwapVector<uint8_t>* array1;
+  DedupeSetTestAlloc alloc;
+  DedupeSet<ArrayRef<const uint8_t>,
+            std::vector<uint8_t>,
+            DedupeSetTestAlloc,
+            size_t,
+            DedupeSetTestHashFunc> deduplicator("test", alloc);
+  const std::vector<uint8_t>* array1;
   {
-    ByteArray test1;
-    test1.push_back(10);
-    test1.push_back(20);
-    test1.push_back(30);
-    test1.push_back(45);
-
+    uint8_t raw_test1[] = { 10u, 20u, 30u, 45u };
+    ArrayRef<const uint8_t> test1(raw_test1);
     array1 = deduplicator.Add(self, test1);
     ASSERT_NE(array1, nullptr);
     ASSERT_TRUE(std::equal(test1.begin(), test1.end(), array1->begin()));
   }
 
-  SwapVector<uint8_t>* array2;
+  const std::vector<uint8_t>* array2;
   {
-    ByteArray test1;
-    test1.push_back(10);
-    test1.push_back(20);
-    test1.push_back(30);
-    test1.push_back(45);
-    array2 = deduplicator.Add(self, test1);
+    uint8_t raw_test2[] = { 10u, 20u, 30u, 45u };
+    ArrayRef<const uint8_t> test2(raw_test2);
+    array2 = deduplicator.Add(self, test2);
     ASSERT_EQ(array2, array1);
-    ASSERT_TRUE(std::equal(test1.begin(), test1.end(), array2->begin()));
+    ASSERT_TRUE(std::equal(test2.begin(), test2.end(), array2->begin()));
   }
 
-  SwapVector<uint8_t>* array3;
+  const std::vector<uint8_t>* array3;
   {
-    ByteArray test1;
-    test1.push_back(10);
-    test1.push_back(22);
-    test1.push_back(30);
-    test1.push_back(47);
-    array3 = deduplicator.Add(self, test1);
+    uint8_t raw_test3[] = { 10u, 22u, 30u, 47u };
+    ArrayRef<const uint8_t> test3(raw_test3);
+    array3 = deduplicator.Add(self, test3);
     ASSERT_NE(array3, nullptr);
-    ASSERT_TRUE(std::equal(test1.begin(), test1.end(), array3->begin()));
+    ASSERT_NE(array3, array1);
+    ASSERT_TRUE(std::equal(test3.begin(), test3.end(), array3->begin()));
   }
 }
 

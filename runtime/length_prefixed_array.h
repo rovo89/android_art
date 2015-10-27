@@ -30,19 +30,34 @@ template<typename T>
 class LengthPrefixedArray {
  public:
   explicit LengthPrefixedArray(size_t length)
-      : length_(dchecked_integral_cast<uint32_t>(length)) {}
+      : size_(dchecked_integral_cast<uint32_t>(length)) {}
 
   T& At(size_t index, size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
-    DCHECK_LT(index, length_);
+    DCHECK_LT(index, size_);
     return AtUnchecked(index, element_size, alignment);
   }
 
-  StrideIterator<T> Begin(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
+  const T& At(size_t index, size_t element_size = sizeof(T), size_t alignment = alignof(T)) const {
+    DCHECK_LT(index, size_);
+    return AtUnchecked(index, element_size, alignment);
+  }
+
+  StrideIterator<T> begin(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
     return StrideIterator<T>(&AtUnchecked(0, element_size, alignment), element_size);
   }
 
-  StrideIterator<T> End(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
-    return StrideIterator<T>(&AtUnchecked(length_, element_size, alignment), element_size);
+  StrideIterator<const T> begin(size_t element_size = sizeof(T),
+                                size_t alignment = alignof(T)) const {
+    return StrideIterator<const T>(&AtUnchecked(0, element_size, alignment), element_size);
+  }
+
+  StrideIterator<T> end(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
+    return StrideIterator<T>(&AtUnchecked(size_, element_size, alignment), element_size);
+  }
+
+  StrideIterator<const T> end(size_t element_size = sizeof(T),
+                              size_t alignment = alignof(T)) const {
+    return StrideIterator<const T>(&AtUnchecked(size_, element_size, alignment), element_size);
   }
 
   static size_t OffsetOfElement(size_t index,
@@ -60,13 +75,13 @@ class LengthPrefixedArray {
     return result;
   }
 
-  uint64_t Length() const {
-    return length_;
+  size_t size() const {
+    return size_;
   }
 
   // Update the length but does not reallocate storage.
-  void SetLength(size_t length) {
-    length_ = dchecked_integral_cast<uint32_t>(length);
+  void SetSize(size_t length) {
+    size_ = dchecked_integral_cast<uint32_t>(length);
   }
 
  private:
@@ -75,7 +90,12 @@ class LengthPrefixedArray {
         reinterpret_cast<uintptr_t>(this) + OffsetOfElement(index, element_size, alignment));
   }
 
-  uint32_t length_;
+  const T& AtUnchecked(size_t index, size_t element_size, size_t alignment) const {
+    return *reinterpret_cast<T*>(
+        reinterpret_cast<uintptr_t>(this) + OffsetOfElement(index, element_size, alignment));
+  }
+
+  uint32_t size_;
   uint8_t data[0];
 };
 
@@ -84,7 +104,7 @@ template<typename T>
 IterationRange<StrideIterator<T>> MakeIterationRangeFromLengthPrefixedArray(
     LengthPrefixedArray<T>* arr, size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
   return arr != nullptr ?
-      MakeIterationRange(arr->Begin(element_size, alignment), arr->End(element_size, alignment)) :
+      MakeIterationRange(arr->begin(element_size, alignment), arr->end(element_size, alignment)) :
       MakeEmptyIterationRange(StrideIterator<T>(nullptr, 0));
 }
 

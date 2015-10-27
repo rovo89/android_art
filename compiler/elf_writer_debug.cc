@@ -182,8 +182,8 @@ void WriteCFISection(const CompilerDriver* compiler,
   WriteDebugFrameCIE(isa, address_type, format, debug_frame);
   for (const OatWriter::DebugInfo& mi : method_infos) {
     if (!mi.deduped_) {  // Only one FDE per unique address.
-      const SwapVector<uint8_t>* opcodes = mi.compiled_method_->GetCFIInfo();
-      if (opcodes != nullptr) {
+      ArrayRef<const uint8_t> opcodes = mi.compiled_method_->GetCFIInfo();
+      if (!opcodes.empty()) {
         address_to_fde_offset_map.emplace(mi.low_pc_, debug_frame->size());
         WriteDebugFrameFDE(Is64BitInstructionSet(isa), cie_offset,
                            mi.low_pc_, mi.high_pc_ - mi.low_pc_,

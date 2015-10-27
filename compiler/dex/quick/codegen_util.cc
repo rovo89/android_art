@@ -22,6 +22,7 @@
 #endif
 
 #include "base/bit_vector-inl.h"
+#include "base/stringprintf.h"
 #include "dex/mir_graph.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -1165,7 +1166,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
       cu_->compiler_driver, cu_->instruction_set,
       ArrayRef<const uint8_t>(code_buffer_),
       frame_size_, core_spill_mask_, fp_spill_mask_,
-      &src_mapping_table_,
+      ArrayRef<const SrcMapElem>(src_mapping_table_),
       ArrayRef<const uint8_t>(encoded_mapping_table_),
       ArrayRef<const uint8_t>(vmap_encoder.GetData()),
       ArrayRef<const uint8_t>(native_gc_map_),
