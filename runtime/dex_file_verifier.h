@@ -175,7 +175,35 @@ class DexFileVerifier {
   const char* const location_;
   const DexFile::Header* const header_;
 
-  AllocationTrackingSafeMap<uint32_t, uint16_t, kAllocatorTagDexFileVerifier> offset_to_type_map_;
+  struct OffsetTypeMapEmptyFn {
+    // Make a hash map slot empty by making the offset 0. Offset 0 is a valid dex file offset that
+    // is in the offset of the dex file header. However, we only store data section items in the
+    // map, and these are after the header.
+    void MakeEmpty(std::pair<uint32_t, uint16_t>& pair) const {
+      pair.first = 0u;
+    }
+    // Check if a hash map slot is empty.
+    bool IsEmpty(const std::pair<uint32_t, uint16_t>& pair) const {
+      return pair.first == 0;
+    }
+  };
+  struct OffsetTypeMapHashCompareFn {
+    // Hash function for offset.
+    size_t operator()(const uint32_t key) const {
+      return key;
+    }
+    // std::equal function for offset.
+    bool operator()(const uint32_t a, const uint32_t b) const {
+      return a == b;
+    }
+  };
+  // Map from offset to dex file type, HashMap for performance reasons.
+  AllocationTrackingHashMap<uint32_t,
+                            uint16_t,
+                            OffsetTypeMapEmptyFn,
+                            kAllocatorTagDexFileVerifier,
+                            OffsetTypeMapHashCompareFn,
+                            OffsetTypeMapHashCompareFn> offset_to_type_map_;
   const uint8_t* ptr_;
   const void* previous_item_;
 
