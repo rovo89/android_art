@@ -374,7 +374,7 @@ ENTRY art_quick_do_long_jump
     lw      $ra, 124($a0)
     lw      $a0, 16($a0)
     move    $v0, $zero          # clear result registers r0 and r1
-    jalr    $zero, $ra          # do long jump
+    jalr    $zero, $t9          # do long jump
     move    $v1, $zero
 END art_quick_do_long_jump
 

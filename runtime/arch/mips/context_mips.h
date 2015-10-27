@@ -41,7 +41,7 @@ class MipsContext : public Context {
   }
 
   void SetPC(uintptr_t new_pc) OVERRIDE {
-    SetGPR(RA, new_pc);
+    SetGPR(T9, new_pc);
   }
 
   bool IsAccessibleGPR(uint32_t reg) OVERRIDE {
@@ -86,9 +86,10 @@ class MipsContext : public Context {
   // Pointers to registers in the stack, initialized to null except for the special cases below.
   uintptr_t* gprs_[kNumberOfCoreRegisters];
   uint32_t* fprs_[kNumberOfFRegisters];
-  // Hold values for sp and ra (return address) if they are not located within a stack frame, as
-  // well as the first argument.
-  uintptr_t sp_, ra_, arg0_;
+  // Hold values for sp and t9 if they are not located within a stack frame. We use t9 for the
+  // PC (as ra is required to be valid for single-frame deopt and must not be clobbered). We
+  // also need the first argument for single-frame deopt.
+  uintptr_t sp_, t9_, arg0_;
 };
 }  // namespace mips
 }  // namespace art
