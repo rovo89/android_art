@@ -28,11 +28,11 @@ void MipsContext::Reset() {
   std::fill_n(gprs_, arraysize(gprs_), nullptr);
   std::fill_n(fprs_, arraysize(fprs_), nullptr);
   gprs_[SP] = &sp_;
-  gprs_[RA] = &ra_;
+  gprs_[T9] = &t9_;
   gprs_[A0] = &arg0_;
   // Initialize registers with easy to spot debug values.
   sp_ = MipsContext::kBadGprBase + SP;
-  ra_ = MipsContext::kBadGprBase + RA;
+  t9_ = MipsContext::kBadGprBase + T9;
   arg0_ = 0;
 }
 
