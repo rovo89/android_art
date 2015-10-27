@@ -1416,7 +1416,12 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t section_c
     }
 
     if (IsDataSectionType(type)) {
-      offset_to_type_map_.Put(aligned_offset, type);
+      if (aligned_offset == 0u) {
+        ErrorStringPrintf("Item %d offset is 0", i);
+        return false;
+      }
+      DCHECK(offset_to_type_map_.Find(aligned_offset) == offset_to_type_map_.end());
+      offset_to_type_map_.Insert(std::pair<uint32_t, uint16_t>(aligned_offset, type));
     }
 
     aligned_offset = ptr_ - begin_;
@@ -1589,7 +1594,8 @@ bool DexFileVerifier::CheckIntraSection() {
 }
 
 bool DexFileVerifier::CheckOffsetToTypeMap(size_t offset, uint16_t type) {
-  auto it = offset_to_type_map_.find(offset);
+  DCHECK_NE(offset, 0u);
+  auto it = offset_to_type_map_.Find(offset);
   if (UNLIKELY(it == offset_to_type_map_.end())) {
     ErrorStringPrintf("No data map entry found @ %zx; expected %x", offset, type);
     return false;
