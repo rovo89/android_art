@@ -159,13 +159,6 @@
   bug: 22786792
 },
 {
-  description: "Formatting failures",
-  result: EXEC_FAILED,
-  names: ["libcore.java.text.NumberFormatTest#test_currencyFromLocale",
-          "libcore.java.text.NumberFormatTest#test_currencyWithPatternDigits"],
-  bug: 25136848
-},
-{
   description: "Lack of IPv6 on some buildbot slaves",
   result: EXEC_FAILED,
   names: ["libcore.io.OsTest#test_byteBufferPositions_sendto_recvfrom_af_inet6",
