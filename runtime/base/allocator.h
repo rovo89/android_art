@@ -22,6 +22,7 @@
 #include <unordered_map>
 
 #include "atomic.h"
+#include "base/hash_map.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/type_static_if.h"
@@ -170,6 +171,14 @@ template<class Key,
 using AllocationTrackingUnorderedMap = std::unordered_map<
     Key, T, Hash, Pred, TrackingAllocator<std::pair<const Key, T>, kTag>>;
 
+template<class Key,
+         class T,
+         class EmptyFn,
+         AllocatorTag kTag,
+         class Hash = std::hash<Key>,
+         class Pred = std::equal_to<Key>>
+using AllocationTrackingHashMap = HashMap<
+    Key, T, EmptyFn, Hash, Pred, TrackingAllocator<std::pair<Key, T>, kTag>>;
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_ALLOCATOR_H_
