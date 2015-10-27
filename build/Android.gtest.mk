@@ -230,6 +230,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/jni_internal_test.cc \
   runtime/proxy_test.cc \
   runtime/reflection_test.cc \
+  compiler/compiled_method_test.cc \
   compiler/dex/gvn_dead_code_elimination_test.cc \
   compiler/dex/global_value_numbering_test.cc \
   compiler/dex/local_value_numbering_test.cc \
@@ -237,6 +238,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/dex/mir_optimization_test.cc \
   compiler/dex/type_inference_test.cc \
   compiler/dwarf/dwarf_test.cc \
+  compiler/driver/compiled_method_storage_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
   compiler/image_test.cc \

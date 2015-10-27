@@ -85,8 +85,7 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
                                                       const CompiledMethod* compiled_method,
                                                       MethodReference method_ref,
                                                       uint32_t max_extra_space) {
-  DCHECK(compiled_method->GetQuickCode() != nullptr);
-  uint32_t quick_code_size = compiled_method->GetQuickCode()->size();
+  uint32_t quick_code_size = compiled_method->GetQuickCode().size();
   uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
   uint32_t next_aligned_offset = compiled_method->AlignCode(quick_code_offset + quick_code_size);
   // Adjust for extra space required by the subclass.

@@ -190,7 +190,7 @@ ALWAYS_INLINE static inline ArtField* FindFieldByName(
     return nullptr;
   }
   size_t low = 0;
-  size_t high = fields->Length();
+  size_t high = fields->size();
   const uint16_t* const data = name->GetValue();
   const size_t length = name->GetLength();
   while (low < high) {

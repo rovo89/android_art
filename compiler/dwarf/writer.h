@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DWARF_WRITER_H_
 #define ART_COMPILER_DWARF_WRITER_H_
 
+#include <type_traits>
 #include <vector>
 #include "base/bit_utils.h"
 #include "base/logging.h"
@@ -119,9 +120,10 @@ class Writer {
   }
 
   template<typename Vector2>
-  void PushData(const Vector2* buffer) {
-    static_assert(std::is_same<typename Vector2::value_type, uint8_t>::value, "Invalid value type");
-    data_->insert(data_->end(), buffer->begin(), buffer->end());
+  void PushData(const Vector2& buffer) {
+    static_assert(std::is_same<typename std::add_const<typename Vector::value_type>::type,
+                               const uint8_t>::value, "Invalid value type");
+    data_->insert(data_->end(), buffer.begin(), buffer.end());
   }
 
   void UpdateUint32(size_t offset, uint32_t value) {

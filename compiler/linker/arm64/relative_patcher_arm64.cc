@@ -74,7 +74,7 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
   // Now that we have the actual offset where the code will be placed, locate the ADRP insns
   // that actually require the thunk.
   uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
-  ArrayRef<const uint8_t> code(*compiled_method->GetQuickCode());
+  ArrayRef<const uint8_t> code = compiled_method->GetQuickCode();
   uint32_t thunk_offset = compiled_method->AlignCode(quick_code_offset + code.size());
   DCHECK(compiled_method != nullptr);
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {

@@ -126,7 +126,7 @@ TEST_F(DwarfTest, DebugFrame) {
                      initial_opcodes, kCFIFormat, &debug_frame_data_);
   std::vector<uintptr_t> debug_frame_patches;
   std::vector<uintptr_t> expected_patches { 28 };  // NOLINT
-  WriteDebugFrameFDE(is64bit, 0, 0x01000000, 0x01000000, opcodes.data(),
+  WriteDebugFrameFDE(is64bit, 0, 0x01000000, 0x01000000, ArrayRef<const uint8_t>(*opcodes.data()),
                      kCFIFormat, &debug_frame_data_, &debug_frame_patches);
 
   EXPECT_EQ(expected_patches, debug_frame_patches);
@@ -142,7 +142,8 @@ TEST_F(DwarfTest, DebugFrame64) {
   std::vector<uintptr_t> debug_frame_patches;
   std::vector<uintptr_t> expected_patches { 32 };  // NOLINT
   WriteDebugFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
-                     opcodes.data(), kCFIFormat, &debug_frame_data_, &debug_frame_patches);
+                     ArrayRef<const uint8_t>(*opcodes.data()),
+                     kCFIFormat, &debug_frame_data_, &debug_frame_patches);
   DW_CHECK("FDE cie=00000000 pc=100000000000000..300000000000000");
 
   EXPECT_EQ(expected_patches, debug_frame_patches);
@@ -179,7 +180,8 @@ TEST_F(DwarfTest, x86_64_RegisterMapping) {
                      initial_opcodes, kCFIFormat, &debug_frame_data_);
   std::vector<uintptr_t> debug_frame_patches;
   WriteDebugFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
-                     opcodes.data(), kCFIFormat, &debug_frame_data_, &debug_frame_patches);
+                     ArrayRef<const uint8_t>(*opcodes.data()),
+                     kCFIFormat, &debug_frame_data_, &debug_frame_patches);
 
   CheckObjdumpOutput(is64bit, "-W");
 }

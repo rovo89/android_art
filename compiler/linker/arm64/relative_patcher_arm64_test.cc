@@ -237,7 +237,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     CHECK(!compiled_method_refs_.empty());
     CHECK_EQ(compiled_method_refs_[0].dex_method_index, 1u);
     CHECK_EQ(compiled_method_refs_.size(), compiled_methods_.size());
-    uint32_t method1_size = compiled_methods_[0]->GetQuickCode()->size();
+    uint32_t method1_size = compiled_methods_[0]->GetQuickCode().size();
     uint32_t thunk_offset = CompiledCode::AlignCode(method1_offset + method1_size, kArm64);
     uint32_t b_diff = thunk_offset - (method1_offset + num_nops * 4u);
     ASSERT_EQ(b_diff & 3u, 0u);
