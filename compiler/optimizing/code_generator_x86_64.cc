@@ -473,6 +473,24 @@ inline Condition X86_64FPCondition(IfCondition cond) {
   UNREACHABLE();
 }
 
+HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86_64::GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method ATTRIBUTE_UNUSED) {
+  switch (desired_dispatch_info.code_ptr_location) {
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
+      // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
+      return HInvokeStaticOrDirect::DispatchInfo {
+        desired_dispatch_info.method_load_kind,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        desired_dispatch_info.method_load_data,
+        0u
+      };
+    default:
+      return desired_dispatch_info;
+  }
+}
+
 void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
                                                      Location temp) {
   // All registers are assumed to be correctly set up.
@@ -539,8 +557,9 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
     }
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
-      FALLTHROUGH_INTENDED;
+      // Filtered out by GetSupportedInvokeStaticOrDirectDispatch().
+      LOG(FATAL) << "Unsupported";
+      UNREACHABLE();
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // (callee_method + offset_of_quick_compiled_code)()
       __ call(Address(callee_method.AsRegister<CpuRegister>(),

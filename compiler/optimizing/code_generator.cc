@@ -379,13 +379,17 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
 
   if (invoke->IsInvokeStaticOrDirect()) {
     HInvokeStaticOrDirect* call = invoke->AsInvokeStaticOrDirect();
-    if (call->IsStringInit()) {
-      locations->AddTemp(visitor->GetMethodLocation());
-    } else if (call->IsRecursive()) {
-      locations->SetInAt(call->GetCurrentMethodInputIndex(), visitor->GetMethodLocation());
-    } else {
-      locations->AddTemp(visitor->GetMethodLocation());
-      locations->SetInAt(call->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+    switch (call->GetMethodLoadKind()) {
+      case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
+        locations->SetInAt(call->GetCurrentMethodInputIndex(), visitor->GetMethodLocation());
+        break;
+      case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
+        locations->AddTemp(visitor->GetMethodLocation());
+        locations->SetInAt(call->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+        break;
+      default:
+        locations->AddTemp(visitor->GetMethodLocation());
+        break;
     }
   } else {
     locations->AddTemp(visitor->GetMethodLocation());
