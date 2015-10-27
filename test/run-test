@@ -85,7 +85,7 @@ fi
 
 # If JACK_CLASSPATH is not set, assume it only contains core-libart.
 if [ -z "$JACK_CLASSPATH" ]; then
-  export JACK_CLASSPATH="$ANDROID_BUILD_TOP/out/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack"
+  export JACK_CLASSPATH="${OUT_DIR:-$ANDROID_BUILD_TOP/out}/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack"
 fi
 
 # If JILL_JAR is not set, assume it is located in the prebuilts directory.
@@ -440,7 +440,7 @@ elif [ "$runtime" = "art" ]; then
     if [ "$target_mode" = "no" ]; then
         # ANDROID_HOST_OUT is not set in a build environment.
         if [ -z "$ANDROID_HOST_OUT" ]; then
-            export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
+            export ANDROID_HOST_OUT=${OUT_DIR:-$ANDROID_BUILD_TOP/out/}host/linux-x86
         fi
         guess_host_arch_name
         run_args="${run_args} --boot ${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}.art"
