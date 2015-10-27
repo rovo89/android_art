@@ -2528,6 +2528,37 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS64* codeg
   return false;
 }
 
+HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS64::GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method ATTRIBUTE_UNUSED) {
+  switch (desired_dispatch_info.method_load_kind) {
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
+      // TODO: Implement these types. For the moment, we fall back to kDexCacheViaMethod.
+      return HInvokeStaticOrDirect::DispatchInfo {
+        HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        0u,
+        0u
+      };
+    default:
+      break;
+  }
+  switch (desired_dispatch_info.code_ptr_location) {
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
+      // TODO: Implement these types. For the moment, we fall back to kCallArtMethod.
+      return HInvokeStaticOrDirect::DispatchInfo {
+        desired_dispatch_info.method_load_kind,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        desired_dispatch_info.method_load_data,
+        0u
+      };
+    default:
+      return desired_dispatch_info;
+  }
+}
+
 void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   // All registers are assumed to be correctly set up per the calling convention.
 
@@ -2547,13 +2578,11 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ LoadConst64(temp.AsRegister<GpuRegister>(), invoke->GetMethodAddress());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
-      // TODO: Implement this type. (Needs literal support.) At the moment, the
-      // CompilerDriver will not direct the backend to use this type for MIPS.
-      LOG(FATAL) << "Unsupported!";
-      UNREACHABLE();
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
-      FALLTHROUGH_INTENDED;
+      // TODO: Implement these types.
+      // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
+      LOG(FATAL) << "Unsupported";
+      UNREACHABLE();
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
       Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
       GpuRegister reg = temp.AsRegister<GpuRegister>();
@@ -2593,12 +2622,12 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       // LR()
       __ Jalr(T9);
       break;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
-      // TODO: Implement kCallPCRelative. For the moment, we fall back to kMethodCode.
-      FALLTHROUGH_INTENDED;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
-      // TODO: Implement kDirectCodeFixup. For the moment, we fall back to kMethodCode.
-      FALLTHROUGH_INTENDED;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
+      // TODO: Implement these types.
+      // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
+      LOG(FATAL) << "Unsupported";
+      UNREACHABLE();
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // T9 = callee_method->entry_point_from_quick_compiled_code_;
       __ LoadFromOffset(kLoadDoubleword,

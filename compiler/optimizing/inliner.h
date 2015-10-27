@@ -22,6 +22,7 @@
 
 namespace art {
 
+class CodeGenerator;
 class CompilerDriver;
 class DexCompilationUnit;
 class HGraph;
@@ -31,6 +32,7 @@ class OptimizingCompilerStats;
 class HInliner : public HOptimization {
  public:
   HInliner(HGraph* outer_graph,
+           CodeGenerator* codegen,
            const DexCompilationUnit& outer_compilation_unit,
            const DexCompilationUnit& caller_compilation_unit,
            CompilerDriver* compiler_driver,
@@ -40,6 +42,7 @@ class HInliner : public HOptimization {
       : HOptimization(outer_graph, kInlinerPassName, stats),
         outer_compilation_unit_(outer_compilation_unit),
         caller_compilation_unit_(caller_compilation_unit),
+        codegen_(codegen),
         compiler_driver_(compiler_driver),
         depth_(depth),
         number_of_inlined_instructions_(0),
@@ -57,6 +60,7 @@ class HInliner : public HOptimization {
 
   const DexCompilationUnit& outer_compilation_unit_;
   const DexCompilationUnit& caller_compilation_unit_;
+  CodeGenerator* const codegen_;
   CompilerDriver* const compiler_driver_;
   const size_t depth_;
   size_t number_of_inlined_instructions_;
