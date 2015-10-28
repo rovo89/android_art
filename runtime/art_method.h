@@ -305,10 +305,16 @@ class ArtMethod FINAL {
         PtrSizedFields, entry_point_from_quick_compiled_code_) / sizeof(void*) * pointer_size);
   }
 
-  ProfilingInfo* CreateProfilingInfo() SHARED_REQUIRES(Locks::mutator_lock_);
-
   ProfilingInfo* GetProfilingInfo(size_t pointer_size) {
     return reinterpret_cast<ProfilingInfo*>(GetEntryPointFromJniPtrSize(pointer_size));
+  }
+
+  ALWAYS_INLINE void SetProfilingInfo(ProfilingInfo* info) {
+    SetEntryPointFromJniPtrSize(info, sizeof(void*));
+  }
+
+  static MemberOffset ProfilingInfoOffset() {
+    return EntryPointFromJniOffset(sizeof(void*));
   }
 
   void* GetEntryPointFromJni() {

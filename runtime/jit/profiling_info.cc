@@ -25,7 +25,7 @@
 
 namespace art {
 
-ProfilingInfo* ProfilingInfo::Create(ArtMethod* method) {
+bool ProfilingInfo::Create(Thread* self, ArtMethod* method, bool retry_allocation) {
   // Walk over the dex instructions of the method and keep track of
   // instructions we are interested in profiling.
   DCHECK(!method->IsNative());
@@ -57,23 +57,15 @@ ProfilingInfo* ProfilingInfo::Create(ArtMethod* method) {
   // If there is no instruction we are interested in, no need to create a `ProfilingInfo`
   // object, it will never be filled.
   if (entries.empty()) {
-    return nullptr;
+    return true;
   }
 
   // Allocate the `ProfilingInfo` object int the JIT's data space.
   jit::JitCodeCache* code_cache = Runtime::Current()->GetJit()->GetCodeCache();
-  size_t profile_info_size = sizeof(ProfilingInfo) + sizeof(InlineCache) * entries.size();
-  uint8_t* data = code_cache->ReserveData(Thread::Current(), profile_info_size);
-
-  if (data == nullptr) {
-    VLOG(jit) << "Cannot allocate profiling info anymore";
-    return nullptr;
-  }
-
-  return new (data) ProfilingInfo(entries);
+  return code_cache->AddProfilingInfo(self, method, entries, retry_allocation) != nullptr;
 }
 
-void ProfilingInfo::AddInvokeInfo(Thread* self, uint32_t dex_pc, mirror::Class* cls) {
+void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {
   InlineCache* cache = nullptr;
   // TODO: binary search if array is too long.
   for (size_t i = 0; i < number_of_inline_caches_; ++i) {
@@ -84,7 +76,6 @@ void ProfilingInfo::AddInvokeInfo(Thread* self, uint32_t dex_pc, mirror::Class* 
   }
   DCHECK(cache != nullptr);
 
-  ScopedObjectAccess soa(self);
   for (size_t i = 0; i < InlineCache::kIndividualCacheSize; ++i) {
     mirror::Class* existing = cache->classes_[i].Read();
     if (existing == cls) {
