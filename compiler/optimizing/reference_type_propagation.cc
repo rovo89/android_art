@@ -373,12 +373,18 @@ void RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
   if (instr->IsInvokeStaticOrDirect() && instr->AsInvokeStaticOrDirect()->IsStringInit()) {
     // Calls to String.<init> are replaced with a StringFactory.
     if (kIsDebugBuild) {
-      ScopedObjectAccess soa(Thread::Current());
+      HInvoke* invoke = instr->AsInvoke();
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
-      mirror::DexCache* dex_cache = cl->FindDexCache(
-          soa.Self(), instr->AsInvoke()->GetDexFile(), false);
-      ArtMethod* method = dex_cache->GetResolvedMethod(
-          instr->AsInvoke()->GetDexMethodIndex(), cl->GetImagePointerSize());
+      ScopedObjectAccess soa(Thread::Current());
+      StackHandleScope<2> hs(soa.Self());
+      Handle<mirror::DexCache> dex_cache(
+          hs.NewHandle(cl->FindDexCache(soa.Self(), invoke->GetDexFile(), false)));
+      // Use a null loader. We should probably use the compiling method's class loader,
+      // but then we would need to pass it to RTPVisitor just for this debug check. Since
+      // the method is from the String class, the null loader is good enough.
+      Handle<mirror::ClassLoader> loader;
+      ArtMethod* method = cl->ResolveMethod(
+          invoke->GetDexFile(), invoke->GetDexMethodIndex(), dex_cache, loader, nullptr, kDirect);
       DCHECK(method != nullptr);
       mirror::Class* declaring_class = method->GetDeclaringClass();
       DCHECK(declaring_class != nullptr);
