@@ -125,7 +125,7 @@ class InductionVarRangeTest : public testing::Test {
 
   /** Constructs a trip-count. */
   HInductionVarAnalysis::InductionInfo* CreateTripCount(int32_t tc) {
-    return iva_->CreateTripCount(HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc));
+    return iva_->CreateTripCount(HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc), nullptr);
   }
 
   /** Constructs a linear a * i + b induction. */
