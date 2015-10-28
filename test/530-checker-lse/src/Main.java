@@ -22,7 +22,7 @@ class Circle {
     return radius * radius * Math.PI;
   }
   private double radius;
-};
+}
 
 class TestClass {
   TestClass() {
@@ -36,16 +36,29 @@ class TestClass {
   volatile int k;
   TestClass next;
   static int si;
-};
+}
 
 class SubTestClass extends TestClass {
   int k;
-};
+}
 
 class TestClass2 {
   int i;
   int j;
-};
+}
+
+class Finalizable {
+  static boolean sVisited = false;
+  static final int VALUE = 0xbeef;
+  int i;
+
+  protected void finalize() {
+    if (i != VALUE) {
+      System.out.println("Where is the beef?");
+    }
+    sVisited = true;
+  }
+}
 
 public class Main {
 
@@ -56,7 +69,7 @@ public class Main {
 
   /// CHECK-START: double Main.calcCircleArea(double) load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
   static double calcCircleArea(double radius) {
@@ -117,7 +130,7 @@ public class Main {
   /// CHECK: InstanceFieldGet
   /// CHECK: InstanceFieldSet
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
   // A new allocation shouldn't alias with pre-existing values.
@@ -223,7 +236,7 @@ public class Main {
 
   /// CHECK-START: int Main.test8() load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK: InvokeVirtual
   /// CHECK-NOT: NullCheck
   /// CHECK-NOT: InstanceFieldGet
@@ -381,8 +394,8 @@ public class Main {
 
   /// CHECK-START: int Main.test16() load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK-NOT: StaticFieldSet
-  /// CHECK-NOT: StaticFieldGet
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
 
   // Test inlined constructor.
   static int test16() {
@@ -398,8 +411,8 @@ public class Main {
   /// CHECK-START: int Main.test17() load_store_elimination (after)
   /// CHECK: <<Const0:i\d+>> IntConstant 0
   /// CHECK: NewInstance
-  /// CHECK-NOT: StaticFieldSet
-  /// CHECK-NOT: StaticFieldGet
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
   /// CHECK: Return [<<Const0>>]
 
   // Test getting default value.
@@ -455,6 +468,55 @@ public class Main {
     return obj;
   }
 
+  /// CHECK-START: void Main.testFinalizable() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+
+  /// CHECK-START: void Main.testFinalizable() load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+
+  // Allocations and stores into finalizable objects cannot be eliminated.
+  static void testFinalizable() {
+    Finalizable finalizable = new Finalizable();
+    finalizable.i = Finalizable.VALUE;
+  }
+
+  static java.lang.ref.WeakReference<Object> getWeakReference() {
+    return new java.lang.ref.WeakReference<>(new Object());
+  }
+
+  static void testFinalizableByForcingGc() {
+    testFinalizable();
+    java.lang.ref.WeakReference<Object> reference = getWeakReference();
+
+    Runtime runtime = Runtime.getRuntime();
+    for (int i = 0; i < 20; ++i) {
+      runtime.gc();
+      System.runFinalization();
+      try {
+        Thread.sleep(1);
+      } catch (InterruptedException e) {
+        throw new AssertionError(e);
+      }
+
+      // Check to see if the weak reference has been garbage collected.
+      if (reference.get() == null) {
+        // A little bit more sleep time to make sure.
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          throw new AssertionError(e);
+        }
+        if (!Finalizable.sVisited) {
+          System.out.println("finalize() not called.");
+        }
+        return;
+      }
+    }
+    System.out.println("testFinalizableByForcingGc() failed to force gc.");
+  }
+
   public static void assertIntEquals(int expected, int result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -508,5 +570,6 @@ public class Main {
     float[] fa2 = { 1.8f };
     assertFloatEquals(test19(fa1, fa2), 1.8f);
     assertFloatEquals(test20().i, 0);
+    testFinalizableByForcingGc();
   }
 }
