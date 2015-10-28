@@ -26,7 +26,12 @@ namespace jit {
 
 class JitCompileTask FINAL : public Task {
  public:
-  explicit JitCompileTask(ArtMethod* method) : method_(method) {
+  enum TaskKind {
+    kAllocateProfile,
+    kCompile
+  };
+
+  JitCompileTask(ArtMethod* method, TaskKind kind) : method_(method), kind_(kind) {
     ScopedObjectAccess soa(Thread::Current());
     // Add a global ref to the class to prevent class unloading until compilation is done.
     klass_ = soa.Vm()->AddGlobalRef(soa.Self(), method_->GetDeclaringClass());
@@ -40,9 +45,16 @@ class JitCompileTask FINAL : public Task {
 
   void Run(Thread* self) OVERRIDE {
     ScopedObjectAccess soa(self);
-    VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
-    if (!Runtime::Current()->GetJit()->CompileMethod(method_, self)) {
-      VLOG(jit) << "Failed to compile method " << PrettyMethod(method_);
+    if (kind_ == kCompile) {
+      VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
+      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self)) {
+        VLOG(jit) << "Failed to compile method " << PrettyMethod(method_);
+      }
+    } else {
+      DCHECK(kind_ == kAllocateProfile);
+      if (ProfilingInfo::Create(self, method_, /* retry_allocation */ true)) {
+        VLOG(jit) << "Start profiling " << PrettyMethod(method_);
+      }
     }
   }
 
@@ -52,6 +64,7 @@ class JitCompileTask FINAL : public Task {
 
  private:
   ArtMethod* const method_;
+  const TaskKind kind_;
   jobject klass_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
@@ -85,14 +98,20 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t
   }
   uint16_t sample_count = method->IncrementCounter();
   if (sample_count == warm_method_threshold_) {
-    ProfilingInfo* info = method->CreateProfilingInfo();
-    if (info != nullptr) {
+    if (ProfilingInfo::Create(self, method, /* retry_allocation */ false)) {
       VLOG(jit) << "Start profiling " << PrettyMethod(method);
+    } else {
+      // We failed allocating. Instead of doing the collection on the Java thread, we push
+      // an allocation to a compiler thread, that will do the collection.
+      thread_pool_->AddTask(self, new JitCompileTask(
+          method->GetInterfaceMethodIfProxy(sizeof(void*)), JitCompileTask::kAllocateProfile));
+      thread_pool_->StartWorkers(self);
     }
   }
+
   if (sample_count == hot_method_threshold_) {
     thread_pool_->AddTask(self, new JitCompileTask(
-        method->GetInterfaceMethodIfProxy(sizeof(void*))));
+        method->GetInterfaceMethodIfProxy(sizeof(void*)), JitCompileTask::kCompile));
     thread_pool_->StartWorkers(self);
   }
 }
@@ -107,14 +126,17 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
                                                           ArtMethod* caller,
                                                           uint32_t dex_pc,
                                                           ArtMethod* callee ATTRIBUTE_UNUSED) {
+  // We make sure we cannot be suspended, as the profiling info can be concurrently deleted.
+  thread->StartAssertNoThreadSuspension("Instrumenting invoke");
   DCHECK(this_object != nullptr);
   ProfilingInfo* info = caller->GetProfilingInfo(sizeof(void*));
   if (info != nullptr) {
     // Since the instrumentation is marked from the declaring class we need to mark the card so
     // that mod-union tables and card rescanning know about the update.
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(caller->GetDeclaringClass());
-    info->AddInvokeInfo(thread, dex_pc, this_object->GetClass());
+    info->AddInvokeInfo(dex_pc, this_object->GetClass());
   }
+  thread->EndAssertNoThreadSuspension(nullptr);
 }
 
 void JitInstrumentationCache::WaitForCompilationToFinish(Thread* self) {
