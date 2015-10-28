@@ -26,6 +26,10 @@ namespace art {
 
 class ArtMethod;
 
+namespace jit {
+class JitCodeCache;
+}
+
 namespace mirror {
 class Class;
 }
@@ -36,10 +40,17 @@ class Class;
  */
 class ProfilingInfo {
  public:
-  static ProfilingInfo* Create(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
+  // Create a ProfilingInfo for 'method'. Return whether it succeeded, or if it is
+  // not needed in case the method does not have virtual/interface invocations.
+  static bool Create(Thread* self, ArtMethod* method, bool retry_allocation)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Add information from an executed INVOKE instruction to the profile.
-  void AddInvokeInfo(Thread* self, uint32_t dex_pc, mirror::Class* cls);
+  void AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls)
+      // Method should not be interruptible, as it manipulates the ProfilingInfo
+      // which can be concurrently collected.
+      REQUIRES(Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>
@@ -50,6 +61,10 @@ class ProfilingInfo {
         visitor.VisitRootIfNonNull(cache->classes_[j].AddressWithoutBarrier());
       }
     }
+  }
+
+  ArtMethod* GetMethod() const {
+    return method_;
   }
 
  private:
@@ -84,8 +99,9 @@ class ProfilingInfo {
     GcRoot<mirror::Class> classes_[kIndividualCacheSize];
   };
 
-  explicit ProfilingInfo(const std::vector<uint32_t>& entries)
-      : number_of_inline_caches_(entries.size()) {
+  ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
+      : number_of_inline_caches_(entries.size()),
+        method_(method) {
     memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
     for (size_t i = 0; i < number_of_inline_caches_; ++i) {
       cache_[i].dex_pc = entries[i];
@@ -95,8 +111,13 @@ class ProfilingInfo {
   // Number of instructions we are profiling in the ArtMethod.
   const uint32_t number_of_inline_caches_;
 
+  // Method this profiling info is for.
+  ArtMethod* const method_;
+
   // Dynamically allocated array of size `number_of_inline_caches_`.
   InlineCache cache_[0];
+
+  friend class jit::JitCodeCache;
 
   DISALLOW_COPY_AND_ASSIGN(ProfilingInfo);
 };

@@ -21,6 +21,7 @@
 #include "art_method-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
+#include "jit/profiling_info.h"
 #include "linear_alloc.h"
 #include "mem_map.h"
 #include "oat_file-inl.h"
@@ -206,10 +207,23 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
   // We do not check if a code cache GC is in progress, as this method comes
   // with the classlinker_classes_lock_ held, and suspending ourselves could
   // lead to a deadlock.
-  for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
-    if (alloc.ContainsUnsafe(it->second)) {
-      FreeCode(it->first, it->second);
-      it = method_code_map_.erase(it);
+  {
+    ScopedCodeCacheWrite scc(code_map_.get());
+    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+      if (alloc.ContainsUnsafe(it->second)) {
+        FreeCode(it->first, it->second);
+        it = method_code_map_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+  for (auto it = profiling_infos_.begin(); it != profiling_infos_.end();) {
+    ProfilingInfo* info = *it;
+    if (alloc.ContainsUnsafe(info->GetMethod())) {
+      info->GetMethod()->SetProfilingInfo(nullptr);
+      mspace_free(data_mspace_, reinterpret_cast<uint8_t*>(info));
+      it = profiling_infos_.erase(it);
     } else {
       ++it;
     }
@@ -387,6 +401,9 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     for (auto& it : method_code_map_) {
       it.second->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
     }
+    for (ProfilingInfo* info : profiling_infos_) {
+      info->GetMethod()->SetProfilingInfo(nullptr);
+    }
   }
 
   // Run a checkpoint on all threads to mark the JIT compiled code they are running.
@@ -400,27 +417,37 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     }
   }
 
-  // Free unused compiled code, and restore the entry point of used compiled code.
   {
     MutexLock mu(self, lock_);
     DCHECK_EQ(map_size, method_code_map_.size());
-    ScopedCodeCacheWrite scc(code_map_.get());
-    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
-      const void* code_ptr = it->first;
-      ArtMethod* method = it->second;
-      uintptr_t allocation = FromCodeToAllocation(code_ptr);
-      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-      if (GetLiveBitmap()->Test(allocation)) {
-        method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
-        ++it;
-      } else {
-        method->ClearCounter();
-        DCHECK_NE(method->GetEntryPointFromQuickCompiledCode(), method_header->GetEntryPoint());
-        FreeCode(code_ptr, method);
-        it = method_code_map_.erase(it);
+    // Free unused compiled code, and restore the entry point of used compiled code.
+    {
+      ScopedCodeCacheWrite scc(code_map_.get());
+      for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+        const void* code_ptr = it->first;
+        ArtMethod* method = it->second;
+        uintptr_t allocation = FromCodeToAllocation(code_ptr);
+        const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+        if (GetLiveBitmap()->Test(allocation)) {
+          method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
+          ++it;
+        } else {
+          method->ClearCounter();
+          DCHECK_NE(method->GetEntryPointFromQuickCompiledCode(), method_header->GetEntryPoint());
+          FreeCode(code_ptr, method);
+          it = method_code_map_.erase(it);
+        }
       }
     }
     GetLiveBitmap()->Bitmap::Clear();
+
+    // Free all profiling info.
+    for (ProfilingInfo* info : profiling_infos_) {
+      DCHECK(info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr);
+      mspace_free(data_mspace_, reinterpret_cast<uint8_t*>(info));
+    }
+    profiling_infos_.clear();
+
     collection_in_progress_ = false;
     lock_cond_.Broadcast(self);
   }
@@ -458,6 +485,45 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
   DCHECK_EQ(it->second, method)
       << PrettyMethod(method) << " " << PrettyMethod(it->second) << " " << std::hex << pc;
   return method_header;
+}
+
+ProfilingInfo* JitCodeCache::AddProfilingInfo(Thread* self,
+                                              ArtMethod* method,
+                                              const std::vector<uint32_t>& entries,
+                                              bool retry_allocation) {
+  ProfilingInfo* info = AddProfilingInfoInternal(self, method, entries);
+
+  if (info == nullptr && retry_allocation) {
+    GarbageCollectCache(self);
+    info = AddProfilingInfoInternal(self, method, entries);
+  }
+  return info;
+}
+
+ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
+                                                      ArtMethod* method,
+                                                      const std::vector<uint32_t>& entries) {
+  size_t profile_info_size = RoundUp(
+      sizeof(ProfilingInfo) + sizeof(ProfilingInfo::InlineCache) * entries.size(),
+      sizeof(void*));
+  ScopedThreadSuspension sts(self, kSuspended);
+  MutexLock mu(self, lock_);
+  WaitForPotentialCollectionToComplete(self);
+
+  // Check whether some other thread has concurrently created it.
+  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  if (info != nullptr) {
+    return info;
+  }
+
+  uint8_t* data = reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, profile_info_size));
+  if (data == nullptr) {
+    return nullptr;
+  }
+  info = new (data) ProfilingInfo(method, entries);
+  method->SetProfilingInfo(info);
+  profiling_infos_.push_back(info);
+  return info;
 }
 
 }  // namespace jit
