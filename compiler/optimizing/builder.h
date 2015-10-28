@@ -138,7 +138,7 @@ class HGraphBuilder : public ValueObject {
   HInstruction* LoadLocal(uint32_t register_index, Primitive::Type type, uint32_t dex_pc) const;
   void PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex_pc);
   void InitializeParameters(uint16_t number_of_parameters);
-  bool NeedsAccessCheck(uint32_t type_index) const;
+  bool NeedsAccessCheck(uint32_t type_index, bool* finalizable) const;
 
   template<typename T>
   void Unop_12x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);

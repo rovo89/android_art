@@ -1455,7 +1455,8 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
                                         uint32_t* args,
                                         uint32_t register_index) {
   HInstruction* length = graph_->GetIntConstant(number_of_vreg_arguments, dex_pc);
-  QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
+  bool finalizable;
+  QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
       ? kQuickAllocArrayWithAccessCheck
       : kQuickAllocArray;
   HInstruction* object = new (arena_) HNewArray(length,
@@ -1635,9 +1636,9 @@ void HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
   }
 }
 
-bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index) const {
+bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index, bool* finalizable) const {
   return !compiler_driver_->CanAccessInstantiableTypeWithoutChecks(
-      dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index);
+      dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index, finalizable);
 }
 
 void HGraphBuilder::BuildSwitchJumpTable(const SwitchTable& table,
@@ -2514,7 +2515,9 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
         current_block_->AddInstruction(fake_string);
         UpdateLocal(register_index, fake_string, dex_pc);
       } else {
-        QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
+        bool finalizable;
+        bool can_throw = NeedsAccessCheck(type_index, &finalizable);
+        QuickEntrypointEnum entrypoint = can_throw
             ? kQuickAllocObjectWithAccessCheck
             : kQuickAllocObject;
 
@@ -2523,6 +2526,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
             dex_pc,
             type_index,
             *dex_compilation_unit_->GetDexFile(),
+            can_throw,
+            finalizable,
             entrypoint));
         UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction(), dex_pc);
       }
@@ -2532,7 +2537,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::NEW_ARRAY: {
       uint16_t type_index = instruction.VRegC_22c();
       HInstruction* length = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimInt, dex_pc);
-      QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
+      bool finalizable;
+      QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
           ? kQuickAllocArrayWithAccessCheck
           : kQuickAllocArray;
       current_block_->AddInstruction(new (arena_) HNewArray(length,
