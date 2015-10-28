@@ -35,6 +35,7 @@ namespace art {
 
 class ArtMethod;
 class LinearAlloc;
+class ProfilingInfo;
 
 namespace jit {
 
@@ -109,9 +110,19 @@ class JitCodeCache {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Remove all methods in our cache that were allocated by 'alloc'.
   void RemoveMethodsIn(Thread* self, const LinearAlloc& alloc)
       REQUIRES(!lock_)
       REQUIRES(Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Create a 'ProfileInfo' for 'method'. If 'retry_allocation' is true,
+  // will collect and retry if the first allocation is unsuccessful.
+  ProfilingInfo* AddProfilingInfo(Thread* self,
+                                  ArtMethod* method,
+                                  const std::vector<uint32_t>& entries,
+                                  bool retry_allocation)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
@@ -130,6 +141,12 @@ class JitCodeCache {
                               size_t fp_spill_mask,
                               const uint8_t* code,
                               size_t code_size)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  ProfilingInfo* AddProfilingInfoInternal(Thread* self,
+                                          ArtMethod* method,
+                                          const std::vector<uint32_t>& entries)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -157,8 +174,10 @@ class JitCodeCache {
   void* data_mspace_ GUARDED_BY(lock_);
   // Bitmap for collecting code and data.
   std::unique_ptr<CodeCacheBitmap> live_bitmap_;
-  // This map holds compiled code associated to the ArtMethod
+  // This map holds compiled code associated to the ArtMethod.
   SafeMap<const void*, ArtMethod*> method_code_map_ GUARDED_BY(lock_);
+  // ProfilingInfo objects we have allocated.
+  std::vector<ProfilingInfo*> profiling_infos_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };
