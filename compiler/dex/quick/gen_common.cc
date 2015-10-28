@@ -1104,7 +1104,11 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
   // access because the verifier was unable to?
   const DexFile* dex_file = cu_->dex_file;
   CompilerDriver* driver = cu_->compiler_driver;
-  if (driver->CanAccessInstantiableTypeWithoutChecks(cu_->method_idx, *dex_file, type_idx)) {
+  bool finalizable;
+  if (driver->CanAccessInstantiableTypeWithoutChecks(cu_->method_idx,
+                                                     *dex_file,
+                                                     type_idx,
+                                                     &finalizable)) {
     bool is_type_initialized;
     bool use_direct_type_ptr;
     uintptr_t direct_type_ptr;
