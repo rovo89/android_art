@@ -214,7 +214,7 @@ done
 
 if [ "$USE_JVM" = "n" ]; then
     for feature in ${EXPERIMENTAL}; do
-        FLAGS="${FLAGS} -Xexperimental:${feature}"
+        FLAGS="${FLAGS} -Xexperimental:${feature} -Xcompiler-option --runtime-arg -Xcompiler-option -Xexperimental:${feature}"
         COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xexperimental:${feature}"
     done
 fi
