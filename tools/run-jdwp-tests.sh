@@ -39,7 +39,7 @@ vm_command="--vm-command=$art"
 image_compiler_option=""
 debug="no"
 verbose="no"
-image=""
+image="-Ximage:/data/art-test/core-jit.art"
 vm_args=""
 # By default, we run the whole JDWP test suite.
 test="org.apache.harmony.jpda.tests.share.AllTests"
