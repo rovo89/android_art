@@ -77,11 +77,10 @@ void CommonCompilerTest::MakeExecutable(ArtMethod* method) {
 
     header_code_and_maps_chunks_.push_back(std::vector<uint8_t>());
     std::vector<uint8_t>* chunk = &header_code_and_maps_chunks_.back();
-    size_t size = sizeof(method_header) + code_size + vmap_table.size() + mapping_table_size +
-        gc_map_size;
-    size_t code_offset = compiled_method->AlignCode(size - code_size);
-    size_t padding = code_offset - (size - code_size);
-    chunk->reserve(padding + size);
+    const size_t max_padding = GetInstructionSetAlignment(compiled_method->GetInstructionSet());
+    const size_t size =
+        gc_map_size + mapping_table_size + vmap_table.size() + sizeof(method_header) + code_size;
+    chunk->reserve(size + max_padding);
     chunk->resize(sizeof(method_header));
     memcpy(&(*chunk)[0], &method_header, sizeof(method_header));
     chunk->insert(chunk->begin(), vmap_table.begin(), vmap_table.end());
@@ -91,10 +90,16 @@ void CommonCompilerTest::MakeExecutable(ArtMethod* method) {
     if (gc_map_used) {
       chunk->insert(chunk->begin(), gc_map.begin(), gc_map.end());
     }
-    chunk->insert(chunk->begin(), padding, 0);
     chunk->insert(chunk->end(), code.begin(), code.end());
-    CHECK_EQ(padding + size, chunk->size());
-    const void* code_ptr = &(*chunk)[code_offset];
+    CHECK_EQ(chunk->size(), size);
+    const void* unaligned_code_ptr = chunk->data() + (size - code_size);
+    size_t offset = dchecked_integral_cast<size_t>(reinterpret_cast<uintptr_t>(unaligned_code_ptr));
+    size_t padding = compiled_method->AlignCode(offset) - offset;
+    // Make sure no resizing takes place.
+    CHECK_GE(chunk->capacity(), chunk->size() + padding);
+    chunk->insert(chunk->begin(), padding, 0);
+    const void* code_ptr = reinterpret_cast<const uint8_t*>(unaligned_code_ptr) + padding;
+    CHECK_EQ(code_ptr, static_cast<const void*>(chunk->data() + (chunk->size() - code_size)));
     MakeExecutable(code_ptr, code.size());
     const void* method_code = CompiledMethod::CodePointer(code_ptr,
                                                           compiled_method->GetInstructionSet());
