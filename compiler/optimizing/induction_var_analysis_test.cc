@@ -234,7 +234,7 @@ TEST_F(InductionVarAnalysisTest, FindBasicInduction) {
   EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[0], 0).c_str());
 
   // Trip-count.
-  EXPECT_STREQ("(TC-loop:(100))",
+  EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
                GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
 }
 
@@ -552,7 +552,7 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
     }
     EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[d], d).c_str());
     // Trip-count.
-    EXPECT_STREQ("(TC-loop:(100))",
+    EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
                  GetInductionInfo(loop_header_[d]->GetLastInstruction(), d).c_str());
   }
 }

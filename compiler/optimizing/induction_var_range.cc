@@ -152,7 +152,7 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     }
   } else if (is_min) {
     // Special case for finding minimum: minimum of trip-count in loop-body is 1.
-    if (trip != nullptr && in_body && instruction == trip->op_b->fetch) {
+    if (trip != nullptr && in_body && instruction == trip->op_a->fetch) {
       return Value(1);
     }
   }
@@ -185,14 +185,14 @@ InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::Induct
             return GetFetch(info->fetch, trip, in_body, is_min);
           case HInductionVarAnalysis::kTripCountInLoop:
             if (!in_body && !is_min) {  // one extra!
-              return GetVal(info->op_b, trip, in_body, is_min);
+              return GetVal(info->op_a, trip, in_body, is_min);
             }
             FALLTHROUGH_INTENDED;
           case HInductionVarAnalysis::kTripCountInBody:
             if (is_min) {
               return Value(0);
             } else if (in_body) {
-              return SubValue(GetVal(info->op_b, trip, in_body, is_min), Value(1));
+              return SubValue(GetVal(info->op_a, trip, in_body, is_min), Value(1));
             }
             break;
           default:
@@ -428,7 +428,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
             return true;
           case HInductionVarAnalysis::kTripCountInLoop:
             if (!in_body && !is_min) {  // one extra!
-              return GenerateCode(info->op_b, trip, graph, block, result, in_body, is_min);
+              return GenerateCode(info->op_a, trip, graph, block, result, in_body, is_min);
             }
             FALLTHROUGH_INTENDED;
           case HInductionVarAnalysis::kTripCountInBody:
@@ -438,7 +438,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
               }
               return true;
             } else if (in_body) {
-              if (GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
+              if (GenerateCode(info->op_a, trip, graph, block, &opb, in_body, is_min)) {
                 if (graph != nullptr) {
                   *result = Insert(block,
                                    new (graph->GetArena())
