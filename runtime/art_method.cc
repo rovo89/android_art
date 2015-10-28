@@ -414,6 +414,12 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   bool found;
   OatFile::OatMethod oat_method = class_linker->FindOatMethodFor(this, &found);
   if (!found) {
+    if (class_linker->IsQuickResolutionStub(existing_entry_point)) {
+      // We are running the generic jni stub, but the entry point of the method has not
+      // been updated yet.
+      DCHECK(IsNative());
+      return nullptr;
+    }
     // Only for unit tests.
     // TODO(ngeoffray): Update these tests to pass the right pc?
     return OatQuickMethodHeader::FromEntryPoint(existing_entry_point);
