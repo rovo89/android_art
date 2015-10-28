@@ -57,9 +57,9 @@ JitCodeCache* JitCodeCache::Create(size_t capacity, std::string* error_msg) {
     return nullptr;
   }
 
-  // Data cache is 1 / 4 of the map.
+  // Data cache is 1 / 2 of the map.
   // TODO: Make this variable?
-  size_t data_size = RoundUp(data_map->Size() / 4, kPageSize);
+  size_t data_size = RoundUp(data_map->Size() / 2, kPageSize);
   size_t code_size = data_map->Size() - data_size;
   uint8_t* divider = data_map->Begin() + data_size;
 
