@@ -361,19 +361,6 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
   return true;
 }
 
-ProfilingInfo* ArtMethod::CreateProfilingInfo() {
-  DCHECK(!Runtime::Current()->IsAotCompiler());
-  ProfilingInfo* info = ProfilingInfo::Create(this);
-  MemberOffset offset = ArtMethod::EntryPointFromJniOffset(sizeof(void*));
-  uintptr_t pointer = reinterpret_cast<uintptr_t>(this) + offset.Uint32Value();
-  if (!reinterpret_cast<Atomic<ProfilingInfo*>*>(pointer)->
-          CompareExchangeStrongSequentiallyConsistent(nullptr, info)) {
-    return GetProfilingInfo(sizeof(void*));
-  } else {
-    return info;
-  }
-}
-
 const uint8_t* ArtMethod::GetQuickenedInfo() {
   bool found = false;
   OatFile::OatMethod oat_method =
