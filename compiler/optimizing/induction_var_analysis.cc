@@ -20,14 +20,14 @@
 namespace art {
 
 /**
- * Returns true if instruction is invariant within the given loop.
+ * Returns true if instruction is invariant within the given loop
+ * (instruction is not defined in same or more inner loop).
  */
 static bool IsLoopInvariant(HLoopInformation* loop, HInstruction* instruction) {
   HLoopInformation* other_loop = instruction->GetBlock()->GetLoopInformation();
-  if (other_loop != loop) {
-    // If instruction does not occur in same loop, it is invariant
-    // if it appears in an outer loop (including no loop at all).
-    return other_loop == nullptr || loop->IsIn(*other_loop);
+  if (other_loop != loop && (other_loop == nullptr || !other_loop->IsIn(*loop))) {
+    DCHECK(instruction->GetBlock()->Dominates(loop->GetHeader()));
+    return true;
   }
   return false;
 }
@@ -601,15 +601,16 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
   //     an unsigned entity, for example, as in the following loop that uses the full range:
   //     for (int i = INT_MIN; i < INT_MAX; i++) // TC = UINT_MAX
   // (2) The TC is only valid if the loop is taken, otherwise TC = 0, as in:
-  //     for (int i = 12; i < U; i++) // TC = 0 when U >= 12
+  //     for (int i = 12; i < U; i++) // TC = 0 when U < 12
   //     If this cannot be determined at compile-time, the TC is only valid within the
-  //     loop-body proper, not the loop-header unless enforced with an explicit condition.
+  //     loop-body proper, not the loop-header unless enforced with an explicit taken-test.
   // (3) The TC is only valid if the loop is finite, otherwise TC has no value, as in:
   //     for (int i = 0; i <= U; i++) // TC = Inf when U = INT_MAX
   //     If this cannot be determined at compile-time, the TC is only valid when enforced
-  //     with an explicit condition.
+  //     with an explicit finite-test.
   // (4) For loops which early-exits, the TC forms an upper bound, as in:
   //     for (int i = 0; i < 10 && ....; i++) // TC <= 10
+  InductionInfo* trip_count = upper_expr;
   const bool is_taken = IsTaken(lower_expr, upper_expr, cmp);
   const bool is_finite = IsFinite(upper_expr, stride_value, type, cmp);
   const bool cancels = (cmp == kCondLT || cmp == kCondGT) && std::abs(stride_value) == 1;
@@ -617,26 +618,36 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
     // Convert exclusive integral inequality into inclusive integral inequality,
     // viz. condition i < U is i <= U - 1 and condition i > U is i >= U + 1.
     if (cmp == kCondLT) {
-      upper_expr = CreateInvariantOp(kSub, upper_expr, CreateConstant(1, type));
+      trip_count = CreateInvariantOp(kSub, trip_count, CreateConstant(1, type));
     } else if (cmp == kCondGT) {
-      upper_expr = CreateInvariantOp(kAdd, upper_expr, CreateConstant(1, type));
+      trip_count = CreateInvariantOp(kAdd, trip_count, CreateConstant(1, type));
     }
     // Compensate for stride.
-    upper_expr = CreateInvariantOp(kAdd, upper_expr, stride);
+    trip_count = CreateInvariantOp(kAdd, trip_count, stride);
   }
-  InductionInfo* trip_count
-      = CreateInvariantOp(kDiv, CreateInvariantOp(kSub, upper_expr, lower_expr), stride);
+  trip_count = CreateInvariantOp(kDiv, CreateInvariantOp(kSub, trip_count, lower_expr), stride);
   // Assign the trip-count expression to the loop control. Clients that use the information
   // should be aware that the expression is only valid under the conditions listed above.
-  InductionOp tcKind = kTripCountInBodyUnsafe;
+  InductionOp tcKind = kTripCountInBodyUnsafe;  // needs both tests
   if (is_taken && is_finite) {
-    tcKind = kTripCountInLoop;
+    tcKind = kTripCountInLoop;  // needs neither test
   } else if (is_finite) {
-    tcKind = kTripCountInBody;
+    tcKind = kTripCountInBody;  // needs taken-test
   } else if (is_taken) {
-    tcKind = kTripCountInLoopUnsafe;
+    tcKind = kTripCountInLoopUnsafe;  // needs finite-test
   }
-  AssignInfo(loop, loop->GetHeader()->GetLastInstruction(), CreateTripCount(tcKind, trip_count));
+  InductionOp op = kNop;
+  switch (cmp) {
+    case kCondLT: op = kLT; break;
+    case kCondLE: op = kLE; break;
+    case kCondGT: op = kGT; break;
+    case kCondGE: op = kGE; break;
+    default:      LOG(FATAL) << "CONDITION UNREACHABLE";
+  }
+  InductionInfo* taken_test = CreateInvariantOp(op, lower_expr, upper_expr);
+  AssignInfo(loop,
+             loop->GetHeader()->GetLastInstruction(),
+             CreateTripCount(tcKind, trip_count, taken_test));
 }
 
 bool HInductionVarAnalysis::IsTaken(InductionInfo* lower_expr,
@@ -829,12 +840,16 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
       std::string inv = "(";
       inv += InductionToString(info->op_a);
       switch (info->operation) {
-        case kNop:   inv += " @ "; break;
-        case kAdd:   inv += " + "; break;
+        case kNop:   inv += " @ ";  break;
+        case kAdd:   inv += " + ";  break;
         case kSub:
-        case kNeg:   inv += " - "; break;
-        case kMul:   inv += " * "; break;
-        case kDiv:   inv += " / "; break;
+        case kNeg:   inv += " - ";  break;
+        case kMul:   inv += " * ";  break;
+        case kDiv:   inv += " / ";  break;
+        case kLT:    inv += " < ";  break;
+        case kLE:    inv += " <= "; break;
+        case kGT:    inv += " > ";  break;
+        case kGE:    inv += " >= "; break;
         case kFetch:
           DCHECK(info->fetch);
           if (IsIntAndGet(info, &value)) {
@@ -843,10 +858,10 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
             inv += std::to_string(info->fetch->GetId()) + ":" + info->fetch->DebugName();
           }
           break;
-        case kTripCountInLoop:       inv += "TC-loop:"; break;
-        case kTripCountInBody:       inv += "TC-body:"; break;
-        case kTripCountInLoopUnsafe: inv += "TC-loop-unsafe:"; break;
-        case kTripCountInBodyUnsafe: inv += "TC-body-unsafe:"; break;
+        case kTripCountInLoop:       inv += " (TC-loop) ";        break;
+        case kTripCountInBody:       inv += " (TC-body) ";        break;
+        case kTripCountInLoopUnsafe: inv += " (TC-loop-unsafe) "; break;
+        case kTripCountInBodyUnsafe: inv += " (TC-body-unsafe) "; break;
       }
       inv += InductionToString(info->op_b);
       return inv + ")";
