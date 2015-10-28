@@ -86,7 +86,6 @@ void JitInstrumentationCache::DeleteThreadPool() {
 }
 
 void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t) {
-  ScopedObjectAccessUnchecked soa(self);
   // Since we don't have on-stack replacement, some methods can remain in the interpreter longer
   // than we want resulting in samples even after the method is compiled.
   if (method->IsClassInitializer() || method->IsNative()) {
@@ -126,6 +125,7 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
                                                           ArtMethod* caller,
                                                           uint32_t dex_pc,
                                                           ArtMethod* callee ATTRIBUTE_UNUSED) {
+  instrumentation_cache_->AddSamples(thread, caller, 1);
   // We make sure we cannot be suspended, as the profiling info can be concurrently deleted.
   thread->StartAssertNoThreadSuspension("Instrumenting invoke");
   DCHECK(this_object != nullptr);
