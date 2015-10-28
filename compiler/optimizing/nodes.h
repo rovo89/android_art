@@ -551,6 +551,12 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   // Note that `other` *must* be populated before entering this function.
   bool IsIn(const HLoopInformation& other) const;
 
+  // Returns true if instruction is not defined within this loop or any loop nested inside
+  // this loop. If must_dominate is set, only definitions that actually dominate the loop
+  // header can be invariant. Otherwise, any definition outside the loop, including
+  // definitions that appear after the loop, is invariant.
+  bool IsLoopInvariant(HInstruction* instruction, bool must_dominate) const;
+
   const ArenaBitVector& GetBlocks() const { return blocks_; }
 
   void Add(HBasicBlock* block);
