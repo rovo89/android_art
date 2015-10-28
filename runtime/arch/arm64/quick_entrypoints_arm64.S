@@ -1437,7 +1437,107 @@ END art_quick_set64_static
 ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 
 // Generate the allocation entrypoints for each allocator.
-GENERATE_ALL_ALLOC_ENTRYPOINTS
+GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
+ENTRY art_quick_alloc_object_rosalloc
+    // Fast path rosalloc allocation.
+    // x0: type_idx/return value, x1: ArtMethod*, xSELF(x19): Thread::Current
+    // x2-x7: free.
+    ldr    x2, [x1, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_64]    // Load dex cache resolved types array
+                                                              // Load the class (x2)
+    ldr    w2, [x2, x0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
+    cbz    x2, .Lart_quick_alloc_object_rosalloc_slow_path    // Check null class
+                                                              // Check class status.
+    ldr    w3, [x2, #MIRROR_CLASS_STATUS_OFFSET]
+    cmp    x3, #MIRROR_CLASS_STATUS_INITIALIZED
+    bne    .Lart_quick_alloc_object_rosalloc_slow_path
+                                                              // Add a fake dependence from the
+                                                              // following access flag and size
+                                                              // loads to the status load.
+                                                              // This is to prevent those loads
+                                                              // from being reordered above the
+                                                              // status load and reading wrong
+                                                              // values (an alternative is to use
+                                                              // a load-acquire for the status).
+    eor    x3, x3, x3
+    add    x2, x2, x3
+                                                              // Check access flags has
+                                                              // kAccClassIsFinalizable
+    ldr    w3, [x2, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
+    tst    x3, #ACCESS_FLAGS_CLASS_IS_FINALIZABLE
+    bne    .Lart_quick_alloc_object_rosalloc_slow_path
+    ldr    x3, [xSELF, #THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET]  // Check if the thread local
+                                                              // allocation stack has room.
+                                                              // ldp won't work due to large offset.
+    ldr    x4, [xSELF, #THREAD_LOCAL_ALLOC_STACK_END_OFFSET]
+    cmp    x3, x4
+    bhs    .Lart_quick_alloc_object_rosalloc_slow_path
+    ldr    w3, [x2, #MIRROR_CLASS_OBJECT_SIZE_OFFSET]         // Load the object size (x3)
+    cmp    x3, #ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE        // Check if the size is for a thread
+                                                              // local allocation
+    bhs    .Lart_quick_alloc_object_rosalloc_slow_path
+                                                              // Compute the rosalloc bracket index
+                                                              // from the size.
+                                                              // Align up the size by the rosalloc
+                                                              // bracket quantum size and divide
+                                                              // by the quantum size and subtract
+                                                              // by 1. This code is a shorter but
+                                                              // equivalent version.
+    sub    x3, x3, #1
+    lsr    x3, x3, #ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT
+                                                              // Load the rosalloc run (x4)
+    add    x4, xSELF, x3, lsl #POINTER_SIZE_SHIFT
+    ldr    x4, [x4, #THREAD_ROSALLOC_RUNS_OFFSET]
+                                                              // Load the free list head (x3). This
+                                                              // will be the return val.
+    ldr    x3, [x4, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)]
+    cbz    x3, .Lart_quick_alloc_object_rosalloc_slow_path
+    // "Point of no slow path". Won't go to the slow path from here on. OK to clobber x0 and x1.
+    ldr    x1, [x3, #ROSALLOC_SLOT_NEXT_OFFSET]               // Load the next pointer of the head
+                                                              // and update the list head with the
+                                                              // next pointer.
+    str    x1, [x4, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)]
+                                                              // Store the class pointer in the
+                                                              // header. This also overwrites the
+                                                              // next pointer. The offsets are
+                                                              // asserted to match.
+#if ROSALLOC_SLOT_NEXT_OFFSET != MIRROR_OBJECT_CLASS_OFFSET
+#error "Class pointer needs to overwrite next pointer."
+#endif
+    POISON_HEAP_REF w2
+    str    w2, [x3, #MIRROR_OBJECT_CLASS_OFFSET]
+                                                              // Push the new object onto the thread
+                                                              // local allocation stack and
+                                                              // increment the thread local
+                                                              // allocation stack top.
+    ldr    x1, [xSELF, #THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET]
+    str    w3, [x1], #COMPRESSED_REFERENCE_SIZE               // (Increment x1 as a side effect.)
+    str    x1, [xSELF, #THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET]
+                                                              // Decrement the size of the free list
+    ldr    w1, [x4, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)]
+    sub    x1, x1, #1
+                                                              // TODO: consider combining this store
+                                                              // and the list head store above using
+                                                              // strd.
+    str    w1, [x4, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)]
+                                                              // Fence. This is "ish" not "ishst" so
+                                                              // that the code after this allocation
+                                                              // site will see the right values in
+                                                              // the fields of the class.
+                                                              // Alternatively we could use "ishst"
+                                                              // if we use load-acquire for the
+                                                              // class status load.)
+    dmb    ish
+    mov    x0, x3                                             // Set the return value and return.
+    ret
+.Lart_quick_alloc_object_rosalloc_slow_path:
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME      // save callee saves in case of GC
+    mov    x2, xSELF                       // pass Thread::Current
+    bl     artAllocObjectFromCodeRosAlloc  // (uint32_t type_idx, Method* method, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_alloc_object_rosalloc
 
     /*
      * Called by managed code when the thread has been asked to suspend.
