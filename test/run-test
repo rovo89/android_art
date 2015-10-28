@@ -528,6 +528,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --debug               Wait for a debugger to attach."
         echo "    --debuggable          Whether to compile Java code for a debugger."
         echo "    --gdb                 Run under gdb; incompatible with some tests."
+        echo "    --gdb-arg             Pass an option to gdb."
         echo "    --build-only          Build test files only (off by default)."
         echo "    --build-with-javac-dx Build test files with javac and dx (on by default)."
         echo "    --build-with-jack     Build test files with jack and jill (off by default)."
@@ -553,6 +554,8 @@ if [ "$usage" = "yes" ]; then
         echo "                          the image and oat files be relocated to a random"
         echo "                          address before running. (default)"
         echo "    --no-relocate         Force the use of no relocating in the test"
+        echo "    --image               Run the test using a precompiled boot image. (default)"
+        echo "    --no-image            Run the test without a precompiled boot image."
         echo "    --host                Use the host-mode virtual machine."
         echo "    --invoke-with         Pass --invoke-with option to runtime."
         echo "    --dalvik              Use Dalvik (off by default)."
@@ -564,6 +567,7 @@ if [ "$usage" = "yes" ]; then
              "files."
         echo "    --64                  Run the test in 64-bit mode"
         echo "    --trace               Run with method tracing"
+        echo "    --strace              Run with syscall tracing from strace."
         echo "    --stream              Run method tracing in streaming mode (requires --trace)"
         echo "    --gcstress            Run with gc stress testing"
         echo "    --gcverify            Run with gc verification"
@@ -573,6 +577,9 @@ if [ "$usage" = "yes" ]; then
         echo "    --dex2oat-swap        Use a dex2oat swap file."
         echo "    --instruction-set-features [string]"
         echo "                          Set instruction-set-features for compilation."
+        echo "    --pic-image           Use an image compiled with position independent code for the"
+        echo "                          boot class path."
+        echo "    --pic-test            Compile the test code position independent."
     ) 1>&2
     exit 1
 fi
