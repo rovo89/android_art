@@ -69,29 +69,26 @@ static uint16_t CappedAllocRecordCount(size_t alloc_record_count) {
   return alloc_record_count;
 }
 
-class Breakpoint {
+class Breakpoint : public ValueObject {
  public:
-  Breakpoint(ArtMethod* method, uint32_t dex_pc,
-             DeoptimizationRequest::Kind deoptimization_kind)
-    SHARED_REQUIRES(Locks::mutator_lock_)
-    : method_(nullptr), dex_pc_(dex_pc), deoptimization_kind_(deoptimization_kind) {
+  Breakpoint(ArtMethod* method, uint32_t dex_pc, DeoptimizationRequest::Kind deoptimization_kind)
+    : method_(method),
+      dex_pc_(dex_pc),
+      deoptimization_kind_(deoptimization_kind) {
     CHECK(deoptimization_kind_ == DeoptimizationRequest::kNothing ||
           deoptimization_kind_ == DeoptimizationRequest::kSelectiveDeoptimization ||
           deoptimization_kind_ == DeoptimizationRequest::kFullDeoptimization);
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    method_ = soa.EncodeMethod(method);
   }
 
   Breakpoint(const Breakpoint& other) SHARED_REQUIRES(Locks::mutator_lock_)
-    : method_(nullptr), dex_pc_(other.dex_pc_),
-      deoptimization_kind_(other.deoptimization_kind_) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    method_ = soa.EncodeMethod(other.Method());
-  }
+    : method_(other.method_),
+      dex_pc_(other.dex_pc_),
+      deoptimization_kind_(other.deoptimization_kind_) {}
 
-  ArtMethod* Method() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    return soa.DecodeMethod(method_);
+  // Method() is called from root visiting, do not use ScopedObjectAccess here or it can cause
+  // GC to deadlock if another thread tries to call SuspendAll while the GC is in a runnable state.
+  ArtMethod* Method() const {
+    return method_;
   }
 
   uint32_t DexPc() const {
@@ -104,7 +101,7 @@ class Breakpoint {
 
  private:
   // The location of this breakpoint.
-  jmethodID method_;
+  ArtMethod* method_;
   uint32_t dex_pc_;
 
   // Indicates whether breakpoint needs full deoptimization or selective deoptimization.
