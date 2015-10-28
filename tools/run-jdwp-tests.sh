@@ -39,6 +39,8 @@ vm_command="--vm-command=$art"
 image_compiler_option=""
 debug="no"
 verbose="no"
+image=""
+vm_args=""
 # By default, we run the whole JDWP test suite.
 test="org.apache.harmony.jpda.tests.share.AllTests"
 
@@ -86,7 +88,10 @@ while true; do
   fi
 done
 
-vm_args="--vm-arg $image --vm-arg -Xusejit:true"
+if [[ "$image" != "" ]]; then
+  vm_args="--vm-arg $image"
+fi
+vm_args="$vm_args --vm-arg -Xusejit:true"
 debuggee_args="$debuggee_args -Xusejit:true"
 if [[ $debug == "yes" ]]; then
   art="$art -d"
