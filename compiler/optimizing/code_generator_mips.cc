@@ -3118,15 +3118,25 @@ void InstructionCodeGeneratorMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
-  LocationSummary::CallKind call_kind = cls->CanCallRuntime() ? LocationSummary::kCallOnSlowPath
-                                                              : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  InvokeRuntimeCallingConvention calling_convention;
+  CodeGenerator::CreateLoadClassLocationSummary(
+      cls,
+      Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+      Location::RegisterLocation(V0));
 }
 
 void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
+  if (cls->NeedsAccessCheck()) {
+    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
+    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
+                            cls,
+                            cls->GetDexPc(),
+                            nullptr,
+                            IsDirectEntrypoint(kQuickInitializeTypeAndVerifyAccess));
+    return;
+  }
+
   Register out = locations->Out().AsRegister<Register>();
   Register current_method = locations->InAt(0).AsRegister<Register>();
   if (cls->IsReferrersClass()) {
