@@ -92,10 +92,25 @@ class ExceptionTest : public CommonRuntimeTest {
     fake_header_code_and_maps_.insert(fake_header_code_and_maps_.end(),
                                       fake_code_.begin(), fake_code_.end());
 
-    // NOTE: Don't align the code (it will not be executed) but check that the Thumb2
-    // adjustment will be a NOP, see EntryPointToCodePointer().
-    CHECK_ALIGNED(mapping_table_offset, 2);
-    const uint8_t* code_ptr = &fake_header_code_and_maps_[gc_map_offset];
+    // Align the code.
+    const size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
+    fake_header_code_and_maps_.reserve(fake_header_code_and_maps_.size() + alignment);
+    const void* unaligned_code_ptr =
+        fake_header_code_and_maps_.data() + (fake_header_code_and_maps_.size() - code_size);
+    size_t offset = dchecked_integral_cast<size_t>(reinterpret_cast<uintptr_t>(unaligned_code_ptr));
+    size_t padding = RoundUp(offset, alignment) - offset;
+    // Make sure no resizing takes place.
+    CHECK_GE(fake_header_code_and_maps_.capacity(), fake_header_code_and_maps_.size() + padding);
+    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(), padding, 0);
+    const void* code_ptr = reinterpret_cast<const uint8_t*>(unaligned_code_ptr) + padding;
+    CHECK_EQ(code_ptr,
+             static_cast<const void*>(fake_header_code_and_maps_.data() +
+                                          (fake_header_code_and_maps_.size() - code_size)));
+
+    if (kRuntimeISA == kArm) {
+      // Check that the Thumb2 adjustment will be a NOP, see EntryPointToCodePointer().
+      CHECK_ALIGNED(mapping_table_offset, 2);
+    }
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I", sizeof(void*));
     ASSERT_TRUE(method_f_ != nullptr);
