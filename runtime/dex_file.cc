@@ -37,6 +37,7 @@
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
 #include "globals.h"
+#include "handle_scope-inl.h"
 #include "leb128.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
@@ -44,8 +45,8 @@
 #include "os.h"
 #include "reflection.h"
 #include "safe_map.h"
-#include "handle_scope-inl.h"
 #include "thread.h"
+#include "type_lookup_table.h"
 #include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
@@ -414,11 +415,19 @@ DexFile::DexFile(const uint8_t* base, size_t size,
       method_ids_(reinterpret_cast<const MethodId*>(base + header_->method_ids_off_)),
       proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
       class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
-      find_class_def_misses_(0),
-      class_def_index_(nullptr),
       oat_dex_file_(oat_dex_file) {
   CHECK(begin_ != nullptr) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
+  const uint8_t* lookup_data = (oat_dex_file != nullptr)
+      ? oat_dex_file->GetLookupTableData()
+      : nullptr;
+  if (lookup_data != nullptr) {
+    if (lookup_data + TypeLookupTable::RawDataLength(*this) > oat_dex_file->GetOatFile()->End()) {
+      LOG(WARNING) << "found truncated lookup table in " << GetLocation();
+    } else {
+      lookup_table_.reset(TypeLookupTable::Open(lookup_data, *this));
+    }
+  }
 }
 
 DexFile::~DexFile() {
@@ -426,8 +435,6 @@ DexFile::~DexFile() {
   // that's only called after DetachCurrentThread, which means there's no JNIEnv. We could
   // re-attach, but cleaning up these global references is not obviously useful. It's not as if
   // the global reference table is otherwise empty!
-  // Remove the index if one were created.
-  delete class_def_index_.LoadRelaxed();
 }
 
 bool DexFile::Init(std::string* error_msg) {
@@ -477,50 +484,25 @@ uint32_t DexFile::GetVersion() const {
 
 const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor, size_t hash) const {
   DCHECK_EQ(ComputeModifiedUtf8Hash(descriptor), hash);
-  // If we have an index lookup the descriptor via that as its constant time to search.
-  Index* index = class_def_index_.LoadSequentiallyConsistent();
-  if (index != nullptr) {
-    auto it = index->FindWithHash(descriptor, hash);
-    return (it == index->end()) ? nullptr : it->second;
+  if (LIKELY(lookup_table_ != nullptr)) {
+    const uint32_t class_def_idx = lookup_table_->Lookup(descriptor, hash);
+    return (class_def_idx != DexFile::kDexNoIndex) ? &GetClassDef(class_def_idx) : nullptr;
   }
+
   // Fast path for rate no class defs case.
-  uint32_t num_class_defs = NumClassDefs();
+  const uint32_t num_class_defs = NumClassDefs();
   if (num_class_defs == 0) {
     return nullptr;
   }
-  // Search for class def with 2 binary searches and then a linear search.
-  const StringId* string_id = FindStringId(descriptor);
-  if (string_id != nullptr) {
-    const TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
-    if (type_id != nullptr) {
-      uint16_t type_idx = GetIndexForTypeId(*type_id);
-      for (size_t i = 0; i < num_class_defs; ++i) {
-        const ClassDef& class_def = GetClassDef(i);
-        if (class_def.class_idx_ == type_idx) {
-          return &class_def;
-        }
+  const TypeId* type_id = FindTypeId(descriptor);
+  if (type_id != nullptr) {
+    uint16_t type_idx = GetIndexForTypeId(*type_id);
+    for (size_t i = 0; i < num_class_defs; ++i) {
+      const ClassDef& class_def = GetClassDef(i);
+      if (class_def.class_idx_ == type_idx) {
+        return &class_def;
       }
     }
-  }
-  // A miss. If we've had kMaxFailedDexClassDefLookups misses then build an index to speed things
-  // up. This isn't done eagerly at construction as construction is not performed in multi-threaded
-  // sections of tools like dex2oat. If we're lazy we hopefully increase the chance of balancing
-  // out which thread builds the index.
-  const uint32_t kMaxFailedDexClassDefLookups = 100;
-  uint32_t old_misses = find_class_def_misses_.FetchAndAddSequentiallyConsistent(1);
-  if (old_misses == kMaxFailedDexClassDefLookups) {
-    // Are we the ones moving the miss count past the max? Sanity check the index doesn't exist.
-    CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
-    // Build the index.
-    index = new Index();
-    for (uint32_t i = 0; i < num_class_defs;  ++i) {
-      const ClassDef& class_def = GetClassDef(i);
-      const char* class_descriptor = GetClassDescriptor(class_def);
-      index->Insert(std::make_pair(class_descriptor, &class_def));
-    }
-    // Sanity check the index still doesn't exist, only 1 thread should build it.
-    CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
-    class_def_index_.StoreSequentiallyConsistent(index);
   }
   return nullptr;
 }
@@ -625,6 +607,26 @@ const DexFile::StringId* DexFile::FindStringId(const char* string) const {
   return nullptr;
 }
 
+const DexFile::TypeId* DexFile::FindTypeId(const char* string) const {
+  int32_t lo = 0;
+  int32_t hi = NumTypeIds() - 1;
+  while (hi >= lo) {
+    int32_t mid = (hi + lo) / 2;
+    const TypeId& type_id = GetTypeId(mid);
+    const DexFile::StringId& str_id = GetStringId(type_id.descriptor_idx_);
+    const char* str = GetStringData(str_id);
+    int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
+    if (compare > 0) {
+      lo = mid + 1;
+    } else if (compare < 0) {
+      hi = mid - 1;
+    } else {
+      return &type_id;
+    }
+  }
+  return nullptr;
+}
+
 const DexFile::StringId* DexFile::FindStringId(const uint16_t* string, size_t length) const {
   int32_t lo = 0;
   int32_t hi = NumStringIds() - 1;
@@ -695,6 +697,10 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
     }
   }
   return nullptr;
+}
+
+void DexFile::CreateTypeLookupTable() const {
+  lookup_table_.reset(TypeLookupTable::Create(*this));
 }
 
 // Given a signature place the type ids into the given vector
