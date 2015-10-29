@@ -547,6 +547,25 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
       return false;
     }
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
+
+    if (UNLIKELY(oat > End())) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
+                                "lookup table offset", GetLocation().c_str(), i,
+                                dex_file_location.c_str());
+      return false;
+    }
+    uint32_t lookup_table_offset = *reinterpret_cast<const uint32_t*>(oat);
+    oat += sizeof(lookup_table_offset);
+    if (Begin() + lookup_table_offset > End()) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
+                                "lookup table", GetLocation().c_str(), i,
+                                dex_file_location.c_str());
+      return false;
+    }
+    const uint8_t* lookup_table_data = lookup_table_offset != 0u
+        ? Begin() + lookup_table_offset
+        : nullptr;
+
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
@@ -586,6 +605,7 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
                                               canonical_location,
                                               dex_file_checksum,
                                               dex_file_pointer,
+                                              lookup_table_data,
                                               methods_offsets_pointer,
                                               current_dex_cache_arrays);
     oat_dex_files_storage_.push_back(oat_dex_file);
@@ -709,6 +729,7 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const std::string& canonical_dex_file_location,
                                 uint32_t dex_file_location_checksum,
                                 const uint8_t* dex_file_pointer,
+                                const uint8_t* lookup_table_data,
                                 const uint32_t* oat_class_offsets_pointer,
                                 uint8_t* dex_cache_arrays)
     : oat_file_(oat_file),
@@ -716,6 +737,7 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
       canonical_dex_file_location_(canonical_dex_file_location),
       dex_file_location_checksum_(dex_file_location_checksum),
       dex_file_pointer_(dex_file_pointer),
+      lookup_table_data_(lookup_table_data),
       oat_class_offsets_pointer_(oat_class_offsets_pointer),
       dex_cache_arrays_(dex_cache_arrays) {}
 
