@@ -122,6 +122,9 @@ void LICM::Run() {
           if (instruction->NeedsEnvironment()) {
             UpdateLoopPhisIn(instruction->GetEnvironment(), loop_info);
           }
+          // Move instruction into the pre header. Note that this cannot move
+          // a throwing instruction out of its try block since these are hoisted
+          // only from the header block (and TryBoundary would start a new block).
           instruction->MoveBefore(pre_header->GetLastInstruction());
         } else if (instruction->CanThrow()) {
           // If `instruction` can throw, we cannot move further instructions

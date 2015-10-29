@@ -494,42 +494,30 @@ static void RunOptimizations(HGraph* graph,
 
   // TODO: Update passes incompatible with try/catch so we have the same
   //       pipeline for all methods.
-  if (graph->HasTryCatch()) {
-    HOptimization* optimizations2[] = {
-      side_effects,
-      gvn,
-      dce2,
-      // The codegen has a few assumptions that only the instruction simplifier
-      // can satisfy. For example, the code generator does not expect to see a
-      // HTypeConversion from a type to the same type.
-      simplify4,
-    };
-
-    RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
-  } else {
+  if (!graph->HasTryCatch()) {
     MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, handles);
-
-    HOptimization* optimizations2[] = {
-      // BooleanSimplifier depends on the InstructionSimplifier removing
-      // redundant suspend checks to recognize empty blocks.
-      boolean_simplify,
-      fold2,  // TODO: if we don't inline we can also skip fold2.
-      side_effects,
-      gvn,
-      licm,
-      induction,
-      bce,
-      simplify3,
-      lse,
-      dce2,
-      // The codegen has a few assumptions that only the instruction simplifier
-      // can satisfy. For example, the code generator does not expect to see a
-      // HTypeConversion from a type to the same type.
-      simplify4,
-    };
-
-    RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
   }
+
+  HOptimization* optimizations2[] = {
+    // BooleanSimplifier depends on the InstructionSimplifier removing
+    // redundant suspend checks to recognize empty blocks.
+    boolean_simplify,
+    fold2,  // TODO: if we don't inline we can also skip fold2.
+    side_effects,
+    gvn,
+    licm,
+    induction,
+    bce,
+    simplify3,
+    lse,
+    dce2,
+    // The codegen has a few assumptions that only the instruction simplifier
+    // can satisfy. For example, the code generator does not expect to see a
+    // HTypeConversion from a type to the same type.
+    simplify4,
+  };
+
+  RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 
   RunArchOptimizations(driver->GetInstructionSet(), graph, stats, pass_observer);
 }
