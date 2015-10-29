@@ -91,7 +91,8 @@ class ThreadList {
   Thread* FindThreadByThreadId(uint32_t thin_lock_id);
 
   // Run a checkpoint on threads, running threads are not suspended but run the checkpoint inside
-  // of the suspend check. Returns how many checkpoints we should expect to run.
+  // of the suspend check. Returns how many checkpoints that are expected to run, including for
+  // already suspended threads.
   size_t RunCheckpoint(Closure* checkpoint_function)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
