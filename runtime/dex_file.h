@@ -51,6 +51,7 @@ class OatDexFile;
 class Signature;
 template<class T> class Handle;
 class StringPiece;
+class TypeLookupTable;
 class ZipArchive;
 
 // TODO: move all of the macro functionality into the DexCache class.
@@ -531,6 +532,8 @@ class DexFile {
 
   // Looks up a string id for a given modified utf8 string.
   const StringId* FindStringId(const char* string) const;
+
+  const TypeId* FindTypeId(const char* string) const;
 
   // Looks up a string id for a given utf16 string.
   const StringId* FindStringId(const uint16_t* string, size_t length) const;
@@ -1139,6 +1142,12 @@ class DexFile {
     return oat_dex_file_;
   }
 
+  TypeLookupTable* GetTypeLookupTable() const {
+    return lookup_table_.get();
+  }
+
+  void CreateTypeLookupTable() const;
+
  private:
   // Opens a .dex file
   static std::unique_ptr<const DexFile> OpenFile(int fd, const char* location,
@@ -1237,44 +1246,11 @@ class DexFile {
   // Points to the base of the class definition list.
   const ClassDef* const class_defs_;
 
-  // Number of misses finding a class def from a descriptor.
-  mutable Atomic<uint32_t> find_class_def_misses_;
-
-  struct UTF16EmptyFn {
-    void MakeEmpty(std::pair<const char*, const ClassDef*>& pair) const {
-      pair.first = nullptr;
-      pair.second = nullptr;
-    }
-    bool IsEmpty(const std::pair<const char*, const ClassDef*>& pair) const {
-      if (pair.first == nullptr) {
-        DCHECK(pair.second == nullptr);
-        return true;
-      }
-      return false;
-    }
-  };
-  struct UTF16HashCmp {
-    // Hash function.
-    size_t operator()(const char* key) const {
-      return ComputeModifiedUtf8Hash(key);
-    }
-    // std::equal function.
-    bool operator()(const char* a, const char* b) const {
-      return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(a, b) == 0;
-    }
-  };
-  using Index = HashMap<const char*,
-                        const ClassDef*,
-                        UTF16EmptyFn,
-                        UTF16HashCmp,
-                        UTF16HashCmp,
-                        std::allocator<std::pair<const char*, const ClassDef*>>>;
-  mutable Atomic<Index*> class_def_index_;
-
   // If this dex file was loaded from an oat file, oat_dex_file_ contains a
   // pointer to the OatDexFile it was loaded from. Otherwise oat_dex_file_ is
   // null.
   const OatDexFile* oat_dex_file_;
+  mutable std::unique_ptr<TypeLookupTable> lookup_table_;
 
   friend class DexFileVerifierTest;
 };
