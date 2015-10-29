@@ -756,14 +756,7 @@ uint32_t DexFileMethodInliner::FindClassIndex(const DexFile* dex_file, IndexCach
     return *class_index;
   }
 
-  const DexFile::StringId* string_id = dex_file->FindStringId(kClassCacheNames[index]);
-  if (string_id == nullptr) {
-    *class_index = kIndexNotFound;
-    return *class_index;
-  }
-  uint32_t string_index = dex_file->GetIndexForStringId(*string_id);
-
-  const DexFile::TypeId* type_id = dex_file->FindTypeId(string_index);
+  const DexFile::TypeId* type_id = dex_file->FindTypeId(kClassCacheNames[index]);
   if (type_id == nullptr) {
     *class_index = kIndexNotFound;
     return *class_index;
