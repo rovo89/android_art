@@ -110,6 +110,7 @@ testlib="arttestd"
 run_args="--quiet"
 build_args=""
 
+quiet="no"
 debuggable="no"
 prebuild_mode="yes"
 target_mode="yes"
@@ -141,6 +142,9 @@ while true; do
         target_mode="no"
         DEX_LOCATION=$tmp_dir
         run_args="${run_args} --host"
+        shift
+    elif [ "x$1" = "x--quiet" ]; then
+        quiet="yes"
         shift
     elif [ "x$1" = "x--use-java-home" ]; then
         if [ -n "${JAVA_HOME}" ]; then
@@ -351,6 +355,29 @@ while true; do
     fi
 done
 
+# Allocate file descriptor real_stderr and redirect it to the shell's error
+# output (fd 2).
+if [ ${BASH_VERSINFO[1]} -ge 4 ] && [ ${BASH_VERSINFO[2]} -ge 1 ]; then
+  exec {real_stderr}>&2
+else
+  # In bash before version 4.1 we need to do a manual search for free file
+  # descriptors.
+  FD=3
+  while [ -e /dev/fd/$FD ]; do FD=$((FD + 1)); done
+  real_stderr=$FD
+  eval "exec ${real_stderr}>&2"
+fi
+if [ "$quiet" = "yes" ]; then
+  # Force the default standard output and error to go to /dev/null so we will
+  # not print them.
+  exec 1>/dev/null
+  exec 2>/dev/null
+fi
+
+function err_echo() {
+  echo "$@" 1>&${real_stderr}
+}
+
 # tmp_dir may be relative, resolve.
 #
 # Cannot use realpath, as it does not exist on Mac.
@@ -383,7 +410,7 @@ if [ "$trace" = "true" ]; then
         run_args="${run_args} --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin"
     fi
 elif [ "$trace_stream" = "true" ]; then
-    echo "Cannot use --stream without --trace."
+    err_echo "Cannot use --stream without --trace."
     exit 1
 fi
 
@@ -410,7 +437,7 @@ function guess_host_arch_name() {
 if [ "$target_mode" = "no" ]; then
     if [ "$runtime" = "jvm" ]; then
         if [ "$prebuild_mode" = "yes" ]; then
-            echo "--prebuild with --jvm is unsupported";
+            err_echo "--prebuild with --jvm is unsupported"
             exit 1;
         fi
     fi
@@ -462,7 +489,7 @@ fi
 
 if [ "$have_image" = "no" ]; then
     if [ "$runtime" != "art" ]; then
-        echo "--no-image is only supported on the art runtime"
+        err_echo "--no-image is only supported on the art runtime"
         exit 1
     fi
     if [ "$target_mode" = "no" ]; then
@@ -485,7 +512,12 @@ if [ "$have_image" = "no" ]; then
 fi
 
 if [ "$dev_mode" = "yes" -a "$update_mode" = "yes" ]; then
-    echo "--dev and --update are mutually exclusive" 1>&2
+    err_echo "--dev and --update are mutually exclusive"
+    usage="yes"
+fi
+
+if [ "$dev_mode" = "yes" -a "$quiet" = "yes" ]; then
+    err_echo "--dev and --quiet are mutually exclusive"
     usage="yes"
 fi
 
@@ -499,7 +531,7 @@ if [ "$usage" = "no" ]; then
     if [ '!' -d "$test_dir" ]; then
         td2=`echo ${test_dir}-*`
         if [ '!' -d "$td2" ]; then
-            echo "${test_dir}: no such test directory" 1>&2
+            err_echo "${test_dir}: no such test directory"
             usage="yes"
         fi
         test_dir="$td2"
@@ -580,7 +612,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --pic-image           Use an image compiled with position independent code for the"
         echo "                          boot class path."
         echo "    --pic-test            Compile the test code position independent."
-    ) 1>&2
+        echo "    --quiet               Don't print anything except failure messages"
+    ) 1>&2  # Direct to stderr so usage is not printed if --quiet is set.
     exit 1
 fi
 
@@ -591,12 +624,12 @@ td_info="${test_dir}/${info}"
 td_expected="${test_dir}/${expected}"
 
 if [ ! -r $td_info ]; then
-    echo "${test_dir}: missing file $td_info" 1>&2
+    err_echo "${test_dir}: missing file $td_info"
     exit 1
 fi
 
 if [ ! -r $td_expected ]; then
-    echo "${test_dir}: missing file $td_expected" 1>&2
+    err_echo "${test_dir}: missing file $td_expected"
     exit 1
 fi
 
@@ -691,7 +724,7 @@ fi
 if [ ${USE_JACK} = "false" ]; then
   # Set ulimit if we build with dx only, Jack can generate big temp files.
   if ! ulimit -S "$build_file_size_limit"; then
-    echo "ulimit file size setting failed"
+    err_echo "ulimit file size setting failed"
   fi
 fi
 
@@ -704,7 +737,7 @@ if [ "$dev_mode" = "yes" ]; then
     echo "build exit status: $build_exit" 1>&2
     if [ "$build_exit" = '0' ]; then
         if ! ulimit -S "$run_file_size_limit"; then
-          echo "ulimit file size setting failed"
+          err_echo "ulimit file size setting failed"
         fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" 2>&1
@@ -720,7 +753,7 @@ if [ "$dev_mode" = "yes" ]; then
                 if [ "$checker_exit" = "0" ]; then
                     good="yes"
                 fi
-                echo "checker exit status: $checker_exit" 1>&2
+                err_echo "checker exit status: $checker_exit"
             else
                 good="yes"
             fi
@@ -732,7 +765,7 @@ elif [ "$update_mode" = "yes" ]; then
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
         if ! ulimit -S "$run_file_size_limit"; then
-          echo "ulimit file size setting failed"
+          err_echo "ulimit file size setting failed"
         fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
@@ -745,8 +778,8 @@ elif [ "$update_mode" = "yes" ]; then
         sed -e 's/[[:cntrl:]]$//g' < "$output" >"${td_expected}"
         good="yes"
     else
-        cat "$build_output" 1>&2
-        echo "build exit status: $build_exit" 1>&2
+        cat "$build_output" 1>&${real_stderr} 1>&2
+        err_echo "build exit status: $build_exit"
     fi
 elif [ "$build_only" = "yes" ]; then
     good="yes"
@@ -758,7 +791,7 @@ elif [ "$build_only" = "yes" ]; then
         diff --strip-trailing-cr -q "$expected" "$output" >/dev/null
         if [ "$?" '!=' "0" ]; then
             good="no"
-            echo "BUILD FAILED For ${TEST_NAME}"
+            err_echo "BUILD FAILED For ${TEST_NAME}"
         fi
     fi
     # Clean up extraneous files that are not used by tests.
@@ -769,13 +802,13 @@ else
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
         if ! ulimit -S "$run_file_size_limit"; then
-          echo "ulimit file size setting failed"
+          err_echo "ulimit file size setting failed"
         fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         run_exit="$?"
         if [ "$run_exit" != "0" ]; then
-            echo "run exit status: $run_exit" 1>&2
+            err_echo "run exit status: $run_exit"
             good_run="no"
         elif [ "$run_checker" = "yes" ]; then
             if [ "$target_mode" = "yes" ]; then
@@ -784,7 +817,7 @@ else
             "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >> "$output" 2>&1
             checker_exit="$?"
             if [ "$checker_exit" != "0" ]; then
-                echo "checker exit status: $checker_exit" 1>&2
+                err_echo "checker exit status: $checker_exit"
                 good_run="no"
             else
                 good_run="yes"
@@ -831,7 +864,7 @@ fi
         echo ' '
     fi
 
-) 1>&2
+) 2>&${real_stderr} 1>&2
 
 # Clean up test files.
 if [ "$always_clean" = "yes" -o "$good" = "yes" ] && [ "$never_clean" = "no" ]; then
@@ -859,6 +892,6 @@ fi
         fi
     fi
 
-) 1>&2
+) 2>&${real_stderr} 1>&2
 
 exit 1
