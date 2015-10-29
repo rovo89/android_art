@@ -55,8 +55,8 @@ class ThreadList {
 
   // Thread suspension support.
   void ResumeAll()
-      UNLOCK_FUNCTION(Locks::mutator_lock_)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
+      UNLOCK_FUNCTION(Locks::mutator_lock_);
   void Resume(Thread* thread, bool for_debugger = false)
       REQUIRES(!Locks::thread_suspend_count_lock_);
 
@@ -76,7 +76,8 @@ class ThreadList {
   // is set to true.
   Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
                               bool* timed_out)
-      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+      REQUIRES(!Locks::mutator_lock_,
+               !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
   // Suspend a thread using its thread id, typically used by lock/monitor inflation. Returns the
@@ -84,7 +85,8 @@ class ThreadList {
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
   // thread, that may be terminating. If the suspension times out then *timeout is set to true.
   Thread* SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension, bool* timed_out)
-      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+      REQUIRES(!Locks::mutator_lock_,
+               !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
   // Find an already suspended thread (or self) by its id.
@@ -92,7 +94,7 @@ class ThreadList {
 
   // Run a checkpoint on threads, running threads are not suspended but run the checkpoint inside
   // of the suspend check. Returns how many checkpoints that are expected to run, including for
-  // already suspended threads.
+  // already suspended threads for b/24191051.
   size_t RunCheckpoint(Closure* checkpoint_function)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
@@ -101,14 +103,17 @@ class ThreadList {
 
   // Flip thread roots from from-space refs to to-space refs. Used by
   // the concurrent copying collector.
-  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+  size_t FlipThreadRoots(Closure* thread_flip_visitor,
+                         Closure* flip_callback,
                          gc::collector::GarbageCollector* collector)
-      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+      REQUIRES(!Locks::mutator_lock_,
+               !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
   // Suspends all threads
   void SuspendAllForDebugger()
-      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+      REQUIRES(!Locks::mutator_lock_,
+               !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
   void SuspendSelfForDebugger()
@@ -127,10 +132,14 @@ class ThreadList {
 
   // Add/remove current thread from list.
   void Register(Thread* self)
-      REQUIRES(Locks::runtime_shutdown_lock_, !Locks::mutator_lock_, !Locks::thread_list_lock_,
+      REQUIRES(Locks::runtime_shutdown_lock_)
+      REQUIRES(!Locks::mutator_lock_,
+               !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
-  void Unregister(Thread* self) REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
-                                         !Locks::thread_suspend_count_lock_);
+  void Unregister(Thread* self)
+      REQUIRES(!Locks::mutator_lock_,
+               !Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
 
   void VisitRoots(RootVisitor* visitor) const
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -160,7 +169,9 @@ class ThreadList {
   void WaitForOtherNonDaemonThreadsToExit()
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
-  void SuspendAllInternal(Thread* self, Thread* ignore1, Thread* ignore2 = nullptr,
+  void SuspendAllInternal(Thread* self,
+                          Thread* ignore1,
+                          Thread* ignore2 = nullptr,
                           bool debug_suspend = false)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
@@ -201,8 +212,8 @@ class ScopedSuspendAll : public ValueObject {
               !Locks::mutator_lock_);
   // No REQUIRES(mutator_lock_) since the unlock function already asserts this.
   ~ScopedSuspendAll()
-      UNLOCK_FUNCTION(Locks::mutator_lock_)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
+      UNLOCK_FUNCTION(Locks::mutator_lock_);
 };
 
 }  // namespace art
