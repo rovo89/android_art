@@ -339,9 +339,7 @@ class EmptyCheckpoint : public Closure {
         << thread->GetState() << " thread " << thread << " self " << self;
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.
-    if (thread->GetState() == kRunnable) {
-      concurrent_copying_->GetBarrier().Pass(self);
-    }
+    concurrent_copying_->GetBarrier().Pass(self);
   }
 
  private:
@@ -514,9 +512,7 @@ class DisableMarkingCheckpoint : public Closure {
     thread->SetIsGcMarking(false);
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.
-    if (thread->GetState() == kRunnable) {
-      concurrent_copying_->GetBarrier().Pass(self);
-    }
+    concurrent_copying_->GetBarrier().Pass(self);
   }
 
  private:
@@ -937,9 +933,7 @@ class RevokeThreadLocalMarkStackCheckpoint : public Closure {
     }
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.
-    if (thread->GetState() == kRunnable) {
-      concurrent_copying_->GetBarrier().Pass(self);
-    }
+    concurrent_copying_->GetBarrier().Pass(self);
   }
 
  private:
