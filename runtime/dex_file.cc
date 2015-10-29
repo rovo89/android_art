@@ -738,11 +738,7 @@ bool DexFile::CreateTypeList(const StringPiece& signature, uint16_t* return_type
     }
     // TODO: avoid creating a std::string just to get a 0-terminated char array
     std::string descriptor(signature.data() + start_offset, offset - start_offset);
-    const DexFile::StringId* string_id = FindStringId(descriptor.c_str());
-    if (string_id == nullptr) {
-      return false;
-    }
-    const DexFile::TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
+    const DexFile::TypeId* type_id = FindTypeId(descriptor.c_str());
     if (type_id == nullptr) {
       return false;
     }
