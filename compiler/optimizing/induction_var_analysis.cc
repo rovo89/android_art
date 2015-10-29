@@ -20,19 +20,6 @@
 namespace art {
 
 /**
- * Returns true if instruction is invariant within the given loop
- * (instruction is not defined in same or more inner loop).
- */
-static bool IsLoopInvariant(HLoopInformation* loop, HInstruction* instruction) {
-  HLoopInformation* other_loop = instruction->GetBlock()->GetLoopInformation();
-  if (other_loop != loop && (other_loop == nullptr || !other_loop->IsIn(*loop))) {
-    DCHECK(instruction->GetBlock()->Dominates(loop->GetHeader()));
-    return true;
-  }
-  return false;
-}
-
-/**
  * Since graph traversal may enter a SCC at any position, an initial representation may be rotated,
  * along dependences, viz. any of (a, b, c, d), (d, a, b, c)  (c, d, a, b), (b, c, d, a) assuming
  * a chain of dependences (mutual independent items may occur in arbitrary order). For proper
@@ -718,7 +705,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::LookupInfo(HLoopInf
       return loop_it->second;
     }
   }
-  if (IsLoopInvariant(loop, instruction)) {
+  if (loop->IsLoopInvariant(instruction, true)) {
     InductionInfo* info = CreateInvariantFetch(instruction);
     AssignInfo(loop, instruction, info);
     return info;
