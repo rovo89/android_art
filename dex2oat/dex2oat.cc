@@ -1495,6 +1495,7 @@ class Dex2Oat FINAL {
                                      swap_fd_,
                                      profile_file_));
 
+    driver_->SetDexFilesForOatFile(dex_files_);
     driver_->CompileAll(class_loader, dex_files_, timings_);
   }
 

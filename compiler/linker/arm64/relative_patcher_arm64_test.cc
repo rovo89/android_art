@@ -386,6 +386,39 @@ TEST_F(Arm64RelativePatcherTestDefault, CallTrampoline) {
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
+TEST_F(Arm64RelativePatcherTestDefault, CallTrampolineTooFar) {
+  constexpr uint32_t missing_method_index = 1024u;
+  auto last_method_raw_code = GenNopsAndBl(1u, kBlPlus0);
+  constexpr uint32_t bl_offset_in_last_method = 1u * 4u;  // After NOPs.
+  ArrayRef<const uint8_t> last_method_code(last_method_raw_code);
+  ASSERT_EQ(bl_offset_in_last_method + 4u, last_method_code.size());
+  LinkerPatch last_method_patches[] = {
+      LinkerPatch::RelativeCodePatch(bl_offset_in_last_method, nullptr, missing_method_index),
+  };
+
+  constexpr uint32_t just_over_max_negative_disp = 128 * MB + 4;
+  uint32_t last_method_idx = Create2MethodsWithGap(
+      kNopCode, ArrayRef<const LinkerPatch>(), last_method_code,
+      ArrayRef<const LinkerPatch>(last_method_patches),
+      just_over_max_negative_disp - bl_offset_in_last_method);
+  uint32_t method1_offset = GetMethodOffset(1u);
+  uint32_t last_method_offset = GetMethodOffset(last_method_idx);
+  ASSERT_EQ(method1_offset,
+            last_method_offset + bl_offset_in_last_method - just_over_max_negative_disp);
+  ASSERT_FALSE(method_offset_map_.FindMethodOffset(MethodRef(missing_method_index)).first);
+
+  // Check linked code.
+  uint32_t thunk_offset =
+      CompiledCode::AlignCode(last_method_offset + last_method_code.size(), kArm64);
+  uint32_t diff = thunk_offset - (last_method_offset + bl_offset_in_last_method);
+  ASSERT_EQ(diff & 3u, 0u);
+  ASSERT_LT(diff, 128 * MB);
+  auto expected_code = GenNopsAndBl(1u, kBlPlus0 | (diff >> 2));
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(last_method_idx),
+                                ArrayRef<const uint8_t>(expected_code)));
+  EXPECT_TRUE(CheckThunk(thunk_offset));
+}
+
 TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarAfter) {
   auto method1_raw_code = GenNopsAndBl(1u, kBlPlus0);
   constexpr uint32_t bl_offset_in_method1 = 1u * 4u;  // After NOPs.
