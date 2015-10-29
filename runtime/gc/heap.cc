@@ -1291,9 +1291,7 @@ class TrimIndirectReferenceTableClosure : public Closure {
     ATRACE_END();
     // If thread is a running mutator, then act on behalf of the trim thread.
     // See the code in ThreadList::RunCheckpoint.
-    if (thread->GetState() == kRunnable) {
-      barrier_->Pass(Thread::Current());
-    }
+    barrier_->Pass(Thread::Current());
   }
 
  private:
