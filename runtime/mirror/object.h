@@ -99,7 +99,7 @@ class MANAGED LOCKABLE Object {
 #ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
   NO_RETURN
 #endif
-  bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
+  ALWAYS_INLINE bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void AssertReadBarrierPointer() const SHARED_REQUIRES(Locks::mutator_lock_);
 

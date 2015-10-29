@@ -368,30 +368,15 @@ void ConcurrentCopying::MarkingPhase() {
       }
     }
   }
-  // TODO: Other garbage collectors uses Runtime::VisitConcurrentRoots(), refactor this part
-  // to also use the same function.
   {
-    TimingLogger::ScopedTiming split2("VisitConstantRoots", GetTimings());
-    Runtime::Current()->VisitConstantRoots(this);
-  }
-  {
-    TimingLogger::ScopedTiming split3("VisitInternTableRoots", GetTimings());
-    Runtime::Current()->GetInternTable()->VisitRoots(this, kVisitRootFlagAllRoots);
-  }
-  {
-    TimingLogger::ScopedTiming split4("VisitClassLinkerRoots", GetTimings());
-    Runtime::Current()->GetClassLinker()->VisitRoots(this, kVisitRootFlagAllRoots);
+    TimingLogger::ScopedTiming split2("VisitConcurrentRoots", GetTimings());
+    Runtime::Current()->VisitConcurrentRoots(this, kVisitRootFlagAllRoots);
   }
   {
     // TODO: don't visit the transaction roots if it's not active.
     TimingLogger::ScopedTiming split5("VisitNonThreadRoots", GetTimings());
     Runtime::Current()->VisitNonThreadRoots(this);
   }
-  {
-    TimingLogger::ScopedTiming split6("Dbg::VisitRoots", GetTimings());
-    Dbg::VisitRoots(this);
-  }
-  Runtime::Current()->GetHeap()->VisitAllocationRecords(this);
 
   // Immune spaces.
   for (auto& space : heap_->GetContinuousSpaces()) {
@@ -594,8 +579,8 @@ void ConcurrentCopying::PushOntoMarkStack(mirror::Object* to_ref) {
   Thread* self = Thread::Current();  // TODO: pass self as an argument from call sites?
   CHECK(thread_running_gc_ != nullptr);
   MarkStackMode mark_stack_mode = mark_stack_mode_.LoadRelaxed();
-  if (mark_stack_mode == kMarkStackModeThreadLocal) {
-    if (self == thread_running_gc_) {
+  if (LIKELY(mark_stack_mode == kMarkStackModeThreadLocal)) {
+    if (LIKELY(self == thread_running_gc_)) {
       // If GC-running thread, use the GC mark stack instead of a thread-local mark stack.
       CHECK(self->GetThreadLocalMarkStack() == nullptr);
       if (UNLIKELY(gc_mark_stack_->IsFull())) {
@@ -661,18 +646,6 @@ accounting::ObjectStack* ConcurrentCopying::GetAllocationStack() {
 
 accounting::ObjectStack* ConcurrentCopying::GetLiveStack() {
   return heap_->live_stack_.get();
-}
-
-inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {
-  DCHECK(region_space_->IsInFromSpace(from_ref));
-  LockWord lw = from_ref->GetLockWord(false);
-  if (lw.GetState() == LockWord::kForwardingAddress) {
-    mirror::Object* fwd_ptr = reinterpret_cast<mirror::Object*>(lw.ForwardingAddress());
-    CHECK(fwd_ptr != nullptr);
-    return fwd_ptr;
-  } else {
-    return nullptr;
-  }
 }
 
 // The following visitors are that used to verify that there's no
@@ -1080,7 +1053,7 @@ size_t ConcurrentCopying::ProcessThreadLocalMarkStacks(bool disable_weak_ref_acc
   return count;
 }
 
-void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
+inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
   DCHECK(!region_space_->IsInFromSpace(to_ref));
   if (kUseBakerReadBarrier) {
     DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr())
@@ -1095,9 +1068,10 @@ void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         << " " << to_ref << " " << to_ref->GetReadBarrierPointer()
         << " is_marked=" << IsMarked(to_ref);
   }
-  if (to_ref->GetClass<kVerifyNone, kWithoutReadBarrier>()->IsTypeOfReferenceClass() &&
-      to_ref->AsReference()->GetReferent<kWithoutReadBarrier>() != nullptr &&
-      !IsInToSpace(to_ref->AsReference()->GetReferent<kWithoutReadBarrier>())) {
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+  if (UNLIKELY((to_ref->GetClass<kVerifyNone, kWithoutReadBarrier>()->IsTypeOfReferenceClass() &&
+                to_ref->AsReference()->GetReferent<kWithoutReadBarrier>() != nullptr &&
+                !IsInToSpace(to_ref->AsReference()->GetReferent<kWithoutReadBarrier>())))) {
     // Leave this Reference gray in the queue so that GetReferent() will trigger a read barrier. We
     // will change it to black or white later in ReferenceQueue::DequeuePendingReference().
     CHECK(to_ref->AsReference()->IsEnqueued()) << "Left unenqueued ref gray " << to_ref;
@@ -1106,14 +1080,13 @@ void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
     // be concurrently marked after the Scan() call above has enqueued the Reference, in which case
     // the above IsInToSpace() evaluates to true and we change the color from gray to black or white
     // here in this else block.
-#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
     if (kUseBakerReadBarrier) {
       if (region_space_->IsInToSpace(to_ref)) {
         // If to-space, change from gray to white.
         bool success = to_ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(),
                                                            ReadBarrier::WhitePtr());
         CHECK(success) << "Must succeed as we won the race.";
-        CHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::WhitePtr());
+        DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::WhitePtr());
       } else {
         // If non-moving space/unevac from space, change from gray
         // to black. We can't change gray to white because it's not
@@ -1125,13 +1098,13 @@ void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         bool success = to_ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(),
                                                            ReadBarrier::BlackPtr());
         CHECK(success) << "Must succeed as we won the race.";
-        CHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
+        DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
       }
     }
-#else
-    DCHECK(!kUseBakerReadBarrier);
-#endif
   }
+#else
+  DCHECK(!kUseBakerReadBarrier);
+#endif
   if (ReadBarrier::kEnableToSpaceInvariantChecks || kIsDebugBuild) {
     ConcurrentCopyingAssertToSpaceInvariantObjectVisitor visitor(this);
     visitor(to_ref);
@@ -1622,6 +1595,7 @@ class ConcurrentCopyingRefFieldsVisitor {
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      ALWAYS_INLINE
       SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
@@ -1629,6 +1603,7 @@ class ConcurrentCopyingRefFieldsVisitor {
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      ALWAYS_INLINE
       SHARED_REQUIRES(Locks::mutator_lock_) {
     collector_->MarkRoot(root);
   }
@@ -1638,7 +1613,7 @@ class ConcurrentCopyingRefFieldsVisitor {
 };
 
 // Scan ref fields of an object.
-void ConcurrentCopying::Scan(mirror::Object* to_ref) {
+inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
   DCHECK(!region_space_->IsInFromSpace(to_ref));
   ConcurrentCopyingRefFieldsVisitor visitor(this);
   to_ref->VisitReferences(visitor, visitor);
@@ -1648,9 +1623,6 @@ void ConcurrentCopying::Scan(mirror::Object* to_ref) {
 inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset) {
   mirror::Object* ref = obj->GetFieldObject<
       mirror::Object, kVerifyNone, kWithoutReadBarrier, false>(offset);
-  if (ref == nullptr || region_space_->IsInToSpace(ref)) {
-    return;
-  }
   mirror::Object* to_ref = Mark(ref);
   if (to_ref == ref) {
     return;
@@ -1669,14 +1641,11 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
 }
 
 // Process some roots.
-void ConcurrentCopying::VisitRoots(
+inline void ConcurrentCopying::VisitRoots(
     mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED) {
   for (size_t i = 0; i < count; ++i) {
     mirror::Object** root = roots[i];
     mirror::Object* ref = *root;
-    if (ref == nullptr || region_space_->IsInToSpace(ref)) {
-      continue;
-    }
     mirror::Object* to_ref = Mark(ref);
     if (to_ref == ref) {
       continue;
@@ -1693,12 +1662,9 @@ void ConcurrentCopying::VisitRoots(
   }
 }
 
-void ConcurrentCopying::MarkRoot(mirror::CompressedReference<mirror::Object>* root) {
+inline void ConcurrentCopying::MarkRoot(mirror::CompressedReference<mirror::Object>* root) {
   DCHECK(!root->IsNull());
   mirror::Object* const ref = root->AsMirrorPtr();
-  if (region_space_->IsInToSpace(ref)) {
-    return;
-  }
   mirror::Object* to_ref = Mark(ref);
   if (to_ref != ref) {
     auto* addr = reinterpret_cast<Atomic<mirror::CompressedReference<mirror::Object>>*>(root);
@@ -1714,7 +1680,7 @@ void ConcurrentCopying::MarkRoot(mirror::CompressedReference<mirror::Object>* ro
   }
 }
 
-void ConcurrentCopying::VisitRoots(
+inline void ConcurrentCopying::VisitRoots(
     mirror::CompressedReference<mirror::Object>** roots, size_t count,
     const RootInfo& info ATTRIBUTE_UNUSED) {
   for (size_t i = 0; i < count; ++i) {
@@ -2013,148 +1979,85 @@ bool ConcurrentCopying::IsOnAllocStack(mirror::Object* ref) {
   return alloc_stack->Contains(ref);
 }
 
-mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
-  if (from_ref == nullptr) {
-    return nullptr;
-  }
-  DCHECK(from_ref != nullptr);
-  DCHECK(heap_->collector_type_ == kCollectorTypeCC);
-  if (kUseBakerReadBarrier && !is_active_) {
-    // In the lock word forward address state, the read barrier bits
-    // in the lock word are part of the stored forwarding address and
-    // invalid. This is usually OK as the from-space copy of objects
-    // aren't accessed by mutators due to the to-space
-    // invariant. However, during the dex2oat image writing relocation
-    // and the zygote compaction, objects can be in the forward
-    // address state (to store the forward/relocation addresses) and
-    // they can still be accessed and the invalid read barrier bits
-    // are consulted. If they look like gray but aren't really, the
-    // read barriers slow path can trigger when it shouldn't. To guard
-    // against this, return here if the CC collector isn't running.
-    return from_ref;
-  }
-  DCHECK(region_space_ != nullptr) << "Read barrier slow path taken when CC isn't running?";
-  space::RegionSpace::RegionType rtype = region_space_->GetRegionType(from_ref);
-  if (rtype == space::RegionSpace::RegionType::kRegionTypeToSpace) {
-    // It's already marked.
-    return from_ref;
-  }
-  mirror::Object* to_ref;
-  if (rtype == space::RegionSpace::RegionType::kRegionTypeFromSpace) {
-    to_ref = GetFwdPtr(from_ref);
-    if (kUseBakerReadBarrier) {
-      DCHECK(to_ref != ReadBarrier::GrayPtr()) << "from_ref=" << from_ref << " to_ref=" << to_ref;
+mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref) {
+  // ref is in a non-moving space (from_ref == to_ref).
+  DCHECK(!region_space_->HasAddress(ref)) << ref;
+  if (immune_region_.ContainsObject(ref)) {
+    accounting::ContinuousSpaceBitmap* cc_bitmap =
+        cc_heap_bitmap_->GetContinuousSpaceBitmap(ref);
+    DCHECK(cc_bitmap != nullptr)
+        << "An immune space object must have a bitmap";
+    if (kIsDebugBuild) {
+      DCHECK(heap_mark_bitmap_->GetContinuousSpaceBitmap(ref)->Test(ref))
+          << "Immune space object must be already marked";
     }
-    if (to_ref == nullptr) {
-      // It isn't marked yet. Mark it by copying it to the to-space.
-      to_ref = Copy(from_ref);
-    }
-    DCHECK(region_space_->IsInToSpace(to_ref) || heap_->non_moving_space_->HasAddress(to_ref))
-        << "from_ref=" << from_ref << " to_ref=" << to_ref;
-  } else if (rtype == space::RegionSpace::RegionType::kRegionTypeUnevacFromSpace) {
     // This may or may not succeed, which is ok.
     if (kUseBakerReadBarrier) {
-      from_ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
+      ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
     }
-    if (region_space_bitmap_->AtomicTestAndSet(from_ref)) {
+    if (cc_bitmap->AtomicTestAndSet(ref)) {
       // Already marked.
-      to_ref = from_ref;
     } else {
       // Newly marked.
-      to_ref = from_ref;
       if (kUseBakerReadBarrier) {
-        DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr());
+        DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::GrayPtr());
       }
-      PushOntoMarkStack(to_ref);
+      PushOntoMarkStack(ref);
     }
   } else {
-    // from_ref is in a non-moving space.
-    DCHECK(!region_space_->HasAddress(from_ref)) << from_ref;
-    if (immune_region_.ContainsObject(from_ref)) {
-      accounting::ContinuousSpaceBitmap* cc_bitmap =
-          cc_heap_bitmap_->GetContinuousSpaceBitmap(from_ref);
-      DCHECK(cc_bitmap != nullptr)
-          << "An immune space object must have a bitmap";
-      if (kIsDebugBuild) {
-        DCHECK(heap_mark_bitmap_->GetContinuousSpaceBitmap(from_ref)->Test(from_ref))
-            << "Immune space object must be already marked";
-      }
-      // This may or may not succeed, which is ok.
+    // Use the mark bitmap.
+    accounting::ContinuousSpaceBitmap* mark_bitmap =
+        heap_mark_bitmap_->GetContinuousSpaceBitmap(ref);
+    accounting::LargeObjectBitmap* los_bitmap =
+        heap_mark_bitmap_->GetLargeObjectBitmap(ref);
+    CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
+    bool is_los = mark_bitmap == nullptr;
+    if (!is_los && mark_bitmap->Test(ref)) {
+      // Already marked.
       if (kUseBakerReadBarrier) {
-        from_ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
+        DCHECK(ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr() ||
+               ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
       }
-      if (cc_bitmap->AtomicTestAndSet(from_ref)) {
-        // Already marked.
-        to_ref = from_ref;
-      } else {
-        // Newly marked.
-        to_ref = from_ref;
-        if (kUseBakerReadBarrier) {
-          DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr());
-        }
-        PushOntoMarkStack(to_ref);
+    } else if (is_los && los_bitmap->Test(ref)) {
+      // Already marked in LOS.
+      if (kUseBakerReadBarrier) {
+        DCHECK(ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr() ||
+               ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
       }
     } else {
-      // Use the mark bitmap.
-      accounting::ContinuousSpaceBitmap* mark_bitmap =
-          heap_mark_bitmap_->GetContinuousSpaceBitmap(from_ref);
-      accounting::LargeObjectBitmap* los_bitmap =
-          heap_mark_bitmap_->GetLargeObjectBitmap(from_ref);
-      CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
-      bool is_los = mark_bitmap == nullptr;
-      if (!is_los && mark_bitmap->Test(from_ref)) {
-        // Already marked.
-        to_ref = from_ref;
-        if (kUseBakerReadBarrier) {
-          DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr() ||
-                 to_ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
+      // Not marked.
+      if (IsOnAllocStack(ref)) {
+        // If it's on the allocation stack, it's considered marked. Keep it white.
+        // Objects on the allocation stack need not be marked.
+        if (!is_los) {
+          DCHECK(!mark_bitmap->Test(ref));
+        } else {
+          DCHECK(!los_bitmap->Test(ref));
         }
-      } else if (is_los && los_bitmap->Test(from_ref)) {
-        // Already marked in LOS.
-        to_ref = from_ref;
         if (kUseBakerReadBarrier) {
-          DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr() ||
-                 to_ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
+          DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr());
         }
       } else {
-        // Not marked.
-        if (IsOnAllocStack(from_ref)) {
-          // If it's on the allocation stack, it's considered marked. Keep it white.
-          to_ref = from_ref;
-          // Objects on the allocation stack need not be marked.
-          if (!is_los) {
-            DCHECK(!mark_bitmap->Test(to_ref));
-          } else {
-            DCHECK(!los_bitmap->Test(to_ref));
-          }
-          if (kUseBakerReadBarrier) {
-            DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::WhitePtr());
-          }
+        // Not marked or on the allocation stack. Try to mark it.
+        // This may or may not succeed, which is ok.
+        if (kUseBakerReadBarrier) {
+          ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
+        }
+        if (!is_los && mark_bitmap->AtomicTestAndSet(ref)) {
+          // Already marked.
+        } else if (is_los && los_bitmap->AtomicTestAndSet(ref)) {
+          // Already marked in LOS.
         } else {
-          // Not marked or on the allocation stack. Try to mark it.
-          // This may or may not succeed, which is ok.
+          // Newly marked.
           if (kUseBakerReadBarrier) {
-            from_ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
+            DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::GrayPtr());
           }
-          if (!is_los && mark_bitmap->AtomicTestAndSet(from_ref)) {
-            // Already marked.
-            to_ref = from_ref;
-          } else if (is_los && los_bitmap->AtomicTestAndSet(from_ref)) {
-            // Already marked in LOS.
-            to_ref = from_ref;
-          } else {
-            // Newly marked.
-            to_ref = from_ref;
-            if (kUseBakerReadBarrier) {
-              DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr());
-            }
-            PushOntoMarkStack(to_ref);
-          }
+          PushOntoMarkStack(ref);
         }
       }
     }
   }
-  return to_ref;
+  return ref;
 }
 
 void ConcurrentCopying::FinishPhase() {
