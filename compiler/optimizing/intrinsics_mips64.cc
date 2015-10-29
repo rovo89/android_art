@@ -1227,6 +1227,91 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
   GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, true, false, codegen_);
 }
 
+static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorMIPS64* codegen) {
+  Mips64Assembler* assembler = codegen->GetAssembler();
+  GpuRegister base = locations->InAt(1).AsRegister<GpuRegister>();
+  GpuRegister offset = locations->InAt(2).AsRegister<GpuRegister>();
+  GpuRegister expected = locations->InAt(3).AsRegister<GpuRegister>();
+  GpuRegister value = locations->InAt(4).AsRegister<GpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  DCHECK_NE(base, out);
+  DCHECK_NE(offset, out);
+  DCHECK_NE(expected, out);
+
+  // do {
+  //   tmp_value = [tmp_ptr] - expected;
+  // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
+  // result = tmp_value != 0;
+
+  Label loop_head, exit_loop;
+  __ Daddu(TMP, base, offset);
+  __ Sync(0);
+  __ Bind(&loop_head);
+  if (type == Primitive::kPrimLong) {
+    __ Lld(out, TMP);
+  } else {
+    __ Ll(out, TMP);
+  }
+  __ Dsubu(out, out, expected);         // If we didn't get the 'expected'
+  __ Sltiu(out, out, 1);                // value, set 'out' to false, and
+  __ Beqzc(out, &exit_loop);            // return.
+  __ Move(out, value);  // Use 'out' for the 'store conditional' instruction.
+                        // If we use 'value' directly, we would lose 'value'
+                        // in the case that the store fails.  Whether the
+                        // store succeeds, or fails, it will load the
+                        // correct boolean value into the 'out' register.
+  if (type == Primitive::kPrimLong) {
+    __ Scd(out, TMP);
+  } else {
+    __ Sc(out, TMP);
+  }
+  __ Beqzc(out, &loop_head);    // If we couldn't do the read-modify-write
+                                // cycle atomically then retry.
+  __ Bind(&exit_loop);
+  __ Sync(0);
+}
+
+// boolean sun.misc.Unsafe.compareAndSwapInt(Object o, long offset, int expected, int x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeCASInt(HInvoke* invoke) {
+  CreateIntIntIntIntIntToInt(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASInt(HInvoke* invoke) {
+  GenCas(invoke->GetLocations(), Primitive::kPrimInt, codegen_);
+}
+
+// boolean sun.misc.Unsafe.compareAndSwapLong(Object o, long offset, long expected, long x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeCASLong(HInvoke* invoke) {
+  CreateIntIntIntIntIntToInt(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASLong(HInvoke* invoke) {
+  GenCas(invoke->GetLocations(), Primitive::kPrimLong, codegen_);
+}
+
+// boolean sun.misc.Unsafe.compareAndSwapObject(Object o, long offset, Object expected, Object x)
+void IntrinsicLocationsBuilderMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
+  CreateIntIntIntIntIntToInt(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
+  GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
+}
+
 // char java.lang.String.charAt(int index)
 void IntrinsicLocationsBuilderMIPS64::VisitStringCharAt(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
@@ -1502,9 +1587,6 @@ void IntrinsicCodeGeneratorMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
 
-UNIMPLEMENTED_INTRINSIC(UnsafeCASInt)
-UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)
-UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
 UNIMPLEMENTED_INTRINSIC(StringEquals)
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
