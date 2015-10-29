@@ -369,9 +369,7 @@ class MarkCodeClosure FINAL : public Closure {
     DCHECK(thread == Thread::Current() || thread->IsSuspended());
     MarkCodeVisitor visitor(thread, code_cache_);
     visitor.WalkStack();
-    if (thread->GetState() == kRunnable) {
-      barrier_->Pass(Thread::Current());
-    }
+    barrier_->Pass(Thread::Current());
   }
 
  private:
