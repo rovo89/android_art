@@ -695,12 +695,8 @@ class LSEVisitor : public HGraphVisitor {
       } else {
         redundant_store = true;
       }
-      HNewInstance* new_instance = ref_info->GetReference()->AsNewInstance();
-      DCHECK(new_instance != nullptr);
-      if (new_instance->IsFinalizable()) {
-        // Finalizable objects escape globally. Need to keep the store.
-        redundant_store = false;
-      }
+      // TODO: eliminate the store if the singleton object is not finalizable.
+      redundant_store = false;
     }
     if (redundant_store) {
       removed_instructions_.push_back(instruction);
@@ -838,9 +834,7 @@ class LSEVisitor : public HGraphVisitor {
       return;
     }
     if (!heap_location_collector_.MayDeoptimize() &&
-        ref_info->IsSingletonAndNotReturned() &&
-        !new_instance->IsFinalizable() &&
-        !new_instance->CanThrow()) {
+        ref_info->IsSingletonAndNotReturned()) {
       // The allocation might be eliminated.
       singleton_new_instances_.push_back(new_instance);
     }
