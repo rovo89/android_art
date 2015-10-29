@@ -27,6 +27,11 @@ class InstructionWithAbsorbingInputSimplifier : public HGraphVisitor {
  private:
   void VisitShift(HBinaryOperation* shift);
 
+  void VisitAbove(HAbove* instruction) OVERRIDE;
+  void VisitAboveOrEqual(HAboveOrEqual* instruction) OVERRIDE;
+  void VisitBelow(HBelow* instruction) OVERRIDE;
+  void VisitBelowOrEqual(HBelowOrEqual* instruction) OVERRIDE;
+
   void VisitAnd(HAnd* instruction) OVERRIDE;
   void VisitCompare(HCompare* instruction) OVERRIDE;
   void VisitMul(HMul* instruction) OVERRIDE;
@@ -101,6 +106,54 @@ void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instr
     // with
     //    CONSTANT 0
     instruction->ReplaceWith(left);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitAbove(HAbove* instruction) {
+  if (instruction->GetLeft()->IsConstant() &&
+      instruction->GetLeft()->AsConstant()->IsZero()) {
+    // Replace code looking like
+    //    ABOVE dst, 0, src  // unsigned 0 > src is always false
+    // with
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimBoolean, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitAboveOrEqual(HAboveOrEqual* instruction) {
+  if (instruction->GetRight()->IsConstant() &&
+      instruction->GetRight()->AsConstant()->IsZero()) {
+    // Replace code looking like
+    //    ABOVE_OR_EQUAL dst, src, 0  // unsigned src >= 0 is always true
+    // with
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimBoolean, 1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitBelow(HBelow* instruction) {
+  if (instruction->GetRight()->IsConstant() &&
+      instruction->GetRight()->AsConstant()->IsZero()) {
+    // Replace code looking like
+    //    BELOW dst, src, 0  // unsigned src < 0 is always false
+    // with
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimBoolean, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitBelowOrEqual(HBelowOrEqual* instruction) {
+  if (instruction->GetLeft()->IsConstant() &&
+      instruction->GetLeft()->AsConstant()->IsZero()) {
+    // Replace code looking like
+    //    BELOW_OR_EQUAL dst, 0, src  // unsigned 0 <= src is always true
+    // with
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimBoolean, 1));
     instruction->GetBlock()->RemoveInstruction(instruction);
   }
 }
