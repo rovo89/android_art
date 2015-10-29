@@ -445,38 +445,6 @@ class WatchDog {
   pthread_t pthread_;
 };
 
-static void ParseStringAfterChar(const std::string& s, char c, std::string* parsed_value) {
-  std::string::size_type colon = s.find(c);
-  if (colon == std::string::npos) {
-    Usage("Missing char %c in option %s\n", c, s.c_str());
-  }
-  // Add one to remove the char we were trimming until.
-  *parsed_value = s.substr(colon + 1);
-}
-
-static void ParseDouble(const std::string& option, char after_char, double min, double max,
-                        double* parsed_value) {
-  std::string substring;
-  ParseStringAfterChar(option, after_char, &substring);
-  bool sane_val = true;
-  double value;
-  if (false) {
-    // TODO: this doesn't seem to work on the emulator.  b/15114595
-    std::stringstream iss(substring);
-    iss >> value;
-    // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
-    sane_val = iss.eof() && (value >= min) && (value <= max);
-  } else {
-    char* end = nullptr;
-    value = strtod(substring.c_str(), &end);
-    sane_val = *end == '\0' && value >= min && value <= max;
-  }
-  if (!sane_val) {
-    Usage("Invalid double value %s for option %s\n", substring.c_str(), option.c_str());
-  }
-  *parsed_value = value;
-}
-
 static constexpr size_t kMinDexFilesForSwap = 2;
 static constexpr size_t kMinDexFileCumulativeSizeForSwap = 20 * MB;
 
@@ -555,66 +523,21 @@ class Dex2Oat FINAL {
   struct ParserOptions {
     std::string oat_symbols;
     std::string boot_image_filename;
-    const char* compiler_filter_string = nullptr;
-    CompilerOptions::CompilerFilter compiler_filter = CompilerOptions::kDefaultCompilerFilter;
-    bool compile_pic = false;
-    int huge_method_threshold = CompilerOptions::kDefaultHugeMethodThreshold;
-    int large_method_threshold = CompilerOptions::kDefaultLargeMethodThreshold;
-    int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
-    int tiny_method_threshold = CompilerOptions::kDefaultTinyMethodThreshold;
-    int num_dex_methods_threshold = CompilerOptions::kDefaultNumDexMethodsThreshold;
-    static constexpr int kUnsetInlineDepthLimit = -1;
-    int inline_depth_limit = kUnsetInlineDepthLimit;
-    static constexpr int kUnsetInlineMaxCodeUnits = -1;
-    int inline_max_code_units = kUnsetInlineMaxCodeUnits;
-
-    // Profile file to use
-    double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
-
-    bool debuggable = false;
-    bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
-    bool generate_debug_info = kIsDebugBuild;
     bool watch_dog_enabled = true;
-    bool abort_on_hard_verifier_error = false;
     bool requested_specific_compiler = false;
-
-    bool implicit_null_checks = false;
-    bool implicit_so_checks = false;
-    bool implicit_suspend_checks = false;
-
-    PassManagerOptions pass_manager_options;
-
     std::string error_msg;
   };
 
-  template <typename T>
-  static void ParseUintOption(const StringPiece& option,
-                              const std::string& option_name,
-                              T* out,
-                              bool is_long_option = true) {
-    std::string option_prefix = option_name + (is_long_option ? "=" : "");
-    DCHECK(option.starts_with(option_prefix));
-    const char* value_string = option.substr(option_prefix.size()).data();
-    int64_t parsed_integer_value;
-    if (!ParseInt(value_string, &parsed_integer_value)) {
-      Usage("Failed to parse %s '%s' as an integer", option_name.c_str(), value_string);
-    }
-    if (parsed_integer_value < 0) {
-      Usage("%s passed a negative value %d", option_name.c_str(), parsed_integer_value);
-    }
-    *out = dchecked_integral_cast<T>(parsed_integer_value);
-  }
-
   void ParseZipFd(const StringPiece& option) {
-    ParseUintOption(option, "--zip-fd", &zip_fd_);
+    ParseUintOption(option, "--zip-fd", &zip_fd_, Usage);
   }
 
   void ParseOatFd(const StringPiece& option) {
-    ParseUintOption(option, "--oat-fd", &oat_fd_);
+    ParseUintOption(option, "--oat-fd", &oat_fd_, Usage);
   }
 
   void ParseJ(const StringPiece& option) {
-    ParseUintOption(option, "-j", &thread_count_, /* is_long_option */ false);
+    ParseUintOption(option, "-j", &thread_count_, Usage, /* is_long_option */ false);
   }
 
   void ParseBase(const StringPiece& option) {
@@ -685,80 +608,15 @@ class Dex2Oat FINAL {
     }
   }
 
-  void ParseHugeMethodMax(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--huge-method-max", &parser_options->huge_method_threshold);
-  }
-
-  void ParseLargeMethodMax(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--large-method-max", &parser_options->large_method_threshold);
-  }
-
-  void ParseSmallMethodMax(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--small-method-max", &parser_options->small_method_threshold);
-  }
-
-  void ParseTinyMethodMax(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--tiny-method-max", &parser_options->tiny_method_threshold);
-  }
-
-  void ParseNumDexMethods(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--num-dex-methods", &parser_options->num_dex_methods_threshold);
-  }
-
-  void ParseInlineDepthLimit(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--inline-depth-limit", &parser_options->inline_depth_limit);
-  }
-
-  void ParseInlineMaxCodeUnits(const StringPiece& option, ParserOptions* parser_options) {
-    ParseUintOption(option, "--inline-max-code-units=", &parser_options->inline_max_code_units);
-  }
-
-  void ParseDisablePasses(const StringPiece& option, ParserOptions* parser_options) {
-    DCHECK(option.starts_with("--disable-passes="));
-    const std::string disable_passes = option.substr(strlen("--disable-passes=")).data();
-    parser_options->pass_manager_options.SetDisablePassList(disable_passes);
-  }
-
-  void ParsePrintPasses(const StringPiece& option, ParserOptions* parser_options) {
-    DCHECK(option.starts_with("--print-passes="));
-    const std::string print_passes = option.substr(strlen("--print-passes=")).data();
-    parser_options->pass_manager_options.SetPrintPassList(print_passes);
-  }
-
-  void ParseDumpCfgPasses(const StringPiece& option, ParserOptions* parser_options) {
-    DCHECK(option.starts_with("--dump-cfg-passes="));
-    const std::string dump_passes_string = option.substr(strlen("--dump-cfg-passes=")).data();
-    parser_options->pass_manager_options.SetDumpPassList(dump_passes_string);
-  }
-
-  void ParsePassOptions(const StringPiece& option, ParserOptions* parser_options) {
-    DCHECK(option.starts_with("--pass-options="));
-    const std::string pass_options = option.substr(strlen("--pass-options=")).data();
-    parser_options->pass_manager_options.SetOverriddenPassOptions(pass_options);
-  }
-
-  void ParseDumpInitFailures(const StringPiece& option) {
-    DCHECK(option.starts_with("--dump-init-failures="));
-    std::string file_name = option.substr(strlen("--dump-init-failures=")).data();
-    init_failure_output_.reset(new std::ofstream(file_name));
-    if (init_failure_output_.get() == nullptr) {
-      LOG(ERROR) << "Failed to allocate ofstream";
-    } else if (init_failure_output_->fail()) {
-      LOG(ERROR) << "Failed to open " << file_name << " for writing the initialization "
-                 << "failures.";
-      init_failure_output_.reset();
-    }
-  }
-
   void ParseSwapFd(const StringPiece& option) {
-    ParseUintOption(option, "--swap-fd", &swap_fd_);
+    ParseUintOption(option, "--swap-fd", &swap_fd_, Usage);
   }
 
   void ProcessOptions(ParserOptions* parser_options) {
     image_ = (!image_filename_.empty());
     if (image_) {
       // We need the boot image to always be debuggable.
-      parser_options->debuggable = true;
+      compiler_options_->debuggable_ = true;
     }
 
     if (oat_filename_.empty() && oat_fd_ == -1) {
@@ -882,44 +740,19 @@ class Dex2Oat FINAL {
       }
     }
 
-    if (parser_options->compiler_filter_string == nullptr) {
-      parser_options->compiler_filter_string = "speed";
-    }
-
-    CHECK(parser_options->compiler_filter_string != nullptr);
-    if (strcmp(parser_options->compiler_filter_string, "verify-none") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kVerifyNone;
-    } else if (strcmp(parser_options->compiler_filter_string, "interpret-only") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kInterpretOnly;
-    } else if (strcmp(parser_options->compiler_filter_string, "verify-at-runtime") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kVerifyAtRuntime;
-    } else if (strcmp(parser_options->compiler_filter_string, "space") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kSpace;
-    } else if (strcmp(parser_options->compiler_filter_string, "balanced") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kBalanced;
-    } else if (strcmp(parser_options->compiler_filter_string, "speed") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kSpeed;
-    } else if (strcmp(parser_options->compiler_filter_string, "everything") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kEverything;
-    } else if (strcmp(parser_options->compiler_filter_string, "time") == 0) {
-      parser_options->compiler_filter = CompilerOptions::kTime;
-    } else {
-      Usage("Unknown --compiler-filter value %s", parser_options->compiler_filter_string);
-    }
-
     // It they are not set, use default values for inlining settings.
     // TODO: We should rethink the compiler filter. We mostly save
     // time here, which is orthogonal to space.
-    if (parser_options->inline_depth_limit == ParserOptions::kUnsetInlineDepthLimit) {
-      parser_options->inline_depth_limit =
-          (parser_options->compiler_filter == CompilerOptions::kSpace)
+    if (compiler_options_->inline_depth_limit_ == CompilerOptions::kUnsetInlineDepthLimit) {
+      compiler_options_->inline_depth_limit_ =
+          (compiler_options_->compiler_filter_ == CompilerOptions::kSpace)
           // Implementation of the space filter: limit inlining depth.
           ? CompilerOptions::kSpaceFilterInlineDepthLimit
           : CompilerOptions::kDefaultInlineDepthLimit;
     }
-    if (parser_options->inline_max_code_units == ParserOptions::kUnsetInlineMaxCodeUnits) {
-      parser_options->inline_max_code_units =
-          (parser_options->compiler_filter == CompilerOptions::kSpace)
+    if (compiler_options_->inline_max_code_units_ == CompilerOptions::kUnsetInlineMaxCodeUnits) {
+      compiler_options_->inline_max_code_units_ =
+          (compiler_options_->compiler_filter_ == CompilerOptions::kSpace)
           // Implementation of the space filter: limit inlining max code units.
           ? CompilerOptions::kSpaceFilterInlineMaxCodeUnits
           : CompilerOptions::kDefaultInlineMaxCodeUnits;
@@ -935,8 +768,8 @@ class Dex2Oat FINAL {
       case kX86_64:
       case kMips:
       case kMips64:
-        parser_options->implicit_null_checks = true;
-        parser_options->implicit_so_checks = true;
+        compiler_options_->implicit_null_checks_ = true;
+        compiler_options_->implicit_so_checks_ = true;
         break;
 
       default:
@@ -944,29 +777,7 @@ class Dex2Oat FINAL {
         break;
     }
 
-    compiler_options_.reset(new CompilerOptions(parser_options->compiler_filter,
-                                                parser_options->huge_method_threshold,
-                                                parser_options->large_method_threshold,
-                                                parser_options->small_method_threshold,
-                                                parser_options->tiny_method_threshold,
-                                                parser_options->num_dex_methods_threshold,
-                                                parser_options->inline_depth_limit,
-                                                parser_options->inline_max_code_units,
-                                                parser_options->include_patch_information,
-                                                parser_options->top_k_profile_threshold,
-                                                parser_options->debuggable,
-                                                parser_options->generate_debug_info,
-                                                parser_options->implicit_null_checks,
-                                                parser_options->implicit_so_checks,
-                                                parser_options->implicit_suspend_checks,
-                                                parser_options->compile_pic,
-                                                verbose_methods_.empty() ?
-                                                    nullptr :
-                                                    &verbose_methods_,
-                                                new PassManagerOptions(
-                                                    parser_options->pass_manager_options),
-                                                init_failure_output_.get(),
-                                                parser_options->abort_on_hard_verifier_error));
+    compiler_options_->verbose_methods_ = verbose_methods_.empty() ? nullptr : &verbose_methods_;
 
     // Done with usage checks, enable watchdog if requested
     if (parser_options->watch_dog_enabled) {
@@ -977,7 +788,7 @@ class Dex2Oat FINAL {
     key_value_store_.reset(new SafeMap<std::string, std::string>());
   }
 
-  void InsertCompileOptions(int argc, char** argv, ParserOptions* parser_options) {
+  void InsertCompileOptions(int argc, char** argv) {
     std::ostringstream oss;
     for (int i = 0; i < argc; ++i) {
       if (i > 0) {
@@ -991,10 +802,10 @@ class Dex2Oat FINAL {
     key_value_store_->Put(OatHeader::kDex2OatHostKey, oss.str());
     key_value_store_->Put(
         OatHeader::kPicKey,
-        parser_options->compile_pic ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+        compiler_options_->compile_pic_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     key_value_store_->Put(
         OatHeader::kDebuggableKey,
-        parser_options->debuggable ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+        compiler_options_->debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
   }
 
   // Parse the arguments from the command line. In case of an unrecognized option or impossible
@@ -1015,6 +826,7 @@ class Dex2Oat FINAL {
     }
 
     std::unique_ptr<ParserOptions> parser_options(new ParserOptions());
+    compiler_options_.reset(new CompilerOptions());
 
     for (int i = 0; i < argc; i++) {
       const StringPiece option(argv[i]);
@@ -1072,24 +884,11 @@ class Dex2Oat FINAL {
         ParseInstructionSetFeatures(option, parser_options.get());
       } else if (option.starts_with("--compiler-backend=")) {
         ParseCompilerBackend(option, parser_options.get());
-      } else if (option.starts_with("--compiler-filter=")) {
-        parser_options->compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
-      } else if (option == "--compile-pic") {
-        parser_options->compile_pic = true;
-      } else if (option.starts_with("--huge-method-max=")) {
-        ParseHugeMethodMax(option, parser_options.get());
-      } else if (option.starts_with("--large-method-max=")) {
-        ParseLargeMethodMax(option, parser_options.get());
-      } else if (option.starts_with("--small-method-max=")) {
-        ParseSmallMethodMax(option, parser_options.get());
-      } else if (option.starts_with("--tiny-method-max=")) {
-        ParseTinyMethodMax(option, parser_options.get());
-      } else if (option.starts_with("--num-dex-methods=")) {
-        ParseNumDexMethods(option, parser_options.get());
-      } else if (option.starts_with("--inline-depth-limit=")) {
-        ParseInlineDepthLimit(option, parser_options.get());
-      } else if (option.starts_with("--inline-max-code-units=")) {
-        ParseInlineMaxCodeUnits(option, parser_options.get());
+      } else if (option.starts_with("--profile-file=")) {
+        profile_file_ = option.substr(strlen("--profile-file=")).data();
+        VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
+      } else if (option == "--no-profile-file") {
+        // No profile
       } else if (option == "--host") {
         is_host_ = true;
       } else if (option == "--runtime-arg") {
@@ -1110,52 +909,16 @@ class Dex2Oat FINAL {
         dump_cfg_append_ = true;
       } else if (option == "--dump-stats") {
         dump_stats_ = true;
-      } else if (option == "--generate-debug-info" || option == "-g") {
-        parser_options->generate_debug_info = true;
-      } else if (option == "--no-generate-debug-info") {
-        parser_options->generate_debug_info = false;
-      } else if (option == "--debuggable") {
-        parser_options->debuggable = true;
-        parser_options->generate_debug_info = true;
-      } else if (option.starts_with("--profile-file=")) {
-        profile_file_ = option.substr(strlen("--profile-file=")).data();
-        VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
-      } else if (option == "--no-profile-file") {
-        // No profile
-      } else if (option.starts_with("--top-k-profile-threshold=")) {
-        ParseDouble(option.data(), '=', 0.0, 100.0, &parser_options->top_k_profile_threshold);
-      } else if (option == "--print-pass-names") {
-        parser_options->pass_manager_options.SetPrintPassNames(true);
-      } else if (option.starts_with("--disable-passes=")) {
-        ParseDisablePasses(option, parser_options.get());
-      } else if (option.starts_with("--print-passes=")) {
-        ParsePrintPasses(option, parser_options.get());
-      } else if (option == "--print-all-passes") {
-        parser_options->pass_manager_options.SetPrintAllPasses();
-      } else if (option.starts_with("--dump-cfg-passes=")) {
-        ParseDumpCfgPasses(option, parser_options.get());
-      } else if (option == "--print-pass-options") {
-        parser_options->pass_manager_options.SetPrintPassOptions(true);
-      } else if (option.starts_with("--pass-options=")) {
-        ParsePassOptions(option, parser_options.get());
-      } else if (option == "--include-patch-information") {
-        parser_options->include_patch_information = true;
-      } else if (option == "--no-include-patch-information") {
-        parser_options->include_patch_information = false;
+      } else if (option.starts_with("--swap-file=")) {
+        swap_file_name_ = option.substr(strlen("--swap-file=")).data();
+      } else if (option.starts_with("--swap-fd=")) {
+        ParseSwapFd(option);
       } else if (option.starts_with("--verbose-methods=")) {
         // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages
         //       conditional on having verbost methods.
         gLogVerbosity.compiler = false;
         Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods_);
-      } else if (option.starts_with("--dump-init-failures=")) {
-        ParseDumpInitFailures(option);
-      } else if (option.starts_with("--swap-file=")) {
-        swap_file_name_ = option.substr(strlen("--swap-file=")).data();
-      } else if (option.starts_with("--swap-fd=")) {
-        ParseSwapFd(option);
-      } else if (option == "--abort-on-hard-verifier-error") {
-        parser_options->abort_on_hard_verifier_error = true;
-      } else {
+      } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
         Usage("Unknown argument %s", option.data());
       }
     }
@@ -1163,7 +926,7 @@ class Dex2Oat FINAL {
     ProcessOptions(parser_options.get());
 
     // Insert some compiler things.
-    InsertCompileOptions(argc, argv, parser_options.get());
+    InsertCompileOptions(argc, argv);
   }
 
   // Check whether the oat output file is writable, and open it for later. Also open a swap file,
@@ -2005,7 +1768,6 @@ class Dex2Oat FINAL {
   std::string profile_file_;  // Profile file to use
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
-  std::unique_ptr<std::ostream> init_failure_output_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
