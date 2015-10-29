@@ -200,10 +200,8 @@ class CompilerDriver {
       REQUIRES(!Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
-  bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
-                                              const DexFile& dex_file,
-                                              uint32_t type_idx,
-                                              bool* finalizable)
+  bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
+                                              uint32_t type_idx)
       REQUIRES(!Locks::mutator_lock_);
 
   bool CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
