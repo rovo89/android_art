@@ -18,7 +18,9 @@ package com.android.ahat;
 
 import com.android.tools.perflib.heap.Heap;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Class for rendering a table that includes sizes of some kind for each heap.
@@ -27,22 +29,27 @@ class HeapTable {
   /**
    * Configuration for a value column of a heap table.
    */
-  public static interface ValueConfig<T> {
-    public String getDescription();
-    public DocString render(T element);
+  public interface ValueConfig<T> {
+    String getDescription();
+    DocString render(T element);
   }
 
   /**
    * Configuration for the HeapTable.
    */
-  public static interface TableConfig<T> {
-    public String getHeapsDescription();
-    public long getSize(T element, Heap heap);
-    public List<ValueConfig<T>> getValueConfigs();
+  public interface TableConfig<T> {
+    String getHeapsDescription();
+    long getSize(T element, Heap heap);
+    List<ValueConfig<T>> getValueConfigs();
   }
 
-  public static <T> void render(Doc doc, TableConfig<T> config,
-      AhatSnapshot snapshot, List<T> elements) {
+  /**
+   * Render the table to the given document.
+   * @param query - The page query.
+   * @param id - A unique identifier for the table on the page.
+   */
+  public static <T> void render(Doc doc, Query query, String id,
+      TableConfig<T> config, AhatSnapshot snapshot, List<T> elements) {
     // Only show the heaps that have non-zero entries.
     List<Heap> heaps = new ArrayList<Heap>();
     for (Heap heap : snapshot.getHeaps()) {
@@ -68,9 +75,10 @@ class HeapTable {
     }
     doc.table(DocString.text(config.getHeapsDescription()), subcols, cols);
 
-    // Print the entries.
+    // Print the entries up to the selected limit.
+    SubsetSelector<T> selector = new SubsetSelector(query, id, elements);
     ArrayList<DocString> vals = new ArrayList<DocString>();
-    for (T elem : elements) {
+    for (T elem : selector.selected()) {
       vals.clear();
       long total = 0;
       for (Heap heap : heaps) {
@@ -87,7 +95,39 @@ class HeapTable {
       }
       doc.row(vals.toArray(new DocString[0]));
     }
+
+    // Print a summary of the remaining entries if there are any.
+    List<T> remaining = selector.remaining();
+    if (!remaining.isEmpty()) {
+      Map<Heap, Long> summary = new HashMap<Heap, Long>();
+      for (Heap heap : heaps) {
+        summary.put(heap, 0L);
+      }
+
+      for (T elem : remaining) {
+        for (Heap heap : heaps) {
+          summary.put(heap, summary.get(heap) + config.getSize(elem, heap));
+        }
+      }
+
+      vals.clear();
+      long total = 0;
+      for (Heap heap : heaps) {
+        long size = summary.get(heap);
+        total += size;
+        vals.add(DocString.format("%,14d", size));
+      }
+      if (showTotal) {
+        vals.add(DocString.format("%,14d", total));
+      }
+
+      for (ValueConfig<T> value : values) {
+        vals.add(DocString.text("..."));
+      }
+      doc.row(vals.toArray(new DocString[0]));
+    }
     doc.end();
+    selector.render(doc);
   }
 
   // Returns true if the given heap has a non-zero size entry.
