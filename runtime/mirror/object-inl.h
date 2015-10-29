@@ -95,6 +95,12 @@ inline bool Object::CasLockWordWeakRelaxed(LockWord old_val, LockWord new_val) {
       OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
 }
 
+inline bool Object::CasLockWordWeakRelease(LockWord old_val, LockWord new_val) {
+  // Force use of non-transactional mode and do not check.
+  return CasFieldWeakRelease32<false, false>(
+      OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
+}
+
 inline uint32_t Object::GetLockOwnerThreadId() {
   return Monitor::GetLockOwnerThreadId(this);
 }
@@ -175,7 +181,10 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(expected_rb_ptr)));
     new_lw = lw;
     new_lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
-  } while (!CasLockWordWeakSequentiallyConsistent(expected_lw, new_lw));
+    // This CAS is a CAS release so that when GC updates all the fields of an object and then
+    // changes the object from gray to black, the field updates (stores) will be visible (won't be
+    // reordered after this CAS.)
+  } while (!CasLockWordWeakRelease(expected_lw, new_lw));
   return true;
 #elif USE_BROOKS_READ_BARRIER
   DCHECK(kUseBrooksReadBarrier);
@@ -671,6 +680,24 @@ inline bool Object::CasFieldWeakRelaxed32(MemberOffset field_offset,
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldWeakRelease32(MemberOffset field_offset,
+                                          int32_t old_value, int32_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField32(this, field_offset, old_value, true);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
+  AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
+
+  return atomic_addr->CompareExchangeWeakRelease(old_value, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline bool Object::CasFieldStrongSequentiallyConsistent32(MemberOffset field_offset,
                                                            int32_t old_value, int32_t new_value) {
   if (kCheckTransaction) {
@@ -941,6 +968,62 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrie
 
   bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref.reference_,
                                                                           new_ref.reference_);
+  return success;
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldWeakRelaxedObjectWithoutWriteBarrier(
+    MemberOffset field_offset, Object* old_value, Object* new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  if (kVerifyFlags & kVerifyWrites) {
+    VerifyObject(new_value);
+  }
+  if (kVerifyFlags & kVerifyReads) {
+    VerifyObject(old_value);
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
+  }
+  HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
+  HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
+  Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
+
+  bool success = atomic_addr->CompareExchangeWeakRelaxed(old_ref.reference_,
+                                                         new_ref.reference_);
+  return success;
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongRelaxedObjectWithoutWriteBarrier(
+    MemberOffset field_offset, Object* old_value, Object* new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  if (kVerifyFlags & kVerifyWrites) {
+    VerifyObject(new_value);
+  }
+  if (kVerifyFlags & kVerifyReads) {
+    VerifyObject(old_value);
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
+  }
+  HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
+  HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
+  Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
+
+  bool success = atomic_addr->CompareExchangeStrongRelaxed(old_ref.reference_,
+                                                           new_ref.reference_);
   return success;
 }
 
