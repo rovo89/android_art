@@ -1129,6 +1129,14 @@ std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& 
 }
 
 void HInstruction::MoveBefore(HInstruction* cursor) {
+  if (kIsDebugBuild && CanThrowIntoCatchBlock()) {
+    // Make sure we are not moving a throwing instruction out of its try block.
+    DCHECK(cursor->GetBlock()->IsTryBlock());
+    const HTryBoundary& current_try = block_->GetTryCatchInformation()->GetTryEntry();
+    const HTryBoundary& cursor_try = cursor->GetBlock()->GetTryCatchInformation()->GetTryEntry();
+    DCHECK(cursor_try.HasSameExceptionHandlersAs(current_try));
+  }
+
   next_->previous_ = previous_;
   if (previous_ != nullptr) {
     previous_->next_ = next_;
