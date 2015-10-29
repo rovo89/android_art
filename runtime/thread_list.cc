@@ -60,8 +60,11 @@ static constexpr useconds_t kThreadSuspendMaxYieldUs = 3000;
 static constexpr useconds_t kThreadSuspendMaxSleepUs = 5000;
 
 ThreadList::ThreadList()
-    : suspend_all_count_(0), debug_suspend_all_count_(0), unregistering_count_(0),
-      suspend_all_historam_("suspend all histogram", 16, 64), long_suspend_(false) {
+    : suspend_all_count_(0),
+      debug_suspend_all_count_(0),
+      unregistering_count_(0),
+      suspend_all_historam_("suspend all histogram", 16, 64),
+      long_suspend_(false) {
   CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1, 0U)));
 }
 
@@ -381,7 +384,8 @@ size_t ThreadList::RunCheckpointOnRunnableThreads(Closure* checkpoint_function) 
 // from-space to to-space refs. Used to synchronize threads at a point
 // to mark the initiation of marking while maintaining the to-space
 // invariant.
-size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
+                                   Closure* flip_callback,
                                    gc::collector::GarbageCollector* collector) {
   TimingLogger::ScopedTiming split("ThreadListFlip", collector->GetTimings());
   const uint64_t start_time = NanoTime();
@@ -509,7 +513,9 @@ void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
 // Debugger thread might be set to kRunnable for a short period of time after the
 // SuspendAllInternal. This is safe because it will be set back to suspended state before
 // the SuspendAll returns.
-void ThreadList::SuspendAllInternal(Thread* self, Thread* ignore1, Thread* ignore2,
+void ThreadList::SuspendAllInternal(Thread* self,
+                                    Thread* ignore1,
+                                    Thread* ignore2,
                                     bool debug_suspend) {
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -698,12 +704,14 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
   VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") complete";
 }
 
-static void ThreadSuspendByPeerWarning(Thread* self, LogSeverity severity, const char* message,
+static void ThreadSuspendByPeerWarning(Thread* self,
+                                       LogSeverity severity,
+                                       const char* message,
                                        jobject peer) {
   JNIEnvExt* env = self->GetJniEnv();
   ScopedLocalRef<jstring>
-      scoped_name_string(env, (jstring)env->GetObjectField(
-          peer, WellKnownClasses::java_lang_Thread_name));
+      scoped_name_string(env, static_cast<jstring>(env->GetObjectField(
+          peer, WellKnownClasses::java_lang_Thread_name)));
   ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
   if (scoped_name_chars.c_str() == nullptr) {
       LOG(severity) << message << ": " << peer;
@@ -713,8 +721,10 @@ static void ThreadSuspendByPeerWarning(Thread* self, LogSeverity severity, const
   }
 }
 
-Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
-                                        bool debug_suspension, bool* timed_out) {
+Thread* ThreadList::SuspendThreadByPeer(jobject peer,
+                                        bool request_suspension,
+                                        bool debug_suspension,
+                                        bool* timed_out) {
   const uint64_t start_time = NanoTime();
   useconds_t sleep_us = kThreadSuspendInitialSleepUs;
   *timed_out = false;
@@ -811,12 +821,14 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
   }
 }
 
-static void ThreadSuspendByThreadIdWarning(LogSeverity severity, const char* message,
+static void ThreadSuspendByThreadIdWarning(LogSeverity severity,
+                                           const char* message,
                                            uint32_t thread_id) {
   LOG(severity) << StringPrintf("%s: %d", message, thread_id);
 }
 
-Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension,
+Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id,
+                                            bool debug_suspension,
                                             bool* timed_out) {
   const uint64_t start_time = NanoTime();
   useconds_t sleep_us = kThreadSuspendInitialSleepUs;
