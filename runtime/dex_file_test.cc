@@ -297,6 +297,7 @@ TEST_F(DexFileTest, FindTypeId) {
     ASSERT_TRUE(type_str_id != nullptr);
     uint32_t type_str_idx = java_lang_dex_file_->GetIndexForStringId(*type_str_id);
     const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(type_str_idx);
+    ASSERT_EQ(type_id, java_lang_dex_file_->FindTypeId(type_str));
     ASSERT_TRUE(type_id != nullptr);
     EXPECT_EQ(java_lang_dex_file_->GetIndexForTypeId(*type_id), i);
   }

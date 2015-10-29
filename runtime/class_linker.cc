@@ -616,10 +616,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // initialized.
   {
     const DexFile& dex_file = java_lang_Object->GetDexFile();
-    const DexFile::StringId* void_string_id = dex_file.FindStringId("V");
-    CHECK(void_string_id != nullptr);
-    uint32_t void_string_index = dex_file.GetIndexForStringId(*void_string_id);
-    const DexFile::TypeId* void_type_id = dex_file.FindTypeId(void_string_index);
+    const DexFile::TypeId* void_type_id = dex_file.FindTypeId("V");
     CHECK(void_type_id != nullptr);
     uint16_t void_type_idx = dex_file.GetIndexForTypeId(*void_type_id);
     // Now we resolve void type so the dex cache contains it. We use java.lang.Object class
@@ -2740,17 +2737,13 @@ mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
   for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     const DexFile* dex_file = dex_cache->GetDexFile();
-    // Try binary searching the string/type index.
-    const DexFile::StringId* string_id = dex_file->FindStringId(descriptor);
-    if (string_id != nullptr) {
-      const DexFile::TypeId* type_id =
-          dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
-      if (type_id != nullptr) {
-        uint16_t type_idx = dex_file->GetIndexForTypeId(*type_id);
-        mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
-        if (klass != nullptr) {
-          return klass;
-        }
+    // Try binary searching the type index by descriptor.
+    const DexFile::TypeId* type_id = dex_file->FindTypeId(descriptor);
+    if (type_id != nullptr) {
+      uint16_t type_idx = dex_file->GetIndexForTypeId(*type_id);
+      mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
+      if (klass != nullptr) {
+        return klass;
       }
     }
   }

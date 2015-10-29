@@ -163,18 +163,13 @@ uint32_t ArtMethod::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfil
     return dex_method_idx;
   }
   const char* mid_declaring_class_descriptor = dexfile->StringByTypeIdx(mid.class_idx_);
-  const DexFile::StringId* other_descriptor =
-      other_dexfile.FindStringId(mid_declaring_class_descriptor);
-  if (other_descriptor != nullptr) {
-    const DexFile::TypeId* other_type_id =
-        other_dexfile.FindTypeId(other_dexfile.GetIndexForStringId(*other_descriptor));
-    if (other_type_id != nullptr) {
-      const DexFile::MethodId* other_mid = other_dexfile.FindMethodId(
-          *other_type_id, other_dexfile.GetStringId(name_and_sig_mid.name_idx_),
-          other_dexfile.GetProtoId(name_and_sig_mid.proto_idx_));
-      if (other_mid != nullptr) {
-        return other_dexfile.GetIndexForMethodId(*other_mid);
-      }
+  const DexFile::TypeId* other_type_id = other_dexfile.FindTypeId(mid_declaring_class_descriptor);
+  if (other_type_id != nullptr) {
+    const DexFile::MethodId* other_mid = other_dexfile.FindMethodId(
+        *other_type_id, other_dexfile.GetStringId(name_and_sig_mid.name_idx_),
+        other_dexfile.GetProtoId(name_and_sig_mid.proto_idx_));
+    if (other_mid != nullptr) {
+      return other_dexfile.GetIndexForMethodId(*other_mid);
     }
   }
   return DexFile::kDexNoIndex;

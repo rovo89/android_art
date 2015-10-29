@@ -1032,9 +1032,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", class_loader);
   ArtMethod* clinit = klass->FindClassInitializer(sizeof(void*));
   ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;", sizeof(void*));
-  const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
-  ASSERT_TRUE(string_id != nullptr);
-  const DexFile::TypeId* type_id = dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
+  const DexFile::TypeId* type_id = dex_file->FindTypeId("LStaticsFromCode;");
   ASSERT_TRUE(type_id != nullptr);
   uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
   mirror::Class* uninit = ResolveVerifyAndClinit(type_idx, clinit, soa.Self(), true, false);
