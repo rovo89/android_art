@@ -400,6 +400,10 @@ class OatDexFile FINAL {
     return dex_cache_arrays_;
   }
 
+  const uint8_t* GetLookupTableData() const {
+    return lookup_table_data_;
+  }
+
   ~OatDexFile();
 
  private:
@@ -408,6 +412,7 @@ class OatDexFile FINAL {
              const std::string& canonical_dex_file_location,
              uint32_t dex_file_checksum,
              const uint8_t* dex_file_pointer,
+             const uint8_t* lookup_table_data,
              const uint32_t* oat_class_offsets_pointer,
              uint8_t* dex_cache_arrays);
 
@@ -416,6 +421,7 @@ class OatDexFile FINAL {
   const std::string canonical_dex_file_location_;
   const uint32_t dex_file_location_checksum_;
   const uint8_t* const dex_file_pointer_;
+  const uint8_t* lookup_table_data_;
   const uint32_t* const oat_class_offsets_pointer_;
   uint8_t* const dex_cache_arrays_;
 

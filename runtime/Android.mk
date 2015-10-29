@@ -47,6 +47,7 @@ LIBART_COMMON_SRC_FILES := \
   dex_file_verifier.cc \
   dex_instruction.cc \
   elf_file.cc \
+  fault_handler.cc \
   gc/allocation_record.cc \
   gc/allocator/dlmalloc.cc \
   gc/allocator/rosalloc.cc \
@@ -162,6 +163,7 @@ LIBART_COMMON_SRC_FILES := \
   os_linux.cc \
   parsed_options.cc \
   primitive.cc \
+  profiler.cc \
   quick_exception_handler.cc \
   quick/inline_method_analyser.cc \
   reference_table.cc \
@@ -176,8 +178,7 @@ LIBART_COMMON_SRC_FILES := \
   thread_pool.cc \
   trace.cc \
   transaction.cc \
-  profiler.cc \
-  fault_handler.cc \
+  type_lookup_table.cc \
   utf.cc \
   utils.cc \
   verifier/dex_gc_map.cc \
