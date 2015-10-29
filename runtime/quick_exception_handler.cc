@@ -372,9 +372,14 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     StackMapEncoding encoding = code_info.ExtractEncoding();
     StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
     const size_t number_of_vregs = m->GetCodeItem()->registers_size_;
-    DexRegisterMap vreg_map = code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
     MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
     uint32_t register_mask = stack_map.GetRegisterMask(encoding);
+    DexRegisterMap vreg_map = IsInInlinedFrame()
+        ? code_info.GetDexRegisterMapAtDepth(GetCurrentInliningDepth() - 1,
+                                             code_info.GetInlineInfoOf(stack_map, encoding),
+                                             encoding,
+                                             number_of_vregs)
+        : code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
 
     for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
       if (updated_vregs != nullptr && updated_vregs[vreg]) {
