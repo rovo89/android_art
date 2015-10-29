@@ -1146,9 +1146,7 @@ class CheckpointMarkThreadRoots : public Closure, public RootVisitor {
     }
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.
-    if (thread->GetState() == kRunnable) {
-      mark_sweep_->GetBarrier().Pass(self);
-    }
+    mark_sweep_->GetBarrier().Pass(self);
   }
 
  private:
