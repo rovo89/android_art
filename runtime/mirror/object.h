@@ -135,6 +135,8 @@ class MANAGED LOCKABLE Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool CasLockWordWeakRelaxed(LockWord old_val, LockWord new_val)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  bool CasLockWordWeakRelease(LockWord old_val, LockWord new_val)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 
   mirror::Object* MonitorEnter(Thread* self)
@@ -276,7 +278,6 @@ class MANAGED LOCKABLE Object {
                                                                    Object* old_value,
                                                                    Object* new_value)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
@@ -287,6 +288,18 @@ class MANAGED LOCKABLE Object {
   bool CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier(MemberOffset field_offset,
                                                                      Object* old_value,
                                                                      Object* new_value)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakRelaxedObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                    Object* old_value,
+                                                    Object* new_value)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongRelaxedObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                      Object* old_value,
+                                                      Object* new_value)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -391,6 +404,12 @@ class MANAGED LOCKABLE Object {
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldWeakRelaxed32(MemberOffset field_offset, int32_t old_value,
+                             int32_t new_value) ALWAYS_INLINE
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakRelease32(MemberOffset field_offset, int32_t old_value,
                              int32_t new_value) ALWAYS_INLINE
       SHARED_REQUIRES(Locks::mutator_lock_);
 
