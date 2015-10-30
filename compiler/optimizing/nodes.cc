@@ -1652,7 +1652,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     // Update the meta information surrounding blocks:
     // (1) the graph they are now in,
     // (2) the reverse post order of that graph,
-    // (3) the potential loop information they are now in.
+    // (3) the potential loop information they are now in,
+    // (4) try block membership.
 
     // We don't add the entry block, the exit block, and the first block, which
     // has been merged with `at`.
@@ -1668,41 +1669,47 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     size_t index_of_at = IndexOfElement(outer_graph->reverse_post_order_, at);
     MakeRoomFor(&outer_graph->reverse_post_order_, blocks_added, index_of_at);
 
-    // Do a reverse post order of the blocks in the callee and do (1), (2),
-    // and (3) to the blocks that apply.
-    HLoopInformation* info = at->GetLoopInformation();
+    HLoopInformation* loop_info = at->GetLoopInformation();
+    // Copy TryCatchInformation if `at` is a try block, not if it is a catch block.
+    TryCatchInformation* try_catch_info = at->IsTryBlock() ? at->GetTryCatchInformation() : nullptr;
+
+    // Do a reverse post order of the blocks in the callee and do (1), (2), (3)
+    // and (4) to the blocks that apply.
     for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
       HBasicBlock* current = it.Current();
       if (current != exit_block_ && current != entry_block_ && current != first) {
         DCHECK(!current->IsInLoop());
+        DCHECK(current->GetTryCatchInformation() == nullptr);
         DCHECK(current->GetGraph() == this);
         current->SetGraph(outer_graph);
         outer_graph->AddBlock(current);
         outer_graph->reverse_post_order_[++index_of_at] = current;
-        if (info != nullptr) {
-          current->SetLoopInformation(info);
+        if (loop_info != nullptr) {
+          current->SetLoopInformation(loop_info);
           for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
             loop_it.Current()->Add(current);
           }
         }
+        current->SetTryCatchInformation(try_catch_info);
       }
     }
 
-    // Do (1), (2), and (3) to `to`.
+    // Do (1), (2), (3) and (4) to `to`.
     to->SetGraph(outer_graph);
     outer_graph->AddBlock(to);
     outer_graph->reverse_post_order_[++index_of_at] = to;
-    if (info != nullptr) {
-      to->SetLoopInformation(info);
+    if (loop_info != nullptr) {
+      to->SetLoopInformation(loop_info);
       for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
         loop_it.Current()->Add(to);
       }
-      if (info->IsBackEdge(*at)) {
+      if (loop_info->IsBackEdge(*at)) {
         // Only `to` can become a back edge, as the inlined blocks
         // are predecessors of `to`.
-        info->ReplaceBackEdge(at, to);
+        loop_info->ReplaceBackEdge(at, to);
       }
     }
+    to->SetTryCatchInformation(try_catch_info);
   }
 
   // Update the next instruction id of the outer graph, so that instructions
