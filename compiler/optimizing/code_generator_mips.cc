@@ -19,10 +19,12 @@
 #include "arch/mips/entrypoints_direct_mips.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "art_method.h"
+#include "code_generator_utils.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
 #include "intrinsics.h"
+#include "intrinsics_mips.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "offsets.h"
@@ -2933,7 +2935,11 @@ void InstructionCodeGeneratorMIPS::VisitInvokeInterface(HInvokeInterface* invoke
 }
 
 void LocationsBuilderMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  // TODO: intrinsic function.
+  IntrinsicLocationsBuilderMIPS intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
@@ -2942,13 +2948,18 @@ void LocationsBuilderMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invo
   // invokes must have been pruned by art::PrepareForRegisterAllocation.
   DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
-  // TODO: intrinsic function.
+  IntrinsicLocationsBuilderMIPS intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
-static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS* codegen ATTRIBUTE_UNUSED) {
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS* codegen) {
   if (invoke->GetLocations()->Intrinsified()) {
-    // TODO: intrinsic function.
+    IntrinsicCodeGeneratorMIPS intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
     return true;
   }
   return false;
@@ -3088,7 +3099,10 @@ void InstructionCodeGeneratorMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDire
 }
 
 void InstructionCodeGeneratorMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  // TODO: Try to generate intrinsics code.
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
   Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
