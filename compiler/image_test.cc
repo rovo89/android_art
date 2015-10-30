@@ -76,6 +76,7 @@ TEST_F(ImageTest, WriteRead) {
       for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
         dex_file->EnableWrite();
       }
+      compiler_driver_->SetDexFilesForOatFile(class_linker->GetBootClassPath());
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
 
       t.NewTiming("WriteElf");

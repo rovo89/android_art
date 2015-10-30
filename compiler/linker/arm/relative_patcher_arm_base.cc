@@ -36,7 +36,8 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceEnd(uint32_t offset) {
   // of code. To avoid any alignment discrepancies for the final chunk, we always align the
   // offset after reserving of writing any chunk.
   uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
-  bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset, MethodReference(nullptr, 0u),
+  bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset,
+                                                MethodReference(nullptr, 0u),
                                                 aligned_offset);
   if (needs_thunk) {
     thunk_locations_.push_back(aligned_offset);
@@ -94,7 +95,8 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
   // We need the MethodReference for that.
   if (!unprocessed_patches_.empty() &&
       next_aligned_offset - unprocessed_patches_.front().second > max_positive_displacement_) {
-    bool needs_thunk = ReserveSpaceProcessPatches(quick_code_offset, method_ref,
+    bool needs_thunk = ReserveSpaceProcessPatches(quick_code_offset,
+                                                  method_ref,
                                                   next_aligned_offset);
     if (needs_thunk) {
       // A single thunk will cover all pending patches.
@@ -156,7 +158,10 @@ bool ArmBaseRelativePatcher::ReserveSpaceProcessPatches(uint32_t quick_code_offs
         // If still unresolved, check if we have a thunk within range.
         if (thunk_locations_.empty() ||
             patch_offset - thunk_locations_.back() > max_negative_displacement_) {
-          return next_aligned_offset - patch_offset > max_positive_displacement_;
+          // No thunk in range, we need a thunk if the next aligned offset
+          // is out of range, or if we're at the end of all code.
+          return (next_aligned_offset - patch_offset > max_positive_displacement_) ||
+              (quick_code_offset == next_aligned_offset);  // End of code.
         }
       } else {
         uint32_t target_offset = result.second - CompiledCode::CodeDelta(instruction_set_);

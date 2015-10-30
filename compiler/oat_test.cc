@@ -98,6 +98,7 @@ TEST_F(OatTest, WriteRead) {
   jobject class_loader = nullptr;
   if (kCompile) {
     TimingLogger timings2("OatTest::WriteRead", false, false);
+    compiler_driver_->SetDexFilesForOatFile(class_linker->GetBootClassPath());
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings2);
   }
 
