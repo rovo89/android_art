@@ -492,6 +492,8 @@ static void RunOptimizations(HGraph* graph,
 
   RunOptimizations(optimizations1, arraysize(optimizations1), pass_observer);
 
+  MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, handles);
+
   // TODO: Update passes incompatible with try/catch so we have the same
   //       pipeline for all methods.
   if (graph->HasTryCatch()) {
@@ -507,8 +509,6 @@ static void RunOptimizations(HGraph* graph,
 
     RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
   } else {
-    MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, handles);
-
     HOptimization* optimizations2[] = {
       // BooleanSimplifier depends on the InstructionSimplifier removing
       // redundant suspend checks to recognize empty blocks.
