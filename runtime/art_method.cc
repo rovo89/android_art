@@ -412,6 +412,13 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
     if (class_linker->IsQuickResolutionStub(existing_entry_point)) {
       // We are running the generic jni stub, but the entry point of the method has not
       // been updated yet.
+      DCHECK_EQ(pc, 0u) << "Should be a downcall";
+      DCHECK(IsNative());
+      return nullptr;
+    }
+    if (existing_entry_point == GetQuickInstrumentationEntryPoint()) {
+      // We are running the generic jni stub, but the method is being instrumented.
+      DCHECK_EQ(pc, 0u) << "Should be a downcall";
       DCHECK(IsNative());
       return nullptr;
     }
