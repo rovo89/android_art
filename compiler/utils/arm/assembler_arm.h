@@ -77,6 +77,45 @@ class Literal {
   DISALLOW_COPY_AND_ASSIGN(Literal);
 };
 
+// Jump table: table of labels emitted after the literals. Similar to literals.
+class JumpTable {
+ public:
+  explicit JumpTable(std::vector<Label*>&& labels)
+      : label_(), anchor_label_(), labels_(std::move(labels)) {
+  }
+
+  uint32_t GetSize() const {
+    return static_cast<uint32_t>(labels_.size()) * sizeof(uint32_t);
+  }
+
+  const std::vector<Label*>& GetData() const {
+    return labels_;
+  }
+
+  Label* GetLabel() {
+    return &label_;
+  }
+
+  const Label* GetLabel() const {
+    return &label_;
+  }
+
+  Label* GetAnchorLabel() {
+    return &anchor_label_;
+  }
+
+  const Label* GetAnchorLabel() const {
+    return &anchor_label_;
+  }
+
+ private:
+  Label label_;
+  Label anchor_label_;
+  std::vector<Label*> labels_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpTable);
+};
+
 class ShifterOperand {
  public:
   ShifterOperand() : type_(kUnknown), rm_(kNoRegister), rs_(kNoRegister),
@@ -685,6 +724,8 @@ class ArmAssembler : public Assembler {
     AddConstant(rd, rd, value, cond, set_cc);
   }
 
+  virtual void CmpConstant(Register rn, int32_t value, Condition cond = AL) = 0;
+
   // Load and Store. May clobber IP.
   virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
   void LoadSImmediate(SRegister sd, float value, Condition cond = AL) {
@@ -996,11 +1037,43 @@ class ArmAssembler : public Assembler {
     b(label);
   }
 
+  // Jump table support. This is split into three functions:
+  //
+  // * CreateJumpTable creates the internal metadata to track the jump targets, and emits code to
+  // load the base address of the jump table.
+  //
+  // * EmitJumpTableDispatch emits the code to actually jump, assuming that the right table value
+  // has been loaded into a register already.
+  //
+  // * FinalizeTables emits the jump table into the literal pool. This can only be called after the
+  // labels for the jump targets have been finalized.
+
+  // Create a jump table for the given labels that will be emitted when finalizing. Create a load
+  // sequence (or placeholder) that stores the base address into the given register. When the table
+  // is emitted, offsets will be relative to the location EmitJumpTableDispatch was called on (the
+  // anchor).
+  virtual JumpTable* CreateJumpTable(std::vector<Label*>&& labels, Register base_reg) = 0;
+
+  // Emit the jump-table jump, assuming that the right value was loaded into displacement_reg.
+  virtual void EmitJumpTableDispatch(JumpTable* jump_table, Register displacement_reg) = 0;
+
+  // Bind a Label that needs to be updated by the assembler in FinalizeCode() if its position
+  // changes due to branch/literal fixup.
+  void BindTrackedLabel(Label* label) {
+    Bind(label);
+    tracked_labels_.push_back(label);
+  }
+
  protected:
   // Returns whether or not the given register is used for passing parameters.
   static int RegisterCompare(const Register* reg1, const Register* reg2) {
     return *reg1 - *reg2;
   }
+
+  void FinalizeTrackedLabels();
+
+  // Tracked labels. Use a vector, as we need to sort before adjusting.
+  std::vector<Label*> tracked_labels_;
 };
 
 // Slowpath entered when Thread::Current()->_exception is non-null

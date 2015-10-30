@@ -1385,6 +1385,21 @@ void Arm32Assembler::AddConstant(Register rd, Register rn, int32_t value,
   }
 }
 
+void Arm32Assembler::CmpConstant(Register rn, int32_t value, Condition cond) {
+  ShifterOperand shifter_op;
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
+    cmp(rn, shifter_op, cond);
+  } else if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
+    cmn(rn, shifter_op, cond);
+  } else {
+    movw(IP, Low16Bits(value), cond);
+    uint16_t value_high = High16Bits(value);
+    if (value_high != 0) {
+      movt(IP, value_high, cond);
+    }
+    cmp(rn, ShifterOperand(IP), cond);
+  }
+}
 
 void Arm32Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;
@@ -1584,6 +1599,23 @@ void Arm32Assembler::CompareAndBranchIfNonZero(Register r, Label* label) {
   b(label, NE);
 }
 
+JumpTable* Arm32Assembler::CreateJumpTable(std::vector<Label*>&& labels ATTRIBUTE_UNUSED,
+                                           Register base_reg ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "CreateJumpTable is not supported on ARM32";
+  UNREACHABLE();
+}
+
+void Arm32Assembler::EmitJumpTableDispatch(JumpTable* jump_table ATTRIBUTE_UNUSED,
+                                           Register displacement_reg ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "EmitJumpTableDispatch is not supported on ARM32";
+  UNREACHABLE();
+}
+
+void Arm32Assembler::FinalizeCode() {
+  ArmAssembler::FinalizeCode();
+  // Currently the arm32 assembler does not support fixups, and thus no tracking. We must not call
+  // FinalizeTrackedLabels(), which would lead to an abort.
+}
 
 }  // namespace arm
 }  // namespace art
