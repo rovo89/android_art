@@ -260,6 +260,29 @@ public class Main {
     return arg ^ 0xf00000000000000fL;
   }
 
+  /**
+   * Test that the `-1` constant is not synthesized in a register and that we
+   * instead simply switch between `add` and `sub` instructions with the
+   * constant embedded.
+   * We need two uses (or more) of the constant because the compiler always
+   * defers to immediate value handling to VIXL when it has only one use.
+   */
+
+  /// CHECK-START-ARM64: long Main.addM1(long) register (after)
+  /// CHECK:     <<Arg:j\d+>>       ParameterValue
+  /// CHECK:     <<ConstM1:j\d+>>   LongConstant -1
+  /// CHECK-NOT:                    ParallelMove
+  /// CHECK:                        Add [<<Arg>>,<<ConstM1>>]
+  /// CHECK:                        Sub [<<Arg>>,<<ConstM1>>]
+
+  /// CHECK-START-ARM64: long Main.addM1(long) disassembly (after)
+  /// CHECK:                        sub x{{\d+}}, x{{\d+}}, #0x1
+  /// CHECK:                        add x{{\d+}}, x{{\d+}}, #0x1
+
+  public static long addM1(long arg) {
+    return (arg + (-1)) | (arg - (-1));
+  }
+
   public static void main(String[] args) {
     int arg = 0x87654321;
     assertIntEquals(and255(arg), 0x21);
@@ -286,5 +309,7 @@ public class Main {
     assertLongEquals(xorNot15(longArg), 0xedcba987789abcd1L);
     assertLongEquals(xor0xfffffff00000000f(longArg), 0xedcba9888765432eL);
     assertLongEquals(xor0xf00000000000000f(longArg), 0xe23456788765432eL);
+
+    assertLongEquals(14, addM1(7));
   }
 }
