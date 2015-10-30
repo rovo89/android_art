@@ -17,6 +17,7 @@
 #include "assembler_thumb2.h"
 
 #include "base/stl_util.h"
+#include "base/stringprintf.h"
 #include "utils/assembler_test.h"
 
 namespace art {
@@ -1009,6 +1010,315 @@ TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax1KiBDueToAlignmentOnSecondPass) 
 
   EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
             __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, BindTrackedLabel) {
+  Label non_tracked, tracked, branch_target;
+
+  // A few dummy loads on entry.
+  constexpr size_t kLdrR0R0Count = 5;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // A branch that will need to be fixed up.
+  __ cbz(arm::R0, &branch_target);
+
+  // Some more dummy loads.
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // Now insert tracked and untracked label.
+  __ Bind(&non_tracked);
+  __ BindTrackedLabel(&tracked);
+
+  // A lot of dummy loads, to ensure the branch needs resizing.
+  constexpr size_t kLdrR0R0CountLong = 60;
+  for (size_t i = 0; i != kLdrR0R0CountLong; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // Bind the branch target.
+  __ Bind(&branch_target);
+
+  // One more load.
+  __ ldr(arm::R0, arm::Address(arm::R0));
+
+  std::string expected =
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      "cmp r0, #0\n"                                                       // cbz r0, 1f
+      "beq.n 1f\n" +
+      RepeatInsn(kLdrR0R0Count + kLdrR0R0CountLong, "ldr r0, [r0]\n") +
+      "1:\n"
+      "ldr r0, [r0]\n";
+  DriverStr(expected, "BindTrackedLabel");
+
+  // Expectation is that the tracked label should have moved.
+  EXPECT_LT(non_tracked.Position(), tracked.Position());
+}
+
+TEST_F(AssemblerThumb2Test, JumpTable) {
+  // The jump table. Use three labels.
+  Label label1, label2, label3;
+  std::vector<Label*> labels({ &label1, &label2, &label3 });
+
+  // A few dummy loads on entry, interspersed with 2 labels.
+  constexpr size_t kLdrR0R0Count = 5;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label1);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label2);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // Create the jump table, emit the base load.
+  arm::JumpTable* jump_table = __ CreateJumpTable(std::move(labels), arm::R1);
+
+  // Dummy computation, stand-in for the address. We're only testing the jump table here, not how
+  // it's being used.
+  __ ldr(arm::R0, arm::Address(arm::R0));
+
+  // Emit the jump
+  __ EmitJumpTableDispatch(jump_table, arm::R1);
+
+  // Some more dummy instructions.
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label3);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {          // Note: odd so there's no alignment
+    __ ldr(arm::R0, arm::Address(arm::R0));              //       necessary, as gcc as emits nops,
+  }                                                      //       whereas we emit 0 != nop.
+
+  static_assert((kLdrR0R0Count + 3) * 2 < 1 * KB, "Too much offset");
+
+  std::string expected =
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L1:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L2:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      "adr r1, .Ljump_table\n"
+      "ldr r0, [r0]\n"
+      ".Lbase:\n"
+      "add pc, r1\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L3:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2\n"
+      ".Ljump_table:\n"
+      ".4byte (.L1 - .Lbase - 4)\n"
+      ".4byte (.L2 - .Lbase - 4)\n"
+      ".4byte (.L3 - .Lbase - 4)\n";
+  DriverStr(expected, "JumpTable");
+}
+
+// Test for >1K fixup.
+TEST_F(AssemblerThumb2Test, JumpTable4K) {
+  // The jump table. Use three labels.
+  Label label1, label2, label3;
+  std::vector<Label*> labels({ &label1, &label2, &label3 });
+
+  // A few dummy loads on entry, interspersed with 2 labels.
+  constexpr size_t kLdrR0R0Count = 5;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label1);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label2);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // Create the jump table, emit the base load.
+  arm::JumpTable* jump_table = __ CreateJumpTable(std::move(labels), arm::R1);
+
+  // Dummy computation, stand-in for the address. We're only testing the jump table here, not how
+  // it's being used.
+  __ ldr(arm::R0, arm::Address(arm::R0));
+
+  // Emit the jump
+  __ EmitJumpTableDispatch(jump_table, arm::R1);
+
+  // Some more dummy instructions.
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label3);
+  constexpr size_t kLdrR0R0Count2 = 600;               // Note: even so there's no alignment
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {       //       necessary, as gcc as emits nops,
+    __ ldr(arm::R0, arm::Address(arm::R0));            //       whereas we emit 0 != nop.
+  }
+
+  static_assert((kLdrR0R0Count + kLdrR0R0Count2 + 3) * 2 > 1 * KB, "Not enough offset");
+  static_assert((kLdrR0R0Count + kLdrR0R0Count2 + 3) * 2 < 4 * KB, "Too much offset");
+
+  std::string expected =
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L1:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L2:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      "adr r1, .Ljump_table\n"
+      "ldr r0, [r0]\n"
+      ".Lbase:\n"
+      "add pc, r1\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L3:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      ".align 2\n"
+      ".Ljump_table:\n"
+      ".4byte (.L1 - .Lbase - 4)\n"
+      ".4byte (.L2 - .Lbase - 4)\n"
+      ".4byte (.L3 - .Lbase - 4)\n";
+  DriverStr(expected, "JumpTable4K");
+}
+
+// Test for >4K fixup.
+TEST_F(AssemblerThumb2Test, JumpTable64K) {
+  // The jump table. Use three labels.
+  Label label1, label2, label3;
+  std::vector<Label*> labels({ &label1, &label2, &label3 });
+
+  // A few dummy loads on entry, interspersed with 2 labels.
+  constexpr size_t kLdrR0R0Count = 5;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label1);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label2);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // Create the jump table, emit the base load.
+  arm::JumpTable* jump_table = __ CreateJumpTable(std::move(labels), arm::R1);
+
+  // Dummy computation, stand-in for the address. We're only testing the jump table here, not how
+  // it's being used.
+  __ ldr(arm::R0, arm::Address(arm::R0));
+
+  // Emit the jump
+  __ EmitJumpTableDispatch(jump_table, arm::R1);
+
+  // Some more dummy instructions.
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label3);
+  constexpr size_t kLdrR0R0Count2 = 2601;              // Note: odd so there's no alignment
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {       //       necessary, as gcc as emits nops,
+    __ ldr(arm::R0, arm::Address(arm::R0));            //       whereas we emit 0 != nop.
+  }
+
+  static_assert((kLdrR0R0Count + kLdrR0R0Count2 + 3) * 2 > 4 * KB, "Not enough offset");
+  static_assert((kLdrR0R0Count + kLdrR0R0Count2 + 3) * 2 < 64 * KB, "Too much offset");
+
+  std::string expected =
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L1:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L2:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      // ~ adr r1, .Ljump_table, gcc as can't seem to fix up a large offset itself.
+      // (Note: have to use constants, as labels aren't accepted.
+      "movw r1, #(((3 + " + StringPrintf("%zu", kLdrR0R0Count + kLdrR0R0Count2) +
+          ") * 2 - 4) & 0xFFFF)\n"
+      "add r1, pc\n"
+      "ldr r0, [r0]\n"
+      ".Lbase:\n"
+      "add pc, r1\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L3:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      ".align 2\n"
+      ".Ljump_table:\n"
+      ".4byte (.L1 - .Lbase - 4)\n"
+      ".4byte (.L2 - .Lbase - 4)\n"
+      ".4byte (.L3 - .Lbase - 4)\n";
+  DriverStr(expected, "JumpTable64K");
+}
+
+// Test for >64K fixup.
+TEST_F(AssemblerThumb2Test, JumpTableFar) {
+  // The jump table. Use three labels.
+  Label label1, label2, label3;
+  std::vector<Label*> labels({ &label1, &label2, &label3 });
+
+  // A few dummy loads on entry, interspersed with 2 labels.
+  constexpr size_t kLdrR0R0Count = 5;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label1);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label2);
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  // Create the jump table, emit the base load.
+  arm::JumpTable* jump_table = __ CreateJumpTable(std::move(labels), arm::R1);
+
+  // Dummy computation, stand-in for the address. We're only testing the jump table here, not how
+  // it's being used.
+  __ ldr(arm::R0, arm::Address(arm::R0));
+
+  // Emit the jump
+  __ EmitJumpTableDispatch(jump_table, arm::R1);
+
+  // Some more dummy instructions.
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ BindTrackedLabel(&label3);
+  constexpr size_t kLdrR0R0Count2 = 70001;             // Note: odd so there's no alignment
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {       //       necessary, as gcc as emits nops,
+    __ ldr(arm::R0, arm::Address(arm::R0));            //       whereas we emit 0 != nop.
+  }
+
+  static_assert((kLdrR0R0Count + kLdrR0R0Count2 + 3) * 2 > 64 * KB, "Not enough offset");
+
+  std::string expected =
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L1:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L2:\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      // ~ adr r1, .Ljump_table, gcc as can't seem to fix up a large offset itself.
+      // (Note: have to use constants, as labels aren't accepted.
+      "movw r1, #(((3 + " + StringPrintf("%zu", kLdrR0R0Count + kLdrR0R0Count2) +
+          ") * 2 - 4) & 0xFFFF)\n"
+      "movt r1, #(((3 + " + StringPrintf("%zu", kLdrR0R0Count + kLdrR0R0Count2) +
+          ") * 2 - 4) >> 16)\n"
+      ".Lhelp:"
+      "add r1, pc\n"
+      "ldr r0, [r0]\n"
+      ".Lbase:\n"
+      "add pc, r1\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".L3:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      ".align 2\n"
+      ".Ljump_table:\n"
+      ".4byte (.L1 - .Lbase - 4)\n"
+      ".4byte (.L2 - .Lbase - 4)\n"
+      ".4byte (.L3 - .Lbase - 4)\n";
+  DriverStr(expected, "JumpTableFar");
 }
 
 TEST_F(AssemblerThumb2Test, Clz) {

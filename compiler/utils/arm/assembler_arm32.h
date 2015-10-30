@@ -261,6 +261,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void AddConstant(Register rd, Register rn, int32_t value,
                    Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
+  void CmpConstant(Register rn, int32_t value, Condition cond = AL) OVERRIDE;
+
   // Load and Store. May clobber IP.
   void LoadImmediate(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
   void MarkExceptionHandler(Label* label) OVERRIDE;
@@ -307,6 +309,11 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void Bind(Label* label) OVERRIDE;
 
   void MemoryBarrier(ManagedRegister scratch) OVERRIDE;
+
+  JumpTable* CreateJumpTable(std::vector<Label*>&& labels, Register base_reg) OVERRIDE;
+  void EmitJumpTableDispatch(JumpTable* jump_table, Register displacement_reg) OVERRIDE;
+
+  void FinalizeCode() OVERRIDE;
 
  private:
   void EmitType01(Condition cond,
