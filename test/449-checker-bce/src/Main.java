@@ -624,12 +624,13 @@ public class Main {
       constantIndexing2(new int[3]);
     } catch (ArrayIndexOutOfBoundsException e) {
       assertIsManaged();  // This is to ensure that single-frame deoptimization works.
-                                // Will need to be updated if constantIndexing2 is inlined.
+                          // Will need to be updated if constantIndexing2 is inlined.
       try {
         // This will cause AIOOBE.
         constantIndexingForward6(new int[3]);
       } catch (ArrayIndexOutOfBoundsException e2) {
-        assertIsManaged();
+        // Having deopted, we expect to be running interpreted at this point.
+        // Does not apply to debuggable, however, since we do not inline.
         return 99;
       }
     }
