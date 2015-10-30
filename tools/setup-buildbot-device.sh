@@ -30,3 +30,10 @@ adb shell ifconfig
 
 echo -e "${green}List properties${nc}"
 adb shell getprop
+
+echo -e "${green}Uptime${nc}"
+adb shell uptime
+
+echo -e "${green}Kill stalled dalvikvm processes${nc}"
+processes=$(adb shell "ps" | grep dalvikvm | awk '{print $2}')
+for i in $processes; do adb shell kill -9 $i; done
