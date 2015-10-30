@@ -333,7 +333,7 @@ static void ParseUintOption(const StringPiece& option,
   std::string option_prefix = option_name + (is_long_option ? "=" : "");
   DCHECK(option.starts_with(option_prefix));
   const char* value_string = option.substr(option_prefix.size()).data();
-  int64_t parsed_integer_value;
+  int64_t parsed_integer_value = 0;
   if (!ParseInt(value_string, &parsed_integer_value)) {
     Usage("Failed to parse %s '%s' as an integer", option_name.c_str(), value_string);
   }
