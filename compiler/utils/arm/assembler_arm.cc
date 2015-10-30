@@ -16,6 +16,8 @@
 
 #include "assembler_arm.h"
 
+#include <algorithm>
+
 #include "base/bit_utils.h"
 #include "base/logging.h"
 #include "entrypoints/quick/quick_entrypoints.h"
@@ -920,6 +922,25 @@ uint32_t ArmAssembler::ModifiedImmediate(uint32_t value) {
   uint32_t imm3 = (v >> 1) & 7U /* 0b111 */;
   uint32_t a = v & 1;
   return value | i << 26 | imm3 << 12 | a << 7;
+}
+
+void ArmAssembler::FinalizeTrackedLabels() {
+  if (!tracked_labels_.empty()) {
+    // This array should be sorted, as assembly is generated in linearized order. It isn't
+    // technically required, but GetAdjustedPosition() used in AdjustLabelPosition() can take
+    // advantage of it. So ensure that it's actually the case.
+    DCHECK(std::is_sorted(
+        tracked_labels_.begin(),
+        tracked_labels_.end(),
+        [](const Label* lhs, const Label* rhs) { return lhs->Position() < rhs->Position(); }));
+
+    Label* last_label = nullptr;  // Track duplicates, we must not adjust twice.
+    for (Label* label : tracked_labels_) {
+      DCHECK_NE(label, last_label);
+      AdjustLabelPosition(label);
+      last_label = label;
+    }
+  }
 }
 
 }  // namespace arm

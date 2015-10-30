@@ -56,6 +56,8 @@ static constexpr SRegister kFpuCalleeSaves[] =
 // S registers. Therefore there is no need to block it.
 static constexpr DRegister DTMP = D31;
 
+static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
+
 #define __ down_cast<ArmAssembler*>(codegen->GetAssembler())->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmWordSize, x).Int32Value()
 
@@ -513,17 +515,6 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
     uint32_t new_position = __ GetAdjustedPosition(old_position);
     stack_map_stream_.SetStackMapNativePcOffset(i, new_position);
   }
-  // Adjust native pc offsets of block labels.
-  for (HBasicBlock* block : *block_order_) {
-    // Get the label directly from block_labels_ rather than through GetLabelOf() to avoid
-    // FirstNonEmptyBlock() which could lead to adjusting a label more than once.
-    DCHECK_LT(block->GetBlockId(), GetGraph()->GetBlocks().size());
-    Label* block_label = &block_labels_[block->GetBlockId()];
-    DCHECK_EQ(block_label->IsBound(), !block->IsSingleJump());
-    if (block_label->IsBound()) {
-      __ AdjustLabelPosition(block_label);
-    }
-  }
   // Adjust pc offsets for the disassembly information.
   if (disasm_info_ != nullptr) {
     GeneratedCodeInterval* frame_entry_interval = disasm_info_->GetFrameEntryInterval();
@@ -537,10 +528,6 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
       it.code_interval.start = __ GetAdjustedPosition(it.code_interval.start);
       it.code_interval.end = __ GetAdjustedPosition(it.code_interval.end);
     }
-  }
-  // Adjust pc offsets for relative call patches.
-  for (MethodPatchInfo<Label>& info : relative_call_patches_) {
-    __ AdjustLabelPosition(&info.label);
   }
 
   CodeGenerator::Finalize(allocator);
@@ -732,7 +719,8 @@ void CodeGeneratorARM::GenerateFrameExit() {
 }
 
 void CodeGeneratorARM::Bind(HBasicBlock* block) {
-  __ Bind(GetLabelOf(block));
+  Label* label = GetLabelOf(block);
+  __ BindTrackedLabel(label);
 }
 
 Location CodeGeneratorARM::GetStackLocation(HLoadLocal* load) const {
@@ -5255,7 +5243,7 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
       relative_call_patches_.emplace_back(invoke->GetTargetMethod());
-      __ Bind(&relative_call_patches_.back().label);
+      __ BindTrackedLabel(&relative_call_patches_.back().label);
       // Arbitrarily branch to the BL itself, override at link time.
       __ bl(&relative_call_patches_.back().label);
       break;
@@ -5378,25 +5366,64 @@ void LocationsBuilderARM::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
+  if (switch_instr->GetNumEntries() >= kPackedSwitchJumpTableThreshold &&
+      codegen_->GetAssembler()->IsThumb()) {
+    locations->AddTemp(Location::RequiresRegister());  // We need a temp for the table base.
+    if (switch_instr->GetStartValue() != 0) {
+      locations->AddTemp(Location::RequiresRegister());  // We need a temp for the bias.
+    }
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
+  uint32_t num_entries = switch_instr->GetNumEntries();
   LocationSummary* locations = switch_instr->GetLocations();
   Register value_reg = locations->InAt(0).AsRegister<Register>();
   HBasicBlock* default_block = switch_instr->GetDefaultBlock();
 
-  // Create a series of compare/jumps.
-  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-  for (int32_t i = 0; i < num_entries; i++) {
-    GenerateCompareWithImmediate(value_reg, lower_bound + i);
-    __ b(codegen_->GetLabelOf(successors[i]), EQ);
-  }
+  if (num_entries < kPackedSwitchJumpTableThreshold || !codegen_->GetAssembler()->IsThumb()) {
+    // Create a series of compare/jumps.
+    const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+    for (uint32_t i = 0; i < num_entries; i++) {
+      GenerateCompareWithImmediate(value_reg, lower_bound + i);
+      __ b(codegen_->GetLabelOf(successors[i]), EQ);
+    }
 
-  // And the default for any other value.
-  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
-    __ b(codegen_->GetLabelOf(default_block));
+    // And the default for any other value.
+    if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+      __ b(codegen_->GetLabelOf(default_block));
+    }
+  } else {
+    // Create a table lookup.
+    Register temp_reg = locations->GetTemp(0).AsRegister<Register>();
+
+    // Materialize a pointer to the switch table
+    std::vector<Label*> labels(num_entries);
+    const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+    for (uint32_t i = 0; i < num_entries; i++) {
+      labels[i] = codegen_->GetLabelOf(successors[i]);
+    }
+    JumpTable* table = __ CreateJumpTable(std::move(labels), temp_reg);
+
+    // Remove the bias.
+    Register key_reg;
+    if (lower_bound != 0) {
+      key_reg = locations->GetTemp(1).AsRegister<Register>();
+      __ AddConstant(key_reg, value_reg, -lower_bound);
+    } else {
+      key_reg = value_reg;
+    }
+
+    // Check whether the value is in the table, jump to default block if not.
+    __ CmpConstant(key_reg, num_entries - 1);
+    __ b(codegen_->GetLabelOf(default_block), Condition::HI);
+
+    // Load the displacement from the table.
+    __ ldr(temp_reg, Address(temp_reg, key_reg, Shift::LSL, 2));
+
+    // Dispatch is a direct add to the PC (for Thumb2).
+    __ EmitJumpTableDispatch(table, temp_reg);
   }
 }
 
