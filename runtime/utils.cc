@@ -1835,4 +1835,43 @@ void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostrea
   os << "Something went wrong, didn't find the method in the class data.";
 }
 
+static void ParseStringAfterChar(const std::string& s,
+                                 char c,
+                                 std::string* parsed_value,
+                                 UsageFn Usage) {
+  std::string::size_type colon = s.find(c);
+  if (colon == std::string::npos) {
+    Usage("Missing char %c in option %s\n", c, s.c_str());
+  }
+  // Add one to remove the char we were trimming until.
+  *parsed_value = s.substr(colon + 1);
+}
+
+void ParseDouble(const std::string& option,
+                 char after_char,
+                 double min,
+                 double max,
+                 double* parsed_value,
+                 UsageFn Usage) {
+  std::string substring;
+  ParseStringAfterChar(option, after_char, &substring, Usage);
+  bool sane_val = true;
+  double value;
+  if ((false)) {
+    // TODO: this doesn't seem to work on the emulator.  b/15114595
+    std::stringstream iss(substring);
+    iss >> value;
+    // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
+    sane_val = iss.eof() && (value >= min) && (value <= max);
+  } else {
+    char* end = nullptr;
+    value = strtod(substring.c_str(), &end);
+    sane_val = *end == '\0' && value >= min && value <= max;
+  }
+  if (!sane_val) {
+    Usage("Invalid double value %s for option %s\n", substring.c_str(), option.c_str());
+  }
+  *parsed_value = value;
+}
+
 }  // namespace art

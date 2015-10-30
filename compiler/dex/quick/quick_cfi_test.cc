@@ -67,7 +67,6 @@ class QuickCFITest : public CFITest {
       false,
       false,
       nullptr,
-      new PassManagerOptions(),
       nullptr,
       false);
     VerificationResults verification_results(&compiler_options);
