@@ -375,6 +375,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       timings_logger_(timer),
       compiler_context_(nullptr),
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
+      dex_files_for_oat_file_(nullptr),
       compiled_method_storage_(swap_fd) {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(verification_results_ != nullptr);
@@ -1371,8 +1372,7 @@ uint32_t CompilerDriver::GetReferenceDisableFlagOffset() const {
 }
 
 DexCacheArraysLayout CompilerDriver::GetDexCacheArraysLayout(const DexFile* dex_file) {
-  // Currently only image dex caches have fixed array layout.
-  return IsImage() && GetSupportBootImageFixup()
+  return ContainsElement(GetDexFilesForOatFile(), dex_file)
       ? DexCacheArraysLayout(GetInstructionSetPointerSize(instruction_set_), dex_file)
       : DexCacheArraysLayout();
 }

@@ -233,6 +233,36 @@ TEST_F(Thumb2RelativePatcherTest, CallTrampoline) {
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
+TEST_F(Thumb2RelativePatcherTest, CallTrampolineTooFar) {
+  constexpr uint32_t missing_method_index = 1024u;
+  auto method3_raw_code = GenNopsAndBl(3u, kBlPlus0);
+  constexpr uint32_t bl_offset_in_method3 = 3u * 2u;  // After NOPs.
+  ArrayRef<const uint8_t> method3_code(method3_raw_code);
+  ASSERT_EQ(bl_offset_in_method3 + 4u, method3_code.size());
+  LinkerPatch method3_patches[] = {
+      LinkerPatch::RelativeCodePatch(bl_offset_in_method3, nullptr, missing_method_index),
+  };
+
+  constexpr uint32_t just_over_max_negative_disp = 16 * MB + 2 - 4u /* PC adjustment */;
+  bool thunk_in_gap = Create2MethodsWithGap(kNopCode,
+                                            ArrayRef<const LinkerPatch>(),
+                                            method3_code,
+                                            ArrayRef<const LinkerPatch>(method3_patches),
+                                            just_over_max_negative_disp - bl_offset_in_method3);
+  ASSERT_FALSE(thunk_in_gap);  // There should be a thunk but it should be after the method2.
+  ASSERT_FALSE(method_offset_map_.FindMethodOffset(MethodRef(missing_method_index)).first);
+
+  // Check linked code.
+  uint32_t method3_offset = GetMethodOffset(3u);
+  uint32_t thunk_offset = CompiledCode::AlignCode(method3_offset + method3_code.size(), kThumb2);
+  uint32_t diff = thunk_offset - (method3_offset + bl_offset_in_method3 + 4u /* PC adjustment */);
+  ASSERT_EQ(diff & 1u, 0u);
+  ASSERT_LT(diff >> 1, 1u << 8);  // Simple encoding, (diff >> 1) fits into 8 bits.
+  auto expected_code = GenNopsAndBl(3u, kBlPlus0 | ((diff >> 1) & 0xffu));
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(3u), ArrayRef<const uint8_t>(expected_code)));
+  EXPECT_TRUE(CheckThunk(thunk_offset));
+}
+
 TEST_F(Thumb2RelativePatcherTest, CallOtherAlmostTooFarAfter) {
   auto method1_raw_code = GenNopsAndBl(3u, kBlPlus0);
   constexpr uint32_t bl_offset_in_method1 = 3u * 2u;  // After NOPs.
