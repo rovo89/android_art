@@ -63,9 +63,18 @@ extern "C" bool jit_compile_method(void* handle, ArtMethod* method, Thread* self
   return jit_compiler->CompileMethod(self, method);
 }
 
+// Callers of this method assume it has NO_RETURN.
+NO_RETURN static void Usage(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  std::string error;
+  StringAppendV(&error, fmt, ap);
+  LOG(FATAL) << error;
+  va_end(ap);
+  exit(EXIT_FAILURE);
+}
+
 JitCompiler::JitCompiler() : total_time_(0) {
-  auto* pass_manager_options = new PassManagerOptions;
-  pass_manager_options->SetDisablePassList("GVN,DCE,GVNCleanup");
   compiler_options_.reset(new CompilerOptions(
       CompilerOptions::kDefaultCompilerFilter,
       CompilerOptions::kDefaultHugeMethodThreshold,
@@ -84,9 +93,11 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* implicit_suspend_checks */ false,
       /* pic */ true,  // TODO: Support non-PIC in optimizing.
       /* verbose_methods */ nullptr,
-      pass_manager_options,
       /* init_failure_output */ nullptr,
       /* abort_on_hard_verifier_failure */ false));
+  for (const std::string& argument : Runtime::Current()->GetCompilerOptions()) {
+    compiler_options_->ParseCompilerOption(argument, Usage);
+  }
   const InstructionSet instruction_set = kRuntimeISA;
   for (const StringPiece option : Runtime::Current()->GetCompilerOptions()) {
     VLOG(compiler) << "JIT compiler option " << option;

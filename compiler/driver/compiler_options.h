@@ -22,11 +22,11 @@
 #include <vector>
 
 #include "base/macros.h"
+#include "dex/pass_manager.h"
 #include "globals.h"
+#include "utils.h"
 
 namespace art {
-
-class PassManagerOptions;
 
 class CompilerOptions FINAL {
  public:
@@ -53,6 +53,8 @@ class CompilerOptions FINAL {
   static const bool kDefaultIncludePatchInformation = false;
   static const size_t kDefaultInlineDepthLimit = 3;
   static const size_t kDefaultInlineMaxCodeUnits = 20;
+  static constexpr size_t kUnsetInlineDepthLimit = -1;
+  static constexpr size_t kUnsetInlineMaxCodeUnits = -1;
 
   // Default inlining settings when the space filter is used.
   static constexpr size_t kSpaceFilterInlineDepthLimit = 3;
@@ -78,7 +80,6 @@ class CompilerOptions FINAL {
                   bool implicit_suspend_checks,
                   bool compile_pic,
                   const std::vector<std::string>* verbose_methods,
-                  PassManagerOptions* pass_manager_options,
                   std::ostream* init_failure_output,
                   bool abort_on_hard_verifier_failure);
 
@@ -200,47 +201,64 @@ class CompilerOptions FINAL {
   }
 
   std::ostream* GetInitFailureOutput() const {
-    return init_failure_output_;
+    return init_failure_output_.get();
   }
 
   const PassManagerOptions* GetPassManagerOptions() const {
-    return pass_manager_options_.get();
+    return &pass_manager_options_;
   }
 
   bool AbortOnHardVerifierFailure() const {
     return abort_on_hard_verifier_failure_;
   }
 
+  bool ParseCompilerOption(const StringPiece& option, UsageFn Usage);
+
  private:
+  void ParseDumpInitFailures(const StringPiece& option, UsageFn Usage);
+  void ParsePassOptions(const StringPiece& option, UsageFn Usage);
+  void ParseDumpCfgPasses(const StringPiece& option, UsageFn Usage);
+  void ParsePrintPasses(const StringPiece& option, UsageFn Usage);
+  void ParseDisablePasses(const StringPiece& option, UsageFn Usage);
+  void ParseInlineMaxCodeUnits(const StringPiece& option, UsageFn Usage);
+  void ParseInlineDepthLimit(const StringPiece& option, UsageFn Usage);
+  void ParseNumDexMethods(const StringPiece& option, UsageFn Usage);
+  void ParseTinyMethodMax(const StringPiece& option, UsageFn Usage);
+  void ParseSmallMethodMax(const StringPiece& option, UsageFn Usage);
+  void ParseLargeMethodMax(const StringPiece& option, UsageFn Usage);
+  void ParseHugeMethodMax(const StringPiece& option, UsageFn Usage);
+
   CompilerFilter compiler_filter_;
-  const size_t huge_method_threshold_;
-  const size_t large_method_threshold_;
-  const size_t small_method_threshold_;
-  const size_t tiny_method_threshold_;
-  const size_t num_dex_methods_threshold_;
-  const size_t inline_depth_limit_;
-  const size_t inline_max_code_units_;
-  const bool include_patch_information_;
+  size_t huge_method_threshold_;
+  size_t large_method_threshold_;
+  size_t small_method_threshold_;
+  size_t tiny_method_threshold_;
+  size_t num_dex_methods_threshold_;
+  size_t inline_depth_limit_;
+  size_t inline_max_code_units_;
+  bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
-  const double top_k_profile_threshold_;
-  const bool debuggable_;
-  const bool generate_debug_info_;
-  const bool implicit_null_checks_;
-  const bool implicit_so_checks_;
-  const bool implicit_suspend_checks_;
-  const bool compile_pic_;
+  double top_k_profile_threshold_;
+  bool debuggable_;
+  bool generate_debug_info_;
+  bool implicit_null_checks_;
+  bool implicit_so_checks_;
+  bool implicit_suspend_checks_;
+  bool compile_pic_;
 
   // Vector of methods to have verbose output enabled for.
-  const std::vector<std::string>* const verbose_methods_;
+  const std::vector<std::string>* verbose_methods_;
 
-  std::unique_ptr<PassManagerOptions> pass_manager_options_;
+  PassManagerOptions pass_manager_options_;
 
   // Abort compilation with an error if we find a class that fails verification with a hard
   // failure.
-  const bool abort_on_hard_verifier_failure_;
+  bool abort_on_hard_verifier_failure_;
 
   // Log initialization of initialization failures to this stream if not null.
-  std::ostream* const init_failure_output_;
+  std::unique_ptr<std::ostream> init_failure_output_;
+
+  friend class Dex2Oat;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };
