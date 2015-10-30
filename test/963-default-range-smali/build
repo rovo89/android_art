@@ -17,14 +17,23 @@
 # make us exit on a failure
 set -e
 
+USES_JAVA="false"
 if [[ $@ == *"--jvm"* ]]; then
-  # Build the Java files if we are running a --jvm test
-  mkdir -p src
-  mkdir -p classes
-  ${ANDROID_BUILD_TOP}/art/tools/extract-embedded-java ./smali ./src
-  ${JAVAC} -implicit:none -d classes $(find src -name '*.java')
+  USES_JAVA="true"
+elif [[ "$USE_JACK" == "true" ]]; then
+  if $JACK -D jack.java.source.version=1.8 2>/dev/null; then
+    USES_JAVA="true"
+  else
+    echo "WARNING: Cannot use jack because it does not support JLS 1.8. Falling back to smali" >&2
+  fi
 fi
 
-# Build the smali files and make a dex
-${SMALI} -JXmx512m ${SMALI_ARGS} --output classes.dex $(find smali -name '*.smali')
-zip $TEST_NAME.jar classes.dex
+if [[ "$USES_JAVA" == "true" ]]; then
+  # We are compiling java code, create it.
+  mkdir -p src
+  ${ANDROID_BUILD_TOP}/art/tools/extract-embedded-java ./smali ./src
+  # Ignore the smali directory.
+  EXTRA_ARGS="--no-smali"
+fi
+
+./default-build "$@" "$EXTRA_ARGS" --experimental default-methods
