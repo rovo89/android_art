@@ -125,7 +125,7 @@ void CumulativeLogger::DumpHistogram(std::ostream &os) const {
     histogram->CreateHistogram(&cumulative_data);
     histogram->PrintConfidenceIntervals(os, 0.99, cumulative_data);
   }
-  os << "Done Dumping histograms \n";
+  os << "Done Dumping histograms\n";
 }
 
 TimingLogger::TimingLogger(const char* name, bool precise, bool verbose)
