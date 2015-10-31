@@ -57,7 +57,6 @@ working_packages=("dalvik.system"
                   "org.apache.harmony.luni"
                   "org.apache.harmony.nio"
                   "org.apache.harmony.regex"
-                  "org.apache.harmony.security"
                   "org.apache.harmony.testframework"
                   "org.apache.harmony.tests.java.io"
                   "org.apache.harmony.tests.java.lang"
@@ -67,6 +66,10 @@ working_packages=("dalvik.system"
                   "org.apache.harmony.tests.javax.security"
                   "tests.java.lang.String"
                   "jsr166")
+
+# List of packages we could run, but don't have rights to revert
+# changes in case of failures.
+# "org.apache.harmony.security"
 
 vogar_args=$@
 while true; do
