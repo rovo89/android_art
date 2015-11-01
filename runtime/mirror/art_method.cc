@@ -33,6 +33,7 @@
 #include "object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "string.h"
+#include "thread_list.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -377,6 +378,33 @@ void ArtMethod::UnregisterNative(Thread* self) {
   RegisterNative(self, GetJniDlsymLookupStub(), false);
 }
 
+static void StackReplaceMethod(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  struct StackReplaceMethodVisitor FINAL : public StackVisitor {
+    StackReplaceMethodVisitor(Thread* thread_in, ArtMethod* search, ArtMethod* replace)
+        : StackVisitor(thread_in, nullptr),
+          search_(search), replace_(replace) {};
+
+    bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      if (GetMethod() == search_) {
+        SetMethod(replace_);
+      }
+      return true;
+    }
+
+    ArtMethod* search_;
+    ArtMethod* replace_;
+  };
+
+  ArtMethod* search = reinterpret_cast<ArtMethod*>(arg);
+
+  // We cannot use GetXposedOriginalMethod() because the access flags aren't modified yet.
+  auto hook_info = reinterpret_cast<const XposedHookInfo*>(search->GetEntryPointFromJni());
+  ArtMethod* replace = hook_info->originalMethod;
+
+  StackReplaceMethodVisitor visitor(thread, search, replace);
+  visitor.WalkStack();
+}
+
 void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) {
   if (UNLIKELY(IsXposedHookedMethod())) {
     // Already hooked
@@ -409,6 +437,16 @@ void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_inf
   hookInfo->additionalInfo = env->NewGlobalRef(additional_info);
   hookInfo->originalMethod = backup_method;
   SetEntryPointFromJni(reinterpret_cast<uint8_t*>(hookInfo));
+
+  ThreadList* tl = Runtime::Current()->GetThreadList();
+  soa.Self()->TransitionFromRunnableToSuspended(kSuspended);
+  tl->SuspendAll();
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    tl->ForEach(StackReplaceMethod, this);
+  }
+  tl->ResumeAll();
+  soa.Self()->TransitionFromSuspendedToRunnable();
 
   SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
   SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);

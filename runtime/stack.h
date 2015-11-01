@@ -315,13 +315,8 @@ class ShadowFrame {
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetMethod(mirror::ArtMethod* method) {
-#if defined(ART_USE_PORTABLE_COMPILER)
     DCHECK(method != nullptr);
     method_ = method;
-#else
-    UNUSED(method);
-    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
-#endif
   }
 
   bool Contains(StackReference<mirror::Object>* shadow_frame_entry_obj) const {
@@ -525,6 +520,14 @@ class StackVisitor {
       return cur_quick_frame_->AsMirrorPtr();
     } else {
       return nullptr;
+    }
+  }
+
+  void SetMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (cur_shadow_frame_ != nullptr) {
+      cur_shadow_frame_->SetMethod(method);
+    } else if (cur_quick_frame_ != nullptr) {
+      cur_quick_frame_->Assign(method);
     }
   }
 
