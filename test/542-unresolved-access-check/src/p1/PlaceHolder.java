@@ -19,7 +19,6 @@ package p1;
 // Specific class for putting the 'entered' marker. If we were to put the marker
 // in InP1 or in OtherInP1, the code in MyClassLoader using that marker would load
 // InP1 or OtherInP1 in the system class loader, and not in MyClassLoader.
-Does this help better? If it does, I can include that comment in the file.
 public class PlaceHolder {
   public static boolean entered = false;
 }
