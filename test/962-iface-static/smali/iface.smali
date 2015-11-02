@@ -27,7 +27,7 @@
 
 .field public final static f:LDisplayer;
 
-.method public static <clinit>()V
+.method static constructor <clinit>()V
     .locals 3
     new-instance v1, LDisplayer;
     invoke-direct {v1}, LDisplayer;-><init>()V
