@@ -1208,7 +1208,8 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
 
 bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
                                                             const DexFile& dex_file,
-                                                            uint32_t type_idx) {
+                                                            uint32_t type_idx,
+                                                            bool* finalizable) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
       soa.Self(), dex_file, false);
@@ -1216,8 +1217,11 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
     stats_->TypeNeedsAccessCheck();
+    // Be conservative.
+    *finalizable = true;
     return false;  // Unknown class needs access checks.
   }
+  *finalizable = resolved_class->IsFinalizable();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
   mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
   if (referrer_class == nullptr) {
