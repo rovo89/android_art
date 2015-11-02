@@ -334,7 +334,7 @@ class TestInterface(mixins.DumpMixin, mixins.Named, mixins.NameComparableMixin, 
 #   public static final Displayer field = new Displayer("{tree}");
 .field public final static field:LDisplayer;
 
-.method public static constructor <clinit>()V
+.method static constructor <clinit>()V
     .locals 3
     const-string v2, "{tree}"
     new-instance v1, LDisplayer;
