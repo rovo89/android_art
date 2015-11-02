@@ -93,7 +93,7 @@ class ConcurrentCopying : public GarbageCollector {
     DCHECK(ref != nullptr);
     return IsMarked(ref) == ref;
   }
-  mirror::Object* Mark(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+  ALWAYS_INLINE mirror::Object* Mark(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   bool IsMarking() const {
     return is_marking_;
@@ -183,6 +183,8 @@ class ConcurrentCopying : public GarbageCollector {
   void DisableMarking() SHARED_REQUIRES(Locks::mutator_lock_);
   void IssueDisableMarkingCheckpoint() SHARED_REQUIRES(Locks::mutator_lock_);
   void ExpandGcMarkStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* MarkNonMoving(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;
