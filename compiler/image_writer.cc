@@ -122,7 +122,8 @@ bool ImageWriter::PrepareImageAddressSpace() {
   return true;
 }
 
-bool ImageWriter::Write(const std::string& image_filename,
+bool ImageWriter::Write(int image_fd,
+                        const std::string& image_filename,
                         const std::string& oat_filename,
                         const std::string& oat_location) {
   CHECK(!image_filename.empty());
@@ -178,10 +179,13 @@ bool ImageWriter::Write(const std::string& image_filename,
     LOG(ERROR) << "Failed to flush and close oat file " << oat_filename << " for " << oat_location;
     return false;
   }
-
-  std::unique_ptr<File> image_file(OS::CreateEmptyFile(image_filename.c_str()));
-  ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
-  if (image_file.get() == nullptr) {
+  std::unique_ptr<File> image_file;
+  if (image_fd != kInvalidImageFd) {
+    image_file.reset(new File(image_fd, image_filename, unix_file::kCheckSafeUsage));
+  } else {
+    image_file.reset(OS::CreateEmptyFile(image_filename.c_str()));
+  }
+  if (image_file == nullptr) {
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;
   }
@@ -192,6 +196,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
 
   // Write out the image + fields + methods.
+  ImageHeader* const image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
   const auto write_count = image_header->GetImageSize();
   if (!image_file->WriteFully(image_->Begin(), write_count)) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
@@ -200,7 +205,8 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
 
   // Write out the image bitmap at the page aligned start of the image end.
-  const ImageSection& bitmap_section = image_header->GetImageSection(ImageHeader::kSectionImageBitmap);
+  const ImageSection& bitmap_section = image_header->GetImageSection(
+      ImageHeader::kSectionImageBitmap);
   CHECK_ALIGNED(bitmap_section.Offset(), kPageSize);
   if (!image_file->Write(reinterpret_cast<char*>(image_bitmap_->Begin()),
                          bitmap_section.Size(), bitmap_section.Offset())) {
