@@ -468,12 +468,6 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
   }
 }
 
-inline void ArtMethod::CopyFrom(const ArtMethod* src, size_t image_pointer_size) {
-  memcpy(reinterpret_cast<void*>(this), reinterpret_cast<const void*>(src),
-         Size(image_pointer_size));
-  declaring_class_ = GcRoot<mirror::Class>(const_cast<ArtMethod*>(src)->GetDeclaringClass());
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_ART_METHOD_INL_H_
