@@ -240,8 +240,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // put deoptimization instructions, etc.
   void TransformLoopHeaderForBCE(HBasicBlock* header);
 
-  // Removes `block` from the graph.
-  void DeleteDeadBlock(HBasicBlock* block);
+  // Removes `block` from the graph. Assumes `block` has been disconnected from
+  // other blocks and has no instructions or phis.
+  void DeleteDeadEmptyBlock(HBasicBlock* block);
 
   // Splits the edge between `block` and `successor` while preserving the
   // indices in the predecessor/successor lists. If there are multiple edges
