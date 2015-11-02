@@ -123,21 +123,20 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   }
 
   // If we removed at least one block, we need to recompute the full
-  // dominator tree and try block membership.
+  // dominator tree.
   if (removed_one_or_more_blocks) {
     graph_->ClearDominanceInformation();
     graph_->ComputeDominanceInformation();
-    graph_->ComputeTryBlockInformation();
   }
 
   // Connect successive blocks created by dead branches. Order does not matter.
   for (HReversePostOrderIterator it(*graph_); !it.Done();) {
     HBasicBlock* block  = it.Current();
-    if (block->IsEntryBlock() || !block->GetLastInstruction()->IsGoto()) {
+    if (block->IsEntryBlock() || block->GetSuccessors().size() != 1u) {
       it.Advance();
       continue;
     }
-    HBasicBlock* successor = block->GetSingleSuccessor();
+    HBasicBlock* successor = block->GetSuccessors()[0];
     if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
       it.Advance();
       continue;
@@ -177,7 +176,10 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
 }
 
 void HDeadCodeElimination::Run() {
-  RemoveDeadBlocks();
+  if (!graph_->HasTryCatch()) {
+    // TODO: Update dead block elimination and enable for try/catch.
+    RemoveDeadBlocks();
+  }
   SsaRedundantPhiElimination(graph_).Run();
   RemoveDeadInstructions();
 }
