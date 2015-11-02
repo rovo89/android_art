@@ -598,7 +598,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       call_patches_(MethodReferenceComparator(),
                     graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_rel_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
 }
@@ -2872,21 +2872,21 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       // Add ADRP with its PC-relative DexCache access patch.
-      pc_rel_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                             invoke->GetDexCacheArrayOffset());
-      vixl::Label* pc_insn_label = &pc_rel_dex_cache_patches_.back().label;
+      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
+                                                  invoke->GetDexCacheArrayOffset());
+      vixl::Label* pc_insn_label = &pc_relative_dex_cache_patches_.back().label;
       {
         vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
         __ adrp(XRegisterFrom(temp).X(), 0);
       }
       __ Bind(pc_insn_label);  // Bind after ADRP.
-      pc_rel_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
+      pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
       // Add LDR with its PC-relative DexCache access patch.
-      pc_rel_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                             invoke->GetDexCacheArrayOffset());
+      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
+                                                  invoke->GetDexCacheArrayOffset());
       __ Ldr(XRegisterFrom(temp).X(), MemOperand(XRegisterFrom(temp).X(), 0));
-      __ Bind(&pc_rel_dex_cache_patches_.back().label);  // Bind after LDR.
-      pc_rel_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
+      __ Bind(&pc_relative_dex_cache_patches_.back().label);  // Bind after LDR.
+      pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
@@ -2973,7 +2973,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
       method_patches_.size() +
       call_patches_.size() +
       relative_call_patches_.size() +
-      pc_rel_dex_cache_patches_.size();
+      pc_relative_dex_cache_patches_.size();
   linker_patches->reserve(size);
   for (const auto& entry : method_patches_) {
     const MethodReference& target_method = entry.first;
@@ -2994,7 +2994,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
   }
-  for (const PcRelativeDexCacheAccessInfo& info : pc_rel_dex_cache_patches_) {
+  for (const PcRelativeDexCacheAccessInfo& info : pc_relative_dex_cache_patches_) {
     linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(info.label.location() - 4u,
                                                               &info.target_dex_file,
                                                               info.pc_insn_label->location() - 4u,

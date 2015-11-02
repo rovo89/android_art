@@ -514,12 +514,12 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      pc_rel_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                             invoke->GetDexCacheArrayOffset());
+      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
+                                                  invoke->GetDexCacheArrayOffset());
       __ movq(temp.AsRegister<CpuRegister>(),
               Address::Absolute(kDummy32BitOffset, false /* no_rip */));
       // Bind the label at the end of the "movl" insn.
-      __ Bind(&pc_rel_dex_cache_patches_.back().label);
+      __ Bind(&pc_relative_dex_cache_patches_.back().label);
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
       Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
@@ -593,28 +593,27 @@ void CodeGeneratorX86_64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
 void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
-      method_patches_.size() + relative_call_patches_.size() + pc_rel_dex_cache_patches_.size();
+      method_patches_.size() +
+      relative_call_patches_.size() +
+      pc_relative_dex_cache_patches_.size();
   linker_patches->reserve(size);
+  // The label points to the end of the "movl" insn but the literal offset for method
+  // patch needs to point to the embedded constant which occupies the last 4 bytes.
+  constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
   for (const MethodPatchInfo<Label>& info : method_patches_) {
-    // The label points to the end of the "movl" instruction but the literal offset for method
-    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
-    uint32_t literal_offset = info.label.Position() - 4;
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
     linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset,
                                                        info.target_method.dex_file,
                                                        info.target_method.dex_method_index));
   }
   for (const MethodPatchInfo<Label>& info : relative_call_patches_) {
-    // The label points to the end of the "call" instruction but the literal offset for method
-    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
-    uint32_t literal_offset = info.label.Position() - 4;
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
     linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
   }
-  for (const PcRelativeDexCacheAccessInfo& info : pc_rel_dex_cache_patches_) {
-    // The label points to the end of the "mov" instruction but the literal offset for method
-    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
-    uint32_t literal_offset = info.label.Position() - 4;
+  for (const PcRelativeDexCacheAccessInfo& info : pc_relative_dex_cache_patches_) {
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
     linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(literal_offset,
                                                               &info.target_dex_file,
                                                               info.label.Position(),
@@ -695,7 +694,7 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         constant_area_start_(0),
         method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-        pc_rel_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
