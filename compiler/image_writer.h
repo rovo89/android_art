@@ -41,6 +41,8 @@
 
 namespace art {
 
+static constexpr int kInvalidImageFd = -1;
+
 // Write a Space built during compilation for use during execution.
 class ImageWriter FINAL {
  public:
@@ -89,7 +91,11 @@ class ImageWriter FINAL {
 
   uint8_t* GetOatFileBegin() const;
 
-  bool Write(const std::string& image_filename, const std::string& oat_filename,
+  // If image_fd is not kInvalidImageFd, then we use that for the file. Otherwise we open
+  // image_filename.
+  bool Write(int image_fd,
+             const std::string& image_filename,
+             const std::string& oat_filename,
              const std::string& oat_location)
       REQUIRES(!Locks::mutator_lock_);
 

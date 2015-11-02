@@ -126,11 +126,12 @@ static std::string StrippedCommandLine() {
 
     // However, we prefer to drop this when we saw --zip-fd.
     if (saw_zip_fd) {
-      // Drop anything --zip-X, --dex-X, --oat-X, --swap-X.
+      // Drop anything --zip-X, --dex-X, --oat-X, --swap-X, or --app-image-X
       if (StartsWith(original_argv[i], "--zip-") ||
           StartsWith(original_argv[i], "--dex-") ||
           StartsWith(original_argv[i], "--oat-") ||
-          StartsWith(original_argv[i], "--swap-")) {
+          StartsWith(original_argv[i], "--swap-") ||
+          StartsWith(original_argv[i], "--app-image-")) {
         continue;
       }
     }
@@ -336,6 +337,12 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("  --swap-fd=<file-descriptor>:  specifies a file to use for swap (by descriptor).");
   UsageError("      Example: --swap-fd=10");
   UsageError("");
+  UsageError("  --app-image-fd=<file-descriptor>: specify output file descriptor for app image.");
+  UsageError("      Example: --app-image-fd=10");
+  UsageError("");
+  UsageError("  --app-image-file=<file-name>: specify a file name for app image.");
+  UsageError("      Example: --app-image-file=/data/dalvik-cache/system@app@Calculator.apk.art");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -484,7 +491,8 @@ class Dex2Oat FINAL {
       compiled_classes_filename_(nullptr),
       compiled_methods_zip_filename_(nullptr),
       compiled_methods_filename_(nullptr),
-      image_(false),
+      app_image_(false),
+      boot_image_(false),
       is_host_(false),
       driver_(nullptr),
       dump_stats_(false),
@@ -493,6 +501,7 @@ class Dex2Oat FINAL {
       dump_slow_timing_(kIsDebugBuild),
       dump_cfg_append_(false),
       swap_fd_(-1),
+      app_image_fd_(kInvalidImageFd),
       timings_(timings) {}
 
   ~Dex2Oat() {
@@ -608,13 +617,15 @@ class Dex2Oat FINAL {
     }
   }
 
-  void ParseSwapFd(const StringPiece& option) {
-    ParseUintOption(option, "--swap-fd", &swap_fd_, Usage);
-  }
-
   void ProcessOptions(ParserOptions* parser_options) {
-    image_ = (!image_filename_.empty());
-    if (image_) {
+    boot_image_ = !image_filename_.empty();
+    app_image_ = app_image_fd_ != -1 || !app_image_file_name_.empty();
+
+    if (IsAppImage() && IsBootImage()) {
+      Usage("Can't have both --image and (--app-image-fd or --app-image-file)");
+    }
+
+    if (IsBootImage()) {
       // We need the boot image to always be debuggable.
       compiler_options_->debuggable_ = true;
     }
@@ -647,7 +658,7 @@ class Dex2Oat FINAL {
       android_root_ += android_root_env_var;
     }
 
-    if (!image_ && parser_options->boot_image_filename.empty()) {
+    if (!boot_image_ && parser_options->boot_image_filename.empty()) {
       parser_options->boot_image_filename += android_root_;
       parser_options->boot_image_filename += "/framework/boot.art";
     }
@@ -656,7 +667,7 @@ class Dex2Oat FINAL {
       boot_image_option_ += parser_options->boot_image_filename;
     }
 
-    if (image_classes_filename_ != nullptr && !image_) {
+    if (image_classes_filename_ != nullptr && !IsBootImage()) {
       Usage("--image-classes should only be used with --image");
     }
 
@@ -668,7 +679,7 @@ class Dex2Oat FINAL {
       Usage("--image-classes-zip should be used with --image-classes");
     }
 
-    if (compiled_classes_filename_ != nullptr && !image_) {
+    if (compiled_classes_filename_ != nullptr && !IsBootImage()) {
       Usage("--compiled-classes should only be used with --image");
     }
 
@@ -912,7 +923,11 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--swap-file=")) {
         swap_file_name_ = option.substr(strlen("--swap-file=")).data();
       } else if (option.starts_with("--swap-fd=")) {
-        ParseSwapFd(option);
+        ParseUintOption(option, "--swap-fd", &swap_fd_, Usage);
+      } else if (option.starts_with("--app-image-file=")) {
+        app_image_file_name_ = option.substr(strlen("--app-image-file=")).data();
+      } else if (option.starts_with("--app-image-fd=")) {
+        ParseUintOption(option, "--app-image-fd", &app_image_fd_, Usage);
       } else if (option.starts_with("--verbose-methods=")) {
         // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages
         //       conditional on having verbost methods.
@@ -974,7 +989,6 @@ class Dex2Oat FINAL {
                                       // released immediately.
       unlink(swap_file_name_.c_str());
     }
-
     return true;
   }
 
@@ -1016,7 +1030,7 @@ class Dex2Oat FINAL {
     callbacks_.reset(new QuickCompilerCallbacks(
         verification_results_.get(),
         &method_inliner_map_,
-        image_ ?
+        IsBootImage() ?
             CompilerCallbacks::CallbackMode::kCompileBootImage :
             CompilerCallbacks::CallbackMode::kCompileApp));
     runtime_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
@@ -1026,7 +1040,7 @@ class Dex2Oat FINAL {
     // Only allow no boot image for the runtime if we're compiling one. When we compile an app,
     // we don't want fallback mode, it will abort as we do not push a boot classpath (it might
     // have been stripped in preopting, anyways).
-    if (!image_) {
+    if (!IsBootImage()) {
       runtime_options.push_back(std::make_pair("-Xno-dex-file-fallback", nullptr));
     }
     // Disable libsigchain. We don't don't need it during compilation and it prevents us
@@ -1065,7 +1079,7 @@ class Dex2Oat FINAL {
             "': " << error_msg;
         return false;
       }
-    } else if (image_) {
+    } else if (IsBootImage()) {
       image_classes_.reset(new std::unordered_set<std::string>);
     }
     // If --compiled-classes was specified, calculate the full list of classes to compile in the
@@ -1178,7 +1192,7 @@ class Dex2Oat FINAL {
 
     // If we use a swap file, ensure we are above the threshold to make it necessary.
     if (swap_fd_ != -1) {
-      if (!UseSwap(image_, dex_files_)) {
+      if (!UseSwap(IsBootImage(), dex_files_)) {
         close(swap_fd_);
         swap_fd_ = -1;
         VLOG(compiler) << "Decided to run without swap.";
@@ -1192,7 +1206,7 @@ class Dex2Oat FINAL {
      * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
      * Don't bother to check if we're doing the image.
      */
-    if (!image_ &&
+    if (!IsBootImage() &&
         compiler_options_->IsCompilationEnabled() &&
         compiler_kind_ == Compiler::kQuick) {
       size_t num_methods = 0;
@@ -1246,7 +1260,7 @@ class Dex2Oat FINAL {
                                      compiler_kind_,
                                      instruction_set_,
                                      instruction_set_features_.get(),
-                                     image_,
+                                     IsBootImage(),
                                      image_classes_.release(),
                                      compiled_classes_.release(),
                                      nullptr,
@@ -1341,7 +1355,7 @@ class Dex2Oat FINAL {
       uint32_t image_file_location_oat_checksum = 0;
       uintptr_t image_file_location_oat_data_begin = 0;
       int32_t image_patch_delta = 0;
-      if (image_) {
+      if (IsImage()) {
         PrepareImageWriter(image_base_);
       } else {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
@@ -1366,7 +1380,7 @@ class Dex2Oat FINAL {
                                      key_value_store_.get()));
     }
 
-    if (image_) {
+    if (IsImage()) {
       // The OatWriter constructor has already updated offsets in methods and we need to
       // prepare method offsets in the image address space for direct method patching.
       TimingLogger::ScopedTiming t2("dex2oat Prepare image address space", timings_);
@@ -1391,7 +1405,7 @@ class Dex2Oat FINAL {
 
   // If we are compiling an image, invoke the image creation routine. Else just skip.
   bool HandleImage() {
-    if (image_) {
+    if (IsImage()) {
       TimingLogger::ScopedTiming t("dex2oat ImageWriter", timings_);
       if (!CreateImageFile()) {
         return false;
@@ -1474,7 +1488,15 @@ class Dex2Oat FINAL {
   }
 
   bool IsImage() const {
-    return image_;
+    return IsAppImage() || IsBootImage();
+  }
+
+  bool IsAppImage() const {
+    return app_image_;
+  }
+
+  bool IsBootImage() const {
+    return boot_image_;
   }
 
   bool IsHost() const {
@@ -1576,7 +1598,10 @@ class Dex2Oat FINAL {
   bool CreateImageFile()
       REQUIRES(!Locks::mutator_lock_) {
     CHECK(image_writer_ != nullptr);
-    if (!image_writer_->Write(image_filename_, oat_unstripped_, oat_location_)) {
+    if (!image_writer_->Write(app_image_fd_,
+                              IsBootImage() ? image_filename_ : app_image_file_name_,
+                              oat_unstripped_,
+                              oat_location_)) {
       LOG(ERROR) << "Failed to create image file " << image_filename_;
       return false;
     }
@@ -1585,8 +1610,8 @@ class Dex2Oat FINAL {
     // Destroy ImageWriter before doing FixupElf.
     image_writer_.reset();
 
-    // Do not fix up the ELF file if we are --compile-pic
-    if (!compiler_options_->GetCompilePic()) {
+    // Do not fix up the ELF file if we are --compile-pic or compiing the app image
+    if (!compiler_options_->GetCompilePic() && IsBootImage()) {
       std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_unstripped_.c_str()));
       if (oat_file.get() == nullptr) {
         PLOG(ERROR) << "Failed to open ELF file: " << oat_unstripped_;
@@ -1748,7 +1773,8 @@ class Dex2Oat FINAL {
   std::unique_ptr<std::unordered_set<std::string>> image_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
-  bool image_;
+  bool app_image_;
+  bool boot_image_;
   bool is_host_;
   std::string android_root_;
   std::vector<const DexFile*> dex_files_;
@@ -1767,6 +1793,8 @@ class Dex2Oat FINAL {
   bool dump_cfg_append_;
   std::string swap_file_name_;
   int swap_fd_;
+  std::string app_image_file_name_;
+  int app_image_fd_;
   std::string profile_file_;  // Profile file to use
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
@@ -1895,7 +1923,7 @@ static int dex2oat(int argc, char** argv) {
   //   3) Compiling with --host
   //   4) Compiling on the host (not a target build)
   // Otherwise, print a stripped command line.
-  if (kIsDebugBuild || dex2oat.IsImage() || dex2oat.IsHost() || !kIsTargetBuild) {
+  if (kIsDebugBuild || dex2oat.IsBootImage() || dex2oat.IsHost() || !kIsTargetBuild) {
     LOG(INFO) << CommandLine();
   } else {
     LOG(INFO) << StrippedCommandLine();
