@@ -4750,6 +4750,9 @@ class HLoadClass : public HExpression<1> {
     return generate_clinit_check_;
   }
   void SetMustGenerateClinitCheck(bool generate_clinit_check) {
+    // The entrypoint the code generator is going to call does not do
+    // clinit of the class.
+    DCHECK(!NeedsAccessCheck());
     generate_clinit_check_ = generate_clinit_check;
   }
 
