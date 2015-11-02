@@ -49,8 +49,8 @@ class ArtMethod FINAL {
   ArtMethod() : access_flags_(0), dex_code_item_offset_(0), dex_method_index_(0),
       method_index_(0) { }
 
-  ArtMethod(const ArtMethod& src, size_t image_pointer_size) {
-    CopyFrom(&src, image_pointer_size);
+  ArtMethod(ArtMethod* src, size_t image_pointer_size) {
+    CopyFrom(src, image_pointer_size);
   }
 
   static ArtMethod* FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
@@ -313,6 +313,10 @@ class ArtMethod FINAL {
     SetEntryPointFromJniPtrSize(info, sizeof(void*));
   }
 
+  ALWAYS_INLINE void SetProfilingInfoPtrSize(ProfilingInfo* info, size_t pointer_size) {
+    SetEntryPointFromJniPtrSize(info, pointer_size);
+  }
+
   static MemberOffset ProfilingInfoOffset() {
     return EntryPointFromJniOffset(sizeof(void*));
   }
@@ -429,7 +433,7 @@ class ArtMethod FINAL {
     return pointer_size;
   }
 
-  void CopyFrom(const ArtMethod* src, size_t image_pointer_size)
+  void CopyFrom(ArtMethod* src, size_t image_pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE GcRoot<mirror::Class>* GetDexCacheResolvedTypes(size_t pointer_size)

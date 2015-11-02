@@ -192,7 +192,10 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   CompiledMethod* compiled_method = nullptr;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
-    compiled_method = compiler_driver_->CompileArtMethod(self, method);
+    // If we get a request to compile a proxy method, we pass the actual Java method
+    // of that proxy method, as the compiler does not expect a proxy method.
+    ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
+    compiled_method = compiler_driver_->CompileArtMethod(self, method_to_compile);
   }
 
   // Trim maps to reduce memory usage.
