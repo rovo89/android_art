@@ -494,6 +494,26 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                        << " it is in a different dex file and requires access to the dex cache";
         return false;
       }
+
+      if (current->IsNewInstance() &&
+          (current->AsNewInstance()->GetEntrypoint() == kQuickAllocObjectWithAccessCheck)) {
+        // Allocation entrypoint does not handle inlined frames.
+        return false;
+      }
+
+      if (current->IsNewArray() &&
+          (current->AsNewArray()->GetEntrypoint() == kQuickAllocArrayWithAccessCheck)) {
+        // Allocation entrypoint does not handle inlined frames.
+        return false;
+      }
+
+      if (current->IsUnresolvedStaticFieldGet() ||
+          current->IsUnresolvedInstanceFieldGet() ||
+          current->IsUnresolvedStaticFieldSet() ||
+          current->IsUnresolvedInstanceFieldSet()) {
+        // Entrypoint for unresolved fields does not handle inlined frames.
+        return false;
+      }
     }
   }
   number_of_inlined_instructions_ += number_of_instructions;
