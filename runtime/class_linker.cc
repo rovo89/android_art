@@ -5279,7 +5279,7 @@ bool ClassLinker::LinkInterfaceMethods(
             miranda_method = reinterpret_cast<ArtMethod*>(allocator.Alloc(method_size));
             CHECK(miranda_method != nullptr);
             // Point the interface table at a phantom slot.
-            new(miranda_method) ArtMethod(*interface_method, image_pointer_size_);
+            new(miranda_method) ArtMethod(interface_method, image_pointer_size_);
             miranda_methods.push_back(miranda_method);
           }
           method_array->SetElementPtrSize(j, miranda_method, image_pointer_size_);

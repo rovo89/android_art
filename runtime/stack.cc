@@ -958,26 +958,18 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
     return runtime->GetRuntimeMethodFrameInfo(method);
   }
 
-  // For Proxy method we add special handling for the direct method case  (there is only one
-  // direct method - constructor). Direct method is cloned from original
-  // java.lang.reflect.Proxy class together with code and as a result it is executed as usual
-  // quick compiled method without any stubs. So the frame info should be returned as it is a
-  // quick method not a stub. However, if instrumentation stubs are installed, the
-  // instrumentation->GetQuickCodeFor() returns the artQuickProxyInvokeHandler instead of an
-  // oat code pointer, thus we have to add a special case here.
   if (method->IsProxyMethod()) {
-    if (method->IsDirect()) {
-      CHECK(method->IsConstructor());
-      const void* code_pointer =
-          EntryPointToCodePointer(method->GetEntryPointFromQuickCompiledCode());
-      return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
-    } else {
-      return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-    }
+    // There is only one direct method of a proxy class: the constructor. A direct method is
+    // cloned from the original java.lang.reflect.Proxy and is executed as usual quick
+    // compiled method without any stubs. Therefore the method must have a OatQuickMethodHeader.
+    DCHECK(!method->IsDirect() && !method->IsConstructor())
+        << "Constructors of proxy classes must have a OatQuickMethodHeader";
+    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
 
-  ClassLinker* class_linker = runtime->GetClassLinker();
+  // The only remaining case is if the method is native and uses the generic JNI stub.
   DCHECK(method->IsNative());
+  ClassLinker* class_linker = runtime->GetClassLinker();
   const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(method, sizeof(void*));
   DCHECK(class_linker->IsQuickGenericJniStub(entry_point)) << PrettyMethod(method);
   // Generic JNI frame.

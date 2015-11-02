@@ -102,15 +102,13 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t
     } else {
       // We failed allocating. Instead of doing the collection on the Java thread, we push
       // an allocation to a compiler thread, that will do the collection.
-      thread_pool_->AddTask(self, new JitCompileTask(
-          method->GetInterfaceMethodIfProxy(sizeof(void*)), JitCompileTask::kAllocateProfile));
+      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
       thread_pool_->StartWorkers(self);
     }
   }
 
   if (sample_count == hot_method_threshold_) {
-    thread_pool_->AddTask(self, new JitCompileTask(
-        method->GetInterfaceMethodIfProxy(sizeof(void*)), JitCompileTask::kCompile));
+    thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
     thread_pool_->StartWorkers(self);
   }
 }

@@ -697,6 +697,9 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
 }
 
 CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method) {
+  DCHECK_EQ(method,
+            method->GetInterfaceMethodIfProxy(
+                Runtime::Current()->GetClassLinker()->GetImagePointerSize()));
   const uint32_t method_idx = method->GetDexMethodIndex();
   const uint32_t access_flags = method->GetAccessFlags();
   const InvokeType invoke_type = method->GetInvokeType();

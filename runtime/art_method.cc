@@ -367,7 +367,7 @@ const uint8_t* ArtMethod::GetQuickenedInfo() {
 }
 
 const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
-  if (IsRuntimeMethod() || IsProxyMethod()) {
+  if (IsRuntimeMethod()) {
     return nullptr;
   }
 
@@ -378,6 +378,12 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
 
   if (class_linker->IsQuickGenericJniStub(existing_entry_point)) {
     // The generic JNI does not have any method header.
+    return nullptr;
+  }
+
+  if (existing_entry_point == GetQuickProxyInvokeHandler()) {
+    DCHECK(IsProxyMethod() && !IsConstructor());
+    // The proxy entry point does not have any method header.
     return nullptr;
   }
 
@@ -450,6 +456,30 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
       << std::hex << pc << " " << oat_entry_point
       << " " << (uintptr_t)(method_header->code_ + method_header->code_size_);
   return method_header;
+}
+
+
+void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
+  memcpy(reinterpret_cast<void*>(this), reinterpret_cast<const void*>(src),
+         Size(image_pointer_size));
+  declaring_class_ = GcRoot<mirror::Class>(const_cast<ArtMethod*>(src)->GetDeclaringClass());
+
+  // If the entry point of the method we are copying from is from JIT code, we just
+  // put the entry point of the new method to interpreter. We could set the entry point
+  // to the JIT code, but this would require taking the JIT code cache lock to notify
+  // it, which we do not want at this level.
+  Runtime* runtime = Runtime::Current();
+  if (runtime->GetJit() != nullptr) {
+    if (runtime->GetJit()->GetCodeCache()->ContainsPc(GetEntryPointFromQuickCompiledCode())) {
+      SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(), image_pointer_size);
+    }
+  }
+  // Clear the profiling info for the same reasons as the JIT code.
+  if (!src->IsNative()) {
+    SetProfilingInfoPtrSize(nullptr, image_pointer_size);
+  }
+  // Clear hotness to let the JIT properly decide when to compile this method.
+  hotness_count_ = 0;
 }
 
 }  // namespace art
