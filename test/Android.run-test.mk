@@ -59,6 +59,9 @@ define define-build-art-run-test
   else
     run_test_options += --build-with-javac-dx
   endif
+  ifeq ($(ART_TEST_QUIET),true)
+    run_test_options += --quiet
+  endif
 $$(dmart_target): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
 $$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TARGET_JACK_CLASSPATH_DEPENDENCIES)
 	$(hide) rm -rf $$(dir $$@) && mkdir -p $$(dir $$@)
@@ -857,6 +860,9 @@ define define-test-art-run-test
       $$(run_test_options)
   ifneq ($(ART_TEST_ANDROID_ROOT),)
     run_test_options := --android-root $(ART_TEST_ANDROID_ROOT) $$(run_test_options)
+  endif
+  ifeq ($(ART_TEST_QUIET),true)
+    run_test_options += --quiet
   endif
 $$(run_test_rule_name): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
 $$(run_test_rule_name): PRIVATE_JACK_CLASSPATH := $$(jack_classpath)

@@ -18,6 +18,7 @@ include art/build/Android.common_build.mk
 
 ART_CPPLINT := art/tools/cpplint.py
 ART_CPPLINT_FILTER := --filter=-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references,-runtime/sizeof,-runtime/threadsafe_fn,-runtime/printf
+ART_CPPLINT_FLAGS := --quiet
 ART_CPPLINT_SRC := $(shell find art -name "*.h" -o -name "*$(ART_CPP_EXTENSION)" | grep -v art/compiler/llvm/generated/ | grep -v art/runtime/elf\.h)
 
 # "mm cpplint-art" to verify we aren't regressing
@@ -39,8 +40,8 @@ art_cpplint_file := $(1)
 art_cpplint_touch := $$(OUT_CPPLINT)/$$(subst /,__,$$(art_cpplint_file))
 
 $$(art_cpplint_touch): $$(art_cpplint_file) $(ART_CPPLINT) art/build/Android.cpplint.mk
-	$(hide) $(ART_CPPLINT) $(ART_CPPLINT_FILTER) $$<
-	@mkdir -p $$(dir $$@)
+	$(hide) $(ART_CPPLINT) $(ART_CPPLINT_FLAGS) $(ART_CPPLINT_FILTER) $$<
+	$(hide) mkdir -p $$(dir $$@)
 	$(hide) touch $$@
 
 ART_CPPLINT_TARGETS += $$(art_cpplint_touch)
