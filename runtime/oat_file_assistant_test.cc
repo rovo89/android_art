@@ -849,6 +849,38 @@ TEST_F(OatFileAssistantTest, LoadDexNoAlternateOat) {
   EXPECT_FALSE(ofm.OatFileExists());
 }
 
+// Case: We have a DEX file but can't write the oat file.
+// Expect: We should fail to make the oat file up to date.
+TEST_F(OatFileAssistantTest, LoadDexUnwriteableAlternateOat) {
+  std::string dex_location = GetScratchDir() + "/LoadDexUnwriteableAlternateOat.jar";
+
+  // Make the oat location unwritable by inserting some non-existent
+  // intermediate directories.
+  std::string oat_location = GetScratchDir() + "/foo/bar/LoadDexUnwriteableAlternateOat.oat";
+
+  Copy(GetDexSrc1(), dex_location);
+
+  OatFileAssistant oat_file_assistant(
+      dex_location.c_str(), oat_location.c_str(), kRuntimeISA, true);
+  std::string error_msg;
+  ASSERT_FALSE(oat_file_assistant.MakeUpToDate(&error_msg));
+
+  std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
+  ASSERT_TRUE(oat_file.get() == nullptr);
+}
+
+// Case: We don't have a DEX file and can't write the oat file.
+// Expect: We should fail to generate the oat file without crashing.
+TEST_F(OatFileAssistantTest, GenNoDex) {
+  std::string dex_location = GetScratchDir() + "/GenNoDex.jar";
+  std::string oat_location = GetScratchDir() + "/GenNoDex.oat";
+
+  OatFileAssistant oat_file_assistant(
+      dex_location.c_str(), oat_location.c_str(), kRuntimeISA, true);
+  std::string error_msg;
+  ASSERT_FALSE(oat_file_assistant.GenerateOatFile(&error_msg));
+}
+
 // Turn an absolute path into a path relative to the current working
 // directory.
 static std::string MakePathRelative(std::string target) {
