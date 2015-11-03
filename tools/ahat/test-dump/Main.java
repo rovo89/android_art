@@ -16,6 +16,9 @@
 
 import dalvik.system.VMDebug;
 import java.io.IOException;
+import java.lang.ref.PhantomReference;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 
 /**
  * Program used to create a heap dump for test purposes.
@@ -33,6 +36,9 @@ public class Main {
     public String basicString = "hello, world";
     public String nullString = null;
     public Object anObject = new Object();
+    public ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
+    public PhantomReference aPhantomReference = new PhantomReference(anObject, referenceQueue);
+    public WeakReference aWeakReference = new WeakReference(anObject, referenceQueue);
   }
 
   public static void main(String[] args) throws IOException {
