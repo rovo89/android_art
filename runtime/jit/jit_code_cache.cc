@@ -25,6 +25,7 @@
 #include "linear_alloc.h"
 #include "mem_map.h"
 #include "oat_file-inl.h"
+#include "scoped_thread_state_change.h"
 #include "thread_list.h"
 
 namespace art {
@@ -407,9 +408,17 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   // Run a checkpoint on all threads to mark the JIT compiled code they are running.
   {
     Barrier barrier(0);
-    MarkCodeClosure closure(this, &barrier);
-    size_t threads_running_checkpoint =
-        Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+    size_t threads_running_checkpoint = 0;
+    {
+      // Walking the stack requires the mutator lock.
+      // We only take the lock when running the checkpoint and not waiting so that
+      // when we go back to suspended, we can execute checkpoints that were requested
+      // concurrently, and then move to waiting for our own checkpoint to finish.
+      ScopedObjectAccess soa(self);
+      MarkCodeClosure closure(this, &barrier);
+      threads_running_checkpoint =
+          Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+    }
     if (threads_running_checkpoint != 0) {
       barrier.Increment(self, threads_running_checkpoint);
     }
