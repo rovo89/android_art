@@ -266,8 +266,8 @@ class ElfBuilder FINAL {
   // Writer of .dynstr .strtab and .shstrtab sections.
   class StrtabSection FINAL : public Section {
    public:
-    StrtabSection(const std::string& name, Elf_Word flags)
-        : Section(name, SHT_STRTAB, flags, nullptr, 0, 1, 0) {
+    StrtabSection(const std::string& name, Elf_Word flags, Elf_Word align)
+        : Section(name, SHT_STRTAB, flags, nullptr, 0, align, 0) {
       buffer_.reserve(4 * KB);
       // The first entry of strtab must be empty string.
       buffer_ += '\0';
@@ -459,16 +459,8 @@ class ElfBuilder FINAL {
    private:
     Elf_Word GetNumBuckets() const {
       const auto& symbols = symtab_->symbols_;
-      if (symbols.size() < 8) {
-        return 2;
-      } else if (symbols.size() < 32) {
-        return 4;
-      } else if (symbols.size() < 256) {
-        return 16;
-      } else {
-        // Have about 32 ids per bucket.
-        return RoundUp(symbols.size()/32, 2);
-      }
+      // Have about 32 ids per bucket.
+      return 1 + symbols.size()/32;
     }
 
     // from bionic
@@ -495,7 +487,7 @@ class ElfBuilder FINAL {
              Elf_Word text_size, CodeOutput* text_writer,
              Elf_Word bss_size)
     : isa_(isa),
-      dynstr_(".dynstr", SHF_ALLOC),
+      dynstr_(".dynstr", SHF_ALLOC, kPageSize),
       dynsym_(".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
       hash_(".hash", SHF_ALLOC, &dynsym_),
       rodata_(".rodata", SHT_PROGBITS, SHF_ALLOC,
@@ -504,9 +496,9 @@ class ElfBuilder FINAL {
             nullptr, 0, kPageSize, 0, text_size, text_writer),
       bss_(".bss", bss_size),
       dynamic_(".dynamic", &dynstr_),
-      strtab_(".strtab", 0),
+      strtab_(".strtab", 0, kPageSize),
       symtab_(".symtab", SHT_SYMTAB, 0, &strtab_),
-      shstrtab_(".shstrtab", 0) {
+      shstrtab_(".shstrtab", 0, 1) {
   }
   ~ElfBuilder() {}
 
@@ -606,18 +598,18 @@ class ElfBuilder FINAL {
     // Create a list of all section which we want to write.
     // This is the order in which they will be written.
     std::vector<Section*> sections;
-    sections.push_back(&dynsym_);
-    sections.push_back(&dynstr_);
-    sections.push_back(&hash_);
     sections.push_back(&rodata_);
     sections.push_back(&text_);
     if (bss_.GetSize() != 0u) {
       sections.push_back(&bss_);
     }
+    sections.push_back(&dynstr_);
+    sections.push_back(&dynsym_);
+    sections.push_back(&hash_);
     sections.push_back(&dynamic_);
     if (!symtab_.IsEmpty()) {
-      sections.push_back(&symtab_);
       sections.push_back(&strtab_);
+      sections.push_back(&symtab_);
     }
     for (Section* section : other_sections_) {
       sections.push_back(section);
@@ -643,7 +635,7 @@ class ElfBuilder FINAL {
 
     // We do not know the number of headers until the final stages of write.
     // It is easiest to just reserve a fixed amount of space for them.
-    constexpr size_t kMaxProgramHeaders = 8;
+    constexpr size_t kMaxProgramHeaders = 16;
     constexpr size_t kProgramHeadersOffset = sizeof(Elf_Ehdr);
 
     // Layout of all sections - determine the final file offsets and addresses.
@@ -694,6 +686,11 @@ class ElfBuilder FINAL {
     if (bss_.GetHeader()->sh_size != 0u) {
       program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_W, bss_));
     }
+    program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R, dynstr_));
+    int dynstr_dynsym_hash_size = hash_.GetHeader()->sh_offset +
+      hash_.GetHeader()->sh_size - dynstr_.GetHeader()->sh_offset;
+    program_headers.back().p_filesz = dynstr_dynsym_hash_size;
+    program_headers.back().p_memsz  = dynstr_dynsym_hash_size;
     program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_W, dynamic_));
     program_headers.push_back(MakeProgramHeader(PT_DYNAMIC, PF_R | PF_W, dynamic_));
     const Section* eh_frame = FindSection(".eh_frame");
