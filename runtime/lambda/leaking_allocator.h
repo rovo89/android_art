@@ -17,6 +17,7 @@
 #define ART_RUNTIME_LAMBDA_LEAKING_ALLOCATOR_H_
 
 #include <utility>  // std::forward
+#include <type_traits>  // std::aligned_storage
 
 namespace art {
 class Thread;  // forward declaration
@@ -33,20 +34,36 @@ namespace lambda {
 // TODO: do all of the above a/b for each callsite, and delete this class.
 class LeakingAllocator {
  public:
+  // An opaque type which is guaranteed for:
+  // * a) be large enough to hold T (e.g. for in-place new)
+  // * b) be well-aligned (so that reads/writes are well-defined) to T
+  // * c) strict-aliasing compatible with T*
+  //
+  // Nominally used to allocate memory for yet unconstructed instances of T.
+  template <typename T>
+  using AlignedMemoryStorage = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
+
   // Allocate byte_size bytes worth of memory. Never freed.
-  static void* AllocateMemory(Thread* self, size_t byte_size);
+  template <typename T>
+  static AlignedMemoryStorage<T>* AllocateMemory(Thread* self, size_t byte_size = sizeof(T)) {
+    return reinterpret_cast<AlignedMemoryStorage<T>*>(
+        AllocateMemoryImpl(self, byte_size, alignof(T)));
+  }
 
   // Make a new instance of T, flexibly sized, in-place at newly allocated memory. Never freed.
   template <typename T, typename... Args>
   static T* MakeFlexibleInstance(Thread* self, size_t byte_size, Args&&... args) {
-    return new (AllocateMemory(self, byte_size)) T(std::forward<Args>(args)...);
+    return new (AllocateMemory<T>(self, byte_size)) T(std::forward<Args>(args)...);
   }
 
   // Make a new instance of T in-place at newly allocated memory. Never freed.
   template <typename T, typename... Args>
   static T* MakeInstance(Thread* self, Args&&... args) {
-    return new (AllocateMemory(self, sizeof(T))) T(std::forward<Args>(args)...);
+    return new (AllocateMemory<T>(self, sizeof(T))) T(std::forward<Args>(args)...);
   }
+
+ private:
+  static void* AllocateMemoryImpl(Thread* self, size_t byte_size, size_t align_size);
 };
 
 }  // namespace lambda
