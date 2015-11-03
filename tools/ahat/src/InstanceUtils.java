@@ -244,6 +244,24 @@ class InstanceUtils {
     return null;
   }
 
+  private static boolean isJavaLangRefReference(Instance inst) {
+    ClassObj cls = (inst == null) ? null : inst.getClassObj();
+    while (cls != null) {
+      if ("java.lang.ref.Reference".equals(cls.getClassName())) {
+        return true;
+      }
+      cls = cls.getSuperClassObj();
+    }
+    return false;
+  }
+
+  public static Instance getReferent(Instance inst) {
+    if (isJavaLangRefReference(inst)) {
+      return getRefField(inst, "referent");
+    }
+    return null;
+  }
+
   /**
    * Assuming inst represents a DexCache object, return the dex location for
    * that dex cache. Returns null if the given instance doesn't represent a
