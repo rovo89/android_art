@@ -98,8 +98,9 @@ public class Main {
             try {
                 BadInit.dummy = 1;
                 throw new IllegalStateException("Should not reach here.");
-            } catch (BadError e) {
+            } catch (NoClassDefFoundError e) {
                 System.out.println(e);
+                System.out.println(e.getCause());
             }
         } catch (Exception error) {
             error.printStackTrace();
@@ -120,8 +121,9 @@ public class Main {
             try {
                 BadInitNoStringInit.dummy = 1;
                 throw new IllegalStateException("Should not reach here.");
-            } catch (BadErrorNoStringInit e) {
+            } catch (NoClassDefFoundError e) {
                 System.out.println(e);
+                System.out.println(e.getCause());
             }
         } catch (Exception error) {
             error.printStackTrace();
