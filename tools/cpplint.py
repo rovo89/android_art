@@ -90,6 +90,7 @@ import unicodedata
 _USAGE = """
 Syntax: cpplint.py [--verbose=#] [--output=vs7] [--filter=-x,+y,...]
                    [--counting=total|toplevel|detailed]
+                   [--quiet]
         <file> [file] ...
 
   The style guidelines this tries to follow are those in
@@ -114,6 +115,9 @@ Syntax: cpplint.py [--verbose=#] [--output=vs7] [--filter=-x,+y,...]
 
     verbose=#
       Specify a number 0-5 to restrict errors to certain verbosity levels.
+
+    quiet
+      Don't print anything if no errors are found.
 
     filter=-x,+y,...
       Specify a comma-separated list of category-filters to apply: only
@@ -558,6 +562,9 @@ class _CppLintState(object):
     self.filters = _DEFAULT_FILTERS[:]
     self.counting = 'total'  # In what way are we counting errors?
     self.errors_by_category = {}  # string to int dict storing error counts
+    # BEGIN android-added
+    self.quiet = False      # global setting.
+    # END android-added
 
     # output format:
     # "emacs" - format that emacs can parse (default)
@@ -567,6 +574,14 @@ class _CppLintState(object):
   def SetOutputFormat(self, output_format):
     """Sets the output format for errors."""
     self.output_format = output_format
+
+  # BEGIN android-added
+  def SetQuiet(self, level):
+    """Sets the module's quiet setting, and returns the previous setting."""
+    last_quiet = self.quiet
+    self.quiet = level
+    return last_quiet
+  # END android-added
 
   def SetVerboseLevel(self, level):
     """Sets the module's verbosity, and returns the previous setting."""
@@ -637,6 +652,17 @@ def _SetOutputFormat(output_format):
   """Sets the module's output format."""
   _cpplint_state.SetOutputFormat(output_format)
 
+
+# BEGIN android-added
+def _Quiet():
+  """Returns the module's quiet setting."""
+  return _cpplint_state.quiet
+
+
+def _SetQuiet(level):
+  """Sets the module's quiet status, and returns the previous setting."""
+  return _cpplint_state.SetQuiet(level)
+# END android-added
 
 def _VerboseLevel():
   """Returns the module's verbosity setting."""
@@ -3888,6 +3914,9 @@ def ProcessFile(filename, vlevel, extra_check_functions=[]):
   """
 
   _SetVerboseLevel(vlevel)
+# BEGIN android-added
+  old_errors = _cpplint_state.error_count
+# END android-added
 
   try:
     # Support the UNIX convention of using "-" for stdin.  Note that
@@ -3938,8 +3967,11 @@ def ProcessFile(filename, vlevel, extra_check_functions=[]):
             'One or more unexpected \\r (^M) found;'
             'better to use only a \\n')
 
-  sys.stderr.write('Done processing %s\n' % filename)
-
+# BEGIN android-changed
+  # sys.stderr.write('Done processing %s\n' % filename)
+  if not _cpplint_state.quiet or old_errors != _cpplint_state.error_count:
+    sys.stderr.write('Done processing %s\n' % filename)
+# END android-changed
 
 def PrintUsage(message):
   """Prints a brief usage string and exits, optionally with an error message.
@@ -3977,6 +4009,9 @@ def ParseArguments(args):
   try:
     (opts, filenames) = getopt.getopt(args, '', ['help', 'output=', 'verbose=',
                                                  'stdout', # TODO(enh): added --stdout
+                                                 # BEGIN android-added
+                                                 'quiet',
+                                                 # END android-added
                                                  'counting=',
                                                  'filter=',
                                                  'root='])
@@ -3987,6 +4022,9 @@ def ParseArguments(args):
   output_format = _OutputFormat()
   output_stream = sys.stderr # TODO(enh): added --stdout
   filters = ''
+  # BEGIN android-added
+  quiet = _Quiet()
+  # END android-added
   counting_style = ''
 
   for (opt, val) in opts:
@@ -3994,6 +4032,10 @@ def ParseArguments(args):
       PrintUsage(None)
     elif opt == '--stdout': # TODO(enh): added --stdout
       output_stream = sys.stdout # TODO(enh): added --stdout
+    # BEGIN android-added
+    elif opt == '--quiet':
+      quiet = True
+    # END android-added
     elif opt == '--output':
       if not val in ('emacs', 'vs7', 'eclipse'):
         PrintUsage('The only allowed output formats are emacs, vs7 and eclipse.')
@@ -4019,6 +4061,9 @@ def ParseArguments(args):
   _SetVerboseLevel(verbosity)
   _SetFilters(filters)
   _SetCountingStyle(counting_style)
+  # BEGIN android-added
+  _SetQuiet(quiet)
+  # END android-added
   sys.stderr = output_stream # TODO(enh): added --stdout
 
   return filenames
@@ -4037,7 +4082,11 @@ def main():
   _cpplint_state.ResetErrorCounts()
   for filename in filenames:
     ProcessFile(filename, _cpplint_state.verbose_level)
-  _cpplint_state.PrintErrorCounts()
+  # BEGIN android-changed
+  # _cpplint_state.PrintErrorCounts()
+  if not _cpplint_state.quiet or _cpplint_state.error_count > 0:
+    _cpplint_state.PrintErrorCounts()
+  # END android-changed
 
   sys.exit(_cpplint_state.error_count > 0)
 
