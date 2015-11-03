@@ -25,21 +25,49 @@ import org.junit.Test;
 
 public class InstanceUtilsTest {
   @Test
-  public void basicString() throws IOException {
+  public void asStringBasic() throws IOException {
     TestDump dump = TestDump.getTestDump();
     Instance str = (Instance)dump.getDumpedThing("basicString");
     assertEquals("hello, world", InstanceUtils.asString(str));
   }
 
   @Test
-  public void nullString() throws IOException {
+  public void asStringTruncated() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("basicString");
+    assertEquals("hello", InstanceUtils.asString(str, 5));
+  }
+
+  @Test
+  public void asStringExactMax() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("basicString");
+    assertEquals("hello, world", InstanceUtils.asString(str, 12));
+  }
+
+  @Test
+  public void asStringNotTruncated() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("basicString");
+    assertEquals("hello, world", InstanceUtils.asString(str, 50));
+  }
+
+  @Test
+  public void asStringNegativeMax() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("basicString");
+    assertEquals("hello, world", InstanceUtils.asString(str, -3));
+  }
+
+  @Test
+  public void asStringNull() throws IOException {
     TestDump dump = TestDump.getTestDump();
     Instance obj = (Instance)dump.getDumpedThing("nullString");
     assertNull(InstanceUtils.asString(obj));
   }
 
   @Test
-  public void notString() throws IOException {
+  public void asStringNotString() throws IOException {
     TestDump dump = TestDump.getTestDump();
     Instance obj = (Instance)dump.getDumpedThing("anObject");
     assertNotNull(obj);

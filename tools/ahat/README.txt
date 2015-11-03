@@ -28,8 +28,6 @@ TODO:
    - Use consistent order for heap columns.
       Sometimes I see "app" first, sometimes last (from one heap dump to
       another) How about, always sort by name?
- * For long strings, limit the string length shown in the summary view to
-   something reasonable.  Say 50 chars, then add a "..." at the end.
  * For HeapTable with single heap shown, the heap name isn't centered?
  * Consistently document functions.
  * Should help be part of an AhatHandler, that automatically gets the menu and
@@ -70,6 +68,7 @@ Things to Test:
    showing all the instances.
  * That InstanceUtils.asString properly takes into account "offset" and
    "count" fields, if they are present.
+ * InstanceUtils.getDexCacheLocation
 
 Reported Issues:
  * Request to be able to sort tables by size.
