@@ -662,23 +662,19 @@ bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
 bool OatFileAssistant::GenerateOatFile(std::string* error_msg) {
   CHECK(error_msg != nullptr);
 
+  Runtime* runtime = Runtime::Current();
+  if (!runtime->IsDex2OatEnabled()) {
+    *error_msg = "Generation of oat file for dex location " + dex_location_
+      + " not attempted because dex2oat is disabled.";
+    return false;
+  }
+
   if (OatFileName() == nullptr) {
     *error_msg = "Generation of oat file for dex location " + dex_location_
       + " not attempted because the oat file name could not be determined.";
     return false;
   }
   const std::string& oat_file_name = *OatFileName();
-
-  Runtime* runtime = Runtime::Current();
-  if (!runtime->IsDex2OatEnabled()) {
-    *error_msg = "Generation of oat file " + oat_file_name
-      + " not attempted because dex2oat is disabled";
-    return false;
-  }
-
-  std::vector<std::string> args;
-  args.push_back("--dex-file=" + dex_location_);
-  args.push_back("--oat-file=" + oat_file_name);
 
   // dex2oat ignores missing dex files and doesn't report an error.
   // Check explicitly here so we can detect the error properly.
@@ -688,9 +684,36 @@ bool OatFileAssistant::GenerateOatFile(std::string* error_msg) {
     return false;
   }
 
+  std::unique_ptr<File> oat_file;
+  oat_file.reset(OS::CreateEmptyFile(oat_file_name.c_str()));
+  if (oat_file.get() == nullptr) {
+    *error_msg = "Generation of oat file " + oat_file_name
+      + " not attempted because the oat file could not be created.";
+    return false;
+  }
+
+  if (fchmod(oat_file->Fd(), 0644) != 0) {
+    *error_msg = "Generation of oat file " + oat_file_name
+      + " not attempted because the oat file could not be made world readable.";
+    oat_file->Erase();
+    return false;
+  }
+
+  std::vector<std::string> args;
+  args.push_back("--dex-file=" + dex_location_);
+  args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
+  args.push_back("--oat-location=" + oat_file_name);
+
   if (!Dex2Oat(args, error_msg)) {
     // Manually delete the file. This ensures there is no garbage left over if
     // the process unexpectedly died.
+    oat_file->Erase();
+    TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
+    return false;
+  }
+
+  if (oat_file->FlushCloseOrErase() != 0) {
+    *error_msg = "Unable to close oat file " + oat_file_name;
     TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
     return false;
   }
