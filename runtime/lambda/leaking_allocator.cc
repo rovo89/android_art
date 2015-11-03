@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/bit_utils.h"
 #include "lambda/leaking_allocator.h"
 #include "linear_alloc.h"
 #include "runtime.h"
@@ -21,9 +22,11 @@
 namespace art {
 namespace lambda {
 
-void* LeakingAllocator::AllocateMemory(Thread* self, size_t byte_size) {
+void* LeakingAllocator::AllocateMemoryImpl(Thread* self, size_t byte_size, size_t align_size) {
   // TODO: use GetAllocatorForClassLoader to allocate lambda ArtMethod data.
-  return Runtime::Current()->GetLinearAlloc()->Alloc(self, byte_size);
+  void* mem = Runtime::Current()->GetLinearAlloc()->Alloc(self, byte_size);
+  DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(mem), align_size);
+  return mem;
 }
 
 }  // namespace lambda
