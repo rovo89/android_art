@@ -275,9 +275,6 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-  if (kDebugLocking && gAborting == 0) {
-    CHECK_NE(self->GetState(), kRunnable);
-  }
 
   std::vector<Thread*> suspended_count_modified_threads;
   size_t count = 0;
