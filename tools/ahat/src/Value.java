@@ -25,6 +25,10 @@ import java.net.URI;
  */
 class Value {
 
+  // For string literals, we limit the number of characters we show to
+  // kMaxChars in case the string is really long.
+  private static int kMaxChars = 200;
+
   /**
    * Create a DocString representing a summary of the given instance.
    */
@@ -43,15 +47,19 @@ class Value {
     link.append(inst.toString());
 
     // Annotate Strings with their values.
-    String stringValue = InstanceUtils.asString(inst);
+    String stringValue = InstanceUtils.asString(inst, kMaxChars);
     if (stringValue != null) {
-      link.appendFormat("\"%s\"", stringValue);
+      link.appendFormat("\"%s", stringValue);
+      link.append(kMaxChars == stringValue.length() ? "..." : "\"");
     }
 
     // Annotate DexCache with its location.
-    String dexCacheLocation = InstanceUtils.getDexCacheLocation(inst);
+    String dexCacheLocation = InstanceUtils.getDexCacheLocation(inst, kMaxChars);
     if (dexCacheLocation != null) {
-      link.append(" for " + dexCacheLocation);
+      link.appendFormat(" for %s", dexCacheLocation);
+      if (kMaxChars == dexCacheLocation.length()) {
+        link.append("...");
+      }
     }
 
     URI objTarget = DocString.formattedUri("object?id=%d", inst.getId());

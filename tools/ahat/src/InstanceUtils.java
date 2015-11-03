@@ -60,9 +60,21 @@ class InstanceUtils {
   }
 
 
-  // Read the string value from an hprof Instance.
-  // Returns null if the object can't be interpreted as a string.
+  /**
+   * Read the string value from an hprof Instance.
+   * Returns null if the object can't be interpreted as a string.
+   */
   public static String asString(Instance inst) {
+    return asString(inst, -1);
+  }
+
+  /**
+   * Read the string value from an hprof Instance.
+   * Returns null if the object can't be interpreted as a string.
+   * The returned string is truncated to maxChars characters.
+   * If maxChars is negative, the returned string is not truncated.
+   */
+  public static String asString(Instance inst, int maxChars) {
     if (!isInstanceOfClass(inst, "java.lang.String")) {
       return null;
     }
@@ -81,13 +93,15 @@ class InstanceUtils {
     // array, we should use that here.
     int numChars = chars.getValues().length;
     int count = getIntField(inst, "count", numChars);
-    int offset = getIntField(inst, "offset", 0);
-    int end = offset + count - 1;
-
     if (count == 0) {
       return "";
     }
+    if (0 <= maxChars && maxChars < count) {
+      count = maxChars;
+    }
 
+    int offset = getIntField(inst, "offset", 0);
+    int end = offset + count - 1;
     if (offset >= 0 && offset < numChars && end >= 0 && end < numChars) {
       return new String(chars.asCharArray(offset, count));
     }
@@ -234,12 +248,14 @@ class InstanceUtils {
    * Assuming inst represents a DexCache object, return the dex location for
    * that dex cache. Returns null if the given instance doesn't represent a
    * DexCache object or the location could not be found.
+   * If maxChars is non-negative, the returned location is truncated to
+   * maxChars in length.
    */
-  public static String getDexCacheLocation(Instance inst) {
+  public static String getDexCacheLocation(Instance inst, int maxChars) {
     if (isInstanceOfClass(inst, "java.lang.DexCache")) {
       Instance location = getRefField(inst, "location");
       if (location != null) {
-        return asString(location);
+        return asString(location, maxChars);
       }
     }
     return null;
