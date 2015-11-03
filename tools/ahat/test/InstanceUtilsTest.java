@@ -73,4 +73,19 @@ public class InstanceUtilsTest {
     assertNotNull(obj);
     assertNull(InstanceUtils.asString(obj));
   }
+
+  @Test
+  public void basicReference() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+
+    Instance pref = (Instance)dump.getDumpedThing("aPhantomReference");
+    Instance wref = (Instance)dump.getDumpedThing("aWeakReference");
+    Instance referent = (Instance)dump.getDumpedThing("anObject");
+    assertNotNull(pref);
+    assertNotNull(wref);
+    assertNotNull(referent);
+    assertEquals(referent, InstanceUtils.getReferent(pref));
+    assertEquals(referent, InstanceUtils.getReferent(wref));
+    assertNull(InstanceUtils.getReferent(referent));
+  }
 }
