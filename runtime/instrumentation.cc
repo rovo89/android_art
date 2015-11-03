@@ -66,13 +66,20 @@ class InstallStubsClassVisitor : public ClassVisitor {
 
 
 Instrumentation::Instrumentation()
-    : instrumentation_stubs_installed_(false), entry_exit_stubs_installed_(false),
+    : instrumentation_stubs_installed_(false),
+      entry_exit_stubs_installed_(false),
       interpreter_stubs_installed_(false),
-      interpret_only_(false), forced_interpret_only_(false),
-      have_method_entry_listeners_(false), have_method_exit_listeners_(false),
-      have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
-      have_field_read_listeners_(false), have_field_write_listeners_(false),
-      have_exception_caught_listeners_(false), have_backward_branch_listeners_(false),
+      interpret_only_(false),
+      forced_interpret_only_(false),
+      have_method_entry_listeners_(false),
+      have_method_exit_listeners_(false),
+      have_method_unwind_listeners_(false),
+      have_dex_pc_listeners_(false),
+      have_field_read_listeners_(false),
+      have_field_write_listeners_(false),
+      have_exception_caught_listeners_(false),
+      have_backward_branch_listeners_(false),
+      have_invoke_virtual_or_interface_listeners_(false),
       deoptimized_methods_lock_("deoptimized methods lock"),
       deoptimization_enabled_(false),
       interpreter_handler_table_(kMainHandlerTable),
@@ -297,7 +304,9 @@ void Instrumentation::InstrumentThreadStack(Thread* thread) {
 
 // Removes the instrumentation exit pc as the return PC for every quick frame.
 static void InstrumentationRestoreStack(Thread* thread, void* arg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES(Locks::mutator_lock_) {
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+
   struct RestoreStackVisitor FINAL : public StackVisitor {
     RestoreStackVisitor(Thread* thread_in, uintptr_t instrumentation_exit_pc,
                         Instrumentation* instrumentation)
@@ -594,9 +603,11 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
       empty = IsDeoptimizedMethodsEmpty();  // Avoid lock violation.
     }
     if (empty) {
-      instrumentation_stubs_installed_ = false;
       MutexLock mu(self, *Locks::thread_list_lock_);
       Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
+      // Only do this after restoring, as walking the stack when restoring will see
+      // the instrumentation exit pc.
+      instrumentation_stubs_installed_ = false;
     }
   }
 }
