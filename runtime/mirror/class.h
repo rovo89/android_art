@@ -1015,9 +1015,9 @@ class MANAGED Class FINAL : public Object {
 
   void SetClinitThreadId(pid_t new_clinit_thread_id) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  Class* GetVerifyErrorClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+  Object* GetVerifyError() SHARED_REQUIRES(Locks::mutator_lock_) {
     // DCHECK(IsErroneous());
-    return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_));
+    return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_));
   }
 
   uint16_t GetDexClassDefIndex() SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -1158,7 +1158,7 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  void SetVerifyErrorClass(Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetVerifyError(Object* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
   bool ResolvedFieldAccessTest(Class* access_to, ArtField* field,
@@ -1230,8 +1230,9 @@ class MANAGED Class FINAL : public Object {
   // check for interfaces and return null.
   HeapReference<Class> super_class_;
 
-  // If class verify fails, we must return same error on subsequent tries.
-  HeapReference<Class> verify_error_class_;
+  // If class verify fails, we must return same error on subsequent tries. We may store either
+  // the class of the error, or an actual instance of Throwable here.
+  HeapReference<Object> verify_error_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
   // copied in, and virtual methods from our class either replace those from the super or are
