@@ -1732,12 +1732,11 @@ void InstructionCodeGeneratorMIPS::VisitArrayLength(HArrayLength* instruction) {
 }
 
 void LocationsBuilderMIPS::VisitArraySet(HArraySet* instruction) {
-  Primitive::Type value_type = instruction->GetComponentType();
-  bool is_object = value_type == Primitive::kPrimNot;
+  bool needs_runtime_call = instruction->NeedsTypeCheck();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
       instruction,
-      is_object ? LocationSummary::kCall : LocationSummary::kNoCall);
-  if (is_object) {
+      needs_runtime_call ? LocationSummary::kCall : LocationSummary::kNoCall);
+  if (needs_runtime_call) {
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
     locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
