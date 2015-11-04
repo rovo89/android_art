@@ -1231,7 +1231,15 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_
     return error;
   }
   Thread* self = Thread::Current();
-  mirror::Object* new_object = c->AllocObject(self);
+  mirror::Object* new_object;
+  if (c->IsStringClass()) {
+    // Special case for java.lang.String.
+    gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+    mirror::SetStringCountVisitor visitor(0);
+    new_object = mirror::String::Alloc<true>(self, 0, allocator_type, visitor);
+  } else {
+    new_object = c->AllocObject(self);
+  }
   if (new_object == nullptr) {
     DCHECK(self->IsExceptionPending());
     self->ClearException();
