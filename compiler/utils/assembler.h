@@ -271,16 +271,71 @@ class AssemblerBuffer {
 class DebugFrameOpCodeWriterForAssembler FINAL
     : public dwarf::DebugFrameOpCodeWriter<> {
  public:
+  struct DelayedAdvancePC {
+    uint32_t stream_pos;
+    uint32_t pc;
+  };
+
   // This method is called the by the opcode writers.
   virtual void ImplicitlyAdvancePC() FINAL;
 
   explicit DebugFrameOpCodeWriterForAssembler(Assembler* buffer)
-      : dwarf::DebugFrameOpCodeWriter<>(),
-        assembler_(buffer) {
+      : dwarf::DebugFrameOpCodeWriter<>(false /* enabled */),
+        assembler_(buffer),
+        delay_emitting_advance_pc_(false),
+        delayed_advance_pcs_() {
+  }
+
+  ~DebugFrameOpCodeWriterForAssembler() {
+    DCHECK(delayed_advance_pcs_.empty());
+  }
+
+  // Tell the writer to delay emitting advance PC info.
+  // The assembler must explicitly process all the delayed advances.
+  void DelayEmittingAdvancePCs() {
+    delay_emitting_advance_pc_ = true;
+  }
+
+  // Override the last delayed PC. The new PC can be out of order.
+  void OverrideDelayedPC(size_t pc) {
+    DCHECK(delay_emitting_advance_pc_);
+    DCHECK(!delayed_advance_pcs_.empty());
+    delayed_advance_pcs_.back().pc = pc;
+  }
+
+  // Return the number of delayed advance PC entries.
+  size_t NumberOfDelayedAdvancePCs() const {
+    return delayed_advance_pcs_.size();
+  }
+
+  // Release the CFI stream and advance PC infos so that the assembler can patch it.
+  std::pair<std::vector<uint8_t>, std::vector<DelayedAdvancePC>>
+  ReleaseStreamAndPrepareForDelayedAdvancePC() {
+    DCHECK(delay_emitting_advance_pc_);
+    delay_emitting_advance_pc_ = false;
+    std::pair<std::vector<uint8_t>, std::vector<DelayedAdvancePC>> result;
+    result.first.swap(opcodes_);
+    result.second.swap(delayed_advance_pcs_);
+    return result;
+  }
+
+  // Reserve space for the CFI stream.
+  void ReserveCFIStream(size_t capacity) {
+    opcodes_.reserve(capacity);
+  }
+
+  // Append raw data to the CFI stream.
+  void AppendRawData(const std::vector<uint8_t>& raw_data, size_t first, size_t last) {
+    DCHECK_LE(0u, first);
+    DCHECK_LE(first, last);
+    DCHECK_LE(last, raw_data.size());
+    opcodes_.insert(opcodes_.end(), raw_data.begin() + first, raw_data.begin() + last);
   }
 
  private:
   Assembler* assembler_;
+  bool delay_emitting_advance_pc_;
+  std::vector<DelayedAdvancePC> delayed_advance_pcs_;
 };
 
 class Assembler {

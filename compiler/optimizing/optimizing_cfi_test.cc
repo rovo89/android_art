@@ -23,6 +23,8 @@
 #include "optimizing/code_generator.h"
 #include "optimizing/optimizing_unit_test.h"
 #include "utils/assembler.h"
+#include "utils/arm/assembler_thumb2.h"
+#include "utils/mips/assembler_mips.h"
 
 #include "optimizing/optimizing_cfi_test_expected.inc"
 
@@ -36,52 +38,62 @@ class OptimizingCFITest : public CFITest {
   // Enable this flag to generate the expected outputs.
   static constexpr bool kGenerateExpected = false;
 
-  void TestImpl(InstructionSet isa, const char* isa_str,
-                const std::vector<uint8_t>& expected_asm,
-                const std::vector<uint8_t>& expected_cfi) {
+  OptimizingCFITest()
+      : pool_(),
+        allocator_(&pool_),
+        opts_(),
+        isa_features_(),
+        graph_(nullptr),
+        code_gen_(),
+        blocks_(allocator_.Adapter()) {}
+
+  void SetUpFrame(InstructionSet isa) {
     // Setup simple context.
-    ArenaPool pool;
-    ArenaAllocator allocator(&pool);
-    CompilerOptions opts;
-    std::unique_ptr<const InstructionSetFeatures> isa_features;
     std::string error;
-    isa_features.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
-    HGraph* graph = CreateGraph(&allocator);
+    isa_features_.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
+    graph_ = CreateGraph(&allocator_);
     // Generate simple frame with some spills.
-    std::unique_ptr<CodeGenerator> code_gen(
-        CodeGenerator::Create(graph, isa, *isa_features.get(), opts));
+    code_gen_.reset(CodeGenerator::Create(graph_, isa, *isa_features_, opts_));
+    code_gen_->GetAssembler()->cfi().SetEnabled(true);
     const int frame_size = 64;
     int core_reg = 0;
     int fp_reg = 0;
     for (int i = 0; i < 2; i++) {  // Two registers of each kind.
       for (; core_reg < 32; core_reg++) {
-        if (code_gen->IsCoreCalleeSaveRegister(core_reg)) {
+        if (code_gen_->IsCoreCalleeSaveRegister(core_reg)) {
           auto location = Location::RegisterLocation(core_reg);
-          code_gen->AddAllocatedRegister(location);
+          code_gen_->AddAllocatedRegister(location);
           core_reg++;
           break;
         }
       }
       for (; fp_reg < 32; fp_reg++) {
-        if (code_gen->IsFloatingPointCalleeSaveRegister(fp_reg)) {
+        if (code_gen_->IsFloatingPointCalleeSaveRegister(fp_reg)) {
           auto location = Location::FpuRegisterLocation(fp_reg);
-          code_gen->AddAllocatedRegister(location);
+          code_gen_->AddAllocatedRegister(location);
           fp_reg++;
           break;
         }
       }
     }
-    ArenaVector<HBasicBlock*> blocks(allocator.Adapter());
-    code_gen->block_order_ = &blocks;
-    code_gen->ComputeSpillMask();
-    code_gen->SetFrameSize(frame_size);
-    code_gen->GenerateFrameEntry();
-    code_gen->GenerateFrameExit();
+    code_gen_->block_order_ = &blocks_;
+    code_gen_->ComputeSpillMask();
+    code_gen_->SetFrameSize(frame_size);
+    code_gen_->GenerateFrameEntry();
+  }
+
+  void Finish() {
+    code_gen_->GenerateFrameExit();
+    code_gen_->Finalize(&code_allocator_);
+  }
+
+  void Check(InstructionSet isa,
+             const char* isa_str,
+             const std::vector<uint8_t>& expected_asm,
+             const std::vector<uint8_t>& expected_cfi) {
     // Get the outputs.
-    InternalCodeAllocator code_allocator;
-    code_gen->Finalize(&code_allocator);
-    const std::vector<uint8_t>& actual_asm = code_allocator.GetMemory();
-    Assembler* opt_asm = code_gen->GetAssembler();
+    const std::vector<uint8_t>& actual_asm = code_allocator_.GetMemory();
+    Assembler* opt_asm = code_gen_->GetAssembler();
     const std::vector<uint8_t>& actual_cfi = *(opt_asm->cfi().data());
 
     if (kGenerateExpected) {
@@ -90,6 +102,19 @@ class OptimizingCFITest : public CFITest {
       EXPECT_EQ(expected_asm, actual_asm);
       EXPECT_EQ(expected_cfi, actual_cfi);
     }
+  }
+
+  void TestImpl(InstructionSet isa, const char*
+                isa_str,
+                const std::vector<uint8_t>& expected_asm,
+                const std::vector<uint8_t>& expected_cfi) {
+    SetUpFrame(isa);
+    Finish();
+    Check(isa, isa_str, expected_asm, expected_cfi);
+  }
+
+  CodeGenerator* GetCodeGenerator() {
+    return code_gen_.get();
   }
 
  private:
@@ -109,21 +134,83 @@ class OptimizingCFITest : public CFITest {
 
     DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
   };
+
+  ArenaPool pool_;
+  ArenaAllocator allocator_;
+  CompilerOptions opts_;
+  std::unique_ptr<const InstructionSetFeatures> isa_features_;
+  HGraph* graph_;
+  std::unique_ptr<CodeGenerator> code_gen_;
+  ArenaVector<HBasicBlock*> blocks_;
+  InternalCodeAllocator code_allocator_;
 };
 
-#define TEST_ISA(isa) \
-  TEST_F(OptimizingCFITest, isa) { \
-    std::vector<uint8_t> expected_asm(expected_asm_##isa, \
-        expected_asm_##isa + arraysize(expected_asm_##isa)); \
-    std::vector<uint8_t> expected_cfi(expected_cfi_##isa, \
-        expected_cfi_##isa + arraysize(expected_cfi_##isa)); \
-    TestImpl(isa, #isa, expected_asm, expected_cfi); \
+#define TEST_ISA(isa)                                         \
+  TEST_F(OptimizingCFITest, isa) {                            \
+    std::vector<uint8_t> expected_asm(                        \
+        expected_asm_##isa,                                   \
+        expected_asm_##isa + arraysize(expected_asm_##isa));  \
+    std::vector<uint8_t> expected_cfi(                        \
+        expected_cfi_##isa,                                   \
+        expected_cfi_##isa + arraysize(expected_cfi_##isa));  \
+    TestImpl(isa, #isa, expected_asm, expected_cfi);          \
   }
 
 TEST_ISA(kThumb2)
 TEST_ISA(kArm64)
 TEST_ISA(kX86)
 TEST_ISA(kX86_64)
+TEST_ISA(kMips)
+TEST_ISA(kMips64)
+
+TEST_F(OptimizingCFITest, kThumb2Adjust) {
+  std::vector<uint8_t> expected_asm(
+      expected_asm_kThumb2_adjust,
+      expected_asm_kThumb2_adjust + arraysize(expected_asm_kThumb2_adjust));
+  std::vector<uint8_t> expected_cfi(
+      expected_cfi_kThumb2_adjust,
+      expected_cfi_kThumb2_adjust + arraysize(expected_cfi_kThumb2_adjust));
+  SetUpFrame(kThumb2);
+#define __ down_cast<arm::Thumb2Assembler*>(GetCodeGenerator()->GetAssembler())->
+  Label target;
+  __ CompareAndBranchIfZero(arm::R0, &target);
+  // Push the target out of range of CBZ.
+  for (size_t i = 0; i != 65; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&target);
+#undef __
+  Finish();
+  Check(kThumb2, "kThumb2_adjust", expected_asm, expected_cfi);
+}
+
+TEST_F(OptimizingCFITest, kMipsAdjust) {
+  // One NOP in delay slot, 1 << 15 NOPS have size 1 << 17 which exceeds 18-bit signed maximum.
+  static constexpr size_t kNumNops = 1u + (1u << 15);
+  std::vector<uint8_t> expected_asm(
+      expected_asm_kMips_adjust_head,
+      expected_asm_kMips_adjust_head + arraysize(expected_asm_kMips_adjust_head));
+  expected_asm.resize(expected_asm.size() + kNumNops * 4u, 0u);
+  expected_asm.insert(
+      expected_asm.end(),
+      expected_asm_kMips_adjust_tail,
+      expected_asm_kMips_adjust_tail + arraysize(expected_asm_kMips_adjust_tail));
+  std::vector<uint8_t> expected_cfi(
+      expected_cfi_kMips_adjust,
+      expected_cfi_kMips_adjust + arraysize(expected_cfi_kMips_adjust));
+  SetUpFrame(kMips);
+#define __ down_cast<mips::MipsAssembler*>(GetCodeGenerator()->GetAssembler())->
+  mips::MipsLabel target;
+  __ Beqz(mips::A0, &target);
+  // Push the target out of range of BEQZ.
+  for (size_t i = 0; i != kNumNops; ++i) {
+    __ Nop();
+  }
+  __ Bind(&target);
+#undef __
+  Finish();
+  Check(kMips, "kMips_adjust", expected_asm, expected_cfi);
+}
 
 #endif  // __ANDROID__
 
