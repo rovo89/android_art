@@ -515,7 +515,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, sfields_), "sFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, status_), "status");
     addOffset(OFFSETOF_MEMBER(mirror::Class, super_class_), "superClass");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_class_), "verifyErrorClass");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_), "verifyError");
     addOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_), "virtualMethods");
     addOffset(OFFSETOF_MEMBER(mirror::Class, vtable_), "vtable");
   };
