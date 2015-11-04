@@ -38,6 +38,7 @@
 #ifdef ART_ENABLE_CODEGEN_x86_64
 #include "x86_64/assembler_x86_64.h"
 #endif
+#include "base/casts.h"
 #include "globals.h"
 #include "memory_region.h"
 
@@ -119,7 +120,13 @@ void AssemblerBuffer::ExtendCapacity(size_t min_capacity) {
 }
 
 void DebugFrameOpCodeWriterForAssembler::ImplicitlyAdvancePC() {
-  this->AdvancePC(assembler_->CodeSize());
+  uint32_t pc = dchecked_integral_cast<uint32_t>(assembler_->CodeSize());
+  if (delay_emitting_advance_pc_) {
+    uint32_t stream_pos = dchecked_integral_cast<uint32_t>(opcodes_.size());
+    delayed_advance_pcs_.push_back(DelayedAdvancePC {stream_pos, pc});
+  } else {
+    AdvancePC(pc);
+  }
 }
 
 Assembler* Assembler::Create(InstructionSet instruction_set,

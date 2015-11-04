@@ -43,8 +43,60 @@ void MipsAssembler::FinalizeCode() {
 }
 
 void MipsAssembler::FinalizeInstructions(const MemoryRegion& region) {
+  size_t number_of_delayed_adjust_pcs = cfi().NumberOfDelayedAdvancePCs();
   EmitBranches();
   Assembler::FinalizeInstructions(region);
+  PatchCFI(number_of_delayed_adjust_pcs);
+}
+
+void MipsAssembler::PatchCFI(size_t number_of_delayed_adjust_pcs) {
+  if (cfi().NumberOfDelayedAdvancePCs() == 0u) {
+    DCHECK_EQ(number_of_delayed_adjust_pcs, 0u);
+    return;
+  }
+
+  typedef DebugFrameOpCodeWriterForAssembler::DelayedAdvancePC DelayedAdvancePC;
+  const auto data = cfi().ReleaseStreamAndPrepareForDelayedAdvancePC();
+  const std::vector<uint8_t>& old_stream = data.first;
+  const std::vector<DelayedAdvancePC>& advances = data.second;
+
+  // PCs recorded before EmitBranches() need to be adjusted.
+  // PCs recorded during EmitBranches() are already adjusted.
+  // Both ranges are separately sorted but they may overlap.
+  if (kIsDebugBuild) {
+    auto cmp = [](const DelayedAdvancePC& lhs, const DelayedAdvancePC& rhs) {
+      return lhs.pc < rhs.pc;
+    };
+    CHECK(std::is_sorted(advances.begin(), advances.begin() + number_of_delayed_adjust_pcs, cmp));
+    CHECK(std::is_sorted(advances.begin() + number_of_delayed_adjust_pcs, advances.end(), cmp));
+  }
+
+  // Append initial CFI data if any.
+  size_t size = advances.size();
+  DCHECK_NE(size, 0u);
+  cfi().AppendRawData(old_stream, 0u, advances[0].stream_pos);
+  // Emit PC adjustments interleaved with the old CFI stream.
+  size_t adjust_pos = 0u;
+  size_t late_emit_pos = number_of_delayed_adjust_pcs;
+  while (adjust_pos != number_of_delayed_adjust_pcs || late_emit_pos != size) {
+    size_t adjusted_pc = (adjust_pos != number_of_delayed_adjust_pcs)
+        ? GetAdjustedPosition(advances[adjust_pos].pc)
+        : static_cast<size_t>(-1);
+    size_t late_emit_pc = (late_emit_pos != size)
+        ? advances[late_emit_pos].pc
+        : static_cast<size_t>(-1);
+    size_t advance_pc = std::min(adjusted_pc, late_emit_pc);
+    DCHECK_NE(advance_pc, static_cast<size_t>(-1));
+    size_t entry = (adjusted_pc <= late_emit_pc) ? adjust_pos : late_emit_pos;
+    if (adjusted_pc <= late_emit_pc) {
+      ++adjust_pos;
+    } else {
+      ++late_emit_pos;
+    }
+    cfi().AdvancePC(advance_pc);
+    size_t end_pos = (entry + 1u == size) ? old_stream.size() : advances[entry + 1u].stream_pos;
+    cfi().AppendRawData(old_stream, advances[entry].stream_pos, end_pos);
+  }
 }
 
 void MipsAssembler::EmitBranches() {
@@ -1770,6 +1822,7 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                                const std::vector<ManagedRegister>& callee_save_regs,
                                const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  DCHECK(!overwriting_);
 
   // Increase frame to required size.
   IncreaseFrameSize(frame_size);
@@ -1811,6 +1864,7 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void MipsAssembler::RemoveFrame(size_t frame_size,
                                 const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  DCHECK(!overwriting_);
   cfi_.RememberState();
 
   // Pop callee saves and return address.
@@ -1840,12 +1894,18 @@ void MipsAssembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kFramePointerSize);
   Addiu32(SP, SP, -adjust);
   cfi_.AdjustCFAOffset(adjust);
+  if (overwriting_) {
+    cfi_.OverrideDelayedPC(overwrite_location_);
+  }
 }
 
 void MipsAssembler::DecreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kFramePointerSize);
   Addiu32(SP, SP, adjust);
   cfi_.AdjustCFAOffset(-adjust);
+  if (overwriting_) {
+    cfi_.OverrideDelayedPC(overwrite_location_);
+  }
 }
 
 void MipsAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
