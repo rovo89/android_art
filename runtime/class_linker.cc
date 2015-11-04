@@ -104,12 +104,13 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_end(args);
 }
 
-bool ClassLinker::HasInitWithString(Thread* self, const char* descriptor) {
+static bool HasInitWithString(Thread* self, ClassLinker* class_linker, const char* descriptor)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* method = self->GetCurrentMethod(nullptr);
   StackHandleScope<1> hs(self);
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(method != nullptr ?
       method->GetDeclaringClass()->GetClassLoader() : nullptr));
-  mirror::Class* exception_class = FindClass(self, descriptor, class_loader);
+  mirror::Class* exception_class = class_linker->FindClass(self, descriptor, class_loader);
 
   if (exception_class == nullptr) {
     // No exc class ~ no <init>-with-string.
@@ -119,8 +120,37 @@ bool ClassLinker::HasInitWithString(Thread* self, const char* descriptor) {
   }
 
   ArtMethod* exception_init_method = exception_class->FindDeclaredDirectMethod(
-      "<init>", "(Ljava/lang/String;)V", image_pointer_size_);
+      "<init>", "(Ljava/lang/String;)V", class_linker->GetImagePointerSize());
   return exception_init_method != nullptr;
+}
+
+// Helper for ThrowEarlierClassFailure. Throws the stored error.
+static void HandleEarlierVerifyError(Thread* self, ClassLinker* class_linker, mirror::Class* c)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* obj = c->GetVerifyError();
+  DCHECK(obj != nullptr);
+  self->AssertNoPendingException();
+  if (obj->IsClass()) {
+    // Previous error has been stored as class. Create a new exception of that type.
+
+    // It's possible the exception doesn't have a <init>(String).
+    std::string temp;
+    const char* descriptor = obj->AsClass()->GetDescriptor(&temp);
+
+    if (HasInitWithString(self, class_linker, descriptor)) {
+      self->ThrowNewException(descriptor, PrettyDescriptor(c).c_str());
+    } else {
+      self->ThrowNewException(descriptor, nullptr);
+    }
+  } else {
+    // Previous error has been stored as an instance. Just rethrow.
+    mirror::Class* throwable_class =
+        self->DecodeJObject(WellKnownClasses::java_lang_Throwable)->AsClass();
+    mirror::Class* error_class = obj->GetClass();
+    CHECK(throwable_class->IsAssignableFrom(error_class));
+    self->SetException(obj->AsThrowable());
+  }
+  self->AssertPendingException();
 }
 
 void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
@@ -131,8 +161,11 @@ void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
   Runtime* const runtime = Runtime::Current();
   if (!runtime->IsAotCompiler()) {  // Give info if this occurs at runtime.
     std::string extra;
-    if (c->GetVerifyErrorClass() != nullptr) {
-      extra = PrettyDescriptor(c->GetVerifyErrorClass());
+    if (c->GetVerifyError() != nullptr) {
+      mirror::Class* descr_from = c->GetVerifyError()->IsClass()
+                                      ? c->GetVerifyError()->AsClass()
+                                      : c->GetVerifyError()->GetClass();
+      extra = PrettyDescriptor(descr_from);
     }
     LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c) << ": " << extra;
   }
@@ -144,17 +177,8 @@ void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
     mirror::Throwable* pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
     self->SetException(pre_allocated);
   } else {
-    if (c->GetVerifyErrorClass() != nullptr) {
-      // TODO: change the verifier to store an _instance_, with a useful detail message?
-      // It's possible the exception doesn't have a <init>(String).
-      std::string temp;
-      const char* descriptor = c->GetVerifyErrorClass()->GetDescriptor(&temp);
-
-      if (HasInitWithString(self, descriptor)) {
-        self->ThrowNewException(descriptor, PrettyDescriptor(c).c_str());
-      } else {
-        self->ThrowNewException(descriptor, nullptr);
-      }
+    if (c->GetVerifyError() != nullptr) {
+      HandleEarlierVerifyError(self, this, c);
     } else {
       self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
                               PrettyDescriptor(c).c_str());

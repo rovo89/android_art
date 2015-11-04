@@ -854,9 +854,6 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
-  bool HasInitWithString(Thread* self, const char* descriptor)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
-
   bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics, bool can_init_parents)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
