@@ -22,6 +22,7 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/bit_field.h"
+#include "compiled_method.h"
 #include "driver/compiler_options.h"
 #include "globals.h"
 #include "graph_visualizer.h"
@@ -51,13 +52,9 @@ static int64_t constexpr kPrimLongMax = INT64_C(0x7fffffffffffffff);
 
 class Assembler;
 class CodeGenerator;
-class DexCompilationUnit;
+class CompilerDriver;
 class LinkerPatch;
 class ParallelMoveResolver;
-class SrcMapElem;
-template <class Alloc>
-class SrcMap;
-using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
 
 class CodeAllocator {
  public:
@@ -284,13 +281,12 @@ class CodeGenerator {
     slow_paths_.push_back(slow_path);
   }
 
-  void SetSrcMap(DefaultSrcMap* src_map) { src_map_ = src_map; }
-
   void BuildMappingTable(ArenaVector<uint8_t>* vector) const;
   void BuildVMapTable(ArenaVector<uint8_t>* vector) const;
   void BuildNativeGCMap(
-      ArenaVector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
-  void BuildStackMaps(ArenaVector<uint8_t>* vector);
+      ArenaVector<uint8_t>* vector, const CompilerDriver& compiler_driver) const;
+  void BuildStackMaps(MemoryRegion region);
+  size_t ComputeStackMapsSize();
 
   bool IsBaseline() const {
     return is_baseline_;
@@ -446,6 +442,10 @@ class CodeGenerator {
   // Copy the result of a call into the given target.
   virtual void MoveFromReturnRegister(Location trg, Primitive::Type type) = 0;
 
+  const ArenaVector<SrcMapElem>& GetSrcMappingTable() const {
+    return src_map_;
+  }
+
  protected:
   // Method patch info used for recording locations of required linker patches and
   // target methods. The target method can be used for various purposes, whether for
@@ -488,7 +488,7 @@ class CodeGenerator {
         stats_(stats),
         graph_(graph),
         compiler_options_(compiler_options),
-        src_map_(nullptr),
+        src_map_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         slow_paths_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         current_block_index_(0),
         is_leaf_(true),
@@ -602,7 +602,7 @@ class CodeGenerator {
   const CompilerOptions& compiler_options_;
 
   // Native to dex_pc map used for native debugging/profiling tools.
-  DefaultSrcMap* src_map_;
+  ArenaVector<SrcMapElem> src_map_;
   ArenaVector<SlowPathCode*> slow_paths_;
 
   // The current block index in `block_order_` of the block

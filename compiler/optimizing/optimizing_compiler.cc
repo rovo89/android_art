@@ -56,6 +56,7 @@
 #include "inliner.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
+#include "jit/jit_code_cache.h"
 #include "licm.h"
 #include "jni/quick/jni_compiler.h"
 #include "load_store_elimination.h"
@@ -258,15 +259,6 @@ class OptimizingCompiler FINAL : public Compiler {
                           const DexFile& dex_file,
                           Handle<mirror::DexCache> dex_cache) const OVERRIDE;
 
-  CompiledMethod* TryCompile(const DexFile::CodeItem* code_item,
-                             uint32_t access_flags,
-                             InvokeType invoke_type,
-                             uint16_t class_def_idx,
-                             uint32_t method_idx,
-                             jobject class_loader,
-                             const DexFile& dex_file,
-                             Handle<mirror::DexCache> dex_cache) const;
-
   CompiledMethod* JniCompile(uint32_t access_flags,
                              uint32_t method_idx,
                              const DexFile& dex_file) const OVERRIDE {
@@ -291,23 +283,45 @@ class OptimizingCompiler FINAL : public Compiler {
     }
   }
 
+  bool JitCompile(Thread* self, jit::JitCodeCache* code_cache, ArtMethod* method)
+      OVERRIDE
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   // Whether we should run any optimization or register allocation. If false, will
   // just run the code generation after the graph was built.
   const bool run_optimizations_;
 
-  // Optimize and compile `graph`.
-  CompiledMethod* CompileOptimized(HGraph* graph,
-                                   CodeGenerator* codegen,
-                                   CompilerDriver* driver,
-                                   const DexCompilationUnit& dex_compilation_unit,
-                                   PassObserver* pass_observer) const;
+  // Create a 'CompiledMethod' for an optimized graph.
+  CompiledMethod* EmitOptimized(ArenaAllocator* arena,
+                                CodeVectorAllocator* code_allocator,
+                                CodeGenerator* codegen,
+                                CompilerDriver* driver) const;
 
-  // Just compile without doing optimizations.
-  CompiledMethod* CompileBaseline(CodeGenerator* codegen,
-                                  CompilerDriver* driver,
-                                  const DexCompilationUnit& dex_compilation_unit,
-                                  PassObserver* pass_observer) const;
+  // Create a 'CompiledMethod' for a non-optimized graph.
+  CompiledMethod* EmitBaseline(ArenaAllocator* arena,
+                               CodeVectorAllocator* code_allocator,
+                               CodeGenerator* codegen,
+                               CompilerDriver* driver) const;
+
+  // Try compiling a method and return the code generator used for
+  // compiling it.
+  // This method:
+  // 1) Builds the graph. Returns null if it failed to build it.
+  // 2) If `run_optimizations_` is set:
+  //    2.1) Transform the graph to SSA. Returns null if it failed.
+  //    2.2) Run optimizations on the graph, including register allocator.
+  // 3) Generate code with the `code_allocator` provided.
+  CodeGenerator* TryCompile(ArenaAllocator* arena,
+                            CodeVectorAllocator* code_allocator,
+                            const DexFile::CodeItem* code_item,
+                            uint32_t access_flags,
+                            InvokeType invoke_type,
+                            uint16_t class_def_idx,
+                            uint32_t method_idx,
+                            jobject class_loader,
+                            const DexFile& dex_file,
+                            Handle<mirror::DexCache> dex_cache) const;
 
   std::unique_ptr<OptimizingCompilerStats> compilation_stats_;
 
@@ -446,13 +460,32 @@ static void RunArchOptimizations(InstructionSet instruction_set,
   }
 }
 
+NO_INLINE  // Avoid increasing caller's frame size by large stack-allocated objects.
+static void AllocateRegisters(HGraph* graph,
+                              CodeGenerator* codegen,
+                              PassObserver* pass_observer) {
+  PrepareForRegisterAllocation(graph).Run();
+  SsaLivenessAnalysis liveness(graph, codegen);
+  {
+    PassScope scope(SsaLivenessAnalysis::kLivenessPassName, pass_observer);
+    liveness.Analyze();
+  }
+  {
+    PassScope scope(RegisterAllocator::kRegisterAllocatorPassName, pass_observer);
+    RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
+  }
+}
+
 static void RunOptimizations(HGraph* graph,
                              CodeGenerator* codegen,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
                              const DexCompilationUnit& dex_compilation_unit,
-                             PassObserver* pass_observer,
-                             StackHandleScopeCollection* handles) {
+                             PassObserver* pass_observer) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScopeCollection handles(soa.Self());
+  ScopedThreadSuspension sts(soa.Self(), kNative);
+
   ArenaAllocator* arena = graph->GetArena();
   HDeadCodeElimination* dce1 = new (arena) HDeadCodeElimination(
       graph, stats, HDeadCodeElimination::kInitialDeadCodeEliminationPassName);
@@ -469,7 +502,7 @@ static void RunOptimizations(HGraph* graph,
   HInductionVarAnalysis* induction = new (arena) HInductionVarAnalysis(graph);
   BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, induction);
   ReferenceTypePropagation* type_propagation =
-      new (arena) ReferenceTypePropagation(graph, handles);
+      new (arena) ReferenceTypePropagation(graph, &handles);
   HSharpening* sharpening = new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver);
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_after_types");
@@ -492,7 +525,7 @@ static void RunOptimizations(HGraph* graph,
 
   RunOptimizations(optimizations1, arraysize(optimizations1), pass_observer);
 
-  MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, handles);
+  MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, &handles);
 
   // TODO: Update passes incompatible with try/catch so we have the same
   //       pipeline for all methods.
@@ -532,6 +565,7 @@ static void RunOptimizations(HGraph* graph,
   }
 
   RunArchOptimizations(driver->GetInstructionSet(), graph, stats, pass_observer);
+  AllocateRegisters(graph, codegen, pass_observer);
 }
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing
@@ -543,22 +577,6 @@ static ArrayRef<const uint8_t> AlignVectorSize(ArenaVector<uint8_t>& vector) {
     vector.push_back(0);
   }
   return ArrayRef<const uint8_t>(vector);
-}
-
-NO_INLINE  // Avoid increasing caller's frame size by large stack-allocated objects.
-static void AllocateRegisters(HGraph* graph,
-                              CodeGenerator* codegen,
-                              PassObserver* pass_observer) {
-  PrepareForRegisterAllocation(graph).Run();
-  SsaLivenessAnalysis liveness(graph, codegen);
-  {
-    PassScope scope(SsaLivenessAnalysis::kLivenessPassName, pass_observer);
-    liveness.Analyze();
-  }
-  {
-    PassScope scope(RegisterAllocator::kRegisterAllocatorPassName, pass_observer);
-    RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
-  }
 }
 
 static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen) {
@@ -574,74 +592,42 @@ static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen)
   return linker_patches;
 }
 
-CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
-                                                     CodeGenerator* codegen,
-                                                     CompilerDriver* compiler_driver,
-                                                     const DexCompilationUnit& dex_compilation_unit,
-                                                     PassObserver* pass_observer) const {
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
-  soa.Self()->TransitionFromRunnableToSuspended(kNative);
-  RunOptimizations(graph,
-                   codegen,
-                   compiler_driver,
-                   compilation_stats_.get(),
-                   dex_compilation_unit,
-                   pass_observer,
-                   &handles);
-
-  AllocateRegisters(graph, codegen, pass_observer);
-
-  ArenaAllocator* arena = graph->GetArena();
-  CodeVectorAllocator allocator(arena);
-  DefaultSrcMap src_mapping_table;
-  codegen->SetSrcMap(compiler_driver->GetCompilerOptions().GetGenerateDebugInfo()
-                         ? &src_mapping_table
-                         : nullptr);
-  codegen->CompileOptimized(&allocator);
-
+CompiledMethod* OptimizingCompiler::EmitOptimized(ArenaAllocator* arena,
+                                                  CodeVectorAllocator* code_allocator,
+                                                  CodeGenerator* codegen,
+                                                  CompilerDriver* compiler_driver) const {
   ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
-
   ArenaVector<uint8_t> stack_map(arena->Adapter(kArenaAllocStackMaps));
-  codegen->BuildStackMaps(&stack_map);
+  stack_map.resize(codegen->ComputeStackMapsSize());
+  codegen->BuildStackMaps(MemoryRegion(stack_map.data(), stack_map.size()));
 
   MaybeRecordStat(MethodCompilationStat::kCompiledOptimized);
 
   CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
-      ArrayRef<const uint8_t>(allocator.GetMemory()),
+      ArrayRef<const uint8_t>(code_allocator->GetMemory()),
       // Follow Quick's behavior and set the frame size to zero if it is
       // considered "empty" (see the definition of
       // art::CodeGenerator::HasEmptyFrame).
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      ArrayRef<const SrcMapElem>(src_mapping_table),
+      ArrayRef<const SrcMapElem>(codegen->GetSrcMappingTable()),
       ArrayRef<const uint8_t>(),  // mapping_table.
       ArrayRef<const uint8_t>(stack_map),
       ArrayRef<const uint8_t>(),  // native_gc_map.
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>(linker_patches));
-  pass_observer->DumpDisassembly();
 
-  soa.Self()->TransitionFromSuspendedToRunnable();
   return compiled_method;
 }
 
-CompiledMethod* OptimizingCompiler::CompileBaseline(
+CompiledMethod* OptimizingCompiler::EmitBaseline(
+    ArenaAllocator* arena,
+    CodeVectorAllocator* code_allocator,
     CodeGenerator* codegen,
-    CompilerDriver* compiler_driver,
-    const DexCompilationUnit& dex_compilation_unit,
-    PassObserver* pass_observer) const {
-  ArenaAllocator* arena = codegen->GetGraph()->GetArena();
-  CodeVectorAllocator allocator(arena);
-  DefaultSrcMap src_mapping_table;
-  codegen->SetSrcMap(compiler_driver->GetCompilerOptions().GetGenerateDebugInfo()
-                         ? &src_mapping_table
-                         : nullptr);
-  codegen->CompileBaseline(&allocator);
-
+    CompilerDriver* compiler_driver) const {
   ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
 
   ArenaVector<uint8_t> mapping_table(arena->Adapter(kArenaAllocBaselineMaps));
@@ -649,37 +635,38 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
   ArenaVector<uint8_t> vmap_table(arena->Adapter(kArenaAllocBaselineMaps));
   codegen->BuildVMapTable(&vmap_table);
   ArenaVector<uint8_t> gc_map(arena->Adapter(kArenaAllocBaselineMaps));
-  codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
+  codegen->BuildNativeGCMap(&gc_map, *compiler_driver);
 
   MaybeRecordStat(MethodCompilationStat::kCompiledBaseline);
   CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
-      ArrayRef<const uint8_t>(allocator.GetMemory()),
+      ArrayRef<const uint8_t>(code_allocator->GetMemory()),
       // Follow Quick's behavior and set the frame size to zero if it is
       // considered "empty" (see the definition of
       // art::CodeGenerator::HasEmptyFrame).
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      ArrayRef<const SrcMapElem>(src_mapping_table),
+      ArrayRef<const SrcMapElem>(codegen->GetSrcMappingTable()),
       AlignVectorSize(mapping_table),
       AlignVectorSize(vmap_table),
       AlignVectorSize(gc_map),
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>(linker_patches));
-  pass_observer->DumpDisassembly();
   return compiled_method;
 }
 
-CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
-                                               uint32_t access_flags,
-                                               InvokeType invoke_type,
-                                               uint16_t class_def_idx,
-                                               uint32_t method_idx,
-                                               jobject class_loader,
-                                               const DexFile& dex_file,
-                                               Handle<mirror::DexCache> dex_cache) const {
+CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
+                                              CodeVectorAllocator* code_allocator,
+                                              const DexFile::CodeItem* code_item,
+                                              uint32_t access_flags,
+                                              InvokeType invoke_type,
+                                              uint16_t class_def_idx,
+                                              uint32_t method_idx,
+                                              jobject class_loader,
+                                              const DexFile& dex_file,
+                                              Handle<mirror::DexCache> dex_cache) const {
   std::string method_name = PrettyMethod(method_idx, dex_file);
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
@@ -721,12 +708,9 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
                                                      dex_compilation_unit.GetDexFile(),
                                                      dex_compilation_unit.GetClassDefIndex());
-  ArenaAllocator arena(Runtime::Current()->GetArenaPool());
-  HGraph* graph = new (&arena) HGraph(
-      &arena, dex_file, method_idx, requires_barrier, compiler_driver->GetInstructionSet(),
+  HGraph* graph = new (arena) HGraph(
+      arena, dex_file, method_idx, requires_barrier, compiler_driver->GetInstructionSet(),
       kInvalidInvokeType, compiler_driver->GetCompilerOptions().GetDebuggable());
-
-  bool shouldOptimize = method_name.find("$opt$reg$") != std::string::npos && run_optimizations_;
 
   std::unique_ptr<CodeGenerator> codegen(
       CodeGenerator::Create(graph,
@@ -779,16 +763,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     }
   }
 
-  bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
-
-  // `run_optimizations_` is set explicitly (either through a compiler filter
-  // or the debuggable flag). If it is set, we can run baseline. Otherwise, we fall back
-  // to Quick.
-  bool can_use_baseline = !run_optimizations_ && builder.CanUseBaselineForStringInit();
-  CompiledMethod* compiled_method = nullptr;
-  if (run_optimizations_ && can_allocate_registers) {
-    VLOG(compiler) << "Optimizing " << method_name;
-
+  VLOG(compiler) << "Optimizing " << method_name;
+  if (run_optimizations_) {
     {
       PassScope scope(SsaBuilder::kSsaBuilderPassName, &pass_observer);
       if (!graph->TryBuildingSsa()) {
@@ -800,37 +776,26 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       }
     }
 
-    compiled_method = CompileOptimized(graph,
-                                       codegen.get(),
-                                       compiler_driver,
-                                       dex_compilation_unit,
-                                       &pass_observer);
-  } else if (shouldOptimize && can_allocate_registers) {
-    LOG(FATAL) << "Could not allocate registers in optimizing compiler";
-    UNREACHABLE();
-  } else if (can_use_baseline) {
-    VLOG(compiler) << "Compile baseline " << method_name;
-
-    if (!run_optimizations_) {
-      MaybeRecordStat(MethodCompilationStat::kNotOptimizedDisabled);
-    } else if (!can_allocate_registers) {
-      MaybeRecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
-    }
-
-    compiled_method = CompileBaseline(codegen.get(),
-                                      compiler_driver,
-                                      dex_compilation_unit,
-                                      &pass_observer);
+    RunOptimizations(graph,
+                     codegen.get(),
+                     compiler_driver,
+                     compilation_stats_.get(),
+                     dex_compilation_unit,
+                     &pass_observer);
+    codegen->CompileOptimized(code_allocator);
+  } else {
+    codegen->CompileBaseline(code_allocator);
   }
+  pass_observer.DumpDisassembly();
 
   if (kArenaAllocatorCountAllocations) {
-    if (arena.BytesAllocated() > 4 * MB) {
-      MemStats mem_stats(arena.GetMemStats());
+    if (arena->BytesAllocated() > 4 * MB) {
+      MemStats mem_stats(arena->GetMemStats());
       LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
     }
   }
 
-  return compiled_method;
+  return codegen.release();
 }
 
 static bool CanHandleVerificationFailure(const VerifiedMethod* verified_method) {
@@ -852,26 +817,37 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             Handle<mirror::DexCache> dex_cache) const {
   CompilerDriver* compiler_driver = GetCompilerDriver();
   CompiledMethod* method = nullptr;
-  if (Runtime::Current()->IsAotCompiler()) {
-    const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
-    DCHECK(!verified_method->HasRuntimeThrow());
-    if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
-        || CanHandleVerificationFailure(verified_method)) {
-       method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
-                           method_idx, jclass_loader, dex_file, dex_cache);
-    } else {
-      if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
-        MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
+  DCHECK(Runtime::Current()->IsAotCompiler());
+  const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
+  DCHECK(!verified_method->HasRuntimeThrow());
+  if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
+      || CanHandleVerificationFailure(verified_method)) {
+    ArenaAllocator arena(Runtime::Current()->GetArenaPool());
+    CodeVectorAllocator code_allocator(&arena);
+    std::unique_ptr<CodeGenerator> codegen(
+        TryCompile(&arena,
+                   &code_allocator,
+                   code_item,
+                   access_flags,
+                   invoke_type,
+                   class_def_idx,
+                   method_idx,
+                   jclass_loader,
+                   dex_file,
+                   dex_cache));
+    if (codegen.get() != nullptr) {
+      if (run_optimizations_) {
+        method = EmitOptimized(&arena, &code_allocator, codegen.get(), compiler_driver);
       } else {
-        MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+        method = EmitBaseline(&arena, &code_allocator, codegen.get(), compiler_driver);
       }
     }
   } else {
-    // This is for the JIT compiler, which has already ensured the class is verified.
-    // We can go straight to compiling.
-    DCHECK(Runtime::Current()->UseJit());
-    method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
-                        method_idx, jclass_loader, dex_file, dex_cache);
+    if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
+    } else {
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+    }
   }
 
   if (kIsDebugBuild &&
@@ -894,6 +870,72 @@ Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
 bool IsCompilingWithCoreImage() {
   const std::string& image = Runtime::Current()->GetImageLocation();
   return EndsWith(image, "core.art") || EndsWith(image, "core-optimizing.art");
+}
+
+bool OptimizingCompiler::JitCompile(Thread* self,
+                                    jit::JitCodeCache* code_cache,
+                                    ArtMethod* method) {
+  StackHandleScope<2> hs(self);
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      method->GetDeclaringClass()->GetClassLoader()));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+
+  jobject jclass_loader = class_loader.ToJObject();
+  const DexFile* dex_file = method->GetDexFile();
+  const uint16_t class_def_idx = method->GetClassDefIndex();
+  const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
+  const uint32_t method_idx = method->GetDexMethodIndex();
+  const uint32_t access_flags = method->GetAccessFlags();
+  const InvokeType invoke_type = method->GetInvokeType();
+
+  ArenaAllocator arena(Runtime::Current()->GetArenaPool());
+  CodeVectorAllocator code_allocator(&arena);
+  std::unique_ptr<CodeGenerator> codegen;
+  {
+    // Go to native so that we don't block GC during compilation.
+    ScopedThreadSuspension sts(self, kNative);
+
+    DCHECK(run_optimizations_);
+    codegen.reset(
+        TryCompile(&arena,
+                   &code_allocator,
+                   code_item,
+                   access_flags,
+                   invoke_type,
+                   class_def_idx,
+                   method_idx,
+                   jclass_loader,
+                   *dex_file,
+                   dex_cache));
+    if (codegen.get() == nullptr) {
+      return false;
+    }
+  }
+
+  size_t stack_map_size = codegen->ComputeStackMapsSize();
+  uint8_t* stack_map_data = code_cache->ReserveData(self, stack_map_size);
+  if (stack_map_data == nullptr) {
+    return false;
+  }
+  codegen->BuildStackMaps(MemoryRegion(stack_map_data, stack_map_size));
+  const void* code = code_cache->CommitCode(
+      self,
+      method,
+      nullptr,
+      stack_map_data,
+      nullptr,
+      codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
+      codegen->GetCoreSpillMask(),
+      codegen->GetFpuSpillMask(),
+      code_allocator.GetMemory().data(),
+      code_allocator.GetSize());
+
+  if (code == nullptr) {
+    code_cache->ClearData(self, stack_map_data);
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace art
