@@ -445,7 +445,6 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
     441-checker-inliner \
     510-checker-try-catch \
-    521-checker-array-set-null \
     536-checker-intrinsic-optimization \
 
 ifeq (mips,$(TARGET_ARCH))
