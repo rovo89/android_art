@@ -82,6 +82,11 @@ void ThreadPool::AddTask(Thread* self, Task* task) {
   }
 }
 
+void ThreadPool::RemoveAllTasks(Thread* self) {
+  MutexLock mu(self, task_queue_lock_);
+  tasks_.clear();
+}
+
 ThreadPool::ThreadPool(const char* name, size_t num_threads)
   : name_(name),
     task_queue_lock_("task queue lock"),

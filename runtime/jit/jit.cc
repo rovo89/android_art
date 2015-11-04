@@ -26,7 +26,6 @@
 #include "jit_instrumentation.h"
 #include "runtime.h"
 #include "runtime_options.h"
-#include "thread_list.h"
 #include "utils.h"
 
 namespace art {
@@ -145,7 +144,7 @@ void Jit::CreateThreadPool() {
 
 void Jit::DeleteThreadPool() {
   if (instrumentation_cache_.get() != nullptr) {
-    instrumentation_cache_->DeleteThreadPool();
+    instrumentation_cache_->DeleteThreadPool(Thread::Current());
   }
 }
 
@@ -164,16 +163,8 @@ Jit::~Jit() {
 
 void Jit::CreateInstrumentationCache(size_t compile_threshold, size_t warmup_threshold) {
   CHECK_GT(compile_threshold, 0U);
-  ScopedSuspendAll ssa(__FUNCTION__);
-  // Add Jit interpreter instrumentation, tells the interpreter when to notify the jit to compile
-  // something.
   instrumentation_cache_.reset(
       new jit::JitInstrumentationCache(compile_threshold, warmup_threshold));
-  Runtime::Current()->GetInstrumentation()->AddListener(
-      new jit::JitInstrumentationListener(instrumentation_cache_.get()),
-      instrumentation::Instrumentation::kMethodEntered |
-      instrumentation::Instrumentation::kBackwardBranch |
-      instrumentation::Instrumentation::kInvokeVirtualOrInterface);
 }
 
 }  // namespace jit
