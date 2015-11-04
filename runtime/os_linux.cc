@@ -35,12 +35,20 @@ File* OS::OpenFileReadWrite(const char* name) {
   return OpenFileWithFlags(name, O_RDWR);
 }
 
-File* OS::CreateEmptyFile(const char* name) {
+static File* CreateEmptyFile(const char* name, int extra_flags) {
   // In case the file exists, unlink it so we get a new file. This is necessary as the previous
   // file may be in use and must not be changed.
   unlink(name);
 
-  return OpenFileWithFlags(name, O_RDWR | O_CREAT | O_TRUNC);
+  return OS::OpenFileWithFlags(name, O_CREAT | extra_flags);
+}
+
+File* OS::CreateEmptyFile(const char* name) {
+  return art::CreateEmptyFile(name, O_RDWR | O_TRUNC);
+}
+
+File* OS::CreateEmptyFileWriteOnly(const char* name) {
+  return art::CreateEmptyFile(name, O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC);
 }
 
 File* OS::OpenFileWithFlags(const char* name, int flags) {
