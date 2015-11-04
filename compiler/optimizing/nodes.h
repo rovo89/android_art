@@ -98,6 +98,13 @@ enum IfCondition {
   kCondAE,  // >=
 };
 
+enum BuildSsaResult {
+  kBuildSsaFailNonNaturalLoop,
+  kBuildSsaFailThrowCatchLoop,
+  kBuildSsaFailAmbiguousArrayGet,
+  kBuildSsaSuccess,
+};
+
 class HInstructionList : public ValueObject {
  public:
   HInstructionList() : first_instruction_(nullptr), last_instruction_(nullptr) {}
@@ -143,6 +150,122 @@ class HInstructionList : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HInstructionList);
 };
 
+class ReferenceTypeInfo : ValueObject {
+ public:
+  typedef Handle<mirror::Class> TypeHandle;
+
+  static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact) {
+    // The constructor will check that the type_handle is valid.
+    return ReferenceTypeInfo(type_handle, is_exact);
+  }
+
+  static ReferenceTypeInfo CreateInvalid() { return ReferenceTypeInfo(); }
+
+  static bool IsValidHandle(TypeHandle handle) SHARED_REQUIRES(Locks::mutator_lock_) {
+    return handle.GetReference() != nullptr;
+  }
+
+  bool IsValid() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return IsValidHandle(type_handle_);
+  }
+
+  bool IsExact() const { return is_exact_; }
+
+  bool IsObjectClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsObjectClass();
+  }
+
+  bool IsStringClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsStringClass();
+  }
+
+  bool IsObjectArray() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return IsArrayClass() && GetTypeHandle()->GetComponentType()->IsObjectClass();
+  }
+
+  bool IsInterface() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsInterface();
+  }
+
+  bool IsArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsArrayClass();
+  }
+
+  bool IsPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsPrimitiveArray();
+  }
+
+  bool IsNonPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsArrayClass() && !GetTypeHandle()->IsPrimitiveArray();
+  }
+
+  bool CanArrayHold(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    if (!IsExact()) return false;
+    if (!IsArrayClass()) return false;
+    return GetTypeHandle()->GetComponentType()->IsAssignableFrom(rti.GetTypeHandle().Get());
+  }
+
+  bool CanArrayHoldValuesOf(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    if (!IsExact()) return false;
+    if (!IsArrayClass()) return false;
+    if (!rti.IsArrayClass()) return false;
+    return GetTypeHandle()->GetComponentType()->IsAssignableFrom(
+        rti.GetTypeHandle()->GetComponentType());
+  }
+
+  Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
+
+  bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    DCHECK(rti.IsValid());
+    return GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
+  }
+
+  bool IsStrictSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    DCHECK(rti.IsValid());
+    return GetTypeHandle().Get() != rti.GetTypeHandle().Get() &&
+        GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
+  }
+
+  // Returns true if the type information provide the same amount of details.
+  // Note that it does not mean that the instructions have the same actual type
+  // (because the type can be the result of a merge).
+  bool IsEqual(ReferenceTypeInfo rti) SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!IsValid() && !rti.IsValid()) {
+      // Invalid types are equal.
+      return true;
+    }
+    if (!IsValid() || !rti.IsValid()) {
+      // One is valid, the other not.
+      return false;
+    }
+    return IsExact() == rti.IsExact()
+        && GetTypeHandle().Get() == rti.GetTypeHandle().Get();
+  }
+
+ private:
+  ReferenceTypeInfo();
+  ReferenceTypeInfo(TypeHandle type_handle, bool is_exact);
+
+  // The class of the object.
+  TypeHandle type_handle_;
+  // Whether or not the type is exact or a superclass of the actual type.
+  // Whether or not we have any information about this type.
+  bool is_exact_;
+};
+
+std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs);
+
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject<kArenaAllocGraph> {
  public:
@@ -179,7 +302,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         cached_float_constants_(std::less<int32_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_long_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_double_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
-        cached_current_method_(nullptr) {
+        cached_current_method_(nullptr),
+        inexact_object_rti_(ReferenceTypeInfo::CreateInvalid()) {
     blocks_.reserve(kDefaultNumberOfBlocks);
   }
 
@@ -197,36 +321,23 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   void AddBlock(HBasicBlock* block);
 
-  // Try building the SSA form of this graph, with dominance computation and loop
-  // recognition. Returns whether it was successful in doing all these steps.
-  bool TryBuildingSsa() {
-    BuildDominatorTree();
-    // The SSA builder requires loops to all be natural. Specifically, the dead phi
-    // elimination phase checks the consistency of the graph when doing a post-order
-    // visit for eliminating dead phis: a dead phi can only have loop header phi
-    // users remaining when being visited.
-    if (!AnalyzeNaturalLoops()) return false;
-    // Precompute per-block try membership before entering the SSA builder,
-    // which needs the information to build catch block phis from values of
-    // locals at throwing instructions inside try blocks.
-    ComputeTryBlockInformation();
-    TransformToSsa();
-    in_ssa_form_ = true;
-    return true;
-  }
+  // Try building the SSA form of this graph, with dominance computation and
+  // loop recognition. Returns a code specifying that it was successful or the
+  // reason for failure.
+  BuildSsaResult TryBuildingSsa(StackHandleScopeCollection* handles);
 
   void ComputeDominanceInformation();
   void ClearDominanceInformation();
 
   void BuildDominatorTree();
-  void TransformToSsa();
   void SimplifyCFG();
   void SimplifyCatchBlocks();
 
-  // Analyze all natural loops in this graph. Returns false if one
-  // loop is not natural, that is the header does not dominate the
-  // back edge.
-  bool AnalyzeNaturalLoops() const;
+  // Analyze all natural loops in this graph. Returns a code specifying that it
+  // was successful or the reason for failure. The method will fail if a loop
+  // is not natural, that is the header does not dominate a back edge, or if it
+  // is a throw-catch loop, i.e. the header is a catch block.
+  BuildSsaResult AnalyzeNaturalLoops() const;
 
   // Iterate over blocks to compute try block membership. Needs reverse post
   // order and loop information.
@@ -486,6 +597,10 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // for example for methods whose declaring class could not be resolved
   // (such as when the superclass could not be found).
   ArtMethod* art_method_;
+
+  // Keep the RTI of inexact Object to avoid having to pass stack handle
+  // collection pointer to passes which may create NullConstant.
+  ReferenceTypeInfo inexact_object_rti_;
 
   friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
@@ -1673,122 +1788,6 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
 
   DISALLOW_COPY_AND_ASSIGN(HEnvironment);
 };
-
-class ReferenceTypeInfo : ValueObject {
- public:
-  typedef Handle<mirror::Class> TypeHandle;
-
-  static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact) {
-    // The constructor will check that the type_handle is valid.
-    return ReferenceTypeInfo(type_handle, is_exact);
-  }
-
-  static ReferenceTypeInfo CreateInvalid() { return ReferenceTypeInfo(); }
-
-  static bool IsValidHandle(TypeHandle handle) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return handle.GetReference() != nullptr;
-  }
-
-  bool IsValid() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return IsValidHandle(type_handle_);
-  }
-
-  bool IsExact() const { return is_exact_; }
-
-  bool IsObjectClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return GetTypeHandle()->IsObjectClass();
-  }
-
-  bool IsStringClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return GetTypeHandle()->IsStringClass();
-  }
-
-  bool IsObjectArray() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return IsArrayClass() && GetTypeHandle()->GetComponentType()->IsObjectClass();
-  }
-
-  bool IsInterface() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return GetTypeHandle()->IsInterface();
-  }
-
-  bool IsArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return GetTypeHandle()->IsArrayClass();
-  }
-
-  bool IsPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return GetTypeHandle()->IsPrimitiveArray();
-  }
-
-  bool IsNonPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    return GetTypeHandle()->IsArrayClass() && !GetTypeHandle()->IsPrimitiveArray();
-  }
-
-  bool CanArrayHold(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    if (!IsExact()) return false;
-    if (!IsArrayClass()) return false;
-    return GetTypeHandle()->GetComponentType()->IsAssignableFrom(rti.GetTypeHandle().Get());
-  }
-
-  bool CanArrayHoldValuesOf(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    if (!IsExact()) return false;
-    if (!IsArrayClass()) return false;
-    if (!rti.IsArrayClass()) return false;
-    return GetTypeHandle()->GetComponentType()->IsAssignableFrom(
-        rti.GetTypeHandle()->GetComponentType());
-  }
-
-  Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
-
-  bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    DCHECK(rti.IsValid());
-    return GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
-  }
-
-  bool IsStrictSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsValid());
-    DCHECK(rti.IsValid());
-    return GetTypeHandle().Get() != rti.GetTypeHandle().Get() &&
-        GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
-  }
-
-  // Returns true if the type information provide the same amount of details.
-  // Note that it does not mean that the instructions have the same actual type
-  // (because the type can be the result of a merge).
-  bool IsEqual(ReferenceTypeInfo rti) SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (!IsValid() && !rti.IsValid()) {
-      // Invalid types are equal.
-      return true;
-    }
-    if (!IsValid() || !rti.IsValid()) {
-      // One is valid, the other not.
-      return false;
-    }
-    return IsExact() == rti.IsExact()
-        && GetTypeHandle().Get() == rti.GetTypeHandle().Get();
-  }
-
- private:
-  ReferenceTypeInfo();
-  ReferenceTypeInfo(TypeHandle type_handle, bool is_exact);
-
-  // The class of the object.
-  TypeHandle type_handle_;
-  // Whether or not the type is exact or a superclass of the actual type.
-  // Whether or not we have any information about this type.
-  bool is_exact_;
-};
-
-std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs);
 
 class HInstruction : public ArenaObject<kArenaAllocInstruction> {
  public:
@@ -4417,7 +4416,16 @@ class HPhi : public HInstruction {
   void RemoveInputAt(size_t index);
 
   Primitive::Type GetType() const OVERRIDE { return type_; }
-  void SetType(Primitive::Type type) { type_ = type; }
+  void SetType(Primitive::Type new_type) {
+    // Make sure that only valid type changes occur. The following are allowed:
+    //  (1) int  -> float/ref (primitive type propagation),
+    //  (2) long -> double (primitive type propagation).
+    DCHECK(type_ == new_type ||
+           (type_ == Primitive::kPrimInt && new_type == Primitive::kPrimFloat) ||
+           (type_ == Primitive::kPrimInt && new_type == Primitive::kPrimNot) ||
+           (type_ == Primitive::kPrimLong && new_type == Primitive::kPrimDouble));
+    type_ = new_type;
+  }
 
   bool CanBeNull() const OVERRIDE { return can_be_null_; }
   void SetCanBeNull(bool can_be_null) { can_be_null_ = can_be_null; }
@@ -4657,7 +4665,21 @@ class HArrayGet : public HExpression<2> {
     return false;
   }
 
-  void SetType(Primitive::Type type) { type_ = type; }
+  bool IsEquivalentOf(HArrayGet* other) const {
+    bool result = (GetDexPc() == other->GetDexPc());
+    if (kIsDebugBuild && result) {
+      DCHECK_EQ(GetBlock(), other->GetBlock());
+      DCHECK_EQ(GetArray(), other->GetArray());
+      DCHECK_EQ(GetIndex(), other->GetIndex());
+      if (Primitive::IsIntOrLongType(GetType())) {
+        DCHECK(Primitive::IsFloatingPointType(other->GetType()));
+      } else {
+        DCHECK(Primitive::IsFloatingPointType(GetType()));
+        DCHECK(Primitive::IsIntOrLongType(other->GetType()));
+      }
+    }
+    return result;
+  }
 
   HInstruction* GetArray() const { return InputAt(0); }
   HInstruction* GetIndex() const { return InputAt(1); }

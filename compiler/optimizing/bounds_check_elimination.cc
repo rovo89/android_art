@@ -1590,15 +1590,18 @@ class BCEVisitor : public HGraphVisitor {
     HGraph* graph = GetGraph();
     HInstruction* zero;
     switch (type) {
-      case Primitive::Type::kPrimNot: zero = graph->GetNullConstant(); break;
-      case Primitive::Type::kPrimFloat: zero = graph->GetFloatConstant(0); break;
-      case Primitive::Type::kPrimDouble: zero = graph->GetDoubleConstant(0); break;
+      case Primitive::kPrimNot: zero = graph->GetNullConstant(); break;
+      case Primitive::kPrimFloat: zero = graph->GetFloatConstant(0); break;
+      case Primitive::kPrimDouble: zero = graph->GetDoubleConstant(0); break;
       default: zero = graph->GetConstant(type, 0); break;
     }
     HPhi* phi = new (graph->GetArena())
         HPhi(graph->GetArena(), kNoRegNumber, /*number_of_inputs*/ 2, HPhi::ToPhiType(type));
     phi->SetRawInputAt(0, instruction);
     phi->SetRawInputAt(1, zero);
+    if (type == Primitive::kPrimNot) {
+      phi->SetReferenceTypeInfo(instruction->GetReferenceTypeInfo());
+    }
     new_preheader->AddPhi(phi);
     return phi;
   }
