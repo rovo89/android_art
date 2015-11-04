@@ -51,6 +51,7 @@ class JNICFITest : public CFITest {
 
     // Assemble the method.
     std::unique_ptr<Assembler> jni_asm(Assembler::Create(isa));
+    jni_asm->cfi().SetEnabled(true);
     jni_asm->BuildFrame(frame_size, mr_conv->MethodRegister(),
                         callee_save_regs, mr_conv->EntrySpills());
     jni_asm->IncreaseFrameSize(32);
