@@ -94,7 +94,9 @@ class MipsAssembler FINAL : public Assembler {
         last_position_adjustment_(0),
         last_old_position_(0),
         last_branch_id_(0),
-        isa_features_(instruction_set_features) {}
+        isa_features_(instruction_set_features) {
+    cfi().DelayEmittingAdvancePCs();
+  }
 
   virtual ~MipsAssembler() {
     for (auto& branch : branches_) {
@@ -599,6 +601,7 @@ class MipsAssembler FINAL : public Assembler {
   void PromoteBranches();
   void EmitBranch(Branch* branch);
   void EmitBranches();
+  void PatchCFI(size_t number_of_delayed_adjust_pcs);
 
   // Emits exception block.
   void EmitExceptionPoll(MipsExceptionSlowPath* exception);
