@@ -520,15 +520,6 @@ inline void Class::SetClinitThreadId(pid_t new_clinit_thread_id) {
   }
 }
 
-inline void Class::SetVerifyErrorClass(Class* klass) {
-  CHECK(klass != nullptr) << PrettyClass(this);
-  if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass);
-  } else {
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass);
-  }
-}
-
 template<VerifyObjectFlags kVerifyFlags>
 inline uint32_t Class::GetAccessFlags() {
   // Check class is loaded/retired or this is java.lang.String that has a

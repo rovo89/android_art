@@ -57,6 +57,15 @@ void Class::VisitRoots(RootVisitor* visitor) {
   java_lang_Class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
+inline void Class::SetVerifyError(mirror::Object* error) {
+  CHECK(error != nullptr) << PrettyClass(this);
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_), error);
+  } else {
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_), error);
+  }
+}
+
 void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
   Status old_status = h_this->GetStatus();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -109,7 +118,13 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
       // case.
       Class* exception_class = old_exception->GetClass();
       if (!eiie_class->IsAssignableFrom(exception_class)) {
-        h_this->SetVerifyErrorClass(exception_class);
+        // Store the exception class when this is the AoT compiler. Don't store full exceptions,
+        // as they need to be trimmed (native components are not storable in an image).
+        if (Runtime::Current()->IsAotCompiler()) {
+          h_this->SetVerifyError(exception_class);
+        } else {
+          h_this->SetVerifyError(old_exception.Get());
+        }
       }
     }
 
