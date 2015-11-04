@@ -84,6 +84,10 @@ public class Main {
             }
         } else {
             if (invocationCount == 0) {
+                // When running the trace in trace mode, there is already a trace running.
+                if (VMDebug.getMethodTracingMode() != 0) {
+                    VMDebug.stopMethodTracing();
+                }
                 VMDebug.startMethodTracing(file.getPath(), 0, 0, false, 0);
             }
             fillJit();
@@ -219,12 +223,14 @@ public class Main {
     private static class VMDebug {
         private static final Method startMethodTracingMethod;
         private static final Method stopMethodTracingMethod;
+        private static final Method getMethodTracingModeMethod;
         static {
             try {
                 Class c = Class.forName("dalvik.system.VMDebug");
                 startMethodTracingMethod = c.getDeclaredMethod("startMethodTracing", String.class,
                         Integer.TYPE, Integer.TYPE, Boolean.TYPE, Integer.TYPE);
                 stopMethodTracingMethod = c.getDeclaredMethod("stopMethodTracing");
+                getMethodTracingModeMethod = c.getDeclaredMethod("getMethodTracingMode");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -237,6 +243,9 @@ public class Main {
         }
         public static void stopMethodTracing() throws Exception {
             stopMethodTracingMethod.invoke(null);
+        }
+        public static int getMethodTracingMode() throws Exception {
+            return (int) getMethodTracingModeMethod.invoke(null);
         }
     }
 }
