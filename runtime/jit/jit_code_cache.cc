@@ -370,6 +370,23 @@ class MarkCodeClosure FINAL : public Closure {
     DCHECK(thread == Thread::Current() || thread->IsSuspended());
     MarkCodeVisitor visitor(thread, code_cache_);
     visitor.WalkStack();
+    if (kIsDebugBuild) {
+      // The stack walking code queries the side instrumentation stack if it
+      // sees an instrumentation exit pc, so the JIT code of methods in that stack
+      // must have been seen. We sanity check this below.
+      for (const instrumentation::InstrumentationStackFrame& frame
+              : *thread->GetInstrumentationStack()) {
+        // The 'method_' in InstrumentationStackFrame is the one that has return_pc_ in
+        // its stack frame, it is not the method owning return_pc_. We just pass null to
+        // LookupMethodHeader: the method is only checked against in debug builds.
+        OatQuickMethodHeader* method_header =
+            code_cache_->LookupMethodHeader(frame.return_pc_, nullptr);
+        if (method_header != nullptr) {
+          const void* code = method_header->GetCode();
+          CHECK(code_cache_->GetLiveBitmap()->Test(FromCodeToAllocation(code)));
+        }
+      }
+    }
     barrier_->Pass(Thread::Current());
   }
 
@@ -489,8 +506,10 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
   if (!method_header->Contains(pc)) {
     return nullptr;
   }
-  DCHECK_EQ(it->second, method)
-      << PrettyMethod(method) << " " << PrettyMethod(it->second) << " " << std::hex << pc;
+  if (kIsDebugBuild && method != nullptr) {
+    DCHECK_EQ(it->second, method)
+        << PrettyMethod(method) << " " << PrettyMethod(it->second) << " " << std::hex << pc;
+  }
   return method_header;
 }
 

@@ -367,6 +367,10 @@ const uint8_t* ArtMethod::GetQuickenedInfo() {
 }
 
 const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
+  // Our callers should make sure they don't pass the instrumentation exit pc,
+  // as this method does not look at the side instrumentation stack.
+  DCHECK_NE(pc, reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()));
+
   if (IsRuntimeMethod()) {
     return nullptr;
   }
@@ -434,7 +438,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
   const void* oat_entry_point = oat_method.GetQuickCode();
   if (oat_entry_point == nullptr || class_linker->IsQuickGenericJniStub(oat_entry_point)) {
-    DCHECK(IsNative());
+    DCHECK(IsNative()) << PrettyMethod(this);
     return nullptr;
   }
 
@@ -442,12 +446,6 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   if (pc == 0) {
     // This is a downcall, it can only happen for a native method.
     DCHECK(IsNative());
-    return method_header;
-  }
-
-  if (pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
-    // If we're instrumenting, just return the compiled OAT code.
-    // TODO(ngeoffray): Avoid this call path.
     return method_header;
   }
 
