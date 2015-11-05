@@ -354,8 +354,10 @@ class Location : public ValueObject {
   }
 
   static Location RegisterOrConstant(HInstruction* instruction);
-  static Location RegisterOrInt32LongConstant(HInstruction* instruction);
+  static Location RegisterOrInt32Constant(HInstruction* instruction);
   static Location ByteRegisterOrConstant(int reg, HInstruction* instruction);
+  static Location FpuRegisterOrConstant(HInstruction* instruction);
+  static Location FpuRegisterOrInt32Constant(HInstruction* instruction);
 
   // The location of the first input to the instruction will be
   // used to replace this unallocated location.
