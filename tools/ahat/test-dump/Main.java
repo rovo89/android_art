@@ -39,6 +39,15 @@ public class Main {
     public ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
     public PhantomReference aPhantomReference = new PhantomReference(anObject, referenceQueue);
     public WeakReference aWeakReference = new WeakReference(anObject, referenceQueue);
+    public byte[] bigArray;
+
+    DumpedStuff() {
+      int N = 1000000;
+      bigArray = new byte[N];
+      for (int i = 0; i < N; i++) {
+        bigArray[i] = (byte)((i*i) & 0xFF);
+      }
+    }
   }
 
   public static void main(String[] args) throws IOException {

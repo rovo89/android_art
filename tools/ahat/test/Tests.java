@@ -23,8 +23,9 @@ public class Tests {
     if (args.length == 0) {
       args = new String[]{
         "com.android.ahat.InstanceUtilsTest",
+        "com.android.ahat.PerformanceTest",
         "com.android.ahat.QueryTest",
-        "com.android.ahat.SortTest"
+        "com.android.ahat.SortTest",
       };
     }
     JUnitCore.main(args);

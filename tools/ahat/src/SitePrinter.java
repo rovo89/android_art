@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.List;
 
 class SitePrinter {
-  public static void printSite(Doc doc, AhatSnapshot snapshot, Site site) {
+  public static void printSite(AhatSnapshot snapshot, Doc doc, Query query, String id, Site site) {
     List<Site> path = new ArrayList<Site>();
     for (Site parent = site; parent != null; parent = parent.getParent()) {
       path.add(parent);
@@ -60,6 +60,6 @@ class SitePrinter {
         return Collections.singletonList(value);
       }
     };
-    HeapTable.render(doc, table, snapshot, path);
+    HeapTable.render(doc, query, id, table, snapshot, path);
   }
 }
