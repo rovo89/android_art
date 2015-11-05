@@ -151,6 +151,11 @@ class Runtime {
     return compiler_callbacks_;
   }
 
+  void SetCompilerCallbacks(CompilerCallbacks* callbacks) {
+    CHECK(callbacks != nullptr);
+    compiler_callbacks_ = callbacks;
+  }
+
   bool IsZygote() const {
     return is_zygote_;
   }
