@@ -31,7 +31,6 @@
 
 namespace art {
 namespace mirror {
-  class Class;
   class Object;
   class Throwable;
 }  // namespace mirror
@@ -42,24 +41,7 @@ class Thread;
 
 namespace jit {
 
-// Keeps track of which methods are hot.
-class JitInstrumentationCache {
- public:
-  JitInstrumentationCache(size_t hot_method_threshold, size_t warm_method_threshold);
-  void AddSamples(Thread* self, ArtMethod* method, size_t samples)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  void CreateThreadPool();
-  void DeleteThreadPool();
-  // Wait until there is no more pending compilation tasks.
-  void WaitForCompilationToFinish(Thread* self);
-
- private:
-  size_t hot_method_threshold_;
-  size_t warm_method_threshold_;
-  std::unique_ptr<ThreadPool> thread_pool_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(JitInstrumentationCache);
-};
+class JitInstrumentationCache;
 
 class JitInstrumentationListener : public instrumentation::InstrumentationListener {
  public:
@@ -67,9 +49,8 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 
   void MethodEntered(Thread* thread, mirror::Object* /*this_object*/,
                      ArtMethod* method, uint32_t /*dex_pc*/)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
-    instrumentation_cache_->AddSamples(thread, method, 1);
-  }
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
+
   void MethodExited(Thread* /*thread*/, mirror::Object* /*this_object*/,
                     ArtMethod* /*method*/, uint32_t /*dex_pc*/,
                     const JValue& /*return_value*/)
@@ -90,10 +71,7 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
                   ArtMethod* /*method*/, uint32_t /*new_dex_pc*/) OVERRIDE { }
 
   void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
-    CHECK_LE(dex_pc_offset, 0);
-    instrumentation_cache_->AddSamples(thread, method, 1);
-  }
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
   void InvokeVirtualOrInterface(Thread* thread,
                                 mirror::Object* this_object,
@@ -102,10 +80,35 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
                                 ArtMethod* callee)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static constexpr uint32_t kJitEvents =
+      instrumentation::Instrumentation::kMethodEntered |
+      instrumentation::Instrumentation::kBackwardBranch |
+      instrumentation::Instrumentation::kInvokeVirtualOrInterface;
+
  private:
   JitInstrumentationCache* const instrumentation_cache_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitInstrumentationListener);
+};
+
+// Keeps track of which methods are hot.
+class JitInstrumentationCache {
+ public:
+  JitInstrumentationCache(size_t hot_method_threshold, size_t warm_method_threshold);
+  void AddSamples(Thread* self, ArtMethod* method, size_t samples)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void CreateThreadPool();
+  void DeleteThreadPool(Thread* self);
+  // Wait until there is no more pending compilation tasks.
+  void WaitForCompilationToFinish(Thread* self);
+
+ private:
+  size_t hot_method_threshold_;
+  size_t warm_method_threshold_;
+  JitInstrumentationListener listener_;
+  std::unique_ptr<ThreadPool> thread_pool_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JitInstrumentationCache);
 };
 
 }  // namespace jit
