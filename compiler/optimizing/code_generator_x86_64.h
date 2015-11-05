@@ -368,6 +368,12 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // Store a 64 bit value into a DoubleStackSlot in the most efficient manner.
   void Store64BitValueToStack(Location dest, int64_t value);
 
+  // Assign a 64 bit constant to an address.
+  void MoveInt64ToAddress(const Address& addr_low,
+                          const Address& addr_high,
+                          int64_t v,
+                          HInstruction* instruction);
+
  private:
   struct PcRelativeDexCacheAccessInfo {
     PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
