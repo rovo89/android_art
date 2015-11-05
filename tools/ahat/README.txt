@@ -13,8 +13,6 @@ TODO:
    - Recommend how to start looking at a heap dump.
    - Say how to enable allocation sites.
    - Where to submit feedback, questions, and bug reports.
- * Submit perflib fix for getting stack traces, then uncomment that code in
-   AhatSnapshot to use that.
  * Dim 'image' and 'zygote' heap sizes slightly? Why do we even show these?
  * Filter out RootObjs in mSnapshot.getGCRoots, not RootsHandler.
  * Let user re-sort sites objects info by clicking column headers.
@@ -25,23 +23,15 @@ TODO:
  * Show root types.
  * Heaped Table
    - Make sortable by clicking on headers.
-   - Use consistent order for heap columns.
-      Sometimes I see "app" first, sometimes last (from one heap dump to
-      another) How about, always sort by name?
  * For HeapTable with single heap shown, the heap name isn't centered?
  * Consistently document functions.
  * Should help be part of an AhatHandler, that automatically gets the menu and
    stylesheet link rather than duplicating that?
  * Show version number with --version.
  * Show somewhere where to send bugs.
- * /objects query takes a long time to load without parameters.
  * Include a link to /objects in the overview and menu?
  * Turn on LOCAL_JAVACFLAGS := -Xlint:unchecked -Werror
  * Use hex for object ids in URLs?
- * In general, all tables and descriptions should show a limited amount to
-   start, and only show more when requested by the user.
- * Don't have handlers inherit from HttpHandler
-   - because they should be independent from http.
 
  * [low priority] by site allocations won't line up if the stack has been
    truncated. Is there any way to manually line them up in that case?
@@ -60,8 +50,6 @@ Things to Test:
    objects normally sorted by 'app' heap by default.
  * Visit /objects without parameters and verify it doesn't throw an exception.
  * Visit /objects with an invalid site, verify it doesn't throw an exception.
- * That we can view an array with 3 million elements in a reasonably short
-   amount of time (not more than 1 second?)
  * That we can view the list of all objects in a reasonably short amount of
    time.
  * That we don't show the 'extra' column in the DominatedList if we are
@@ -72,8 +60,6 @@ Things to Test:
 
 Reported Issues:
  * Request to be able to sort tables by size.
- * Hangs on showing large arrays, where hat does not hang.
-   - Solution is probably to not show all the array elements by default.
 
 Perflib Requests:
  * Class objects should have java.lang.Class as their class object, not null.

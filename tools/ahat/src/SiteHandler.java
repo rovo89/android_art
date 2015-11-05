@@ -22,9 +22,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-class SiteHandler extends AhatHandler {
+class SiteHandler implements AhatHandler {
+  private static final String ALLOCATION_SITE_ID = "frames";
+  private static final String SITES_CALLED_ID = "called";
+  private static final String OBJECTS_ALLOCATED_ID = "objects";
+
+  private AhatSnapshot mSnapshot;
+
   public SiteHandler(AhatSnapshot snapshot) {
-    super(snapshot);
+    mSnapshot = snapshot;
   }
 
   @Override
@@ -35,7 +41,7 @@ class SiteHandler extends AhatHandler {
 
     doc.title("Site %s", site.getName());
     doc.section("Allocation Site");
-    SitePrinter.printSite(doc, mSnapshot, site);
+    SitePrinter.printSite(mSnapshot, doc, query, ALLOCATION_SITE_ID, site);
 
     doc.section("Sites Called from Here");
     List<Site> children = site.getChildren();
@@ -69,7 +75,7 @@ class SiteHandler extends AhatHandler {
           return Collections.singletonList(value);
         }
       };
-      HeapTable.render(doc, table, mSnapshot, children);
+      HeapTable.render(doc, query, SITES_CALLED_ID, table, mSnapshot, children);
     }
 
     doc.section("Objects Allocated");
@@ -84,7 +90,9 @@ class SiteHandler extends AhatHandler {
         new Sort.ObjectsInfoBySize(),
         new Sort.ObjectsInfoByClassName());
     Collections.sort(infos, compare);
-    for (Site.ObjectsInfo info : infos) {
+    SubsetSelector<Site.ObjectsInfo> selector
+      = new SubsetSelector(query, OBJECTS_ALLOCATED_ID, infos);
+    for (Site.ObjectsInfo info : selector.selected()) {
       String className = AhatSnapshot.getClassName(info.classObj);
       doc.row(
           DocString.format("%,14d", info.numBytes),
@@ -96,6 +104,7 @@ class SiteHandler extends AhatHandler {
           Value.render(info.classObj));
     }
     doc.end();
+    selector.render(doc);
   }
 }
 

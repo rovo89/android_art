@@ -73,11 +73,11 @@ public class Main {
     InetAddress loopback = InetAddress.getLoopbackAddress();
     InetSocketAddress addr = new InetSocketAddress(loopback, port);
     HttpServer server = HttpServer.create(addr, 0);
-    server.createContext("/", new OverviewHandler(ahat, hprof));
-    server.createContext("/roots", new RootsHandler(ahat));
-    server.createContext("/object", new ObjectHandler(ahat));
-    server.createContext("/objects", new ObjectsHandler(ahat));
-    server.createContext("/site", new SiteHandler(ahat));
+    server.createContext("/", new AhatHttpHandler(new OverviewHandler(ahat, hprof)));
+    server.createContext("/roots", new AhatHttpHandler(new RootsHandler(ahat)));
+    server.createContext("/object", new AhatHttpHandler(new ObjectHandler(ahat)));
+    server.createContext("/objects", new AhatHttpHandler(new ObjectsHandler(ahat)));
+    server.createContext("/site", new AhatHttpHandler(new SiteHandler(ahat)));
     server.createContext("/bitmap", new BitmapHandler(ahat));
     server.createContext("/help", new StaticHandler("help.html", "text/html"));
     server.createContext("/style.css", new StaticHandler("style.css", "text/css"));

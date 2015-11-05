@@ -22,9 +22,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-class ObjectsHandler extends AhatHandler {
+class ObjectsHandler implements AhatHandler {
+  private static final String OBJECTS_ID = "objects";
+
+  private AhatSnapshot mSnapshot;
+
   public ObjectsHandler(AhatSnapshot snapshot) {
-    super(snapshot);
+    mSnapshot = snapshot;
   }
 
   @Override
@@ -51,13 +55,15 @@ class ObjectsHandler extends AhatHandler {
         new Column("Size", Column.Align.RIGHT),
         new Column("Heap"),
         new Column("Object"));
-    for (Instance inst : insts) {
+    SubsetSelector<Instance> selector = new SubsetSelector(query, OBJECTS_ID, insts);
+    for (Instance inst : selector.selected()) {
       doc.row(
           DocString.format("%,d", inst.getSize()),
           DocString.text(inst.getHeap().getName()),
           Value.render(inst));
     }
     doc.end();
+    selector.render(doc);
   }
 }
 
