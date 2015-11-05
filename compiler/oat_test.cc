@@ -16,6 +16,7 @@
 
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiled_method.h"
@@ -36,6 +37,16 @@
 #include "vector_output_stream.h"
 
 namespace art {
+
+NO_RETURN static void Usage(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  std::string error;
+  StringAppendV(&error, fmt, ap);
+  LOG(FATAL) << error;
+  va_end(ap);
+  UNREACHABLE();
+}
 
 class OatTest : public CommonCompilerTest {
  protected:
@@ -71,6 +82,66 @@ class OatTest : public CommonCompilerTest {
       CHECK_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size));
     }
   }
+
+  void SetupCompiler(Compiler::Kind compiler_kind,
+                     InstructionSet insn_set,
+                     const std::vector<std::string>& compiler_options,
+                     /*out*/std::string* error_msg) {
+    ASSERT_TRUE(error_msg != nullptr);
+    insn_features_.reset(InstructionSetFeatures::FromVariant(insn_set, "default", error_msg));
+    ASSERT_TRUE(insn_features_ != nullptr) << error_msg;
+    compiler_options_.reset(new CompilerOptions);
+    for (const std::string& option : compiler_options) {
+      compiler_options_->ParseCompilerOption(option, Usage);
+    }
+    verification_results_.reset(new VerificationResults(compiler_options_.get()));
+    method_inliner_map_.reset(new DexFileToMethodInlinerMap);
+    callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
+                                                method_inliner_map_.get(),
+                                                CompilerCallbacks::CallbackMode::kCompileApp));
+    Runtime::Current()->SetCompilerCallbacks(callbacks_.get());
+    timer_.reset(new CumulativeLogger("Compilation times"));
+    compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
+                                              verification_results_.get(),
+                                              method_inliner_map_.get(),
+                                              compiler_kind,
+                                              insn_set,
+                                              insn_features_.get(),
+                                              false,
+                                              nullptr,
+                                              nullptr,
+                                              nullptr,
+                                              2,
+                                              true,
+                                              true,
+                                              "",
+                                              false,
+                                              timer_.get(),
+                                              -1,
+                                              ""));
+  }
+
+  bool WriteElf(File* file,
+                const std::vector<const DexFile*>& dex_files,
+                SafeMap<std::string, std::string>& key_value_store) {
+    TimingLogger timings("WriteElf", false, false);
+    OatWriter oat_writer(dex_files,
+                         42U,
+                         4096U,
+                         0,
+                         compiler_driver_.get(),
+                         nullptr,
+                         &timings,
+                         &key_value_store);
+    return compiler_driver_->WriteElf(GetTestAndroidRoot(),
+                                      !kIsTargetBuild,
+                                      dex_files,
+                                      &oat_writer,
+                                      file);
+  }
+
+  std::unique_ptr<const InstructionSetFeatures> insn_features_;
+  std::unique_ptr<QuickCompilerCallbacks> callbacks_;
 };
 
 TEST_F(OatTest, WriteRead) {
@@ -80,21 +151,9 @@ TEST_F(OatTest, WriteRead) {
   // TODO: make selectable.
   Compiler::Kind compiler_kind = Compiler::kQuick;
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
-
   std::string error_msg;
-  std::unique_ptr<const InstructionSetFeatures> insn_features(
-      InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
-  ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
-  compiler_options_.reset(new CompilerOptions);
-  verification_results_.reset(new VerificationResults(compiler_options_.get()));
-  method_inliner_map_.reset(new DexFileToMethodInlinerMap);
-  timer_.reset(new CumulativeLogger("Compilation times"));
-  compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
-                                            verification_results_.get(),
-                                            method_inliner_map_.get(),
-                                            compiler_kind, insn_set,
-                                            insn_features.get(), false, nullptr, nullptr, nullptr,
-                                            2, true, true, "", false, timer_.get(), -1, ""));
+  SetupCompiler(compiler_kind, insn_set, std::vector<std::string>(), /*out*/ &error_msg);
+
   jobject class_loader = nullptr;
   if (kCompile) {
     TimingLogger timings2("OatTest::WriteRead", false, false);
@@ -105,19 +164,7 @@ TEST_F(OatTest, WriteRead) {
   ScratchFile tmp;
   SafeMap<std::string, std::string> key_value_store;
   key_value_store.Put(OatHeader::kImageLocationKey, "lue.art");
-  OatWriter oat_writer(class_linker->GetBootClassPath(),
-                       42U,
-                       4096U,
-                       0,
-                       compiler_driver_.get(),
-                       nullptr,
-                       &timings,
-                       &key_value_store);
-  bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
-                                            !kIsTargetBuild,
-                                            class_linker->GetBootClassPath(),
-                                            &oat_writer,
-                                            tmp.GetFile());
+  bool success = WriteElf(tmp.GetFile(), class_linker->GetBootClassPath(), key_value_store);
   ASSERT_TRUE(success);
 
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
@@ -210,6 +257,55 @@ TEST_F(OatTest, OatHeaderIsValid) {
     ASSERT_FALSE(oat_header->IsValid());
     strcpy(magic, "oat\n000");  // bad version
     ASSERT_FALSE(oat_header->IsValid());
+}
+
+TEST_F(OatTest, EmptyTextSection) {
+  TimingLogger timings("OatTest::EmptyTextSection", false, false);
+
+  // TODO: make selectable.
+  Compiler::Kind compiler_kind = Compiler::kQuick;
+  InstructionSet insn_set = kRuntimeISA;
+  if (insn_set == kArm) insn_set = kThumb2;
+  std::string error_msg;
+  std::vector<std::string> compiler_options;
+  compiler_options.push_back("--compiler-filter=verify-at-runtime");
+  SetupCompiler(compiler_kind, insn_set, compiler_options, /*out*/ &error_msg);
+
+  jobject class_loader;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    class_loader = LoadDex("Main");
+  }
+  ASSERT_TRUE(class_loader != nullptr);
+  std::vector<const DexFile*> dex_files = GetDexFiles(class_loader);
+  ASSERT_TRUE(!dex_files.empty());
+
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  for (const DexFile* dex_file : dex_files) {
+    ScopedObjectAccess soa(Thread::Current());
+    class_linker->RegisterDexFile(
+        *dex_file,
+        class_linker->GetOrCreateAllocatorForClassLoader(
+            soa.Decode<mirror::ClassLoader*>(class_loader)));
+  }
+  compiler_driver_->SetDexFilesForOatFile(dex_files);
+  compiler_driver_->CompileAll(class_loader, dex_files, &timings);
+
+  ScratchFile tmp;
+  SafeMap<std::string, std::string> key_value_store;
+  key_value_store.Put(OatHeader::kImageLocationKey, "test.art");
+  bool success = WriteElf(tmp.GetFile(), dex_files, key_value_store);
+  ASSERT_TRUE(success);
+
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(),
+                                                  tmp.GetFilename(),
+                                                  nullptr,
+                                                  nullptr,
+                                                  false,
+                                                  nullptr,
+                                                  &error_msg));
+  ASSERT_TRUE(oat_file != nullptr);
+  EXPECT_LT(static_cast<size_t>(oat_file->Size()), static_cast<size_t>(tmp.GetFile()->GetLength()));
 }
 
 }  // namespace art
