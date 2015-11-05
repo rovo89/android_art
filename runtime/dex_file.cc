@@ -2227,14 +2227,24 @@ void ClassDataItemIterator::ReadClassDataMethod() {
 }
 
 EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(
+    const DexFile& dex_file,
+    const DexFile::ClassDef& class_def)
+    : EncodedStaticFieldValueIterator(dex_file, nullptr, nullptr,
+                                      nullptr, class_def) {
+}
+
+EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(
     const DexFile& dex_file, Handle<mirror::DexCache>* dex_cache,
     Handle<mirror::ClassLoader>* class_loader, ClassLinker* linker,
     const DexFile::ClassDef& class_def)
-    : dex_file_(dex_file), dex_cache_(dex_cache), class_loader_(class_loader), linker_(linker),
-      array_size_(), pos_(-1), type_(kByte) {
-  DCHECK(dex_cache != nullptr);
-  DCHECK(class_loader != nullptr);
-  ptr_ = dex_file.GetEncodedStaticFieldValuesArray(class_def);
+    : dex_file_(dex_file),
+      dex_cache_(dex_cache),
+      class_loader_(class_loader),
+      linker_(linker),
+      array_size_(),
+      pos_(-1),
+      type_(kByte) {
+  ptr_ = dex_file_.GetEncodedStaticFieldValuesArray(class_def);
   if (ptr_ == nullptr) {
     array_size_ = 0;
   } else {
@@ -2307,6 +2317,8 @@ void EncodedStaticFieldValueIterator::Next() {
 
 template<bool kTransactionActive>
 void EncodedStaticFieldValueIterator::ReadValueToField(ArtField* field) const {
+  DCHECK(dex_cache_ != nullptr);
+  DCHECK(class_loader_ != nullptr);
   switch (type_) {
     case kBoolean: field->SetBoolean<kTransactionActive>(field->GetDeclaringClass(), jval_.z);
         break;

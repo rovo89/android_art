@@ -27,7 +27,6 @@
  * Differences between XML output and the "current.xml" file:
  * - classes in same package are not all grouped together; nothing is sorted
  * - no "deprecated" on fields and methods
- * - no "value" on fields
  * - no parameter names
  * - no generic signatures on parameters, e.g. type="java.lang.Class&lt;?&gt;"
  * - class shows declared fields and methods; does not show inherited fields
@@ -1019,9 +1018,126 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
 }
 
 /*
+ * Dumps a string value with some escape characters.
+ */
+static void dumpEscapedString(const char* p) {
+  for (; *p; p++) {
+    switch (*p) {
+      case '\\':
+        fputs("\\\\", gOutFile);
+        break;
+      case '\"':
+        fputs("\\\"", gOutFile);
+        break;
+      case '\t':
+        fputs("\\t", gOutFile);
+        break;
+      case '\n':
+        fputs("\\n", gOutFile);
+        break;
+      case '\r':
+        fputs("\\r", gOutFile);
+        break;
+      default:
+        putc(*p, gOutFile);
+    }
+  }
+}
+
+/*
+ * Dumps an XML attribute value between double-quotes.
+ */
+static void dumpXmlAttribute(const char* p) {
+  for (; *p; p++) {
+    switch (*p) {
+      case '&':
+        fputs("&amp;", gOutFile);
+        break;
+      case '<':
+        fputs("&lt;", gOutFile);
+        break;
+      case '"':
+        fputs("&quot;", gOutFile);
+        break;
+      case '\t':
+        fputs("&#x9;", gOutFile);
+        break;
+      case '\n':
+        fputs("&#xA;", gOutFile);
+        break;
+      case '\r':
+        fputs("&#xD;", gOutFile);
+        break;
+      default:
+        putc(*p, gOutFile);
+    }
+  }
+}
+
+/*
+ * Dumps a value of static (class) field.
+ */
+static void dumpSFieldValue(const DexFile* pDexFile,
+                            EncodedStaticFieldValueIterator::ValueType valueType,
+                            const jvalue* pValue) {
+  switch (valueType) {
+    case EncodedStaticFieldValueIterator::kByte:
+      fprintf(gOutFile, "%" PRIu8, pValue->b);
+      break;
+    case EncodedStaticFieldValueIterator::kShort:
+      fprintf(gOutFile, "%" PRId16, pValue->s);
+      break;
+    case EncodedStaticFieldValueIterator::kChar:
+      fprintf(gOutFile, "%" PRIu16, pValue->c);
+      break;
+    case EncodedStaticFieldValueIterator::kInt:
+      fprintf(gOutFile, "%" PRId32, pValue->i);
+      break;
+    case EncodedStaticFieldValueIterator::kLong:
+      fprintf(gOutFile, "%" PRId64, pValue->j);
+      break;
+    case EncodedStaticFieldValueIterator::kFloat:
+      fprintf(gOutFile, "%f", pValue->f);
+      break;
+    case EncodedStaticFieldValueIterator::kDouble:
+      fprintf(gOutFile, "%f", pValue->d);
+      break;
+    case EncodedStaticFieldValueIterator::kString: {
+      const char* str =
+          pDexFile->GetStringData(pDexFile->GetStringId(pValue->i));
+      if (gOptions.outputFormat == OUTPUT_PLAIN) {
+        fputs("\"", gOutFile);
+        dumpEscapedString(str);
+        fputs("\"", gOutFile);
+      } else {
+        dumpXmlAttribute(str);
+      }
+      break;
+    }
+    case EncodedStaticFieldValueIterator::kNull:
+      fputs("null", gOutFile);
+      break;
+    case EncodedStaticFieldValueIterator::kBoolean:
+      fputs(pValue->z ? "true" : "false", gOutFile);
+      break;
+
+    case EncodedStaticFieldValueIterator::kAnnotation:
+    case EncodedStaticFieldValueIterator::kArray:
+    case EncodedStaticFieldValueIterator::kEnum:
+    case EncodedStaticFieldValueIterator::kField:
+    case EncodedStaticFieldValueIterator::kMethod:
+    case EncodedStaticFieldValueIterator::kType:
+    default:
+      fprintf(gOutFile, "Unexpected static field type: %d", valueType);
+  }
+}
+
+/*
  * Dumps a static (class) field.
  */
-static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
+static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i,
+                       EncodedStaticFieldValueIterator::ValueType valueType,
+                       const jvalue* pValue) {
   // Bail for anything private if export only requested.
   if (gOptions.exportsOnly && (flags & (kAccPublic | kAccProtected)) == 0) {
     return;
@@ -1038,6 +1154,11 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
     fprintf(gOutFile, "      name          : '%s'\n", name);
     fprintf(gOutFile, "      type          : '%s'\n", typeDescriptor);
     fprintf(gOutFile, "      access        : 0x%04x (%s)\n", flags, accessStr);
+    if (pValue != nullptr) {
+      fputs("      value         : ", gOutFile);
+      dumpSFieldValue(pDexFile, valueType, pValue);
+      fputs("\n", gOutFile);
+    }
   } else if (gOptions.outputFormat == OUTPUT_XML) {
     fprintf(gOutFile, "<field name=\"%s\"\n", name);
     char *tmp = descriptorToDot(typeDescriptor);
@@ -1050,7 +1171,12 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
     fprintf(gOutFile, " final=%s\n", quotedBool((flags & kAccFinal) != 0));
     // The "deprecated=" is not knowable w/o parsing annotations.
     fprintf(gOutFile, " visibility=%s\n", quotedVisibility(flags));
-    fprintf(gOutFile, ">\n</field>\n");
+    if (pValue != nullptr) {
+      fputs(" value=\"", gOutFile);
+      dumpSFieldValue(pDexFile, valueType, pValue);
+      fputs("\"\n", gOutFile);
+    }
+    fputs(">\n</field>\n", gOutFile);
   }
 
   free(accessStr);
@@ -1060,7 +1186,8 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
  * Dumps an instance field.
  */
 static void dumpIField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
-  dumpSField(pDexFile, idx, flags, i);
+  dumpSField(pDexFile, idx, flags, i,
+             EncodedStaticFieldValueIterator::kByte, nullptr);
 }
 
 /*
@@ -1222,10 +1349,23 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
       fprintf(gOutFile, "  Static fields     -\n");
     }
+    EncodedStaticFieldValueIterator staticFieldValues(*pDexFile, pClassDef);
     for (int i = 0; pClassData.HasNextStaticField(); i++, pClassData.Next()) {
+      EncodedStaticFieldValueIterator::ValueType valueType =
+          EncodedStaticFieldValueIterator::kByte;
+      const jvalue* pValue = nullptr;
+      if (staticFieldValues.HasNext()) {
+        valueType = staticFieldValues.GetValueType();
+        pValue = &staticFieldValues.GetJavaValue();
+      }
       dumpSField(pDexFile, pClassData.GetMemberIndex(),
-                           pClassData.GetRawMemberAccessFlags(), i);
+                           pClassData.GetRawMemberAccessFlags(), i,
+                 valueType, pValue);
+      if (staticFieldValues.HasNext()) {
+        staticFieldValues.Next();
+      }
     }  // for
+    DCHECK(!staticFieldValues.HasNext());
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
       fprintf(gOutFile, "  Instance fields   -\n");
     }
