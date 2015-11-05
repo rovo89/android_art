@@ -599,6 +599,7 @@ class ElfBuilder FINAL {
     // This is the order in which they will be written.
     std::vector<Section*> sections;
     sections.push_back(&rodata_);
+    // Need to write text to update checksum of header even if it is empty.
     sections.push_back(&text_);
     if (bss_.GetSize() != 0u) {
       sections.push_back(&bss_);
@@ -682,7 +683,9 @@ class ElfBuilder FINAL {
     const Elf_Shdr* rodata = rodata_.GetHeader();
     program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R,
       0, rodata->sh_offset + rodata->sh_size, rodata->sh_addralign));
-    program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_X, text_));
+    if (text_.GetHeader()->sh_size != 0u) {
+      program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_X, text_));
+    }
     if (bss_.GetHeader()->sh_size != 0u) {
       program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_W, bss_));
     }
@@ -909,10 +912,16 @@ class ElfBuilder FINAL {
   void BuildDynsymSection() {
     dynsym_.AddSymbol("oatdata", &rodata_, 0, true,
                       rodata_.GetSize(), STB_GLOBAL, STT_OBJECT);
-    dynsym_.AddSymbol("oatexec", &text_, 0, true,
-                      text_.GetSize(), STB_GLOBAL, STT_OBJECT);
-    dynsym_.AddSymbol("oatlastword", &text_, text_.GetSize() - 4,
-                      true, 4, STB_GLOBAL, STT_OBJECT);
+    if (text_.GetSize() != 0u) {
+      dynsym_.AddSymbol("oatexec", &text_, 0, true,
+                        text_.GetSize(), STB_GLOBAL, STT_OBJECT);
+      dynsym_.AddSymbol("oatlastword", &text_, text_.GetSize() - 4,
+                        true, 4, STB_GLOBAL, STT_OBJECT);
+    } else if (rodata_.GetSize() != 0) {
+      // rodata_ be size 0 for dwarf_test.
+      dynsym_.AddSymbol("oatlastword", &rodata_, rodata_.GetSize() - 4,
+                        true, 4, STB_GLOBAL, STT_OBJECT);
+    }
     if (bss_.GetSize() != 0u) {
       dynsym_.AddSymbol("oatbss", &bss_, 0, true,
                         bss_.GetSize(), STB_GLOBAL, STT_OBJECT);
