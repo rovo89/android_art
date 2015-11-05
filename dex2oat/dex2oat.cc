@@ -1355,20 +1355,9 @@ class Dex2Oat FINAL {
       uint32_t image_file_location_oat_checksum = 0;
       uintptr_t image_file_location_oat_data_begin = 0;
       int32_t image_patch_delta = 0;
-
-      if (app_image_ && image_base_ == 0) {
-        gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
-        image_base_ = RoundUp(
-            reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatFileEnd()),
-            kPageSize);
-        VLOG(compiler) << "App image base=" << reinterpret_cast<void*>(image_base_);
-      }
-
       if (IsImage()) {
         PrepareImageWriter(image_base_);
-      }
-
-      if (!IsBootImage()) {
+      } else {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
         gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
         image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
@@ -1382,13 +1371,11 @@ class Dex2Oat FINAL {
         key_value_store_->Put(OatHeader::kImageLocationKey, image_file_location);
       }
 
-      oat_writer.reset(new OatWriter(dex_files_,
-                                     image_file_location_oat_checksum,
+      oat_writer.reset(new OatWriter(dex_files_, image_file_location_oat_checksum,
                                      image_file_location_oat_data_begin,
                                      image_patch_delta,
                                      driver_.get(),
                                      image_writer_.get(),
-                                     IsBootImage(),
                                      timings_,
                                      key_value_store_.get()));
     }
@@ -1604,11 +1591,7 @@ class Dex2Oat FINAL {
   }
 
   void PrepareImageWriter(uintptr_t image_base) {
-    DCHECK(IsImage());
-    image_writer_.reset(new ImageWriter(*driver_,
-                                        image_base,
-                                        compiler_options_->GetCompilePic(),
-                                        IsAppImage()));
+    image_writer_.reset(new ImageWriter(*driver_, image_base, compiler_options_->GetCompilePic()));
   }
 
   // Let the ImageWriter write the image file. If we do not compile PIC, also fix up the oat file.

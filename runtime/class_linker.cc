@@ -847,8 +847,8 @@ void ClassLinker::InitFromImage() {
       hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
 
   Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
-      space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->
-      AsObjectArray<mirror::Class>()));
+          space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->
+          AsObjectArray<mirror::Class>()));
   class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(class_roots.Get());
 
   // Special case of setting up the String class early so that we can test arbitrary objects
@@ -857,7 +857,7 @@ void ClassLinker::InitFromImage() {
 
   mirror::Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   java_lang_Object->SetObjectSize(sizeof(mirror::Object));
-  Runtime::Current()->SetSentinel(heap->AllocObject<true>(self,
+  Runtime::Current()->SetSentinel(Runtime::Current()->GetHeap()->AllocObject<true>(self,
                                                           java_lang_Object,
                                                           java_lang_Object->GetObjectSize(),
                                                           VoidFunctor()));
