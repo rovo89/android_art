@@ -111,7 +111,6 @@ TEST_F(OatTest, WriteRead) {
                        0,
                        compiler_driver_.get(),
                        nullptr,
-                       /*compiling_boot_image*/false,
                        &timings,
                        &key_value_store);
   bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),

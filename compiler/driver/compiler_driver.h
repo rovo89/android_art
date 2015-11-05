@@ -92,7 +92,7 @@ class CompilerDriver {
                  Compiler::Kind compiler_kind,
                  InstructionSet instruction_set,
                  const InstructionSetFeatures* instruction_set_features,
-                 bool boot_image, std::unordered_set<std::string>* image_classes,
+                 bool image, std::unordered_set<std::string>* image_classes,
                  std::unordered_set<std::string>* compiled_classes,
                  std::unordered_set<std::string>* compiled_methods,
                  size_t thread_count, bool dump_stats, bool dump_passes,
@@ -156,8 +156,8 @@ class CompilerDriver {
   }
 
   // Are we compiling and creating an image file?
-  bool IsBootImage() const {
-    return boot_image_;
+  bool IsImage() const {
+    return image_;
   }
 
   const std::unordered_set<std::string>* GetImageClasses() const {
@@ -637,7 +637,7 @@ class CompilerDriver {
   // in the .oat_patches ELF section if requested in the compiler options.
   size_t non_relative_linker_patch_count_ GUARDED_BY(compiled_methods_lock_);
 
-  const bool boot_image_;
+  const bool image_;
 
   // If image_ is true, specifies the classes that will be included in
   // the image. Note if image_classes_ is null, all classes are
