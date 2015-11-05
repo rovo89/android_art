@@ -24,9 +24,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-class RootsHandler extends AhatHandler {
+class RootsHandler implements AhatHandler {
+
+  private static final String ROOTS_ID = "roots";
+
+  private AhatSnapshot mSnapshot;
+
   public RootsHandler(AhatSnapshot snapshot) {
-    super(snapshot);
+    mSnapshot = snapshot;
   }
 
   @Override
@@ -45,7 +50,7 @@ class RootsHandler extends AhatHandler {
     for (Instance inst : rootset) {
       roots.add(inst);
     }
-    DominatedList.render(mSnapshot, doc, roots, query);
+    DominatedList.render(mSnapshot, doc, query, ROOTS_ID, roots);
   }
 }
 

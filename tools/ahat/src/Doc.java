@@ -25,27 +25,27 @@ interface Doc extends AutoCloseable {
   /**
    * Output the title of the page.
    */
-  public void title(String format, Object... args);
+  void title(String format, Object... args);
 
   /**
    * Print a line of text for a page menu.
    */
-  public void menu(DocString string);
+  void menu(DocString string);
 
   /**
    * Start a new section with the given title.
    */
-  public void section(String title);
+  void section(String title);
 
   /**
    * Print a line of text in a normal font.
    */
-  public void println(DocString string);
+  void println(DocString string);
 
   /**
    * Print a line of text in a large font that is easy to see and click on.
    */
-  public void big(DocString string);
+  void big(DocString string);
 
   /**
    * Start a table with the given columns.
@@ -55,7 +55,7 @@ interface Doc extends AutoCloseable {
    * This should be followed by calls to the 'row' method to fill in the table
    * contents and the 'end' method to end the table.
    */
-  public void table(Column... columns);
+  void table(Column... columns);
 
   /**
    * Start a table with the following heading structure:
@@ -68,14 +68,14 @@ interface Doc extends AutoCloseable {
    * This should be followed by calls to the 'row' method to fill in the table
    * contents and the 'end' method to end the table.
    */
-  public void table(DocString description, List<Column> subcols, List<Column> cols);
+  void table(DocString description, List<Column> subcols, List<Column> cols);
 
   /**
    * Add a row to the currently active table.
    * The number of values must match the number of columns provided for the
    * currently active table.
    */
-  public void row(DocString... values);
+  void row(DocString... values);
 
   /**
    * Start a new description list.
@@ -83,15 +83,15 @@ interface Doc extends AutoCloseable {
    * This should be followed by calls to description() and finally a call to
    * end().
    */
-  public void descriptions();
+  void descriptions();
 
   /**
    * Add a description to the currently active description list.
    */
-  public void description(DocString key, DocString value);
+  void description(DocString key, DocString value);
 
   /**
    * End the currently active table or description list.
    */
-  public void end();
+  void end();
 }
