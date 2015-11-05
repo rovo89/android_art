@@ -208,7 +208,8 @@ Runtime::Runtime()
       zygote_max_failed_boots_(0),
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
-      is_low_memory_mode_(false) {
+      is_low_memory_mode_(false),
+      safe_mode_(false) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
 }
@@ -685,8 +686,9 @@ void Runtime::DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const ch
   // before fork aren't attributed to an app.
   heap_->ResetGcPerformanceInfo();
 
-  if (jit_.get() == nullptr && jit_options_->UseJIT()) {
-    // Create the JIT if the flag is set and we haven't already create it (happens for run-tests).
+  if (!safe_mode_ && jit_options_->UseJIT()) {
+    DCHECK(jit_.get() == nullptr) << "The zygote should not JIT";
+    // Create the JIT if the flag is set.
     CreateJit();
   }
 

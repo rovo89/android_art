@@ -588,6 +588,10 @@ class Runtime {
   double GetHashTableMinLoadFactor() const;
   double GetHashTableMaxLoadFactor() const;
 
+  void SetSafeMode(bool mode) {
+    safe_mode_ = mode;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -790,6 +794,9 @@ class Runtime {
 
   // Whether or not we are on a low RAM device.
   bool is_low_memory_mode_;
+
+  // Whether the application should run in safe mode, that is, interpreter only.
+  bool safe_mode_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
