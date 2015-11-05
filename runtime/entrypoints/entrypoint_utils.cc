@@ -364,36 +364,34 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
       (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
   ArtMethod* outer_method = *caller_sp;
   ArtMethod* caller = outer_method;
-
-  if (outer_method != nullptr) {
-    const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
-    if (current_code->IsOptimized()) {
-      if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
-        uintptr_t native_pc_offset = current_code->NativeQuickPcOffset(caller_pc);
-        CodeInfo code_info = current_code->GetOptimizedCodeInfo();
-        StackMapEncoding encoding = code_info.ExtractEncoding();
-        StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-        DCHECK(stack_map.IsValid());
-        if (stack_map.HasInlineInfo(encoding)) {
-          InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-          caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
-        }
-      } else {
-        // We're instrumenting, just use the StackVisitor which knows how to
-        // handle instrumented frames.
-        NthCallerVisitor visitor(Thread::Current(), 1, true);
-        visitor.WalkStack();
-        caller = visitor.caller;
+  if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
+    if (outer_method != nullptr) {
+      const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
+      if (current_code->IsOptimized()) {
+          uintptr_t native_pc_offset = current_code->NativeQuickPcOffset(caller_pc);
+          CodeInfo code_info = current_code->GetOptimizedCodeInfo();
+          StackMapEncoding encoding = code_info.ExtractEncoding();
+          StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
+          DCHECK(stack_map.IsValid());
+          if (stack_map.HasInlineInfo(encoding)) {
+            InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
+            caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
+          }
       }
     }
-  }
-
-  if (kIsDebugBuild && do_caller_check) {
-    // Note that do_caller_check is optional, as this method can be called by
-    // stubs, and tests without a proper call stack.
+    if (kIsDebugBuild && do_caller_check) {
+      // Note that do_caller_check is optional, as this method can be called by
+      // stubs, and tests without a proper call stack.
+      NthCallerVisitor visitor(Thread::Current(), 1, true);
+      visitor.WalkStack();
+      CHECK_EQ(caller, visitor.caller);
+    }
+  } else {
+    // We're instrumenting, just use the StackVisitor which knows how to
+    // handle instrumented frames.
     NthCallerVisitor visitor(Thread::Current(), 1, true);
     visitor.WalkStack();
-    CHECK_EQ(caller, visitor.caller);
+    caller = visitor.caller;
   }
 
   return caller;
