@@ -1300,20 +1300,29 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
       DCHECK_EQ(cond_value, 0);
     }
   } else {
-    if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
-      // Condition has been materialized, compare the output to 0
+    // Can we optimize the jump if we know that the next block is the true case?
+    HCondition* condition = cond->AsCondition();
+    bool can_jump_to_false = CanReverseCondition(always_true_target, false_target, condition);
+    if (condition == nullptr || condition->NeedsMaterialization()) {
+      // Condition has been materialized, compare the output to 0.
       DCHECK(instruction->GetLocations()->InAt(0).IsRegister());
+      if (can_jump_to_false) {
+        __ CompareAndBranchIfZero(instruction->GetLocations()->InAt(0).AsRegister<Register>(),
+                                  false_target);
+        return;
+      }
       __ CompareAndBranchIfNonZero(instruction->GetLocations()->InAt(0).AsRegister<Register>(),
                                    true_target);
     } else {
       // Condition has not been materialized, use its inputs as the
       // comparison and its condition as the branch condition.
-      Primitive::Type type =
-          cond->IsCondition() ? cond->InputAt(0)->GetType() : Primitive::kPrimInt;
+      Primitive::Type type = (condition != nullptr)
+          ? cond->InputAt(0)->GetType()
+          : Primitive::kPrimInt;
       // Is this a long or FP comparison that has been folded into the HCondition?
       if (type == Primitive::kPrimLong || Primitive::IsFloatingPointType(type)) {
         // Generate the comparison directly.
-        GenerateCompareTestAndBranch(instruction->AsIf(), cond->AsCondition(),
+        GenerateCompareTestAndBranch(instruction->AsIf(), condition,
                                      true_target, false_target, always_true_target);
         return;
       }
@@ -1328,7 +1337,12 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
         DCHECK(right.IsConstant());
         GenerateCompareWithImmediate(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
       }
-      __ b(true_target, ARMCondition(cond->AsCondition()->GetCondition()));
+      if (can_jump_to_false) {
+        __ b(false_target, ARMCondition(condition->GetOppositeCondition()));
+        return;
+      }
+
+      __ b(true_target, ARMCondition(condition->GetCondition()));
     }
   }
   if (false_target != nullptr) {
