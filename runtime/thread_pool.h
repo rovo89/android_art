@@ -91,6 +91,9 @@ class ThreadPool {
   // after running it, it is the caller's responsibility.
   void AddTask(Thread* self, Task* task) REQUIRES(!task_queue_lock_);
 
+  // Remove all tasks in the queue.
+  void RemoveAllTasks(Thread* self) REQUIRES(!task_queue_lock_);
+
   ThreadPool(const char* name, size_t num_threads);
   virtual ~ThreadPool();
 

@@ -20,6 +20,7 @@
 #include "jit.h"
 #include "jit_code_cache.h"
 #include "scoped_thread_state_change.h"
+#include "thread_list.h"
 
 namespace art {
 namespace jit {
@@ -73,16 +74,48 @@ class JitCompileTask FINAL : public Task {
 JitInstrumentationCache::JitInstrumentationCache(size_t hot_method_threshold,
                                                  size_t warm_method_threshold)
     : hot_method_threshold_(hot_method_threshold),
-      warm_method_threshold_(warm_method_threshold) {
+      warm_method_threshold_(warm_method_threshold),
+      listener_(this) {
 }
 
 void JitInstrumentationCache::CreateThreadPool() {
+  // Create the thread pool before setting the instrumentation, so that
+  // when the threads stopped being suspended, they can use it directly.
+  // There is a DCHECK in the 'AddSamples' method to ensure the tread pool
+  // is not null when we instrument.
   thread_pool_.reset(new ThreadPool("Jit thread pool", 1));
+  thread_pool_->StartWorkers(Thread::Current());
+  {
+    // Add Jit interpreter instrumentation, tells the interpreter when
+    // to notify the jit to compile something.
+    ScopedSuspendAll ssa(__FUNCTION__);
+    Runtime::Current()->GetInstrumentation()->AddListener(
+        &listener_, JitInstrumentationListener::kJitEvents);
+  }
 }
 
-void JitInstrumentationCache::DeleteThreadPool() {
-  DCHECK(Runtime::Current()->IsShuttingDown(Thread::Current()));
-  thread_pool_.reset();
+void JitInstrumentationCache::DeleteThreadPool(Thread* self) {
+  DCHECK(Runtime::Current()->IsShuttingDown(self));
+  if (thread_pool_ != nullptr) {
+    // First remove the listener, to avoid having mutators enter
+    // 'AddSamples'.
+    ThreadPool* cache = nullptr;
+    {
+      ScopedSuspendAll ssa(__FUNCTION__);
+      Runtime::Current()->GetInstrumentation()->RemoveListener(
+          &listener_, JitInstrumentationListener::kJitEvents);
+      // Clear thread_pool_ field while the threads are suspended.
+      // A mutator in the 'AddSamples' method will check against it.
+      cache = thread_pool_.release();
+    }
+    cache->StopWorkers(self);
+    cache->RemoveAllTasks(self);
+    // We could just suspend all threads, but we know those threads
+    // will finish in a short period, so it's not worth adding a suspend logic
+    // here. Besides, this is only done for shutdown.
+    cache->Wait(self, false, false);
+    delete cache;
+  }
 }
 
 void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t) {
@@ -91,31 +124,52 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t
   if (method->IsClassInitializer() || method->IsNative()) {
     return;
   }
-  if (thread_pool_.get() == nullptr) {
-    DCHECK(Runtime::Current()->IsShuttingDown(self));
-    return;
-  }
+  DCHECK(thread_pool_ != nullptr);
+
   uint16_t sample_count = method->IncrementCounter();
   if (sample_count == warm_method_threshold_) {
-    if (ProfilingInfo::Create(self, method, /* retry_allocation */ false)) {
+    bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
+    if (success) {
       VLOG(jit) << "Start profiling " << PrettyMethod(method);
-    } else {
+    }
+
+    if (thread_pool_ == nullptr) {
+      // Calling ProfilingInfo::Create might put us in a suspended state, which could
+      // lead to the thread pool being deleted when we are shutting down.
+      DCHECK(Runtime::Current()->IsShuttingDown(self));
+      return;
+    }
+
+    if (!success) {
       // We failed allocating. Instead of doing the collection on the Java thread, we push
       // an allocation to a compiler thread, that will do the collection.
       thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
-      thread_pool_->StartWorkers(self);
     }
   }
 
   if (sample_count == hot_method_threshold_) {
+    DCHECK(thread_pool_ != nullptr);
     thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
-    thread_pool_->StartWorkers(self);
   }
 }
 
 JitInstrumentationListener::JitInstrumentationListener(JitInstrumentationCache* cache)
     : instrumentation_cache_(cache) {
   CHECK(instrumentation_cache_ != nullptr);
+}
+
+void JitInstrumentationListener::MethodEntered(Thread* thread,
+                                               mirror::Object* /*this_object*/,
+                                               ArtMethod* method,
+                                               uint32_t /*dex_pc*/) {
+  instrumentation_cache_->AddSamples(thread, method, 1);
+}
+
+void JitInstrumentationListener::BackwardBranch(Thread* thread,
+                                                ArtMethod* method,
+                                                int32_t dex_pc_offset) {
+  CHECK_LE(dex_pc_offset, 0);
+  instrumentation_cache_->AddSamples(thread, method, 1);
 }
 
 void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
@@ -138,7 +192,9 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
 }
 
 void JitInstrumentationCache::WaitForCompilationToFinish(Thread* self) {
-  thread_pool_->Wait(self, false, false);
+  if (thread_pool_ != nullptr) {
+    thread_pool_->Wait(self, false, false);
+  }
 }
 
 }  // namespace jit
