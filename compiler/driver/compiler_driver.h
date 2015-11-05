@@ -119,9 +119,6 @@ class CompilerDriver {
                   TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
 
-  CompiledMethod* CompileArtMethod(Thread* self, ArtMethod*)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!compiled_methods_lock_) WARN_UNUSED;
-
   // Compile a single Method.
   void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
       SHARED_REQUIRES(Locks::mutator_lock_)

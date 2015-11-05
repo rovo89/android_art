@@ -189,13 +189,14 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   }
 
   // Do the compilation.
-  CompiledMethod* compiled_method = nullptr;
+  JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
+  bool success = false;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
     // If we get a request to compile a proxy method, we pass the actual Java method
     // of that proxy method, as the compiler does not expect a proxy method.
     ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
-    compiled_method = compiler_driver_->CompileArtMethod(self, method_to_compile);
+    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile);
   }
 
   // Trim maps to reduce memory usage.
@@ -205,104 +206,13 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
     runtime->GetArenaPool()->TrimMaps();
   }
 
-  // Check if we failed compiling.
-  if (compiled_method == nullptr) {
-    return false;
-  }
-
   total_time_ += NanoTime() - start_time;
-  bool result = false;
-  const void* code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(method);
-
-  if (code != nullptr) {
-    // Already have some compiled code, just use this instead of linking.
-    // TODO: Fix recompilation.
-    method->SetEntryPointFromQuickCompiledCode(code);
-    result = true;
-  } else {
-    TimingLogger::ScopedTiming t2("LinkCode", &logger);
-    if (AddToCodeCache(method, compiled_method)) {
-      result = true;
-    }
-  }
-
-  // Remove the compiled method to save memory.
-  compiler_driver_->RemoveCompiledMethod(
-      MethodReference(h_class->GetDexCache()->GetDexFile(), method->GetDexMethodIndex()));
   runtime->GetJit()->AddTimingLogger(logger);
-  return result;
+  return success;
 }
 
 CompilerCallbacks* JitCompiler::GetCompilerCallbacks() const {
   return callbacks_.get();
-}
-
-bool JitCompiler::AddToCodeCache(ArtMethod* method,
-                                 const CompiledMethod* compiled_method) {
-  Runtime* runtime = Runtime::Current();
-  JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
-  auto const quick_code = compiled_method->GetQuickCode();
-  if (quick_code.empty()) {
-    return false;
-  }
-  const auto code_size = quick_code.size();
-  Thread* const self = Thread::Current();
-  auto const mapping_table = compiled_method->GetMappingTable();
-  auto const vmap_table = compiled_method->GetVmapTable();
-  auto const gc_map = compiled_method->GetGcMap();
-  uint8_t* mapping_table_ptr = nullptr;
-  uint8_t* vmap_table_ptr = nullptr;
-  uint8_t* gc_map_ptr = nullptr;
-
-  if (!mapping_table.empty()) {
-    // Write out pre-header stuff.
-    mapping_table_ptr = code_cache->AddDataArray(
-        self, mapping_table.data(), mapping_table.data() + mapping_table.size());
-    if (mapping_table_ptr == nullptr) {
-      return false;  // Out of data cache.
-    }
-  }
-
-  if (!vmap_table.empty()) {
-    vmap_table_ptr = code_cache->AddDataArray(
-        self, vmap_table.data(), vmap_table.data() + vmap_table.size());
-    if (vmap_table_ptr == nullptr) {
-      return false;  // Out of data cache.
-    }
-  }
-
-  if (!gc_map.empty()) {
-    gc_map_ptr = code_cache->AddDataArray(
-        self, gc_map.data(), gc_map.data() + gc_map.size());
-    if (gc_map_ptr == nullptr) {
-      return false;  // Out of data cache.
-    }
-  }
-
-  uint8_t* const code = code_cache->CommitCode(self,
-                                               method,
-                                               mapping_table_ptr,
-                                               vmap_table_ptr,
-                                               gc_map_ptr,
-                                               compiled_method->GetFrameSizeInBytes(),
-                                               compiled_method->GetCoreSpillMask(),
-                                               compiled_method->GetFpSpillMask(),
-                                               compiled_method->GetQuickCode().data(),
-                                               compiled_method->GetQuickCode().size());
-
-  if (code == nullptr) {
-    return false;
-  }
-
-  const size_t thumb_offset = compiled_method->CodeDelta();
-  const uint32_t code_offset = sizeof(OatQuickMethodHeader) + thumb_offset;
-  VLOG(jit)
-      << "JIT added "
-      << PrettyMethod(method) << "@" << method
-      << " ccache_size=" << PrettySize(code_cache->CodeCacheSize()) << ": "
-      << reinterpret_cast<void*>(code + code_offset)
-      << "," << reinterpret_cast<void*>(code + code_offset + code_size);
-  return true;
 }
 
 }  // namespace jit

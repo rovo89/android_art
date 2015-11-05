@@ -42,7 +42,7 @@
 
 #include "compiled_method.h"
 #include "dex/verified_method.h"
-#include "driver/dex_compilation_unit.h"
+#include "driver/compiler_driver.h"
 #include "gc_map_builder.h"
 #include "graph_visualizer.h"
 #include "intrinsics.h"
@@ -787,9 +787,10 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
 }
 
 void CodeGenerator::BuildNativeGCMap(
-    ArenaVector<uint8_t>* data, const DexCompilationUnit& dex_compilation_unit) const {
+    ArenaVector<uint8_t>* data, const CompilerDriver& compiler_driver) const {
   const std::vector<uint8_t>& gc_map_raw =
-      dex_compilation_unit.GetVerifiedMethod()->GetDexGcMap();
+      compiler_driver.GetVerifiedMethod(&GetGraph()->GetDexFile(), GetGraph()->GetMethodIdx())
+          ->GetDexGcMap();
   verifier::DexPcToReferenceMap dex_gc_map(&(gc_map_raw)[0]);
 
   uint32_t max_native_offset = stack_map_stream_.ComputeMaxNativePcOffset();
@@ -911,19 +912,22 @@ void CodeGenerator::BuildVMapTable(ArenaVector<uint8_t>* data) const {
   vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
 }
 
-void CodeGenerator::BuildStackMaps(ArenaVector<uint8_t>* data) {
-  uint32_t size = stack_map_stream_.PrepareForFillIn();
-  data->resize(size);
-  MemoryRegion region(data->data(), size);
+size_t CodeGenerator::ComputeStackMapsSize() {
+  return stack_map_stream_.PrepareForFillIn();
+}
+
+void CodeGenerator::BuildStackMaps(MemoryRegion region) {
   stack_map_stream_.FillIn(region);
 }
 
 void CodeGenerator::RecordNativeDebugInfo(uint32_t dex_pc,
                                           uintptr_t native_pc_begin,
                                           uintptr_t native_pc_end) {
-  if (src_map_ != nullptr && dex_pc != kNoDexPc && native_pc_begin != native_pc_end) {
-    src_map_->push_back(SrcMapElem({static_cast<uint32_t>(native_pc_begin),
-                                    static_cast<int32_t>(dex_pc)}));
+  if (compiler_options_.GetGenerateDebugInfo() &&
+      dex_pc != kNoDexPc &&
+      native_pc_begin != native_pc_end) {
+    src_map_.push_back(SrcMapElem({static_cast<uint32_t>(native_pc_begin),
+                                   static_cast<int32_t>(dex_pc)}));
   }
 }
 
