@@ -248,40 +248,49 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
 
   OatQuickMethodHeader* method_header = nullptr;
   uint8_t* code_ptr = nullptr;
-
-  ScopedThreadSuspension sts(self, kSuspended);
-  MutexLock mu(self, lock_);
-  WaitForPotentialCollectionToComplete(self);
   {
-    ScopedCodeCacheWrite scc(code_map_.get());
-    uint8_t* result = reinterpret_cast<uint8_t*>(
-        mspace_memalign(code_mspace_, alignment, total_size));
-    if (result == nullptr) {
-      return nullptr;
+    ScopedThreadSuspension sts(self, kSuspended);
+    MutexLock mu(self, lock_);
+    WaitForPotentialCollectionToComplete(self);
+    {
+      ScopedCodeCacheWrite scc(code_map_.get());
+      uint8_t* result = reinterpret_cast<uint8_t*>(
+          mspace_memalign(code_mspace_, alignment, total_size));
+      if (result == nullptr) {
+        return nullptr;
+      }
+      code_ptr = result + header_size;
+      DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(code_ptr), alignment);
+
+      std::copy(code, code + code_size, code_ptr);
+      method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+      new (method_header) OatQuickMethodHeader(
+          (mapping_table == nullptr) ? 0 : code_ptr - mapping_table,
+          (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
+          (gc_map == nullptr) ? 0 : code_ptr - gc_map,
+          frame_size_in_bytes,
+          core_spill_mask,
+          fp_spill_mask,
+          code_size);
     }
-    code_ptr = result + header_size;
-    DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(code_ptr), alignment);
 
-    std::copy(code, code + code_size, code_ptr);
-    method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-    new (method_header) OatQuickMethodHeader(
-        (mapping_table == nullptr) ? 0 : code_ptr - mapping_table,
-        (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
-        (gc_map == nullptr) ? 0 : code_ptr - gc_map,
-        frame_size_in_bytes,
-        core_spill_mask,
-        fp_spill_mask,
-        code_size);
+    __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
+                            reinterpret_cast<char*>(code_ptr + code_size));
+    method_code_map_.Put(code_ptr, method);
+    // We have checked there was no collection in progress earlier. If we
+    // were, setting the entry point of a method would be unsafe, as the collection
+    // could delete it.
+    DCHECK(!collection_in_progress_);
+    method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
   }
+  VLOG(jit)
+      << "JIT added "
+      << PrettyMethod(method) << "@" << method
+      << " ccache_size=" << PrettySize(CodeCacheSize()) << ": "
+      << " dcache_size=" << PrettySize(DataCacheSize()) << ": "
+      << reinterpret_cast<const void*>(method_header->GetEntryPoint()) << ","
+      << reinterpret_cast<const void*>(method_header->GetEntryPoint() + method_header->code_size_);
 
-  __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
-                          reinterpret_cast<char*>(code_ptr + code_size));
-  method_code_map_.Put(code_ptr, method);
-  // We have checked there was no collection in progress earlier. If we
-  // were, setting the entry point of a method would be unsafe, as the collection
-  // could delete it.
-  DCHECK(!collection_in_progress_);
-  method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
   return reinterpret_cast<uint8_t*>(method_header);
 }
 
@@ -302,6 +311,11 @@ size_t JitCodeCache::DataCacheSize() {
 size_t JitCodeCache::NumberOfCompiledCode() {
   MutexLock mu(Thread::Current(), lock_);
   return method_code_map_.size();
+}
+
+void JitCodeCache::ClearData(Thread* self, void* data) {
+  MutexLock mu(self, lock_);
+  mspace_free(data_mspace_, data);
 }
 
 uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {

@@ -88,6 +88,11 @@ class JitCodeCache {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
+  // Clear data from the data portion of the code cache.
+  void ClearData(Thread* self, void* data)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
   // Add a data array of size (end - begin) with the associated contents, returns null if there
   // is no more room.
   uint8_t* AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end)

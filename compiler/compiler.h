@@ -22,6 +22,10 @@
 
 namespace art {
 
+namespace jit {
+  class JitCodeCache;
+}
+
 class ArtMethod;
 class Backend;
 struct CompilationUnit;
@@ -57,6 +61,13 @@ class Compiler {
   virtual CompiledMethod* JniCompile(uint32_t access_flags,
                                      uint32_t method_idx,
                                      const DexFile& dex_file) const = 0;
+
+  virtual bool JitCompile(Thread* self ATTRIBUTE_UNUSED,
+                          jit::JitCodeCache* code_cache ATTRIBUTE_UNUSED,
+                          ArtMethod* method ATTRIBUTE_UNUSED)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    return false;
+  }
 
   virtual uintptr_t GetEntryPointOf(ArtMethod* method) const
      SHARED_REQUIRES(Locks::mutator_lock_) = 0;

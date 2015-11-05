@@ -559,7 +559,7 @@ static void CompileMethod(Thread* self,
     }
   } else if ((access_flags & kAccAbstract) != 0) {
     // Abstract methods don't have code.
-  } else if (Runtime::Current()->IsAotCompiler()) {
+  } else {
     const VerifiedMethod* verified_method =
         driver->GetVerificationResults()->GetVerifiedMethod(method_ref);
     bool compile = compilation_enabled &&
@@ -598,13 +598,6 @@ static void CompileMethod(Thread* self,
               ? dex_to_dex_compilation_level
               : optimizer::DexToDexCompilationLevel::kRequired);
     }
-  } else {
-    // This is for the JIT compiler, which has already ensured the class is verified.
-    // We can go straight to compiling.
-    DCHECK(Runtime::Current()->UseJit());
-    compiled_method = driver->GetCompiler()->Compile(code_item, access_flags, invoke_type,
-                                                     class_def_idx, method_idx, class_loader,
-                                                     dex_file, dex_cache);
   }
   if (kTimeCompileMethod) {
     uint64_t duration_ns = NanoTime() - start_ns;
@@ -694,42 +687,6 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
                 dex_cache);
 
   self->GetJniEnv()->DeleteGlobalRef(jclass_loader);
-}
-
-CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method) {
-  DCHECK_EQ(method,
-            method->GetInterfaceMethodIfProxy(
-                Runtime::Current()->GetClassLinker()->GetImagePointerSize()));
-  const uint32_t method_idx = method->GetDexMethodIndex();
-  const uint32_t access_flags = method->GetAccessFlags();
-  const InvokeType invoke_type = method->GetInvokeType();
-  StackHandleScope<2> hs(self);
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      method->GetDeclaringClass()->GetClassLoader()));
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
-  jobject jclass_loader = class_loader.ToJObject();
-  const DexFile* dex_file = method->GetDexFile();
-  const uint16_t class_def_idx = method->GetClassDefIndex();
-  const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
-  optimizer::DexToDexCompilationLevel dex_to_dex_compilation_level =
-      GetDexToDexCompilationLevel(self, *this, class_loader, *dex_file, class_def);
-  const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
-  // Go to native so that we don't block GC during compilation.
-  ScopedThreadSuspension sts(self, kNative);
-  CompileMethod(self,
-                this,
-                code_item,
-                access_flags,
-                invoke_type,
-                class_def_idx,
-                method_idx,
-                jclass_loader,
-                *dex_file,
-                dex_to_dex_compilation_level,
-                true,
-                dex_cache);
-  auto* compiled_method = GetCompiledMethod(MethodReference(dex_file, method_idx));
-  return compiled_method;
 }
 
 void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
