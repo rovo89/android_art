@@ -46,6 +46,10 @@ class InductionVarRangeTest : public testing::Test {
     EXPECT_EQ(v1.is_known, v2.is_known);
   }
 
+  //
+  // Construction methods.
+  //
+
   /** Constructs bare minimum graph. */
   void BuildGraph() {
     graph_->SetNumberOfVRegs(1);
@@ -58,7 +62,7 @@ class InductionVarRangeTest : public testing::Test {
   }
 
   /** Constructs loop with given upper bound. */
-  void BuildLoop(HInstruction* upper) {
+  void BuildLoop(int32_t lower, HInstruction* upper, int32_t stride) {
     // Control flow.
     loop_preheader_ = new (&allocator_) HBasicBlock(graph_);
     graph_->AddBlock(loop_preheader_);
@@ -75,18 +79,22 @@ class InductionVarRangeTest : public testing::Test {
     HLocal* induc = new (&allocator_) HLocal(0);
     entry_block_->AddInstruction(induc);
     loop_preheader_->AddInstruction(
-        new (&allocator_) HStoreLocal(induc, graph_->GetIntConstant(0)));  // i = 0
+        new (&allocator_) HStoreLocal(induc, graph_->GetIntConstant(lower)));  // i = l
     loop_preheader_->AddInstruction(new (&allocator_) HGoto());
     HInstruction* load = new (&allocator_) HLoadLocal(induc, Primitive::kPrimInt);
           loop_header->AddInstruction(load);
-    condition_ = new (&allocator_) HLessThan(load, upper);
+    if (stride > 0) {
+      condition_ = new (&allocator_) HLessThan(load, upper);  // i < u
+    } else {
+      condition_ = new (&allocator_) HGreaterThan(load, upper);  // i > u
+    }
     loop_header->AddInstruction(condition_);
-    loop_header->AddInstruction(new (&allocator_) HIf(condition_));  // i < u
+    loop_header->AddInstruction(new (&allocator_) HIf(condition_));
     load = new (&allocator_) HLoadLocal(induc, Primitive::kPrimInt);
     loop_body->AddInstruction(load);
-    increment_ = new (&allocator_) HAdd(Primitive::kPrimInt, load, graph_->GetIntConstant(1));
+    increment_ = new (&allocator_) HAdd(Primitive::kPrimInt, load, graph_->GetIntConstant(stride));
     loop_body->AddInstruction(increment_);
-    loop_body->AddInstruction(new (&allocator_) HStoreLocal(induc, increment_));  // i++
+    loop_body->AddInstruction(new (&allocator_) HStoreLocal(induc, increment_));  // i += s
     loop_body->AddInstruction(new (&allocator_) HGoto());
     exit_block_->AddInstruction(new (&allocator_) HReturnVoid());
   }
@@ -124,8 +132,20 @@ class InductionVarRangeTest : public testing::Test {
   }
 
   /** Constructs a trip-count. */
-  HInductionVarAnalysis::InductionInfo* CreateTripCount(int32_t tc) {
-    return iva_->CreateTripCount(HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc), nullptr);
+  HInductionVarAnalysis::InductionInfo* CreateTripCount(int32_t tc, bool in_loop, bool safe) {
+    if (in_loop && safe) {
+      return iva_->CreateTripCount(
+          HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc), nullptr);
+    } else if (in_loop) {
+      return iva_->CreateTripCount(
+          HInductionVarAnalysis::kTripCountInLoopUnsafe, CreateConst(tc), nullptr);
+    } else if (safe) {
+      return iva_->CreateTripCount(
+          HInductionVarAnalysis::kTripCountInBody, CreateConst(tc), nullptr);
+    } else {
+      return iva_->CreateTripCount(
+          HInductionVarAnalysis::kTripCountInBodyUnsafe, CreateConst(tc), nullptr);
+    }
   }
 
   /** Constructs a linear a * i + b induction. */
@@ -139,15 +159,33 @@ class InductionVarRangeTest : public testing::Test {
         HInductionVarAnalysis::kPeriodic, CreateConst(lo), CreateConst(hi));
   }
 
+  /** Constructs a wrap-around induction consisting of a constant, followed info */
+  HInductionVarAnalysis::InductionInfo* CreateWrapAround(
+      int32_t initial,
+      HInductionVarAnalysis::InductionInfo* info) {
+    return iva_->CreateInduction(HInductionVarAnalysis::kWrapAround, CreateConst(initial), info);
+  }
+
   /** Constructs a wrap-around induction consisting of a constant, followed by a range. */
   HInductionVarAnalysis::InductionInfo* CreateWrapAround(int32_t initial, int32_t lo, int32_t hi) {
-    return iva_->CreateInduction(
-        HInductionVarAnalysis::kWrapAround, CreateConst(initial), CreateRange(lo, hi));
+    return CreateWrapAround(initial, CreateRange(lo, hi));
   }
 
   //
   // Relay methods.
   //
+
+  bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) {
+    return InductionVarRange::NeedsTripCount(info);
+  }
+
+  bool IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip) {
+    return InductionVarRange::IsBodyTripCount(trip);
+  }
+
+  bool IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip) {
+    return InductionVarRange::IsUnsafeTripCount(trip);
+  }
 
   Value GetMin(HInductionVarAnalysis::InductionInfo* info,
                HInductionVarAnalysis::InductionInfo* induc) {
@@ -201,6 +239,26 @@ class InductionVarRangeTest : public testing::Test {
 //
 // Tests on static methods.
 //
+
+TEST_F(InductionVarRangeTest, TripCountProperties) {
+  EXPECT_FALSE(NeedsTripCount(nullptr));
+  EXPECT_FALSE(NeedsTripCount(CreateConst(1)));
+  EXPECT_TRUE(NeedsTripCount(CreateLinear(1, 1)));
+  EXPECT_FALSE(NeedsTripCount(CreateWrapAround(1, 2, 3)));
+  EXPECT_TRUE(NeedsTripCount(CreateWrapAround(1, CreateLinear(1, 1))));
+
+  EXPECT_FALSE(IsBodyTripCount(nullptr));
+  EXPECT_FALSE(IsBodyTripCount(CreateTripCount(100, true, true)));
+  EXPECT_FALSE(IsBodyTripCount(CreateTripCount(100, true, false)));
+  EXPECT_TRUE(IsBodyTripCount(CreateTripCount(100, false, true)));
+  EXPECT_TRUE(IsBodyTripCount(CreateTripCount(100, false, false)));
+
+  EXPECT_FALSE(IsUnsafeTripCount(nullptr));
+  EXPECT_FALSE(IsUnsafeTripCount(CreateTripCount(100, true, true)));
+  EXPECT_TRUE(IsUnsafeTripCount(CreateTripCount(100, true, false)));
+  EXPECT_FALSE(IsUnsafeTripCount(CreateTripCount(100, false, true)));
+  EXPECT_TRUE(IsUnsafeTripCount(CreateTripCount(100, false, false)));
+}
 
 TEST_F(InductionVarRangeTest, GetMinMaxNull) {
   ExpectEqual(Value(), GetMin(nullptr, nullptr));
@@ -279,10 +337,10 @@ TEST_F(InductionVarRangeTest, GetMinMaxFetch) {
 }
 
 TEST_F(InductionVarRangeTest, GetMinMaxLinear) {
-  ExpectEqual(Value(20), GetMin(CreateLinear(10, 20), CreateTripCount(100)));
-  ExpectEqual(Value(1010), GetMax(CreateLinear(10, 20), CreateTripCount(100)));
-  ExpectEqual(Value(-970), GetMin(CreateLinear(-10, 20), CreateTripCount(100)));
-  ExpectEqual(Value(20), GetMax(CreateLinear(-10, 20), CreateTripCount(100)));
+  ExpectEqual(Value(20), GetMin(CreateLinear(10, 20), CreateTripCount(100, true, true)));
+  ExpectEqual(Value(1010), GetMax(CreateLinear(10, 20), CreateTripCount(100, true, true)));
+  ExpectEqual(Value(-970), GetMin(CreateLinear(-10, 20), CreateTripCount(100, true, true)));
+  ExpectEqual(Value(20), GetMax(CreateLinear(-10, 20), CreateTripCount(100, true, true)));
 }
 
 TEST_F(InductionVarRangeTest, GetMinMaxWrapAround) {
@@ -398,61 +456,98 @@ TEST_F(InductionVarRangeTest, MaxValue) {
 // Tests on instance methods.
 //
 
-TEST_F(InductionVarRangeTest, FindRangeConstantTripCount) {
-  BuildLoop(graph_->GetIntConstant(1000));
+TEST_F(InductionVarRangeTest, ConstantTripCountUp) {
+  BuildLoop(0, graph_->GetIntConstant(1000), 1);
   PerformInductionVarAnalysis();
   InductionVarRange range(iva_);
+
+  Value v1, v2;
+  bool needs_finite_test = true;
 
   // In context of header: known.
-  ExpectEqual(Value(0), range.GetMinInduction(condition_, condition_->InputAt(0)));
-  ExpectEqual(Value(1000), range.GetMaxInduction(condition_, condition_->InputAt(0)));
+  range.GetInductionRange(condition_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(0), v1);
+  ExpectEqual(Value(1000), v2);
 
   // In context of loop-body: known.
-  ExpectEqual(Value(0), range.GetMinInduction(increment_, condition_->InputAt(0)));
-  ExpectEqual(Value(999), range.GetMaxInduction(increment_, condition_->InputAt(0)));
-  ExpectEqual(Value(1), range.GetMinInduction(increment_, increment_));
-  ExpectEqual(Value(1000), range.GetMaxInduction(increment_, increment_));
+  range.GetInductionRange(increment_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(0), v1);
+  ExpectEqual(Value(999), v2);
+  range.GetInductionRange(increment_, increment_, &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(1), v1);
+  ExpectEqual(Value(1000), v2);
 }
 
-TEST_F(InductionVarRangeTest, FindRangeSymbolicTripCount) {
-  HInstruction* parameter = new (&allocator_) HParameterValue(
-      graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
-  entry_block_->AddInstruction(parameter);
-  BuildLoop(parameter);
+TEST_F(InductionVarRangeTest, ConstantTripCountDown) {
+  BuildLoop(1000, graph_->GetIntConstant(0), -1);
   PerformInductionVarAnalysis();
   InductionVarRange range(iva_);
 
-  // In context of header: full range unknown.
-  ExpectEqual(Value(0), range.GetMinInduction(condition_, condition_->InputAt(0)));
-  ExpectEqual(Value(), range.GetMaxInduction(condition_, condition_->InputAt(0)));
+  Value v1, v2;
+  bool needs_finite_test = true;
+
+  // In context of header: known.
+  range.GetInductionRange(condition_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(0), v1);
+  ExpectEqual(Value(1000), v2);
 
   // In context of loop-body: known.
-  ExpectEqual(Value(0), range.GetMinInduction(increment_, condition_->InputAt(0)));
-  ExpectEqual(Value(parameter, 1, -1), range.GetMaxInduction(increment_, condition_->InputAt(0)));
-  ExpectEqual(Value(1), range.GetMinInduction(increment_, increment_));
-  ExpectEqual(Value(parameter, 1, 0), range.GetMaxInduction(increment_, increment_));
+  range.GetInductionRange(increment_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(1), v1);
+  ExpectEqual(Value(1000), v2);
+  range.GetInductionRange(increment_, increment_, &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(0), v1);
+  ExpectEqual(Value(999), v2);
 }
 
-TEST_F(InductionVarRangeTest, CodeGeneration) {
+TEST_F(InductionVarRangeTest, SymbolicTripCountUp) {
   HInstruction* parameter = new (&allocator_) HParameterValue(
       graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
   entry_block_->AddInstruction(parameter);
-  BuildLoop(parameter);
+  BuildLoop(0, parameter, 1);
   PerformInductionVarAnalysis();
   InductionVarRange range(iva_);
+
+  Value v1, v2;
+  bool needs_finite_test = true;
+  bool needs_taken_test = true;
+
+  // In context of header: upper unknown.
+  range.GetInductionRange(condition_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(0), v1);
+  ExpectEqual(Value(), v2);
+
+  // In context of loop-body: known.
+  range.GetInductionRange(increment_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(0), v1);
+  ExpectEqual(Value(parameter, 1, -1), v2);
+  range.GetInductionRange(increment_, increment_, &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(1), v1);
+  ExpectEqual(Value(parameter, 1, 0), v2);
 
   HInstruction* lower = nullptr;
   HInstruction* upper = nullptr;
-  bool top_test = false;
+  HInstruction* taken = nullptr;
 
   // Can generate code in context of loop-body only.
-  EXPECT_FALSE(range.CanGenerateCode(condition_, condition_->InputAt(0), &top_test));
-  ASSERT_TRUE(range.CanGenerateCode(increment_, condition_->InputAt(0), &top_test));
-  EXPECT_TRUE(top_test);
+  EXPECT_FALSE(range.CanGenerateCode(
+      condition_, condition_->InputAt(0), &needs_finite_test, &needs_taken_test));
+  ASSERT_TRUE(range.CanGenerateCode(
+      increment_, condition_->InputAt(0), &needs_finite_test, &needs_taken_test));
+  EXPECT_FALSE(needs_finite_test);
+  EXPECT_TRUE(needs_taken_test);
 
   // Generates code.
-  EXPECT_TRUE(range.GenerateCode(
-      increment_, condition_->InputAt(0), graph_, loop_preheader_, &lower, &upper));
+  range.GenerateRangeCode(increment_, condition_->InputAt(0), graph_, loop_preheader_, &lower, &upper);
 
   // Verify lower is 0+0.
   ASSERT_TRUE(lower != nullptr);
@@ -462,7 +557,7 @@ TEST_F(InductionVarRangeTest, CodeGeneration) {
   ASSERT_TRUE(lower->InputAt(1)->IsIntConstant());
   EXPECT_EQ(0, lower->InputAt(1)->AsIntConstant()->GetValue());
 
-  // Verify upper is (V-1)+0
+  // Verify upper is (V-1)+0.
   ASSERT_TRUE(upper != nullptr);
   ASSERT_TRUE(upper->IsAdd());
   ASSERT_TRUE(upper->InputAt(0)->IsSub());
@@ -471,6 +566,91 @@ TEST_F(InductionVarRangeTest, CodeGeneration) {
   EXPECT_EQ(1, upper->InputAt(0)->InputAt(1)->AsIntConstant()->GetValue());
   ASSERT_TRUE(upper->InputAt(1)->IsIntConstant());
   EXPECT_EQ(0, upper->InputAt(1)->AsIntConstant()->GetValue());
+
+  // Verify taken-test is 0<V.
+  range.GenerateTakenTest(increment_, graph_, loop_preheader_, &taken);
+  ASSERT_TRUE(taken != nullptr);
+  ASSERT_TRUE(taken->IsLessThan());
+  ASSERT_TRUE(taken->InputAt(0)->IsIntConstant());
+  EXPECT_EQ(0, taken->InputAt(0)->AsIntConstant()->GetValue());
+  EXPECT_TRUE(taken->InputAt(1)->IsParameterValue());
+}
+
+TEST_F(InductionVarRangeTest, SymbolicTripCountDown) {
+  HInstruction* parameter = new (&allocator_) HParameterValue(
+      graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
+  entry_block_->AddInstruction(parameter);
+  BuildLoop(1000, parameter, -1);
+  PerformInductionVarAnalysis();
+  InductionVarRange range(iva_);
+
+  Value v1, v2;
+  bool needs_finite_test = true;
+  bool needs_taken_test = true;
+
+  // In context of header: lower unknown.
+  range.GetInductionRange(condition_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(), v1);
+  ExpectEqual(Value(1000), v2);
+
+  // In context of loop-body: known.
+  range.GetInductionRange(increment_, condition_->InputAt(0), &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(parameter, 1, 1), v1);
+  ExpectEqual(Value(1000), v2);
+  range.GetInductionRange(increment_, increment_, &v1, &v2, &needs_finite_test);
+  EXPECT_FALSE(needs_finite_test);
+  ExpectEqual(Value(parameter, 1, 0), v1);
+  ExpectEqual(Value(999), v2);
+
+  HInstruction* lower = nullptr;
+  HInstruction* upper = nullptr;
+  HInstruction* taken = nullptr;
+
+  // Can generate code in context of loop-body only.
+  EXPECT_FALSE(range.CanGenerateCode(
+      condition_, condition_->InputAt(0), &needs_finite_test, &needs_taken_test));
+  ASSERT_TRUE(range.CanGenerateCode(
+      increment_, condition_->InputAt(0), &needs_finite_test, &needs_taken_test));
+  EXPECT_FALSE(needs_finite_test);
+  EXPECT_TRUE(needs_taken_test);
+
+  // Generates code.
+  range.GenerateRangeCode(increment_, condition_->InputAt(0), graph_, loop_preheader_, &lower, &upper);
+
+  // Verify lower is 1000-(-(V-1000)-1).
+  ASSERT_TRUE(lower != nullptr);
+  ASSERT_TRUE(lower->IsSub());
+  ASSERT_TRUE(lower->InputAt(0)->IsIntConstant());
+  EXPECT_EQ(1000, lower->InputAt(0)->AsIntConstant()->GetValue());
+  lower = lower->InputAt(1);
+  ASSERT_TRUE(lower->IsSub());
+  ASSERT_TRUE(lower->InputAt(1)->IsIntConstant());
+  EXPECT_EQ(1, lower->InputAt(1)->AsIntConstant()->GetValue());
+  lower = lower->InputAt(0);
+  ASSERT_TRUE(lower->IsNeg());
+  lower = lower->InputAt(0);
+  ASSERT_TRUE(lower->IsSub());
+  EXPECT_TRUE(lower->InputAt(0)->IsParameterValue());
+  ASSERT_TRUE(lower->InputAt(1)->IsIntConstant());
+  EXPECT_EQ(1000, lower->InputAt(1)->AsIntConstant()->GetValue());
+
+  // Verify upper is 1000-0.
+  ASSERT_TRUE(upper != nullptr);
+  ASSERT_TRUE(upper->IsSub());
+  ASSERT_TRUE(upper->InputAt(0)->IsIntConstant());
+  EXPECT_EQ(1000, upper->InputAt(0)->AsIntConstant()->GetValue());
+  ASSERT_TRUE(upper->InputAt(1)->IsIntConstant());
+  EXPECT_EQ(0, upper->InputAt(1)->AsIntConstant()->GetValue());
+
+  // Verify taken-test is 1000>V.
+  range.GenerateTakenTest(increment_, graph_, loop_preheader_, &taken);
+  ASSERT_TRUE(taken != nullptr);
+  ASSERT_TRUE(taken->IsGreaterThan());
+  ASSERT_TRUE(taken->InputAt(0)->IsIntConstant());
+  EXPECT_EQ(1000, taken->InputAt(0)->AsIntConstant()->GetValue());
+  EXPECT_TRUE(taken->InputAt(1)->IsParameterValue());
 }
 
 }  // namespace art
