@@ -40,42 +40,27 @@
 #include "utils.h"
 
 namespace art {
-namespace gc {
-namespace space {
-class ImageSpace;
-}  // namespace space
-}  // namespace gc
 
 static constexpr int kInvalidImageFd = -1;
 
 // Write a Space built during compilation for use during execution.
 class ImageWriter FINAL {
  public:
-  ImageWriter(const CompilerDriver& compiler_driver,
-              uintptr_t image_begin,
-              bool compile_pic,
-              bool compile_app_image)
-      : compiler_driver_(compiler_driver),
-        image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
-        image_end_(0),
-        image_objects_offset_begin_(0),
-        image_roots_address_(0),
-        oat_file_(nullptr),
-        oat_data_begin_(nullptr),
-        compile_pic_(compile_pic),
-        compile_app_image_(compile_app_image),
-        boot_image_space_(nullptr),
+  ImageWriter(const CompilerDriver& compiler_driver, uintptr_t image_begin,
+              bool compile_pic)
+      : compiler_driver_(compiler_driver), image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
+        image_end_(0), image_objects_offset_begin_(0), image_roots_address_(0), oat_file_(nullptr),
+        oat_data_begin_(nullptr), interpreter_to_interpreter_bridge_offset_(0),
+        interpreter_to_compiled_code_bridge_offset_(0), jni_dlsym_lookup_offset_(0),
+        quick_generic_jni_trampoline_offset_(0),
+        quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
+        quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
-        bin_slot_sizes_(),
-        bin_slot_offsets_(),
-        bin_slot_count_(),
-        intern_table_bytes_(0u),
-        image_method_array_(ImageHeader::kImageMethodsCount),
-        dirty_methods_(0u),
-        clean_methods_(0u) {
+        bin_slot_sizes_(), bin_slot_offsets_(), bin_slot_count_(),
+        intern_table_bytes_(0u), image_method_array_(ImageHeader::kImageMethodsCount),
+        dirty_methods_(0u), clean_methods_(0u) {
     CHECK_NE(image_begin, 0U);
-    std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
-    std::fill_n(oat_address_offsets_, arraysize(oat_address_offsets_), 0);
+    std::fill(image_methods_, image_methods_ + arraysize(image_methods_), nullptr);
   }
 
   ~ImageWriter() {
@@ -89,9 +74,8 @@ class ImageWriter FINAL {
 
   template <typename T>
   T* GetImageAddress(T* object) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (object == nullptr || IsInBootImage(object))
-        ? object
-        : reinterpret_cast<T*>(image_begin_ + GetImageOffset(object));
+    return object == nullptr ? nullptr :
+        reinterpret_cast<T*>(image_begin_ + GetImageOffset(object));
   }
 
   ArtMethod* GetImageMethodAddress(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -166,19 +150,6 @@ class ImageWriter FINAL {
   };
   friend std::ostream& operator<<(std::ostream& stream, const NativeObjectRelocationType& type);
 
-  enum OatAddress {
-    kOatAddressInterpreterToInterpreterBridge,
-    kOatAddressInterpreterToCompiledCodeBridge,
-    kOatAddressJNIDlsymLookup,
-    kOatAddressQuickGenericJNITrampoline,
-    kOatAddressQuickIMTConflictTrampoline,
-    kOatAddressQuickResolutionTrampoline,
-    kOatAddressQuickToInterpreterBridge,
-    // Number of elements in the enum.
-    kOatAddressCount,
-  };
-  friend std::ostream& operator<<(std::ostream& stream, const OatAddress& oat_address);
-
   static constexpr size_t kBinBits = MinimumBitsToStore<uint32_t>(kBinMirrorCount - 1);
   // uint32 = typeof(lockword_)
   // Subtract read barrier bits since we want these to remain 0, or else it may result in DCHECK
@@ -244,10 +215,7 @@ class ImageWriter FINAL {
     return reinterpret_cast<mirror::Object*>(dst);
   }
 
-  // Returns the address in the boot image if we are compiling the app image.
-  const uint8_t* GetOatAddress(OatAddress type) const;
-
-  const uint8_t* GetOatAddressForOffset(uint32_t offset) const {
+  const uint8_t* GetOatAddress(uint32_t offset) const {
     // With Quick, code is within the OatFile, as there are all in one
     // .o ELF object.
     DCHECK_LE(offset, oat_file_->Size());
@@ -256,7 +224,7 @@ class ImageWriter FINAL {
   }
 
   // Returns true if the class was in the original requested image classes list.
-  bool KeepClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsImageClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Debug aid that list of requested image classes.
   void DumpImageClasses();
@@ -331,24 +299,12 @@ class ImageWriter FINAL {
   void AssignMethodOffset(ArtMethod* method, NativeObjectRelocationType type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool IsBootClassLoaderNonImageClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
-
-  bool ContainsBootClassLoaderNonImageClass(mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
 
   uintptr_t NativeOffsetInImage(void* obj);
 
   template <typename T>
   T* NativeLocationInImage(T* obj);
-
-  // Return true of obj is inside of the boot image space. This may only return true if we are
-  // compiling an app image.
-  bool IsInBootImage(const void* obj) const;
-
-  // Return true if ptr is within the boot oat file.
-  bool IsInBootOatFile(const void* ptr) const;
 
   const CompilerDriver& compiler_driver_;
 
@@ -388,14 +344,14 @@ class ImageWriter FINAL {
   std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
 
   // Offset from oat_data_begin_ to the stubs.
-  uint32_t oat_address_offsets_[kOatAddressCount];
-
-  // Boolean flags.
+  uint32_t interpreter_to_interpreter_bridge_offset_;
+  uint32_t interpreter_to_compiled_code_bridge_offset_;
+  uint32_t jni_dlsym_lookup_offset_;
+  uint32_t quick_generic_jni_trampoline_offset_;
+  uint32_t quick_imt_conflict_trampoline_offset_;
+  uint32_t quick_resolution_trampoline_offset_;
+  uint32_t quick_to_interpreter_bridge_offset_;
   const bool compile_pic_;
-  const bool compile_app_image_;
-
-  // Boot image space for fast lookups.
-  gc::space::ImageSpace* boot_image_space_;
 
   // Size of pointers on the target architecture.
   size_t target_ptr_size_;
@@ -432,10 +388,6 @@ class ImageWriter FINAL {
   uint64_t dirty_methods_;
   uint64_t clean_methods_;
 
-  // Prune class memoization table.
-  std::unordered_map<mirror::Class*, bool> prune_class_memo_;
-
-  friend class ContainsBootClassLoaderNonImageClassVisitor;
   friend class FixupClassVisitor;
   friend class FixupRootVisitor;
   friend class FixupVisitor;

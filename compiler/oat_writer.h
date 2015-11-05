@@ -93,7 +93,6 @@ class OatWriter {
             int32_t image_patch_delta,
             const CompilerDriver* compiler,
             ImageWriter* image_writer,
-            bool compiling_boot_image,
             TimingLogger* timings,
             SafeMap<std::string, std::string>* key_value_store);
 
@@ -102,10 +101,6 @@ class OatWriter {
     // Since the image is being created at the same time as the oat file,
     // check if there's an image writer.
     return image_writer_ != nullptr;
-  }
-
-  bool HasBootImage() const {
-    return compiling_boot_image_;
   }
 
   const OatHeader& GetOatHeader() const {
@@ -284,7 +279,6 @@ class OatWriter {
 
   const CompilerDriver* const compiler_driver_;
   ImageWriter* const image_writer_;
-  const bool compiling_boot_image_;
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
