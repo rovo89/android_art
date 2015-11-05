@@ -27,7 +27,7 @@
 #include "base/time_utils.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "lock_word-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -1034,15 +1034,15 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   for (uint32_t monitor_dex_pc : monitor_enter_dex_pcs) {
     // The verifier works in terms of the dex pcs of the monitor-enter instructions.
     // We want the registers used by those instructions (so we can read the values out of them).
-    uint16_t monitor_enter_instruction = code_item->insns_[monitor_dex_pc];
+    const Instruction* monitor_enter_instruction =
+        Instruction::At(&code_item->insns_[monitor_dex_pc]);
 
     // Quick sanity check.
-    if ((monitor_enter_instruction & 0xff) != Instruction::MONITOR_ENTER) {
-      LOG(FATAL) << "expected monitor-enter @" << monitor_dex_pc << "; was "
-                 << reinterpret_cast<void*>(monitor_enter_instruction);
-    }
+    CHECK_EQ(monitor_enter_instruction->Opcode(), Instruction::MONITOR_ENTER)
+      << "expected monitor-enter @" << monitor_dex_pc << "; was "
+      << reinterpret_cast<const void*>(monitor_enter_instruction);
 
-    uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
+    uint16_t monitor_register = monitor_enter_instruction->VRegA();
     uint32_t value;
     bool success = stack_visitor->GetVReg(m, monitor_register, kReferenceVReg, &value);
     CHECK(success) << "Failed to read v" << monitor_register << " of kind "
