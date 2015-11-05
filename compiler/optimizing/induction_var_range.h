@@ -57,29 +57,33 @@ class InductionVarRange {
   explicit InductionVarRange(HInductionVarAnalysis* induction);
 
   /**
-   * Given a context denoted by the first instruction, returns a,
-   * possibly conservative, lower bound on the instruction's value.
+   * Given a context denoted by the first instruction, returns a possibly conservative
+   * lower and upper bound on the instruction's value in the output parameters min_val
+   * and max_val, respectively. The need_finite_test flag denotes if an additional finite-test
+   * is needed to protect the range evaluation inside its loop.
    */
-  Value GetMinInduction(HInstruction* context, HInstruction* instruction);
+  void GetInductionRange(HInstruction* context,
+                         HInstruction* instruction,
+                         /*out*/Value* min_val,
+                         /*out*/Value* max_val,
+                         /*out*/bool* needs_finite_test);
 
   /**
-   * Given a context denoted by the first instruction, returns a,
-   * possibly conservative, upper bound on the instruction's value.
+   * Returns true if range analysis is able to generate code for the lower and upper
+   * bound expressions on the instruction in the given context. The need_finite_test
+   * and need_taken test flags denote if an additional finite-test and/or taken-test
+   * are needed to protect the range evaluation inside its loop.
    */
-  Value GetMaxInduction(HInstruction* context, HInstruction* instruction);
-
-  /**
-   * Returns true if range analysis is able to generate code for the lower and upper bound
-   * expressions on the instruction in the given context. Output parameter top_test denotes
-   * whether a top test is needed to protect the trip-count expression evaluation.
-   */
-  bool CanGenerateCode(HInstruction* context, HInstruction* instruction, /*out*/bool* top_test);
+  bool CanGenerateCode(HInstruction* context,
+                       HInstruction* instruction,
+                       /*out*/bool* needs_finite_test,
+                       /*out*/bool* needs_taken_test);
 
   /**
    * Generates the actual code in the HIR for the lower and upper bound expressions on the
    * instruction in the given context. Code for the lower and upper bound expression are
-   * generated in given block and graph and are returned in lower and upper, respectively.
-   * For a loop invariant, lower is not set.
+   * generated in given block and graph and are returned in the output parameters lower and
+   * upper, respectively. For a loop invariant, lower is not set.
    *
    * For example, given expression x+i with range [0, 5] for i, calling this method
    * will generate the following sequence:
@@ -87,20 +91,35 @@ class InductionVarRange {
    * block:
    *   lower: add x, 0
    *   upper: add x, 5
+   *
+   * Precondition: CanGenerateCode() returns true.
    */
-  bool GenerateCode(HInstruction* context,
-                    HInstruction* instruction,
-                    HGraph* graph,
-                    HBasicBlock* block,
-                    /*out*/HInstruction** lower,
-                    /*out*/HInstruction** upper);
+  void GenerateRangeCode(HInstruction* context,
+                         HInstruction* instruction,
+                         HGraph* graph,
+                         HBasicBlock* block,
+                         /*out*/HInstruction** lower,
+                         /*out*/HInstruction** upper);
+
+  /**
+   * Generates explicit taken-test for the loop in the given context. Code is generated in
+   * given block and graph. The taken-test is returned in parameter test.
+   *
+   * Precondition: CanGenerateCode() returns true and needs_taken_test is set.
+   */
+  void GenerateTakenTest(HInstruction* context,
+                         HGraph* graph,
+                         HBasicBlock* block,
+                         /*out*/HInstruction** taken_test);
 
  private:
   //
   // Private helper methods.
   //
 
-  Value GetInduction(HInstruction* context, HInstruction* instruction, bool is_min);
+  static bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info);
+  static bool IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip);
+  static bool IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip);
 
   static Value GetFetch(HInstruction* instruction,
                         HInductionVarAnalysis::InductionInfo* trip,
@@ -130,8 +149,8 @@ class InductionVarRange {
   static Value MergeVal(Value v1, Value v2, bool is_min);
 
   /**
-   * Generates code for lower/upper expression in the HIR. Returns true on success.
-   * With graph == nullptr, the method can be used to determine if code generation
+   * Generates code for lower/upper/taken-test in the HIR. Returns true on success.
+   * With values nullptr, the method can be used to determine if code generation
    * would be successful without generating actual code yet.
    */
   bool GenerateCode(HInstruction* context,
@@ -140,7 +159,9 @@ class InductionVarRange {
                     HBasicBlock* block,
                     /*out*/HInstruction** lower,
                     /*out*/HInstruction** upper,
-                    bool* top_test);
+                    /*out*/HInstruction** taken_test,
+                    /*out*/bool* needs_finite_test,
+                    /*out*/bool* needs_taken_test);
 
   static bool GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                            HInductionVarAnalysis::InductionInfo* trip,

@@ -1169,8 +1169,10 @@ class BCEVisitor : public HGraphVisitor {
   // Return the range resulting from induction variable analysis of "instruction" when the value
   // is used from "context", for example, an index used from a bounds-check inside a loop body.
   ValueRange* LookupInductionRange(HInstruction* context, HInstruction* instruction) {
-    InductionVarRange::Value v1 = induction_range_.GetMinInduction(context, instruction);
-    InductionVarRange::Value v2 = induction_range_.GetMaxInduction(context, instruction);
+    InductionVarRange::Value v1;
+    InductionVarRange::Value v2;
+    bool needs_finite_test = false;
+    induction_range_.GetInductionRange(context, instruction, &v1, &v2, &needs_finite_test);
     if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
         v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
       DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
