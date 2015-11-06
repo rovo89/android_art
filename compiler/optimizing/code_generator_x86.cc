@@ -4062,16 +4062,16 @@ void LocationsBuilderX86::HandleFieldSet(HInstruction* instruction, const FieldI
     // Ensure the value is in a byte register.
     locations->SetInAt(1, Location::RegisterLocation(EAX));
   } else if (Primitive::IsFloatingPointType(field_type)) {
-    locations->SetInAt(1, Location::RequiresFpuRegister());
-  } else {
+    if (is_volatile && field_type == Primitive::kPrimDouble) {
+      // In order to satisfy the semantics of volatile, this must be a single instruction store.
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+    } else {
+      locations->SetInAt(1, Location::FpuRegisterOrConstant(instruction->InputAt(1)));
+    }
+  } else if (is_volatile && field_type == Primitive::kPrimLong) {
+    // In order to satisfy the semantics of volatile, this must be a single instruction store.
     locations->SetInAt(1, Location::RequiresRegister());
-  }
-  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
-    // Temporary registers for the write barrier.
-    locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
-    // Ensure the card is in a byte register.
-    locations->AddTemp(Location::RegisterLocation(ECX));
-  } else if (is_volatile && (field_type == Primitive::kPrimLong)) {
+
     // 64bits value can be atomically written to an address with movsd and an XMM register.
     // We need two XMM registers because there's no easier way to (bit) copy a register pair
     // into a single XMM register (we copy each pair part into the XMMs and then interleave them).
@@ -4079,6 +4079,15 @@ void LocationsBuilderX86::HandleFieldSet(HInstruction* instruction, const FieldI
     // isolated cases when we need this it isn't worth adding the extra complexity.
     locations->AddTemp(Location::RequiresFpuRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+
+    if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
+      // Temporary registers for the write barrier.
+      locations->AddTemp(Location::RequiresRegister());  // May be used for reference poisoning too.
+      // Ensure the card is in a byte register.
+      locations->AddTemp(Location::RegisterLocation(ECX));
+    }
   }
 }
 
@@ -4100,6 +4109,8 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
     GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
   }
 
+  bool maybe_record_implicit_null_check_done = false;
+
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
@@ -4109,7 +4120,12 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
 
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
-      __ movw(Address(base, offset), value.AsRegister<Register>());
+      if (value.IsConstant()) {
+        int16_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        __ movw(Address(base, offset), Immediate(v));
+      } else {
+        __ movw(Address(base, offset), value.AsRegister<Register>());
+      }
       break;
     }
 
@@ -4124,6 +4140,9 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
         __ movl(temp, value.AsRegister<Register>());
         __ PoisonHeapReference(temp);
         __ movl(Address(base, offset), temp);
+      } else if (value.IsConstant()) {
+        int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        __ movl(Address(base, offset), Immediate(v));
       } else {
         __ movl(Address(base, offset), value.AsRegister<Register>());
       }
@@ -4139,21 +4158,40 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
         __ punpckldq(temp1, temp2);
         __ movsd(Address(base, offset), temp1);
         codegen_->MaybeRecordImplicitNullCheck(instruction);
+      } else if (value.IsConstant()) {
+        int64_t v = CodeGenerator::GetInt64ValueOf(value.GetConstant());
+        __ movl(Address(base, offset), Immediate(Low32Bits(v)));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ movl(Address(base, kX86WordSize + offset), Immediate(High32Bits(v)));
       } else {
         __ movl(Address(base, offset), value.AsRegisterPairLow<Register>());
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         __ movl(Address(base, kX86WordSize + offset), value.AsRegisterPairHigh<Register>());
       }
+      maybe_record_implicit_null_check_done = true;
       break;
     }
 
     case Primitive::kPrimFloat: {
-      __ movss(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      if (value.IsConstant()) {
+        int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        __ movl(Address(base, offset), Immediate(v));
+      } else {
+        __ movss(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ movsd(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      if (value.IsConstant()) {
+        int64_t v = CodeGenerator::GetInt64ValueOf(value.GetConstant());
+        __ movl(Address(base, offset), Immediate(Low32Bits(v)));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ movl(Address(base, kX86WordSize + offset), Immediate(High32Bits(v)));
+        maybe_record_implicit_null_check_done = true;
+      } else {
+        __ movsd(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+      }
       break;
     }
 
@@ -4162,8 +4200,7 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
       UNREACHABLE();
   }
 
-  // Longs are handled in the switch.
-  if (field_type != Primitive::kPrimLong) {
+  if (!maybe_record_implicit_null_check_done) {
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 
@@ -4500,7 +4537,7 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     // Ensure the value is in a byte register.
     locations->SetInAt(2, Location::ByteRegisterOrConstant(EAX, instruction->InputAt(2)));
   } else if (Primitive::IsFloatingPointType(value_type)) {
-    locations->SetInAt(2, Location::RequiresFpuRegister());
+    locations->SetInAt(2, Location::FpuRegisterOrConstant(instruction->InputAt(2)));
   } else {
     locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
   }
@@ -4686,8 +4723,14 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       Address address = index.IsConstant()
           ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
           : Address(array, index.AsRegister<Register>(), TIMES_4, offset);
-      DCHECK(value.IsFpuRegister());
-      __ movss(address, value.AsFpuRegister<XmmRegister>());
+      if (value.IsFpuRegister()) {
+        __ movss(address, value.AsFpuRegister<XmmRegister>());
+      } else {
+        DCHECK(value.IsConstant());
+        int32_t v = bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
+        __ movl(address, Immediate(v));
+      }
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
@@ -4696,8 +4739,19 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       Address address = index.IsConstant()
           ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + offset)
           : Address(array, index.AsRegister<Register>(), TIMES_8, offset);
-      DCHECK(value.IsFpuRegister());
-      __ movsd(address, value.AsFpuRegister<XmmRegister>());
+      if (value.IsFpuRegister()) {
+        __ movsd(address, value.AsFpuRegister<XmmRegister>());
+      } else {
+        DCHECK(value.IsConstant());
+        Address address_hi = index.IsConstant() ?
+            Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) +
+                           offset + kX86WordSize) :
+            Address(array, index.AsRegister<Register>(), TIMES_8, offset + kX86WordSize);
+        int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
+        __ movl(address, Immediate(Low32Bits(v)));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ movl(address_hi, Immediate(High32Bits(v)));
+      }
       break;
     }
 
