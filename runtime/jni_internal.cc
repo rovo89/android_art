@@ -1670,7 +1670,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
-    if (start < 0 || length < 0 || start + length > s->GetLength()) {
+    if (start < 0 || length < 0 || length > s->GetLength() - start) {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
@@ -1684,7 +1684,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
-    if (start < 0 || length < 0 || start + length > s->GetLength()) {
+    if (start < 0 || length < 0 || length > s->GetLength() - start) {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
@@ -2473,7 +2473,7 @@ class JNI {
                                                               "GetPrimitiveArrayRegion",
                                                               "get region of");
     if (array != nullptr) {
-      if (start < 0 || length < 0 || start + length > array->GetLength()) {
+      if (start < 0 || length < 0 || length > array->GetLength() - start) {
         ThrowAIOOBE(soa, array, start, length, "src");
       } else {
         CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
@@ -2493,7 +2493,7 @@ class JNI {
                                                               "SetPrimitiveArrayRegion",
                                                               "set region of");
     if (array != nullptr) {
-      if (start < 0 || length < 0 || start + length > array->GetLength()) {
+      if (start < 0 || length < 0 || length > array->GetLength() - start) {
         ThrowAIOOBE(soa, array, start, length, "dst");
       } else {
         CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
