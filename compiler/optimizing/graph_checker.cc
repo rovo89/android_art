@@ -460,12 +460,18 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   int id = loop_header->GetBlockId();
   HLoopInformation* loop_information = loop_header->GetLoopInformation();
 
-  // Ensure the pre-header block is first in the list of
-  // predecessors of a loop header.
+  // Ensure the pre-header block is first in the list of predecessors of a loop
+  // header and that the header block is its only successor.
   if (!loop_header->IsLoopPreHeaderFirstPredecessor()) {
     AddError(StringPrintf(
         "Loop pre-header is not the first predecessor of the loop header %d.",
         id));
+  } else if (loop_information->GetPreHeader()->GetSuccessors().size() != 1) {
+    AddError(StringPrintf(
+        "Loop pre-header %d of loop defined by header %d has %zu successors.",
+        loop_information->GetPreHeader()->GetBlockId(),
+        id,
+        loop_information->GetPreHeader()->GetSuccessors().size()));
   }
 
   // Ensure the loop header has only one incoming branch and the remaining
@@ -508,6 +514,13 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
             "Loop defined by header %d has an invalid back edge %d.",
             id,
             back_edge_id));
+      } else if (back_edge->GetLoopInformation() != loop_information) {
+        AddError(StringPrintf(
+            "Back edge %d of loop defined by header %d belongs to nested loop "
+            "with header %d.",
+            back_edge_id,
+            id,
+            back_edge->GetLoopInformation()->GetHeader()->GetBlockId()));
       }
     }
   }

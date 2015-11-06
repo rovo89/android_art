@@ -383,19 +383,27 @@ void HGraph::ComputeTryBlockInformation() {
 }
 
 void HGraph::SimplifyCFG() {
-  // Simplify the CFG for future analysis, and code generation:
+// Simplify the CFG for future analysis, and code generation:
   // (1): Split critical edges.
-  // (2): Simplify loops by having only one back edge, and one preheader.
+  // (2): Simplify loops by having only one preheader.
   // NOTE: We're appending new blocks inside the loop, so we need to use index because iterators
   // can be invalidated. We remember the initial size to avoid iterating over the new blocks.
   for (size_t block_id = 0u, end = blocks_.size(); block_id != end; ++block_id) {
     HBasicBlock* block = blocks_[block_id];
     if (block == nullptr) continue;
-    if (block->NumberOfNormalSuccessors() > 1) {
-      for (size_t j = 0; j < block->GetSuccessors().size(); ++j) {
+    if (block->GetSuccessors().size() > 1) {
+      // Only split normal-flow edges. We cannot split exceptional edges as they
+      // are synthesized (approximate real control flow), and we do not need to
+      // anyway. Moves that would be inserted there are performed by the runtime.
+      for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
         HBasicBlock* successor = block->GetSuccessors()[j];
         DCHECK(!successor->IsCatchBlock());
-        if (successor->GetPredecessors().size() > 1) {
+        if (successor == exit_block_) {
+          // Throw->TryBoundary->Exit. Special case which we do not want to split
+          // because Goto->Exit is not allowed.
+          DCHECK(block->IsSingleTryBoundary());
+          DCHECK(block->GetSinglePredecessor()->GetLastInstruction()->IsThrow());
+        } else if (successor->GetPredecessors().size() > 1) {
           SplitCriticalEdge(block, successor);
           --j;
         }
