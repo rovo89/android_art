@@ -553,7 +553,9 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
     args.Set(M::Image, image);
   }
 
-  if (args.GetOrDefault(M::HeapGrowthLimit) == 0u) {  // 0 means no growth limit
+  // 0 means no growth limit, and growth limit should be always <= heap size
+  if (args.GetOrDefault(M::HeapGrowthLimit) <= 0u ||
+      args.GetOrDefault(M::HeapGrowthLimit) > args.GetOrDefault(M::MemoryMaximumSize)) {
     args.Set(M::HeapGrowthLimit, args.GetOrDefault(M::MemoryMaximumSize));
   }
 
