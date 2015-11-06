@@ -335,14 +335,24 @@ void HGraph::SimplifyCatchBlocks() {
       // instructions into `normal_block` and links the two blocks with a Goto.
       // Afterwards, incoming normal-flow edges are re-linked to `normal_block`,
       // leaving `catch_block` with the exceptional edges only.
+      //
       // Note that catch blocks with normal-flow predecessors cannot begin with
-      // a MOVE_EXCEPTION instruction, as guaranteed by the verifier.
-      DCHECK(!catch_block->GetFirstInstruction()->IsLoadException());
-      HBasicBlock* normal_block = catch_block->SplitBefore(catch_block->GetFirstInstruction());
-      for (size_t j = 0; j < catch_block->GetPredecessors().size(); ++j) {
-        if (!CheckIfPredecessorAtIsExceptional(*catch_block, j)) {
-          catch_block->GetPredecessors()[j]->ReplaceSuccessor(catch_block, normal_block);
-          --j;
+      // a move-exception instruction, as guaranteed by the verifier. However,
+      // trivially dead predecessors are ignored by the verifier and such code
+      // has not been removed at this stage. We therefore ignore the assumption
+      // and rely on GraphChecker to enforce it after initial DCE is run (b/25492628).
+      HBasicBlock* normal_block = catch_block->SplitCatchBlockAfterMoveException();
+      if (normal_block == nullptr) {
+        // Catch block is either empty or only contains a move-exception. It must
+        // therefore be dead and will be removed during initial DCE. Do nothing.
+        DCHECK(!catch_block->EndsWithControlFlowInstruction());
+      } else {
+        // Catch block was split. Re-link normal-flow edges to the new block.
+        for (size_t j = 0; j < catch_block->GetPredecessors().size(); ++j) {
+          if (!CheckIfPredecessorAtIsExceptional(*catch_block, j)) {
+            catch_block->GetPredecessors()[j]->ReplaceSuccessor(catch_block, normal_block);
+            --j;
+          }
         }
       }
     }
@@ -1163,7 +1173,7 @@ void HInstruction::MoveBefore(HInstruction* cursor) {
 }
 
 HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
-  DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented";
+  DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented.";
   DCHECK_EQ(cursor->GetBlock(), this);
 
   HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(),
@@ -1193,7 +1203,7 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
 }
 
 HBasicBlock* HBasicBlock::CreateImmediateDominator() {
-  DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented";
+  DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented.";
   DCHECK(!IsCatchBlock()) << "Support for updating try/catch information not implemented.";
 
   HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(), GetDexPc());
@@ -1207,6 +1217,34 @@ HBasicBlock* HBasicBlock::CreateImmediateDominator() {
 
   GetGraph()->AddBlock(new_block);
   return new_block;
+}
+
+HBasicBlock* HBasicBlock::SplitCatchBlockAfterMoveException() {
+  DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented.";
+  DCHECK(IsCatchBlock()) << "This method is intended for catch blocks only.";
+
+  HInstruction* first_insn = GetFirstInstruction();
+  HInstruction* split_before = nullptr;
+
+  if (first_insn != nullptr && first_insn->IsLoadException()) {
+    // Catch block starts with a LoadException. Split the block after
+    // the StoreLocal and ClearException which must come after the load.
+    DCHECK(first_insn->GetNext()->IsStoreLocal());
+    DCHECK(first_insn->GetNext()->GetNext()->IsClearException());
+    split_before = first_insn->GetNext()->GetNext()->GetNext();
+  } else {
+    // Catch block does not load the exception. Split at the beginning
+    // to create an empty catch block.
+    split_before = first_insn;
+  }
+
+  if (split_before == nullptr) {
+    // Catch block has no instructions after the split point (must be dead).
+    // Do not split it but rather signal error by returning nullptr.
+    return nullptr;
+  } else {
+    return SplitBefore(split_before);
+  }
 }
 
 HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {

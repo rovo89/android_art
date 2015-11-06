@@ -50,6 +50,9 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Check successors of blocks ending in TryBoundary.
   void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE;
 
+  // Check that LoadException is the first instruction in a catch block.
+  void VisitLoadException(HLoadException* load) OVERRIDE;
+
   // Check that HCheckCast and HInstanceOf have HLoadClass as second input.
   void VisitCheckCast(HCheckCast* check) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* check) OVERRIDE;
