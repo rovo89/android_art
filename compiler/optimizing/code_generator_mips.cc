@@ -40,11 +40,7 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = A0;
 
 // We need extra temporary/scratch registers (in addition to AT) in some cases.
-static constexpr Register TMP = T8;
 static constexpr FRegister FTMP = F8;
-
-// ART Thread Register.
-static constexpr Register TR = S1;
 
 Location MipsReturnLocation(Primitive::Type return_type) {
   switch (return_type) {
