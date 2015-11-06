@@ -447,7 +447,7 @@ void Arm64Mir2Lir::GenSpecialExitForSuspend() {
 
 static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
   // Emit relative calls anywhere in the image or within a dex file otherwise.
-  return cu->compiler_driver->IsImage() || cu->dex_file == target_method.dex_file;
+  return cu->compiler_driver->IsBootImage() || cu->dex_file == target_method.dex_file;
 }
 
 /*

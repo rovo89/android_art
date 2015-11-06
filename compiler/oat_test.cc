@@ -131,6 +131,7 @@ class OatTest : public CommonCompilerTest {
                          0,
                          compiler_driver_.get(),
                          nullptr,
+                         /*compiling_boot_image*/false,
                          &timings,
                          &key_value_store);
     return compiler_driver_->WriteElf(GetTestAndroidRoot(),

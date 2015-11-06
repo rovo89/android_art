@@ -65,10 +65,12 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      int32_t image_patch_delta,
                      const CompilerDriver* compiler,
                      ImageWriter* image_writer,
+                     bool compiling_boot_image,
                      TimingLogger* timings,
                      SafeMap<std::string, std::string>* key_value_store)
   : compiler_driver_(compiler),
     image_writer_(image_writer),
+    compiling_boot_image_(compiling_boot_image),
     dex_files_(&dex_files),
     size_(0u),
     bss_size_(0u),
@@ -113,7 +115,9 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_lookup_table_(0),
     method_offset_map_() {
   CHECK(key_value_store != nullptr);
-
+  if (compiling_boot_image) {
+    CHECK(image_writer != nullptr);
+  }
   InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
   const InstructionSetFeatures* features = compiler_driver_->GetInstructionSetFeatures();
   relative_patcher_ = linker::RelativePatcher::Create(instruction_set, features,
@@ -154,7 +158,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   }
   size_ = offset;
 
-  if (!HasImage()) {
+  if (!HasBootImage()) {
     // Allocate space for app dex cache arrays in the .bss section.
     size_t bss_start = RoundUp(size_, kPageSize);
     size_t pointer_size = GetInstructionSetPointerSize(instruction_set);
@@ -167,9 +171,10 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   }
 
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());
-  CHECK_EQ(compiler->IsImage(), image_writer_ != nullptr);
-  CHECK_EQ(compiler->IsImage(),
-           key_value_store_->find(OatHeader::kImageLocationKey) == key_value_store_->end());
+  if (compiling_boot_image_) {
+    CHECK_EQ(image_writer_ != nullptr,
+             key_value_store_->find(OatHeader::kImageLocationKey) == key_value_store_->end());
+  }
   CHECK_ALIGNED(image_patch_delta_, kPageSize);
 }
 
@@ -672,7 +677,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       class_linker_(Runtime::Current()->GetClassLinker()),
       dex_cache_(nullptr) {
     patched_code_.reserve(16 * KB);
-    if (writer_->HasImage()) {
+    if (writer_->HasBootImage()) {
       // If we're creating the image, the address space must be ready so that we can apply patches.
       CHECK(writer_->image_writer_->IsImageAddressSpaceReady());
     }
@@ -855,7 +860,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   uint32_t GetDexCacheOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (writer_->HasImage()) {
+    if (writer_->HasBootImage()) {
       auto* element = writer_->image_writer_->GetDexCacheArrayElementImageAddress<const uint8_t*>(
               patch.TargetDexCacheDexFile(), patch.TargetDexCacheElementOffset());
       const uint8_t* oat_data = writer_->image_writer_->GetOatFileBegin() + file_offset_;
@@ -868,7 +873,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
   void PatchObjectAddress(std::vector<uint8_t>* code, uint32_t offset, mirror::Object* object)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (writer_->HasImage()) {
+    if (writer_->HasBootImage()) {
       object = writer_->image_writer_->GetImageAddress(object);
     } else {
       // NOTE: We're using linker patches for app->boot references when the image can
@@ -888,7 +893,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
   void PatchMethodAddress(std::vector<uint8_t>* code, uint32_t offset, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (writer_->HasImage()) {
+    if (writer_->HasBootImage()) {
       method = writer_->image_writer_->GetImageMethodAddress(method);
     } else if (kIsDebugBuild) {
       // NOTE: We're using linker patches for app->boot references when the image can
@@ -911,7 +916,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   void PatchCodeAddress(std::vector<uint8_t>* code, uint32_t offset, uint32_t target_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     uint32_t address = target_offset;
-    if (writer_->HasImage()) {
+    if (writer_->HasBootImage()) {
       address = PointerToLowMemUInt32(writer_->image_writer_->GetOatFileBegin() +
                                       writer_->oat_data_offset_ + target_offset);
     }
@@ -1123,7 +1128,7 @@ size_t OatWriter::InitOatCode(size_t offset) {
   offset = RoundUp(offset, kPageSize);
   oat_header_->SetExecutableOffset(offset);
   size_executable_offset_alignment_ = offset - old_offset;
-  if (compiler_driver_->IsImage()) {
+  if (compiler_driver_->IsBootImage()) {
     CHECK_EQ(image_patch_delta_, 0);
     InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
 
@@ -1164,7 +1169,7 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
     } while (false)
 
   VISIT(InitCodeMethodVisitor);
-  if (compiler_driver_->IsImage()) {
+  if (compiler_driver_->IsBootImage()) {
     VISIT(InitImageMethodVisitor);
   }
 
@@ -1408,7 +1413,7 @@ size_t OatWriter::WriteMaps(OutputStream* out, const size_t file_offset, size_t 
 }
 
 size_t OatWriter::WriteCode(OutputStream* out, const size_t file_offset, size_t relative_offset) {
-  if (compiler_driver_->IsImage()) {
+  if (compiler_driver_->IsBootImage()) {
     InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
 
     #define DO_TRAMPOLINE(field) \
