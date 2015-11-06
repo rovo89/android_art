@@ -2150,8 +2150,6 @@ void ClassLinker::LoadClassMembers(Thread* self,
         last_field_idx = field_idx;
       }
     }
-    klass->SetSFieldsPtr(sfields);
-    DCHECK_EQ(klass->NumStaticFields(), num_sfields);
     // Load instance fields.
     LengthPrefixedArray<ArtField>* ifields = AllocArtFieldArray(self,
                                                                 allocator,
@@ -2173,8 +2171,17 @@ void ClassLinker::LoadClassMembers(Thread* self,
       LOG(WARNING) << "Duplicate fields in class " << PrettyDescriptor(klass.Get())
           << " (unique static fields: " << num_sfields << "/" << it.NumStaticFields()
           << ", unique instance fields: " << num_ifields << "/" << it.NumInstanceFields() << ")";
-      // NOTE: Not shrinking the over-allocated sfields/ifields.
+      // NOTE: Not shrinking the over-allocated sfields/ifields, just setting size.
+      if (sfields != nullptr) {
+        sfields->SetSize(num_sfields);
+      }
+      if (ifields != nullptr) {
+        ifields->SetSize(num_ifields);
+      }
     }
+    // Set the field arrays.
+    klass->SetSFieldsPtr(sfields);
+    DCHECK_EQ(klass->NumStaticFields(), num_sfields);
     klass->SetIFieldsPtr(ifields);
     DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
     // Load methods.
