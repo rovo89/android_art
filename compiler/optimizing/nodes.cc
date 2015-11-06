@@ -17,6 +17,7 @@
 #include "nodes.h"
 
 #include "code_generator.h"
+#include "common_dominator.h"
 #include "ssa_builder.h"
 #include "base/bit_vector-inl.h"
 #include "base/bit_utils.h"
@@ -179,7 +180,10 @@ void HGraph::ComputeDominanceInformation() {
       if (successor->GetDominator() == nullptr) {
         successor->SetDominator(current);
       } else {
-        successor->SetDominator(FindCommonDominator(successor->GetDominator(), current));
+        // The CommonDominator can work for multiple blocks as long as the
+        // domination information doesn't change. However, since we're changing
+        // that information here, we can use the finder only for pairs of blocks.
+        successor->SetDominator(CommonDominator::ForPair(successor->GetDominator(), current));
       }
 
       // Once all the forward edges have been visited, we know the immediate
@@ -192,24 +196,6 @@ void HGraph::ComputeDominanceInformation() {
       }
     }
   }
-}
-
-HBasicBlock* HGraph::FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const {
-  ArenaBitVector visited(arena_, blocks_.size(), false);
-  // Walk the dominator tree of the first block and mark the visited blocks.
-  while (first != nullptr) {
-    visited.SetBit(first->GetBlockId());
-    first = first->GetDominator();
-  }
-  // Walk the dominator tree of the second block until a marked block is found.
-  while (second != nullptr) {
-    if (visited.IsBitSet(second->GetBlockId())) {
-      return second;
-    }
-    second = second->GetDominator();
-  }
-  LOG(ERROR) << "Could not find common dominator";
-  return nullptr;
 }
 
 void HGraph::TransformToSsa() {
