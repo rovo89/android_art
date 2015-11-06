@@ -359,18 +359,10 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
           // need a strategy for splitting exceptional edges. We split the block
           // after the move-exception (if present) and mark the first part not
           // throwing. The normal-flow edge between them will be split later.
-          HInstruction* first_insn = block->GetFirstInstruction();
-          if (first_insn->IsLoadException()) {
-            // Catch block starts with a LoadException. Split the block after
-            // the StoreLocal and ClearException which must come after the load.
-            DCHECK(first_insn->GetNext()->IsStoreLocal());
-            DCHECK(first_insn->GetNext()->GetNext()->IsClearException());
-            throwing_block = block->SplitBefore(first_insn->GetNext()->GetNext()->GetNext());
-          } else {
-            // Catch block does not load the exception. Split at the beginning
-            // to create an empty catch block.
-            throwing_block = block->SplitBefore(first_insn);
-          }
+          throwing_block = block->SplitCatchBlockAfterMoveException();
+          // Move-exception does not throw and the block has throwing insructions
+          // so it must have been possible to split it.
+          DCHECK(throwing_block != nullptr);
         }
 
         try_block_info.Put(throwing_block->GetBlockId(),
