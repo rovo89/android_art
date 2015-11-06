@@ -837,6 +837,15 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // blocks are consistent (for example ending with a control flow instruction).
   HBasicBlock* SplitAfter(HInstruction* cursor);
 
+  // Split catch block into two blocks after the original move-exception bytecode
+  // instruction, or at the beginning if not present. Returns the newly created,
+  // latter block, or nullptr if such block could not be created (must be dead
+  // in that case). Note that this method just updates raw block information,
+  // like predecessors, successors, dominators, and instruction list. It does not
+  // update the graph, reverse post order, loop information, nor make sure the
+  // blocks are consistent (for example ending with a control flow instruction).
+  HBasicBlock* SplitCatchBlockAfterMoveException();
+
   // Merge `other` at the end of `this`. Successors and dominated blocks of
   // `other` are changed to be successors and dominated blocks of `this`. Note
   // that this method does not update the graph, reverse post order, loop
