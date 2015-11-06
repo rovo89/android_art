@@ -22,11 +22,15 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 
-class OverviewHandler extends AhatHandler {
+class OverviewHandler implements AhatHandler {
+
+  private static final String OVERVIEW_ID = "overview";
+
+  private AhatSnapshot mSnapshot;
   private File mHprof;
 
   public OverviewHandler(AhatSnapshot snapshot, File hprof) {
-    super(snapshot);
+    mSnapshot = snapshot;
     mHprof = hprof;
   }
 
@@ -43,7 +47,7 @@ class OverviewHandler extends AhatHandler {
     doc.end();
 
     doc.section("Heap Sizes");
-    printHeapSizes(doc);
+    printHeapSizes(doc, query);
 
     DocString menu = new DocString();
     menu.appendLink(DocString.uri("roots"), DocString.text("Roots"));
@@ -54,7 +58,7 @@ class OverviewHandler extends AhatHandler {
     doc.big(menu);
   }
 
-  private void printHeapSizes(Doc doc) {
+  private void printHeapSizes(Doc doc, Query query) {
     List<Object> dummy = Collections.singletonList(null);
 
     HeapTable.TableConfig<Object> table = new HeapTable.TableConfig<Object>() {
@@ -70,7 +74,7 @@ class OverviewHandler extends AhatHandler {
         return Collections.emptyList();
       }
     };
-    HeapTable.render(doc, table, mSnapshot, dummy);
+    HeapTable.render(doc, query, OVERVIEW_ID, table, mSnapshot, dummy);
   }
 }
 

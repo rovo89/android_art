@@ -16,51 +16,17 @@
 
 package com.android.ahat;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
-import java.io.PrintStream;
 
 /**
  * AhatHandler.
  *
- * Common base class of all the ahat HttpHandlers.
+ * Interface for an ahat page handler.
  */
-abstract class AhatHandler implements HttpHandler {
+interface AhatHandler {
 
-  protected AhatSnapshot mSnapshot;
-
-  public AhatHandler(AhatSnapshot snapshot) {
-    mSnapshot = snapshot;
-  }
-
-  public abstract void handle(Doc doc, Query query) throws IOException;
-
-  @Override
-  public void handle(HttpExchange exchange) throws IOException {
-    exchange.getResponseHeaders().add("Content-Type", "text/html;charset=utf-8");
-    exchange.sendResponseHeaders(200, 0);
-    PrintStream ps = new PrintStream(exchange.getResponseBody());
-    try {
-      HtmlDoc doc = new HtmlDoc(ps, DocString.text("ahat"), DocString.uri("style.css"));
-      DocString menu = new DocString();
-      menu.appendLink(DocString.uri("/"), DocString.text("overview"));
-      menu.append(" - ");
-      menu.appendLink(DocString.uri("roots"), DocString.text("roots"));
-      menu.append(" - ");
-      menu.appendLink(DocString.uri("sites"), DocString.text("allocations"));
-      menu.append(" - ");
-      menu.appendLink(DocString.uri("help"), DocString.text("help"));
-      doc.menu(menu);
-      handle(doc, new Query(exchange.getRequestURI()));
-      doc.close();
-    } catch (RuntimeException e) {
-      // Print runtime exceptions to standard error for debugging purposes,
-      // because otherwise they are swallowed and not reported.
-      System.err.println("Exception when handling " + exchange.getRequestURI() + ": ");
-      e.printStackTrace();
-      throw e;
-    }
-    ps.close();
-  }
+  /**
+   * Handle the given query, rendering the page to the given document.
+   */
+  void handle(Doc doc, Query query) throws IOException;
 }
