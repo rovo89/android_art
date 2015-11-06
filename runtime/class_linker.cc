@@ -153,7 +153,7 @@ static void HandleEarlierVerifyError(Thread* self, ClassLinker* class_linker, mi
   self->AssertPendingException();
 }
 
-void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
+void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c, bool wrap_in_no_class_def) {
   // The class failed to initialize on a previous attempt, so we want to throw
   // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
   // failed in verification, in which case v2 5.4.1 says we need to re-throw
@@ -178,10 +178,15 @@ void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
     self->SetException(pre_allocated);
   } else {
     if (c->GetVerifyError() != nullptr) {
+      // Rethrow stored error.
       HandleEarlierVerifyError(self, this, c);
-    } else {
-      self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
-                              PrettyDescriptor(c).c_str());
+    }
+    if (c->GetVerifyError() == nullptr || wrap_in_no_class_def) {
+      // If there isn't a recorded earlier error, or this is a repeat throw from initialization,
+      // the top-level exception must be a NoClassDefFoundError. The potentially already pending
+      // exception will be a cause.
+      self->ThrowNewWrappedException("Ljava/lang/NoClassDefFoundError;",
+                                     PrettyDescriptor(c).c_str());
     }
   }
 }
@@ -3430,7 +3435,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
 
     // Was the class already found to be erroneous? Done under the lock to match the JLS.
     if (klass->IsErroneous()) {
-      ThrowEarlierClassFailure(klass.Get());
+      ThrowEarlierClassFailure(klass.Get(), true);
       VlogClassInitializationFailure(klass);
       return false;
     }
