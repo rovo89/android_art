@@ -242,10 +242,11 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     }
     size_t use_index = use_it.Current()->GetIndex();
     if ((use_index >= use->InputCount()) || (use->InputAt(use_index) != instruction)) {
-      AddError(StringPrintf("User %s:%d of instruction %d has a wrong "
+      AddError(StringPrintf("User %s:%d of instruction %s:%d has a wrong "
                             "UseListNode index.",
                             use->DebugName(),
                             use->GetId(),
+                            instruction->DebugName(),
                             instruction->GetId()));
     }
   }
@@ -531,10 +532,14 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
        !use_it.Done(); use_it.Advance()) {
     HInstruction* use = use_it.Current()->GetUser();
     if (!use->IsPhi() && !instruction->StrictlyDominates(use)) {
-      AddError(StringPrintf("Instruction %d in block %d does not dominate "
-                            "use %d in block %d.",
-                            instruction->GetId(), current_block_->GetBlockId(),
-                            use->GetId(), use->GetBlock()->GetBlockId()));
+      AddError(StringPrintf("Instruction %s:%d in block %d does not dominate "
+                            "use %s:%d in block %d.",
+                            instruction->DebugName(),
+                            instruction->GetId(),
+                            current_block_->GetBlockId(),
+                            use->DebugName(),
+                            use->GetId(),
+                            use->GetBlock()->GetBlockId()));
     }
   }
 

@@ -3399,11 +3399,12 @@ class HInvokeStaticOrDirect : public HInvoke {
                         ClinitCheckRequirement clinit_check_requirement)
       : HInvoke(arena,
                 number_of_arguments,
-                // There is one extra argument for the HCurrentMethod node, and
-                // potentially one other if the clinit check is explicit, and one other
-                // if the method is a string factory.
-                1u + (clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u)
-                   + (dispatch_info.method_load_kind == MethodLoadKind::kStringInit ? 1u : 0u),
+                // There is potentially one extra argument for the HCurrentMethod node, and
+                // potentially one other if the clinit check is explicit, and potentially
+                // one other if the method is a string factory.
+                (NeedsCurrentMethodInput(dispatch_info.method_load_kind) ? 1u : 0u) +
+                    (clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u) +
+                    (dispatch_info.method_load_kind == MethodLoadKind::kStringInit ? 1u : 0u),
                 return_type,
                 dex_pc,
                 method_index,
@@ -3411,11 +3412,24 @@ class HInvokeStaticOrDirect : public HInvoke {
         invoke_type_(invoke_type),
         clinit_check_requirement_(clinit_check_requirement),
         target_method_(target_method),
-        dispatch_info_(dispatch_info) {}
+        dispatch_info_(dispatch_info) { }
 
   void SetDispatchInfo(const DispatchInfo& dispatch_info) {
+    bool had_current_method_input = HasCurrentMethodInput();
+    bool needs_current_method_input = NeedsCurrentMethodInput(dispatch_info.method_load_kind);
+
+    // Using the current method is the default and once we find a better
+    // method load kind, we should not go back to using the current method.
+    DCHECK(had_current_method_input || !needs_current_method_input);
+
+    if (had_current_method_input && !needs_current_method_input) {
+      DCHECK_EQ(InputAt(GetCurrentMethodInputIndex()), GetBlock()->GetGraph()->GetCurrentMethod());
+      RemoveInputAt(GetCurrentMethodInputIndex());
+    }
     dispatch_info_ = dispatch_info;
   }
+
+  void RemoveInputAt(size_t index);
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const OVERRIDE {
     // We access the method via the dex cache so we can't do an implicit null check.
@@ -3437,6 +3451,17 @@ class HInvokeStaticOrDirect : public HInvoke {
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
   bool HasPcRelDexCache() const {
     return GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
+  }
+  bool HasCurrentMethodInput() const {
+    // This function can be called only after the invoke has been fully initialized by the builder.
+    if (NeedsCurrentMethodInput(GetMethodLoadKind())) {
+      DCHECK(InputAt(GetCurrentMethodInputIndex())->IsCurrentMethod());
+      return true;
+    } else {
+      DCHECK(InputCount() == GetCurrentMethodInputIndex() ||
+             !InputAt(GetCurrentMethodInputIndex())->IsCurrentMethod());
+      return false;
+    }
   }
   bool HasDirectCodePtr() const { return GetCodePtrLocation() == CodePtrLocation::kCallDirect; }
   MethodReference GetTargetMethod() const { return target_method_; }
@@ -3486,8 +3511,8 @@ class HInvokeStaticOrDirect : public HInvoke {
 
   bool IsStringFactoryFor(HFakeString* str) const {
     if (!IsStringInit()) return false;
-    // +1 for the current method.
-    if (InputCount() == (number_of_arguments_ + 1)) return false;
+    DCHECK(!HasCurrentMethodInput());
+    if (InputCount() == (number_of_arguments_)) return false;
     return InputAt(InputCount() - 1)->AsFakeString() == str;
   }
 
@@ -3511,6 +3536,11 @@ class HInvokeStaticOrDirect : public HInvoke {
   // implicit intialization check requirement?
   bool IsStaticWithImplicitClinitCheck() const {
     return IsStatic() && (clinit_check_requirement_ == ClinitCheckRequirement::kImplicit);
+  }
+
+  // Does this method load kind need the current method as an input?
+  static bool NeedsCurrentMethodInput(MethodLoadKind kind) {
+    return kind == MethodLoadKind::kRecursive || kind == MethodLoadKind::kDexCacheViaMethod;
   }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
