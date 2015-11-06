@@ -188,6 +188,21 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
   VisitInstruction(try_boundary);
 }
 
+void GraphChecker::VisitLoadException(HLoadException* load) {
+  // Ensure that LoadException is the first instruction in a catch block.
+  if (!load->GetBlock()->IsCatchBlock()) {
+    AddError(StringPrintf("%s:%d is in a non-catch block %d.",
+                          load->DebugName(),
+                          load->GetId(),
+                          load->GetBlock()->GetBlockId()));
+  } else if (load->GetBlock()->GetFirstInstruction() != load) {
+    AddError(StringPrintf("%s:%d is not the first instruction in catch block %d.",
+                          load->DebugName(),
+                          load->GetId(),
+                          load->GetBlock()->GetBlockId()));
+  }
+}
+
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
   if (seen_ids_.IsBitSet(instruction->GetId())) {
     AddError(StringPrintf("Instruction id %d is duplicate in graph.",
