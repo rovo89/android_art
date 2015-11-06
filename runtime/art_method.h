@@ -454,6 +454,9 @@ class ArtMethod FINAL {
   const OatQuickMethodHeader* GetOatQuickMethodHeader(uintptr_t pc)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Returns whether the method has any compiled code, JIT or AOT.
+  bool HasAnyCompiledCode() SHARED_REQUIRES(Locks::mutator_lock_);
+
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of.
