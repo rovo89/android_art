@@ -333,10 +333,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
       MethodReference target_method) OVERRIDE;
 
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
-  void GenerateVirtualCall(HInvokeVirtual* invoke ATTRIBUTE_UNUSED,
-                           Location temp ATTRIBUTE_UNUSED) OVERRIDE {
-    UNIMPLEMENTED(FATAL);
-  }
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
   void MoveFromReturnRegister(Location trg ATTRIBUTE_UNUSED,
                               Primitive::Type type ATTRIBUTE_UNUSED) OVERRIDE {

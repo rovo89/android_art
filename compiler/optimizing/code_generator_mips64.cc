@@ -2659,14 +2659,10 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
-void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
-    return;
-  }
-
+void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_location) {
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
-  GpuRegister temp = invoke->GetLocations()->GetTemp(0).AsRegister<GpuRegister>();
+  GpuRegister temp = temp_location.AsRegister<GpuRegister>();
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kMips64PointerSize).SizeValue();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
@@ -2675,13 +2671,21 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
   // temp = object->GetClass();
   DCHECK(receiver.IsRegister());
   __ LoadFromOffset(kLoadUnsignedWord, temp, receiver.AsRegister<GpuRegister>(), class_offset);
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   __ LoadFromOffset(kLoadDoubleword, temp, temp, method_offset);
   // T9 = temp->GetEntryPoint();
   __ LoadFromOffset(kLoadDoubleword, T9, temp, entry_point.Int32Value());
   // T9();
   __ Jalr(T9);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }

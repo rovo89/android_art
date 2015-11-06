@@ -101,11 +101,10 @@ class IntrinsicSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
                                           Location::RegisterLocation(A0));
-      codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
     } else {
-      UNIMPLEMENTED(FATAL) << "Non-direct intrinsic slow-path not yet implemented";
-      UNREACHABLE();
+      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), Location::RegisterLocation(A0));
     }
+    codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
 
     // Copy the result back to the expected output.
     Location out = invoke_->GetLocations()->Out();
