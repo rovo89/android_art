@@ -9,7 +9,9 @@ Caused by: java.lang.NullPointerException: first throw
 	... 2 more
 Static Init
 BadError: This is bad by convention: BadInit
+java.lang.NoClassDefFoundError: BadInit
 BadError: This is bad by convention: BadInit
 Static BadInitNoStringInit
 BadErrorNoStringInit: This is bad by convention
+java.lang.NoClassDefFoundError: BadInitNoStringInit
 BadErrorNoStringInit: This is bad by convention
