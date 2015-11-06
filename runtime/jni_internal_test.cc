@@ -1077,6 +1077,12 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   env_->set_region_fn(a, size - 1, size, nullptr); \
   ExpectException(aioobe_); \
   \
+  /* Regression test against integer overflow in range check. */ \
+  env_->get_region_fn(a, 0x7fffffff, 0x7fffffff, nullptr); \
+  ExpectException(aioobe_); \
+  env_->set_region_fn(a, 0x7fffffff, 0x7fffffff, nullptr); \
+  ExpectException(aioobe_); \
+  \
   /* It's okay for the buffer to be null as long as the length is 0. */ \
   env_->get_region_fn(a, 2, 0, nullptr); \
   /* Even if the offset is invalid... */ \
@@ -1507,6 +1513,9 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   ExpectException(sioobe_);
   env_->GetStringRegion(s, 10, 1, nullptr);
   ExpectException(sioobe_);
+  // Regression test against integer overflow in range check.
+  env_->GetStringRegion(s, 0x7fffffff, 0x7fffffff, nullptr);
+  ExpectException(sioobe_);
 
   jchar chars[4] = { 'x', 'x', 'x', 'x' };
   env_->GetStringRegion(s, 1, 2, &chars[1]);
@@ -1528,6 +1537,9 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   env_->GetStringUTFRegion(s, 0, 10, nullptr);
   ExpectException(sioobe_);
   env_->GetStringUTFRegion(s, 10, 1, nullptr);
+  ExpectException(sioobe_);
+  // Regression test against integer overflow in range check.
+  env_->GetStringUTFRegion(s, 0x7fffffff, 0x7fffffff, nullptr);
   ExpectException(sioobe_);
 
   char bytes[4] = { 'x', 'x', 'x', 'x' };
