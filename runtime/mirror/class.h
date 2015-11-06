@@ -522,8 +522,8 @@ class MANAGED Class FINAL : public Object {
   // The size of java.lang.Class.class.
   static uint32_t ClassClassSize(size_t pointer_size) {
     // The number of vtable entries in java.lang.Class.
-    uint32_t vtable_entries = Object::kVTableLength + 68;
-    return ComputeClassSize(true, vtable_entries, 0, 0, 3, 1, 0, pointer_size);
+    uint32_t vtable_entries = Object::kVTableLength + 69;
+    return ComputeClassSize(true, vtable_entries, 0, 0, 4, 1, 0, pointer_size);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
