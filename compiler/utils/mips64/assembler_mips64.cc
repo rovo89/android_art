@@ -840,45 +840,58 @@ void Mips64Assembler::LoadConst64(GpuRegister rd, int64_t value) {
   } else if ((value & 0xFFFF) == 0 && ((value >> 31) & 0x1FFFF) == ((0x20000 - bit31) & 0x1FFFF)) {
     Lui(rd, value >> 16);
     Dati(rd, (value >> 48) + bit31);
+  } else if (IsPowerOfTwo(value + UINT64_C(1))) {
+    int shift_cnt = 64 - CTZ(value + UINT64_C(1));
+    Daddiu(rd, ZERO, -1);
+    if (shift_cnt < 32) {
+      Dsrl(rd, rd, shift_cnt);
+    } else {
+      Dsrl32(rd, rd, shift_cnt & 31);
+    }
   } else {
     int shift_cnt = CTZ(value);
     int64_t tmp = value >> shift_cnt;
     if (IsUint<16>(tmp)) {
       Ori(rd, ZERO, tmp);
-      if (shift_cnt < 32)
+      if (shift_cnt < 32) {
         Dsll(rd, rd, shift_cnt);
-      else
+      } else {
         Dsll32(rd, rd, shift_cnt & 31);
+      }
     } else if (IsInt<16>(tmp)) {
       Daddiu(rd, ZERO, tmp);
-      if (shift_cnt < 32)
+      if (shift_cnt < 32) {
         Dsll(rd, rd, shift_cnt);
-      else
+      } else {
         Dsll32(rd, rd, shift_cnt & 31);
+      }
     } else if (IsInt<32>(tmp)) {
       // Loads with 3 instructions.
       Lui(rd, tmp >> 16);
       Ori(rd, rd, tmp);
-      if (shift_cnt < 32)
+      if (shift_cnt < 32) {
         Dsll(rd, rd, shift_cnt);
-      else
+      } else {
         Dsll32(rd, rd, shift_cnt & 31);
+      }
     } else {
       shift_cnt = 16 + CTZ(value >> 16);
       tmp = value >> shift_cnt;
       if (IsUint<16>(tmp)) {
         Ori(rd, ZERO, tmp);
-        if (shift_cnt < 32)
+        if (shift_cnt < 32) {
           Dsll(rd, rd, shift_cnt);
-        else
+        } else {
           Dsll32(rd, rd, shift_cnt & 31);
+        }
         Ori(rd, rd, value);
       } else if (IsInt<16>(tmp)) {
         Daddiu(rd, ZERO, tmp);
-        if (shift_cnt < 32)
+        if (shift_cnt < 32) {
           Dsll(rd, rd, shift_cnt);
-        else
+        } else {
           Dsll32(rd, rd, shift_cnt & 31);
+        }
         Ori(rd, rd, value);
       } else {
         // Loads with 3-4 instructions.
@@ -889,10 +902,11 @@ void Mips64Assembler::LoadConst64(GpuRegister rd, int64_t value) {
           used_lui = true;
         }
         if ((tmp2 & 0xFFFF) != 0) {
-          if (used_lui)
+          if (used_lui) {
             Ori(rd, rd, tmp2);
-          else
+          } else {
             Ori(rd, ZERO, tmp2);
+          }
         }
         if (bit31) {
           tmp2 += UINT64_C(0x100000000);
