@@ -666,9 +666,19 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
         gpr = destination.AsRegister<GpuRegister>();
       }
       if (dst_type == Primitive::kPrimInt || dst_type == Primitive::kPrimFloat) {
-        __ LoadConst32(gpr, GetInt32ValueOf(source.GetConstant()->AsConstant()));
+        int32_t value = GetInt32ValueOf(source.GetConstant()->AsConstant());
+        if (Primitive::IsFloatingPointType(dst_type) && value == 0) {
+          gpr = ZERO;
+        } else {
+          __ LoadConst32(gpr, value);
+        }
       } else {
-        __ LoadConst64(gpr, GetInt64ValueOf(source.GetConstant()->AsConstant()));
+        int64_t value = GetInt64ValueOf(source.GetConstant()->AsConstant());
+        if (Primitive::IsFloatingPointType(dst_type) && value == 0) {
+          gpr = ZERO;
+        } else {
+          __ LoadConst64(gpr, value);
+        }
       }
       if (dst_type == Primitive::kPrimFloat) {
         __ Mtc1(gpr, destination.AsFpuRegister<FpuRegister>());
@@ -734,12 +744,22 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
       // Move to stack from constant
       HConstant* src_cst = source.GetConstant();
       StoreOperandType store_type = destination.IsStackSlot() ? kStoreWord : kStoreDoubleword;
+      GpuRegister gpr = ZERO;
       if (destination.IsStackSlot()) {
-        __ LoadConst32(TMP, GetInt32ValueOf(src_cst->AsConstant()));
+        int32_t value = GetInt32ValueOf(src_cst->AsConstant());
+        if (value != 0) {
+          gpr = TMP;
+          __ LoadConst32(gpr, value);
+        }
       } else {
-        __ LoadConst64(TMP, GetInt64ValueOf(src_cst->AsConstant()));
+        DCHECK(destination.IsDoubleStackSlot());
+        int64_t value = GetInt64ValueOf(src_cst->AsConstant());
+        if (value != 0) {
+          gpr = TMP;
+          __ LoadConst64(gpr, value);
+        }
       }
-      __ StoreToOffset(store_type, TMP, SP, destination.GetStackIndex());
+      __ StoreToOffset(store_type, gpr, SP, destination.GetStackIndex());
     } else {
       DCHECK(source.IsStackSlot() || source.IsDoubleStackSlot());
       DCHECK_EQ(source.IsDoubleStackSlot(), destination.IsDoubleStackSlot());
@@ -755,9 +775,7 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
   }
 }
 
-void CodeGeneratorMIPS64::SwapLocations(Location loc1,
-                                        Location loc2,
-                                        Primitive::Type type ATTRIBUTE_UNUSED) {
+void CodeGeneratorMIPS64::SwapLocations(Location loc1, Location loc2, Primitive::Type type) {
   DCHECK(!loc1.IsConstant());
   DCHECK(!loc2.IsConstant());
 
@@ -781,12 +799,16 @@ void CodeGeneratorMIPS64::SwapLocations(Location loc1,
     // Swap 2 FPRs
     FpuRegister r1 = loc1.AsFpuRegister<FpuRegister>();
     FpuRegister r2 = loc2.AsFpuRegister<FpuRegister>();
-    // TODO: Can MOV.S/MOV.D be used here to save one instruction?
-    // Need to distinguish float from double, right?
-    __ Dmfc1(TMP, r2);
-    __ Dmfc1(AT, r1);
-    __ Dmtc1(TMP, r1);
-    __ Dmtc1(AT, r2);
+    if (type == Primitive::kPrimFloat) {
+      __ MovS(FTMP, r1);
+      __ MovS(r1, r2);
+      __ MovS(r2, FTMP);
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimDouble);
+      __ MovD(FTMP, r1);
+      __ MovD(r1, r2);
+      __ MovD(r2, FTMP);
+    }
   } else if (is_slot1 != is_slot2) {
     // Swap GPR/FPR and stack slot
     Location reg_loc = is_slot1 ? loc2 : loc1;
@@ -800,7 +822,6 @@ void CodeGeneratorMIPS64::SwapLocations(Location loc1,
                           reg_loc.AsFpuRegister<FpuRegister>(),
                           SP,
                           mem_loc.GetStackIndex());
-      // TODO: review this MTC1/DMTC1 move
       if (mem_loc.IsStackSlot()) {
         __ Mtc1(TMP, reg_loc.AsFpuRegister<FpuRegister>());
       } else {
@@ -845,12 +866,22 @@ void CodeGeneratorMIPS64::Move(HInstruction* instruction,
     } else {
       DCHECK(location.IsStackSlot() || location.IsDoubleStackSlot());
       // Move to stack from constant
+      GpuRegister gpr = ZERO;
       if (location.IsStackSlot()) {
-        __ LoadConst32(TMP, GetInt32ValueOf(instruction->AsConstant()));
-        __ StoreToOffset(kStoreWord, TMP, SP, location.GetStackIndex());
+        int32_t value = GetInt32ValueOf(instruction->AsConstant());
+        if (value != 0) {
+          gpr = TMP;
+          __ LoadConst32(gpr, value);
+        }
+        __ StoreToOffset(kStoreWord, gpr, SP, location.GetStackIndex());
       } else {
-        __ LoadConst64(TMP, instruction->AsLongConstant()->GetValue());
-        __ StoreToOffset(kStoreDoubleword, TMP, SP, location.GetStackIndex());
+        DCHECK(location.IsDoubleStackSlot());
+        int64_t value = instruction->AsLongConstant()->GetValue();
+        if (value != 0) {
+          gpr = TMP;
+          __ LoadConst64(gpr, value);
+        }
+        __ StoreToOffset(kStoreDoubleword, gpr, SP, location.GetStackIndex());
       }
     }
   } else if (instruction->IsTemporary()) {
@@ -1198,7 +1229,7 @@ void LocationsBuilderMIPS64::HandleShift(HBinaryOperation* instr) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(instr->InputAt(1)));
-      locations->SetOut(Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
     default:
@@ -1707,7 +1738,7 @@ void LocationsBuilderMIPS64::VisitCompare(HCompare* compare) {
   switch (in_type) {
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(compare->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -1736,8 +1767,18 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
     case Primitive::kPrimLong: {
       GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
       GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
-      GpuRegister rhs = locations->InAt(1).AsRegister<GpuRegister>();
-      // TODO: more efficient (direct) comparison with a constant
+      Location rhs_location = locations->InAt(1);
+      bool use_imm = rhs_location.IsConstant();
+      GpuRegister rhs = ZERO;
+      if (use_imm) {
+        int64_t value = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()->AsConstant());
+        if (value != 0) {
+          rhs = AT;
+          __ LoadConst64(rhs, value);
+        }
+      } else {
+        rhs = rhs_location.AsRegister<GpuRegister>();
+      }
       __ Slt(TMP, lhs, rhs);
       __ Slt(dst, rhs, lhs);
       __ Subu(dst, dst, TMP);
