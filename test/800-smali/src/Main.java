@@ -137,6 +137,8 @@ public class Main {
                 new Object[] { new Object() }, null, null));
         testCases.add(new TestCase("b/23502994 (check-cast)", "B23502994", "runCHECKCAST",
                 new Object[] { "abc" }, null, null));
+        testCases.add(new TestCase("b/25494456", "B25494456", "run", null, new VerifyError(),
+                null));
     }
 
     public void runTests() {
