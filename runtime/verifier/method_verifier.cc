@@ -2045,6 +2045,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           } else if (reg_type.IsUninitializedTypes()) {
             Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "returning uninitialized object '"
                                               << reg_type << "'";
+          } else if (!reg_type.IsReferenceTypes()) {
+            // We really do expect a reference here.
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-object returns a non-reference type "
+                                              << reg_type;
           } else if (!return_type.IsAssignableFrom(reg_type)) {
             if (reg_type.IsUnresolvedTypes() || return_type.IsUnresolvedTypes()) {
               Fail(VERIFY_ERROR_NO_CLASS) << " can't resolve returned type '" << return_type
