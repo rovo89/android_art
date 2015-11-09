@@ -440,7 +440,6 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
               << ", data=" << PrettySize(DataCacheSize());
   }
 
-  size_t map_size = 0;
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
 
   // Wait for an existing collection, or let everyone know we are starting one.
@@ -457,7 +456,6 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   // methods to interpreter.
   {
     MutexLock mu(self, lock_);
-    map_size = method_code_map_.size();
     for (auto& it : method_code_map_) {
       instrumentation->UpdateMethodsCode(it.second, GetQuickToInterpreterBridge());
     }
