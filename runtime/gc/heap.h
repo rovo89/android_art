@@ -580,7 +580,17 @@ class Heap {
   void UnBindBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
 
   // Returns the boot image spaces. There may be multiple boot image spaces.
-  std::vector<space::ImageSpace*> GetBootImageSpaces() const;
+  const std::vector<space::ImageSpace*>& GetBootImageSpaces() const {
+    return boot_image_spaces_;
+  }
+
+  bool ObjectIsInBootImageSpace(mirror::Object* obj) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void GetBootImagesSize(uint32_t* boot_image_begin,
+                         uint32_t* boot_image_end,
+                         uint32_t* boot_oat_begin,
+                         uint32_t* boot_oat_end);
 
   // Permenantly disable moving garbage collection.
   void DisableMovingGc() REQUIRES(!*gc_complete_lock_);

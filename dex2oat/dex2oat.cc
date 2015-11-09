@@ -553,7 +553,7 @@ class Dex2Oat FINAL {
       dump_timing_(false),
       dump_slow_timing_(kIsDebugBuild),
       swap_fd_(-1),
-      app_image_fd_(kInvalidImageFd),
+      app_image_fd_(kInvalidFd),
       timings_(timings) {}
 
   ~Dex2Oat() {
@@ -1442,6 +1442,11 @@ class Dex2Oat FINAL {
     return true;
   }
 
+  // If we need to keep the oat file open for the image writer.
+  bool ShouldKeepOatFileOpen() const {
+    return IsImage() && oat_fd_ != kInvalidFd;
+  }
+
   // Create and invoke the compiler driver. This will compile all the dex files.
   void Compile() {
     TimingLogger::ScopedTiming t("dex2oat Compile", timings_);
@@ -1593,13 +1598,17 @@ class Dex2Oat FINAL {
 
     if (IsImage()) {
       if (app_image_ && image_base_ == 0) {
-        std::vector<gc::space::ImageSpace*> image_spaces =
-            Runtime::Current()->GetHeap()->GetBootImageSpaces();
-        for (gc::space::ImageSpace* image_space : image_spaces) {
+        gc::Heap* const heap = Runtime::Current()->GetHeap();
+        for (gc::space::ImageSpace* image_space : heap->GetBootImageSpaces()) {
           image_base_ = std::max(image_base_, RoundUp(
               reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatFileEnd()),
               kPageSize));
         }
+        // The non moving space is right after the oat file. Put the preferred app image location
+        // right after the non moving space so that we ideally get a continuous immune region for
+        // the GC.
+        const size_t non_moving_space_capacity = heap->GetNonMovingSpace()->Capacity();
+        image_base_ += non_moving_space_capacity;
         VLOG(compiler) << "App image base=" << reinterpret_cast<void*>(image_base_);
       }
 
@@ -2139,9 +2148,14 @@ class Dex2Oat FINAL {
       REQUIRES(!Locks::mutator_lock_) {
     CHECK(image_writer_ != nullptr);
     if (!IsBootImage()) {
+      CHECK(image_filenames_.empty());
       image_filenames_.push_back(app_image_file_name_.c_str());
     }
-    if (!image_writer_->Write(app_image_fd_, image_filenames_, oat_filenames_)) {
+    if (!image_writer_->Write(app_image_fd_,
+                              image_filenames_,
+                              oat_fd_,
+                              oat_filenames_,
+                              oat_location_)) {
       LOG(ERROR) << "Failure during image file creation";
       return false;
     }
@@ -2423,9 +2437,14 @@ static int CompileImage(Dex2Oat& dex2oat) {
     return EXIT_FAILURE;
   }
 
-  // Close the image oat files. We always expect the output file by name, and it will be
-  // re-opened from the unstripped name. Note: it's easier to *flush* and close...
-  if (!dex2oat.FlushCloseOatFiles()) {
+  // Flush boot.oat. We always expect the output file by name, and it will be re-opened from the
+  // unstripped name. Do not close the file if we are compiling the image with an oat fd since the
+  // image writer will require this fd to generate the image.
+  if (dex2oat.ShouldKeepOatFileOpen()) {
+    if (!dex2oat.FlushOatFiles()) {
+      return EXIT_FAILURE;
+    }
+  } else if (!dex2oat.FlushCloseOatFiles()) {
     return EXIT_FAILURE;
   }
 
