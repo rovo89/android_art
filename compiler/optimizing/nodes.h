@@ -350,8 +350,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   HCurrentMethod* GetCurrentMethod();
 
-  HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
-
   const DexFile& GetDexFile() const {
     return dex_file_;
   }
