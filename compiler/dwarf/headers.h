@@ -38,15 +38,14 @@ namespace dwarf {
 
 // Write common information entry (CIE) to .debug_frame or .eh_frame section.
 template<typename Vector>
-void WriteDebugFrameCIE(bool is64bit,
-                        ExceptionHeaderValueApplication address_type,
-                        Reg return_address_register,
-                        const DebugFrameOpCodeWriter<Vector>& opcodes,
-                        CFIFormat format,
-                        std::vector<uint8_t>* debug_frame) {
+void WriteCIE(bool is64bit,
+              Reg return_address_register,
+              const DebugFrameOpCodeWriter<Vector>& opcodes,
+              CFIFormat format,
+              std::vector<uint8_t>* buffer) {
   static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
 
-  Writer<> writer(debug_frame);
+  Writer<> writer(buffer);
   size_t cie_header_start_ = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
   writer.PushUint32((format == DW_EH_FRAME_FORMAT) ? 0 : 0xFFFFFFFF);  // CIE id.
@@ -57,17 +56,17 @@ void WriteDebugFrameCIE(bool is64bit,
   writer.PushUleb128(return_address_register.num());  // ubyte in DWARF2.
   writer.PushUleb128(1);  // z: Augmentation data size.
   if (is64bit) {
-    if (address_type == DW_EH_PE_pcrel) {
+    if (format == DW_EH_FRAME_FORMAT) {
       writer.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata8);   // R: Pointer encoding.
     } else {
-      DCHECK(address_type == DW_EH_PE_absptr);
+      DCHECK(format == DW_DEBUG_FRAME_FORMAT);
       writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata8);  // R: Pointer encoding.
     }
   } else {
-    if (address_type == DW_EH_PE_pcrel) {
+    if (format == DW_EH_FRAME_FORMAT) {
       writer.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);   // R: Pointer encoding.
     } else {
-      DCHECK(address_type == DW_EH_PE_absptr);
+      DCHECK(format == DW_DEBUG_FRAME_FORMAT);
       writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata4);  // R: Pointer encoding.
     }
   }
@@ -78,30 +77,44 @@ void WriteDebugFrameCIE(bool is64bit,
 
 // Write frame description entry (FDE) to .debug_frame or .eh_frame section.
 inline
-void WriteDebugFrameFDE(bool is64bit, size_t cie_offset,
-                        uint64_t initial_address, uint64_t address_range,
-                        const ArrayRef<const uint8_t>& opcodes,
-                        CFIFormat format,
-                        std::vector<uint8_t>* debug_frame,
-                        std::vector<uintptr_t>* debug_frame_patches) {
-  Writer<> writer(debug_frame);
+void WriteFDE(bool is64bit,
+              uint64_t section_address,  // Absolute address of the section.
+              uint64_t cie_address,  // Absolute address of last CIE.
+              uint64_t code_address,
+              uint64_t code_size,
+              const ArrayRef<const uint8_t>& opcodes,
+              CFIFormat format,
+              uint64_t buffer_address,  // Address of buffer in linked application.
+              std::vector<uint8_t>* buffer,
+              std::vector<uintptr_t>* patch_locations) {
+  CHECK_GE(cie_address, section_address);
+  CHECK_GE(buffer_address, section_address);
+
+  Writer<> writer(buffer);
   size_t fde_header_start = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
   if (format == DW_EH_FRAME_FORMAT) {
-    uint32_t cie_pointer = writer.data()->size() - cie_offset;
+    uint32_t cie_pointer = (buffer_address + buffer->size()) - cie_address;
     writer.PushUint32(cie_pointer);
   } else {
-    uint32_t cie_pointer = cie_offset;
+    DCHECK(format == DW_DEBUG_FRAME_FORMAT);
+    uint32_t cie_pointer = cie_address - section_address;
     writer.PushUint32(cie_pointer);
   }
-  // Relocate initial_address, but not address_range (it is size).
-  debug_frame_patches->push_back(writer.data()->size());
-  if (is64bit) {
-    writer.PushUint64(initial_address);
-    writer.PushUint64(address_range);
+  if (format == DW_EH_FRAME_FORMAT) {
+    // .eh_frame encodes the location as relative address.
+    code_address -= buffer_address + buffer->size();
   } else {
-    writer.PushUint32(initial_address);
-    writer.PushUint32(address_range);
+    DCHECK(format == DW_DEBUG_FRAME_FORMAT);
+    // Relocate code_address if it has absolute value.
+    patch_locations->push_back(buffer_address + buffer->size() - section_address);
+  }
+  if (is64bit) {
+    writer.PushUint64(code_address);
+    writer.PushUint64(code_size);
+  } else {
+    writer.PushUint32(code_address);
+    writer.PushUint32(code_size);
   }
   writer.PushUleb128(0);  // Augmentation data size.
   writer.PushData(opcodes);

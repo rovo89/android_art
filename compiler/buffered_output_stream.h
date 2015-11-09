@@ -36,10 +36,10 @@ class BufferedOutputStream FINAL : public OutputStream {
 
   virtual off_t Seek(off_t offset, Whence whence);
 
+  bool Flush();
+
  private:
   static const size_t kBufferSize = 8 * KB;
-
-  bool Flush();
 
   OutputStream* const out_;
 
