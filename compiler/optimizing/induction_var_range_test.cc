@@ -70,11 +70,14 @@ class InductionVarRangeTest : public testing::Test {
     graph_->AddBlock(loop_header);
     HBasicBlock* loop_body = new (&allocator_) HBasicBlock(graph_);
     graph_->AddBlock(loop_body);
+    HBasicBlock* return_block = new (&allocator_) HBasicBlock(graph_);
+    graph_->AddBlock(return_block);
     entry_block_->AddSuccessor(loop_preheader_);
     loop_preheader_->AddSuccessor(loop_header);
     loop_header->AddSuccessor(loop_body);
-    loop_header->AddSuccessor(exit_block_);
+    loop_header->AddSuccessor(return_block);
     loop_body->AddSuccessor(loop_header);
+    return_block->AddSuccessor(exit_block_);
     // Instructions.
     HLocal* induc = new (&allocator_) HLocal(0);
     entry_block_->AddInstruction(induc);
@@ -96,7 +99,8 @@ class InductionVarRangeTest : public testing::Test {
     loop_body->AddInstruction(increment_);
     loop_body->AddInstruction(new (&allocator_) HStoreLocal(induc, increment_));  // i += s
     loop_body->AddInstruction(new (&allocator_) HGoto());
-    exit_block_->AddInstruction(new (&allocator_) HReturnVoid());
+    return_block->AddInstruction(new (&allocator_) HReturnVoid());
+    exit_block_->AddInstruction(new (&allocator_) HExit());
   }
 
   /** Performs induction variable analysis. */
