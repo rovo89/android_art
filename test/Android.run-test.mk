@@ -71,7 +71,6 @@ $$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TARGET_JACK_CLASSPATH_DEPE
 	  JACK=$(abspath $(JACK)) \
 	  JACK_CLASSPATH=$(TARGET_JACK_CLASSPATH) \
 	  JILL_JAR=$(abspath $(JILL_JAR)) \
-	  JACK_VERSION=$(JACK_LANG_DEV_VERSION) \
 	  $(LOCAL_PATH)/run-test $$(PRIVATE_RUN_TEST_OPTIONS) --output-path $$(abspath $$(dir $$@)) $(1)
 	$(hide) touch $$@
 
@@ -876,7 +875,6 @@ $$(run_test_rule_name): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(HOST_OUT_EXECUTABLES
 	    JACK=$(abspath $(JACK)) \
 	    JACK_CLASSPATH=$$(PRIVATE_JACK_CLASSPATH) \
 	    JILL_JAR=$(abspath $(JILL_JAR)) \
-	    JACK_VERSION=$(JACK_LANG_DEV_VERSION) \
 	    art/test/run-test $$(PRIVATE_RUN_TEST_OPTIONS) $(12) \
 	      && $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
 	$$(hide) (echo $(MAKECMDGOALS) | grep -q $$@ && \
