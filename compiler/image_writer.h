@@ -308,8 +308,11 @@ class ImageWriter FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupDexCache(mirror::DexCache* orig_dex_cache, mirror::DexCache* copy_dex_cache)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void FixupPointerArray(mirror::Object* dst, mirror::PointerArray* arr, mirror::Class* klass,
-                         Bin array_type) SHARED_REQUIRES(Locks::mutator_lock_);
+  void FixupPointerArray(mirror::Object* dst,
+                         mirror::PointerArray* arr,
+                         mirror::Class* klass,
+                         Bin array_type)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get quick code for non-resolution/imt_conflict/abstract method.
   const uint8_t* GetQuickCode(ArtMethod* method, bool* quick_is_interpreted)
@@ -331,8 +334,12 @@ class ImageWriter FINAL {
   void AssignMethodOffset(ArtMethod* method, NativeObjectRelocationType type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Return true if klass is loaded by the boot class loader but not in the boot image.
   bool IsBootClassLoaderNonImageClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Return true if klass depends on a boot class loader non image class live. We want to prune
+  // these classes since we do not want any boot class loader classes in the image. This means that
+  // we also cannot have any classes which refer to these boot class loader non image classes.
   bool ContainsBootClassLoaderNonImageClass(mirror::Class* klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -394,7 +401,7 @@ class ImageWriter FINAL {
   const bool compile_pic_;
   const bool compile_app_image_;
 
-  // Boot image space for fast lookups.
+  // Cache the boot image space in this class for faster lookups.
   gc::space::ImageSpace* boot_image_space_;
 
   // Size of pointers on the target architecture.
@@ -432,7 +439,7 @@ class ImageWriter FINAL {
   uint64_t dirty_methods_;
   uint64_t clean_methods_;
 
-  // Prune class memoization table.
+  // Prune class memoization table to speed up ContainsBootClassLoaderNonImageClass.
   std::unordered_map<mirror::Class*, bool> prune_class_memo_;
 
   friend class ContainsBootClassLoaderNonImageClassVisitor;

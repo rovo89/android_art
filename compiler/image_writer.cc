@@ -372,9 +372,9 @@ void ImageWriter::AddMethodPointerArray(mirror::PointerArray* arr) {
   DCHECK(arr != nullptr);
   if (kIsDebugBuild) {
     for (size_t i = 0, len = arr->GetLength(); i < len; i++) {
-      auto* method = arr->GetElementPtrSize<ArtMethod*>(i, target_ptr_size_);
+      ArtMethod* method = arr->GetElementPtrSize<ArtMethod*>(i, target_ptr_size_);
       if (method != nullptr && !method->IsRuntimeMethod()) {
-        auto* klass = method->GetDeclaringClass();
+        mirror::Class* klass = method->GetDeclaringClass();
         CHECK(klass == nullptr || KeepClass(klass))
             << PrettyClass(klass) << " should be a kept class";
       }
@@ -514,7 +514,7 @@ bool ImageWriter::IsImageBinSlotAssigned(mirror::Object* object) const {
     size_t offset = lock_word.ForwardingAddress();
     BinSlot bin_slot(offset);
     DCHECK_LT(bin_slot.GetIndex(), bin_slot_sizes_[bin_slot.GetBin()])
-      << "bin slot offset should not exceed the size of that bin";
+        << "bin slot offset should not exceed the size of that bin";
   }
   return true;
 }
@@ -537,8 +537,13 @@ bool ImageWriter::AllocMemory() {
   const size_t length = RoundUp(image_objects_offset_begin_ + GetBinSizeSum() + intern_table_bytes_,
                                 kPageSize);
   std::string error_msg;
-  image_.reset(MemMap::MapAnonymous("image writer image", nullptr, length, PROT_READ | PROT_WRITE,
-                                    false, false, &error_msg));
+  image_.reset(MemMap::MapAnonymous("image writer image",
+                                    nullptr,
+                                    length,
+                                    PROT_READ | PROT_WRITE,
+                                    false,
+                                    false,
+                                    &error_msg));
   if (UNLIKELY(image_.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
     return false;
@@ -547,7 +552,9 @@ bool ImageWriter::AllocMemory() {
   // Create the image bitmap, only needs to cover mirror object section which is up to image_end_.
   CHECK_LE(image_end_, length);
   image_bitmap_.reset(gc::accounting::ContinuousSpaceBitmap::Create(
-      "image bitmap", image_->Begin(), RoundUp(image_end_, kPageSize)));
+      "image bitmap",
+      image_->Begin(),
+      RoundUp(image_end_, kPageSize)));
   if (image_bitmap_.get() == nullptr) {
     LOG(ERROR) << "Failed to allocate memory for image bitmap";
     return false;
@@ -905,8 +912,8 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
           size_t& offset = bin_slot_sizes_[kBinArtField];
           DCHECK(!IsInBootImage(cur_fields));
           native_object_relocations_.emplace(
-              cur_fields, NativeObjectRelocation {
-                  offset, kNativeObjectRelocationTypeArtFieldArray });
+              cur_fields,
+              NativeObjectRelocation {offset, kNativeObjectRelocationTypeArtFieldArray });
           offset += header_size;
           // Forward individual fields so that we can quickly find where they belong.
           for (size_t i = 0, count = cur_fields->size(); i < count; ++i) {
@@ -917,7 +924,8 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
                 << " already assigned " << PrettyField(field) << " static=" << field->IsStatic();
             DCHECK(!IsInBootImage(field));
             native_object_relocations_.emplace(
-                field, NativeObjectRelocation {offset, kNativeObjectRelocationTypeArtField });
+                field,
+                NativeObjectRelocation {offset, kNativeObjectRelocationTypeArtField });
             offset += sizeof(ArtField);
           }
         }
@@ -940,8 +948,9 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
           any_dirty = any_dirty || WillMethodBeDirty(&m);
           ++count;
         }
-        NativeObjectRelocationType type = any_dirty ? kNativeObjectRelocationTypeArtMethodDirty :
-            kNativeObjectRelocationTypeArtMethodClean;
+        NativeObjectRelocationType type = any_dirty
+            ? kNativeObjectRelocationTypeArtMethodDirty
+            : kNativeObjectRelocationTypeArtMethodClean;
         Bin bin_type = BinTypeForNativeRelocationType(type);
         // Forward the entire array at once, but header first.
         const size_t header_size = LengthPrefixedArray<ArtMethod>::ComputeSize(0,
@@ -1124,8 +1133,9 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   cur_pos = RoundUp(cur_pos, ArtMethod::Alignment(target_ptr_size_));
   // Add method section.
   auto* methods_section = &sections[ImageHeader::kSectionArtMethods];
-  *methods_section = ImageSection(cur_pos, bin_slot_sizes_[kBinArtMethodClean] +
-                                  bin_slot_sizes_[kBinArtMethodDirty]);
+  *methods_section = ImageSection(cur_pos,
+                                  bin_slot_sizes_[kBinArtMethodClean] +
+                                      bin_slot_sizes_[kBinArtMethodDirty]);
   CHECK_EQ(bin_slot_offsets_[kBinArtMethodClean], methods_section->Offset());
   cur_pos = methods_section->End();
   // Add dex cache arrays section.
@@ -1156,12 +1166,17 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_EQ(AlignUp(image_begin_ + image_end, kPageSize), oat_file_begin) <<
       "Oat file should be right after the image.";
   // Create the header.
-  new (image_->Begin()) ImageHeader(
-      PointerToLowMemUInt32(image_begin_), image_end,
-      sections, image_roots_address_, oat_file_->GetOatHeader().GetChecksum(),
-      PointerToLowMemUInt32(oat_file_begin), PointerToLowMemUInt32(oat_data_begin_),
-      PointerToLowMemUInt32(oat_data_end), PointerToLowMemUInt32(oat_file_end), target_ptr_size_,
-      compile_pic_);
+  new (image_->Begin()) ImageHeader(PointerToLowMemUInt32(image_begin_),
+                                                          image_end,
+                                                          sections,
+                                                          image_roots_address_,
+                                                          oat_file_->GetOatHeader().GetChecksum(),
+                                                          PointerToLowMemUInt32(oat_file_begin),
+                                                          PointerToLowMemUInt32(oat_data_begin_),
+                                                          PointerToLowMemUInt32(oat_data_end),
+                                                          PointerToLowMemUInt32(oat_file_end),
+                                                          target_ptr_size_,
+                                                          compile_pic_);
 }
 
 ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
@@ -1371,14 +1386,16 @@ class FixupVisitor {
     // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
     // image.
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-        offset, image_writer_->GetImageAddress(ref));
+        offset,
+        image_writer_->GetImageAddress(ref));
   }
 
   // java.lang.ref.Reference visitor.
   void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-        mirror::Reference::ReferentOffset(), image_writer_->GetImageAddress(ref->GetReferent()));
+        mirror::Reference::ReferentOffset(),
+        image_writer_->GetImageAddress(ref->GetReferent()));
   }
 
  protected:
@@ -1727,8 +1744,10 @@ static OatHeader* GetOatHeaderFromElf(ElfFile* elf) {
 
 void ImageWriter::SetOatChecksumFromElfFile(File* elf_file) {
   std::string error_msg;
-  std::unique_ptr<ElfFile> elf(ElfFile::Open(elf_file, PROT_READ|PROT_WRITE,
-                                             MAP_SHARED, &error_msg));
+  std::unique_ptr<ElfFile> elf(ElfFile::Open(elf_file,
+                                             PROT_READ | PROT_WRITE,
+                                             MAP_SHARED,
+                                             &error_msg));
   if (elf.get() == nullptr) {
     LOG(FATAL) << "Unable open oat file: " << error_msg;
     return;
@@ -1771,10 +1790,11 @@ uint32_t ImageWriter::BinSlot::GetIndex() const {
 
 uint8_t* ImageWriter::GetOatFileBegin() const {
   DCHECK_GT(intern_table_bytes_, 0u);
-  size_t native_sections_size =
-      bin_slot_sizes_[kBinArtField] + bin_slot_sizes_[kBinArtMethodDirty] +
-      bin_slot_sizes_[kBinArtMethodClean] + bin_slot_sizes_[kBinDexCacheArray] +
-      intern_table_bytes_;
+  size_t native_sections_size = bin_slot_sizes_[kBinArtField] +
+                                bin_slot_sizes_[kBinArtMethodDirty] +
+                                bin_slot_sizes_[kBinArtMethodClean] +
+                                bin_slot_sizes_[kBinDexCacheArray] +
+                                intern_table_bytes_;
   return image_begin_ + RoundUp(image_end_ + native_sections_size, kPageSize);
 }
 
