@@ -98,33 +98,6 @@ const DexFile* OpenDexFile(const OatFile::OatDexFile* oat_dex_file, std::string*
 
 class OatSymbolizer FINAL {
  public:
-  class RodataWriter FINAL : public CodeOutput {
-   public:
-    explicit RodataWriter(const OatFile* oat_file) : oat_file_(oat_file) {}
-
-    bool Write(OutputStream* out) OVERRIDE {
-      const size_t rodata_size = oat_file_->GetOatHeader().GetExecutableOffset();
-      return out->WriteFully(oat_file_->Begin(), rodata_size);
-    }
-
-   private:
-    const OatFile* oat_file_;
-  };
-
-  class TextWriter FINAL : public CodeOutput {
-   public:
-    explicit TextWriter(const OatFile* oat_file) : oat_file_(oat_file) {}
-
-    bool Write(OutputStream* out) OVERRIDE {
-      const size_t rodata_size = oat_file_->GetOatHeader().GetExecutableOffset();
-      const uint8_t* text_begin = oat_file_->Begin() + rodata_size;
-      return out->WriteFully(text_begin, oat_file_->End() - text_begin);
-    }
-
-   private:
-    const OatFile* oat_file_;
-  };
-
   OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
       oat_file_(oat_file), builder_(nullptr),
       output_name_(output_name.empty() ? "symbolized.oat" : output_name) {
@@ -139,31 +112,57 @@ class OatSymbolizer FINAL {
                                           uint32_t);
 
   bool Symbolize() {
-    Elf32_Word rodata_size = oat_file_->GetOatHeader().GetExecutableOffset();
-    uint32_t size = static_cast<uint32_t>(oat_file_->End() - oat_file_->Begin());
-    uint32_t text_size = size - rodata_size;
-    uint32_t bss_size = oat_file_->BssSize();
-    RodataWriter rodata_writer(oat_file_);
-    TextWriter text_writer(oat_file_);
-    builder_.reset(new ElfBuilder<ElfTypes32>(
-        oat_file_->GetOatHeader().GetInstructionSet(),
-        rodata_size, &rodata_writer,
-        text_size, &text_writer,
-        bss_size));
+    const InstructionSet isa = oat_file_->GetOatHeader().GetInstructionSet();
+
+    File* elf_file = OS::CreateEmptyFile(output_name_.c_str());
+    std::unique_ptr<BufferedOutputStream> output_stream(
+        new BufferedOutputStream(new FileOutputStream(elf_file)));
+    builder_.reset(new ElfBuilder<ElfTypes32>(isa, output_stream.get()));
+
+    builder_->Start();
+
+    auto* rodata = builder_->GetRoData();
+    auto* text = builder_->GetText();
+    auto* bss = builder_->GetBss();
+    auto* strtab = builder_->GetStrTab();
+    auto* symtab = builder_->GetSymTab();
+
+    rodata->Start();
+    const uint8_t* rodata_begin = oat_file_->Begin();
+    const size_t rodata_size = oat_file_->GetOatHeader().GetExecutableOffset();
+    rodata->WriteFully(rodata_begin, rodata_size);
+    rodata->End();
+
+    text->Start();
+    const uint8_t* text_begin = oat_file_->Begin() + rodata_size;
+    const size_t text_size = oat_file_->End() - text_begin;
+    text->WriteFully(text_begin, text_size);
+    text->End();
+
+    if (oat_file_->BssSize() != 0) {
+      bss->Start();
+      bss->SetSize(oat_file_->BssSize());
+      bss->End();
+    }
+
+    builder_->WriteDynamicSection(elf_file->GetPath());
 
     Walk(&art::OatSymbolizer::RegisterForDedup);
 
     NormalizeState();
 
+    strtab->Start();
+    strtab->Write("");  // strtab should start with empty string.
     Walk(&art::OatSymbolizer::AddSymbol);
+    strtab->End();
 
-    File* elf_output = OS::CreateEmptyFile(output_name_.c_str());
-    bool result = builder_->Write(elf_output);
+    symtab->Start();
+    symtab->Write();
+    symtab->End();
 
-    // Ignore I/O errors.
-    UNUSED(elf_output->FlushClose());
+    builder_->End();
 
-    return result;
+    return builder_->Good() && output_stream->Flush();
   }
 
   void Walk(Callback callback) {
@@ -295,9 +294,8 @@ class OatSymbolizer FINAL {
         pretty_name = "[Dedup]" + pretty_name;
       }
 
-      auto* symtab = builder_->GetSymtab();
-
-      symtab->AddSymbol(pretty_name, builder_->GetText(),
+      int name_offset = builder_->GetStrTab()->Write(pretty_name);
+      builder_->GetSymTab()->Add(name_offset, builder_->GetText(),
           oat_method.GetCodeOffset() - oat_file_->GetOatHeader().GetExecutableOffset(),
           true, oat_method.GetQuickCodeSize(), STB_GLOBAL, STT_FUNC);
     }
