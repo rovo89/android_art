@@ -25,12 +25,13 @@ BufferedOutputStream::BufferedOutputStream(OutputStream* out)
 
 bool BufferedOutputStream::WriteFully(const void* buffer, size_t byte_count) {
   if (byte_count > kBufferSize) {
-    Flush();
+    if (!Flush()) {
+      return false;
+    }
     return out_->WriteFully(buffer, byte_count);
   }
   if (used_ + byte_count > kBufferSize) {
-    bool success = Flush();
-    if (!success) {
+    if (!Flush()) {
       return false;
     }
   }

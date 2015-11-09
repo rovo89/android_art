@@ -21,27 +21,58 @@
 
 #include "arch/instruction_set.h"
 #include "base/bit_utils.h"
+#include "base/casts.h"
 #include "base/unix_file/fd_file.h"
 #include "buffered_output_stream.h"
 #include "elf_utils.h"
 #include "file_output_stream.h"
+#include "leb128.h"
 
 namespace art {
 
-class CodeOutput {
- public:
-  virtual bool Write(OutputStream* out) = 0;
-  virtual ~CodeOutput() {}
-};
-
 // Writes ELF file.
-// The main complication is that the sections often want to reference
-// each other.  We solve this by writing the ELF file in two stages:
-//  * Sections are asked about their size, and overall layout is calculated.
-//  * Sections do the actual writes which may use offsets of other sections.
+//
+// The basic layout of the elf file:
+//   Elf_Ehdr                    - The ELF header.
+//   Elf_Phdr[]                  - Program headers for the linker.
+//   .rodata                     - DEX files and oat metadata.
+//   .text                       - Compiled code.
+//   .bss                        - Zero-initialized writeable section.
+//   .dynstr                     - Names for .dynsym.
+//   .dynsym                     - A few oat-specific dynamic symbols.
+//   .hash                       - Hash-table for .dynsym.
+//   .dynamic                    - Tags which let the linker locate .dynsym.
+//   .strtab                     - Names for .symtab.
+//   .symtab                     - Debug symbols.
+//   .eh_frame                   - Unwind information (CFI).
+//   .eh_frame_hdr               - Index of .eh_frame.
+//   .debug_frame                - Unwind information (CFI).
+//   .debug_frame.oat_patches    - Addresses for relocation.
+//   .debug_info                 - Debug information.
+//   .debug_info.oat_patches     - Addresses for relocation.
+//   .debug_abbrev               - Decoding information for .debug_info.
+//   .debug_str                  - Strings for .debug_info.
+//   .debug_line                 - Line number tables.
+//   .debug_line.oat_patches     - Addresses for relocation.
+//   .text.oat_patches           - Addresses for relocation.
+//   .shstrtab                   - Names of ELF sections.
+//   Elf_Shdr[]                  - Section headers.
+//
+// Some section are optional (the debug sections in particular).
+//
+// We try write the section data directly into the file without much
+// in-memory buffering.  This means we generally write sections based on the
+// dependency order (e.g. .dynamic points to .dynsym which points to .text).
+//
+// In the cases where we need to buffer, we write the larger section first
+// and buffer the smaller one (e.g. .strtab is bigger than .symtab).
+//
+// The debug sections are written last for easier stripping.
+//
 template <typename ElfTypes>
 class ElfBuilder FINAL {
  public:
+  static constexpr size_t kMaxProgramHeaders = 16;
   using Elf_Addr = typename ElfTypes::Addr;
   using Elf_Off = typename ElfTypes::Off;
   using Elf_Word = typename ElfTypes::Word;
@@ -53,776 +84,420 @@ class ElfBuilder FINAL {
   using Elf_Dyn = typename ElfTypes::Dyn;
 
   // Base class of all sections.
-  class Section {
+  class Section : public OutputStream {
    public:
-    Section(const std::string& name, Elf_Word type, Elf_Word flags,
-            const Section* link, Elf_Word info, Elf_Word align, Elf_Word entsize)
-        : header_(), section_index_(0), name_(name), link_(link) {
+    Section(ElfBuilder<ElfTypes>* owner, const std::string& name,
+            Elf_Word type, Elf_Word flags, const Section* link,
+            Elf_Word info, Elf_Word align, Elf_Word entsize)
+        : OutputStream(name), owner_(owner), header_(),
+          section_index_(0), name_(name), link_(link),
+          started_(false), finished_(false), phdr_flags_(PF_R), phdr_type_(0) {
+      DCHECK_GE(align, 1u);
       header_.sh_type = type;
       header_.sh_flags = flags;
       header_.sh_info = info;
       header_.sh_addralign = align;
       header_.sh_entsize = entsize;
     }
-    virtual ~Section() {}
 
-    // Returns the size of the content of this section.  It is used to
-    // calculate file offsets of all sections before doing any writes.
-    virtual Elf_Word GetSize() const = 0;
-
-    // Write the content of this section to the given file.
-    // This must write exactly the number of bytes returned by GetSize().
-    // Offsets of all sections are known when this method is called.
-    virtual bool Write(File* elf_file) = 0;
-
-    Elf_Word GetLink() const {
-      return (link_ != nullptr) ? link_->GetSectionIndex() : 0;
+    virtual ~Section() {
+      if (started_) {
+        CHECK(finished_);
+      }
     }
 
-    const Elf_Shdr* GetHeader() const {
-      return &header_;
+    // Start writing of this section.
+    void Start() {
+      CHECK(!started_);
+      CHECK(!finished_);
+      started_ = true;
+      auto& sections = owner_->sections_;
+      // Check that the previous section is complete.
+      CHECK(sections.empty() || sections.back()->finished_);
+      // The first ELF section index is 1. Index 0 is reserved for NULL.
+      section_index_ = sections.size() + 1;
+      // Push this section on the list of written sections.
+      sections.push_back(this);
+      // Align file position.
+      if (header_.sh_type != SHT_NOBITS) {
+        header_.sh_offset = RoundUp(owner_->Seek(0, kSeekCurrent), header_.sh_addralign);
+        owner_->Seek(header_.sh_offset, kSeekSet);
+      }
+      // Align virtual memory address.
+      if ((header_.sh_flags & SHF_ALLOC) != 0) {
+        header_.sh_addr = RoundUp(owner_->virtual_address_, header_.sh_addralign);
+        owner_->virtual_address_ = header_.sh_addr;
+      }
     }
 
-    Elf_Shdr* GetHeader() {
-      return &header_;
+    // Finish writing of this section.
+    void End() {
+      CHECK(started_);
+      CHECK(!finished_);
+      finished_ = true;
+      if (header_.sh_type == SHT_NOBITS) {
+        CHECK_GT(header_.sh_size, 0u);
+      } else {
+        // Use the current file position to determine section size.
+        off_t file_offset = owner_->Seek(0, kSeekCurrent);
+        CHECK_GE(file_offset, (off_t)header_.sh_offset);
+        header_.sh_size = file_offset - header_.sh_offset;
+      }
+      if ((header_.sh_flags & SHF_ALLOC) != 0) {
+        owner_->virtual_address_ += header_.sh_size;
+      }
+    }
+
+    // Get the location of this section in virtual memory.
+    Elf_Addr GetAddress() const {
+      CHECK(started_);
+      return header_.sh_addr;
+    }
+
+    // Returns the size of the content of this section.
+    Elf_Word GetSize() const {
+      CHECK(finished_);
+      return header_.sh_size;
+    }
+
+    // Set desired allocation size for .bss section.
+    void SetSize(Elf_Word size) {
+      CHECK_EQ(header_.sh_type, (Elf_Word)SHT_NOBITS);
+      header_.sh_size = size;
+    }
+
+    // This function always succeeds to simplify code.
+    // Use builder's Good() to check the actual status.
+    bool WriteFully(const void* buffer, size_t byte_count) OVERRIDE {
+      CHECK(started_);
+      CHECK(!finished_);
+      owner_->WriteFully(buffer, byte_count);
+      return true;
+    }
+
+    // This function always succeeds to simplify code.
+    // Use builder's Good() to check the actual status.
+    off_t Seek(off_t offset, Whence whence) OVERRIDE {
+      // Forward the seek as-is and trust the caller to use it reasonably.
+      return owner_->Seek(offset, whence);
     }
 
     Elf_Word GetSectionIndex() const {
+      DCHECK(started_);
       DCHECK_NE(section_index_, 0u);
       return section_index_;
     }
 
-    void SetSectionIndex(Elf_Word section_index) {
-      section_index_ = section_index;
-    }
-
-    const std::string& GetName() const {
-      return name_;
-    }
-
    private:
+    ElfBuilder<ElfTypes>* owner_;
     Elf_Shdr header_;
     Elf_Word section_index_;
     const std::string name_;
     const Section* const link_;
+    bool started_;
+    bool finished_;
+    Elf_Word phdr_flags_;
+    Elf_Word phdr_type_;
 
     DISALLOW_COPY_AND_ASSIGN(Section);
-  };
 
-  // Writer of .dynamic section.
-  class DynamicSection FINAL : public Section {
-   public:
-    void AddDynamicTag(Elf_Sword tag, Elf_Word value, const Section* section) {
-      DCHECK_NE(tag, static_cast<Elf_Sword>(DT_NULL));
-      dynamics_.push_back({tag, value, section});
-    }
-
-    DynamicSection(const std::string& name, Section* link)
-        : Section(name, SHT_DYNAMIC, SHF_ALLOC,
-                  link, 0, kPageSize, sizeof(Elf_Dyn)) {}
-
-    Elf_Word GetSize() const OVERRIDE {
-      return (dynamics_.size() + 1 /* DT_NULL */) * sizeof(Elf_Dyn);
-    }
-
-    bool Write(File* elf_file) OVERRIDE {
-      std::vector<Elf_Dyn> buffer;
-      buffer.reserve(dynamics_.size() + 1u);
-      for (const ElfDynamicState& it : dynamics_) {
-        if (it.section_ != nullptr) {
-          // We are adding an address relative to a section.
-          buffer.push_back(
-              {it.tag_, {it.value_ + it.section_->GetHeader()->sh_addr}});
-        } else {
-          buffer.push_back({it.tag_, {it.value_}});
-        }
-      }
-      buffer.push_back({DT_NULL, {0}});
-      return WriteArray(elf_file, buffer.data(), buffer.size());
-    }
-
-   private:
-    struct ElfDynamicState {
-      Elf_Sword tag_;
-      Elf_Word value_;
-      const Section* section_;
-    };
-    std::vector<ElfDynamicState> dynamics_;
-  };
-
-  using PatchFn = void (*)(const std::vector<uintptr_t>& patch_locations,
-                           Elf_Addr buffer_address,
-                           Elf_Addr base_address,
-                           std::vector<uint8_t>* buffer);
-
-  // Section with content based on simple memory buffer.
-  // The buffer can be optionally patched before writing.
-  class RawSection FINAL : public Section {
-   public:
-    RawSection(const std::string& name, Elf_Word type, Elf_Word flags,
-               const Section* link, Elf_Word info, Elf_Word align, Elf_Word entsize,
-               PatchFn patch = nullptr, const Section* patch_base_section = nullptr)
-        : Section(name, type, flags, link, info, align, entsize),
-          patched_(false), patch_(patch), patch_base_section_(patch_base_section) {
-    }
-
-    RawSection(const std::string& name, Elf_Word type)
-        : RawSection(name, type, 0, nullptr, 0, 1, 0, nullptr, nullptr) {
-    }
-
-    Elf_Word GetSize() const OVERRIDE {
-      return buffer_.size();
-    }
-
-    bool Write(File* elf_file) OVERRIDE {
-      if (!patch_locations_.empty()) {
-        DCHECK(!patched_);  // Do not patch twice.
-        DCHECK(patch_ != nullptr);
-        DCHECK(patch_base_section_ != nullptr);
-        patch_(patch_locations_,
-               this->GetHeader()->sh_addr,
-               patch_base_section_->GetHeader()->sh_addr,
-               &buffer_);
-        patched_ = true;
-      }
-      return WriteArray(elf_file, buffer_.data(), buffer_.size());
-    }
-
-    bool IsEmpty() const {
-      return buffer_.size() == 0;
-    }
-
-    std::vector<uint8_t>* GetBuffer() {
-      return &buffer_;
-    }
-
-    void SetBuffer(const std::vector<uint8_t>& buffer) {
-      buffer_ = buffer;
-    }
-
-    std::vector<uintptr_t>* GetPatchLocations() {
-      return &patch_locations_;
-    }
-
-   private:
-    std::vector<uint8_t> buffer_;
-    std::vector<uintptr_t> patch_locations_;
-    bool patched_;
-    // User-provided function to do the actual patching.
-    PatchFn patch_;
-    // The section that we patch against (usually .text).
-    const Section* patch_base_section_;
-  };
-
-  // Writer of .rodata section or .text section.
-  // The write is done lazily using the provided CodeOutput.
-  class OatSection FINAL : public Section {
-   public:
-    OatSection(const std::string& name, Elf_Word type, Elf_Word flags,
-               const Section* link, Elf_Word info, Elf_Word align,
-               Elf_Word entsize, Elf_Word size, CodeOutput* code_output)
-        : Section(name, type, flags, link, info, align, entsize),
-          size_(size), code_output_(code_output) {
-    }
-
-    Elf_Word GetSize() const OVERRIDE {
-      return size_;
-    }
-
-    bool Write(File* elf_file) OVERRIDE {
-      // The BufferedOutputStream class contains the buffer as field,
-      // therefore it is too big to allocate on the stack.
-      std::unique_ptr<BufferedOutputStream> output_stream(
-          new BufferedOutputStream(new FileOutputStream(elf_file)));
-      return code_output_->Write(output_stream.get());
-    }
-
-   private:
-    Elf_Word size_;
-    CodeOutput* code_output_;
-  };
-
-  // Writer of .bss section.
-  class NoBitsSection FINAL : public Section {
-   public:
-    NoBitsSection(const std::string& name, Elf_Word size)
-        : Section(name, SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-          size_(size) {
-    }
-
-    Elf_Word GetSize() const OVERRIDE {
-      return size_;
-    }
-
-    bool Write(File* elf_file ATTRIBUTE_UNUSED) OVERRIDE {
-      LOG(ERROR) << "This section should not be written to the ELF file";
-      return false;
-    }
-
-   private:
-    Elf_Word size_;
+    friend class ElfBuilder;
   };
 
   // Writer of .dynstr .strtab and .shstrtab sections.
-  class StrtabSection FINAL : public Section {
+  class StringSection FINAL : public Section {
    public:
-    StrtabSection(const std::string& name, Elf_Word flags, Elf_Word align)
-        : Section(name, SHT_STRTAB, flags, nullptr, 0, align, 0) {
-      buffer_.reserve(4 * KB);
-      // The first entry of strtab must be empty string.
-      buffer_ += '\0';
+    StringSection(ElfBuilder<ElfTypes>* owner, const std::string& name,
+                  Elf_Word flags, Elf_Word align)
+        : Section(owner, name, SHT_STRTAB, flags, nullptr, 0, align, 0),
+          current_offset_(0) {
     }
 
-    Elf_Word AddName(const std::string& name) {
-      Elf_Word offset = buffer_.size();
-      buffer_ += name;
-      buffer_ += '\0';
+    Elf_Word Write(const std::string& name) {
+      if (current_offset_ == 0) {
+        DCHECK(name.empty());
+      }
+      Elf_Word offset = current_offset_;
+      this->WriteFully(name.c_str(), name.length() + 1);
+      current_offset_ += name.length() + 1;
       return offset;
     }
 
-    Elf_Word GetSize() const OVERRIDE {
-      return buffer_.size();
-    }
-
-    bool Write(File* elf_file) OVERRIDE {
-      return WriteArray(elf_file, buffer_.data(), buffer_.size());
-    }
-
    private:
-    std::string buffer_;
+    Elf_Word current_offset_;
   };
-
-  class HashSection;
 
   // Writer of .dynsym and .symtab sections.
-  class SymtabSection FINAL : public Section {
+  class SymbolSection FINAL : public Section {
    public:
-    // Add a symbol with given name to this symtab. The symbol refers to
-    // 'relative_addr' within the given section and has the given attributes.
-    void AddSymbol(const std::string& name, const Section* section,
-                   Elf_Addr addr, bool is_relative, Elf_Word size,
-                   uint8_t binding, uint8_t type, uint8_t other = 0) {
+    SymbolSection(ElfBuilder<ElfTypes>* owner, const std::string& name,
+                  Elf_Word type, Elf_Word flags, StringSection* strtab)
+        : Section(owner, name, type, flags, strtab, 0,
+                  sizeof(Elf_Off), sizeof(Elf_Sym)) {
+    }
+
+    // Buffer symbol for this section.  It will be written later.
+    void Add(Elf_Word name, const Section* section,
+             Elf_Addr addr, bool is_relative, Elf_Word size,
+             uint8_t binding, uint8_t type, uint8_t other = 0) {
       CHECK(section != nullptr);
-      Elf_Word name_idx = strtab_->AddName(name);
-      symbols_.push_back({ name, section, addr, size, is_relative,
-                           MakeStInfo(binding, type), other, name_idx });
+      Elf_Sym sym = Elf_Sym();
+      sym.st_name = name;
+      sym.st_value = addr + (is_relative ? section->GetAddress() : 0);
+      sym.st_size = size;
+      sym.st_other = other;
+      sym.st_shndx = section->GetSectionIndex();
+      sym.st_info = (binding << 4) + (type & 0xf);
+      symbols_.push_back(sym);
     }
 
-    SymtabSection(const std::string& name, Elf_Word type, Elf_Word flags,
-                  StrtabSection* strtab)
-        : Section(name, type, flags, strtab, 0, sizeof(Elf_Off), sizeof(Elf_Sym)),
-          strtab_(strtab) {
-    }
-
-    bool IsEmpty() const {
-      return symbols_.empty();
-    }
-
-    Elf_Word GetSize() const OVERRIDE {
-      return (1 /* NULL */ + symbols_.size()) * sizeof(Elf_Sym);
-    }
-
-    bool Write(File* elf_file) OVERRIDE {
-      std::vector<Elf_Sym> buffer;
-      buffer.reserve(1u + symbols_.size());
-      buffer.push_back(Elf_Sym());  // NULL.
-      for (const ElfSymbolState& it : symbols_) {
-        Elf_Sym sym = Elf_Sym();
-        sym.st_name = it.name_idx_;
-        if (it.is_relative_) {
-          sym.st_value = it.addr_ + it.section_->GetHeader()->sh_addr;
-        } else {
-          sym.st_value = it.addr_;
-        }
-        sym.st_size = it.size_;
-        sym.st_other = it.other_;
-        sym.st_shndx = it.section_->GetSectionIndex();
-        sym.st_info = it.info_;
-        buffer.push_back(sym);
-      }
-      return WriteArray(elf_file, buffer.data(), buffer.size());
+    void Write() {
+      // The symbol table always has to start with NULL symbol.
+      Elf_Sym null_symbol = Elf_Sym();
+      this->WriteFully(&null_symbol, sizeof(null_symbol));
+      this->WriteFully(symbols_.data(), symbols_.size() * sizeof(symbols_[0]));
+      symbols_.clear();
+      symbols_.shrink_to_fit();
     }
 
    private:
-    struct ElfSymbolState {
-      const std::string name_;
-      const Section* section_;
-      Elf_Addr addr_;
-      Elf_Word size_;
-      bool is_relative_;
-      uint8_t info_;
-      uint8_t other_;
-      Elf_Word name_idx_;  // index in the strtab.
-    };
-
-    static inline constexpr uint8_t MakeStInfo(uint8_t binding, uint8_t type) {
-      return ((binding) << 4) + ((type) & 0xf);
-    }
-
-    // The symbols in the same order they will be in the symbol table.
-    std::vector<ElfSymbolState> symbols_;
-    StrtabSection* strtab_;
-
-    friend class HashSection;
+    std::vector<Elf_Sym> symbols_;
   };
 
-  // TODO: Consider removing.
-  // We use it only for the dynsym section which has only 5 symbols.
-  // We do not use it for symtab, and we probably do not have to
-  // since we use those symbols only to print backtraces.
-  class HashSection FINAL : public Section {
-   public:
-    HashSection(const std::string& name, Elf_Word flags, SymtabSection* symtab)
-        : Section(name, SHT_HASH, flags, symtab,
-                  0, sizeof(Elf_Word), sizeof(Elf_Word)),
-          symtab_(symtab) {
-    }
-
-    Elf_Word GetSize() const OVERRIDE {
-      Elf_Word nbuckets = GetNumBuckets();
-      Elf_Word chain_size = symtab_->symbols_.size() + 1 /* NULL */;
-      return (2 /* header */ + nbuckets + chain_size) * sizeof(Elf_Word);
-    }
-
-    bool Write(File* const elf_file) OVERRIDE {
-      // Here is how The ELF hash table works.
-      // There are 3 arrays to worry about.
-      // * The symbol table where the symbol information is.
-      // * The bucket array which is an array of indexes into the symtab and chain.
-      // * The chain array which is also an array of indexes into the symtab and chain.
-      //
-      // Lets say the state is something like this.
-      // +--------+       +--------+      +-----------+
-      // | symtab |       | bucket |      |   chain   |
-      // |  null  |       | 1      |      | STN_UNDEF |
-      // | <sym1> |       | 4      |      | 2         |
-      // | <sym2> |       |        |      | 5         |
-      // | <sym3> |       |        |      | STN_UNDEF |
-      // | <sym4> |       |        |      | 3         |
-      // | <sym5> |       |        |      | STN_UNDEF |
-      // +--------+       +--------+      +-----------+
-      //
-      // The lookup process (in python psudocode) is
-      //
-      // def GetSym(name):
-      //     # NB STN_UNDEF == 0
-      //     indx = bucket[elfhash(name) % num_buckets]
-      //     while indx != STN_UNDEF:
-      //         if GetSymbolName(symtab[indx]) == name:
-      //             return symtab[indx]
-      //         indx = chain[indx]
-      //     return SYMBOL_NOT_FOUND
-      //
-      // Between bucket and chain arrays every symtab index must be present exactly
-      // once (except for STN_UNDEF, which must be present 1 + num_bucket times).
-      const auto& symbols = symtab_->symbols_;
-      // Select number of buckets.
-      // This is essentially arbitrary.
-      Elf_Word nbuckets = GetNumBuckets();
-      // 1 is for the implicit NULL symbol.
-      Elf_Word chain_size = (symbols.size() + 1);
-      std::vector<Elf_Word> hash;
-      hash.push_back(nbuckets);
-      hash.push_back(chain_size);
-      uint32_t bucket_offset = hash.size();
-      uint32_t chain_offset = bucket_offset + nbuckets;
-      hash.resize(hash.size() + nbuckets + chain_size, 0);
-
-      Elf_Word* buckets = hash.data() + bucket_offset;
-      Elf_Word* chain   = hash.data() + chain_offset;
-
-      // Set up the actual hash table.
-      for (Elf_Word i = 0; i < symbols.size(); i++) {
-        // Add 1 since we need to have the null symbol that is not in the symbols
-        // list.
-        Elf_Word index = i + 1;
-        Elf_Word hash_val = static_cast<Elf_Word>(elfhash(symbols[i].name_.c_str())) % nbuckets;
-        if (buckets[hash_val] == 0) {
-          buckets[hash_val] = index;
-        } else {
-          hash_val = buckets[hash_val];
-          CHECK_LT(hash_val, chain_size);
-          while (chain[hash_val] != 0) {
-            hash_val = chain[hash_val];
-            CHECK_LT(hash_val, chain_size);
-          }
-          chain[hash_val] = index;
-          // Check for loops. Works because if this is non-empty then there must be
-          // another cell which already contains the same symbol index as this one,
-          // which means some symbol has more then one name, which isn't allowed.
-          CHECK_EQ(chain[index], static_cast<Elf_Word>(0));
-        }
-      }
-      return WriteArray(elf_file, hash.data(), hash.size());
-    }
-
-   private:
-    Elf_Word GetNumBuckets() const {
-      const auto& symbols = symtab_->symbols_;
-      // Have about 32 ids per bucket.
-      return 1 + symbols.size()/32;
-    }
-
-    // from bionic
-    static inline unsigned elfhash(const char *_name) {
-      const unsigned char *name = (const unsigned char *) _name;
-      unsigned h = 0, g;
-
-      while (*name) {
-        h = (h << 4) + *name++;
-        g = h & 0xf0000000;
-        h ^= g;
-        h ^= g >> 24;
-      }
-      return h;
-    }
-
-    SymtabSection* symtab_;
-
-    DISALLOW_COPY_AND_ASSIGN(HashSection);
-  };
-
-  ElfBuilder(InstructionSet isa,
-             Elf_Word rodata_size, CodeOutput* rodata_writer,
-             Elf_Word text_size, CodeOutput* text_writer,
-             Elf_Word bss_size)
+  ElfBuilder(InstructionSet isa, OutputStream* output)
     : isa_(isa),
-      dynstr_(".dynstr", SHF_ALLOC, kPageSize),
-      dynsym_(".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
-      hash_(".hash", SHF_ALLOC, &dynsym_),
-      rodata_(".rodata", SHT_PROGBITS, SHF_ALLOC,
-              nullptr, 0, kPageSize, 0, rodata_size, rodata_writer),
-      text_(".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR,
-            nullptr, 0, kPageSize, 0, text_size, text_writer),
-      bss_(".bss", bss_size),
-      dynamic_(".dynamic", &dynstr_),
-      strtab_(".strtab", 0, kPageSize),
-      symtab_(".symtab", SHT_SYMTAB, 0, &strtab_),
-      shstrtab_(".shstrtab", 0, 1) {
+      output_(output),
+      output_good_(true),
+      output_offset_(0),
+      rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
+      text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0, kPageSize, 0),
+      bss_(this, ".bss", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
+      dynstr_(this, ".dynstr", SHF_ALLOC, kPageSize),
+      dynsym_(this, ".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
+      hash_(this, ".hash", SHT_HASH, SHF_ALLOC, &dynsym_, 0, sizeof(Elf_Word), sizeof(Elf_Word)),
+      dynamic_(this, ".dynamic", SHT_DYNAMIC, SHF_ALLOC, &dynstr_, 0, kPageSize, sizeof(Elf_Dyn)),
+      eh_frame_(this, ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
+      eh_frame_hdr_(this, ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0),
+      strtab_(this, ".strtab", 0, kPageSize),
+      symtab_(this, ".symtab", SHT_SYMTAB, 0, &strtab_),
+      debug_frame_(this, ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, sizeof(Elf_Addr), 0),
+      shstrtab_(this, ".shstrtab", 0, 1),
+      virtual_address_(0) {
+    text_.phdr_flags_ = PF_R | PF_X;
+    bss_.phdr_flags_ = PF_R | PF_W;
+    dynamic_.phdr_flags_ = PF_R | PF_W;
+    dynamic_.phdr_type_ = PT_DYNAMIC;
+    eh_frame_hdr_.phdr_type_ = PT_GNU_EH_FRAME;
   }
   ~ElfBuilder() {}
 
-  OatSection* GetText() { return &text_; }
-  SymtabSection* GetSymtab() { return &symtab_; }
+  InstructionSet GetIsa() { return isa_; }
+  Section* GetRoData() { return &rodata_; }
+  Section* GetText() { return &text_; }
+  Section* GetBss() { return &bss_; }
+  StringSection* GetStrTab() { return &strtab_; }
+  SymbolSection* GetSymTab() { return &symtab_; }
+  Section* GetEhFrame() { return &eh_frame_; }
+  Section* GetEhFrameHdr() { return &eh_frame_hdr_; }
+  Section* GetDebugFrame() { return &debug_frame_; }
 
-  bool Write(File* elf_file) {
-    // Since the .text section of an oat file contains relative references to .rodata
-    // and (optionally) .bss, we keep these 2 or 3 sections together. This creates
-    // a non-traditional layout where the .bss section is mapped independently of the
-    // .dynamic section and needs its own program header with LOAD RW.
-    //
-    // The basic layout of the elf file. Order may be different in final output.
-    // +-------------------------+
-    // | Elf_Ehdr                |
-    // +-------------------------+
-    // | Elf_Phdr PHDR           |
-    // | Elf_Phdr LOAD R         | .dynsym .dynstr .hash .rodata
-    // | Elf_Phdr LOAD R X       | .text
-    // | Elf_Phdr LOAD RW        | .bss (Optional)
-    // | Elf_Phdr LOAD RW        | .dynamic
-    // | Elf_Phdr DYNAMIC        | .dynamic
-    // | Elf_Phdr LOAD R         | .eh_frame .eh_frame_hdr
-    // | Elf_Phdr EH_FRAME R     | .eh_frame_hdr
-    // +-------------------------+
-    // | .dynsym                 |
-    // | Elf_Sym  STN_UNDEF      |
-    // | Elf_Sym  oatdata        |
-    // | Elf_Sym  oatexec        |
-    // | Elf_Sym  oatlastword    |
-    // | Elf_Sym  oatbss         | (Optional)
-    // | Elf_Sym  oatbsslastword | (Optional)
-    // +-------------------------+
-    // | .dynstr                 |
-    // | names for .dynsym       |
-    // +-------------------------+
-    // | .hash                   |
-    // | hashtable for dynsym    |
-    // +-------------------------+
-    // | .rodata                 |
-    // | oatdata..oatexec-4      |
-    // +-------------------------+
-    // | .text                   |
-    // | oatexec..oatlastword    |
-    // +-------------------------+
-    // | .dynamic                |
-    // | Elf_Dyn DT_HASH         |
-    // | Elf_Dyn DT_STRTAB       |
-    // | Elf_Dyn DT_SYMTAB       |
-    // | Elf_Dyn DT_SYMENT       |
-    // | Elf_Dyn DT_STRSZ        |
-    // | Elf_Dyn DT_SONAME       |
-    // | Elf_Dyn DT_NULL         |
-    // +-------------------------+  (Optional)
-    // | .symtab                 |  (Optional)
-    // | program symbols         |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .strtab                 |  (Optional)
-    // | names for .symtab       |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .eh_frame               |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .eh_frame_hdr           |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .debug_info             |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .debug_abbrev           |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .debug_str              |  (Optional)
-    // +-------------------------+  (Optional)
-    // | .debug_line             |  (Optional)
-    // +-------------------------+
-    // | .shstrtab               |
-    // | names of sections       |
-    // +-------------------------+
-    // | Elf_Shdr null           |
-    // | Elf_Shdr .dynsym        |
-    // | Elf_Shdr .dynstr        |
-    // | Elf_Shdr .hash          |
-    // | Elf_Shdr .rodata        |
-    // | Elf_Shdr .text          |
-    // | Elf_Shdr .bss           |  (Optional)
-    // | Elf_Shdr .dynamic       |
-    // | Elf_Shdr .symtab        |  (Optional)
-    // | Elf_Shdr .strtab        |  (Optional)
-    // | Elf_Shdr .eh_frame      |  (Optional)
-    // | Elf_Shdr .eh_frame_hdr  |  (Optional)
-    // | Elf_Shdr .debug_info    |  (Optional)
-    // | Elf_Shdr .debug_abbrev  |  (Optional)
-    // | Elf_Shdr .debug_str     |  (Optional)
-    // | Elf_Shdr .debug_line    |  (Optional)
-    // | Elf_Shdr .oat_patches   |  (Optional)
-    // | Elf_Shdr .shstrtab      |
-    // +-------------------------+
-    constexpr bool debug_logging_ = false;
+  // Encode patch locations as LEB128 list of deltas between consecutive addresses.
+  // (exposed publicly for tests)
+  static void EncodeOatPatches(const std::vector<uintptr_t>& locations,
+                               std::vector<uint8_t>* buffer) {
+    buffer->reserve(buffer->size() + locations.size() * 2);  // guess 2 bytes per ULEB128.
+    uintptr_t address = 0;  // relative to start of section.
+    for (uintptr_t location : locations) {
+      DCHECK_GE(location, address) << "Patch locations are not in sorted order";
+      EncodeUnsignedLeb128(buffer, dchecked_integral_cast<uint32_t>(location - address));
+      address = location;
+    }
+  }
 
-    // Create a list of all section which we want to write.
-    // This is the order in which they will be written.
-    std::vector<Section*> sections;
-    sections.push_back(&rodata_);
-    // Need to write text to update checksum of header even if it is empty.
-    sections.push_back(&text_);
-    if (bss_.GetSize() != 0u) {
-      sections.push_back(&bss_);
-    }
-    sections.push_back(&dynstr_);
-    sections.push_back(&dynsym_);
-    sections.push_back(&hash_);
-    sections.push_back(&dynamic_);
-    if (!symtab_.IsEmpty()) {
-      sections.push_back(&strtab_);
-      sections.push_back(&symtab_);
-    }
-    for (Section* section : other_sections_) {
-      sections.push_back(section);
-    }
-    sections.push_back(&shstrtab_);
-    for (size_t i = 0; i < sections.size(); i++) {
-      // The first section index is 1.  Index 0 is reserved for NULL.
-      // Section index is used for relative symbols and for section links.
-      sections[i]->SetSectionIndex(i + 1);
-      // Add section name to .shstrtab.
-      Elf_Word name_offset = shstrtab_.AddName(sections[i]->GetName());
-      sections[i]->GetHeader()->sh_name = name_offset;
-    }
+  void WritePatches(const char* name, const std::vector<uintptr_t>* patch_locations) {
+    std::vector<uint8_t> buffer;
+    EncodeOatPatches(*patch_locations, &buffer);
+    std::unique_ptr<Section> s(new Section(this, name, SHT_OAT_PATCH, 0, nullptr, 0, 1, 0));
+    s->Start();
+    s->WriteFully(buffer.data(), buffer.size());
+    s->End();
+    other_sections_.push_back(std::move(s));
+  }
 
-    // The running program does not have access to section headers
-    // and the loader is not supposed to use them either.
-    // The dynamic sections therefore replicates some of the layout
-    // information like the address and size of .rodata and .text.
-    // It also contains other metadata like the SONAME.
-    // The .dynamic section is found using the PT_DYNAMIC program header.
-    BuildDynsymSection();
-    BuildDynamicSection(elf_file->GetPath());
+  void WriteSection(const char* name, const std::vector<uint8_t>* buffer) {
+    std::unique_ptr<Section> s(new Section(this, name, SHT_PROGBITS, 0, nullptr, 0, 1, 0));
+    s->Start();
+    s->WriteFully(buffer->data(), buffer->size());
+    s->End();
+    other_sections_.push_back(std::move(s));
+  }
 
-    // We do not know the number of headers until the final stages of write.
-    // It is easiest to just reserve a fixed amount of space for them.
-    constexpr size_t kMaxProgramHeaders = 16;
-    constexpr size_t kProgramHeadersOffset = sizeof(Elf_Ehdr);
+  void Start() {
+    // Reserve space for ELF header and program headers.
+    // We do not know the number of headers until later, so
+    // it is easiest to just reserve a fixed amount of space.
+    int size = sizeof(Elf_Ehdr) + sizeof(Elf_Phdr) * kMaxProgramHeaders;
+    Seek(size, kSeekSet);
+    virtual_address_ += size;
+  }
 
-    // Layout of all sections - determine the final file offsets and addresses.
-    // This must be done after we have built all sections and know their size.
-    Elf_Off file_offset = kProgramHeadersOffset + sizeof(Elf_Phdr) * kMaxProgramHeaders;
-    Elf_Addr load_address = file_offset;
-    std::vector<Elf_Shdr> section_headers;
-    section_headers.reserve(1u + sections.size());
-    section_headers.push_back(Elf_Shdr());  // NULL at index 0.
-    for (auto* section : sections) {
-      Elf_Shdr* header = section->GetHeader();
-      Elf_Off alignment = header->sh_addralign > 0 ? header->sh_addralign : 1;
-      header->sh_size = section->GetSize();
-      header->sh_link = section->GetLink();
-      // Allocate memory for the section in the file.
-      if (header->sh_type != SHT_NOBITS) {
-        header->sh_offset = RoundUp(file_offset, alignment);
-        file_offset = header->sh_offset + header->sh_size;
-      }
-      // Allocate memory for the section during program execution.
-      if ((header->sh_flags & SHF_ALLOC) != 0) {
-        header->sh_addr = RoundUp(load_address, alignment);
-        load_address = header->sh_addr + header->sh_size;
-      }
-      if (debug_logging_) {
-        LOG(INFO) << "Section " << section->GetName() << ":" << std::hex
-                  << " offset=0x" << header->sh_offset
-                  << " addr=0x" << header->sh_addr
-                  << " size=0x" << header->sh_size;
-      }
-      // Collect section headers into continuous array for convenience.
-      section_headers.push_back(*header);
-    }
-    Elf_Off section_headers_offset = RoundUp(file_offset, sizeof(Elf_Off));
-
-    // Create program headers now that we know the layout of the whole file.
-    // Each segment contains one or more sections which are mapped together.
-    // Not all sections are mapped during the execution of the program.
-    // PT_LOAD does the mapping.  Other PT_* types allow the program to locate
-    // interesting parts of memory and their addresses overlap with PT_LOAD.
-    std::vector<Elf_Phdr> program_headers;
-    program_headers.push_back(Elf_Phdr());  // Placeholder for PT_PHDR.
-    // Create the main LOAD R segment which spans all sections up to .rodata.
-    const Elf_Shdr* rodata = rodata_.GetHeader();
-    program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R,
-      0, rodata->sh_offset + rodata->sh_size, rodata->sh_addralign));
-    if (text_.GetHeader()->sh_size != 0u) {
-      program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_X, text_));
-    }
-    if (bss_.GetHeader()->sh_size != 0u) {
-      program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_W, bss_));
-    }
-    program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R, dynstr_));
-    int dynstr_dynsym_hash_size = hash_.GetHeader()->sh_offset +
-      hash_.GetHeader()->sh_size - dynstr_.GetHeader()->sh_offset;
-    program_headers.back().p_filesz = dynstr_dynsym_hash_size;
-    program_headers.back().p_memsz  = dynstr_dynsym_hash_size;
-    program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_W, dynamic_));
-    program_headers.push_back(MakeProgramHeader(PT_DYNAMIC, PF_R | PF_W, dynamic_));
-    const Section* eh_frame = FindSection(".eh_frame");
-    if (eh_frame != nullptr) {
-      program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R, *eh_frame));
-      const Section* eh_frame_hdr = FindSection(".eh_frame_hdr");
-      if (eh_frame_hdr != nullptr) {
-        // Check layout: eh_frame is before eh_frame_hdr and there is no gap.
-        CHECK_LE(eh_frame->GetHeader()->sh_offset, eh_frame_hdr->GetHeader()->sh_offset);
-        CHECK_EQ(eh_frame->GetHeader()->sh_offset + eh_frame->GetHeader()->sh_size,
-                 eh_frame_hdr->GetHeader()->sh_offset);
-        // Extend the PT_LOAD of .eh_frame to include the .eh_frame_hdr as well.
-        program_headers.back().p_filesz += eh_frame_hdr->GetHeader()->sh_size;
-        program_headers.back().p_memsz  += eh_frame_hdr->GetHeader()->sh_size;
-        program_headers.push_back(MakeProgramHeader(PT_GNU_EH_FRAME, PF_R, *eh_frame_hdr));
+  void End() {
+    // Write section names and finish the section headers.
+    shstrtab_.Start();
+    shstrtab_.Write("");
+    for (auto* section : sections_) {
+      section->header_.sh_name = shstrtab_.Write(section->name_);
+      if (section->link_ != nullptr) {
+        section->header_.sh_link = section->link_->GetSectionIndex();
       }
     }
-    DCHECK_EQ(program_headers[0].p_type, 0u);  // Check placeholder.
-    program_headers[0] = MakeProgramHeader(PT_PHDR, PF_R,
-      kProgramHeadersOffset, program_headers.size() * sizeof(Elf_Phdr), sizeof(Elf_Off));
-    CHECK_LE(program_headers.size(), kMaxProgramHeaders);
+    shstrtab_.End();
 
-    // Create the main ELF header.
+    // Write section headers at the end of the ELF file.
+    std::vector<Elf_Shdr> shdrs;
+    shdrs.reserve(1u + sections_.size());
+    shdrs.push_back(Elf_Shdr());  // NULL at index 0.
+    for (auto* section : sections_) {
+      shdrs.push_back(section->header_);
+    }
+    Elf_Off section_headers_offset;
+    section_headers_offset = RoundUp(Seek(0, kSeekCurrent), sizeof(Elf_Off));
+    Seek(section_headers_offset, kSeekSet);
+    WriteFully(shdrs.data(), shdrs.size() * sizeof(shdrs[0]));
+
+    // Write the initial file headers.
+    std::vector<Elf_Phdr> phdrs = MakeProgramHeaders();
     Elf_Ehdr elf_header = MakeElfHeader(isa_);
-    elf_header.e_phoff = kProgramHeadersOffset;
+    elf_header.e_phoff = sizeof(Elf_Ehdr);
     elf_header.e_shoff = section_headers_offset;
-    elf_header.e_phnum = program_headers.size();
-    elf_header.e_shnum = section_headers.size();
+    elf_header.e_phnum = phdrs.size();
+    elf_header.e_shnum = shdrs.size();
     elf_header.e_shstrndx = shstrtab_.GetSectionIndex();
-
-    // Write all headers and section content to the file.
-    // Depending on the implementations of Section::Write, this
-    // might be just memory copies or some more elaborate operations.
-    if (!WriteArray(elf_file, &elf_header, 1)) {
-      LOG(INFO) << "Failed to write the ELF header";
-      return false;
-    }
-    if (!WriteArray(elf_file, program_headers.data(), program_headers.size())) {
-      LOG(INFO) << "Failed to write the program headers";
-      return false;
-    }
-    for (Section* section : sections) {
-      const Elf_Shdr* header = section->GetHeader();
-      if (header->sh_type != SHT_NOBITS) {
-        if (!SeekTo(elf_file, header->sh_offset) || !section->Write(elf_file)) {
-          LOG(INFO) << "Failed to write section " << section->GetName();
-          return false;
-        }
-        Elf_Word current_offset = lseek(elf_file->Fd(), 0, SEEK_CUR);
-        CHECK_EQ(current_offset, header->sh_offset + header->sh_size)
-          << "The number of bytes written does not match GetSize()";
-      }
-    }
-    if (!SeekTo(elf_file, section_headers_offset) ||
-        !WriteArray(elf_file, section_headers.data(), section_headers.size())) {
-      LOG(INFO) << "Failed to write the section headers";
-      return false;
-    }
-    return true;
+    Seek(0, kSeekSet);
+    WriteFully(&elf_header, sizeof(elf_header));
+    WriteFully(phdrs.data(), phdrs.size() * sizeof(phdrs[0]));
   }
 
-  // Adds the given section to the builder.  It does not take ownership.
-  void RegisterSection(Section* section) {
-    other_sections_.push_back(section);
+  // The running program does not have access to section headers
+  // and the loader is not supposed to use them either.
+  // The dynamic sections therefore replicates some of the layout
+  // information like the address and size of .rodata and .text.
+  // It also contains other metadata like the SONAME.
+  // The .dynamic section is found using the PT_DYNAMIC program header.
+  void WriteDynamicSection(const std::string& elf_file_path) {
+    std::string soname(elf_file_path);
+    size_t directory_separator_pos = soname.rfind('/');
+    if (directory_separator_pos != std::string::npos) {
+      soname = soname.substr(directory_separator_pos + 1);
+    }
+
+    dynstr_.Start();
+    dynstr_.Write("");  // dynstr should start with empty string.
+    dynsym_.Add(dynstr_.Write("oatdata"), &rodata_, 0, true,
+                rodata_.GetSize(), STB_GLOBAL, STT_OBJECT);
+    if (text_.GetSize() != 0u) {
+      dynsym_.Add(dynstr_.Write("oatexec"), &text_, 0, true,
+                  text_.GetSize(), STB_GLOBAL, STT_OBJECT);
+      dynsym_.Add(dynstr_.Write("oatlastword"), &text_, text_.GetSize() - 4,
+                  true, 4, STB_GLOBAL, STT_OBJECT);
+    } else if (rodata_.GetSize() != 0) {
+      // rodata_ can be size 0 for dwarf_test.
+      dynsym_.Add(dynstr_.Write("oatlastword"), &rodata_, rodata_.GetSize() - 4,
+                  true, 4, STB_GLOBAL, STT_OBJECT);
+    }
+    if (bss_.finished_) {
+      dynsym_.Add(dynstr_.Write("oatbss"), &bss_,
+                  0, true, bss_.GetSize(), STB_GLOBAL, STT_OBJECT);
+      dynsym_.Add(dynstr_.Write("oatbsslastword"), &bss_,
+                  bss_.GetSize() - 4, true, 4, STB_GLOBAL, STT_OBJECT);
+    }
+    Elf_Word soname_offset = dynstr_.Write(soname);
+    dynstr_.End();
+
+    dynsym_.Start();
+    dynsym_.Write();
+    dynsym_.End();
+
+    // We do not really need a hash-table since there is so few entries.
+    // However, the hash-table is the only way the linker can actually
+    // determine the number of symbols in .dynsym so it is required.
+    hash_.Start();
+    int count = dynsym_.GetSize() / sizeof(Elf_Sym);  // Includes NULL.
+    std::vector<Elf_Word> hash;
+    hash.push_back(1);  // Number of buckets.
+    hash.push_back(count);  // Number of chains.
+    // Buckets.  Having just one makes it linear search.
+    hash.push_back(1);  // Point to first non-NULL symbol.
+    // Chains.  This creates linked list of symbols.
+    hash.push_back(0);  // Dummy entry for the NULL symbol.
+    for (int i = 1; i < count - 1; i++) {
+      hash.push_back(i + 1);  // Each symbol points to the next one.
+    }
+    hash.push_back(0);  // Last symbol terminates the chain.
+    hash_.WriteFully(hash.data(), hash.size() * sizeof(hash[0]));
+    hash_.End();
+
+    dynamic_.Start();
+    Elf_Dyn dyns[] = {
+      { DT_HASH, { hash_.GetAddress() } },
+      { DT_STRTAB, { dynstr_.GetAddress() } },
+      { DT_SYMTAB, { dynsym_.GetAddress() } },
+      { DT_SYMENT, { sizeof(Elf_Sym) } },
+      { DT_STRSZ, { dynstr_.GetSize() } },
+      { DT_SONAME, { soname_offset } },
+      { DT_NULL, { 0 } },
+    };
+    dynamic_.WriteFully(&dyns, sizeof(dyns));
+    dynamic_.End();
   }
 
-  const Section* FindSection(const char* name) {
-    for (const auto* section : other_sections_) {
-      if (section->GetName() == name) {
-        return section;
-      }
-    }
-    return nullptr;
+  // Returns true if all writes and seeks on the output stream succeeded.
+  bool Good() {
+    return output_good_;
   }
 
  private:
-  static bool SeekTo(File* elf_file, Elf_Word offset) {
-    DCHECK_LE(lseek(elf_file->Fd(), 0, SEEK_CUR), static_cast<off_t>(offset))
-      << "Seeking backwards";
-    if (static_cast<off_t>(offset) != lseek(elf_file->Fd(), offset, SEEK_SET)) {
-      PLOG(ERROR) << "Failed to seek in file " << elf_file->GetPath();
-      return false;
-    }
-    return true;
-  }
-
-  template<typename T>
-  static bool WriteArray(File* elf_file, const T* data, size_t count) {
-    if (count != 0) {
-      DCHECK(data != nullptr);
-      if (!elf_file->WriteFully(data, count * sizeof(T))) {
-        PLOG(ERROR) << "Failed to write to file " << elf_file->GetPath();
-        return false;
+  // This function always succeeds to simplify code.
+  // Use Good() to check the actual status of the output stream.
+  void WriteFully(const void* buffer, size_t byte_count) {
+    if (output_good_) {
+      if (!output_->WriteFully(buffer, byte_count)) {
+        PLOG(ERROR) << "Failed to write " << byte_count
+                    << " bytes to ELF file at offset " << output_offset_;
+        output_good_ = false;
       }
     }
-    return true;
+    output_offset_ += byte_count;
   }
 
-  // Helper - create segment header based on memory range.
-  static Elf_Phdr MakeProgramHeader(Elf_Word type, Elf_Word flags,
-                                    Elf_Off offset, Elf_Word size, Elf_Word align) {
-    Elf_Phdr phdr = Elf_Phdr();
-    phdr.p_type    = type;
-    phdr.p_flags   = flags;
-    phdr.p_offset  = offset;
-    phdr.p_vaddr   = offset;
-    phdr.p_paddr   = offset;
-    phdr.p_filesz  = size;
-    phdr.p_memsz   = size;
-    phdr.p_align   = align;
-    return phdr;
-  }
-
-  // Helper - create segment header based on section header.
-  static Elf_Phdr MakeProgramHeader(Elf_Word type, Elf_Word flags,
-                                    const Section& section) {
-    const Elf_Shdr* shdr = section.GetHeader();
-    // Only run-time allocated sections should be in segment headers.
-    CHECK_NE(shdr->sh_flags & SHF_ALLOC, 0u);
-    Elf_Phdr phdr = Elf_Phdr();
-    phdr.p_type   = type;
-    phdr.p_flags  = flags;
-    phdr.p_offset = shdr->sh_offset;
-    phdr.p_vaddr  = shdr->sh_addr;
-    phdr.p_paddr  = shdr->sh_addr;
-    phdr.p_filesz = shdr->sh_type != SHT_NOBITS ? shdr->sh_size : 0u;
-    phdr.p_memsz  = shdr->sh_size;
-    phdr.p_align  = shdr->sh_addralign;
-    return phdr;
+  // This function always succeeds to simplify code.
+  // Use Good() to check the actual status of the output stream.
+  off_t Seek(off_t offset, Whence whence) {
+    // We keep shadow copy of the offset so that we return
+    // the expected value even if the output stream failed.
+    off_t new_offset;
+    switch (whence) {
+      case kSeekSet:
+        new_offset = offset;
+        break;
+      case kSeekCurrent:
+        new_offset = output_offset_ + offset;
+        break;
+      default:
+        LOG(FATAL) << "Unsupported seek type: " << whence;
+        UNREACHABLE();
+    }
+    if (output_good_) {
+      off_t actual_offset = output_->Seek(offset, whence);
+      if (actual_offset == (off_t)-1) {
+        PLOG(ERROR) << "Failed to seek in ELF file. Offset=" << offset
+                    << " whence=" << whence << " new_offset=" << new_offset;
+        output_good_ = false;
+      }
+      DCHECK_EQ(actual_offset, new_offset);
+    }
+    output_offset_ = new_offset;
+    return new_offset;
   }
 
   static Elf_Ehdr MakeElfHeader(InstructionSet isa) {
@@ -869,6 +544,10 @@ class ElfBuilder FINAL {
       }
       case kNone: {
         LOG(FATAL) << "No instruction set";
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unknown instruction set " << isa;
       }
     }
 
@@ -892,56 +571,110 @@ class ElfBuilder FINAL {
     return elf_header;
   }
 
-  void BuildDynamicSection(const std::string& elf_file_path) {
-    std::string soname(elf_file_path);
-    size_t directory_separator_pos = soname.rfind('/');
-    if (directory_separator_pos != std::string::npos) {
-      soname = soname.substr(directory_separator_pos + 1);
+  // Create program headers based on written sections.
+  std::vector<Elf_Phdr> MakeProgramHeaders() {
+    CHECK(!sections_.empty());
+    std::vector<Elf_Phdr> phdrs;
+    {
+      // The program headers must start with PT_PHDR which is used in
+      // loaded process to determine the number of program headers.
+      Elf_Phdr phdr = Elf_Phdr();
+      phdr.p_type    = PT_PHDR;
+      phdr.p_flags   = PF_R;
+      phdr.p_offset  = phdr.p_vaddr = phdr.p_paddr = sizeof(Elf_Ehdr);
+      phdr.p_filesz  = phdr.p_memsz = 0;  // We need to fill this later.
+      phdr.p_align   = sizeof(Elf_Off);
+      phdrs.push_back(phdr);
+      // Tell the linker to mmap the start of file to memory.
+      Elf_Phdr load = Elf_Phdr();
+      load.p_type    = PT_LOAD;
+      load.p_flags   = PF_R;
+      load.p_offset  = load.p_vaddr = load.p_paddr = 0;
+      load.p_filesz  = load.p_memsz = sections_[0]->header_.sh_offset;
+      load.p_align   = kPageSize;
+      phdrs.push_back(load);
     }
-    // NB: We must add the name before adding DT_STRSZ.
-    Elf_Word soname_offset = dynstr_.AddName(soname);
+    // Create program headers for sections.
+    for (auto* section : sections_) {
+      const Elf_Shdr& shdr = section->header_;
+      if ((shdr.sh_flags & SHF_ALLOC) != 0 && shdr.sh_size != 0) {
+        // PT_LOAD tells the linker to mmap part of the file.
+        // The linker can only mmap page-aligned sections.
+        // Single PT_LOAD may contain several ELF sections.
+        Elf_Phdr& prev = phdrs.back();
+        Elf_Phdr load = Elf_Phdr();
+        load.p_type   = PT_LOAD;
+        load.p_flags  = section->phdr_flags_;
+        load.p_offset = shdr.sh_offset;
+        load.p_vaddr  = load.p_paddr = shdr.sh_addr;
+        load.p_filesz = (shdr.sh_type != SHT_NOBITS ? shdr.sh_size : 0u);
+        load.p_memsz  = shdr.sh_size;
+        load.p_align  = shdr.sh_addralign;
+        if (prev.p_type == load.p_type &&
+            prev.p_flags == load.p_flags &&
+            prev.p_filesz == prev.p_memsz &&  // Do not merge .bss
+            load.p_filesz == load.p_memsz) {  // Do not merge .bss
+          // Merge this PT_LOAD with the previous one.
+          Elf_Word size = shdr.sh_offset + shdr.sh_size - prev.p_offset;
+          prev.p_filesz = size;
+          prev.p_memsz  = size;
+        } else {
+          // If we are adding new load, it must be aligned.
+          CHECK_EQ(shdr.sh_addralign, (Elf_Word)kPageSize);
+          phdrs.push_back(load);
+        }
+      }
+    }
+    for (auto* section : sections_) {
+      const Elf_Shdr& shdr = section->header_;
+      if ((shdr.sh_flags & SHF_ALLOC) != 0 && shdr.sh_size != 0) {
+        // Other PT_* types allow the program to locate interesting
+        // parts of memory at runtime. They must overlap with PT_LOAD.
+        if (section->phdr_type_ != 0) {
+          Elf_Phdr phdr = Elf_Phdr();
+          phdr.p_type   = section->phdr_type_;
+          phdr.p_flags  = section->phdr_flags_;
+          phdr.p_offset = shdr.sh_offset;
+          phdr.p_vaddr  = phdr.p_paddr = shdr.sh_addr;
+          phdr.p_filesz = phdr.p_memsz = shdr.sh_size;
+          phdr.p_align  = shdr.sh_addralign;
+          phdrs.push_back(phdr);
+        }
+      }
+    }
+    // Set the size of the initial PT_PHDR.
+    CHECK_EQ(phdrs[0].p_type, (Elf_Word)PT_PHDR);
+    phdrs[0].p_filesz = phdrs[0].p_memsz = phdrs.size() * sizeof(Elf_Phdr);
 
-    dynamic_.AddDynamicTag(DT_HASH, 0, &hash_);
-    dynamic_.AddDynamicTag(DT_STRTAB, 0, &dynstr_);
-    dynamic_.AddDynamicTag(DT_SYMTAB, 0, &dynsym_);
-    dynamic_.AddDynamicTag(DT_SYMENT, sizeof(Elf_Sym), nullptr);
-    dynamic_.AddDynamicTag(DT_STRSZ, dynstr_.GetSize(), nullptr);
-    dynamic_.AddDynamicTag(DT_SONAME, soname_offset, nullptr);
-  }
-
-  void BuildDynsymSection() {
-    dynsym_.AddSymbol("oatdata", &rodata_, 0, true,
-                      rodata_.GetSize(), STB_GLOBAL, STT_OBJECT);
-    if (text_.GetSize() != 0u) {
-      dynsym_.AddSymbol("oatexec", &text_, 0, true,
-                        text_.GetSize(), STB_GLOBAL, STT_OBJECT);
-      dynsym_.AddSymbol("oatlastword", &text_, text_.GetSize() - 4,
-                        true, 4, STB_GLOBAL, STT_OBJECT);
-    } else if (rodata_.GetSize() != 0) {
-      // rodata_ be size 0 for dwarf_test.
-      dynsym_.AddSymbol("oatlastword", &rodata_, rodata_.GetSize() - 4,
-                        true, 4, STB_GLOBAL, STT_OBJECT);
-    }
-    if (bss_.GetSize() != 0u) {
-      dynsym_.AddSymbol("oatbss", &bss_, 0, true,
-                        bss_.GetSize(), STB_GLOBAL, STT_OBJECT);
-      dynsym_.AddSymbol("oatbsslastword", &bss_, bss_.GetSize() - 4,
-                        true, 4, STB_GLOBAL, STT_OBJECT);
-    }
+    return phdrs;
   }
 
   InstructionSet isa_;
-  StrtabSection dynstr_;
-  SymtabSection dynsym_;
-  HashSection hash_;
-  OatSection rodata_;
-  OatSection text_;
-  NoBitsSection bss_;
-  DynamicSection dynamic_;
-  StrtabSection strtab_;
-  SymtabSection symtab_;
-  std::vector<Section*> other_sections_;
-  StrtabSection shstrtab_;
+
+  OutputStream* output_;
+  bool output_good_;  // True if all writes to output succeeded.
+  off_t output_offset_;  // Keep track of the current position in the stream.
+
+  Section rodata_;
+  Section text_;
+  Section bss_;
+  StringSection dynstr_;
+  SymbolSection dynsym_;
+  Section hash_;
+  Section dynamic_;
+  Section eh_frame_;
+  Section eh_frame_hdr_;
+  StringSection strtab_;
+  SymbolSection symtab_;
+  Section debug_frame_;
+  StringSection shstrtab_;
+  std::vector<std::unique_ptr<Section>> other_sections_;
+
+  // List of used section in the order in which they were written.
+  std::vector<Section*> sections_;
+
+  // Used for allocation of virtual address space.
+  Elf_Addr virtual_address_;
 
   DISALLOW_COPY_AND_ASSIGN(ElfBuilder);
 };

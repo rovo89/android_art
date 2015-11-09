@@ -19,29 +19,21 @@
 
 #include <vector>
 
+#include "elf_builder.h"
 #include "dwarf/dwarf_constants.h"
 #include "oat_writer.h"
 
 namespace art {
 namespace dwarf {
 
-void WriteCFISection(const CompilerDriver* compiler,
-                     const OatWriter* oat_writer,
-                     ExceptionHeaderValueApplication address_type,
-                     CFIFormat format,
-                     std::vector<uint8_t>* debug_frame,
-                     std::vector<uintptr_t>* debug_frame_patches,
-                     std::vector<uint8_t>* eh_frame_hdr,
-                     std::vector<uintptr_t>* eh_frame_hdr_patches);
+template<typename ElfTypes>
+void WriteCFISection(ElfBuilder<ElfTypes>* builder,
+                     const std::vector<OatWriter::DebugInfo>& method_infos,
+                     CFIFormat format);
 
-void WriteDebugSections(const CompilerDriver* compiler,
-                        const OatWriter* oat_writer,
-                        std::vector<uint8_t>* debug_info,
-                        std::vector<uintptr_t>* debug_info_patches,
-                        std::vector<uint8_t>* debug_abbrev,
-                        std::vector<uint8_t>* debug_str,
-                        std::vector<uint8_t>* debug_line,
-                        std::vector<uintptr_t>* debug_line_patches);
+template<typename ElfTypes>
+void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
+                        const std::vector<OatWriter::DebugInfo>& method_infos);
 
 }  // namespace dwarf
 }  // namespace art
