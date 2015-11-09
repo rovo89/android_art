@@ -2034,8 +2034,14 @@ class VerifyClassVisitor : public CompilationVisitor {
       Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
           soa.Self(), dex_file, false)));
       std::string error_msg;
-      if (verifier::MethodVerifier::VerifyClass(soa.Self(), &dex_file, dex_cache, class_loader,
-                                                &class_def, true, &error_msg) ==
+      if (verifier::MethodVerifier::VerifyClass(soa.Self(),
+                                                &dex_file,
+                                                dex_cache,
+                                                class_loader,
+                                                &class_def,
+                                                true /* allow soft failures */,
+                                                true /* log hard failures */,
+                                                &error_msg) ==
                                                     verifier::MethodVerifier::kHardFailure) {
         LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                    << " because: " << error_msg;
