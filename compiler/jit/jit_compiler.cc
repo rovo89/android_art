@@ -177,7 +177,8 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   }
 
   // Don't compile the method if we are supposed to be deoptimized.
-  if (runtime->GetInstrumentation()->AreAllMethodsDeoptimized()) {
+  instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
+  if (instrumentation->AreAllMethodsDeoptimized() || instrumentation->IsDeoptimized(method)) {
     return false;
   }
 

@@ -83,6 +83,9 @@ class JitCodeCache {
   // Return true if the code cache contains this pc.
   bool ContainsPc(const void* pc) const;
 
+  // Return true if the code cache contains this method.
+  bool ContainsMethod(ArtMethod* method) REQUIRES(!lock_);
+
   // Reserve a region of data of size at least "size". Returns null if there is no more room.
   uint8_t* ReserveData(Thread* self, size_t size)
       SHARED_REQUIRES(Locks::mutator_lock_)
@@ -162,6 +165,12 @@ class JitCodeCache {
 
   // Free in the mspace allocations taken by 'method'.
   void FreeCode(const void* code_ptr, ArtMethod* method) REQUIRES(lock_);
+
+  // Number of bytes allocated in the code cache.
+  size_t CodeCacheSizeLocked() REQUIRES(lock_);
+
+  // Number of bytes allocated in the data cache.
+  size_t DataCacheSizeLocked() REQUIRES(lock_);
 
   // Lock for guarding allocations, collections, and the method_code_map_.
   Mutex lock_;
