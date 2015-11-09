@@ -572,7 +572,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void FinishInit(Thread* self)
-  SHARED_REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // For early bootstrapping by Init
