@@ -2969,20 +2969,17 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   const DexFile& dex_file = *klass->GetDexCache()->GetDexFile();
   mirror::Class::Status oat_file_class_status(mirror::Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass.Get(), oat_file_class_status);
-  if (oat_file_class_status == mirror::Class::kStatusError) {
-    VLOG(class_linker) << "Skipping runtime verification of erroneous class "
-        << PrettyDescriptor(klass.Get()) << " in "
-        << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
-    ThrowVerifyError(klass.Get(), "Rejecting class %s because it failed compile-time verification",
-                     PrettyDescriptor(klass.Get()).c_str());
-    mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
-    return;
-  }
+  // If the oat file says the class had an error, re-run the verifier. That way we will get a
+  // precise error message. To ensure a rerun, test:
+  //     oat_file_class_status == mirror::Class::kStatusError => !preverified
+  DCHECK(!(oat_file_class_status == mirror::Class::kStatusError) || !preverified);
+
   verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
   std::string error_msg;
   if (!preverified) {
     verifier_failure = verifier::MethodVerifier::VerifyClass(self,
                                                              klass.Get(),
+                                                             Runtime::Current()->IsAotCompiler(),
                                                              Runtime::Current()->IsAotCompiler(),
                                                              &error_msg);
   }
@@ -3021,9 +3018,9 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
       }
     }
   } else {
-    LOG(WARNING) << "Verification failed on class " << PrettyDescriptor(klass.Get())
-        << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
-        << " because: " << error_msg;
+    VLOG(verifier) << "Verification failed on class " << PrettyDescriptor(klass.Get())
+                  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
+                  << " because: " << error_msg;
     self->AssertNoPendingException();
     ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
     mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
