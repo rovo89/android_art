@@ -69,10 +69,13 @@ class InductionVarAnalysisTest : public testing::Test {
     entry_ = new (&allocator_) HBasicBlock(graph_);
     graph_->AddBlock(entry_);
     BuildForLoop(0, n);
+    return_ = new (&allocator_) HBasicBlock(graph_);
+    graph_->AddBlock(return_);
     exit_ = new (&allocator_) HBasicBlock(graph_);
     graph_->AddBlock(exit_);
     entry_->AddSuccessor(loop_preheader_[0]);
-    loop_header_[0]->AddSuccessor(exit_);
+    loop_header_[0]->AddSuccessor(return_);
+    return_->AddSuccessor(exit_);
     graph_->SetEntryBlock(entry_);
     graph_->SetExitBlock(exit_);
 
@@ -91,6 +94,7 @@ class InductionVarAnalysisTest : public testing::Test {
     entry_->AddInstruction(new (&allocator_) HStoreLocal(tmp_, constant100_));
     dum_ = new (&allocator_) HLocal(n + 2);
     entry_->AddInstruction(dum_);
+    return_->AddInstruction(new (&allocator_) HReturnVoid());
     exit_->AddInstruction(new (&allocator_) HExit());
 
     // Provide loop instructions.
@@ -177,6 +181,7 @@ class InductionVarAnalysisTest : public testing::Test {
 
   // Fixed basic blocks and instructions.
   HBasicBlock* entry_;
+  HBasicBlock* return_;
   HBasicBlock* exit_;
   HInstruction* parameter_;  // "this"
   HInstruction* constant0_;

@@ -42,12 +42,14 @@ class LICMTest : public testing::Test {
     loop_preheader_ = new (&allocator_) HBasicBlock(graph_);
     loop_header_ = new (&allocator_) HBasicBlock(graph_);
     loop_body_ = new (&allocator_) HBasicBlock(graph_);
+    return_ = new (&allocator_) HBasicBlock(graph_);
     exit_ = new (&allocator_) HBasicBlock(graph_);
 
     graph_->AddBlock(entry_);
     graph_->AddBlock(loop_preheader_);
     graph_->AddBlock(loop_header_);
     graph_->AddBlock(loop_body_);
+    graph_->AddBlock(return_);
     graph_->AddBlock(exit_);
 
     graph_->SetEntryBlock(entry_);
@@ -57,8 +59,9 @@ class LICMTest : public testing::Test {
     entry_->AddSuccessor(loop_preheader_);
     loop_preheader_->AddSuccessor(loop_header_);
     loop_header_->AddSuccessor(loop_body_);
-    loop_header_->AddSuccessor(exit_);
+    loop_header_->AddSuccessor(return_);
     loop_body_->AddSuccessor(loop_header_);
+    return_->AddSuccessor(exit_);
 
     // Provide boiler-plate instructions.
     parameter_ = new (&allocator_) HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);
@@ -89,6 +92,7 @@ class LICMTest : public testing::Test {
   HBasicBlock* loop_preheader_;
   HBasicBlock* loop_header_;
   HBasicBlock* loop_body_;
+  HBasicBlock* return_;
   HBasicBlock* exit_;
 
   HInstruction* parameter_;  // "this"
