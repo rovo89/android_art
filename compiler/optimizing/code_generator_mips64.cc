@@ -2792,10 +2792,12 @@ void LocationsBuilderMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
   // allocation of a register for the current method pointer like on x86 baseline.
   // TODO: remove this once all the issues with register saving/restoring are
   // sorted out.
-  LocationSummary* locations = invoke->GetLocations();
-  Location location = locations->InAt(invoke->GetCurrentMethodInputIndex());
-  if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
-    locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::NoLocation());
+  if (invoke->HasCurrentMethodInput()) {
+    LocationSummary* locations = invoke->GetLocations();
+    Location location = locations->InAt(invoke->GetCurrentMethodInputIndex());
+    if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
+      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::NoLocation());
+    }
   }
 }
 
