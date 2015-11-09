@@ -199,9 +199,9 @@ class ElfBuilder FINAL {
     Elf_Word phdr_flags_;
     Elf_Word phdr_type_;
 
-    DISALLOW_COPY_AND_ASSIGN(Section);
-
     friend class ElfBuilder;
+
+    DISALLOW_COPY_AND_ASSIGN(Section);
   };
 
   // Writer of .dynstr .strtab and .shstrtab sections.
