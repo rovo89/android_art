@@ -19,7 +19,7 @@ public class Main {
   /// CHECK-START: void Main.InlineVoid() inliner (before)
   /// CHECK-DAG:     <<Const42:i\d+>> IntConstant 42
   /// CHECK-DAG:                      InvokeStaticOrDirect
-  /// CHECK-DAG:                      InvokeStaticOrDirect [<<Const42>>,{{[ij]\d+}}]
+  /// CHECK-DAG:                      InvokeStaticOrDirect [<<Const42>>{{(,[ij]\d+)?}}]
 
   /// CHECK-START: void Main.InlineVoid() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
@@ -31,7 +31,7 @@ public class Main {
 
   /// CHECK-START: int Main.InlineParameter(int) inliner (before)
   /// CHECK-DAG:     <<Param:i\d+>>  ParameterValue
-  /// CHECK-DAG:     <<Result:i\d+>> InvokeStaticOrDirect [<<Param>>,{{[ij]\d+}}]
+  /// CHECK-DAG:     <<Result:i\d+>> InvokeStaticOrDirect [<<Param>>{{(,[ij]\d+)?}}]
   /// CHECK-DAG:                     Return [<<Result>>]
 
   /// CHECK-START: int Main.InlineParameter(int) inliner (after)
@@ -44,7 +44,7 @@ public class Main {
 
   /// CHECK-START: long Main.InlineWideParameter(long) inliner (before)
   /// CHECK-DAG:     <<Param:j\d+>>  ParameterValue
-  /// CHECK-DAG:     <<Result:j\d+>> InvokeStaticOrDirect [<<Param>>,{{[ij]\d+}}]
+  /// CHECK-DAG:     <<Result:j\d+>> InvokeStaticOrDirect [<<Param>>{{(,[ij]\d+)?}}]
   /// CHECK-DAG:                     Return [<<Result>>]
 
   /// CHECK-START: long Main.InlineWideParameter(long) inliner (after)
@@ -57,7 +57,7 @@ public class Main {
 
   /// CHECK-START: java.lang.Object Main.InlineReferenceParameter(java.lang.Object) inliner (before)
   /// CHECK-DAG:     <<Param:l\d+>>  ParameterValue
-  /// CHECK-DAG:     <<Result:l\d+>> InvokeStaticOrDirect [<<Param>>,{{[ij]\d+}}]
+  /// CHECK-DAG:     <<Result:l\d+>> InvokeStaticOrDirect [<<Param>>{{(,[ij]\d+)?}}]
   /// CHECK-DAG:                     Return [<<Result>>]
 
   /// CHECK-START: java.lang.Object Main.InlineReferenceParameter(java.lang.Object) inliner (after)
@@ -128,8 +128,8 @@ public class Main {
   /// CHECK-DAG:     <<Const1:i\d+>> IntConstant 1
   /// CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
   /// CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
-  /// CHECK-DAG:     <<Add:i\d+>>    InvokeStaticOrDirect [<<Const1>>,<<Const3>>,{{[ij]\d+}}]
-  /// CHECK-DAG:     <<Sub:i\d+>>    InvokeStaticOrDirect [<<Const5>>,<<Const3>>,{{[ij]\d+}}]
+  /// CHECK-DAG:     <<Add:i\d+>>    InvokeStaticOrDirect [<<Const1>>,<<Const3>>{{(,[ij]\d+)?}}]
+  /// CHECK-DAG:     <<Sub:i\d+>>    InvokeStaticOrDirect [<<Const5>>,<<Const3>>{{(,[ij]\d+)?}}]
   /// CHECK-DAG:     <<Phi:i\d+>>    Phi [<<Add>>,<<Sub>>]
   /// CHECK-DAG:                     Return [<<Phi>>]
 
