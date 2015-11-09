@@ -21,6 +21,7 @@
 #include "common_compiler_test.h"
 #include "elf_file.h"
 #include "elf_file_impl.h"
+#include "elf_builder.h"
 #include "elf_writer_quick.h"
 #include "oat.h"
 #include "utils.h"
@@ -100,7 +101,7 @@ TEST_F(ElfWriterTest, EncodeDecodeOatPatches) {
 
     // Encode patch locations.
     std::vector<uint8_t> oat_patches;
-    ElfWriterQuick32::EncodeOatPatches(patch_locations, &oat_patches);
+    ElfBuilder<ElfTypes32>::EncodeOatPatches(patch_locations, &oat_patches);
 
     // Create buffer to be patched.
     std::vector<uint8_t> initial_data(256);

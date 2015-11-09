@@ -70,190 +70,78 @@ bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
 template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer);
 
-// Encode patch locations as LEB128 list of deltas between consecutive addresses.
-template <typename ElfTypes>
-void ElfWriterQuick<ElfTypes>::EncodeOatPatches(const std::vector<uintptr_t>& locations,
-                                                std::vector<uint8_t>* buffer) {
-  buffer->reserve(buffer->size() + locations.size() * 2);  // guess 2 bytes per ULEB128.
-  uintptr_t address = 0;  // relative to start of section.
-  for (uintptr_t location : locations) {
-    DCHECK_GE(location, address) << "Patch locations are not in sorted order";
-    EncodeUnsignedLeb128(buffer, dchecked_integral_cast<uint32_t>(location - address));
-    address = location;
-  }
-}
-
-class RodataWriter FINAL : public CodeOutput {
- public:
-  explicit RodataWriter(OatWriter* oat_writer) : oat_writer_(oat_writer) {}
-
-  bool Write(OutputStream* out) OVERRIDE {
-    return oat_writer_->WriteRodata(out);
-  }
-
- private:
-  OatWriter* oat_writer_;
-};
-
-class TextWriter FINAL : public CodeOutput {
- public:
-  explicit TextWriter(OatWriter* oat_writer) : oat_writer_(oat_writer) {}
-
-  bool Write(OutputStream* out) OVERRIDE {
-    return oat_writer_->WriteCode(out);
-  }
-
- private:
-  OatWriter* oat_writer_;
-};
-
-enum PatchResult {
-  kAbsoluteAddress,  // Absolute memory location.
-  kPointerRelativeAddress,  // Offset relative to the location of the pointer.
-  kSectionRelativeAddress,  // Offset relative to start of containing section.
-};
-
-// Patch memory addresses within a buffer.
-// It assumes that the unpatched addresses are offsets relative to base_address.
-// (which generally means method's low_pc relative to the start of .text)
-template <typename Elf_Addr, typename Address, PatchResult kPatchResult>
-static void Patch(const std::vector<uintptr_t>& patch_locations,
-                  Elf_Addr buffer_address, Elf_Addr base_address,
-                  std::vector<uint8_t>* buffer) {
-  for (uintptr_t location : patch_locations) {
-    typedef __attribute__((__aligned__(1))) Address UnalignedAddress;
-    auto* to_patch = reinterpret_cast<UnalignedAddress*>(buffer->data() + location);
-    switch (kPatchResult) {
-      case kAbsoluteAddress:
-        *to_patch = (base_address + *to_patch);
-        break;
-      case kPointerRelativeAddress:
-        *to_patch = (base_address + *to_patch) - (buffer_address + location);
-        break;
-      case kSectionRelativeAddress:
-        *to_patch = (base_address + *to_patch) - buffer_address;
-        break;
-    }
-  }
-}
-
 template <typename ElfTypes>
 bool ElfWriterQuick<ElfTypes>::Write(
     OatWriter* oat_writer,
     const std::vector<const DexFile*>& dex_files_unused ATTRIBUTE_UNUSED,
     const std::string& android_root_unused ATTRIBUTE_UNUSED,
     bool is_host_unused ATTRIBUTE_UNUSED) {
-  using Elf_Addr = typename ElfTypes::Addr;
   const InstructionSet isa = compiler_driver_->GetInstructionSet();
+  std::unique_ptr<BufferedOutputStream> output_stream(
+      new BufferedOutputStream(new FileOutputStream(elf_file_)));
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(
+      new ElfBuilder<ElfTypes>(isa, output_stream.get()));
 
-  // Setup the builder with the main OAT sections (.rodata .text .bss).
-  const size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
-  const size_t text_size = oat_writer->GetSize() - rodata_size;
-  const size_t bss_size = oat_writer->GetBssSize();
-  RodataWriter rodata_writer(oat_writer);
-  TextWriter text_writer(oat_writer);
-  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(
-      isa, rodata_size, &rodata_writer, text_size, &text_writer, bss_size));
+  builder->Start();
 
-  // Add debug sections.
-  // They are allocated here (in the same scope as the builder),
-  // but they are registered with the builder only if they are used.
-  using RawSection = typename ElfBuilder<ElfTypes>::RawSection;
-  const auto* text = builder->GetText();
-  const bool is64bit = Is64BitInstructionSet(isa);
-  const int pointer_size = GetInstructionSetPointerSize(isa);
-  std::unique_ptr<RawSection> eh_frame(new RawSection(
-      ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0,
-      is64bit ? Patch<Elf_Addr, uint64_t, kPointerRelativeAddress> :
-                Patch<Elf_Addr, uint32_t, kPointerRelativeAddress>,
-      text));
-  std::unique_ptr<RawSection> eh_frame_hdr(new RawSection(
-      ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0,
-      Patch<Elf_Addr, uint32_t, kSectionRelativeAddress>, text));
-  std::unique_ptr<RawSection> debug_frame(new RawSection(
-      ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, pointer_size, 0,
-      is64bit ? Patch<Elf_Addr, uint64_t, kAbsoluteAddress> :
-                Patch<Elf_Addr, uint32_t, kAbsoluteAddress>,
-      text));
-  std::unique_ptr<RawSection> debug_frame_oat_patches(new RawSection(
-      ".debug_frame.oat_patches", SHT_OAT_PATCH));
-  std::unique_ptr<RawSection> debug_info(new RawSection(
-      ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
-      Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text));
-  std::unique_ptr<RawSection> debug_info_oat_patches(new RawSection(
-      ".debug_info.oat_patches", SHT_OAT_PATCH));
-  std::unique_ptr<RawSection> debug_abbrev(new RawSection(
-      ".debug_abbrev", SHT_PROGBITS));
-  std::unique_ptr<RawSection> debug_str(new RawSection(
-      ".debug_str", SHT_PROGBITS));
-  std::unique_ptr<RawSection> debug_line(new RawSection(
-      ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
-      Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text));
-  std::unique_ptr<RawSection> debug_line_oat_patches(new RawSection(
-      ".debug_line.oat_patches", SHT_OAT_PATCH));
-  if (!oat_writer->GetMethodDebugInfo().empty()) {
-    if (compiler_driver_->GetCompilerOptions().GetGenerateDebugInfo()) {
-      // Generate CFI (stack unwinding information).
-      if (kCFIFormat == dwarf::DW_EH_FRAME_FORMAT) {
-        dwarf::WriteCFISection(
-            compiler_driver_, oat_writer,
-            dwarf::DW_EH_PE_pcrel, kCFIFormat,
-            eh_frame->GetBuffer(), eh_frame->GetPatchLocations(),
-            eh_frame_hdr->GetBuffer(), eh_frame_hdr->GetPatchLocations());
-        builder->RegisterSection(eh_frame.get());
-        builder->RegisterSection(eh_frame_hdr.get());
-      } else {
-        DCHECK(kCFIFormat == dwarf::DW_DEBUG_FRAME_FORMAT);
-        dwarf::WriteCFISection(
-            compiler_driver_, oat_writer,
-            dwarf::DW_EH_PE_absptr, kCFIFormat,
-            debug_frame->GetBuffer(), debug_frame->GetPatchLocations(),
-            nullptr, nullptr);
-        builder->RegisterSection(debug_frame.get());
-        EncodeOatPatches(*debug_frame->GetPatchLocations(),
-                         debug_frame_oat_patches->GetBuffer());
-        builder->RegisterSection(debug_frame_oat_patches.get());
-      }
+  auto* rodata = builder->GetRoData();
+  auto* text = builder->GetText();
+  auto* bss = builder->GetBss();
+
+  rodata->Start();
+  if (!oat_writer->WriteRodata(rodata)) {
+    return false;
+  }
+  rodata->End();
+
+  text->Start();
+  if (!oat_writer->WriteCode(text)) {
+    return false;
+  }
+  text->End();
+
+  if (oat_writer->GetBssSize() != 0) {
+    bss->Start();
+    bss->SetSize(oat_writer->GetBssSize());
+    bss->End();
+  }
+
+  builder->WriteDynamicSection(elf_file_->GetPath());
+
+  if (compiler_driver_->GetCompilerOptions().GetGenerateDebugInfo()) {
+    const auto& method_infos = oat_writer->GetMethodDebugInfo();
+    if (!method_infos.empty()) {
       // Add methods to .symtab.
       WriteDebugSymbols(builder.get(), oat_writer);
-      // Generate DWARF .debug_* sections.
-      dwarf::WriteDebugSections(
-          compiler_driver_, oat_writer,
-          debug_info->GetBuffer(), debug_info->GetPatchLocations(),
-          debug_abbrev->GetBuffer(),
-          debug_str->GetBuffer(),
-          debug_line->GetBuffer(), debug_line->GetPatchLocations());
-      builder->RegisterSection(debug_info.get());
-      EncodeOatPatches(*debug_info->GetPatchLocations(),
-                       debug_info_oat_patches->GetBuffer());
-      builder->RegisterSection(debug_info_oat_patches.get());
-      builder->RegisterSection(debug_abbrev.get());
-      builder->RegisterSection(debug_str.get());
-      builder->RegisterSection(debug_line.get());
-      EncodeOatPatches(*debug_line->GetPatchLocations(),
-                       debug_line_oat_patches->GetBuffer());
-      builder->RegisterSection(debug_line_oat_patches.get());
+      // Generate CFI (stack unwinding information).
+      dwarf::WriteCFISection(builder.get(), method_infos, kCFIFormat);
+      // Write DWARF .debug_* sections.
+      dwarf::WriteDebugSections(builder.get(), method_infos);
     }
   }
 
   // Add relocation section for .text.
-  std::unique_ptr<RawSection> text_oat_patches(new RawSection(
-      ".text.oat_patches", SHT_OAT_PATCH));
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
     // Note that ElfWriter::Fixup will be called regardless and therefore
     // we need to include oat_patches for debug sections unconditionally.
-    EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(),
-                     text_oat_patches->GetBuffer());
-    builder->RegisterSection(text_oat_patches.get());
+    builder->WritePatches(".text.oat_patches", &oat_writer->GetAbsolutePatchLocations());
   }
 
-  return builder->Write(elf_file_);
+  builder->End();
+
+  return builder->Good() && output_stream->Flush();
 }
 
 template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer) {
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetMethodDebugInfo();
   bool generated_mapping_symbol = false;
+  auto* strtab = builder->GetStrTab();
+  auto* symtab = builder->GetSymTab();
+
+  if (method_info.empty()) {
+    return;
+  }
 
   // Find all addresses (low_pc) which contain deduped methods.
   // The first instance of method is not marked deduped_, but the rest is.
@@ -264,7 +152,8 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
     }
   }
 
-  auto* symtab = builder->GetSymtab();
+  strtab->Start();
+  strtab->Write("");  // strtab should start with empty string.
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
     if (it->deduped_) {
       continue;  // Add symbol only for the first instance.
@@ -277,8 +166,8 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
     uint32_t low_pc = it->low_pc_;
     // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
     low_pc += it->compiled_method_->CodeDelta();
-    symtab->AddSymbol(name, builder->GetText(), low_pc,
-                      true, it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
+    symtab->Add(strtab->Write(name), builder->GetText(), low_pc,
+                true, it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
     // instructions, so that disassembler tools can correctly disassemble.
@@ -286,12 +175,19 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
     // requires it to match function symbol.  Just address 0 does not work.
     if (it->compiled_method_->GetInstructionSet() == kThumb2) {
       if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
-        symtab->AddSymbol("$t", builder->GetText(), it->low_pc_ & ~1, true,
-                          0, STB_LOCAL, STT_NOTYPE);
+        symtab->Add(strtab->Write("$t"), builder->GetText(), it->low_pc_ & ~1,
+                    true, 0, STB_LOCAL, STT_NOTYPE);
         generated_mapping_symbol = true;
       }
     }
   }
+  strtab->End();
+
+  // Symbols are buffered and written after names (because they are smaller).
+  // We could also do two passes in this function to avoid the buffering.
+  symtab->Start();
+  symtab->Write();
+  symtab->End();
 }
 
 // Explicit instantiations

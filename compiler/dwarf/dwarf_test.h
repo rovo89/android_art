@@ -59,38 +59,27 @@ class DwarfTest : public CommonRuntimeTest {
   std::vector<std::string> Objdump(const char* args) {
     // Write simple elf file with just the DWARF sections.
     InstructionSet isa = (sizeof(typename ElfTypes::Addr) == 8) ? kX86_64 : kX86;
-    class NoCode : public CodeOutput {
-      bool Write(OutputStream*) OVERRIDE { return true; }  // NOLINT
-    } no_code;
-    ElfBuilder<ElfTypes> builder(isa, 0, &no_code, 0, &no_code, 0);
-    typedef typename ElfBuilder<ElfTypes>::RawSection RawSection;
-    RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    RawSection debug_frame(".debug_frame", SHT_PROGBITS, 0, nullptr, 0, 8, 0);
+    ScratchFile file;
+    FileOutputStream output_stream(file.GetFile());
+    ElfBuilder<ElfTypes> builder(isa, &output_stream);
+    builder.Start();
     if (!debug_info_data_.empty()) {
-      debug_info.SetBuffer(debug_info_data_);
-      builder.RegisterSection(&debug_info);
+      builder.WriteSection(".debug_info", &debug_info_data_);
     }
     if (!debug_abbrev_data_.empty()) {
-      debug_abbrev.SetBuffer(debug_abbrev_data_);
-      builder.RegisterSection(&debug_abbrev);
+      builder.WriteSection(".debug_abbrev", &debug_abbrev_data_);
     }
     if (!debug_str_data_.empty()) {
-      debug_str.SetBuffer(debug_str_data_);
-      builder.RegisterSection(&debug_str);
+      builder.WriteSection(".debug_str", &debug_str_data_);
     }
     if (!debug_line_data_.empty()) {
-      debug_line.SetBuffer(debug_line_data_);
-      builder.RegisterSection(&debug_line);
+      builder.WriteSection(".debug_line", &debug_line_data_);
     }
     if (!debug_frame_data_.empty()) {
-      debug_frame.SetBuffer(debug_frame_data_);
-      builder.RegisterSection(&debug_frame);
+      builder.WriteSection(".debug_frame", &debug_frame_data_);
     }
-    ScratchFile file;
-    builder.Write(file.GetFile());
+    builder.End();
+    EXPECT_TRUE(builder.Good());
 
     // Read the elf file back using objdump.
     std::vector<std::string> lines;
