@@ -61,8 +61,13 @@ class MemMap {
   // a name.
   //
   // On success, returns returns a MemMap instance.  On failure, returns null.
-  static MemMap* MapAnonymous(const char* ashmem_name, uint8_t* addr, size_t byte_count, int prot,
-                              bool low_4gb, bool reuse, std::string* error_msg);
+  static MemMap* MapAnonymous(const char* ashmem_name,
+                              uint8_t* addr,
+                              size_t byte_count,
+                              int prot,
+                              bool low_4gb,
+                              bool reuse,
+                              std::string* error_msg);
 
   // Create placeholder for a region allocated by direct call to mmap.
   // This is useful when we do not have control over the code calling mmap,
@@ -74,10 +79,24 @@ class MemMap {
   // "start" offset is absolute, not relative.
   //
   // On success, returns returns a MemMap instance.  On failure, returns null.
-  static MemMap* MapFile(size_t byte_count, int prot, int flags, int fd, off_t start,
-                         const char* filename, std::string* error_msg) {
-    return MapFileAtAddress(
-        nullptr, byte_count, prot, flags, fd, start, false, filename, error_msg);
+  static MemMap* MapFile(size_t byte_count,
+                         int prot,
+                         int flags,
+                         int fd,
+                         off_t start,
+                         bool low_4gb,
+                         const char* filename,
+                         std::string* error_msg) {
+    return MapFileAtAddress(nullptr,
+                            byte_count,
+                            prot,
+                            flags,
+                            fd,
+                            start,
+                            /*low_4gb*/low_4gb,
+                            /*reuse*/false,
+                            filename,
+                            error_msg);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -87,8 +106,15 @@ class MemMap {
   // mapping where we do not take ownership of the memory.
   //
   // On success, returns returns a MemMap instance.  On failure, returns null.
-  static MemMap* MapFileAtAddress(uint8_t* addr, size_t byte_count, int prot, int flags, int fd,
-                                  off_t start, bool reuse, const char* filename,
+  static MemMap* MapFileAtAddress(uint8_t* addr,
+                                  size_t byte_count,
+                                  int prot,
+                                  int flags,
+                                  int fd,
+                                  off_t start,
+                                  bool low_4gb,
+                                  bool reuse,
+                                  const char* filename,
                                   std::string* error_msg);
 
   // Releases the memory mapping.
@@ -138,7 +164,9 @@ class MemMap {
   }
 
   // Unmap the pages at end and remap them to create another memory map.
-  MemMap* RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_prot,
+  MemMap* RemapAtEnd(uint8_t* new_end,
+                     const char* tail_name,
+                     int tail_prot,
                      std::string* error_msg);
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
@@ -152,8 +180,14 @@ class MemMap {
   static void Shutdown() REQUIRES(!Locks::mem_maps_lock_);
 
  private:
-  MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin, size_t base_size,
-         int prot, bool reuse, size_t redzone_size = 0) REQUIRES(!Locks::mem_maps_lock_);
+  MemMap(const std::string& name,
+         uint8_t* begin,
+         size_t size,
+         void* base_begin,
+         size_t base_size,
+         int prot,
+         bool reuse,
+         size_t redzone_size = 0) REQUIRES(!Locks::mem_maps_lock_);
 
   static void DumpMapsLocked(std::ostream& os, bool terse)
       REQUIRES(Locks::mem_maps_lock_);
@@ -163,6 +197,15 @@ class MemMap {
       REQUIRES(Locks::mem_maps_lock_);
   static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* error_msg)
       REQUIRES(!Locks::mem_maps_lock_);
+
+  // Internal version of mmap that supports low 4gb emulation.
+  static void* MapInternal(void* addr,
+                           size_t length,
+                           int prot,
+                           int flags,
+                           int fd,
+                           off_t offset,
+                           bool low_4gb);
 
   const std::string name_;
   uint8_t* const begin_;  // Start of data.
