@@ -37,7 +37,7 @@ class MethodVerifierTest : public CommonRuntimeTest {
 
     // Verify the class
     std::string error_msg;
-    ASSERT_TRUE(MethodVerifier::VerifyClass(self, klass, true, &error_msg) == MethodVerifier::kNoFailure)
+    ASSERT_TRUE(MethodVerifier::VerifyClass(self, klass, true, true, &error_msg) == MethodVerifier::kNoFailure)
         << error_msg;
   }
 
