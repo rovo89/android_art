@@ -456,6 +456,16 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   return method_header;
 }
 
+bool ArtMethod::HasAnyCompiledCode() {
+  // Check whether the JIT has compiled it.
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr && jit->GetCodeCache()->ContainsMethod(this)) {
+    return true;
+  }
+
+  // Check whether we have AOT code.
+  return Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(this) != nullptr;
+}
 
 void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   memcpy(reinterpret_cast<void*>(this), reinterpret_cast<const void*>(src),

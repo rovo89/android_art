@@ -117,6 +117,16 @@ bool JitCodeCache::ContainsPc(const void* ptr) const {
   return code_map_->Begin() <= ptr && ptr < code_map_->End();
 }
 
+bool JitCodeCache::ContainsMethod(ArtMethod* method) {
+  MutexLock mu(Thread::Current(), lock_);
+  for (auto& it : method_code_map_) {
+    if (it.second == method) {
+      return true;
+    }
+  }
+  return false;
+}
+
 class ScopedCodeCacheWrite {
  public:
   explicit ScopedCodeCacheWrite(MemMap* code_map) : code_map_(code_map) {
@@ -276,26 +286,36 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
 
     __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
                             reinterpret_cast<char*>(code_ptr + code_size));
-    method_code_map_.Put(code_ptr, method);
-    // We have checked there was no collection in progress earlier. If we
-    // were, setting the entry point of a method would be unsafe, as the collection
-    // could delete it.
-    DCHECK(!collection_in_progress_);
-    method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
   }
-  VLOG(jit)
-      << "JIT added "
-      << PrettyMethod(method) << "@" << method
-      << " ccache_size=" << PrettySize(CodeCacheSize()) << ": "
-      << " dcache_size=" << PrettySize(DataCacheSize()) << ": "
-      << reinterpret_cast<const void*>(method_header->GetEntryPoint()) << ","
-      << reinterpret_cast<const void*>(method_header->GetEntryPoint() + method_header->code_size_);
+  // We need to update the entry point in the runnable state for the instrumentation.
+  {
+    MutexLock mu(self, lock_);
+    method_code_map_.Put(code_ptr, method);
+    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+        method, method_header->GetEntryPoint());
+    if (collection_in_progress_) {
+      // We need to update the live bitmap if there is a GC to ensure it sees this new
+      // code.
+      GetLiveBitmap()->AtomicTestAndSet(FromCodeToAllocation(code_ptr));
+    }
+    VLOG(jit)
+        << "JIT added "
+        << PrettyMethod(method) << "@" << method
+        << " ccache_size=" << PrettySize(CodeCacheSizeLocked()) << ": "
+        << " dcache_size=" << PrettySize(DataCacheSizeLocked()) << ": "
+        << reinterpret_cast<const void*>(method_header->GetEntryPoint()) << ","
+        << reinterpret_cast<const void*>(method_header->GetEntryPoint() + method_header->code_size_);
+  }
 
   return reinterpret_cast<uint8_t*>(method_header);
 }
 
 size_t JitCodeCache::CodeCacheSize() {
   MutexLock mu(Thread::Current(), lock_);
+  return CodeCacheSizeLocked();
+}
+
+size_t JitCodeCache::CodeCacheSizeLocked() {
   size_t bytes_allocated = 0;
   mspace_inspect_all(code_mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
   return bytes_allocated;
@@ -303,6 +323,10 @@ size_t JitCodeCache::CodeCacheSize() {
 
 size_t JitCodeCache::DataCacheSize() {
   MutexLock mu(Thread::Current(), lock_);
+  return DataCacheSizeLocked();
+}
+
+size_t JitCodeCache::DataCacheSizeLocked() {
   size_t bytes_allocated = 0;
   mspace_inspect_all(data_mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
   return bytes_allocated;
@@ -417,19 +441,25 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   }
 
   size_t map_size = 0;
-  ScopedThreadSuspension sts(self, kSuspended);
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
 
+  // Wait for an existing collection, or let everyone know we are starting one.
+  {
+    ScopedThreadSuspension sts(self, kSuspended);
+    MutexLock mu(self, lock_);
+    if (WaitForPotentialCollectionToComplete(self)) {
+      return;
+    } else {
+      collection_in_progress_ = true;
+    }
+  }
   // Walk over all compiled methods and set the entry points of these
   // methods to interpreter.
   {
     MutexLock mu(self, lock_);
-    if (WaitForPotentialCollectionToComplete(self)) {
-      return;
-    }
-    collection_in_progress_ = true;
     map_size = method_code_map_.size();
     for (auto& it : method_code_map_) {
-      it.second->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+      instrumentation->UpdateMethodsCode(it.second, GetQuickToInterpreterBridge());
     }
     for (ProfilingInfo* info : profiling_infos_) {
       info->GetMethod()->SetProfilingInfo(nullptr);
@@ -440,16 +470,12 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   {
     Barrier barrier(0);
     size_t threads_running_checkpoint = 0;
-    {
-      // Walking the stack requires the mutator lock.
-      // We only take the lock when running the checkpoint and not waiting so that
-      // when we go back to suspended, we can execute checkpoints that were requested
-      // concurrently, and then move to waiting for our own checkpoint to finish.
-      ScopedObjectAccess soa(self);
-      MarkCodeClosure closure(this, &barrier);
-      threads_running_checkpoint =
-          Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
-    }
+    MarkCodeClosure closure(this, &barrier);
+    threads_running_checkpoint =
+        Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+    // Now that we have run our checkpoint, move to a suspended state and wait
+    // for other threads to run the checkpoint.
+    ScopedThreadSuspension sts(self, kSuspended);
     if (threads_running_checkpoint != 0) {
       barrier.Increment(self, threads_running_checkpoint);
     }
@@ -457,7 +483,6 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
 
   {
     MutexLock mu(self, lock_);
-    DCHECK_EQ(map_size, method_code_map_.size());
     // Free unused compiled code, and restore the entry point of used compiled code.
     {
       ScopedCodeCacheWrite scc(code_map_.get());
@@ -467,7 +492,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
         uintptr_t allocation = FromCodeToAllocation(code_ptr);
         const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
         if (GetLiveBitmap()->Test(allocation)) {
-          method->SetEntryPointFromQuickCompiledCode(method_header->GetEntryPoint());
+          instrumentation->UpdateMethodsCode(method, method_header->GetEntryPoint());
           ++it;
         } else {
           method->ClearCounter();
