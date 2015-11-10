@@ -2595,6 +2595,11 @@ class HBinaryOperation : public HExpression<2> {
     VLOG(compiler) << DebugName() << " is not defined for the (long, int) case.";
     return nullptr;
   }
+  virtual HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
+                              HNullConstant* y ATTRIBUTE_UNUSED) const {
+    VLOG(compiler) << DebugName() << " is not defined for the (null, null) case.";
+    return nullptr;
+  }
 
   // Returns an input that can legally be used as the right input and is
   // constant, or null.
@@ -2685,6 +2690,10 @@ class HEqual : public HCondition {
     return GetBlock()->GetGraph()->GetIntConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
+  HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
+                      HNullConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetConstant(GetType(), 1);
+  }
 
   DECLARE_INSTRUCTION(Equal);
 
@@ -2716,6 +2725,10 @@ class HNotEqual : public HCondition {
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
+  }
+  HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
+                      HNullConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetConstant(GetType(), 0);
   }
 
   DECLARE_INSTRUCTION(NotEqual);
