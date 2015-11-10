@@ -2692,7 +2692,7 @@ class HEqual : public HCondition {
   }
   HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
                       HNullConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetConstant(GetType(), 1);
+    return GetBlock()->GetGraph()->GetIntConstant(1);
   }
 
   DECLARE_INSTRUCTION(Equal);
@@ -2728,7 +2728,7 @@ class HNotEqual : public HCondition {
   }
   HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
                       HNullConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetConstant(GetType(), 0);
+    return GetBlock()->GetGraph()->GetIntConstant(0);
   }
 
   DECLARE_INSTRUCTION(NotEqual);
