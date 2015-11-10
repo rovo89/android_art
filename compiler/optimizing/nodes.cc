@@ -1731,8 +1731,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     // (2) the reverse post order of that graph,
     // (3) the potential loop information they are now in,
     // (4) try block membership.
-    // Note that we do not need to update catch phis because catch blocks cannot
-    // reference vregs from the inlined method.
+    // Note that we do not need to update catch phi inputs because they
+    // correspond to the register file of the outer method which the inlinee
+    // cannot modify.
 
     // We don't add the entry block, the exit block, and the first block, which
     // has been merged with `at`.
