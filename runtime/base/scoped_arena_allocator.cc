@@ -91,16 +91,19 @@ void ArenaStack::UpdateBytesAllocated() {
 }
 
 void* ArenaStack::AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind) {
+  // We mark all memory for a newly retrieved arena as inaccessible and then
+  // mark only the actually allocated memory as defined. That leaves red zones
+  // and padding between allocations marked as inaccessible.
   size_t rounded_bytes = RoundUp(bytes + kMemoryToolRedZoneBytes, 8);
   uint8_t* ptr = top_ptr_;
   if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
     ptr = AllocateFromNextArena(rounded_bytes);
     CHECK(ptr != nullptr) << "Failed to allocate memory";
+    MEMORY_TOOL_MAKE_NOACCESS(ptr, top_end_);
   }
   CurrentStats()->RecordAlloc(bytes, kind);
   top_ptr_ = ptr + rounded_bytes;
   MEMORY_TOOL_MAKE_UNDEFINED(ptr, bytes);
-  MEMORY_TOOL_MAKE_NOACCESS(ptr + bytes, rounded_bytes - bytes);
   return ptr;
 }
 
