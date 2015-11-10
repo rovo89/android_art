@@ -709,19 +709,32 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   }
 
   // Note: The image header is part of the image due to mmap page alignment required of offset.
-  std::unique_ptr<MemMap> map(MemMap::MapFileAtAddress(
-      image_header.GetImageBegin(), image_header.GetImageSize(),
-      PROT_READ | PROT_WRITE, MAP_PRIVATE, file->Fd(), 0, false, image_filename, error_msg));
-  if (map.get() == nullptr) {
+  std::unique_ptr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
+                                                       image_header.GetImageSize(),
+                                                       PROT_READ | PROT_WRITE,
+                                                       MAP_PRIVATE,
+                                                       file->Fd(),
+                                                       0,
+                                                       /*low_4gb*/false,
+                                                       /*reuse*/false,
+                                                       image_filename,
+                                                       error_msg));
+  if (map == nullptr) {
     DCHECK(!error_msg->empty());
     return nullptr;
   }
   CHECK_EQ(image_header.GetImageBegin(), map->Begin());
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
-  std::unique_ptr<MemMap> image_map(MemMap::MapFileAtAddress(
-      nullptr, bitmap_section.Size(), PROT_READ, MAP_PRIVATE, file->Fd(),
-      bitmap_section.Offset(), false, image_filename, error_msg));
+  std::unique_ptr<MemMap> image_map(MemMap::MapFileAtAddress(nullptr,
+                                                             bitmap_section.Size(),
+                                                             PROT_READ, MAP_PRIVATE,
+                                                             file->Fd(),
+                                                             bitmap_section.Offset(),
+                                                             /*low_4gb*/false,
+                                                             /*reuse*/false,
+                                                             image_filename,
+                                                             error_msg));
   if (image_map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
