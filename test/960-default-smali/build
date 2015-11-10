@@ -20,18 +20,19 @@ set -e
 # Generate the smali Main.smali file or fail
 ${ANDROID_BUILD_TOP}/art/test/utils/python/generate_smali_main.py ./smali
 
-USES_JAVA="false"
+# Should we compile with Java source code. By default we will use Smali.
+USES_JAVA_SOURCE="false"
 if [[ $ARGS == *"--jvm"* ]]; then
-  USES_JAVA="true"
+  USES_JAVA_SOURCE="true"
 elif [[ "$USE_JACK" == "true" ]]; then
   if $JACK -D jack.java.source.version=1.8 >& /dev/null; then
-    USES_JAVA="true"
+    USES_JAVA_SOURCE="true"
   else
     echo "WARNING: Cannot use jack because it does not support JLS 1.8. Falling back to smali" >&2
   fi
 fi
 
-if [[ "$USES_JAVA" == "true" ]]; then
+if [[ "$USES_JAVA_SOURCE" == "true" ]]; then
   # We are compiling java code, create it.
   mkdir -p src
   ${ANDROID_BUILD_TOP}/art/tools/extract-embedded-java ./smali ./src
