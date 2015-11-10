@@ -162,13 +162,20 @@ void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
   VisitInstruction(check);
 }
 
+// Returns true if there exists `index2` such that `index2 > index` and
+// `array[index] == array[index2]`.
+static bool ContainsSameValueAfter(ArrayRef<HBasicBlock* const> array, size_t index) {
+  ArrayRef<HBasicBlock* const> tail = array.SubArray(index + 1);
+  return std::find(tail.begin(), tail.end(), array[index]) != tail.end();
+}
+
 void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
-  // Ensure that all exception handlers are catch blocks and that handlers
-  // are not listed multiple times.
+  ArrayRef<HBasicBlock* const> handlers = try_boundary->GetExceptionHandlers();
+
+  // Ensure that all exception handlers are catch blocks.
   // Note that a normal-flow successor may be a catch block before CFG
   // simplification. We only test normal-flow successors in SsaChecker.
-  for (HExceptionHandlerIterator it(*try_boundary); !it.Done(); it.Advance()) {
-    HBasicBlock* handler = it.Current();
+  for (HBasicBlock* handler : handlers) {
     if (!handler->IsCatchBlock()) {
       AddError(StringPrintf("Block %d with %s:%d has exceptional successor %d which "
                             "is not a catch block.",
@@ -177,9 +184,13 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
                             try_boundary->GetId(),
                             handler->GetBlockId()));
     }
-    if (current_block_->HasSuccessor(handler, it.CurrentSuccessorIndex() + 1)) {
+  }
+
+  // Ensure that handlers are not listed multiple times.
+  for (size_t i = 0, e = handlers.size(); i < e; ++i) {
+    if (ContainsSameValueAfter(handlers, i)) {
       AddError(StringPrintf("Exception handler block %d of %s:%d is listed multiple times.",
-                            handler->GetBlockId(),
+                            handlers[i]->GetBlockId(),
                             try_boundary->DebugName(),
                             try_boundary->GetId()));
     }
@@ -371,17 +382,14 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
 
   // Ensure that catch blocks are not normal successors, and normal blocks are
   // never exceptional successors.
-  const size_t num_normal_successors = block->NumberOfNormalSuccessors();
-  for (size_t j = 0; j < num_normal_successors; ++j) {
-    HBasicBlock* successor = block->GetSuccessors()[j];
+  for (HBasicBlock* successor : block->GetNormalSuccessors()) {
     if (successor->IsCatchBlock()) {
       AddError(StringPrintf("Catch block %d is a normal successor of block %d.",
                             successor->GetBlockId(),
                             block->GetBlockId()));
     }
   }
-  for (size_t j = num_normal_successors, e = block->GetSuccessors().size(); j < e; ++j) {
-    HBasicBlock* successor = block->GetSuccessors()[j];
+  for (HBasicBlock* successor : block->GetExceptionalSuccessors()) {
     if (!successor->IsCatchBlock()) {
       AddError(StringPrintf("Normal block %d is an exceptional successor of block %d.",
                             successor->GetBlockId(),
@@ -394,8 +402,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   // predecessors). Exceptional edges are synthesized and hence
   // not accounted for.
   if (block->GetSuccessors().size() > 1) {
-    for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
-      HBasicBlock* successor = block->GetSuccessors()[j];
+    for (HBasicBlock* successor : block->GetNormalSuccessors()) {
       if (successor->IsExitBlock() &&
           block->IsSingleTryBoundary() &&
           block->GetPredecessors().size() == 1u &&

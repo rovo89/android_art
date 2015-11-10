@@ -1525,7 +1525,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   DCHECK(IsValidDestination(destination)) << destination;
   if (source.Equals(destination)) return;
 
-  DCHECK_EQ(block->NumberOfNormalSuccessors(), 1u);
+  DCHECK_EQ(block->GetNormalSuccessors().size(), 1u);
   HInstruction* last = block->GetLastInstruction();
   // We insert moves at exit for phi predecessors and connecting blocks.
   // A block ending with an if or a packed switch cannot branch to a block
@@ -1752,7 +1752,7 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
 
   // If `from` has only one successor, we can put the moves at the exit of it. Otherwise
   // we need to put the moves at the entry of `to`.
-  if (from->NumberOfNormalSuccessors() == 1) {
+  if (from->GetNormalSuccessors().size() == 1) {
     InsertParallelMoveAtExitOf(from,
                                interval->GetParent()->GetDefinedBy(),
                                source->ToLocation(),
@@ -1894,7 +1894,7 @@ void RegisterAllocator::Resolve() {
         HInstruction* phi = inst_it.Current();
         for (size_t i = 0, e = current->GetPredecessors().size(); i < e; ++i) {
           HBasicBlock* predecessor = current->GetPredecessors()[i];
-          DCHECK_EQ(predecessor->NumberOfNormalSuccessors(), 1u);
+          DCHECK_EQ(predecessor->GetNormalSuccessors().size(), 1u);
           HInstruction* input = phi->InputAt(i);
           Location source = input->GetLiveInterval()->GetLocationAt(
               predecessor->GetLifetimeEnd() - 1);
