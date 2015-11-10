@@ -1164,6 +1164,7 @@ Heap::~Heap() {
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
+  delete thread_flip_lock_;
   delete pending_task_lock_;
   delete backtrace_lock_;
   if (unique_backtrace_count_.LoadRelaxed() != 0 || seen_backtrace_count_.LoadRelaxed() != 0) {
