@@ -528,13 +528,13 @@ bool Runtime::Start() {
   // Use !IsAotCompiler so that we get test coverage, tests are never the zygote.
   if (!IsAotCompiler()) {
     ScopedObjectAccess soa(self);
-    gc::space::ImageSpace* image_space = heap_->GetImageSpace();
+    gc::space::ImageSpace* image_space = heap_->GetBootImageSpace();
     if (image_space != nullptr) {
       ATRACE_BEGIN("AddImageStringsToTable");
       GetInternTable()->AddImageStringsToTable(image_space);
       ATRACE_END();
       ATRACE_BEGIN("MoveImageClassesToClassTable");
-      GetClassLinker()->MoveImageClassesToClassTable();
+      GetClassLinker()->AddBootImageClassesToClassTable();
       ATRACE_END();
     }
   }
@@ -930,7 +930,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
   ATRACE_END();
 
-  if (heap_->GetImageSpace() == nullptr && !allow_dex_file_fallback_) {
+  if (heap_->GetBootImageSpace() == nullptr && !allow_dex_file_fallback_) {
     LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
     ATRACE_END();
     return false;
@@ -1043,7 +1043,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     class_linker_->InitFromImage();
     ATRACE_END();
     if (kIsDebugBuild) {
-      GetHeap()->GetImageSpace()->VerifyImageAllocations();
+      GetHeap()->GetBootImageSpace()->VerifyImageAllocations();
     }
     if (boot_class_path_string_.empty()) {
       // The bootclasspath is not explicitly specified: construct it from the loaded dex files.

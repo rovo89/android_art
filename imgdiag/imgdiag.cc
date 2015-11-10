@@ -814,7 +814,7 @@ class ImgDiagDumper {
 
   static const ImageHeader& GetBootImageHeader() {
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    gc::space::ImageSpace* image_space = heap->GetImageSpace();
+    gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
     CHECK(image_space != nullptr);
     const ImageHeader& image_header = image_space->GetImageHeader();
     return image_header;
@@ -838,7 +838,7 @@ static int DumpImage(Runtime* runtime, const char* image_location,
                      std::ostream* os, pid_t image_diff_pid) {
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = runtime->GetHeap();
-  gc::space::ImageSpace* image_space = heap->GetImageSpace();
+  gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
   CHECK(image_space != nullptr);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {

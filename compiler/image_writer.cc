@@ -1589,7 +1589,7 @@ const uint8_t* ImageWriter::GetOatAddress(OatAddress type) const {
   // If we are compiling an app image, we need to use the stubs of the boot image.
   if (compile_app_image_) {
     // Use the current image pointers.
-    gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+    gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
     DCHECK(image_space != nullptr);
     const OatFile* oat_file = image_space->GetOatFile();
     CHECK(oat_file != nullptr);

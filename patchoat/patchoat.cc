@@ -189,7 +189,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
     LOG(ERROR) << "unable to map image file " << input_image->GetPath() << " : " << error_msg;
     return false;
   }
-  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetImageSpace();
+  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetBootImageSpace();
 
   PatchOat p(isa, image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(), delta, timings);
   t.NewTiming("Patching files");
@@ -288,7 +288,7 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
     LOG(ERROR) << "unable to map image file " << input_image->GetPath() << " : " << error_msg;
     return false;
   }
-  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetImageSpace();
+  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetBootImageSpace();
 
   std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat,
                                              PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));

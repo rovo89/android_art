@@ -79,11 +79,8 @@ const OatFile* OatFileManager::FindOpenedOatFileFromOatLocationLocked(
 }
 
 const OatFile* OatFileManager::GetBootOatFile() const {
-  gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
-  if (image_space == nullptr) {
-    return nullptr;
-  }
-  return image_space->GetOatFile();
+  gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
+  return (image_space == nullptr) ? nullptr : image_space->GetOatFile();
 }
 
 const OatFile* OatFileManager::GetPrimaryOatFile() const {

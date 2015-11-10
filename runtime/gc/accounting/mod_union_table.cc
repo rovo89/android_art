@@ -487,7 +487,7 @@ void ModUnionTableCardCache::ClearCards() {
 
 // Mark all references to the alloc space(s).
 void ModUnionTableCardCache::UpdateAndMarkReferences(MarkObjectVisitor* visitor) {
-  auto* image_space = heap_->GetImageSpace();
+  auto* image_space = heap_->GetBootImageSpace();
   // If we don't have an image space, just pass in space_ as the immune space. Pass in the same
   // space_ instead of image_space to avoid a null check in ModUnionUpdateObjectReferencesVisitor.
   CardBitVisitor bit_visitor(visitor, space_, image_space != nullptr ? image_space : space_,

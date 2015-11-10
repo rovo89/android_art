@@ -23,7 +23,7 @@
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/reference_processor.h"
 #include "gc/space/image_space.h"
-#include "gc/space/space.h"
+#include "gc/space/space-inl.h"
 #include "intern_table.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -358,13 +358,17 @@ void ConcurrentCopying::MarkingPhase() {
     // scan the image objects from roots by relying on the card table,
     // but it's necessary for the RB to-space invariant to hold.
     TimingLogger::ScopedTiming split1("VisitImageRoots", GetTimings());
-    gc::space::ImageSpace* image = heap_->GetImageSpace();
-    if (image != nullptr) {
-      mirror::ObjectArray<mirror::Object>* image_root = image->GetImageHeader().GetImageRoots();
-      mirror::Object* marked_image_root = Mark(image_root);
-      CHECK_EQ(image_root, marked_image_root) << "An image object does not move";
-      if (ReadBarrier::kEnableToSpaceInvariantChecks) {
-        AssertToSpaceInvariant(nullptr, MemberOffset(0), marked_image_root);
+    for (space::ContinuousSpace* space : heap_->GetContinuousSpaces()) {
+      if (space->IsImageSpace()) {
+        gc::space::ImageSpace* image = space->AsImageSpace();
+        if (image != nullptr) {
+          mirror::ObjectArray<mirror::Object>* image_root = image->GetImageHeader().GetImageRoots();
+          mirror::Object* marked_image_root = Mark(image_root);
+          CHECK_EQ(image_root, marked_image_root) << "An image object does not move";
+          if (ReadBarrier::kEnableToSpaceInvariantChecks) {
+            AssertToSpaceInvariant(nullptr, MemberOffset(0), marked_image_root);
+          }
+        }
       }
     }
   }
