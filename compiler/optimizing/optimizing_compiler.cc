@@ -531,6 +531,7 @@ static void RunOptimizations(HGraph* graph,
   //       pipeline for all methods.
   if (graph->HasTryCatch()) {
     HOptimization* optimizations2[] = {
+      boolean_simplify,
       side_effects,
       gvn,
       dce2,
