@@ -1095,6 +1095,8 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
     } else if (GetRight()->IsLongConstant()) {
       return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsLongConstant());
     }
+  } else if (GetLeft()->IsNullConstant() && GetRight()->IsNullConstant()) {
+    return Evaluate(GetLeft()->AsNullConstant(), GetRight()->AsNullConstant());
   }
   return nullptr;
 }

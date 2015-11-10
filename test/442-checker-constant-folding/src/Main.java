@@ -659,6 +659,33 @@ public class Main {
 
 
   /**
+   * Exercise constant folding on constant (static) condition for null references.
+   */
+
+  /// CHECK-START: int Main.StaticConditionNulls() constant_folding_after_inlining (before)
+  /// CHECK-DAG:     <<Null:l\d+>>    NullConstant
+  /// CHECK-DAG:     <<Cond:z\d+>>    NotEqual [<<Null>>,<<Null>>]
+  /// CHECK-DAG:                      If [<<Cond>>]
+
+  /// CHECK-START: int Main.StaticConditionNulls() constant_folding_after_inlining (after)
+  /// CHECK-DAG:     <<Const0:i\d+>>  IntConstant 0
+  /// CHECK-DAG:                      If [<<Const0>>]
+
+  /// CHECK-START: int Main.StaticConditionNulls() constant_folding_after_inlining (after)
+  /// CHECK-NOT:                      NotEqual
+
+  private static Object getNull() {
+    return null;
+  }
+
+  public static int StaticConditionNulls() {
+    Object a = getNull();
+    Object b = getNull();
+    return (a == b) ? 5 : 2;
+  }
+
+
+  /**
    * Exercise constant folding on a program with condition
    * (i.e. jumps) leading to the creation of many blocks.
    *
@@ -1208,6 +1235,7 @@ public class Main {
     assertLongEquals(9, XorLongInt());
 
     assertIntEquals(5, StaticCondition());
+    assertIntEquals(5, StaticConditionNulls());
 
     assertIntEquals(7, JumpsAndConditionals(true));
     assertIntEquals(3, JumpsAndConditionals(false));
