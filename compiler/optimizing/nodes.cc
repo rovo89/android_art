@@ -362,7 +362,11 @@ void HGraph::ComputeTryBlockInformation() {
     HBasicBlock* first_predecessor = block->GetPredecessors()[0];
     DCHECK(!block->IsLoopHeader() || !block->GetLoopInformation()->IsBackEdge(*first_predecessor));
     const HTryBoundary* try_entry = first_predecessor->ComputeTryEntryOfSuccessors();
-    if (try_entry != nullptr) {
+    if (try_entry != nullptr &&
+        (block->GetTryCatchInformation() == nullptr ||
+         try_entry != &block->GetTryCatchInformation()->GetTryEntry())) {
+      // We are either setting try block membership for the first time or it
+      // has changed.
       block->SetTryCatchInformation(new (arena_) TryCatchInformation(*try_entry));
     }
   }
@@ -1388,7 +1392,7 @@ void HBasicBlock::DisconnectAndDelete() {
   // iteration.
   DCHECK(dominated_blocks_.empty());
 
-  // Remove the block from all loops it is included in.
+  // (1) Remove the block from all loops it is included in.
   for (HLoopInformationOutwardIterator it(*this); !it.Done(); it.Advance()) {
     HLoopInformation* loop_info = it.Current();
     loop_info->Remove(this);
@@ -1400,17 +1404,34 @@ void HBasicBlock::DisconnectAndDelete() {
     }
   }
 
-  // Disconnect the block from its predecessors and update their control-flow
-  // instructions.
+  // (2) Disconnect the block from its predecessors and update their
+  //     control-flow instructions.
   for (HBasicBlock* predecessor : predecessors_) {
     HInstruction* last_instruction = predecessor->GetLastInstruction();
+    if (last_instruction->IsTryBoundary() && !IsCatchBlock()) {
+      // This block is the only normal-flow successor of the TryBoundary which
+      // makes `predecessor` dead. Since DCE removes blocks in post order,
+      // exception handlers of this TryBoundary were already visited and any
+      // remaining handlers therefore must be live. We remove `predecessor` from
+      // their list of predecessors.
+      DCHECK_EQ(last_instruction->AsTryBoundary()->GetNormalFlowSuccessor(), this);
+      while (predecessor->GetSuccessors().size() > 1) {
+        HBasicBlock* handler = predecessor->GetSuccessors()[1];
+        DCHECK(handler->IsCatchBlock());
+        predecessor->RemoveSuccessor(handler);
+        handler->RemovePredecessor(predecessor);
+      }
+    }
+
     predecessor->RemoveSuccessor(this);
     uint32_t num_pred_successors = predecessor->GetSuccessors().size();
     if (num_pred_successors == 1u) {
       // If we have one successor after removing one, then we must have
-      // had an HIf or HPackedSwitch, as they have more than one successor.
-      // Replace those with a HGoto.
-      DCHECK(last_instruction->IsIf() || last_instruction->IsPackedSwitch());
+      // had an HIf, HPackedSwitch or HTryBoundary, as they have more than one
+      // successor. Replace those with a HGoto.
+      DCHECK(last_instruction->IsIf() ||
+             last_instruction->IsPackedSwitch() ||
+             (last_instruction->IsTryBoundary() && IsCatchBlock()));
       predecessor->RemoveInstruction(last_instruction);
       predecessor->AddInstruction(new (graph_->GetArena()) HGoto(last_instruction->GetDexPc()));
     } else if (num_pred_successors == 0u) {
@@ -1419,15 +1440,17 @@ void HBasicBlock::DisconnectAndDelete() {
       // SSAChecker fails unless it is not removed during the pass too.
       predecessor->RemoveInstruction(last_instruction);
     } else {
-      // There are multiple successors left.  This must come from a HPackedSwitch
-      // and we are in the middle of removing the HPackedSwitch. Like above, leave
-      // this alone, and the SSAChecker will fail if it is not removed as well.
-      DCHECK(last_instruction->IsPackedSwitch());
+      // There are multiple successors left. The removed block might be a successor
+      // of a PackedSwitch which will be completely removed (perhaps replaced with
+      // a Goto), or we are deleting a catch block from a TryBoundary. In either
+      // case, leave `last_instruction` as is for now.
+      DCHECK(last_instruction->IsPackedSwitch() ||
+             (last_instruction->IsTryBoundary() && IsCatchBlock()));
     }
   }
   predecessors_.clear();
 
-  // Disconnect the block from its successors and update their phis.
+  // (3) Disconnect the block from its successors and update their phis.
   for (HBasicBlock* successor : successors_) {
     // Delete this block from the list of predecessors.
     size_t this_index = successor->GetPredecessorIndexOf(this);
@@ -1437,30 +1460,57 @@ void HBasicBlock::DisconnectAndDelete() {
     // dominator of `successor` which violates the order DCHECKed at the top.
     DCHECK(!successor->predecessors_.empty());
 
-    // Remove this block's entries in the successor's phis.
-    if (successor->predecessors_.size() == 1u) {
-      // The successor has just one predecessor left. Replace phis with the only
-      // remaining input.
-      for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-        HPhi* phi = phi_it.Current()->AsPhi();
-        phi->ReplaceWith(phi->InputAt(1 - this_index));
-        successor->RemovePhi(phi);
-      }
-    } else {
-      for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-        phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
+    // Remove this block's entries in the successor's phis. Skip exceptional
+    // successors because catch phi inputs do not correspond to predecessor
+    // blocks but throwing instructions. Their inputs will be updated in step (4).
+    if (!successor->IsCatchBlock()) {
+      if (successor->predecessors_.size() == 1u) {
+        // The successor has just one predecessor left. Replace phis with the only
+        // remaining input.
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          HPhi* phi = phi_it.Current()->AsPhi();
+          phi->ReplaceWith(phi->InputAt(1 - this_index));
+          successor->RemovePhi(phi);
+        }
+      } else {
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
+        }
       }
     }
   }
   successors_.clear();
 
+  // (4) Remove instructions and phis. Instructions should have no remaining uses
+  //     except in catch phis. If an instruction is used by a catch phi at `index`,
+  //     remove `index`-th input of all phis in the catch block since they are
+  //     guaranteed dead. Note that we may miss dead inputs this way but the
+  //     graph will always remain consistent.
+  for (HBackwardInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* insn = it.Current();
+    while (insn->HasUses()) {
+      DCHECK(IsTryBlock());
+      HUseListNode<HInstruction*>* use = insn->GetUses().GetFirst();
+      size_t use_index = use->GetIndex();
+      HBasicBlock* user_block =  use->GetUser()->GetBlock();
+      DCHECK(use->GetUser()->IsPhi() && user_block->IsCatchBlock());
+      for (HInstructionIterator phi_it(user_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+        phi_it.Current()->AsPhi()->RemoveInputAt(use_index);
+      }
+    }
+
+    RemoveInstruction(insn);
+  }
+  for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
+    RemovePhi(it.Current()->AsPhi());
+  }
+
   // Disconnect from the dominator.
   dominator_->RemoveDominatedBlock(this);
   SetDominator(nullptr);
 
-  // Delete from the graph. The function safely deletes remaining instructions
-  // and updates the reverse post order.
-  graph_->DeleteDeadBlock(this);
+  // Delete from the graph, update reverse post order.
+  graph_->DeleteDeadEmptyBlock(this);
   SetGraph(nullptr);
 }
 
@@ -1507,7 +1557,7 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
   other->predecessors_.clear();
 
   // Delete `other` from the graph. The function updates reverse post order.
-  graph_->DeleteDeadBlock(other);
+  graph_->DeleteDeadEmptyBlock(other);
   other->SetGraph(nullptr);
 }
 
@@ -1571,19 +1621,14 @@ static void MakeRoomFor(ArenaVector<HBasicBlock*>* blocks,
   std::copy_backward(blocks->begin() + after + 1u, blocks->begin() + old_size, blocks->end());
 }
 
-void HGraph::DeleteDeadBlock(HBasicBlock* block) {
+void HGraph::DeleteDeadEmptyBlock(HBasicBlock* block) {
   DCHECK_EQ(block->GetGraph(), this);
   DCHECK(block->GetSuccessors().empty());
   DCHECK(block->GetPredecessors().empty());
   DCHECK(block->GetDominatedBlocks().empty());
   DCHECK(block->GetDominator() == nullptr);
-
-  for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-    block->RemoveInstruction(it.Current());
-  }
-  for (HBackwardInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    block->RemovePhi(it.Current()->AsPhi());
-  }
+  DCHECK(block->GetInstructions().IsEmpty());
+  DCHECK(block->GetPhis().IsEmpty());
 
   if (block->IsExitBlock()) {
     exit_block_ = nullptr;
