@@ -406,8 +406,8 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     &type_propagation,
     &sharpening,
     &simplify,
-    &dce,
     &fold,
+    &dce,
   };
 
   for (size_t i = 0; i < arraysize(optimizations); ++i) {
