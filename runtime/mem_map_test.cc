@@ -18,13 +18,13 @@
 
 #include <memory>
 
+#include "common_runtime_test.h"
 #include "base/memory_tool.h"
-
-#include "gtest/gtest.h"
+#include "base/unix_file/fd_file.h"
 
 namespace art {
 
-class MemMapTest : public testing::Test {
+class MemMapTest : public CommonRuntimeTest {
  public:
   static uint8_t* BaseBegin(MemMap* mem_map) {
     return reinterpret_cast<uint8_t*>(mem_map->base_begin_);
@@ -162,6 +162,26 @@ TEST_F(MemMapTest, MapAnonymousEmpty32bit) {
                                                    &error_msg));
   ASSERT_TRUE(map.get() != nullptr) << error_msg;
   ASSERT_TRUE(error_msg.empty());
+  ASSERT_LT(reinterpret_cast<uintptr_t>(BaseBegin(map.get())), 1ULL << 32);
+}
+TEST_F(MemMapTest, MapFile32Bit) {
+  CommonInit();
+  std::string error_msg;
+  ScratchFile scratch_file;
+  constexpr size_t kMapSize = kPageSize;
+  std::unique_ptr<uint8_t[]> data(new uint8_t[kMapSize]());
+  ASSERT_TRUE(scratch_file.GetFile()->WriteFully(&data[0], kMapSize));
+  std::unique_ptr<MemMap> map(MemMap::MapFile(/*byte_count*/kMapSize,
+                                              PROT_READ,
+                                              MAP_PRIVATE,
+                                              scratch_file.GetFd(),
+                                              /*start*/0,
+                                              /*low_4gb*/true,
+                                              scratch_file.GetFilename().c_str(),
+                                              &error_msg));
+  ASSERT_TRUE(map != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  ASSERT_EQ(map->Size(), kMapSize);
   ASSERT_LT(reinterpret_cast<uintptr_t>(BaseBegin(map.get())), 1ULL << 32);
 }
 #endif

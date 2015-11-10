@@ -231,7 +231,14 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, b
       return nullptr;
     }
     size_t length = sbuf.st_size;
-    map.reset(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0, location, error_msg));
+    map.reset(MemMap::MapFile(length,
+                              PROT_READ,
+                              MAP_PRIVATE,
+                              fd,
+                              0,
+                              /*low_4gb*/false,
+                              location,
+                              error_msg));
     if (map.get() == nullptr) {
       DCHECK(!error_msg->empty());
       return nullptr;

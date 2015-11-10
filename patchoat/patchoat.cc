@@ -177,8 +177,12 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   t.NewTiming("Image and oat Patching setup");
   // Create the map where we will write the image patches to.
   std::string error_msg;
-  std::unique_ptr<MemMap> image(MemMap::MapFile(image_len, PROT_READ | PROT_WRITE, MAP_PRIVATE,
-                                                input_image->Fd(), 0,
+  std::unique_ptr<MemMap> image(MemMap::MapFile(image_len,
+                                                PROT_READ | PROT_WRITE,
+                                                MAP_PRIVATE,
+                                                input_image->Fd(),
+                                                0,
+                                                /*low_4gb*/false,
                                                 input_image->GetPath().c_str(),
                                                 &error_msg));
   if (image.get() == nullptr) {
@@ -187,8 +191,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   }
   gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetImageSpace();
 
-  PatchOat p(isa, image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
-             delta, timings);
+  PatchOat p(isa, image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(), delta, timings);
   t.NewTiming("Patching files");
   if (!p.PatchImage()) {
     LOG(ERROR) << "Failed to patch image file " << input_image->GetPath();
@@ -273,8 +276,12 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
   t.NewTiming("Image and oat Patching setup");
   // Create the map where we will write the image patches to.
   std::string error_msg;
-  std::unique_ptr<MemMap> image(MemMap::MapFile(image_len, PROT_READ | PROT_WRITE, MAP_PRIVATE,
-                                                input_image->Fd(), 0,
+  std::unique_ptr<MemMap> image(MemMap::MapFile(image_len,
+                                                PROT_READ | PROT_WRITE,
+                                                MAP_PRIVATE,
+                                                input_image->Fd(),
+                                                0,
+                                                /*low_4gb*/false,
                                                 input_image->GetPath().c_str(),
                                                 &error_msg));
   if (image.get() == nullptr) {

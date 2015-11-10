@@ -189,8 +189,14 @@ bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, std::string* error_msg) {
   if (program_header_only_) {
     // first just map ELF header to get program header size information
     size_t elf_header_size = sizeof(Elf_Ehdr);
-    if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file_->Fd(), 0,
-                                file_->GetPath().c_str(), error_msg),
+    if (!SetMap(MemMap::MapFile(elf_header_size,
+                                prot,
+                                flags,
+                                file_->Fd(),
+                                0,
+                                /*low4_gb*/false,
+                                file_->GetPath().c_str(),
+                                error_msg),
                 error_msg)) {
       return false;
     }
@@ -202,16 +208,28 @@ bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, std::string* error_msg) {
                                 sizeof(Elf_Ehdr), file_->GetPath().c_str());
       return false;
     }
-    if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file_->Fd(), 0,
-                                file_->GetPath().c_str(), error_msg),
+    if (!SetMap(MemMap::MapFile(program_header_size,
+                                prot,
+                                flags,
+                                file_->Fd(),
+                                0,
+                                /*low4_gb*/false,
+                                file_->GetPath().c_str(),
+                                error_msg),
                 error_msg)) {
       *error_msg = StringPrintf("Failed to map ELF program headers: %s", error_msg->c_str());
       return false;
     }
   } else {
     // otherwise map entire file
-    if (!SetMap(MemMap::MapFile(file_->GetLength(), prot, flags, file_->Fd(), 0,
-                                file_->GetPath().c_str(), error_msg),
+    if (!SetMap(MemMap::MapFile(file_->GetLength(),
+                                prot,
+                                flags,
+                                file_->Fd(),
+                                0,
+                                /*low4_gb*/false,
+                                file_->GetPath().c_str(),
+                                error_msg),
                 error_msg)) {
       *error_msg = StringPrintf("Failed to map ELF file: %s", error_msg->c_str());
       return false;
@@ -1258,9 +1276,12 @@ bool ElfFileImpl<ElfTypes>::Load(bool executable, std::string* error_msg) {
       std::unique_ptr<MemMap> segment(
           MemMap::MapFileAtAddress(p_vaddr,
                                    program_header->p_filesz,
-                                   prot, flags, file_->Fd(),
+                                   prot,
+                                   flags,
+                                   file_->Fd(),
                                    program_header->p_offset,
-                                   true,  // implies MAP_FIXED
+                                   /*low4_gb*/false,
+                                   /*reuse*/true,  // implies MAP_FIXED
                                    file_->GetPath().c_str(),
                                    error_msg));
       if (segment.get() == nullptr) {
@@ -1775,8 +1796,14 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
                               file->GetPath().c_str());
     return nullptr;
   }
-  std::unique_ptr<MemMap> map(MemMap::MapFile(EI_NIDENT, PROT_READ, MAP_PRIVATE, file->Fd(), 0,
-                                              file->GetPath().c_str(), error_msg));
+  std::unique_ptr<MemMap> map(MemMap::MapFile(EI_NIDENT,
+                                              PROT_READ,
+                                              MAP_PRIVATE,
+                                              file->Fd(),
+                                              0,
+                                              /*low4_gb*/false,
+                                              file->GetPath().c_str(),
+                                              error_msg));
   if (map == nullptr && map->Size() != EI_NIDENT) {
     return nullptr;
   }
@@ -1809,8 +1836,14 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
                               file->GetPath().c_str());
     return nullptr;
   }
-  std::unique_ptr<MemMap> map(MemMap::MapFile(EI_NIDENT, PROT_READ, MAP_PRIVATE, file->Fd(), 0,
-                                              file->GetPath().c_str(), error_msg));
+  std::unique_ptr<MemMap> map(MemMap::MapFile(EI_NIDENT,
+                                              PROT_READ,
+                                              MAP_PRIVATE,
+                                              file->Fd(),
+                                              0,
+                                              /*low4_gb*/false,
+                                              file->GetPath().c_str(),
+                                              error_msg));
   if (map == nullptr && map->Size() != EI_NIDENT) {
     return nullptr;
   }
