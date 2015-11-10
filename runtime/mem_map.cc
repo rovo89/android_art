@@ -744,9 +744,6 @@ void* MemMap::MapInternal(void* addr,
                           off_t offset,
                           bool low_4gb) {
 #ifdef __LP64__
-#ifndef __APPLE__
-  DCHECK_EQ(flags & MAP_32BIT, 0);
-#endif
   // When requesting low_4g memory and having an expectation, the requested range should fit into
   // 4GB.
   if (low_4gb && (
