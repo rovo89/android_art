@@ -393,10 +393,15 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   // block with multiple successors to a block with multiple
   // predecessors). Exceptional edges are synthesized and hence
   // not accounted for.
-  if (block->NumberOfNormalSuccessors() > 1) {
+  if (block->GetSuccessors().size() > 1) {
     for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
       HBasicBlock* successor = block->GetSuccessors()[j];
-      if (successor->GetPredecessors().size() > 1) {
+      if (successor->IsExitBlock() &&
+          block->IsSingleTryBoundary() &&
+          block->GetPredecessors().size() == 1u &&
+          block->GetSinglePredecessor()->GetLastInstruction()->IsThrow()) {
+        // Allowed critical edge Throw->TryBoundary->Exit.
+      } else if (successor->GetPredecessors().size() > 1) {
         AddError(StringPrintf("Critical edge between blocks %d and %d.",
                               block->GetBlockId(),
                               successor->GetBlockId()));
