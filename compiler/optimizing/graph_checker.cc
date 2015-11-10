@@ -162,13 +162,6 @@ void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
   VisitInstruction(check);
 }
 
-// Returns true if there exists `index2` such that `index2 > index` and
-// `array[index] == array[index2]`.
-static bool ContainsSameValueAfter(ArrayRef<HBasicBlock* const> array, size_t index) {
-  ArrayRef<HBasicBlock* const> tail = array.SubArray(index + 1);
-  return std::find(tail.begin(), tail.end(), array[index]) != tail.end();
-}
-
 void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
   ArrayRef<HBasicBlock* const> handlers = try_boundary->GetExceptionHandlers();
 
@@ -188,8 +181,8 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
 
   // Ensure that handlers are not listed multiple times.
   for (size_t i = 0, e = handlers.size(); i < e; ++i) {
-    if (ContainsSameValueAfter(handlers, i)) {
-      AddError(StringPrintf("Exception handler block %d of %s:%d is listed multiple times.",
+    if (ContainsElement(handlers, handlers[i], i + 1)) {
+        AddError(StringPrintf("Exception handler block %d of %s:%d is listed multiple times.",
                             handlers[i]->GetBlockId(),
                             try_boundary->DebugName(),
                             try_boundary->GetId()));
