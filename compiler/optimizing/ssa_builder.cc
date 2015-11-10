@@ -660,8 +660,7 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   if (instruction->CanThrowIntoCatchBlock()) {
     const HTryBoundary& try_entry =
         instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
-    for (HExceptionHandlerIterator it(try_entry); !it.Done(); it.Advance()) {
-      HBasicBlock* catch_block = it.Current();
+    for (HBasicBlock* catch_block : try_entry.GetExceptionHandlers()) {
       ArenaVector<HInstruction*>* handler_locals = GetLocalsFor(catch_block);
       DCHECK_EQ(handler_locals->size(), current_locals_->size());
       for (size_t vreg = 0, e = current_locals_->size(); vreg < e; ++vreg) {
