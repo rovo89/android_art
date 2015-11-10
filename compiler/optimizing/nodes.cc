@@ -385,8 +385,9 @@ void HGraph::SimplifyCFG() {
       // Only split normal-flow edges. We cannot split exceptional edges as they
       // are synthesized (approximate real control flow), and we do not need to
       // anyway. Moves that would be inserted there are performed by the runtime.
-      for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
-        HBasicBlock* successor = block->GetSuccessors()[j];
+      ArrayRef<HBasicBlock* const> normal_successors = block->GetNormalSuccessors();
+      for (size_t j = 0, e = normal_successors.size(); j < e; ++j) {
+        HBasicBlock* successor = normal_successors[j];
         DCHECK(!successor->IsCatchBlock());
         if (successor == exit_block_) {
           // Throw->TryBoundary->Exit. Special case which we do not want to split
@@ -395,7 +396,11 @@ void HGraph::SimplifyCFG() {
           DCHECK(block->GetSinglePredecessor()->GetLastInstruction()->IsThrow());
         } else if (successor->GetPredecessors().size() > 1) {
           SplitCriticalEdge(block, successor);
-          --j;
+          // SplitCriticalEdge could have invalidated the `normal_successors`
+          // ArrayRef. We must re-acquire it.
+          normal_successors = block->GetNormalSuccessors();
+          DCHECK_EQ(normal_successors[j]->GetSingleSuccessor(), successor);
+          DCHECK_EQ(e, normal_successors.size());
         }
       }
     }
@@ -1329,17 +1334,38 @@ bool HBasicBlock::HasSinglePhi() const {
   return !GetPhis().IsEmpty() && GetFirstPhi()->GetNext() == nullptr;
 }
 
+ArrayRef<HBasicBlock* const> HBasicBlock::GetNormalSuccessors() const {
+  if (EndsWithTryBoundary()) {
+    // The normal-flow successor of HTryBoundary is always stored at index zero.
+    DCHECK_EQ(successors_[0], GetLastInstruction()->AsTryBoundary()->GetNormalFlowSuccessor());
+    return ArrayRef<HBasicBlock* const>(successors_).SubArray(0u, 1u);
+  } else {
+    // All successors of blocks not ending with TryBoundary are normal.
+    return ArrayRef<HBasicBlock* const>(successors_);
+  }
+}
+
+ArrayRef<HBasicBlock* const> HBasicBlock::GetExceptionalSuccessors() const {
+  if (EndsWithTryBoundary()) {
+    return GetLastInstruction()->AsTryBoundary()->GetExceptionHandlers();
+  } else {
+    // Blocks not ending with TryBoundary do not have exceptional successors.
+    return ArrayRef<HBasicBlock* const>();
+  }
+}
+
 bool HTryBoundary::HasSameExceptionHandlersAs(const HTryBoundary& other) const {
-  if (GetBlock()->GetSuccessors().size() != other.GetBlock()->GetSuccessors().size()) {
+  ArrayRef<HBasicBlock* const> handlers1 = GetExceptionHandlers();
+  ArrayRef<HBasicBlock* const> handlers2 = other.GetExceptionHandlers();
+
+  size_t length = handlers1.size();
+  if (length != handlers2.size()) {
     return false;
   }
 
   // Exception handlers need to be stored in the same order.
-  for (HExceptionHandlerIterator it1(*this), it2(other);
-       !it1.Done();
-       it1.Advance(), it2.Advance()) {
-    DCHECK(!it2.Done());
-    if (it1.Current() != it2.Current()) {
+  for (size_t i = 0; i < length; ++i) {
+    if (handlers1[i] != handlers2[i]) {
       return false;
     }
   }
