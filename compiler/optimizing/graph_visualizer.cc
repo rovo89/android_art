@@ -252,8 +252,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void PrintSuccessors(HBasicBlock* block) {
     AddIndent();
     output_ << "successors";
-    for (size_t i = 0; i < block->NumberOfNormalSuccessors(); ++i) {
-      HBasicBlock* successor = block->GetSuccessors()[i];
+    for (HBasicBlock* successor : block->GetNormalSuccessors()) {
       output_ << " \"B" << successor->GetBlockId() << "\" ";
     }
     output_<< std::endl;
@@ -262,8 +261,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void PrintExceptionHandlers(HBasicBlock* block) {
     AddIndent();
     output_ << "xhandlers";
-    for (size_t i = block->NumberOfNormalSuccessors(); i < block->GetSuccessors().size(); ++i) {
-      HBasicBlock* handler = block->GetSuccessors()[i];
+    for (HBasicBlock* handler : block->GetExceptionalSuccessors()) {
       output_ << " \"B" << handler->GetBlockId() << "\" ";
     }
     if (block->IsExitBlock() &&
