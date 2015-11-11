@@ -451,12 +451,12 @@ void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
     opcodes.EndSequence();
     WriteDebugLineTable(directories, files, opcodes, &debug_line, &debug_line_patches);
   }
+  builder->WriteSection(".debug_line", &debug_line);
+  builder->WritePatches(".debug_line.oat_patches", &debug_line_patches);
   builder->WriteSection(".debug_info", &debug_info);
   builder->WritePatches(".debug_info.oat_patches", &debug_info_patches);
   builder->WriteSection(".debug_abbrev", &debug_abbrev);
   builder->WriteSection(".debug_str", &debug_str);
-  builder->WriteSection(".debug_line", &debug_line);
-  builder->WritePatches(".debug_line.oat_patches", &debug_line_patches);
 }
 
 // Explicit instantiations
