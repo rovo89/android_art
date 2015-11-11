@@ -260,6 +260,179 @@ public class Main {
     return arg ^ 0xf00000000000000fL;
   }
 
+  /// CHECK-START-ARM: long Main.shl2(long) disassembly (after)
+  /// CHECK:                lsl{{s?|.w}} <<oh:r\d+>>, {{r\d+}}, #2
+  /// CHECK:                orr.w <<oh>>, <<oh>>, <<low:r\d+>>, lsr #30
+  /// CHECK-DAG:            lsl{{s?|.w}} {{r\d+}}, <<low>>, #2
+
+  /// CHECK-START-ARM: long Main.shl2(long) disassembly (after)
+  /// CHECK-NOT:            lsl{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shl2(long arg) {
+    // Note: Shl(x, 1) is transformed to Add(x, x), so test Shl(x, 2).
+    return arg << 2;
+  }
+
+  /// CHECK-START-ARM: long Main.shl31(long) disassembly (after)
+  /// CHECK:                lsl{{s?|.w}} <<oh:r\d+>>, {{r\d+}}, #31
+  /// CHECK:                orr.w <<oh>>, <<oh>>, <<low:r\d+>>, lsr #1
+  /// CHECK:                lsl{{s?|.w}} {{r\d+}}, <<low>>, #31
+
+  /// CHECK-START-ARM: long Main.shl31(long) disassembly (after)
+  /// CHECK-NOT:            lsl{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shl31(long arg) {
+    return arg << 31;
+  }
+
+  /// CHECK-START-ARM: long Main.shl32(long) disassembly (after)
+  /// CHECK-DAG:            mov {{r\d+}}, {{r\d+}}
+  /// CHECK-DAG:            mov{{s?|.w}} {{r\d+}}, #0
+
+  /// CHECK-START-ARM: long Main.shl32(long) disassembly (after)
+  /// CHECK-NOT:            lsl{{s?|.w}}
+
+  public static long shl32(long arg) {
+    return arg << 32;
+  }
+
+  /// CHECK-START-ARM: long Main.shl33(long) disassembly (after)
+  /// CHECK-DAG:            lsl{{s?|.w}} {{r\d+}}, <<high:r\d+>>, #1
+  /// CHECK-DAG:            mov{{s?|.w}} {{r\d+}}, #0
+
+  /// CHECK-START-ARM: long Main.shl33(long) disassembly (after)
+  /// CHECK-NOT:            lsl{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shl33(long arg) {
+    return arg << 33;
+  }
+
+  /// CHECK-START-ARM: long Main.shl63(long) disassembly (after)
+  /// CHECK-DAG:            lsl{{s?|.w}} {{r\d+}}, <<high:r\d+>>, #31
+  /// CHECK-DAG:            mov{{s?|.w}} {{r\d+}}, #0
+
+  /// CHECK-START-ARM: long Main.shl63(long) disassembly (after)
+  /// CHECK-NOT:            lsl{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shl63(long arg) {
+    return arg << 63;
+  }
+
+  /// CHECK-START-ARM: long Main.shr1(long) disassembly (after)
+  /// CHECK:                lsr{{s?|.w}} <<ol:r\d+>>, {{r\d+}}, #1
+  /// CHECK:                orr.w <<ol>>, <<ol>>, <<high:r\d+>>, lsl #31
+  /// CHECK-DAG:            asr{{s?|.w}} {{r\d+}}, <<high>>, #1
+
+  /// CHECK-START-ARM: long Main.shr1(long) disassembly (after)
+  /// CHECK-NOT:            asr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shr1(long arg) {
+    return arg >> 1;
+  }
+
+  /// CHECK-START-ARM: long Main.shr31(long) disassembly (after)
+  /// CHECK:                lsr{{s?|.w}} <<ol:r\d+>>, {{r\d+}}, #31
+  /// CHECK:                orr.w <<ol>>, <<ol>>, <<high:r\d+>>, lsl #1
+  /// CHECK:                asr{{s?|.w}} {{r\d+}}, <<high>>, #31
+
+  /// CHECK-START-ARM: long Main.shr31(long) disassembly (after)
+  /// CHECK-NOT:            asr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shr31(long arg) {
+    return arg >> 31;
+  }
+
+  /// CHECK-START-ARM: long Main.shr32(long) disassembly (after)
+  /// CHECK-DAG:            asr{{s?|.w}} {{r\d+}}, <<high:r\d+>>, #31
+  /// CHECK-DAG:            mov {{r\d+}}, <<high>>
+
+  /// CHECK-START-ARM: long Main.shr32(long) disassembly (after)
+  /// CHECK-NOT:            asr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+  /// CHECK-NOT:            lsr{{s?|.w}}
+
+  public static long shr32(long arg) {
+    return arg >> 32;
+  }
+
+  /// CHECK-START-ARM: long Main.shr33(long) disassembly (after)
+  /// CHECK-DAG:            asr{{s?|.w}} {{r\d+}}, <<high:r\d+>>, #1
+  /// CHECK-DAG:            asr{{s?|.w}} {{r\d+}}, <<high>>, #31
+
+  /// CHECK-START-ARM: long Main.shr33(long) disassembly (after)
+  /// CHECK-NOT:            asr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shr33(long arg) {
+    return arg >> 33;
+  }
+
+  /// CHECK-START-ARM: long Main.shr63(long) disassembly (after)
+  /// CHECK-DAG:            asr{{s?|.w}} {{r\d+}}, <<high:r\d+>>, #31
+  /// CHECK-DAG:            asr{{s?|.w}} {{r\d+}}, <<high>>, #31
+
+  /// CHECK-START-ARM: long Main.shr63(long) disassembly (after)
+  /// CHECK-NOT:            asr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long shr63(long arg) {
+    return arg >> 63;
+  }
+
+  /// CHECK-START-ARM: long Main.ushr1(long) disassembly (after)
+  /// CHECK:                lsr{{s?|.w}} <<ol:r\d+>>, {{r\d+}}, #1
+  /// CHECK:                orr.w <<ol>>, <<ol>>, <<high:r\d+>>, lsl #31
+  /// CHECK-DAG:            lsr{{s?|.w}} {{r\d+}}, <<high>>, #1
+
+  /// CHECK-START-ARM: long Main.ushr1(long) disassembly (after)
+  /// CHECK-NOT:            lsr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long ushr1(long arg) {
+    return arg >>> 1;
+  }
+
+  /// CHECK-START-ARM: long Main.ushr31(long) disassembly (after)
+  /// CHECK:                lsr{{s?|.w}} <<ol:r\d+>>, {{r\d+}}, #31
+  /// CHECK:                orr.w <<ol>>, <<ol>>, <<high:r\d+>>, lsl #1
+  /// CHECK:                lsr{{s?|.w}} {{r\d+}}, <<high>>, #31
+
+  /// CHECK-START-ARM: long Main.ushr31(long) disassembly (after)
+  /// CHECK-NOT:            lsr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long ushr31(long arg) {
+    return arg >>> 31;
+  }
+
+  /// CHECK-START-ARM: long Main.ushr32(long) disassembly (after)
+  /// CHECK-DAG:            mov {{r\d+}}, {{r\d+}}
+  /// CHECK-DAG:            mov{{s?|.w}} {{r\d+}}, #0
+
+  /// CHECK-START-ARM: long Main.ushr32(long) disassembly (after)
+  /// CHECK-NOT:            lsr{{s?|.w}}
+
+  public static long ushr32(long arg) {
+    return arg >>> 32;
+  }
+
+  /// CHECK-START-ARM: long Main.ushr33(long) disassembly (after)
+  /// CHECK-DAG:            lsr{{s?|.w}} {{r\d+}}, {{r\d+}}, #1
+  /// CHECK-DAG:            mov{{s?|.w}} {{r\d+}}, #0
+
+  /// CHECK-START-ARM: long Main.ushr33(long) disassembly (after)
+  /// CHECK-NOT:            lsr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long ushr33(long arg) {
+    return arg >>> 33;
+  }
+
+  /// CHECK-START-ARM: long Main.ushr63(long) disassembly (after)
+  /// CHECK-DAG:            lsr{{s?|.w}} {{r\d+}}, {{r\d+}}, #31
+  /// CHECK-DAG:            mov{{s?|.w}} {{r\d+}}, #0
+
+  /// CHECK-START-ARM: long Main.ushr63(long) disassembly (after)
+  /// CHECK-NOT:            lsr{{s?|.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static long ushr63(long arg) {
+    return arg >>> 63;
+  }
+
   /**
    * Test that the `-1` constant is not synthesized in a register and that we
    * instead simply switch between `add` and `sub` instructions with the
@@ -311,5 +484,38 @@ public class Main {
     assertLongEquals(xor0xf00000000000000f(longArg), 0xe23456788765432eL);
 
     assertLongEquals(14, addM1(7));
+
+    assertLongEquals(shl2(longArg), 0x48d159e21d950c84L);
+    assertLongEquals(shl31(longArg), 0x43b2a19080000000L);
+    assertLongEquals(shl32(longArg), 0x8765432100000000L);
+    assertLongEquals(shl33(longArg), 0x0eca864200000000L);
+    assertLongEquals(shl63(longArg), 0x8000000000000000L);
+    assertLongEquals(shl2(~longArg), 0xb72ea61de26af378L);
+    assertLongEquals(shl31(~longArg), 0xbc4d5e6f00000000L);
+    assertLongEquals(shl32(~longArg), 0x789abcde00000000L);
+    assertLongEquals(shl33(~longArg), 0xf13579bc00000000L);
+    assertLongEquals(shl63(~longArg), 0x0000000000000000L);
+
+    assertLongEquals(shr1(longArg), 0x091a2b3c43b2a190L);
+    assertLongEquals(shr31(longArg), 0x000000002468acf1L);
+    assertLongEquals(shr32(longArg), 0x0000000012345678L);
+    assertLongEquals(shr33(longArg), 0x00000000091a2b3cL);
+    assertLongEquals(shr63(longArg), 0x0000000000000000L);
+    assertLongEquals(shr1(~longArg), 0xf6e5d4c3bc4d5e6fL);
+    assertLongEquals(shr31(~longArg), 0xffffffffdb97530eL);
+    assertLongEquals(shr32(~longArg), 0xffffffffedcba987L);
+    assertLongEquals(shr33(~longArg), 0xfffffffff6e5d4c3L);
+    assertLongEquals(shr63(~longArg), 0xffffffffffffffffL);
+
+    assertLongEquals(ushr1(longArg), 0x091a2b3c43b2a190L);
+    assertLongEquals(ushr31(longArg), 0x000000002468acf1L);
+    assertLongEquals(ushr32(longArg), 0x0000000012345678L);
+    assertLongEquals(ushr33(longArg), 0x00000000091a2b3cL);
+    assertLongEquals(ushr63(longArg), 0x0000000000000000L);
+    assertLongEquals(ushr1(~longArg), 0x76e5d4c3bc4d5e6fL);
+    assertLongEquals(ushr31(~longArg), 0x00000001db97530eL);
+    assertLongEquals(ushr32(~longArg), 0x00000000edcba987L);
+    assertLongEquals(ushr33(~longArg), 0x0000000076e5d4c3L);
+    assertLongEquals(ushr63(~longArg), 0x0000000000000001L);
   }
 }
