@@ -262,7 +262,7 @@ static JValue Execute(Thread* self, const DexFile::CodeItem* code_item, ShadowFr
 
 static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
                              ShadowFrame& shadow_frame, JValue result_register) {
-  DCHECK(!shadow_frame.GetMethod()->IsAbstract());
+  DCHECK(shadow_frame.GetMethod()->IsInvokable());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
   shadow_frame.GetMethod()->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
@@ -318,9 +318,9 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   if (code_item != nullptr) {
     num_regs =  code_item->registers_size_;
     num_ins = code_item->ins_size_;
-  } else if (method->IsAbstract()) {
+  } else if (!method->IsInvokable()) {
     self->EndAssertNoThreadSuspension(old_cause);
-    ThrowAbstractMethodError(method);
+    method->ThrowInvocationTimeError();
     return;
   } else {
     DCHECK(method->IsNative());

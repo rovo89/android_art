@@ -313,8 +313,9 @@ void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier
       concrete_method = reg_type.GetClass()->FindVirtualMethodForVirtual(
           abstract_method, pointer_size);
     }
-    if (concrete_method == nullptr || concrete_method->IsAbstract()) {
-      // In cases where concrete_method is not found, or is abstract, continue to the next invoke.
+    if (concrete_method == nullptr || !concrete_method->IsInvokable()) {
+      // In cases where concrete_method is not found, or is not invokable, continue to the next
+      // invoke.
       continue;
     }
     if (reg_type.IsPreciseReference() || concrete_method->IsFinal() ||
