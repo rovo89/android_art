@@ -164,5 +164,11 @@
   names: ["libcore.io.OsTest#test_byteBufferPositions_sendto_recvfrom_af_inet6",
           "libcore.io.OsTest#test_sendtoSocketAddress_af_inet6"],
   bug: 25178637
+},
+{
+  description: "Non-deterministic test because of a dependency on weak ref collection.",
+  result: EXEC_FAILED,
+  names: ["org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet"],
+  bug: 25437292
 }
 ]
