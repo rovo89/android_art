@@ -156,8 +156,13 @@ class ElfBuilder FINAL {
 
     // Returns the size of the content of this section.
     Elf_Word GetSize() const {
-      CHECK(finished_);
-      return header_.sh_size;
+      if (finished_) {
+        return header_.sh_size;
+      } else {
+        CHECK(started_);
+        CHECK_NE(header_.sh_type, (Elf_Word)SHT_NOBITS);
+        return owner_->Seek(0, kSeekCurrent) - header_.sh_offset;
+      }
     }
 
     // Set desired allocation size for .bss section.
@@ -281,6 +286,8 @@ class ElfBuilder FINAL {
       strtab_(this, ".strtab", 0, kPageSize),
       symtab_(this, ".symtab", SHT_SYMTAB, 0, &strtab_),
       debug_frame_(this, ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, sizeof(Elf_Addr), 0),
+      debug_info_(this, ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
+      debug_line_(this, ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
       shstrtab_(this, ".shstrtab", 0, 1),
       virtual_address_(0) {
     text_.phdr_flags_ = PF_R | PF_X;
@@ -300,6 +307,8 @@ class ElfBuilder FINAL {
   Section* GetEhFrame() { return &eh_frame_; }
   Section* GetEhFrameHdr() { return &eh_frame_hdr_; }
   Section* GetDebugFrame() { return &debug_frame_; }
+  Section* GetDebugInfo() { return &debug_info_; }
+  Section* GetDebugLine() { return &debug_line_; }
 
   // Encode patch locations as LEB128 list of deltas between consecutive addresses.
   // (exposed publicly for tests)
@@ -667,6 +676,8 @@ class ElfBuilder FINAL {
   StringSection strtab_;
   SymbolSection symtab_;
   Section debug_frame_;
+  Section debug_info_;
+  Section debug_line_;
   StringSection shstrtab_;
   std::vector<std::unique_ptr<Section>> other_sections_;
 
