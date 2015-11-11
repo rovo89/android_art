@@ -657,6 +657,10 @@ class MANAGED Class FINAL : public Object {
 
   ALWAYS_INLINE Class* GetSuperClass() SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Get first common super class. It will never return null.
+  // `This` and `klass` must be classes.
+  Class* GetCommonSuperClass(Handle<Class> klass) SHARED_REQUIRES(Locks::mutator_lock_);
+
   void SetSuperClass(Class *new_super_class) SHARED_REQUIRES(Locks::mutator_lock_) {
     // Super class is assigned once, except during class linker initialization.
     Class* old_super_class = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
