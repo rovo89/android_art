@@ -32,21 +32,29 @@ class Value {
   /**
    * Create a DocString representing a summary of the given instance.
    */
-  private static DocString renderInstance(Instance inst) {
-    DocString link = new DocString();
+  private static DocString renderInstance(AhatSnapshot snapshot, Instance inst) {
+    DocString formatted = new DocString();
     if (inst == null) {
-      link.append("(null)");
-      return link;
+      formatted.append("(null)");
+      return formatted;
     }
 
+    // Annotate roots as roots.
+    if (snapshot.isRoot(inst)) {
+      formatted.append("(root) ");
+    }
+
+
     // Annotate classes as classes.
+    DocString link = new DocString();
     if (inst instanceof ClassObj) {
       link.append("class ");
     }
 
     link.append(inst.toString());
+
     URI objTarget = DocString.formattedUri("object?id=%d", inst.getId());
-    DocString formatted = DocString.link(objTarget, link);
+    formatted.appendLink(objTarget, link);
 
     // Annotate Strings with their values.
     String stringValue = InstanceUtils.asString(inst, kMaxChars);
@@ -63,7 +71,7 @@ class Value {
       // It should not be possible for a referent to refer back to the
       // reference object, even indirectly, so there shouldn't be any issues
       // with infinite recursion here.
-      formatted.append(renderInstance(referent));
+      formatted.append(renderInstance(snapshot, referent));
     }
 
     // Annotate DexCache with its location.
@@ -89,9 +97,9 @@ class Value {
   /**
    * Create a DocString summarizing the given value.
    */
-  public static DocString render(Object val) {
+  public static DocString render(AhatSnapshot snapshot, Object val) {
     if (val instanceof Instance) {
-      return renderInstance((Instance)val);
+      return renderInstance(snapshot, (Instance)val);
     } else {
       return DocString.format("%s", val);
     }

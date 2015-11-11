@@ -71,7 +71,7 @@ class DominatedList {
         }
 
         public DocString render(Instance element) {
-          return Value.render(element);
+          return Value.render(mSnapshot, element);
         }
       };
       return Collections.singletonList(value);
