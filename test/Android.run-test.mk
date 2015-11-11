@@ -226,6 +226,7 @@ TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS := \
   960-default-smali \
   961-default-iface-resolution-generated \
   964-default-iface-init-generated \
+  968-default-partial-compilation-generated
 
 # Check if we have python3 to run our tests.
 ifeq ($(wildcard /usr/bin/python3),)
