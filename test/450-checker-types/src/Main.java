@@ -454,7 +454,7 @@ public class Main {
   /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:SubclassC exact:false
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
-  /// CHECK-START: SubclassC Main.inlineGenerics() reference_type_propagation_after_inlining (after)
+  /// CHECK-START: SubclassC Main.inlineGenerics() inliner (after)
   /// CHECK:      <<BoundType:l\d+>> BoundType klass:SubclassC exact:false
   /// CHECK:                         Return [<<BoundType>>]
   private SubclassC inlineGenerics() {
@@ -466,7 +466,7 @@ public class Main {
   /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Final exact:true
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
-  /// CHECK-START: Final Main.inlineGenericsFinal() reference_type_propagation_after_inlining (after)
+  /// CHECK-START: Final Main.inlineGenericsFinal() inliner (after)
   /// CHECK:      <<BoundType:l\d+>> BoundType klass:Final exact:true
   /// CHECK:                         Return [<<BoundType>>]
   private Final inlineGenericsFinal() {
@@ -474,7 +474,7 @@ public class Main {
     return f;
   }
 
-  /// CHECK-START: void Main.boundOnlyOnceIfNotNull(java.lang.Object) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: void Main.boundOnlyOnceIfNotNull(java.lang.Object) inliner (after)
   /// CHECK:      BoundType
   /// CHECK-NOT:  BoundType
   private void boundOnlyOnceIfNotNull(Object o) {
@@ -483,7 +483,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.boundOnlyOnceIfInstanceOf(java.lang.Object) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: void Main.boundOnlyOnceIfInstanceOf(java.lang.Object) inliner (after)
   /// CHECK:      BoundType
   /// CHECK-NOT:  BoundType
   private void boundOnlyOnceIfInstanceOf(Object o) {
@@ -492,7 +492,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: Final Main.boundOnlyOnceCheckCast(Generic) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: Final Main.boundOnlyOnceCheckCast(Generic) inliner (after)
   /// CHECK:      BoundType
   /// CHECK-NOT:  BoundType
   private Final boundOnlyOnceCheckCast(Generic<Final> o) {
@@ -508,7 +508,7 @@ public class Main {
   /// CHECK:      <<Phi:l\d+>> Phi klass:Super
   /// CHECK:                   NullCheck [<<Phi>>] klass:Super
 
-  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) inliner (after)
   /// CHECK:      <<Phi:l\d+>> Phi klass:SubclassA
   /// CHECK:                   NullCheck [<<Phi>>] klass:SubclassA
   private void updateNodesInTheSameBlockAsPhi(boolean cond) {
@@ -519,7 +519,7 @@ public class Main {
     s.$noinline$f();
   }
 
-  /// CHECK-START: java.lang.String Main.checkcastPreserveNullCheck(java.lang.Object) reference_type_propagation_after_inlining (after)
+  /// CHECK-START: java.lang.String Main.checkcastPreserveNullCheck(java.lang.Object) inliner (after)
   /// CHECK:      <<This:l\d+>>     ParameterValue
   /// CHECK:      <<Param:l\d+>>    ParameterValue
   /// CHECK:      <<Clazz:l\d+>>    LoadClass
@@ -546,6 +546,51 @@ public class Main {
   /// CHECK:      ParameterValue klass:Final can_be_null:true exact:true
   /// CHECK-NOT:  ParameterValue
   private void argumentCheck(Super s, double d, SubclassA a, Final f) {
+  }
+
+  /// CHECK-START: Main Main.getMain(boolean) reference_type_propagation (after)
+  /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
+  /// CHECK:                         Return [<<Phi>>]
+  private Main getMain(boolean cond) {
+    return cond ? null : new Main();
+  }
+
+  private Main getNull() {
+    return null;
+  }
+
+  private int mainField = 0;
+
+  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean) inliner (before)
+  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Main
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Invoke>>] klass:Main exact:false
+  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
+
+  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean) inliner (after)
+  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:Main exact:false
+  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
+  private void testInlinerWidensReturnType(boolean cond) {
+    Main o = getMain(cond);
+    o.mainField = 0;
+  }
+
+  /// CHECK-START: void Main.testInlinerReturnsNull() inliner (before)
+  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Main
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Invoke>>] klass:Main exact:false
+  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
+
+  /// CHECK-START: void Main.testInlinerReturnsNull() inliner (after)
+  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK:      <<Null:l\d+>>      NullConstant klass:java.lang.Object
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Null>>] klass:Main exact:false
+  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
+  private void testInlinerReturnsNull() {
+    Main o = getNull();
+    o.mainField = 0;
   }
 
   public static void main(String[] args) {
