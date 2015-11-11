@@ -722,6 +722,7 @@ class DexFile {
 
   //
   const CodeItem* GetCodeItem(const uint32_t code_off) const {
+    DCHECK_LT(code_off, size_) << "Code item offset larger then maximum allowed offset";
     if (code_off == 0) {
       return nullptr;  // native or abstract method
     } else {

@@ -1858,7 +1858,7 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* 
 
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
-  CHECK(!method->IsAbstract()) << PrettyMethod(method);
+  CHECK(method->IsInvokable()) << PrettyMethod(method);
   if (method->IsProxyMethod()) {
     return GetQuickProxyInvokeHandler();
   }
@@ -1878,7 +1878,7 @@ const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
 }
 
 const void* ClassLinker::GetOatMethodQuickCodeFor(ArtMethod* method) {
-  if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
+  if (method->IsNative() || !method->IsInvokable() || method->IsProxyMethod()) {
     return nullptr;
   }
   bool found;
@@ -1973,6 +1973,13 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   // Ignore virtual methods on the iterator.
 }
 
+void ClassLinker::EnsureThrowsInvocationError(ArtMethod* method) {
+  DCHECK(method != nullptr);
+  DCHECK(!method->IsInvokable());
+  method->SetEntryPointFromQuickCompiledCodePtrSize(quick_to_interpreter_bridge_trampoline_,
+                                                    image_pointer_size_);
+}
+
 void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class,
                            uint32_t class_def_method_index) {
   Runtime* const runtime = Runtime::Current();
@@ -1992,8 +1999,8 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
   // Install entry point from interpreter.
   bool enter_interpreter = NeedsInterpreter(method, method->GetEntryPointFromQuickCompiledCode());
 
-  if (method->IsAbstract()) {
-    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+  if (!method->IsInvokable()) {
+    EnsureThrowsInvocationError(method);
     return;
   }
 
@@ -3404,7 +3411,7 @@ void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) cons
   // Basic sanity
   CHECK(!prototype->IsFinal());
   CHECK(method->IsFinal());
-  CHECK(!method->IsAbstract());
+  CHECK(method->IsInvokable());
 
   // The proxy method doesn't have its own dex cache or dex file and so it steals those of its
   // interface prototype. The exception to this are Constructors and the Class of the Proxy itself.
@@ -4480,7 +4487,7 @@ bool ClassLinker::LinkMethods(Thread* self,
   // A map from vtable indexes to the method they need to be updated to point to. Used because we
   // need to have default methods be in the virtuals array of each class but we don't set that up
   // until LinkInterfaceMethods.
-  std::unordered_map<size_t, ArtMethod*> default_translations;
+  std::unordered_map<size_t, ClassLinker::MethodTranslation> default_translations;
   // Link virtual methods then interface methods.
   // We set up the interface lookup table first because we need it to determine if we need to update
   // any vtable entries with new default method implementations.
@@ -4613,7 +4620,7 @@ const uint32_t LinkVirtualHashTable::removed_index_ = std::numeric_limits<uint32
 bool ClassLinker::LinkVirtualMethods(
     Thread* self,
     Handle<mirror::Class> klass,
-    /*out*/std::unordered_map<size_t, ArtMethod*>* default_translations) {
+    /*out*/std::unordered_map<size_t, ClassLinker::MethodTranslation>* default_translations) {
   const size_t num_virtual_methods = klass->NumVirtualMethods();
   if (klass->IsInterface()) {
     // No vtable.
@@ -4736,46 +4743,55 @@ bool ClassLinker::LinkVirtualMethods(
                        << " would have incorrectly overridden the package-private method in "
                        << PrettyDescriptor(super_method->GetDeclaringClassDescriptor());
         }
-      } else if (super_method->IsDefault()) {
+      } else if (super_method->IsOverridableByDefaultMethod()) {
         // We didn't directly override this method but we might through default methods...
         // Check for default method update.
         ArtMethod* default_method = nullptr;
-        std::string icce_message;
-        if (!FindDefaultMethodImplementation(self,
-                                             super_method,
-                                             klass,
-                                             /*out*/&default_method,
-                                             /*out*/&icce_message)) {
-          // An error occurred while finding default methods.
-          // TODO This should actually be thrown when we attempt to invoke this method.
-          ThrowIncompatibleClassChangeError(klass.Get(), "%s", icce_message.c_str());
-          return false;
-        }
-        // This should always work because we inherit superclass interfaces. We should either get
-        //  1) An IncompatibleClassChangeError because of conflicting default method
-        //     implementations.
-        //  2) The same default method implementation as the superclass.
-        //  3) A default method that overrides the superclass's.
-        // Therefore this check should never fail.
-        CHECK(default_method != nullptr);
-        if (UNLIKELY(default_method->GetDeclaringClass() != super_method->GetDeclaringClass())) {
-          // TODO Refactor this add default methods to virtuals here and not in
-          //      LinkInterfaceMethods maybe.
-          //      The problem is default methods might override previously present default-method or
-          //      miranda-method vtable entries from the superclass. Unfortunately we need these to
-          //      be entries in this class's virtuals. We do not give these entries there until
-          //      LinkInterfaceMethods so we pass this map around to let it know which vtable
-          //      entries need to be updated.
-          // Make a note that vtable entry j must be updated, store what it needs to be updated to.
-          // We will allocate a virtual method slot in LinkInterfaceMethods and fix it up then.
-          default_translations->insert({j, default_method});
-          VLOG(class_linker) << "Method " << PrettyMethod(super_method) << " overridden by default "
-                             << PrettyMethod(default_method) << " in " << PrettyClass(klass.Get());
-        } else {
-          // They are the same method/no override
-          // Cannot do direct comparison because we had to copy the ArtMethod object into the
-          // superclass's vtable.
-          continue;
+        switch (FindDefaultMethodImplementation(self,
+                                                super_method,
+                                                klass,
+                                                /*out*/&default_method)) {
+          case DefaultMethodSearchResult::kDefaultConflict: {
+            // A conflict was found looking for default methods. Note this (assuming it wasn't
+            // pre-existing) in the translations map.
+            if (UNLIKELY(!super_method->IsDefaultConflicting())) {
+              // Don't generate another conflict method to reduce memory use as an optimization.
+              default_translations->insert(
+                  {j, ClassLinker::MethodTranslation::CreateConflictingMethod()});
+            }
+            break;
+          }
+          case DefaultMethodSearchResult::kAbstractFound: {
+            // No conflict but method is abstract.
+            // We note that this vtable entry must be made abstract.
+            if (UNLIKELY(!super_method->IsAbstract())) {
+              default_translations->insert(
+                  {j, ClassLinker::MethodTranslation::CreateAbstractMethod()});
+            }
+            break;
+          }
+          case DefaultMethodSearchResult::kDefaultFound: {
+            if (UNLIKELY(super_method->IsDefaultConflicting() ||
+                        default_method->GetDeclaringClass() != super_method->GetDeclaringClass())) {
+              // Found a default method implementation that is new.
+              // TODO Refactor this add default methods to virtuals here and not in
+              //      LinkInterfaceMethods maybe.
+              //      The problem is default methods might override previously present
+              //      default-method or miranda-method vtable entries from the superclass.
+              //      Unfortunately we need these to be entries in this class's virtuals. We do not
+              //      give these entries there until LinkInterfaceMethods so we pass this map around
+              //      to let it know which vtable entries need to be updated.
+              // Make a note that vtable entry j must be updated, store what it needs to be updated
+              // to. We will allocate a virtual method slot in LinkInterfaceMethods and fix it up
+              // then.
+              default_translations->insert(
+                  {j, ClassLinker::MethodTranslation::CreateTranslatedMethod(default_method)});
+              VLOG(class_linker) << "Method " << PrettyMethod(super_method)
+                                 << " overridden by default " << PrettyMethod(default_method)
+                                 << " in " << PrettyClass(klass.Get());
+            }
+            break;
+          }
         }
       }
     }
@@ -4828,23 +4844,75 @@ bool ClassLinker::LinkVirtualMethods(
   return true;
 }
 
+// Determine if the given iface has any subinterface in the given list that declares the method
+// specified by 'target'.
+//
+// Arguments
+// - self:    The thread we are running on
+// - target:  A comparator that will match any method that overrides the method we are checking for
+// - iftable: The iftable we are searching for an overriding method on.
+// - ifstart: The index of the interface we are checking to see if anything overrides
+// - iface:   The interface we are checking to see if anything overrides.
+// - image_pointer_size:
+//            The image pointer size.
+//
+// Returns
+// - True:  There is some method that matches the target comparator defined in an interface that
+//          is a subtype of iface.
+// - False: There is no method that matches the target comparator in any interface that is a subtype
+//          of iface.
+static bool ContainsOverridingMethodOf(Thread* self,
+                                       MethodNameAndSignatureComparator& target,
+                                       Handle<mirror::IfTable> iftable,
+                                       size_t ifstart,
+                                       Handle<mirror::Class> iface,
+                                       size_t image_pointer_size)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  DCHECK(self != nullptr);
+  DCHECK(iface.Get() != nullptr);
+  DCHECK(iftable.Get() != nullptr);
+  DCHECK_GE(ifstart, 0u);
+  DCHECK_LT(ifstart, iftable->Count());
+  DCHECK_EQ(iface.Get(), iftable->GetInterface(ifstart));
+  DCHECK(iface->IsInterface());
+
+  size_t iftable_count = iftable->Count();
+  StackHandleScope<1> hs(self);
+  MutableHandle<mirror::Class> current_iface(hs.NewHandle<mirror::Class>(nullptr));
+  for (size_t k = ifstart + 1; k < iftable_count; k++) {
+    // Skip ifstart since our current interface obviously cannot override itself.
+    current_iface.Assign(iftable->GetInterface(k));
+    size_t num_instance_methods = current_iface->NumVirtualMethods();
+    // Iterate through every method on this interface. The order does not matter so we go forwards.
+    for (size_t m = 0; m < num_instance_methods; m++) {
+      ArtMethod* current_method = current_iface->GetVirtualMethodUnchecked(m, image_pointer_size);
+      if (UNLIKELY(target.HasSameNameAndSignature(
+                      current_method->GetInterfaceMethodIfProxy(image_pointer_size)))) {
+        // Check if the i'th interface is a subtype of this one.
+        if (iface->IsAssignableFrom(current_iface.Get())) {
+          return true;
+        }
+        break;
+      }
+    }
+  }
+  return false;
+}
+
 // Find the default method implementation for 'interface_method' in 'klass'. Stores it into
-// out_default_method and returns true on success. If no default method was found stores nullptr
-// into out_default_method and returns true. If an error occurs (such as a default_method conflict)
-// it will fill the icce_message with an appropriate message for an IncompatibleClassChangeError,
-// which should then be thrown by the caller.
-bool ClassLinker::FindDefaultMethodImplementation(Thread* self,
-                                                  ArtMethod* target_method,
-                                                  Handle<mirror::Class> klass,
-                                                  /*out*/ArtMethod** out_default_method,
-                                                  /*out*/std::string* icce_message) const {
+// out_default_method and returns kDefaultFound on success. If no default method was found return
+// kAbstractFound and store nullptr into out_default_method. If an error occurs (such as a
+// default_method conflict) it will return kDefaultConflict.
+ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementation(
+    Thread* self,
+    ArtMethod* target_method,
+    Handle<mirror::Class> klass,
+    /*out*/ArtMethod** out_default_method) const {
   DCHECK(self != nullptr);
   DCHECK(target_method != nullptr);
   DCHECK(out_default_method != nullptr);
-  DCHECK(icce_message != nullptr);
 
   *out_default_method = nullptr;
-  mirror::Class* chosen_iface = nullptr;
 
   // We organize the interface table so that, for interface I any subinterfaces J follow it in the
   // table. This lets us walk the table backwards when searching for default methods.  The first one
@@ -4855,19 +4923,23 @@ bool ClassLinker::FindDefaultMethodImplementation(Thread* self,
   // The order of unrelated interfaces does not matter and is not defined.
   size_t iftable_count = klass->GetIfTableCount();
   if (iftable_count == 0) {
-    // No interfaces. We have already reset out to null so just return true.
-    return true;
+    // No interfaces. We have already reset out to null so just return kAbstractFound.
+    return DefaultMethodSearchResult::kAbstractFound;
   }
 
-  StackHandleScope<1> hs(self);
+  StackHandleScope<3> hs(self);
+  MutableHandle<mirror::Class> chosen_iface(hs.NewHandle<mirror::Class>(nullptr));
   MutableHandle<mirror::IfTable> iftable(hs.NewHandle(klass->GetIfTable()));
+  MutableHandle<mirror::Class> iface(hs.NewHandle<mirror::Class>(nullptr));
   MethodNameAndSignatureComparator target_name_comparator(
       target_method->GetInterfaceMethodIfProxy(image_pointer_size_));
   // Iterates over the klass's iftable in reverse
-  // We have a break at the end because size_t is unsigned.
-  for (size_t k = iftable_count - 1; /* break if k == 0 at end */; --k) {
+  for (size_t k = iftable_count; k != 0; ) {
+    --k;
+
     DCHECK_LT(k, iftable->Count());
-    mirror::Class* iface = iftable->GetInterface(k);
+
+    iface.Assign(iftable->GetInterface(k));
     size_t num_instance_methods = iface->NumVirtualMethods();
     // Iterate through every method on this interface. The order does not matter so we go forwards.
     for (size_t m = 0; m < num_instance_methods; m++) {
@@ -4880,31 +4952,60 @@ bool ClassLinker::FindDefaultMethodImplementation(Thread* self,
       }
       // The verifier should have caught the non-public method.
       DCHECK(current_method->IsPublic()) << "Interface method is not public!";
-      if (UNLIKELY(chosen_iface != nullptr)) {
-        // We have multiple default impls of the same method. We need to check they do not
-        // conflict and throw an error if they do. Conflicting means that the current iface is not
-        // masked by the chosen interface.
-        if (!iface->IsAssignableFrom(chosen_iface)) {
-          *icce_message = StringPrintf("Conflicting default method implementations: '%s' and '%s'",
-                                       PrettyMethod(current_method).c_str(),
-                                       PrettyMethod(*out_default_method).c_str());
-          return false;
+      if (UNLIKELY(chosen_iface.Get() != nullptr)) {
+        // We have multiple default impls of the same method. This is a potential default conflict.
+        // We need to check if this possibly conflicting method is either a superclass of the chosen
+        // default implementation or is overridden by a non-default interface method. In either case
+        // there is no conflict.
+        if (!iface->IsAssignableFrom(chosen_iface.Get()) &&
+            !ContainsOverridingMethodOf(self,
+                                        target_name_comparator,
+                                        iftable,
+                                        k,
+                                        iface,
+                                        image_pointer_size_)) {
+          LOG(WARNING) << "Conflicting default method implementations found: "
+                       << PrettyMethod(current_method) << " and "
+                       << PrettyMethod(*out_default_method) << " in class "
+                       << PrettyClass(klass.Get()) << " conflict.";
+          *out_default_method = nullptr;
+          return DefaultMethodSearchResult::kDefaultConflict;
         } else {
           break;  // Continue checking at the next interface.
         }
       } else {
-        *out_default_method = current_method;
-        chosen_iface = iface;
-        // We should now finish traversing the graph to find if we have default methods that
-        // conflict.
-        break;
+        // chosen_iface == null
+        if (!ContainsOverridingMethodOf(self,
+                                        target_name_comparator,
+                                        iftable,
+                                        k,
+                                        iface,
+                                        image_pointer_size_)) {
+          // Don't set this as the chosen interface if something else is overriding it (because that
+          // other interface would be potentially chosen instead if it was default). If the other
+          // interface was abstract then we wouldn't select this interface as chosen anyway since
+          // the abstract method masks it.
+          *out_default_method = current_method;
+          chosen_iface.Assign(iface.Get());
+          // We should now finish traversing the graph to find if we have default methods that
+          // conflict.
+        } else {
+          VLOG(class_linker) << "A default method '" << PrettyMethod(current_method) << "' was "
+                            << "skipped because it was overridden by an abstract method in a "
+                            << "subinterface on class '" << PrettyClass(klass.Get()) << "'";
+        }
       }
-    }
-    if (k == 0) {
       break;
     }
   }
-  return true;
+  if (*out_default_method != nullptr) {
+    VLOG(class_linker) << "Default method '" << PrettyMethod(*out_default_method) << "' selected "
+                       << "as the implementation for '" << PrettyMethod(target_method) << "' "
+                       << "in '" << PrettyClass(klass.Get()) << "'";
+    return DefaultMethodSearchResult::kDefaultFound;
+  } else {
+    return DefaultMethodSearchResult::kAbstractFound;
+  }
 }
 
 // Sets imt_ref appropriately for LinkInterfaceMethods.
@@ -4912,7 +5013,7 @@ bool ClassLinker::FindDefaultMethodImplementation(Thread* self,
 // Otherwise it will set the conflict method which will figure out which method to use during
 // runtime.
 static void SetIMTRef(ArtMethod* unimplemented_method,
-                      ArtMethod* conflict_method,
+                      ArtMethod* imt_conflict_method,
                       size_t image_pointer_size,
                       ArtMethod* current_method,
                       /*out*/ArtMethod** imt_ref)
@@ -4920,7 +5021,7 @@ static void SetIMTRef(ArtMethod* unimplemented_method,
   // Place method in imt if entry is empty, place conflict otherwise.
   if (*imt_ref == unimplemented_method) {
     *imt_ref = current_method;
-  } else if (*imt_ref != conflict_method) {
+  } else if (*imt_ref != imt_conflict_method) {
     // If we are not a conflict and we have the same signature and name as the imt
     // entry, it must be that we overwrote a superclass vtable entry.
     MethodNameAndSignatureComparator imt_comparator(
@@ -4929,7 +5030,7 @@ static void SetIMTRef(ArtMethod* unimplemented_method,
           current_method->GetInterfaceMethodIfProxy(image_pointer_size))) {
       *imt_ref = current_method;
     } else {
-      *imt_ref = conflict_method;
+      *imt_ref = imt_conflict_method;
     }
   }
 }
@@ -5136,10 +5237,23 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
   return true;
 }
 
+// Finds the method with a name/signature that matches cmp in the given list of methods. The list of
+// methods must be unique.
+static ArtMethod* FindSameNameAndSignature(MethodNameAndSignatureComparator& cmp,
+                                           const ScopedArenaVector<ArtMethod*>& list)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  for (ArtMethod* method : list) {
+    if (cmp.HasSameNameAndSignature(method)) {
+      return method;
+    }
+  }
+  return nullptr;
+}
+
 bool ClassLinker::LinkInterfaceMethods(
     Thread* self,
     Handle<mirror::Class> klass,
-    const std::unordered_map<size_t, ArtMethod*>& default_translations,
+    const std::unordered_map<size_t, ClassLinker::MethodTranslation>& default_translations,
     ArtMethod** out_imt) {
   StackHandleScope<3> hs(self);
   Runtime* const runtime = Runtime::Current();
@@ -5162,12 +5276,14 @@ bool ClassLinker::LinkInterfaceMethods(
   // Use the linear alloc pool since this one is in the low 4gb for the compiler.
   ArenaStack stack(runtime->GetLinearAlloc()->GetArenaPool());
   ScopedArenaAllocator allocator(&stack);
+
+  ScopedArenaVector<ArtMethod*> default_conflict_methods(allocator.Adapter());
   ScopedArenaVector<ArtMethod*> miranda_methods(allocator.Adapter());
   ScopedArenaVector<ArtMethod*> default_methods(allocator.Adapter());
 
   MutableHandle<mirror::PointerArray> vtable(hs.NewHandle(klass->GetVTableDuringLinking()));
   ArtMethod* const unimplemented_method = runtime->GetImtUnimplementedMethod();
-  ArtMethod* const conflict_method = runtime->GetImtConflictMethod();
+  ArtMethod* const imt_conflict_method = runtime->GetImtConflictMethod();
   // Copy the IMT from the super class if possible.
   bool extend_super_iftable = false;
   if (has_superclass) {
@@ -5203,8 +5319,8 @@ bool ClassLinker::LinkInterfaceMethods(
           auto** imt_ref = &out_imt[imt_index];
           if (*imt_ref == unimplemented_method) {
             *imt_ref = method;
-          } else if (*imt_ref != conflict_method) {
-            *imt_ref = conflict_method;
+          } else if (*imt_ref != imt_conflict_method) {
+            *imt_ref = imt_conflict_method;
           }
         }
       }
@@ -5239,7 +5355,16 @@ bool ClassLinker::LinkInterfaceMethods(
 
   auto* old_cause = self->StartAssertNoThreadSuspension(
       "Copying ArtMethods for LinkInterfaceMethods");
-  for (size_t i = 0; i < ifcount; ++i) {
+  // Going in reverse to ensure that we will hit abstract methods that override defaults before the
+  // defaults. This means we don't need to do any trickery when creating the Miranda methods, since
+  // they will already be null. This has the additional benefit that the declarer of a miranda
+  // method will actually declare an abstract method.
+  for (size_t i = ifcount; i != 0; ) {
+    --i;
+
+    DCHECK_GE(i, 0u);
+    DCHECK_LT(i, ifcount);
+
     size_t num_methods = iftable->GetInterface(i)->NumVirtualMethods();
     if (num_methods > 0) {
       StackHandleScope<2> hs2(self);
@@ -5250,6 +5375,11 @@ bool ClassLinker::LinkInterfaceMethods(
       LengthPrefixedArray<ArtMethod>* input_virtual_methods = nullptr;
       Handle<mirror::PointerArray> input_vtable_array = NullHandle<mirror::PointerArray>();
       int32_t input_array_length = 0;
+      // TODO Cleanup Needed: In the presence of default methods this optimization is rather dirty
+      //      and confusing. Default methods should always look through all the superclasses
+      //      because they are the last choice of an implementation. We get around this by looking
+      //      at the super-classes iftable methods (copied into method_array previously) when we are
+      //      looking for the implementation of a super-interface method but that is rather dirty.
       if (super_interface) {
         // We are overwriting a super class interface, try to only virtual methods instead of the
         // whole vtable.
@@ -5279,8 +5409,7 @@ bool ClassLinker::LinkInterfaceMethods(
         //
         // To find defaults we need to do the same but also go over interfaces.
         bool found_impl = false;
-        ArtMethod* default_impl = nullptr;
-        bool found_default_impl = false;
+        ArtMethod* vtable_impl = nullptr;
         for (int32_t k = input_array_length - 1; k >= 0; --k) {
           ArtMethod* vtable_method = input_virtual_methods != nullptr ?
               &input_virtual_methods->At(k, method_size, method_alignment) :
@@ -5297,77 +5426,138 @@ bool ClassLinker::LinkInterfaceMethods(
                   "Method '%s' implementing interface method '%s' is not public",
                   PrettyMethod(vtable_method).c_str(), PrettyMethod(interface_method).c_str());
               return false;
-            } else if (vtable_method->IsDefault()) {
+            } else if (UNLIKELY(vtable_method->IsOverridableByDefaultMethod())) {
               // We might have a newer, better, default method for this, so we just skip it. If we
               // are still using this we will select it again when scanning for default methods. To
               // obviate the need to copy the method again we will make a note that we already found
               // a default here.
               // TODO This should be much cleaner.
-              found_default_impl = true;
-              default_impl = vtable_method;
+              vtable_impl = vtable_method;
               break;
             } else {
               found_impl = true;
-            }
-            method_array->SetElementPtrSize(j, vtable_method, image_pointer_size_);
-            // Place method in imt if entry is empty, place conflict otherwise.
-            SetIMTRef(unimplemented_method,
-                      conflict_method,
-                      image_pointer_size_,
-                      vtable_method,
-                      /*out*/imt_ptr);
-            break;
-          }
-        }
-        // We should only search for default implementations when the class does not implement the
-        // method directly and either (1) the interface is newly implemented on this class and not
-        // on any of its superclasses, (2) the superclass's implementation is a default method, or
-        // (3) the superclass does not have an implementation.
-        if (!found_impl && (!super_interface ||
-                            method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size_)
-                                ->IsOverridableByDefaultMethod())) {
-          ArtMethod* current_method = nullptr;
-          std::string icce_message;
-          if (!FindDefaultMethodImplementation(self,
-                                               interface_method,
-                                               klass,
-                                               /*out*/&current_method,
-                                               /*out*/&icce_message)) {
-            // There was a conflict with default method implementations.
-            self->EndAssertNoThreadSuspension(old_cause);
-            // TODO This should actually be thrown when we attempt to invoke this method.
-            ThrowIncompatibleClassChangeError(klass.Get(), "%s", icce_message.c_str());
-            return false;
-          } else if (current_method != nullptr) {
-            if (found_default_impl &&
-                current_method->GetDeclaringClass() == default_impl->GetDeclaringClass()) {
-              // We found a default method but it was the same one we already have from our
-              // superclass. Don't bother adding it to our vtable again.
-              current_method = default_impl;
-            } else {
-              // We found a default method implementation and there were no conflicts.
-              // Save the default method. We need to add it to the vtable.
-              default_methods.push_back(current_method);
-            }
-            method_array->SetElementPtrSize(j, current_method, image_pointer_size_);
-            SetIMTRef(unimplemented_method,
-                      conflict_method,
-                      image_pointer_size_,
-                      current_method,
-                      /*out*/imt_ptr);
-            found_impl = true;
-          }
-        }
-        if (!found_impl && !super_interface) {
-          // It is defined in this class or any of its subclasses.
-          ArtMethod* miranda_method = nullptr;
-          for (auto& mir_method : miranda_methods) {
-            if (interface_name_comparator.HasSameNameAndSignature(mir_method)) {
-              miranda_method = mir_method;
+              method_array->SetElementPtrSize(j, vtable_method, image_pointer_size_);
+              // Place method in imt if entry is empty, place conflict otherwise.
+              SetIMTRef(unimplemented_method,
+                        imt_conflict_method,
+                        image_pointer_size_,
+                        vtable_method,
+                        /*out*/imt_ptr);
               break;
             }
           }
+        }
+        // Continue on to the next method if we are done.
+        if (LIKELY(found_impl)) {
+          continue;
+        } else if (LIKELY(super_interface)) {
+          // Don't look for a default implementation when the super-method is implemented directly
+          // by the class.
+          //
+          // See if we can use the superclasses method and skip searching everything else.
+          // Note: !found_impl && super_interface
+          CHECK(extend_super_iftable);
+          // If this is a super_interface method it is possible we shouldn't override it because a
+          // superclass could have implemented it directly.  We get the method the superclass used
+          // to implement this to know if we can override it with a default method. Doing this is
+          // safe since we know that the super_iftable is filled in so we can simply pull it from
+          // there. We don't bother if this is not a super-classes interface since in that case we
+          // have scanned the entire vtable anyway and would have found it.
+          // TODO This is rather dirty but it is faster than searching through the entire vtable
+          //      every time.
+          ArtMethod* supers_method =
+              method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size_);
+          DCHECK(supers_method != nullptr);
+          DCHECK(interface_name_comparator.HasSameNameAndSignature(supers_method));
+          if (!supers_method->IsOverridableByDefaultMethod()) {
+            // The method is not overridable by a default method (i.e. it is directly implemented
+            // in some class). Therefore move onto the next interface method.
+            continue;
+          }
+        }
+        // If we haven't found it yet we should search through the interfaces for default methods.
+        ArtMethod* current_method = nullptr;
+        switch (FindDefaultMethodImplementation(self,
+                                                interface_method,
+                                                klass,
+                                                /*out*/&current_method)) {
+          case DefaultMethodSearchResult::kDefaultConflict: {
+            // Default method conflict.
+            DCHECK(current_method == nullptr);
+            ArtMethod* default_conflict_method = nullptr;
+            if (vtable_impl != nullptr && vtable_impl->IsDefaultConflicting()) {
+              // We can reuse the method from the superclass, don't bother adding it to virtuals.
+              default_conflict_method = vtable_impl;
+            } else {
+              // See if we already have a conflict method for this method.
+              ArtMethod* preexisting_conflict = FindSameNameAndSignature(interface_name_comparator,
+                                                                          default_conflict_methods);
+              if (LIKELY(preexisting_conflict != nullptr)) {
+                // We already have another conflict we can reuse.
+                default_conflict_method = preexisting_conflict;
+              } else {
+                // Create a new conflict method for this to use.
+                default_conflict_method =
+                    reinterpret_cast<ArtMethod*>(allocator.Alloc(method_size));
+                new(default_conflict_method) ArtMethod(interface_method, image_pointer_size_);
+                default_conflict_methods.push_back(default_conflict_method);
+              }
+            }
+            current_method = default_conflict_method;
+            break;
+          }
+          case DefaultMethodSearchResult::kDefaultFound: {
+            DCHECK(current_method != nullptr);
+            // Found a default method.
+            if (vtable_impl != nullptr &&
+                current_method->GetDeclaringClass() == vtable_impl->GetDeclaringClass()) {
+              // We found a default method but it was the same one we already have from our
+              // superclass. Don't bother adding it to our vtable again.
+              current_method = vtable_impl;
+            } else {
+              // Only record this default method if it is new to save space.
+              ArtMethod* old = FindSameNameAndSignature(interface_name_comparator, default_methods);
+              if (old == nullptr) {
+                // We found a default method implementation and there were no conflicts.
+                // Save the default method. We need to add it to the vtable.
+                default_methods.push_back(current_method);
+              } else {
+                CHECK(old == current_method) << "Multiple default implementations selected!";
+              }
+            }
+            break;
+          }
+          case DefaultMethodSearchResult::kAbstractFound: {
+            DCHECK(current_method == nullptr);
+            // Abstract method masks all defaults.
+            if (vtable_impl != nullptr &&
+                vtable_impl->IsAbstract() &&
+                !vtable_impl->IsDefaultConflicting()) {
+              // We need to make this an abstract method but the version in the vtable already is so
+              // don't do anything.
+              current_method = vtable_impl;
+            }
+            break;
+          }
+        }
+        if (current_method != nullptr) {
+          // We found a default method implementation. Record it in the iftable and IMT.
+          method_array->SetElementPtrSize(j, current_method, image_pointer_size_);
+          SetIMTRef(unimplemented_method,
+                    imt_conflict_method,
+                    image_pointer_size_,
+                    current_method,
+                    /*out*/imt_ptr);
+        } else if (!super_interface) {
+          // We could not find an implementation for this method and since it is a brand new
+          // interface we searched the entire vtable (and all default methods) for an implementation
+          // but couldn't find one. We therefore need to make a miranda method.
+          //
+          // Find out if there is already a miranda method we can use.
+          ArtMethod* miranda_method = FindSameNameAndSignature(interface_name_comparator,
+                                                               miranda_methods);
           if (miranda_method == nullptr) {
+            DCHECK(interface_method->IsAbstract()) << PrettyMethod(interface_method);
             miranda_method = reinterpret_cast<ArtMethod*>(allocator.Alloc(method_size));
             CHECK(miranda_method != nullptr);
             // Point the interface table at a phantom slot.
@@ -5379,10 +5569,15 @@ bool ClassLinker::LinkInterfaceMethods(
       }
     }
   }
-  if (!miranda_methods.empty() || !default_methods.empty()) {
+  if (!miranda_methods.empty() || !default_methods.empty() || !default_conflict_methods.empty()) {
+    VLOG(class_linker) << PrettyClass(klass.Get()) << ": miranda_methods=" << miranda_methods.size()
+                       << " default_methods=" << default_methods.size()
+                       << " default_conflict_methods=" << default_conflict_methods.size();
     const size_t old_method_count = klass->NumVirtualMethods();
-    const size_t new_method_count =
-        old_method_count + miranda_methods.size() + default_methods.size();
+    const size_t new_method_count = old_method_count +
+                                    miranda_methods.size() +
+                                    default_methods.size() +
+                                    default_conflict_methods.size();
     // Attempt to realloc to save RAM if possible.
     LengthPrefixedArray<ArtMethod>* old_virtuals = klass->GetVirtualMethodsPtr();
     // The Realloced virtual methods aren't visiblef from the class roots, so there is no issue
@@ -5440,13 +5635,30 @@ bool ClassLinker::LinkInterfaceMethods(
     for (ArtMethod* def_method : default_methods) {
       ArtMethod& new_method = *out;
       new_method.CopyFrom(def_method, image_pointer_size_);
-      new_method.SetAccessFlags(new_method.GetAccessFlags() | kAccDefault);
       // Clear the preverified flag if it is present. Since this class hasn't been verified yet it
       // shouldn't have methods that are preverified.
       // TODO This is rather arbitrary. We should maybe support classes where only some of its
       // methods are preverified.
-      new_method.SetAccessFlags(new_method.GetAccessFlags() & ~kAccPreverified);
+      new_method.SetAccessFlags((new_method.GetAccessFlags() | kAccDefault) & ~kAccPreverified);
       move_table.emplace(def_method, &new_method);
+      ++out;
+    }
+    for (ArtMethod* conf_method : default_conflict_methods) {
+      ArtMethod& new_method = *out;
+      new_method.CopyFrom(conf_method, image_pointer_size_);
+      // This is a type of default method (there are default method impls, just a conflict) so mark
+      // this as a default, non-abstract method, since thats what it is. Also clear the preverified
+      // bit since this class hasn't been verified yet it shouldn't have methods that are
+      // preverified.
+      constexpr uint32_t kSetFlags = kAccDefault | kAccDefaultConflict;
+      constexpr uint32_t kMaskFlags = ~(kAccAbstract | kAccPreverified);
+      new_method.SetAccessFlags((new_method.GetAccessFlags() | kSetFlags) & kMaskFlags);
+      DCHECK(new_method.IsDefaultConflicting());
+      // The actual method might or might not be marked abstract since we just copied it from a
+      // (possibly default) interface method. We need to set it entry point to be the bridge so that
+      // the compiler will not invoke the implementation of whatever method we copied from.
+      EnsureThrowsInvocationError(&new_method);
+      move_table.emplace(conf_method, &new_method);
       ++out;
     }
     virtuals->SetSize(new_method_count);
@@ -5456,8 +5668,10 @@ bool ClassLinker::LinkInterfaceMethods(
     self->EndAssertNoThreadSuspension(old_cause);
 
     const size_t old_vtable_count = vtable->GetLength();
-    const size_t new_vtable_count =
-        old_vtable_count + miranda_methods.size() + default_methods.size();
+    const size_t new_vtable_count = old_vtable_count +
+                                    miranda_methods.size() +
+                                    default_methods.size() +
+                                    default_conflict_methods.size();
     miranda_methods.clear();
     vtable.Assign(down_cast<mirror::PointerArray*>(vtable->CopyOf(self, new_vtable_count)));
     if (UNLIKELY(vtable.Get() == nullptr)) {
@@ -5482,9 +5696,27 @@ bool ClassLinker::LinkInterfaceMethods(
       auto translation_it = default_translations.find(i);
       bool found_translation = false;
       if (translation_it != default_translations.end()) {
-        size_t vtable_index;
-        std::tie(vtable_index, translated_method) = *translation_it;
-        DCHECK_EQ(vtable_index, i);
+        if (translation_it->second.IsInConflict()) {
+          // Find which conflict method we are to use for this method.
+          MethodNameAndSignatureComparator old_method_comparator(
+              translated_method->GetInterfaceMethodIfProxy(image_pointer_size_));
+          ArtMethod* new_conflict_method = FindSameNameAndSignature(old_method_comparator,
+                                                                    default_conflict_methods);
+          CHECK(new_conflict_method != nullptr) << "Expected a conflict method!";
+          translated_method = new_conflict_method;
+        } else if (translation_it->second.IsAbstract()) {
+          // Find which miranda method we are to use for this method.
+          MethodNameAndSignatureComparator old_method_comparator(
+              translated_method->GetInterfaceMethodIfProxy(image_pointer_size_));
+          ArtMethod* miranda_method = FindSameNameAndSignature(old_method_comparator,
+                                                               miranda_methods);
+          DCHECK(miranda_method != nullptr);
+          translated_method = miranda_method;
+        } else {
+          // Normal default method (changed from an older default or abstract interface method).
+          DCHECK(translation_it->second.IsTranslation());
+          translated_method = translation_it->second.GetTranslation();
+        }
         found_translation = true;
       }
       DCHECK(translated_method != nullptr);

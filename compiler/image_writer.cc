@@ -1621,7 +1621,7 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method, bool* quick_is_inter
   DCHECK(!method->IsResolutionMethod()) << PrettyMethod(method);
   DCHECK(!method->IsImtConflictMethod()) << PrettyMethod(method);
   DCHECK(!method->IsImtUnimplementedMethod()) << PrettyMethod(method);
-  DCHECK(!method->IsAbstract()) << PrettyMethod(method);
+  DCHECK(method->IsInvokable()) << PrettyMethod(method);
   DCHECK(!IsInBootImage(method)) << PrettyMethod(method);
 
   // Use original code if it exists. Otherwise, set the code pointer to the resolution
@@ -1668,7 +1668,7 @@ const uint8_t* ImageWriter::GetQuickEntryPoint(ArtMethod* method) {
     // We assume all methods have code. If they don't currently then we set them to the use the
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
     // use results in an AbstractMethodError. We use the interpreter to achieve this.
-    if (UNLIKELY(method->IsAbstract())) {
+    if (UNLIKELY(!method->IsInvokable())) {
       return GetOatAddress(kOatAddressQuickToInterpreterBridge);
     } else {
       bool quick_is_interpreted;
@@ -1714,7 +1714,7 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy) {
     // We assume all methods have code. If they don't currently then we set them to the use the
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
     // use results in an AbstractMethodError. We use the interpreter to achieve this.
-    if (UNLIKELY(orig->IsAbstract())) {
+    if (UNLIKELY(!orig->IsInvokable())) {
       copy->SetEntryPointFromQuickCompiledCodePtrSize(
           GetOatAddress(kOatAddressQuickToInterpreterBridge), target_ptr_size_);
     } else {

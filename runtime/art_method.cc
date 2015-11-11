@@ -67,6 +67,18 @@ mirror::String* ArtMethod::GetNameAsString(Thread* self) {
                                                              dex_cache);
 }
 
+void ArtMethod::ThrowInvocationTimeError() {
+  DCHECK(!IsInvokable());
+  // NOTE: IsDefaultConflicting must be first since the actual method might or might not be abstract
+  //       due to the way we select it.
+  if (IsDefaultConflicting()) {
+    ThrowIncompatibleClassChangeErrorForMethodConflict(this);
+  } else {
+    DCHECK(IsAbstract());
+    ThrowAbstractMethodError(this);
+  }
+}
+
 InvokeType ArtMethod::GetInvokeType() {
   // TODO: kSuper?
   if (GetDeclaringClass()->IsInterface()) {
@@ -328,6 +340,10 @@ void ArtMethod::UnregisterNative() {
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(GetJniDlsymLookupStub(), false);
+}
+
+bool ArtMethod::IsOverridableByDefaultMethod() {
+  return GetDeclaringClass()->IsInterface();
 }
 
 bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params) {
