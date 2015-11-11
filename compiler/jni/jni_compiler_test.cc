@@ -219,7 +219,8 @@ void JniCompilerTest::CompileAndRunIntMethodThroughStubImpl() {
   // calling through stub will link with &Java_MyClassNatives_bar
 
   std::string reason;
-  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary(env_, "", class_loader_, &reason))
+  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->
+                  LoadNativeLibrary(env_, "", class_loader_, nullptr, &reason))
       << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
@@ -233,7 +234,8 @@ void JniCompilerTest::CompileAndRunStaticIntMethodThroughStubImpl() {
   // calling through stub will link with &Java_MyClassNatives_sbar
 
   std::string reason;
-  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary(env_, "", class_loader_, &reason))
+  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->
+                  LoadNativeLibrary(env_, "", class_loader_, nullptr, &reason))
       << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);

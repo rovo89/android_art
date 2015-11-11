@@ -52,10 +52,10 @@ NO_RETURN static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   exit(status);
 }
 
-static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPathJstr) {
+static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
 #ifdef __ANDROID__
-  if (javaLdLibraryPathJstr != nullptr) {
-    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPathJstr);
+  if (javaLdLibraryPath != nullptr) {
+    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
     if (ldLibraryPath.c_str() != nullptr) {
       android_update_LD_LIBRARY_PATH(ldLibraryPath.c_str());
     }
@@ -63,23 +63,31 @@ static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPathJstr) {
 
 #else
   LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
-  UNUSED(javaLdLibraryPathJstr, env);
+  UNUSED(javaLdLibraryPath, env);
 #endif
 }
 
 static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader,
-                                  jstring javaLdLibraryPathJstr) {
+                                  jstring javaLdLibraryPath, jstring javaIsolationPath) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == nullptr) {
     return nullptr;
   }
 
-  SetLdLibraryPath(env, javaLdLibraryPathJstr);
+  int32_t target_sdk_version = Runtime::Current()->GetTargetSdkVersion();
+
+  // Starting with N nativeLoad uses classloader local
+  // linker namespace instead of global LD_LIBRARY_PATH
+  // (23 is Marshmallow)
+  if (target_sdk_version == 0) {
+    SetLdLibraryPath(env, javaLdLibraryPath);
+  }
 
   std::string error_msg;
   {
     JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-    bool success = vm->LoadNativeLibrary(env, filename.c_str(), javaLoader, &error_msg);
+    bool success = vm->LoadNativeLibrary(env, filename.c_str(), javaLoader,
+                                         javaLdLibraryPath, javaIsolationPath, &error_msg);
     if (success) {
       return nullptr;
     }
@@ -107,7 +115,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Runtime, gc, "()V"),
   NATIVE_METHOD(Runtime, maxMemory, "!()J"),
   NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
-  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(Runtime, totalMemory, "!()J"),
 };
 
