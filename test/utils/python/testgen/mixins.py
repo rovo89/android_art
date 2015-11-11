@@ -79,6 +79,12 @@ class SmaliFileMixin(get_file_extension_mixin(".smali")):
   """
   pass
 
+class JavaFileMixin(get_file_extension_mixin(".java")):
+  """
+  A mixin that defines that the file this class belongs to is get_name() + ".java".
+  """
+  pass
+
 class NameComparableMixin(object):
   """
   A mixin that defines the object comparison and related functionality in terms
