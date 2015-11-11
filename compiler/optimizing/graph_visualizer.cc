@@ -24,6 +24,7 @@
 #include "code_generator.h"
 #include "dead_code_elimination.h"
 #include "disassembler.h"
+#include "inliner.h"
 #include "licm.h"
 #include "nodes.h"
 #include "optimization.h"
@@ -422,11 +423,6 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     return strcmp(pass_name_, name) == 0;
   }
 
-  bool IsReferenceTypePropagationPass() {
-    return strstr(pass_name_, ReferenceTypePropagation::kReferenceTypePropagationPassName)
-        != nullptr;
-  }
-
   void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
     if (instruction->InputCount() > 0) {
@@ -490,7 +486,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       } else {
         StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
       }
-    } else if (IsReferenceTypePropagationPass()
+    } else if ((IsPass(ReferenceTypePropagation::kReferenceTypePropagationPassName)
+        || IsPass(HInliner::kInlinerPassName))
         && (instruction->GetType() == Primitive::kPrimNot)) {
       ReferenceTypeInfo info = instruction->IsLoadClass()
         ? instruction->AsLoadClass()->GetLoadedClassRTI()

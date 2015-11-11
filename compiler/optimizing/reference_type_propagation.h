@@ -56,6 +56,8 @@ class ReferenceTypePropagation : public HOptimization {
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  void ValidateTypes();
+
   StackHandleScopeCollection* handles_;
 
   ArenaVector<HInstruction*> worklist_;

@@ -534,6 +534,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
             ReferenceTypeInfo::Create(obj_handle, false /* is_exact */));
   }
 
+  // Check the integrity of reference types and run another type propagation if needed.
   if ((return_replacement != nullptr)
       && (return_replacement->GetType() == Primitive::kPrimNot)) {
     if (!return_replacement->GetReferenceTypeInfo().IsValid()) {
@@ -544,9 +545,19 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       DCHECK(return_replacement->IsPhi());
       size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       ReferenceTypeInfo::TypeHandle return_handle =
-        handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
+          handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
       return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
          return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+    }
+
+    // If the return type is a refinement of the declared type run the type propagation again.
+    ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
+    ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
+    if (invoke_rti.IsStrictSupertypeOf(return_rti)
+        || (return_rti.IsExact() && !invoke_rti.IsExact())
+        || !return_replacement->CanBeNull()) {
+      ReferenceTypePropagation rtp_fixup(graph_, handles_);
+      rtp_fixup.Run();
     }
   }
 
