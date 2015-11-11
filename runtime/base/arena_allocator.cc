@@ -316,22 +316,22 @@ void ArenaAllocator::UpdateBytesAllocated() {
 }
 
 void* ArenaAllocator::AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind) {
+  // We mark all memory for a newly retrieved arena as inaccessible and then
+  // mark only the actually allocated memory as defined. That leaves red zones
+  // and padding between allocations marked as inaccessible.
   size_t rounded_bytes = RoundUp(bytes + kMemoryToolRedZoneBytes, 8);
   if (UNLIKELY(ptr_ + rounded_bytes > end_)) {
     // Obtain a new block.
     ObtainNewArenaForAllocation(rounded_bytes);
     CHECK(ptr_ != nullptr);
-    MEMORY_TOOL_MAKE_UNDEFINED(ptr_, end_ - ptr_);
+    MEMORY_TOOL_MAKE_NOACCESS(ptr_, end_ - ptr_);
   }
   ArenaAllocatorStats::RecordAlloc(rounded_bytes, kind);
   uint8_t* ret = ptr_;
   ptr_ += rounded_bytes;
-  // Check that the memory is already zeroed out.
-  for (uint8_t* ptr = ret; ptr < ptr_; ++ptr) {
-    CHECK_EQ(*ptr, 0U);
-  }
   MEMORY_TOOL_MAKE_DEFINED(ret, bytes);
-  MEMORY_TOOL_MAKE_NOACCESS(ret + bytes, rounded_bytes - bytes);
+  // Check that the memory is already zeroed out.
+  DCHECK(std::all_of(ret, ret + bytes, [](uint8_t val) { return val == 0u; }));
   return ret;
 }
 
