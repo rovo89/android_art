@@ -1140,7 +1140,7 @@ void Runtime::InitNativeMethods() {
   // Then set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);
 
-  // Then set up libjavacore / libflavacore, which are just a regular JNI libraries with
+  // Then set up libjavacore / libxxavacore, which are just a regular JNI libraries with
   // a regular JNI_OnLoad. Most JNI libraries can just use System.loadLibrary, but
   // libcore can't because it's the library that implements System.loadLibrary!
   {
