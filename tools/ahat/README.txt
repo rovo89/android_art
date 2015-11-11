@@ -14,7 +14,6 @@ TODO:
    - Say how to enable allocation sites.
    - Where to submit feedback, questions, and bug reports.
  * Dim 'image' and 'zygote' heap sizes slightly? Why do we even show these?
- * Filter out RootObjs in mSnapshot.getGCRoots, not RootsHandler.
  * Let user re-sort sites objects info by clicking column headers.
  * Let user re-sort "Objects" list.
  * Show site context and heap and class filter in "Objects" view?

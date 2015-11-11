@@ -215,7 +215,7 @@ class ObjectHandler implements AhatHandler {
 
           public DocString render(Instance element) {
             if (element == null) {
-              return DocString.link(DocString.uri("roots"), DocString.text("ROOT"));
+              return DocString.link(DocString.uri("rooted"), DocString.text("ROOT"));
             } else {
               return DocString.text("→ ").append(Value.render(element));
             }
