@@ -899,7 +899,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       // NOTE: We're using linker patches for app->boot references when the image can
       // be relocated and therefore we need to emit .oat_patches. We're not using this
       // for app->app references, so check that the method is an image method.
-      gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+      gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
       size_t method_offset = reinterpret_cast<const uint8_t*>(method) - image_space->Begin();
       CHECK(image_space->GetImageHeader().GetMethodsSection().Contains(method_offset));
     }

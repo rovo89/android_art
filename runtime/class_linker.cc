@@ -303,7 +303,7 @@ static void ShuffleForward(size_t* current_field_idx,
 ClassLinker::ClassLinker(InternTable* intern_table)
     // dex_lock_ is recursive as it may be used in stack dumping.
     : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel),
-      dex_cache_image_class_lookup_required_(false),
+      dex_cache_boot_image_class_lookup_required_(false),
       failed_dex_cache_class_lookups_(0),
       class_roots_(nullptr),
       array_iftable_(nullptr),
@@ -794,7 +794,7 @@ static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_
       CHECK_EQ(field.GetDeclaringClass(), klass);
     }
     auto* runtime = Runtime::Current();
-    auto* image_space = runtime->GetHeap()->GetImageSpace();
+    auto* image_space = runtime->GetHeap()->GetBootImageSpace();
     auto pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
     for (auto& m : klass->GetDirectMethods(pointer_size)) {
       SanityCheckArtMethod(&m, klass, image_space);
@@ -855,10 +855,10 @@ void ClassLinker::InitFromImage() {
   Runtime* const runtime = Runtime::Current();
   Thread* const self = Thread::Current();
   gc::Heap* const heap = runtime->GetHeap();
-  gc::space::ImageSpace* const space = heap->GetImageSpace();
+  gc::space::ImageSpace* const space = heap->GetBootImageSpace();
   CHECK(space != nullptr);
   image_pointer_size_ = space->GetImageHeader().GetPointerSize();
-  dex_cache_image_class_lookup_required_ = true;
+  dex_cache_boot_image_class_lookup_required_ = true;
   const OatFile* oat_file = runtime->GetOatFileManager().RegisterImageOatFile(space);
   DCHECK(oat_file != nullptr);
   CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
@@ -1086,8 +1086,8 @@ void ClassLinker::VisitClassesInternal(ClassVisitor* visitor) {
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor) {
-  if (dex_cache_image_class_lookup_required_) {
-    MoveImageClassesToClassTable();
+  if (dex_cache_boot_image_class_lookup_required_) {
+    AddBootImageClassesToClassTable();
   }
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
@@ -2643,11 +2643,13 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
   if (existing != nullptr) {
     return existing;
   }
-  if (kIsDebugBuild && !klass->IsTemp() && class_loader == nullptr &&
-      dex_cache_image_class_lookup_required_) {
+  if (kIsDebugBuild &&
+      !klass->IsTemp() &&
+      class_loader == nullptr &&
+      dex_cache_boot_image_class_lookup_required_) {
     // Check a class loaded with the system class loader matches one in the image if the class
     // is in the image.
-    existing = LookupClassFromImage(descriptor);
+    existing = LookupClassFromBootImage(descriptor);
     if (existing != nullptr) {
       CHECK_EQ(klass, existing);
     }
@@ -2691,11 +2693,11 @@ mirror::Class* ClassLinker::LookupClass(Thread* self,
       }
     }
   }
-  if (class_loader != nullptr || !dex_cache_image_class_lookup_required_) {
+  if (class_loader != nullptr || !dex_cache_boot_image_class_lookup_required_) {
     return nullptr;
   }
   // Lookup failed but need to search dex_caches_.
-  mirror::Class* result = LookupClassFromImage(descriptor);
+  mirror::Class* result = LookupClassFromBootImage(descriptor);
   if (result != nullptr) {
     result = InsertClass(descriptor, result, hash);
   } else {
@@ -2704,37 +2706,43 @@ mirror::Class* ClassLinker::LookupClass(Thread* self,
     // classes into the class table.
     constexpr uint32_t kMaxFailedDexCacheLookups = 1000;
     if (++failed_dex_cache_class_lookups_ > kMaxFailedDexCacheLookups) {
-      MoveImageClassesToClassTable();
+      AddBootImageClassesToClassTable();
     }
   }
   return result;
 }
 
-static mirror::ObjectArray<mirror::DexCache>* GetImageDexCaches()
+static mirror::ObjectArray<mirror::DexCache>* GetImageDexCaches(gc::space::ImageSpace* image_space)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  gc::space::ImageSpace* image = Runtime::Current()->GetHeap()->GetImageSpace();
-  CHECK(image != nullptr);
-  mirror::Object* root = image->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+  CHECK(image_space != nullptr);
+  mirror::Object* root = image_space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+  DCHECK(root != nullptr);
   return root->AsObjectArray<mirror::DexCache>();
 }
 
-void ClassLinker::MoveImageClassesToClassTable() {
+void ClassLinker::AddBootImageClassesToClassTable() {
+  if (dex_cache_boot_image_class_lookup_required_) {
+    AddImageClassesToClassTable(Runtime::Current()->GetHeap()->GetBootImageSpace(),
+                                /*class_loader*/nullptr);
+    dex_cache_boot_image_class_lookup_required_ = false;
+  }
+}
+
+void ClassLinker::AddImageClassesToClassTable(gc::space::ImageSpace* image_space,
+                                              mirror::ClassLoader* class_loader) {
   Thread* self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  if (!dex_cache_image_class_lookup_required_) {
-    return;  // All dex cache classes are already in the class table.
-  }
   ScopedAssertNoThreadSuspension ants(self, "Moving image classes to class table");
-  mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches();
+  mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches(image_space);
   std::string temp;
-  ClassTable* const class_table = InsertClassTableForClassLoader(nullptr);
+  ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     GcRoot<mirror::Class>* types = dex_cache->GetResolvedTypes();
     for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
       mirror::Class* klass = types[j].Read();
       if (klass != nullptr) {
-        DCHECK(klass->GetClassLoader() == nullptr);
+        DCHECK_EQ(klass->GetClassLoader(), class_loader);
         const char* descriptor = klass->GetDescriptor(&temp);
         size_t hash = ComputeModifiedUtf8Hash(descriptor);
         mirror::Class* existing = class_table->Lookup(descriptor, hash);
@@ -2750,7 +2758,6 @@ void ClassLinker::MoveImageClassesToClassTable() {
       }
     }
   }
-  dex_cache_image_class_lookup_required_ = false;
 }
 
 class MoveClassTableToPreZygoteVisitor : public ClassLoaderVisitor {
@@ -2774,9 +2781,10 @@ void ClassLinker::MoveClassTableToPreZygote() {
   VisitClassLoaders(&visitor);
 }
 
-mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
+mirror::Class* ClassLinker::LookupClassFromBootImage(const char* descriptor) {
   ScopedAssertNoThreadSuspension ants(Thread::Current(), "Image class lookup");
-  mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches();
+  mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches(
+      Runtime::Current()->GetHeap()->GetBootImageSpace());
   for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     const DexFile* dex_file = dex_cache->GetDexFile();
@@ -2818,8 +2826,8 @@ class LookupClassesVisitor : public ClassLoaderVisitor {
 
 void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Class*>& result) {
   result.clear();
-  if (dex_cache_image_class_lookup_required_) {
-    MoveImageClassesToClassTable();
+  if (dex_cache_boot_image_class_lookup_required_) {
+    AddBootImageClassesToClassTable();
   }
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
@@ -4142,10 +4150,10 @@ bool ClassLinker::LinkClass(Thread* self,
         Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
       }
       CHECK_EQ(existing, klass.Get());
-      if (kIsDebugBuild && class_loader == nullptr && dex_cache_image_class_lookup_required_) {
+      if (kIsDebugBuild && class_loader == nullptr && dex_cache_boot_image_class_lookup_required_) {
         // Check a class loaded with the system class loader matches one in the image if the class
         // is in the image.
-        mirror::Class* const image_class = LookupClassFromImage(descriptor);
+        mirror::Class* const image_class = LookupClassFromBootImage(descriptor);
         if (image_class != nullptr) {
           CHECK_EQ(klass.Get(), existing) << descriptor;
         }
@@ -6423,8 +6431,8 @@ void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
 
 void ClassLinker::DumpForSigQuit(std::ostream& os) {
   ScopedObjectAccess soa(Thread::Current());
-  if (dex_cache_image_class_lookup_required_) {
-    MoveImageClassesToClassTable();
+  if (dex_cache_boot_image_class_lookup_required_) {
+    AddBootImageClassesToClassTable();
   }
   ReaderMutexLock mu(soa.Self(), *Locks::classlinker_classes_lock_);
   os << "Zygote loaded classes=" << NumZygoteClasses() << " post zygote classes="
@@ -6461,8 +6469,8 @@ size_t ClassLinker::NumNonZygoteClasses() const {
 }
 
 size_t ClassLinker::NumLoadedClasses() {
-  if (dex_cache_image_class_lookup_required_) {
-    MoveImageClassesToClassTable();
+  if (dex_cache_boot_image_class_lookup_required_) {
+    AddBootImageClassesToClassTable();
   }
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   // Only return non zygote classes since these are the ones which apps which care about.

@@ -42,7 +42,7 @@ class ImgDiagTest : public CommonRuntimeTest {
     CommonRuntimeTest::SetUp();
 
     // We loaded the runtime with an explicit image. Therefore the image space must exist.
-    gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+    gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
     ASSERT_TRUE(image_space != nullptr);
     boot_image_location_ = image_space->GetImageLocation();
   }

@@ -1552,7 +1552,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       *type = sharp_type;
     }
   } else {
-    auto* image_space = heap->GetImageSpace();
+    auto* image_space = heap->GetBootImageSpace();
     bool method_in_image = false;
     if (image_space != nullptr) {
       const auto& method_section = image_space->GetImageHeader().GetMethodsSection();
