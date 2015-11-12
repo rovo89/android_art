@@ -35,7 +35,7 @@ class NoPatchoatTest {
   }
 
   static bool isRelocationDeltaZero() {
-    gc::space::ImageSpace* space = Runtime::Current()->GetHeap()->GetImageSpace();
+    gc::space::ImageSpace* space = Runtime::Current()->GetHeap()->GetBootImageSpace();
     return space != nullptr && space->GetImageHeader().GetPatchDelta() == 0;
   }
 

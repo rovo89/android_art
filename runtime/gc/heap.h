@@ -580,9 +580,9 @@ class Heap {
   // Unbind any bound bitmaps.
   void UnBindBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
 
-  // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
-  // Assumes there is only one image space.
-  space::ImageSpace* GetImageSpace() const;
+  // Returns the boot image space. There may be multiple image spaces, but there is only one boot
+  // image space.
+  space::ImageSpace* GetBootImageSpace() const;
 
   // Permenantly disable moving garbage collection.
   void DisableMovingGc() REQUIRES(!*gc_complete_lock_);
@@ -660,7 +660,9 @@ class Heap {
   void RemoveRememberedSet(space::Space* space);
 
   bool IsCompilingBoot() const;
-  bool HasImageSpace() const;
+  bool HasImageSpace() const {
+    return boot_image_space_ != nullptr;
+  }
 
   ReferenceProcessor* GetReferenceProcessor() {
     return reference_processor_.get();
@@ -1319,6 +1321,9 @@ class Heap {
   // We disable GC when we are shutting down the runtime in case there are daemon threads still
   // allocating.
   bool gc_disabled_for_shutdown_ GUARDED_BY(gc_complete_lock_);
+
+  // Boot image space.
+  space::ImageSpace* boot_image_space_;
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;

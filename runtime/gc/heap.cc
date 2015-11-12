@@ -233,7 +233,8 @@ Heap::Heap(size_t initial_size,
       backtrace_lock_(nullptr),
       seen_backtrace_count_(0u),
       unique_backtrace_count_(0u),
-      gc_disabled_for_shutdown_(false) {
+      gc_disabled_for_shutdown_(false),
+      boot_image_space_(nullptr) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -262,15 +263,16 @@ Heap::Heap(size_t initial_size,
   if (!image_file_name.empty()) {
     ATRACE_BEGIN("ImageSpace::Create");
     std::string error_msg;
-    auto* image_space = space::ImageSpace::Create(image_file_name.c_str(), image_instruction_set,
+    boot_image_space_ = space::ImageSpace::Create(image_file_name.c_str(),
+                                                  image_instruction_set,
                                                   &error_msg);
     ATRACE_END();
-    if (image_space != nullptr) {
-      AddSpace(image_space);
+    if (boot_image_space_ != nullptr) {
+      AddSpace(boot_image_space_);
       // Oat files referenced by image files immediately follow them in memory, ensure alloc space
       // isn't going to get in the middle
-      uint8_t* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
-      CHECK_GT(oat_file_end_addr, image_space->End());
+      uint8_t* oat_file_end_addr = boot_image_space_->GetImageHeader().GetOatFileEnd();
+      CHECK_GT(oat_file_end_addr, boot_image_space_->End());
       requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
     } else {
       LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
@@ -454,11 +456,11 @@ Heap::Heap(size_t initial_size,
     rb_table_.reset(new accounting::ReadBarrierTable());
     DCHECK(rb_table_->IsAllCleared());
   }
-  if (GetImageSpace() != nullptr) {
+  if (GetBootImageSpace() != nullptr) {
     // Don't add the image mod union table if we are running without an image, this can crash if
     // we use the CardCache implementation.
     accounting::ModUnionTable* mod_union_table = new accounting::ModUnionTableToZygoteAllocspace(
-        "Image mod-union table", this, GetImageSpace());
+        "Image mod-union table", this, GetBootImageSpace());
     CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
     AddModUnionTable(mod_union_table);
   }
@@ -523,12 +525,12 @@ Heap::Heap(size_t initial_size,
       garbage_collectors_.push_back(mark_compact_collector_);
     }
   }
-  if (GetImageSpace() != nullptr && non_moving_space_ != nullptr &&
+  if (GetBootImageSpace() != nullptr && non_moving_space_ != nullptr &&
       (is_zygote || separate_non_moving_space || foreground_collector_type_ == kCollectorTypeGSS)) {
     // Check that there's no gap between the image space and the non moving space so that the
     // immune region won't break (eg. due to a large object allocated in the gap). This is only
     // required when we're the zygote or using GSS.
-    bool no_gap = MemMap::CheckNoGaps(GetImageSpace()->GetMemMap(),
+    bool no_gap = MemMap::CheckNoGaps(GetBootImageSpace()->GetMemMap(),
                                       non_moving_space_->GetMemMap());
     if (!no_gap) {
       PrintFileToLog("/proc/self/maps", LogSeverity::ERROR);
@@ -746,15 +748,6 @@ bool Heap::IsCompilingBoot() const {
     }
   }
   return true;
-}
-
-bool Heap::HasImageSpace() const {
-  for (const auto& space : continuous_spaces_) {
-    if (space->IsImageSpace()) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void Heap::IncrementDisableMovingGC(Thread* self) {
@@ -1209,13 +1202,8 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
   return FindDiscontinuousSpaceFromObject(obj, fail_ok);
 }
 
-space::ImageSpace* Heap::GetImageSpace() const {
-  for (const auto& space : continuous_spaces_) {
-    if (space->IsImageSpace()) {
-      return space->AsImageSpace();
-    }
-  }
-  return nullptr;
+space::ImageSpace* Heap::GetBootImageSpace() const {
+  return boot_image_space_;
 }
 
 void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type) {

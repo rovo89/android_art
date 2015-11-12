@@ -223,7 +223,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
         false, dex_location.c_str(), &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
 
-    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetBootImageSpace();
     ASSERT_TRUE(image_space != nullptr);
     const ImageHeader& image_header = image_space->GetImageHeader();
     const OatHeader& oat_header = odex_file->GetOatHeader();

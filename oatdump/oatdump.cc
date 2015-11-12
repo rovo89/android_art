@@ -2374,7 +2374,7 @@ static int DumpImage(Runtime* runtime, const char* image_location, OatDumperOpti
 
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = runtime->GetHeap();
-  gc::space::ImageSpace* image_space = heap->GetImageSpace();
+  gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
   CHECK(image_space != nullptr);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {
