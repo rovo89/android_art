@@ -187,7 +187,7 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s) {
   if (image_added_to_intern_table_) {
     return nullptr;
   }
-  gc::space::ImageSpace* image = Runtime::Current()->GetHeap()->GetImageSpace();
+  gc::space::ImageSpace* image = Runtime::Current()->GetHeap()->GetBootImageSpace();
   if (image == nullptr) {
     return nullptr;  // No image present.
   }

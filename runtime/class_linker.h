@@ -487,10 +487,17 @@ class ClassLinker {
     return class_roots;
   }
 
-  // Move all of the image classes into the class table for faster lookups.
-  void MoveImageClassesToClassTable()
+  // Move all of the boot image classes into the class table for faster lookups.
+  void AddBootImageClassesToClassTable()
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Add image classes to the class table.
+  void AddImageClassesToClassTable(gc::space::ImageSpace* image_space,
+                                   mirror::ClassLoader* class_loader)
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Move the class table to the pre-zygote table to reduce memory usage. This works by ensuring
   // that no more classes are ever added to the pre zygote table which makes it that the pages
   // always remain shared dirty instead of private dirty.
@@ -909,7 +916,7 @@ class ClassLinker {
   void EnsurePreverifiedMethods(Handle<mirror::Class> c)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::Class* LookupClassFromImage(const char* descriptor)
+  mirror::Class* LookupClassFromBootImage(const char* descriptor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns null if not found.
@@ -973,8 +980,8 @@ class ClassLinker {
   // New class roots, only used by CMS since the GC needs to mark these in the pause.
   std::vector<GcRoot<mirror::Class>> new_class_roots_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
-  // Do we need to search dex caches to find image classes?
-  bool dex_cache_image_class_lookup_required_;
+  // Do we need to search dex caches to find boot image classes?
+  bool dex_cache_boot_image_class_lookup_required_;
   // Number of times we've searched dex caches for a class. After a certain number of misses we move
   // the classes into the class_table_ to avoid dex cache based searches.
   Atomic<uint32_t> failed_dex_cache_class_lookups_;

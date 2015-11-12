@@ -846,7 +846,7 @@ std::string OatFileAssistant::OldProfileFileName() {
 
 std::string OatFileAssistant::ImageLocation() {
   Runtime* runtime = Runtime::Current();
-  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetBootImageSpace();
   if (image_space == nullptr) {
     return "";
   }
@@ -949,21 +949,23 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
     image_info_load_attempted_ = true;
 
     Runtime* runtime = Runtime::Current();
-    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetBootImageSpace();
     if (image_space != nullptr) {
       cached_image_info_.location = image_space->GetImageLocation();
 
       if (isa_ == kRuntimeISA) {
         const ImageHeader& image_header = image_space->GetImageHeader();
         cached_image_info_.oat_checksum = image_header.GetOatChecksum();
-        cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
+        cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
+            image_header.GetOatDataBegin());
         cached_image_info_.patch_delta = image_header.GetPatchDelta();
       } else {
         std::unique_ptr<ImageHeader> image_header(
             gc::space::ImageSpace::ReadImageHeaderOrDie(
                 cached_image_info_.location.c_str(), isa_));
         cached_image_info_.oat_checksum = image_header->GetOatChecksum();
-        cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
+        cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
+            image_header->GetOatDataBegin());
         cached_image_info_.patch_delta = image_header->GetPatchDelta();
       }
     }

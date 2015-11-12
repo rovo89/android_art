@@ -1357,7 +1357,7 @@ class Dex2Oat FINAL {
       int32_t image_patch_delta = 0;
 
       if (app_image_ && image_base_ == 0) {
-        gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+        gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
         image_base_ = RoundUp(
             reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatFileEnd()),
             kPageSize);
@@ -1370,7 +1370,7 @@ class Dex2Oat FINAL {
 
       if (!IsBootImage()) {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
-        gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+        gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
         image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
         image_file_location_oat_data_begin =
             reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatDataBegin());
