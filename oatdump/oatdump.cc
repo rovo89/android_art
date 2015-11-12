@@ -1618,9 +1618,9 @@ class ImageDumper {
       dex_caches_.clear();
       {
         ReaderMutexLock mu(self, *class_linker->DexLock());
-        for (jobject weak_root : class_linker->GetDexCaches()) {
+        for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
           mirror::DexCache* dex_cache =
-              down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+              down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
           if (dex_cache != nullptr) {
             dex_caches_.insert(dex_cache);
           }
