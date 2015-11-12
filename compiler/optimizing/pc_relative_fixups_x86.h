@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_CONSTANT_AREA_FIXUPS_X86_H_
-#define ART_COMPILER_OPTIMIZING_CONSTANT_AREA_FIXUPS_X86_H_
+#ifndef ART_COMPILER_OPTIMIZING_PC_RELATIVE_FIXUPS_X86_H_
+#define ART_COMPILER_OPTIMIZING_PC_RELATIVE_FIXUPS_X86_H_
 
 #include "nodes.h"
 #include "optimization.h"
@@ -23,10 +23,10 @@
 namespace art {
 namespace x86 {
 
-class ConstantAreaFixups : public HOptimization {
+class PcRelativeFixups : public HOptimization {
  public:
-  ConstantAreaFixups(HGraph* graph, OptimizingCompilerStats* stats)
-      : HOptimization(graph, "constant_area_fixups_x86", stats) {}
+  PcRelativeFixups(HGraph* graph, OptimizingCompilerStats* stats)
+      : HOptimization(graph, "pc_relative_fixups_x86", stats) {}
 
   void Run() OVERRIDE;
 };
@@ -34,4 +34,4 @@ class ConstantAreaFixups : public HOptimization {
 }  // namespace x86
 }  // namespace art
 
-#endif  // ART_COMPILER_OPTIMIZING_CONSTANT_AREA_FIXUPS_X86_H_
+#endif  // ART_COMPILER_OPTIMIZING_PC_RELATIVE_FIXUPS_X86_H_

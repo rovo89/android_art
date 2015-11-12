@@ -401,7 +401,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   ArenaDeque<MethodPatchInfo<Label>> method_patches_;
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
   // PC-relative DexCache access info.
-  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_rel_dex_cache_patches_;
+  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
 
   // When we don't know the proper offset for the value, we use kDummy32BitOffset.
   // We will fix this up in the linker later to have the right value.
