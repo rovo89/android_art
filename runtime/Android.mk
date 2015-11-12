@@ -141,6 +141,7 @@ LIBART_COMMON_SRC_FILES := \
   native/libcore_util_CharsetUtils.cc \
   native/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
   native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
+  native/OpenjdkJvm.cc \
   native/sun_misc_Unsafe.cc \
   oat.cc \
   oat_file.cc \

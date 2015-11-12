@@ -522,8 +522,8 @@ class MANAGED Class FINAL : public Object {
   // The size of java.lang.Class.class.
   static uint32_t ClassClassSize(size_t pointer_size) {
     // The number of vtable entries in java.lang.Class.
-    uint32_t vtable_entries = Object::kVTableLength + 65;
-    return ComputeClassSize(true, vtable_entries, 0, 0, 0, 1, 0, pointer_size);
+    uint32_t vtable_entries = Object::kVTableLength + 68;
+    return ComputeClassSize(true, vtable_entries, 0, 0, 3, 1, 0, pointer_size);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
@@ -1181,6 +1181,8 @@ class MANAGED Class FINAL : public Object {
   static MemberOffset EmbeddedImTableOffset(size_t pointer_size);
   static MemberOffset EmbeddedVTableOffset(size_t pointer_size);
 
+  HeapReference<Object> annotation_type_;
+
   // Defining class loader, or null for the "bootstrap" system loader.
   HeapReference<ClassLoader> class_loader_;
 
@@ -1223,10 +1225,6 @@ class MANAGED Class FINAL : public Object {
   // virtual_ methods_ for miranda methods.
   HeapReference<PointerArray> vtable_;
 
-  // Access flags; low 16 bits are defined by VM spec.
-  // Note: Shuffled back.
-  uint32_t access_flags_;
-
   // static, private, and <init> methods. Pointer to an ArtMethod array.
   uint64_t direct_methods_;
 
@@ -1245,6 +1243,11 @@ class MANAGED Class FINAL : public Object {
 
   // Virtual methods defined in this class; invoked through vtable. Pointer to an ArtMethod array.
   uint64_t virtual_methods_;
+
+
+  // Access flags; low 16 bits are defined by VM spec.
+  // Note: Shuffled back.
+  uint32_t access_flags_;
 
   // Total size of the Class instance; used when allocating storage on gc heap.
   // See also object_size_.

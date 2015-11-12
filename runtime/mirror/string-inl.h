@@ -31,8 +31,8 @@ namespace art {
 namespace mirror {
 
 inline uint32_t String::ClassSize(size_t pointer_size) {
-  uint32_t vtable_entries = Object::kVTableLength + 52;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 1, 0, 1, 2, pointer_size);
+  uint32_t vtable_entries = Object::kVTableLength + 53;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 2, 0, 1, 2, pointer_size);
 }
 
 // Sets string count in the allocation code path to ensure it is guarded by a CAS.
