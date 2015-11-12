@@ -745,6 +745,15 @@ static JdwpError M_Bytecodes(JdwpState*, Request* request, ExpandBuf* reply)
   return ERR_NONE;
 }
 
+// Default implementation for IDEs relying on this command.
+static JdwpError M_IsObsolete(JdwpState*, Request* request, ExpandBuf* reply)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  request->ReadRefTypeId();  // unused reference type ID
+  request->ReadMethodId();   // unused method ID
+  expandBufAdd1(reply, false);  // a method is never obsolete.
+  return ERR_NONE;
+}
+
 /*
  * Given an object reference, return the runtime type of the object
  * (class or array).
@@ -1477,7 +1486,7 @@ static const JdwpHandlerMap gHandlers[] = {
   { 6,    1,  M_LineTable,                "Method.LineTable" },
   { 6,    2,  M_VariableTable,            "Method.VariableTable" },
   { 6,    3,  M_Bytecodes,                "Method.Bytecodes" },
-  { 6,    4,  nullptr,                    "Method.IsObsolete" },
+  { 6,    4,  M_IsObsolete,               "Method.IsObsolete" },
   { 6,    5,  M_VariableTableWithGeneric, "Method.VariableTableWithGeneric" },
 
   /* Field command set (8) */
