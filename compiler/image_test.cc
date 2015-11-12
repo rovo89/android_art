@@ -181,7 +181,7 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(heap->HasImageSpace());
   ASSERT_TRUE(heap->GetNonMovingSpace()->IsMallocSpace());
 
-  gc::space::ImageSpace* image_space = heap->GetImageSpace();
+  gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
   ASSERT_TRUE(image_space != nullptr);
   ASSERT_LE(image_space->Size(), image_file_size);
 
