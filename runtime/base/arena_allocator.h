@@ -288,6 +288,11 @@ class ArenaPool {
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
 };
 
+// Fast single-threaded allocator for zero-initialized memory chunks.
+//
+// Memory is allocated from ArenaPool in large chunks and then rationed through
+// the ArenaAllocator. It's returned to the ArenaPool only when the ArenaAllocator
+// is destroyed.
 class ArenaAllocator
     : private DebugStackRefCounter, private ArenaAllocatorStats, private ArenaAllocatorMemoryTool {
  public:
