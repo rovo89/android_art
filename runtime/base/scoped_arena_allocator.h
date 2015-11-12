@@ -42,6 +42,7 @@ enum class ArenaFreeTag : uint8_t {
 static constexpr size_t kArenaAlignment = 8;
 
 // Holds a list of Arenas for use by ScopedArenaAllocator stack.
+// The memory is returned to the ArenaPool when the ArenaStack is destroyed.
 class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryTool {
  public:
   explicit ArenaStack(ArenaPool* arena_pool);
@@ -121,6 +122,12 @@ class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryToo
   DISALLOW_COPY_AND_ASSIGN(ArenaStack);
 };
 
+// Fast single-threaded allocator. Allocated chunks are _not_ guaranteed to be zero-initialized.
+//
+// Unlike the ArenaAllocator, ScopedArenaAllocator is intended for relatively short-lived
+// objects and allows nesting multiple allocators. Only the top allocator can be used but
+// once it's destroyed, its memory can be reused by the next ScopedArenaAllocator on the
+// stack. This is facilitated by returning the memory to the ArenaStack.
 class ScopedArenaAllocator
     : private DebugStackReference, private DebugStackRefCounter, private ArenaAllocatorStats {
  public:
