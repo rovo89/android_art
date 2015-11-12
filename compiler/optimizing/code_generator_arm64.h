@@ -203,9 +203,9 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateTestAndBranch(HInstruction* instruction,
+                             size_t condition_input_index,
                              vixl::Label* true_target,
-                             vixl::Label* false_target,
-                             vixl::Label* always_true_target);
+                             vixl::Label* false_target);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
