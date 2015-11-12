@@ -208,6 +208,7 @@ class DisassemblyScope {
 void CodeGenerator::GenerateSlowPaths() {
   size_t code_start = 0;
   for (SlowPathCode* slow_path : slow_paths_) {
+    current_slow_path_ = slow_path;
     if (disasm_info_ != nullptr) {
       code_start = GetAssembler()->CodeSize();
     }
@@ -216,6 +217,7 @@ void CodeGenerator::GenerateSlowPaths() {
       disasm_info_->AddSlowPathInterval(slow_path, code_start, GetAssembler()->CodeSize());
     }
   }
+  current_slow_path_ = nullptr;
 }
 
 void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) {

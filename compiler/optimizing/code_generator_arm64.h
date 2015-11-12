@@ -447,7 +447,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<MethodPatchInfo<vixl::Label>> relative_call_patches_;
   // PC-relative DexCache access info.
-  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_rel_dex_cache_patches_;
+  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM64);
 };

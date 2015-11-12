@@ -2048,6 +2048,16 @@ bool HInvokeStaticOrDirect::NeedsDexCacheOfDeclaringClass() const {
   return !opt.GetDoesNotNeedDexCache();
 }
 
+void HInvokeStaticOrDirect::InsertInputAt(size_t index, HInstruction* input) {
+  inputs_.insert(inputs_.begin() + index, HUserRecord<HInstruction*>(input));
+  input->AddUseAt(this, index);
+  // Update indexes in use nodes of inputs that have been pushed further back by the insert().
+  for (size_t i = index + 1u, size = inputs_.size(); i != size; ++i) {
+    DCHECK_EQ(InputRecordAt(i).GetUseNode()->GetIndex(), i - 1u);
+    InputRecordAt(i).GetUseNode()->SetIndex(i);
+  }
+}
+
 void HInvokeStaticOrDirect::RemoveInputAt(size_t index) {
   RemoveAsUserOfInput(index);
   inputs_.erase(inputs_.begin() + index);
