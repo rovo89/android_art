@@ -3440,6 +3440,7 @@ class HInvokeStaticOrDirect : public HInvoke {
     dispatch_info_ = dispatch_info;
   }
 
+  void InsertInputAt(size_t index, HInstruction* input);
   void RemoveInputAt(size_t index);
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const OVERRIDE {
@@ -3460,7 +3461,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   bool IsStringInit() const { return GetMethodLoadKind() == MethodLoadKind::kStringInit; }
   uint32_t GetCurrentMethodInputIndex() const { return GetNumberOfArguments(); }
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
-  bool HasPcRelDexCache() const {
+  bool HasPcRelativeDexCache() const {
     return GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
   }
   bool HasCurrentMethodInput() const {
@@ -3488,7 +3489,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   }
 
   uint32_t GetDexCacheArrayOffset() const {
-    DCHECK(HasPcRelDexCache());
+    DCHECK(HasPcRelativeDexCache());
     return dispatch_info_.method_load_data;
   }
 

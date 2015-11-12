@@ -19,7 +19,6 @@
 #include "art_method.h"
 #include "code_generator_utils.h"
 #include "compiled_method.h"
-#include "constant_area_fixups_x86.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
@@ -27,6 +26,7 @@
 #include "intrinsics_x86.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
+#include "pc_relative_fixups_x86.h"
 #include "thread.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
@@ -533,6 +533,7 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       isa_features_(isa_features),
       method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
@@ -1696,10 +1697,19 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
+    if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
+      invoke->GetLocations()->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::Any());
+    }
     return;
   }
 
   HandleInvoke(invoke);
+
+  // For PC-relative dex cache the invoke has an extra input, the PC-relative address base.
+  if (invoke->HasPcRelativeDexCache()) {
+    invoke->GetLocations()->SetInAt(invoke->GetCurrentMethodInputIndex(),
+                                    Location::RequiresRegister());
+  }
 
   if (codegen_->IsBaseline()) {
     // Baseline does not have enough registers if the current method also
@@ -3779,16 +3789,6 @@ void InstructionCodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method ATTRIBUTE_UNUSED) {
-  if (desired_dispatch_info.method_load_kind ==
-      HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative) {
-    // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
-    return HInvokeStaticOrDirect::DispatchInfo {
-      HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
-      HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-      0u,
-      0u
-    };
-  }
   switch (desired_dispatch_info.code_ptr_location) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
@@ -3803,6 +3803,32 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOr
     default:
       return desired_dispatch_info;
   }
+}
+
+Register CodeGeneratorX86::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
+                                                                 Register temp) {
+  DCHECK_EQ(invoke->InputCount(), invoke->GetNumberOfArguments() + 1u);
+  Location location = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+  if (!invoke->GetLocations()->Intrinsified()) {
+    return location.AsRegister<Register>();
+  }
+  // For intrinsics we allow any location, so it may be on the stack.
+  if (!location.IsRegister()) {
+    __ movl(temp, Address(ESP, location.GetStackIndex()));
+    return temp;
+  }
+  // For register locations, check if the register was saved. If so, get it from the stack.
+  // Note: There is a chance that the register was saved but not overwritten, so we could
+  // save one load. However, since this is just an intrinsic slow path we prefer this
+  // simple and more robust approach rather that trying to determine if that's the case.
+  SlowPathCode* slow_path = GetCurrentSlowPath();
+  DCHECK(slow_path != nullptr);  // For intrinsified invokes the call is emitted on the slow path.
+  if (slow_path->IsCoreRegisterSaved(location.AsRegister<Register>())) {
+    int stack_offset = slow_path->GetStackOffsetOfCoreRegister(location.AsRegister<Register>());
+    __ movl(temp, Address(ESP, stack_offset));
+    return temp;
+  }
+  return location.AsRegister<Register>();
 }
 
 void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
@@ -3823,11 +3849,16 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       method_patches_.emplace_back(invoke->GetTargetMethod());
       __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
       break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement this type.
-      // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
-      LOG(FATAL) << "Unsupported";
-      UNREACHABLE();
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
+      Register base_reg = GetInvokeStaticOrDirectExtraParameter(invoke,
+                                                                temp.AsRegister<Register>());
+      uint32_t offset = invoke->GetDexCacheArrayOffset();
+      __ movl(temp.AsRegister<Register>(), Address(base_reg, kDummy32BitOffset));
+      // Add the patch entry and bind its label at the end of the instruction.
+      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file, offset);
+      __ Bind(&pc_relative_dex_cache_patches_.back().label);
+      break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
       Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
       Register method_reg;
@@ -3898,22 +3929,32 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
 
 void CodeGeneratorX86::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
-  linker_patches->reserve(method_patches_.size() + relative_call_patches_.size());
+  size_t size =
+      method_patches_.size() +
+      relative_call_patches_.size() +
+      pc_relative_dex_cache_patches_.size();
+  linker_patches->reserve(size);
+  // The label points to the end of the "movl" insn but the literal offset for method
+  // patch needs to point to the embedded constant which occupies the last 4 bytes.
+  constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
   for (const MethodPatchInfo<Label>& info : method_patches_) {
-    // The label points to the end of the "movl" insn but the literal offset for method
-    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
-    uint32_t literal_offset = info.label.Position() - 4;
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
     linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset,
                                                        info.target_method.dex_file,
                                                        info.target_method.dex_method_index));
   }
   for (const MethodPatchInfo<Label>& info : relative_call_patches_) {
-    // The label points to the end of the "call" insn but the literal offset for method
-    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
-    uint32_t literal_offset = info.label.Position() - 4;
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
     linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
+  }
+  for (const PcRelativeDexCacheAccessInfo& info : pc_relative_dex_cache_patches_) {
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(literal_offset,
+                                                              &info.target_dex_file,
+                                                              GetMethodAddressOffset(),
+                                                              info.element_offset));
   }
 }
 
