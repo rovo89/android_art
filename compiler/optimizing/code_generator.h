@@ -490,6 +490,7 @@ class CodeGenerator {
         compiler_options_(compiler_options),
         src_map_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         slow_paths_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        current_slow_path_(nullptr),
         current_block_index_(0),
         is_leaf_(true),
         requires_current_method_(false) {
@@ -557,6 +558,10 @@ class CodeGenerator {
     return raw_pointer_to_labels_array + block->GetBlockId();
   }
 
+  SlowPathCode* GetCurrentSlowPath() {
+    return current_slow_path_;
+  }
+
   // Frame size required for this method.
   uint32_t frame_size_;
   uint32_t core_spill_mask_;
@@ -604,6 +609,9 @@ class CodeGenerator {
   // Native to dex_pc map used for native debugging/profiling tools.
   ArenaVector<SrcMapElem> src_map_;
   ArenaVector<SlowPathCode*> slow_paths_;
+
+  // The current slow path that we're generating code for.
+  SlowPathCode* current_slow_path_;
 
   // The current block index in `block_order_` of the block
   // we are generating code for.

@@ -398,6 +398,18 @@ class CodeGeneratorX86 : public CodeGenerator {
   void Finalize(CodeAllocator* allocator) OVERRIDE;
 
  private:
+  Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
+
+  struct PcRelativeDexCacheAccessInfo {
+    PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
+        : target_dex_file(dex_file), element_offset(element_off), label() { }
+
+    const DexFile& target_dex_file;
+    uint32_t element_offset;
+    // NOTE: Label is bound to the end of the instruction that has an embedded 32-bit offset.
+    Label label;
+  };
+
   // Labels for each block that will be compiled.
   Label* block_labels_;  // Indexed by block id.
   Label frame_entry_label_;
@@ -410,6 +422,8 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Method patch info. Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<MethodPatchInfo<Label>> method_patches_;
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
+  // PC-relative DexCache access info.
+  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
 
   // Offset to the start of the constant area in the assembled code.
   // Used for fixups to the constant area.
