@@ -15,13 +15,17 @@
  */
 
 #include "sun_misc_Unsafe.h"
-
+#include "common_throws.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access.h"
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 namespace art {
 
@@ -185,6 +189,284 @@ static jint Unsafe_getArrayIndexScaleForComponentType(JNIEnv* env, jclass, jobje
   return Primitive::ComponentSize(primitive_type);
 }
 
+static jint Unsafe_addressSize(JNIEnv* env ATTRIBUTE_UNUSED, jobject ob ATTRIBUTE_UNUSED) {
+  return sizeof(void*);
+}
+
+static jint Unsafe_pageSize(JNIEnv* env ATTRIBUTE_UNUSED, jobject ob ATTRIBUTE_UNUSED) {
+  return sysconf(_SC_PAGESIZE);
+}
+
+static jlong Unsafe_allocateMemory(JNIEnv* env, jobject, jlong bytes) {
+  ScopedFastNativeObjectAccess soa(env);
+  // bytes is nonnegative and fits into size_t
+  if (bytes < 0 || bytes != (jlong)(size_t) bytes) {
+    ThrowIllegalAccessException("wrong number of bytes");
+    return 0;
+  }
+  void* mem = malloc(bytes);
+  if (mem == nullptr) {
+    soa.Self()->ThrowOutOfMemoryError("native alloc");
+    return 0;
+  }
+  return (uintptr_t) mem;
+}
+
+static void Unsafe_freeMemory(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  free(reinterpret_cast<void*>(static_cast<uintptr_t>(address)));
+}
+
+static void Unsafe_setMemory(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jlong bytes, jbyte value) {
+  memset(reinterpret_cast<void*>(static_cast<uintptr_t>(address)), value, bytes);
+}
+
+static jbyte Unsafe_getByte$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jbyte*>(address);
+}
+
+static void Unsafe_putByte$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jbyte value) {
+  *reinterpret_cast<jbyte*>(address) = value;
+}
+
+static jshort Unsafe_getShort$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jshort*>(address);
+}
+
+static void Unsafe_putShort$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jshort value) {
+  *reinterpret_cast<jshort*>(address) = value;
+}
+
+static jchar Unsafe_getChar$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jchar*>(address);
+}
+
+static void Unsafe_putChar$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jchar value) {
+  *reinterpret_cast<jchar*>(address) = value;
+}
+
+static jint Unsafe_getInt$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jint*>(address);
+}
+
+static void Unsafe_putInt$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jint value) {
+  *reinterpret_cast<jint*>(address) = value;
+}
+
+static jlong Unsafe_getLong$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jlong*>(address);
+}
+
+static void Unsafe_putLong$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jlong value) {
+  *reinterpret_cast<jlong*>(address) = value;
+}
+
+static jfloat Unsafe_getFloat$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jfloat*>(address);
+}
+
+static void Unsafe_putFloat$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jfloat value) {
+  *reinterpret_cast<jfloat*>(address) = value;
+}
+static jdouble Unsafe_getDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  return *reinterpret_cast<jdouble*>(address);
+}
+
+static void Unsafe_putDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jdouble value) {
+  *reinterpret_cast<jdouble*>(address) = value;
+}
+
+static jlong Unsafe_getAddress(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+  void* p = (void*)(uintptr_t)address;
+  return (uintptr_t)(*(void**)p);
+}
+
+static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlong src,
+                              jlong dst, jlong size) {
+    if (size == 0) {
+        return;
+    }
+    // size is nonnegative and fits into size_t
+    if (size < 0 || size != (jlong)(size_t) size) {
+        ScopedFastNativeObjectAccess soa(env);
+        ThrowIllegalAccessException("wrong number of bytes");
+    }
+    size_t sz = (size_t)size;
+    memcpy(reinterpret_cast<void *>(dst), reinterpret_cast<void *>(src), sz);
+}
+
+template<typename T>
+static void copyToArray(jlong srcAddr, mirror::PrimitiveArray<T>* array,
+                        size_t array_offset,
+                        size_t size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const T* src = reinterpret_cast<T*>(srcAddr);
+    size_t sz = size / sizeof(T);
+    size_t of = array_offset / sizeof(T);
+    for (size_t i = 0; i < sz; ++i) {
+        array->Set(i + of, *(src + i));
+    }
+}
+
+template<typename T>
+static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array,
+                          size_t array_offset,
+                          size_t size)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    T* dst = reinterpret_cast<T*>(dstAddr);
+    size_t sz = size / sizeof(T);
+    size_t of = array_offset / sizeof(T);
+    for (size_t i = 0; i < sz; ++i) {
+        *(dst + i) = array->Get(i + of);
+    }
+}
+
+static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
+                                              jobject unsafe ATTRIBUTE_UNUSED,
+                                              jlong srcAddr,
+                                              jobject dstObj,
+                                              jlong dstOffset,
+                                              jlong size) {
+    ScopedObjectAccess soa(env);
+    if (size == 0) {
+        return;
+    }
+    // size is nonnegative and fits into size_t
+    if (size < 0 || size != (jlong)(size_t) size) {
+        ThrowIllegalAccessException("wrong number of bytes");
+    }
+    size_t sz = (size_t)size;
+    size_t dst_offset = (size_t)dstOffset;
+    mirror::Object* dst = soa.Decode<mirror::Object*>(dstObj);
+    mirror::Class* component_type = dst->GetClass()->GetComponentType();
+    if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
+        copyToArray(srcAddr, dst->AsByteSizedArray(), dst_offset, sz);
+    } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
+        copyToArray(srcAddr, dst->AsShortSizedArray(), dst_offset, sz);
+    } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
+        copyToArray(srcAddr, dst->AsIntArray(), dst_offset, sz);
+    } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
+        copyToArray(srcAddr, dst->AsLongArray(), dst_offset, sz);
+    } else {
+        ThrowIllegalAccessException("not a primitive array");
+    }
+}
+
+static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
+                                                jobject unsafe ATTRIBUTE_UNUSED,
+                                                jobject srcObj,
+                                                jlong srcOffset,
+                                                jlong dstAddr,
+                                                jlong size) {
+    ScopedObjectAccess soa(env);
+    if (size == 0) {
+        return;
+    }
+    // size is nonnegative and fits into size_t
+    if (size < 0 || size != (jlong)(size_t) size) {
+        ThrowIllegalAccessException("wrong number of bytes");
+    }
+    size_t sz = (size_t)size;
+    size_t src_offset = (size_t)srcOffset;
+    mirror::Object* src = soa.Decode<mirror::Object*>(srcObj);
+    mirror::Class* component_type = src->GetClass()->GetComponentType();
+    if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
+        copyFromArray(dstAddr, src->AsByteSizedArray(), src_offset, sz);
+    } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
+        copyFromArray(dstAddr, src->AsShortSizedArray(), src_offset, sz);
+    } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
+        copyFromArray(dstAddr, src->AsIntArray(), src_offset, sz);
+    } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
+        copyFromArray(dstAddr, src->AsLongArray(), src_offset, sz);
+    } else {
+        ThrowIllegalAccessException("not a primitive array");
+    }
+}
+static jboolean Unsafe_getBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetFieldBoolean(MemberOffset(offset));
+}
+
+static void Unsafe_putBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset, jboolean newValue) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode (SetField8 is non-transactional).
+    obj->SetFieldBoolean<false>(MemberOffset(offset), newValue);
+}
+
+static jbyte Unsafe_getByte(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetFieldByte(MemberOffset(offset));
+}
+
+static void Unsafe_putByte(JNIEnv* env, jobject, jobject javaObj, jlong offset, jbyte newValue) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode.
+    obj->SetFieldByte<false>(MemberOffset(offset), newValue);
+}
+
+static jchar Unsafe_getChar(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetFieldChar(MemberOffset(offset));
+}
+
+static void Unsafe_putChar(JNIEnv* env, jobject, jobject javaObj, jlong offset, jchar newValue) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode.
+    obj->SetFieldChar<false>(MemberOffset(offset), newValue);
+}
+
+static jshort Unsafe_getShort(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetFieldShort(MemberOffset(offset));
+}
+
+static void Unsafe_putShort(JNIEnv* env, jobject, jobject javaObj, jlong offset, jshort newValue) {
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode.
+    obj->SetFieldShort<false>(MemberOffset(offset), newValue);
+}
+
+static jfloat Unsafe_getFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  union {int32_t val; jfloat converted;} conv;
+  conv.val = obj->GetField32(MemberOffset(offset));
+  return conv.converted;
+}
+
+static void Unsafe_putFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset, jfloat newValue) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  union {int32_t converted; jfloat val;} conv;
+  conv.val = newValue;
+  // JNI must use non transactional mode.
+  obj->SetField32<false>(MemberOffset(offset), conv.converted);
+}
+
+static jdouble Unsafe_getDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  union {int64_t val; jdouble converted;} conv;
+  conv.val = obj->GetField64(MemberOffset(offset));
+  return conv.converted;
+}
+
+static void Unsafe_putDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset, jdouble newValue) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  union {int64_t converted; jdouble val;} conv;
+  conv.val = newValue;
+  // JNI must use non transactional mode.
+  obj->SetField64<false>(MemberOffset(offset), conv.converted);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, compareAndSwapInt, "!(Ljava/lang/Object;JII)Z"),
   NATIVE_METHOD(Unsafe, compareAndSwapLong, "!(Ljava/lang/Object;JJJ)Z"),
@@ -206,6 +488,41 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, putOrderedObject, "!(Ljava/lang/Object;JLjava/lang/Object;)V"),
   NATIVE_METHOD(Unsafe, getArrayBaseOffsetForComponentType, "!(Ljava/lang/Class;)I"),
   NATIVE_METHOD(Unsafe, getArrayIndexScaleForComponentType, "!(Ljava/lang/Class;)I"),
+  NATIVE_METHOD(Unsafe, addressSize, "!()I"),
+  NATIVE_METHOD(Unsafe, pageSize, "!()I"),
+  NATIVE_METHOD(Unsafe, allocateMemory, "!(J)J"),
+  NATIVE_METHOD(Unsafe, freeMemory, "!(J)V"),
+  NATIVE_METHOD(Unsafe, setMemory, "!(JJB)V"),
+  NATIVE_METHOD(Unsafe, getByte$, "!(J)B"),
+  NATIVE_METHOD(Unsafe, putByte$, "!(JB)V"),
+  NATIVE_METHOD(Unsafe, getShort$, "!(J)S"),
+  NATIVE_METHOD(Unsafe, putShort$, "!(JS)V"),
+  NATIVE_METHOD(Unsafe, getChar$, "!(J)C"),
+  NATIVE_METHOD(Unsafe, putChar$, "!(JC)V"),
+  NATIVE_METHOD(Unsafe, getInt$, "!(J)I"),
+  NATIVE_METHOD(Unsafe, putInt$, "!(JI)V"),
+  NATIVE_METHOD(Unsafe, getLong$, "!(J)J"),
+  NATIVE_METHOD(Unsafe, putLong$, "!(JJ)V"),
+  NATIVE_METHOD(Unsafe, getFloat$, "!(J)F"),
+  NATIVE_METHOD(Unsafe, putFloat$, "!(JF)V"),
+  NATIVE_METHOD(Unsafe, getDouble$, "!(J)D"),
+  NATIVE_METHOD(Unsafe, putDouble$, "!(JD)V"),
+  NATIVE_METHOD(Unsafe, getAddress, "!(J)J"),
+  NATIVE_METHOD(Unsafe, copyMemory, "!(JJJ)V"),
+  NATIVE_METHOD(Unsafe, copyMemoryToPrimitiveArray, "!(JLjava/lang/Object;JJ)V"),
+  NATIVE_METHOD(Unsafe, copyMemoryFromPrimitiveArray, "!(Ljava/lang/Object;JJJ)V"),
+  NATIVE_METHOD(Unsafe, getBoolean, "!(Ljava/lang/Object;J)Z"),
+  NATIVE_METHOD(Unsafe, getByte, "!(Ljava/lang/Object;J)B"),
+  NATIVE_METHOD(Unsafe, getChar, "!(Ljava/lang/Object;J)C"),
+  NATIVE_METHOD(Unsafe, getShort, "!(Ljava/lang/Object;J)S"),
+  NATIVE_METHOD(Unsafe, getFloat, "!(Ljava/lang/Object;J)F"),
+  NATIVE_METHOD(Unsafe, getDouble, "!(Ljava/lang/Object;J)D"),
+  NATIVE_METHOD(Unsafe, putBoolean, "!(Ljava/lang/Object;JZ)V"),
+  NATIVE_METHOD(Unsafe, putByte, "!(Ljava/lang/Object;JB)V"),
+  NATIVE_METHOD(Unsafe, putChar, "!(Ljava/lang/Object;JC)V"),
+  NATIVE_METHOD(Unsafe, putShort, "!(Ljava/lang/Object;JS)V"),
+  NATIVE_METHOD(Unsafe, putFloat, "!(Ljava/lang/Object;JF)V"),
+  NATIVE_METHOD(Unsafe, putDouble, "!(Ljava/lang/Object;JD)V"),
 };
 
 void register_sun_misc_Unsafe(JNIEnv* env) {

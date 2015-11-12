@@ -33,7 +33,7 @@ namespace art {
  * with an interface, array, or primitive class. If this is coming from
  * native, it is OK to avoid access checks since JNI does not enforce them.
  */
-static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
+static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Constructor* m = soa.Decode<mirror::Constructor*>(javaMethod);
   StackHandleScope<1> hs(soa.Self());
@@ -46,7 +46,8 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   }
   // Verify that we can access the class.
   if (!m->IsAccessible() && !c->IsPublic()) {
-    auto* caller = GetCallingClass(soa.Self(), 1);
+    // Go 2 frames back, this method is always called from the newInstance(Object... args)
+    auto* caller = GetCallingClass(soa.Self(), 2);
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
     if (caller != nullptr && !caller->CanAccess(c.Get())) {
@@ -88,8 +89,16 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   return javaReceiver;
 }
 
+static jobject Constructor_newInstanceFromSerialization(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED,
+                                                        jclass ctorClass, jclass allocClass) {
+    jmethodID ctor = env->GetMethodID(ctorClass, "<init>", "()V");
+    DCHECK(ctor != NULL);
+    return env->NewObject(allocClass, ctor);
+}
+
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstance0, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstanceFromSerialization, "!(Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {

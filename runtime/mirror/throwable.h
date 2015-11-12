@@ -60,16 +60,16 @@ class MANAGED Throwable : public Object {
 
  private:
   Object* GetStackState() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_));
+    return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_));
   }
   Object* GetStackTrace() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_trace_));
   }
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  HeapReference<Object> backtrace_;  // Note this is Java volatile:
   HeapReference<Throwable> cause_;
   HeapReference<String> detail_message_;
-  HeapReference<Object> stack_state_;  // Note this is Java volatile:
   HeapReference<Object> stack_trace_;
   HeapReference<Object> suppressed_exceptions_;
 

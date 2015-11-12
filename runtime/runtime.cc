@@ -1140,13 +1140,19 @@ void Runtime::InitNativeMethods() {
   // Then set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);
 
-  // Then set up libcore, which is just a regular JNI library with a regular JNI_OnLoad.
-  // Most JNI libraries can just use System.loadLibrary, but libcore can't because it's
-  // the library that implements System.loadLibrary!
+  // Then set up libjavacore / libflavacore, which are just a regular JNI libraries with
+  // a regular JNI_OnLoad. Most JNI libraries can just use System.loadLibrary, but
+  // libcore can't because it's the library that implements System.loadLibrary!
   {
     std::string reason;
     if (!java_vm_->LoadNativeLibrary(env, "libjavacore.so", nullptr, &reason)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"libjavacore.so\": " << reason;
+    }
+  }
+  {
+    std::string reason;
+    if (!java_vm_->LoadNativeLibrary(env, "libxxavacore.so", nullptr, &reason)) {
+      LOG(FATAL) << "LoadNativeLibrary failed for \"libxxavacore.so\": " << reason;
     }
   }
 
