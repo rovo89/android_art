@@ -2977,7 +2977,7 @@ void LocationsBuilderMIPS64::VisitLoadClass(HLoadClass* cls) {
   CodeGenerator::CreateLoadClassLocationSummary(
       cls,
       Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-      Location::RegisterLocation(A0));
+      calling_convention.GetReturnLocation(cls->GetType()));
 }
 
 void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
