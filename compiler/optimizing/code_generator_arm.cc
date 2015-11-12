@@ -2694,7 +2694,7 @@ void LocationsBuilderARM::VisitDiv(HDiv* div) {
     case Primitive::kPrimInt: {
       if (div->InputAt(1)->IsConstant()) {
         locations->SetInAt(0, Location::RequiresRegister());
-        locations->SetInAt(1, Location::RegisterOrConstant(div->InputAt(1)));
+        locations->SetInAt(1, Location::ConstantLocation(div->InputAt(1)->AsConstant()));
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
         int32_t abs_imm = std::abs(div->InputAt(1)->AsIntConstant()->GetValue());
         if (abs_imm <= 1) {
@@ -2818,7 +2818,7 @@ void LocationsBuilderARM::VisitRem(HRem* rem) {
     case Primitive::kPrimInt: {
       if (rem->InputAt(1)->IsConstant()) {
         locations->SetInAt(0, Location::RequiresRegister());
-        locations->SetInAt(1, Location::RegisterOrConstant(rem->InputAt(1)));
+        locations->SetInAt(1, Location::ConstantLocation(rem->InputAt(1)->AsConstant()));
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
         int32_t abs_imm = std::abs(rem->InputAt(1)->AsIntConstant()->GetValue());
         if (abs_imm <= 1) {

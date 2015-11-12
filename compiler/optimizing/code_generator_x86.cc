@@ -3014,7 +3014,7 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
       DCHECK_EQ(EAX, first.AsRegister<Register>());
       DCHECK_EQ(is_div ? EAX : EDX, out.AsRegister<Register>());
 
-      if (instruction->InputAt(1)->IsIntConstant()) {
+      if (second.IsConstant()) {
         int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
 
         if (imm == 0) {
