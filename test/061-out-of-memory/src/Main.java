@@ -26,6 +26,7 @@ public class Main {
         testHugeArray();
         testOomeLarge();
         testOomeSmall();
+        testOomeToCharArray();
         System.out.println("tests succeeded");
     }
 
@@ -105,5 +106,22 @@ public class Main {
                     "OutOfMemoryError not thrown while filling heap");
         }
         System.out.println("testOomeSmall succeeded");
+    }
+
+    private static void testOomeToCharArray() {
+        Object[] o = new Object[2000000];
+        String test = "test";
+        int i = 0;
+        try {
+            for (; i < o.length; ++i) o[i] = new char[1000000];
+        } catch (OutOfMemoryError oom) {}
+        try {
+            for (; i < o.length; ++i) {
+                o[i] = test.toCharArray();
+            }
+        } catch (OutOfMemoryError oom) {
+            o = null;
+            System.out.println("Got expected toCharArray OOM");
+        }
     }
 }

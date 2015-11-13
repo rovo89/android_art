@@ -253,7 +253,11 @@ CharArray* String::ToCharArray(Thread* self) {
   StackHandleScope<1> hs(self);
   Handle<String> string(hs.NewHandle(this));
   CharArray* result = CharArray::Alloc(self, GetLength());
-  memcpy(result->GetData(), string->GetValue(), string->GetLength() * sizeof(uint16_t));
+  if (result != nullptr) {
+    memcpy(result->GetData(), string->GetValue(), string->GetLength() * sizeof(uint16_t));
+  } else {
+    self->AssertPendingOOMException();
+  }
   return result;
 }
 
