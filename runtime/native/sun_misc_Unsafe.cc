@@ -275,11 +275,6 @@ static void Unsafe_putDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong addre
   *reinterpret_cast<jdouble*>(address) = value;
 }
 
-static jlong Unsafe_getAddress(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
-  void* p = (void*)(uintptr_t)address;
-  return (uintptr_t)(*(void**)p);
-}
-
 static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlong src,
                               jlong dst, jlong size) {
     if (size == 0) {
@@ -507,7 +502,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, putFloat$, "!(JF)V"),
   NATIVE_METHOD(Unsafe, getDouble$, "!(J)D"),
   NATIVE_METHOD(Unsafe, putDouble$, "!(JD)V"),
-  NATIVE_METHOD(Unsafe, getAddress, "!(J)J"),
   NATIVE_METHOD(Unsafe, copyMemory, "!(JJJ)V"),
   NATIVE_METHOD(Unsafe, copyMemoryToPrimitiveArray, "!(JLjava/lang/Object;JJ)V"),
   NATIVE_METHOD(Unsafe, copyMemoryFromPrimitiveArray, "!(Ljava/lang/Object;JJJ)V"),
