@@ -237,7 +237,7 @@ TEST_F(DwarfTest, DebugLine) {
   std::vector<uintptr_t> debug_line_patches;
   std::vector<uintptr_t> expected_patches { 87 };  // NOLINT
   WriteDebugLineTable(include_directories, files, opcodes,
-                      &debug_line_data_, &debug_line_patches);
+                      0, &debug_line_data_, &debug_line_patches);
 
   EXPECT_EQ(expected_patches, debug_line_patches);
   CheckObjdumpOutput(is64bit, "-W");
@@ -276,7 +276,7 @@ TEST_F(DwarfTest, DebugLineSpecialOpcodes) {
   std::vector<FileEntry> files { { "file.c", 0, 1000, 2000 } };  // NOLINT
   std::vector<uintptr_t> debug_line_patches;
   WriteDebugLineTable(directories, files, opcodes,
-                      &debug_line_data_, &debug_line_patches);
+                      0, &debug_line_data_, &debug_line_patches);
 
   CheckObjdumpOutput(is64bit, "-W -WL");
 }
@@ -332,7 +332,7 @@ TEST_F(DwarfTest, DebugInfo) {
   std::vector<uintptr_t> debug_info_patches;
   std::vector<uintptr_t> expected_patches { 16, 20, 29, 33, 42, 46 };  // NOLINT
   dwarf::WriteDebugInfoCU(0 /* debug_abbrev_offset */, info,
-                          &debug_info_data_, &debug_info_patches);
+                          0, &debug_info_data_, &debug_info_patches);
 
   EXPECT_EQ(expected_patches, debug_info_patches);
   CheckObjdumpOutput(is64bit, "-W");

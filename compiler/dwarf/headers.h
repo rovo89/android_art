@@ -126,6 +126,7 @@ void WriteFDE(bool is64bit,
 template<typename Vector>
 void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
                       const DebugInfoEntryWriter<Vector>& entries,
+                      size_t debug_info_offset,  // offset from start of .debug_info.
                       std::vector<uint8_t>* debug_info,
                       std::vector<uintptr_t>* debug_info_patches) {
   static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
@@ -141,7 +142,7 @@ void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
   writer.UpdateUint32(start, writer.data()->size() - start - 4);
   // Copy patch locations and make them relative to .debug_info section.
   for (uintptr_t patch_location : entries.GetPatchLocations()) {
-    debug_info_patches->push_back(entries_offset + patch_location);
+    debug_info_patches->push_back(debug_info_offset + entries_offset + patch_location);
   }
 }
 
@@ -157,6 +158,7 @@ template<typename Vector>
 void WriteDebugLineTable(const std::vector<std::string>& include_directories,
                          const std::vector<FileEntry>& files,
                          const DebugLineOpCodeWriter<Vector>& opcodes,
+                         size_t debug_line_offset,  // offset from start of .debug_line.
                          std::vector<uint8_t>* debug_line,
                          std::vector<uintptr_t>* debug_line_patches) {
   static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
@@ -197,7 +199,7 @@ void WriteDebugLineTable(const std::vector<std::string>& include_directories,
   writer.UpdateUint32(header_start, writer.data()->size() - header_start - 4);
   // Copy patch locations and make them relative to .debug_line section.
   for (uintptr_t patch_location : opcodes.GetPatchLocations()) {
-    debug_line_patches->push_back(opcodes_offset + patch_location);
+    debug_line_patches->push_back(debug_line_offset + opcodes_offset + patch_location);
   }
 }
 
