@@ -3505,20 +3505,19 @@ class HInvokeStaticOrDirect : public HInvoke {
     return GetInvokeType() == kStatic;
   }
 
-  // Remove the art::HLoadClass instruction set as last input by
-  // art::PrepareForRegisterAllocation::VisitClinitCheck in lieu of
-  // the initial art::HClinitCheck instruction (only relevant for
-  // static calls with explicit clinit check).
-  void RemoveLoadClassAsLastInput() {
+  // Remove the HClinitCheck or the replacement HLoadClass (set as last input by
+  // PrepareForRegisterAllocation::VisitClinitCheck() in lieu of the initial HClinitCheck)
+  // instruction; only relevant for static calls with explicit clinit check.
+  void RemoveExplicitClinitCheck(ClinitCheckRequirement new_requirement) {
     DCHECK(IsStaticWithExplicitClinitCheck());
     size_t last_input_index = InputCount() - 1;
     HInstruction* last_input = InputAt(last_input_index);
     DCHECK(last_input != nullptr);
-    DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
+    DCHECK(last_input->IsLoadClass() || last_input->IsClinitCheck()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
     inputs_.pop_back();
-    clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
-    DCHECK(IsStaticWithImplicitClinitCheck());
+    clinit_check_requirement_ = new_requirement;
+    DCHECK(!IsStaticWithExplicitClinitCheck());
   }
 
   bool IsStringFactoryFor(HFakeString* str) const {
@@ -3539,7 +3538,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   }
 
   // Is this a call to a static method whose declaring class has an
-  // explicit intialization check in the graph?
+  // explicit initialization check in the graph?
   bool IsStaticWithExplicitClinitCheck() const {
     return IsStatic() && (clinit_check_requirement_ == ClinitCheckRequirement::kExplicit);
   }
@@ -3583,6 +3582,7 @@ class HInvokeStaticOrDirect : public HInvoke {
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
+std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckRequirement rhs);
 
 class HInvokeVirtual : public HInvoke {
  public:
