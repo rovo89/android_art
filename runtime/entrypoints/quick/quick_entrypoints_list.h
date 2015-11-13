@@ -146,7 +146,8 @@
   V(NewStringFromStringBuilder, void) \
 \
   V(ReadBarrierJni, void, mirror::CompressedReference<mirror::Object>*, Thread*) \
-  V(ReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t)
+  V(ReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t) \
+  V(ReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*)
 
 #endif  // ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_
 #undef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_   // #define is only for lint.

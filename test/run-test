@@ -665,6 +665,15 @@ chmod 755 "$check_cmd"
 
 export TEST_NAME=`basename ${test_dir}`
 
+# arch_supports_read_barrier ARCH
+# -------------------------------
+# Return whether the Optimizing compiler has read barrier support for ARCH.
+function arch_supports_read_barrier() {
+  # Optimizing has read barrier support for x86 and x86-64 at the
+  # moment.
+  [ "x$1" = xx86 ] || [ "x$1" = xx86_64 ]
+}
+
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
@@ -678,9 +687,24 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   USE_JACK="false"
 
   if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" ]; then
+    # Optimizing has read barrier support for certain architectures
+    # only. On other architectures, compiling is disabled when read
+    # barriers are enabled, meaning that we do not produce a CFG file
+    # as a side-effect of compilation, thus the Checker assertions
+    # cannot be checked. Disable Checker for those cases.
+    #
+    # TODO: Enable Checker when read barrier support is added to more
+    # architectures (b/12687968).
+    if [ "x$ART_USE_READ_BARRIER" = xtrue ]                    \
+       && (([ "x$host_mode" = "xyes" ]                         \
+            && ! arch_supports_read_barrier "$host_arch_name") \
+           || ([ "x$target_mode" = "xyes" ]                    \
+               && ! arch_supports_read_barrier "$target_arch_name")); then
+      run_checker="no"
     # In no-prebuild mode, the compiler is only invoked if both dex2oat and
     # patchoat are available. Disable Checker otherwise (b/22552692).
-    if [ "$prebuild_mode" = "yes" ] || [ "$have_patchoat" = "yes" -a "$have_dex2oat" = "yes" ]; then
+    elif [ "$prebuild_mode" = "yes" ] \
+         || [ "$have_patchoat" = "yes" -a "$have_dex2oat" = "yes" ]; then
       run_checker="yes"
 
       if [ "$target_mode" = "no" ]; then

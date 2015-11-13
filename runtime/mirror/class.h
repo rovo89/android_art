@@ -1185,7 +1185,7 @@ class MANAGED Class FINAL : public Object {
 
   bool ProxyDescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Check that the pointer size mathces the one in the class linker.
+  // Check that the pointer size matches the one in the class linker.
   ALWAYS_INLINE static void CheckPointerSize(size_t pointer_size);
 
   static MemberOffset EmbeddedImTableOffset(size_t pointer_size);

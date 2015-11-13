@@ -2151,4 +2151,39 @@ TEST_F(StubTest, ReadBarrier) {
 #endif
 }
 
+TEST_F(StubTest, ReadBarrierForRoot) {
+#if defined(ART_USE_READ_BARRIER) && (defined(__i386__) || defined(__arm__) || \
+      defined(__aarch64__) || defined(__mips__) || (defined(__x86_64__) && !defined(__APPLE__)))
+  Thread* self = Thread::Current();
+
+  const uintptr_t readBarrierForRootSlow =
+      StubTest::GetEntrypoint(self, kQuickReadBarrierForRootSlow);
+
+  // Create an object
+  ScopedObjectAccess soa(self);
+  // garbage is created during ClassLinker::Init
+
+  StackHandleScope<1> hs(soa.Self());
+
+  Handle<mirror::String> obj(
+      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!")));
+
+  EXPECT_FALSE(self->IsExceptionPending());
+
+  GcRoot<mirror::Class>& root = mirror::String::java_lang_String_;
+  size_t result = Invoke3(reinterpret_cast<size_t>(&root), 0U, 0U, readBarrierForRootSlow, self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
+  mirror::Class* klass = reinterpret_cast<mirror::Class*>(result);
+  EXPECT_EQ(klass, obj->GetClass());
+
+  // Tests done.
+#else
+  LOG(INFO) << "Skipping read_barrier_for_root_slow";
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping read_barrier_for_root_slow" << std::endl;
+#endif
+}
+
 }  // namespace art

@@ -271,10 +271,14 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pA64Store = QuasiAtomic::Write64;
   static_assert(IsDirectEntrypoint(kQuickA64Store), "Non-direct C stub marked direct.");
 
+  // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
   static_assert(!IsDirectEntrypoint(kQuickReadBarrierJni), "Non-direct C stub marked direct.");
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   static_assert(IsDirectEntrypoint(kQuickReadBarrierSlow), "Direct C stub not marked direct.");
+  qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;
+  static_assert(IsDirectEntrypoint(kQuickReadBarrierForRootSlow),
+                "Direct C stub not marked direct.");
 };
 
 }  // namespace art

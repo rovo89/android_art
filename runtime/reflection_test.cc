@@ -507,6 +507,8 @@ class ReflectionTest : public CommonCompilerTest {
 
 TEST_F(ReflectionTest, StaticMainMethod) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING_WITH_QUICK();
+  TEST_DISABLED_FOR_READ_BARRIER_WITH_QUICK();
+  TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS();
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
   StackHandleScope<1> hs(soa.Self());
