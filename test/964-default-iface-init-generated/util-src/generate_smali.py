@@ -477,12 +477,12 @@ def create_test_classes():
       ifaces = []
       for sub in split:
         ifaces.append(list(create_interface_trees(sub)))
-    for supers in itertools.product(*ifaces):
-      yield TestClass(clone_all(supers))
-      for i in range(len(set(dump_tree(supers)) - set(supers))):
-        ns = clone_all(supers)
-        selected = sorted(set(dump_tree(ns)) - set(ns))[i]
-        yield TestClass(tuple([selected] + list(ns)))
+      for supers in itertools.product(*ifaces):
+        yield TestClass(clone_all(supers))
+        for i in range(len(set(dump_tree(supers)) - set(supers))):
+          ns = clone_all(supers)
+          selected = sorted(set(dump_tree(ns)) - set(ns))[i]
+          yield TestClass(tuple([selected] + list(ns)))
 
 def create_interface_trees(num):
   """
