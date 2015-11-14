@@ -551,6 +551,17 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  struct DexCacheData {
+    // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
+    // not work properly.
+    jweak weak_root;
+    // The following two fields are caches to the DexCache's fields and here to avoid unnecessary
+    // jweak decode that triggers read barriers (and mark them alive unnecessarily and mess with
+    // class unloading.)
+    const DexFile* dex_file;
+    GcRoot<mirror::Class>* resolved_types;
+  };
+
  private:
   struct ClassLoaderData {
     jweak weak_root;  // Weak root to enable class unloading.
@@ -902,7 +913,8 @@ class ClassLinker {
   size_t GetDexCacheCount() SHARED_REQUIRES(Locks::mutator_lock_, dex_lock_) {
     return dex_caches_.size();
   }
-  const std::list<jweak>& GetDexCaches() SHARED_REQUIRES(Locks::mutator_lock_, dex_lock_) {
+  const std::list<DexCacheData>& GetDexCachesData()
+      SHARED_REQUIRES(Locks::mutator_lock_, dex_lock_) {
     return dex_caches_;
   }
 
@@ -965,9 +977,9 @@ class ClassLinker {
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
   mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  // JNI weak globals to allow dex caches to get unloaded. We lazily delete weak globals when we
-  // register new dex files.
-  std::list<jweak> dex_caches_ GUARDED_BY(dex_lock_);
+  // JNI weak globals and side data to allow dex caches to get unloaded. We lazily delete weak
+  // globals when we register new dex files.
+  std::list<DexCacheData> dex_caches_ GUARDED_BY(dex_lock_);
 
   // This contains the class loaders which have class tables. It is populated by
   // InsertClassTableForClassLoader.

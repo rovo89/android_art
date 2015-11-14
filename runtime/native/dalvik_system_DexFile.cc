@@ -164,7 +164,6 @@ static jobject DexFile_openDexFileNative(JNIEnv* env,
   if (env->ExceptionCheck()) {
     return 0;
   }
-
   Runtime* const runtime = Runtime::Current();
   ClassLinker* linker = runtime->GetClassLinker();
   std::vector<std::unique_ptr<const DexFile>> dex_files;

@@ -368,10 +368,12 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class::SetStatus(java_lang_Object, mirror::Class::kStatusLoaded, self);
 
   java_lang_Object->SetObjectSize(sizeof(mirror::Object));
-  runtime->SetSentinel(heap->AllocObject<true>(self,
-                                               java_lang_Object.Get(),
-                                               java_lang_Object->GetObjectSize(),
-                                               VoidFunctor()));
+  // Allocate in non-movable so that it's possible to check if a JNI weak global ref has been
+  // cleared without triggering the read barrier and unintentionally mark the sentinel alive.
+  runtime->SetSentinel(heap->AllocNonMovableObject<true>(self,
+                                                         java_lang_Object.Get(),
+                                                         java_lang_Object->GetObjectSize(),
+                                                         VoidFunctor()));
 
   // Object[] next to hold class roots.
   Handle<mirror::Class> object_array_class(hs.NewHandle(
@@ -886,10 +888,12 @@ void ClassLinker::InitFromImage() {
 
   mirror::Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   java_lang_Object->SetObjectSize(sizeof(mirror::Object));
-  Runtime::Current()->SetSentinel(heap->AllocObject<true>(self,
-                                                          java_lang_Object,
-                                                          java_lang_Object->GetObjectSize(),
-                                                          VoidFunctor()));
+  // Allocate in non-movable so that it's possible to check if a JNI weak global ref has been
+  // cleared without triggering the read barrier and unintentionally mark the sentinel alive.
+  runtime->SetSentinel(heap->AllocNonMovableObject<true>(self,
+                                                         java_lang_Object,
+                                                         java_lang_Object->GetObjectSize(),
+                                                         VoidFunctor()));
 
   CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
            static_cast<uint32_t>(dex_caches->GetLength()));
@@ -2324,17 +2328,22 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   // Clean up pass to remove null dex caches.
   // Null dex caches can occur due to class unloading and we are lazily removing null entries.
   JavaVMExt* const vm = self->GetJniEnv()->vm;
-  for (auto it = dex_caches_.begin(); it != dex_caches_.end();) {
-    mirror::Object* dex_cache_root = self->DecodeJObject(*it);
-    if (dex_cache_root == nullptr) {
-      vm->DeleteWeakGlobalRef(self, *it);
+  for (auto it = dex_caches_.begin(); it != dex_caches_.end(); ) {
+    DexCacheData data = *it;
+    if (self->IsJWeakCleared(data.weak_root)) {
+      vm->DeleteWeakGlobalRef(self, data.weak_root);
       it = dex_caches_.erase(it);
     } else {
       ++it;
     }
   }
-  dex_caches_.push_back(vm->AddWeakGlobalRef(self, dex_cache.Get()));
+  jweak dex_cache_jweak = vm->AddWeakGlobalRef(self, dex_cache.Get());
   dex_cache->SetDexFile(&dex_file);
+  DexCacheData data;
+  data.weak_root = dex_cache_jweak;
+  data.dex_file = dex_cache->GetDexFile();
+  data.resolved_types = dex_cache->GetResolvedTypes();
+  dex_caches_.push_back(data);
 }
 
 mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file, LinearAlloc* linear_alloc) {
@@ -2381,10 +2390,16 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
                                                   const DexFile& dex_file,
                                                   bool allow_failure) {
   // Search assuming unique-ness of dex file.
-  for (jweak weak_root : dex_caches_) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
-    if (dex_cache != nullptr && dex_cache->GetDexFile() == &dex_file) {
-      return dex_cache;
+  for (const DexCacheData& data : dex_caches_) {
+    // Avoid decoding (and read barriers) other unrelated dex caches.
+    if (data.dex_file == &dex_file) {
+      mirror::DexCache* dex_cache =
+          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      if (dex_cache != nullptr) {
+        return dex_cache;
+      } else {
+        break;
+      }
     }
   }
   if (allow_failure) {
@@ -2392,8 +2407,8 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
   }
   std::string location(dex_file.GetLocation());
   // Failure, dump diagnostic and abort.
-  for (jobject weak_root : dex_caches_) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+  for (const DexCacheData& data : dex_caches_) {
+    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
     if (dex_cache != nullptr) {
       LOG(ERROR) << "Registered dex file " << dex_cache->GetDexFile()->GetLocation();
     }
@@ -2405,10 +2420,13 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
 void ClassLinker::FixupDexCaches(ArtMethod* resolution_method) {
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, dex_lock_);
-  for (jobject weak_root : dex_caches_) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
-    if (dex_cache != nullptr) {
-      dex_cache->Fixup(resolution_method, image_pointer_size_);
+  for (const DexCacheData& data : dex_caches_) {
+    if (!self->IsJWeakCleared(data.weak_root)) {
+      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
+          self->DecodeJObject(data.weak_root));
+      if (dex_cache != nullptr) {
+        dex_cache->Fixup(resolution_method, image_pointer_size_);
+      }
     }
   }
 }
@@ -3346,15 +3364,18 @@ ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod
     Thread* const self = Thread::Current();
     ReaderMutexLock mu(self, dex_lock_);
     // Locate the dex cache of the original interface/Object
-    for (jobject weak_root : dex_caches_) {
-      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
-      if (dex_cache != nullptr &&
-          proxy_method->HasSameDexCacheResolvedTypes(dex_cache->GetResolvedTypes(),
+    for (const DexCacheData& data : dex_caches_) {
+      if (!self->IsJWeakCleared(data.weak_root) &&
+          proxy_method->HasSameDexCacheResolvedTypes(data.resolved_types,
                                                      image_pointer_size_)) {
-        ArtMethod* resolved_method = dex_cache->GetResolvedMethod(
-            proxy_method->GetDexMethodIndex(), image_pointer_size_);
-        CHECK(resolved_method != nullptr);
-        return resolved_method;
+        mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
+            self->DecodeJObject(data.weak_root));
+        if (dex_cache != nullptr) {
+          ArtMethod* resolved_method = dex_cache->GetResolvedMethod(
+              proxy_method->GetDexMethodIndex(), image_pointer_size_);
+          CHECK(resolved_method != nullptr);
+          return resolved_method;
+        }
       }
     }
   }
