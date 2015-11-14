@@ -56,15 +56,17 @@ static bool IsBadJniVersion(int version) {
 class SharedLibrary {
  public:
   SharedLibrary(JNIEnv* env, Thread* self, const std::string& path, void* handle,
-                jobject class_loader)
+                jobject class_loader, void* class_loader_allocator)
       : path_(path),
         handle_(handle),
         needs_native_bridge_(false),
         class_loader_(env->NewWeakGlobalRef(class_loader)),
+        class_loader_allocator_(class_loader_allocator),
         jni_on_load_lock_("JNI_OnLoad lock"),
         jni_on_load_cond_("JNI_OnLoad condition variable", jni_on_load_lock_),
         jni_on_load_thread_id_(self->GetThreadId()),
         jni_on_load_result_(kPending) {
+    CHECK(class_loader_allocator_ != nullptr);
   }
 
   ~SharedLibrary() {
@@ -76,6 +78,10 @@ class SharedLibrary {
 
   jweak GetClassLoader() const {
     return class_loader_;
+  }
+
+  const void* GetClassLoaderAllocator() const {
+    return class_loader_allocator_;
   }
 
   const std::string& GetPath() const {
@@ -169,6 +175,9 @@ class SharedLibrary {
   // The ClassLoader this library is associated with, a weak global JNI reference that is
   // created/deleted with the scope of the library.
   const jweak class_loader_;
+  // Used to do equality check on class loaders so we can avoid decoding the weak root and read
+  // barriers that mess with class unloading.
+  const void* class_loader_allocator_;
 
   // Guards remaining items.
   Mutex jni_on_load_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -224,11 +233,15 @@ class Libraries {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
-    const mirror::ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
+    mirror::ClassLoader* const declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
     ScopedObjectAccessUnchecked soa(Thread::Current());
+    void* const declaring_class_loader_allocator =
+        Runtime::Current()->GetClassLinker()->GetAllocatorForClassLoader(declaring_class_loader);
+    CHECK(declaring_class_loader_allocator != nullptr);
     for (const auto& lib : libraries_) {
       SharedLibrary* const library = lib.second;
-      if (soa.Decode<mirror::ClassLoader*>(library->GetClassLoader()) != declaring_class_loader) {
+      // Use the allocator address for class loader equality to avoid unnecessary weak root decode.
+      if (library->GetClassLoaderAllocator() != declaring_class_loader_allocator) {
         // We only search libraries loaded by the appropriate ClassLoader.
         continue;
       }
@@ -269,7 +282,7 @@ class Libraries {
         // If class_loader is a null jobject then it is the boot class loader. We should not unload
         // the native libraries of the boot class loader.
         if (class_loader != nullptr &&
-            soa.Decode<mirror::ClassLoader*>(class_loader) == nullptr) {
+            soa.Self()->IsJWeakCleared(class_loader)) {
           void* const sym = library->FindSymbol("JNI_OnUnload", nullptr);
           if (sym == nullptr) {
             VLOG(jni) << "[No JNI_OnUnload found in \"" << library->GetPath() << "\"]";
@@ -667,6 +680,19 @@ mirror::Object* JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, Indirect
   return weak_globals_.SynchronizedGet(ref);
 }
 
+bool JavaVMExt::IsWeakGlobalCleared(Thread* self, IndirectRef ref) {
+  DCHECK_EQ(GetIndirectRefKind(ref), kWeakGlobal);
+  MutexLock mu(self, weak_globals_lock_);
+  while (UNLIKELY(!MayAccessWeakGlobals(self))) {
+    weak_globals_add_condition_.WaitHoldingLocks(self);
+  }
+  // When just checking a weak ref has been cleared, avoid triggering the read barrier in decode
+  // (DecodeWeakGlobal) so that we won't accidentally mark the object alive. Since the cleared
+  // sentinel is a non-moving object, we can compare the ref to it without the read barrier and
+  // decide if it's cleared.
+  return Runtime::Current()->IsClearedJniWeakGlobal(weak_globals_.Get<kWithoutReadBarrier>(ref));
+}
+
 void JavaVMExt::UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result) {
   MutexLock mu(self, weak_globals_lock_);
   weak_globals_.Update(ref, result);
@@ -703,8 +729,19 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
     MutexLock mu(self, *Locks::jni_libraries_lock_);
     library = libraries_->Get(path);
   }
+  void* class_loader_allocator = nullptr;
+  {
+    ScopedObjectAccess soa(env);
+    // As the incoming class loader is reachable/alive during the call of this function,
+    // it's okay to decode it without worrying about unexpectedly marking it alive.
+    mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(class_loader);
+    class_loader_allocator =
+        Runtime::Current()->GetClassLinker()->GetAllocatorForClassLoader(loader);
+    CHECK(class_loader_allocator != nullptr);
+  }
   if (library != nullptr) {
-    if (env->IsSameObject(library->GetClassLoader(), class_loader) == JNI_FALSE) {
+    // Use the allocator pointers for class loader equality to avoid unnecessary weak root decode.
+    if (library->GetClassLoaderAllocator() != class_loader_allocator) {
       // The library will be associated with class_loader. The JNI
       // spec says we can't load the same library into more than one
       // class loader.
@@ -765,7 +802,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
   {
     // Create SharedLibrary ahead of taking the libraries lock to maintain lock ordering.
     std::unique_ptr<SharedLibrary> new_library(
-        new SharedLibrary(env, self, path, handle, class_loader));
+        new SharedLibrary(env, self, path, handle, class_loader, class_loader_allocator));
     MutexLock mu(self, *Locks::jni_libraries_lock_);
     library = libraries_->Get(path);
     if (library == nullptr) {  // We won race to get libraries_lock.

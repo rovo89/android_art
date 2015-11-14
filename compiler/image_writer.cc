@@ -334,9 +334,9 @@ void ImageWriter::PrepareDexCacheArraySlots() {
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, *class_linker->DexLock());
   uint32_t size = 0u;
-  for (jobject weak_root : class_linker->GetDexCaches()) {
+  for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
     mirror::DexCache* dex_cache =
-        down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+        down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
     if (dex_cache == nullptr || IsInBootImage(dex_cache)) {
       continue;
     }
@@ -683,8 +683,8 @@ void ImageWriter::PruneNonImageClasses() {
   ScopedAssertNoThreadSuspension sa(self, __FUNCTION__);
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);  // For ClassInClassTable
   ReaderMutexLock mu2(self, *class_linker->DexLock());
-  for (jobject weak_root : class_linker->GetDexCaches()) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+  for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
+    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
     if (dex_cache == nullptr) {
       continue;
     }
@@ -806,8 +806,9 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   {
     ReaderMutexLock mu(self, *class_linker->DexLock());
     // Count number of dex caches not in the boot image.
-    for (jobject weak_root : class_linker->GetDexCaches()) {
-      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+    for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
+      mirror::DexCache* dex_cache =
+          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
       dex_cache_count += IsInBootImage(dex_cache) ? 0u : 1u;
     }
   }
@@ -818,15 +819,17 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
     ReaderMutexLock mu(self, *class_linker->DexLock());
     size_t non_image_dex_caches = 0;
     // Re-count number of non image dex caches.
-    for (jobject weak_root : class_linker->GetDexCaches()) {
-      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+    for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
+      mirror::DexCache* dex_cache =
+          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
       non_image_dex_caches += IsInBootImage(dex_cache) ? 0u : 1u;
     }
     CHECK_EQ(dex_cache_count, non_image_dex_caches)
         << "The number of non-image dex caches changed.";
     size_t i = 0;
-    for (jobject weak_root : class_linker->GetDexCaches()) {
-      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+    for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
+      mirror::DexCache* dex_cache =
+          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
       if (!IsInBootImage(dex_cache)) {
         dex_caches->Set<false>(i, dex_cache);
         ++i;
