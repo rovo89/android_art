@@ -820,6 +820,7 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
 void Runtime::SetSentinel(mirror::Object* sentinel) {
   CHECK(sentinel_.Read() == nullptr);
   CHECK(sentinel != nullptr);
+  CHECK(!heap_->IsMovableObject(sentinel));
   sentinel_ = GcRoot<mirror::Object>(sentinel);
 }
 

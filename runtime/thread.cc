@@ -1886,6 +1886,14 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   return result;
 }
 
+bool Thread::IsJWeakCleared(jweak obj) const {
+  CHECK(obj != nullptr);
+  IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
+  IndirectRefKind kind = GetIndirectRefKind(ref);
+  CHECK_EQ(kind, kWeakGlobal);
+  return tlsPtr_.jni_env->vm->IsWeakGlobalCleared(const_cast<Thread*>(this), ref);
+}
+
 // Implements java.lang.Thread.interrupted.
 bool Thread::Interrupted() {
   MutexLock mu(Thread::Current(), *wait_mutex_);
