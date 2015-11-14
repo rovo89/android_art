@@ -445,6 +445,8 @@ class Thread {
 
   // Convert a jobject into a Object*
   mirror::Object* DecodeJObject(jobject obj) const SHARED_REQUIRES(Locks::mutator_lock_);
+  // Checks if the weak global ref has been cleared by the GC without decoding it.
+  bool IsJWeakCleared(jweak obj) const SHARED_REQUIRES(Locks::mutator_lock_);
 
   mirror::Object* GetMonitorEnterObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return tlsPtr_.monitor_enter_object;
