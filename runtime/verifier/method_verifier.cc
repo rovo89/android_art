@@ -3336,20 +3336,23 @@ RegType& MethodVerifier::FallbackToDebugInfo(RegType& type, RegisterLine* reg_li
   struct RegTypeFromDebugInfoContext {
     uint16_t slot;
     uint32_t insn_idx;
-    RegTypeCache* reg_types;
-    Handle<mirror::ClassLoader>* class_loader;
-    RegType* result;
+    std::set<std::string> matches;
+    bool has_exact_match = false;
 
     static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress,
                          const char* name, const char* descriptor, const char* signature)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       RegTypeFromDebugInfoContext* pContext = reinterpret_cast<RegTypeFromDebugInfoContext*>(context);
 
-      if (slot != pContext->slot)
+      if (pContext->has_exact_match || slot != pContext->slot)
         return;
 
       if (startAddress <= pContext->insn_idx && pContext->insn_idx < endAddress) {
-        pContext->result = &pContext->reg_types->FromDescriptor(pContext->class_loader->Get(), descriptor, false);
+        pContext->has_exact_match = true;
+        pContext->matches.clear();
+        pContext->matches.insert(descriptor);
+      } else {
+        pContext->matches.insert(descriptor);
       }
     }
   };
@@ -3357,16 +3360,14 @@ RegType& MethodVerifier::FallbackToDebugInfo(RegType& type, RegisterLine* reg_li
   RegTypeFromDebugInfoContext context;
   context.slot = slot;
   context.insn_idx = work_insn_idx_;
-  context.reg_types = &reg_types_;
-  context.class_loader = class_loader_;
-  context.result = nullptr;
   dex_file_->DecodeDebugInfo(code_item_, IsStatic(), dex_method_idx_,
       nullptr, RegTypeFromDebugInfoContext::Callback, &context);
 
   std::string location(StringPrintf("%s: [0x%X] ", PrettyMethod(dex_method_idx_, *dex_file_).c_str(), work_insn_idx_));
-  if (context.result != nullptr) {
-    RegType& actual_type = *context.result;
-    LOG(WARNING) << location << "Using type '" << actual_type << "' from debug information for v" << slot;
+  if (context.matches.size() == 1) {
+    RegType& actual_type = reg_types_.FromDescriptor(class_loader_->Get(), context.matches.begin()->c_str(), false);
+    LOG(WARNING) << location << "Using type '" << actual_type << "' from debug information for v" << slot
+        << (context.has_exact_match ? " (exact match)" : " (no other possiblities)");
     reg_line->SetRegisterType(slot, actual_type);
     return actual_type;
   } else {
