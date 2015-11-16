@@ -462,130 +462,21 @@ JNIEXPORT void JVM_SetNativeThreadName(JNIEnv* env, jobject jthread, jstring jav
   }
 }
 
-JNIEXPORT jint JVM_IHashCode(JNIEnv* env, jobject javaObject) {
-  if (UNLIKELY(javaObject == nullptr)) {
-    return 0;
-  }
-  art::ScopedFastNativeObjectAccess soa(env);
-  art::mirror::Object* o = soa.Decode<art::mirror::Object*>(javaObject);
-  return static_cast<jint>(o->IdentityHashCode());
+JNIEXPORT jint JVM_IHashCode(JNIEnv* env ATTRIBUTE_UNUSED,
+                             jobject javaObject ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL) << "JVM_IHashCode is not implemented";
+  return 0;
 }
 
 JNIEXPORT jlong JVM_NanoTime(JNIEnv* env ATTRIBUTE_UNUSED, jclass unused ATTRIBUTE_UNUSED) {
-  timespec now;
-  clock_gettime(CLOCK_MONOTONIC, &now);
-  return now.tv_sec * 1000000000LL + now.tv_nsec;
+  UNIMPLEMENTED(FATAL) << "JVM_NanoTime is not implemented";
+  return 0L;
 }
 
-static void ThrowArrayStoreException_NotAnArray(const char* identifier, art::mirror::Object* array)
-    SHARED_LOCKS_REQUIRED(art::Locks::mutator_lock_) {
-  std::string actualType(art::PrettyTypeOf(array));
-  art::Thread* self = art::Thread::Current();
-  self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-                           "%s of type %s is not an array", identifier, actualType.c_str());
-}
-
-JNIEXPORT void JVM_ArrayCopy(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED, jobject javaSrc,
-                             jint srcPos, jobject javaDst, jint dstPos, jint length) {
-  // The API is defined in terms of length, but length is somewhat overloaded so we use count.
-  const jint count = length;
-  art::ScopedFastNativeObjectAccess soa(env);
-
-  // Null pointer checks.
-  if (UNLIKELY(javaSrc == nullptr)) {
-    art::ThrowNullPointerException("src == null");
-    return;
-  }
-  if (UNLIKELY(javaDst == nullptr)) {
-    art::ThrowNullPointerException("dst == null");
-    return;
-  }
-
-  // Make sure source and destination are both arrays.
-  art::mirror::Object* srcObject = soa.Decode<art::mirror::Object*>(javaSrc);
-  if (UNLIKELY(!srcObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("source", srcObject);
-    return;
-  }
-  art::mirror::Object* dstObject = soa.Decode<art::mirror::Object*>(javaDst);
-  if (UNLIKELY(!dstObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("destination", dstObject);
-    return;
-  }
-  art::mirror::Array* srcArray = srcObject->AsArray();
-  art::mirror::Array* dstArray = dstObject->AsArray();
-
-  // Bounds checking.
-  if (UNLIKELY(srcPos < 0) || UNLIKELY(dstPos < 0) || UNLIKELY(count < 0) ||
-      UNLIKELY(srcPos > srcArray->GetLength() - count) ||
-      UNLIKELY(dstPos > dstArray->GetLength() - count)) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-                                   "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
-                                   srcArray->GetLength(), srcPos, dstArray->GetLength(), dstPos,
-                                   count);
-    return;
-  }
-
-  art::mirror::Class* dstComponentType = dstArray->GetClass()->GetComponentType();
-  art::mirror::Class* srcComponentType = srcArray->GetClass()->GetComponentType();
-  art::Primitive::Type dstComponentPrimitiveType = dstComponentType->GetPrimitiveType();
-
-  if (LIKELY(srcComponentType == dstComponentType)) {
-    // Trivial assignability.
-    switch (dstComponentPrimitiveType) {
-      case art::Primitive::kPrimVoid:
-        LOG(FATAL) << "Unreachable, cannot have arrays of type void";
-        return;
-      case art::Primitive::kPrimBoolean:
-      case art::Primitive::kPrimByte:
-        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 1U);
-        dstArray->AsByteSizedArray()->Memmove(dstPos, srcArray->AsByteSizedArray(), srcPos, count);
-        return;
-      case art::Primitive::kPrimChar:
-      case art::Primitive::kPrimShort:
-        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 2U);
-        dstArray->AsShortSizedArray()->Memmove(dstPos, srcArray->AsShortSizedArray(), srcPos, count);
-        return;
-      case art::Primitive::kPrimInt:
-      case art::Primitive::kPrimFloat:
-        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 4U);
-        dstArray->AsIntArray()->Memmove(dstPos, srcArray->AsIntArray(), srcPos, count);
-        return;
-      case art::Primitive::kPrimLong:
-      case art::Primitive::kPrimDouble:
-        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 8U);
-        dstArray->AsLongArray()->Memmove(dstPos, srcArray->AsLongArray(), srcPos, count);
-        return;
-      case art::Primitive::kPrimNot: {
-        art::mirror::ObjectArray<art::mirror::Object>* dstObjArray = dstArray->AsObjectArray<art::mirror::Object>();
-        art::mirror::ObjectArray<art::mirror::Object>* srcObjArray = srcArray->AsObjectArray<art::mirror::Object>();
-        dstObjArray->AssignableMemmove(dstPos, srcObjArray, srcPos, count);
-        return;
-      }
-      default:
-        LOG(FATAL) << "Unknown array type: " << art::PrettyTypeOf(srcArray);
-        return;
-    }
-  }
-  // If one of the arrays holds a primitive type the other array must hold the exact same type.
-  if (UNLIKELY((dstComponentPrimitiveType != art::Primitive::kPrimNot) ||
-               srcComponentType->IsPrimitive())) {
-    std::string srcType(art::PrettyTypeOf(srcArray));
-    std::string dstType(art::PrettyTypeOf(dstArray));
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-                                   "Incompatible types: src=%s, dst=%s",
-                                   srcType.c_str(), dstType.c_str());
-    return;
-  }
-  // Arrays hold distinct types and so therefore can't alias - use memcpy instead of memmove.
-  art::mirror::ObjectArray<art::mirror::Object>* dstObjArray = dstArray->AsObjectArray<art::mirror::Object>();
-  art::mirror::ObjectArray<art::mirror::Object>* srcObjArray = srcArray->AsObjectArray<art::mirror::Object>();
-  // If we're assigning into say Object[] then we don't need per element checks.
-  if (dstComponentType->IsAssignableFrom(srcComponentType)) {
-    dstObjArray->AssignableMemcpy(dstPos, srcObjArray, srcPos, count);
-    return;
-  }
-  dstObjArray->AssignableCheckingMemcpy(dstPos, srcObjArray, srcPos, count, true);
+JNIEXPORT void JVM_ArrayCopy(JNIEnv* /* env */, jclass /* unused */, jobject /* javaSrc */,
+                             jint /* srcPos */, jobject /* javaDst */, jint /* dstPos */,
+                             jint /* length */) {
+  UNIMPLEMENTED(FATAL) << "JVM_ArrayCopy is not implemented";
 }
 
 JNIEXPORT jint JVM_FindSignal(const char* name ATTRIBUTE_UNUSED) {
