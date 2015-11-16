@@ -31,12 +31,12 @@ namespace art {
 namespace mirror {
 class Array;
 class Class;
+template<class MirrorType> class CompressedReference;
 class Object;
-template<class MirrorType>
-class CompressedReference;
 }  // namespace mirror
 
 class ArtMethod;
+template<class MirrorType> class GcRoot;
 class Thread;
 
 // Pointers to functions that are called by quick compiler generated code via thread-local storage.
@@ -72,14 +72,23 @@ extern void ReadBarrierJni(mirror::CompressedReference<mirror::Object>* handle_o
                            Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
+
 // Read barrier entrypoints.
-// Compilers for ARM, ARM64, MIPS, MIPS64 can insert a call to this function directly.
-// For x86 and x86_64, compilers need a wrapper assembly function, to handle mismatch in ABI.
+//
+// Compilers for ARM, ARM64, MIPS, MIPS64 can insert a call to these
+// functions directly.  For x86 and x86-64, compilers need a wrapper
+// assembly function, to handle mismatch in ABI.
+
+// Read barrier entrypoint for heap references.
 // This is the read barrier slow path for instance and static fields and reference-type arrays.
 // TODO: Currently the read barrier does not have a fast path for compilers to directly generate.
 // Ideally the slow path should only take one parameter "ref".
 extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref, mirror::Object* obj,
                                               uint32_t offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR;
+
+// Read barrier entrypoint for GC roots.
+extern "C" mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root)
     SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR;
 
 }  // namespace art

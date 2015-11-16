@@ -352,6 +352,51 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return isa_features_;
   }
 
+  // Generate a read barrier for a heap reference within `instruction`.
+  //
+  // A read barrier for an object reference read from the heap is
+  // implemented as a call to the artReadBarrierSlow runtime entry
+  // point, which is passed the values in locations `ref`, `obj`, and
+  // `offset`:
+  //
+  //   mirror::Object* artReadBarrierSlow(mirror::Object* ref,
+  //                                      mirror::Object* obj,
+  //                                      uint32_t offset);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierSlow.
+  //
+  // When `index` provided (i.e., when it is different from
+  // Location::NoLocation()), the offset value passed to
+  // artReadBarrierSlow is adjusted to take `index` into account.
+  void GenerateReadBarrier(HInstruction* instruction,
+                           Location out,
+                           Location ref,
+                           Location obj,
+                           uint32_t offset,
+                           Location index = Location::NoLocation());
+
+  // If read barriers are enabled, generate a read barrier for a heap reference.
+  // If heap poisoning is enabled, also unpoison the reference in `out`.
+  void MaybeGenerateReadBarrier(HInstruction* instruction,
+                                Location out,
+                                Location ref,
+                                Location obj,
+                                uint32_t offset,
+                                Location index = Location::NoLocation());
+
+  // Generate a read barrier for a GC root within `instruction`.
+  //
+  // A read barrier for an object reference GC root is implemented as
+  // a call to the artReadBarrierForRootSlow runtime entry point,
+  // which is passed the value in location `root`:
+  //
+  //   mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierForRootSlow.
+  void GenerateReadBarrierForRoot(HInstruction* instruction, Location out, Location root);
+
   int ConstantAreaStart() const {
     return constant_area_start_;
   }

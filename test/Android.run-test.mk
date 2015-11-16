@@ -497,14 +497,20 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration.
+# 055: Exceeds run time limits due to read barrier instrumentation.
 # 137: Read barrier forces interpreter. Cannot run this with the interpreter.
+# 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
+#      handled in the read barrier configuration.
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
-  137-cfi \
+  055-enum-performance                    \
+  137-cfi                                 \
+  537-checker-arraycopy
 
 ifeq ($(ART_USE_READ_BARRIER),true)
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+      $(PREBUILD_TYPES),$(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
+      $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+      $(TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=

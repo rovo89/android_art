@@ -1436,7 +1436,7 @@ class SideEffects : public ValueObject {
     return flags_ == (kAllChangeBits | kAllDependOnBits);
   }
 
-  // Returns true if this may read something written by other.
+  // Returns true if `this` may read something written by `other`.
   bool MayDependOn(SideEffects other) const {
     const uint64_t depends_on_flags = (flags_ & kAllDependOnBits) >> kChangeBits;
     return (other.flags_ & depends_on_flags);
