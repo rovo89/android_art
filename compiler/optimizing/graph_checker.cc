@@ -294,14 +294,31 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
     }
   }
 
-  // Check Phi uniqueness (no two Phis with the same type refer to the same register).
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
+    // Check Phi uniqueness (no two Phis with the same type refer to the same register).
     if (phi->GetNextEquivalentPhiWithSameType() != nullptr) {
       std::stringstream type_str;
       type_str << phi->GetType();
       AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s",
           phi->GetId(), phi->GetRegNumber(), type_str.str().c_str()));
+    }
+    // Phis typed as `reference` should not have any equivalents.
+    if (phi->GetNext() != nullptr) {
+      HPhi* next = phi->GetNext()->AsPhi();
+      if (phi->GetRegNumber() == next->GetRegNumber()) {
+        if ((phi->GetType() == Primitive::kPrimNot) || (next->GetType() == Primitive::kPrimNot)) {
+          std::stringstream phi_type_str;
+          std::stringstream next_type_str;
+          phi_type_str << phi->GetType();
+          next_type_str << next->GetType();
+          AddError(StringPrintf(
+              "Found equivalent for a Phi typed as reference. vReg=%d, phi1=%d, phi1_type=%s, "
+              "phi2=%d, phi2_type=%s",
+              phi->GetRegNumber(), phi->GetId(), phi_type_str.str().c_str(),
+              next->GetId(), next_type_str.str().c_str()));
+        }
+      }
     }
   }
 
