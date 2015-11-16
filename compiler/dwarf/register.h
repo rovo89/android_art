@@ -35,9 +35,10 @@ class Reg {
   //   Arm64 mapping is correct since we already do this there.
   //   libunwind might struggle with the new mapping as well.
 
-  static Reg ArmCore(int num) { return Reg(num); }
+  static Reg ArmCore(int num) { return Reg(num); }  // R0-R15.
   static Reg ArmFp(int num) { return Reg(64 + num); }  // S0–S31.
-  static Reg Arm64Core(int num) { return Reg(num); }
+  static Reg ArmDp(int num) { return Reg(256 + num); }  // D0–D31.
+  static Reg Arm64Core(int num) { return Reg(num); }  // X0-X31.
   static Reg Arm64Fp(int num) { return Reg(64 + num); }  // V0-V31.
   static Reg MipsCore(int num) { return Reg(num); }
   static Reg Mips64Core(int num) { return Reg(num); }
