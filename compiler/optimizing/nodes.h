@@ -2228,15 +2228,16 @@ class HFloatConstant : public HConstant {
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   bool IsMinusOne() const OVERRIDE {
-    return bit_cast<uint32_t, float>(AsFloatConstant()->GetValue()) ==
-        bit_cast<uint32_t, float>((-1.0f));
+    return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>((-1.0f));
   }
   bool IsZero() const OVERRIDE {
-    return AsFloatConstant()->GetValue() == 0.0f;
+    return value_ == 0.0f;
   }
   bool IsOne() const OVERRIDE {
-    return bit_cast<uint32_t, float>(AsFloatConstant()->GetValue()) ==
-        bit_cast<uint32_t, float>(1.0f);
+    return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>(1.0f);
+  }
+  bool IsNaN() const {
+    return std::isnan(value_);
   }
 
   DECLARE_INSTRUCTION(FloatConstant);
@@ -2266,15 +2267,16 @@ class HDoubleConstant : public HConstant {
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   bool IsMinusOne() const OVERRIDE {
-    return bit_cast<uint64_t, double>(AsDoubleConstant()->GetValue()) ==
-        bit_cast<uint64_t, double>((-1.0));
+    return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((-1.0));
   }
   bool IsZero() const OVERRIDE {
-    return AsDoubleConstant()->GetValue() == 0.0;
+    return value_ == 0.0;
   }
   bool IsOne() const OVERRIDE {
-    return bit_cast<uint64_t, double>(AsDoubleConstant()->GetValue()) ==
-        bit_cast<uint64_t, double>(1.0);
+    return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>(1.0);
+  }
+  bool IsNaN() const {
+    return std::isnan(value_);
   }
 
   DECLARE_INSTRUCTION(DoubleConstant);
