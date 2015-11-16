@@ -27,6 +27,10 @@ ART_TARGET_CFLAGS += -DART_TARGET_NATIVETEST_DIR=${ART_TARGET_NATIVETEST_DIR}
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
 ART_TEST_KNOWN_BROKEN :=
 
+# List of run-tests to skip running in any configuration. This needs to be the full name of the
+# run-test such as '457-regs'.
+ART_TEST_RUN_TEST_SKIP ?=
+
 # Failing valgrind tests.
 # Note: *all* 64b tests involving the runtime do not work currently. b/15170219.
 
