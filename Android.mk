@@ -108,6 +108,7 @@ ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libxxavacore.so
 endif
 ifdef HOST_2ND_ARCH
 ART_HOST_DEPENDENCIES += $(2ND_HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
+ART_HOST_DEPENDENCIES += $(2ND_HOST_OUT_SHARED_LIBRARIES)/libxxavacore.so
 endif
 
 ########################################################################
