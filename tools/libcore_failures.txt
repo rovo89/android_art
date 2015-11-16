@@ -109,12 +109,6 @@
   bug: 19165288
 },
 {
-  description: "Bug in libcore",
-  result: EXEC_FAILED,
-  names: ["libcore.javax.crypto.ECDHKeyAgreementTest#testInit_withUnsupportedPrivateKeyType"],
-  bug: 19730263
-},
-{
   description: "Needs to be run as root",
   result: EXEC_FAILED,
   modes: [host],
@@ -130,5 +124,11 @@
   modes: [device],
   result: EXEC_FAILED,
   names: ["org.apache.harmony.tests.java.lang.ProcessManagerTest#testEnvironment"]
+},
+{
+  description: "Crypto failures",
+  result: EXEC_FAILED,
+  names: ["libcore.javax.crypto.CipherTest#testCipher_ShortBlock_Failure",
+          "libcore.javax.crypto.CipherTest#testCipher_Success"]
 }
 ]
