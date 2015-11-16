@@ -420,7 +420,7 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
     : CodeGenerator(graph,
                     kNumberOfGpuRegisters,
                     kNumberOfFpuRegisters,
-                    0,  // kNumberOfRegisterPairs
+                    /* number_of_register_pairs */ 0,
                     ComputeRegisterMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
                                         arraysize(kCoreCalleeSaves)),
                     ComputeRegisterMask(reinterpret_cast<const int*>(kFpuCalleeSaves),

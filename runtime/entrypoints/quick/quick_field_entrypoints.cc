@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
+#include <stdint.h>
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "callee_save_frame.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "gc_root-inl.h"
 #include "mirror/class-inl.h"
-
-#include <stdint.h>
+#include "mirror/object_reference.h"
 
 namespace art {
 
@@ -560,13 +562,25 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
 // TODO: Currently the read barrier does not have a fast path. Ideally the slow path should only
 // take one parameter "ref", which is given by the fast path.
 extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUSED,
-                                              mirror::Object* obj, uint32_t offset) {
-  DCHECK(kUseReadBarrier);
+                                              mirror::Object* obj,
+                                              uint32_t offset) {
+  DCHECK(kEmitCompilerReadBarrier);
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(obj) + offset;
   mirror::HeapReference<mirror::Object>* ref_addr =
-      reinterpret_cast<mirror::HeapReference<mirror::Object>*>(raw_addr);
-  return ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, true>(obj, MemberOffset(offset),
-                                                                      ref_addr);
+     reinterpret_cast<mirror::HeapReference<mirror::Object>*>(raw_addr);
+  constexpr ReadBarrierOption kReadBarrierOption =
+      kUseReadBarrier ? kWithReadBarrier : kWithoutReadBarrier;
+  mirror::Object* result =
+      ReadBarrier::Barrier<mirror::Object, kReadBarrierOption, true>(obj,
+                                                                     MemberOffset(offset),
+                                                                     ref_addr);
+  return result;
+}
+
+extern "C" mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root) {
+  DCHECK(kEmitCompilerReadBarrier);
+  // TODO: Pass a GcRootSource object as second argument to GcRoot::Read?
+  return root->Read();
 }
 
 }  // namespace art

@@ -55,7 +55,23 @@ ArenaAllocator* IntrinsicCodeGeneratorX86::GetAllocator() {
 bool IntrinsicLocationsBuilderX86::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
-  return res != nullptr && res->Intrinsified();
+  if (res == nullptr) {
+    return false;
+  }
+  if (kEmitCompilerReadBarrier && res->CanCall()) {
+    // Generating an intrinsic for this HInvoke may produce an
+    // IntrinsicSlowPathX86 slow path.  Currently this approach
+    // does not work when using read barriers, as the emitted
+    // calling sequence will make use of another slow path
+    // (ReadBarrierForRootSlowPathX86 for HInvokeStaticOrDirect,
+    // ReadBarrierSlowPathX86 for HInvokeVirtual).  So we bail
+    // out in this case.
+    //
+    // TODO: Find a way to have intrinsics work with read barriers.
+    invoke->SetLocations(nullptr);
+    return false;
+  }
+  return res->Intrinsified();
 }
 
 static void MoveArguments(HInvoke* invoke, CodeGeneratorX86* codegen) {
@@ -1571,26 +1587,32 @@ void IntrinsicCodeGeneratorX86::VisitThreadCurrentThread(HInvoke* invoke) {
   GetAssembler()->fs()->movl(out, Address::Absolute(Thread::PeerOffset<kX86WordSize>()));
 }
 
-static void GenUnsafeGet(LocationSummary* locations, Primitive::Type type,
-                         bool is_volatile, X86Assembler* assembler) {
-  Register base = locations->InAt(1).AsRegister<Register>();
-  Register offset = locations->InAt(2).AsRegisterPairLow<Register>();
-  Location output = locations->Out();
+static void GenUnsafeGet(HInvoke* invoke,
+                         Primitive::Type type,
+                         bool is_volatile,
+                         CodeGeneratorX86* codegen) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen->GetAssembler());
+  LocationSummary* locations = invoke->GetLocations();
+  Location base_loc = locations->InAt(1);
+  Register base = base_loc.AsRegister<Register>();
+  Location offset_loc = locations->InAt(2);
+  Register offset = offset_loc.AsRegisterPairLow<Register>();
+  Location output_loc = locations->Out();
 
   switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      Register output_reg = output.AsRegister<Register>();
-      __ movl(output_reg, Address(base, offset, ScaleFactor::TIMES_1, 0));
+      Register output = output_loc.AsRegister<Register>();
+      __ movl(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
       if (type == Primitive::kPrimNot) {
-        __ MaybeUnpoisonHeapReference(output_reg);
+        codegen->MaybeGenerateReadBarrier(invoke, output_loc, output_loc, base_loc, 0U, offset_loc);
       }
       break;
     }
 
     case Primitive::kPrimLong: {
-        Register output_lo = output.AsRegisterPairLow<Register>();
-        Register output_hi = output.AsRegisterPairHigh<Register>();
+        Register output_lo = output_loc.AsRegisterPairLow<Register>();
+        Register output_hi = output_loc.AsRegisterPairHigh<Register>();
         if (is_volatile) {
           // Need to use a XMM to read atomically.
           XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
@@ -1613,8 +1635,13 @@ static void GenUnsafeGet(LocationSummary* locations, Primitive::Type type,
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke,
                                           bool is_long, bool is_volatile) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           can_call ?
+                                                               LocationSummary::kCallOnSlowPath :
+                                                               LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
@@ -1653,22 +1680,22 @@ void IntrinsicLocationsBuilderX86::VisitUnsafeGetObjectVolatile(HInvoke* invoke)
 
 
 void IntrinsicCodeGeneratorX86::VisitUnsafeGet(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimInt, false, GetAssembler());
+  GenUnsafeGet(invoke, Primitive::kPrimInt, false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimInt, true, GetAssembler());
+  GenUnsafeGet(invoke, Primitive::kPrimInt, true, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetLong(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimLong, false, GetAssembler());
+  GenUnsafeGet(invoke, Primitive::kPrimLong, false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimLong, true, GetAssembler());
+  GenUnsafeGet(invoke, Primitive::kPrimLong, true, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetObject(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimNot, false, GetAssembler());
+  GenUnsafeGet(invoke, Primitive::kPrimNot, false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimNot, true, GetAssembler());
+  GenUnsafeGet(invoke, Primitive::kPrimNot, true, codegen_);
 }
 
 
@@ -1890,13 +1917,18 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* code
 
     __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
 
-    // locked cmpxchg has full barrier semantics, and we don't need
+    // LOCK CMPXCHG has full barrier semantics, and we don't need
     // scheduling barriers at this time.
 
     // Convert ZF into the boolean result.
     __ setb(kZero, out.AsRegister<Register>());
     __ movzxb(out.AsRegister<Register>(), out.AsRegister<ByteRegister>());
 
+    // In the case of the `UnsafeCASObject` intrinsic, accessing an
+    // object in the heap with LOCK CMPXCHG does not require a read
+    // barrier, as we do not keep a reference to this heap location.
+    // However, if heap poisoning is enabled, we need to unpoison the
+    // values that were poisoned earlier.
     if (kPoisonHeapReferences) {
       if (base_equals_value) {
         // `value` has been moved to a temporary register, no need to
@@ -1929,8 +1961,8 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* code
       LOG(FATAL) << "Unexpected CAS type " << type;
     }
 
-    // locked cmpxchg has full barrier semantics, and we don't need
-    // scheduling barriers at this time.
+    // LOCK CMPXCHG/LOCK CMPXCHG8B have full barrier semantics, and we
+    // don't need scheduling barriers at this time.
 
     // Convert ZF into the boolean result.
     __ setb(kZero, out.AsRegister<Register>());

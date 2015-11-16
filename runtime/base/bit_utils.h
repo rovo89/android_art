@@ -53,6 +53,7 @@ static constexpr int CTZ(T x) {
           : __builtin_ctzll(x);
 }
 
+// Return the number of 1-bits in `x`.
 template<typename T>
 static constexpr int POPCOUNT(T x) {
   return (sizeof(T) == sizeof(uint32_t))

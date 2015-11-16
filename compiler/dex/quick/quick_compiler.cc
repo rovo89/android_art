@@ -673,6 +673,12 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
     return nullptr;
   }
 
+  if (kEmitCompilerReadBarrier) {
+    VLOG(compiler) << "Skipping method : " << PrettyMethod(method_idx, dex_file)
+                   << "  Reason = Quick does not support read barrier.";
+    return nullptr;
+  }
+
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use
   // build default.
   CompilerDriver* driver = GetCompilerDriver();

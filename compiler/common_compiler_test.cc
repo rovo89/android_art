@@ -223,6 +223,11 @@ void CommonCompilerTest::SetCompilerKind(Compiler::Kind compiler_kind) {
   compiler_kind_ = compiler_kind;
 }
 
+InstructionSet CommonCompilerTest::GetInstructionSet() const {
+  DCHECK(compiler_driver_.get() != nullptr);
+  return compiler_driver_->GetInstructionSet();
+}
+
 void CommonCompilerTest::TearDown() {
   timer_.reset();
   compiler_driver_.reset();
