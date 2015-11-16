@@ -331,7 +331,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, size_t buffer_size, 
   std::unique_ptr<File> trace_file;
   if (output_mode != TraceOutputMode::kDDMS) {
     if (trace_fd < 0) {
-      trace_file.reset(OS::CreateEmptyFile(trace_filename));
+      trace_file.reset(OS::CreateEmptyFileWriteOnly(trace_filename));
     } else {
       trace_file.reset(new File(trace_fd, "tracefile"));
       trace_file->DisableAutoClose();
