@@ -40,11 +40,12 @@ static const char* gProgName = "dexdump";
  */
 static void usage(void) {
   fprintf(stderr, "Copyright (C) 2007 The Android Open Source Project\n\n");
-  fprintf(stderr, "%s: [-c] [-d] [-f] [-h] [-i] [-l layout] [-o outfile]"
+  fprintf(stderr, "%s: [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile]"
                   " [-t tempfile] dexfile...\n", gProgName);
   fprintf(stderr, "\n");
   fprintf(stderr, " -c : verify checksum and exit\n");
   fprintf(stderr, " -d : disassemble code sections\n");
+  fprintf(stderr, " -e : display exported items only\n");
   fprintf(stderr, " -f : display summary information from file header\n");
   fprintf(stderr, " -g : dump CFG for dex\n");
   fprintf(stderr, " -h : display file header details\n");
@@ -69,7 +70,7 @@ int dexdumpDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "cdfghil:t:o:");
+    const int ic = getopt(argc, argv, "cdefghil:t:o:");
     if (ic < 0) {
       break;  // done
     }
@@ -79,6 +80,9 @@ int dexdumpDriver(int argc, char** argv) {
         break;
       case 'd':  // disassemble Dalvik instructions
         gOptions.disassemble = true;
+        break;
+      case 'e':  // exported items only
+        gOptions.exportsOnly = true;
         break;
       case 'f':  // dump outer file header
         gOptions.showFileHeaders = true;
@@ -98,7 +102,6 @@ int dexdumpDriver(int argc, char** argv) {
         } else if (strcmp(optarg, "xml") == 0) {
           gOptions.outputFormat = OUTPUT_XML;
           gOptions.verbose = false;
-          gOptions.exportsOnly = true;
         } else {
           wantUsage = true;
         }

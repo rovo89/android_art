@@ -40,7 +40,7 @@ mkdir ${tmpdir}
 # Set up dexdump binary and flags to test.
 DEXD="${ANDROID_HOST_OUT}/bin/dexdump2"
 DEXDFLAGS1="-dfh"
-DEXDFLAGS2="-l xml"
+DEXDFLAGS2="-e -l xml"
 
 # Set up dexlist binary and flags to test.
 DEXL="${ANDROID_HOST_OUT}/bin/dexlist"
