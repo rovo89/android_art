@@ -310,7 +310,7 @@ size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t l
 
 void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
                                              size_t maximum_number_of_live_core_registers,
-                                             size_t maximum_number_of_live_fp_registers,
+                                             size_t maximum_number_of_live_fpu_registers,
                                              size_t number_of_out_slots,
                                              const ArenaVector<HBasicBlock*>& block_order) {
   block_order_ = &block_order;
@@ -324,14 +324,14 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
       && IsLeafMethod()
       && !RequiresCurrentMethod()) {
     DCHECK_EQ(maximum_number_of_live_core_registers, 0u);
-    DCHECK_EQ(maximum_number_of_live_fp_registers, 0u);
+    DCHECK_EQ(maximum_number_of_live_fpu_registers, 0u);
     SetFrameSize(CallPushesPC() ? GetWordSize() : 0);
   } else {
     SetFrameSize(RoundUp(
         number_of_spill_slots * kVRegSize
         + number_of_out_slots * kVRegSize
         + maximum_number_of_live_core_registers * GetWordSize()
-        + maximum_number_of_live_fp_registers * GetFloatingPointSpillSlotSize()
+        + maximum_number_of_live_fpu_registers * GetFloatingPointSpillSlotSize()
         + FrameEntrySpillSize(),
         kStackAlignment));
   }
@@ -547,15 +547,19 @@ void CodeGenerator::GenerateUnresolvedFieldAccess(
   }
 }
 
+// TODO: Remove argument `code_generator_supports_read_barrier` when
+// all code generators have read barrier support.
 void CodeGenerator::CreateLoadClassLocationSummary(HLoadClass* cls,
                                                    Location runtime_type_index_location,
-                                                   Location runtime_return_location) {
+                                                   Location runtime_return_location,
+                                                   bool code_generator_supports_read_barrier) {
   ArenaAllocator* allocator = cls->GetBlock()->GetGraph()->GetArena();
   LocationSummary::CallKind call_kind = cls->NeedsAccessCheck()
       ? LocationSummary::kCall
-      : (cls->CanCallRuntime()
-          ? LocationSummary::kCallOnSlowPath
-          : LocationSummary::kNoCall);
+      : (((code_generator_supports_read_barrier && kEmitCompilerReadBarrier) ||
+          cls->CanCallRuntime())
+            ? LocationSummary::kCallOnSlowPath
+            : LocationSummary::kNoCall);
   LocationSummary* locations = new (allocator) LocationSummary(cls, call_kind);
   if (cls->NeedsAccessCheck()) {
     locations->SetInAt(0, Location::NoLocation());
@@ -1320,21 +1324,38 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
   // coherent with the runtime call generated, and that the GC side effect is
   // set when required.
   if (slow_path == nullptr) {
-    DCHECK(instruction->GetLocations()->WillCall()) << instruction->DebugName();
+    DCHECK(instruction->GetLocations()->WillCall())
+        << "instruction->DebugName()=" << instruction->DebugName();
     DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()))
-        << instruction->DebugName() << instruction->GetSideEffects().ToString();
+        << "instruction->DebugName()=" << instruction->DebugName()
+        << " instruction->GetSideEffects().ToString()=" << instruction->GetSideEffects().ToString();
   } else {
     DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal())
-        << instruction->DebugName() << slow_path->GetDescription();
+        << "instruction->DebugName()=" << instruction->DebugName()
+        << " slow_path->GetDescription()=" << slow_path->GetDescription();
     DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
            // Control flow would not come back into the code if a fatal slow
            // path is taken, so we do not care if it triggers GC.
            slow_path->IsFatal() ||
            // HDeoptimize is a special case: we know we are not coming back from
            // it into the code.
-           instruction->IsDeoptimize())
-        << instruction->DebugName() << instruction->GetSideEffects().ToString()
-        << slow_path->GetDescription();
+           instruction->IsDeoptimize() ||
+           // When read barriers are enabled, some instructions use a
+           // slow path to emit a read barrier, which does not trigger
+           // GC, is not fatal, nor is emitted by HDeoptimize
+           // instructions.
+           (kEmitCompilerReadBarrier &&
+            (instruction->IsInstanceFieldGet() ||
+             instruction->IsStaticFieldGet() ||
+             instruction->IsArraySet() ||
+             instruction->IsArrayGet() ||
+             instruction->IsLoadClass() ||
+             instruction->IsLoadString() ||
+             instruction->IsInstanceOf() ||
+             instruction->IsCheckCast())))
+        << "instruction->DebugName()=" << instruction->DebugName()
+        << " instruction->GetSideEffects().ToString()=" << instruction->GetSideEffects().ToString()
+        << " slow_path->GetDescription()=" << slow_path->GetDescription();
   }
 
   // Check the coherency of leaf information.
@@ -1346,11 +1367,12 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
 }
 
 void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
-  RegisterSet* register_set = locations->GetLiveRegisters();
+  RegisterSet* live_registers = locations->GetLiveRegisters();
   size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
+
   for (size_t i = 0, e = codegen->GetNumberOfCoreRegisters(); i < e; ++i) {
     if (!codegen->IsCoreCalleeSaveRegister(i)) {
-      if (register_set->ContainsCoreRegister(i)) {
+      if (live_registers->ContainsCoreRegister(i)) {
         // If the register holds an object, update the stack mask.
         if (locations->RegisterContainsObject(i)) {
           locations->SetStackBit(stack_offset / kVRegSize);
@@ -1365,7 +1387,7 @@ void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* lo
 
   for (size_t i = 0, e = codegen->GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (!codegen->IsFloatingPointCalleeSaveRegister(i)) {
-      if (register_set->ContainsFloatingPointRegister(i)) {
+      if (live_registers->ContainsFloatingPointRegister(i)) {
         DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
         DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
         saved_fpu_stack_offsets_[i] = stack_offset;
@@ -1376,12 +1398,14 @@ void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* lo
 }
 
 void SlowPathCode::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
-  RegisterSet* register_set = locations->GetLiveRegisters();
+  RegisterSet* live_registers = locations->GetLiveRegisters();
   size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
+
   for (size_t i = 0, e = codegen->GetNumberOfCoreRegisters(); i < e; ++i) {
     if (!codegen->IsCoreCalleeSaveRegister(i)) {
-      if (register_set->ContainsCoreRegister(i)) {
+      if (live_registers->ContainsCoreRegister(i)) {
         DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+        DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
         stack_offset += codegen->RestoreCoreRegister(stack_offset, i);
       }
     }
@@ -1389,8 +1413,9 @@ void SlowPathCode::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary*
 
   for (size_t i = 0, e = codegen->GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (!codegen->IsFloatingPointCalleeSaveRegister(i)) {
-      if (register_set->ContainsFloatingPointRegister(i)) {
+      if (live_registers->ContainsFloatingPointRegister(i)) {
         DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+        DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
         stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, i);
       }
     }

@@ -1722,3 +1722,14 @@ DEFINE_FUNCTION art_quick_read_barrier_slow
     RESTORE_FP_CALLEE_SAVE_FRAME
     ret
 END_FUNCTION art_quick_read_barrier_slow
+
+DEFINE_FUNCTION art_quick_read_barrier_for_root_slow
+    SETUP_FP_CALLEE_SAVE_FRAME
+    subq LITERAL(8), %rsp                  // Alignment padding.
+    CFI_ADJUST_CFA_OFFSET(8)
+    call SYMBOL(artReadBarrierForRootSlow) // artReadBarrierForRootSlow(root)
+    addq LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
+    RESTORE_FP_CALLEE_SAVE_FRAME
+    ret
+END_FUNCTION art_quick_read_barrier_for_root_slow

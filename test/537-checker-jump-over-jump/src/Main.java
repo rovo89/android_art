@@ -20,13 +20,25 @@ public class Main {
   public static int[] fibs;
 
   /// CHECK-START-X86_64: int Main.test() disassembly (after)
-  /// CHECK:          If
-  /// CHECK-NEXT:     cmp
-  /// CHECK-NEXT:     jnl/ge
-  /// CHECK-NOT:      jmp
-  /// CHECK:          ArrayGet
-  // Checks that there is no conditional jump over a jmp. The ArrayGet is in
-  // the next block.
+  /// CHECK-DAG:   <<Zero:i\d+>>        IntConstant 0
+  //
+  /// CHECK:                            If
+  /// CHECK-NEXT:                       cmp
+  /// CHECK-NEXT:                       jnl/ge
+  //
+  /// CHECK-DAG:   <<Fibs:l\d+>>        StaticFieldGet
+  /// CHECK-DAG:                        NullCheck [<<Fibs>>]
+  /// CHECK-NOT:                        jmp
+  /// CHECK-DAG:   <<FibsAtZero:i\d+>>  ArrayGet [<<Fibs>>,<<Zero>>]
+  /// CHECK-DAG:                        Return [<<FibsAtZero>>]
+  //
+  // Checks that there is no conditional jump over a `jmp`
+  // instruction. The `ArrayGet` instruction is in the next block.
+  //
+  // Note that the `StaticFieldGet` HIR instruction above (captured as
+  // `Fibs`) can produce a `jmp` x86-64 instruction when read barriers
+  // are enabled (to jump into the read barrier slow path), which is
+  // different from the `jmp` in the `CHECK-NOT` assertion.
   public static int test() {
     for (int i = 1; ; i++) {
       if (i >= FIBCOUNT) {

@@ -865,8 +865,8 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
   CHECK(code_start <= pc && pc <= (code_start + code_size))
       << PrettyMethod(method)
       << " pc=" << std::hex << pc
-      << " code=" << code
-      << " size=" << code_size;
+      << " code_start=" << code_start
+      << " code_size=" << code_size;
 }
 
 void StackVisitor::SanityCheckFrame() const {

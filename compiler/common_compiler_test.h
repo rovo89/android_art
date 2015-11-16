@@ -61,6 +61,8 @@ class CommonCompilerTest : public CommonRuntimeTest {
   Compiler::Kind GetCompilerKind() const;
   void SetCompilerKind(Compiler::Kind compiler_kind);
 
+  InstructionSet GetInstructionSet() const;
+
   // Get the set of image classes given to the compiler-driver in SetUp. Note: the compiler
   // driver assumes ownership of the set, so the test should properly release the set.
   virtual std::unordered_set<std::string>* GetImageClasses();
@@ -113,6 +115,30 @@ class CommonCompilerTest : public CommonRuntimeTest {
   if (kPoisonHeapReferences && GetCompilerKind() == Compiler::kQuick) { \
     printf("WARNING: TEST DISABLED FOR HEAP REFERENCE POISONING WITH QUICK\n"); \
     return; \
+  }
+
+// TODO: When read barrier works with all compilers in use, get rid of this.
+#define TEST_DISABLED_FOR_READ_BARRIER_WITH_QUICK() \
+  if (kUseReadBarrier && GetCompilerKind() == Compiler::kQuick) { \
+    printf("WARNING: TEST DISABLED FOR READ BARRIER WITH QUICK\n"); \
+    return; \
+  }
+
+// TODO: When read barrier works with all Optimizing back ends, get rid of this.
+#define TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS() \
+  if (kUseReadBarrier && GetCompilerKind() == Compiler::kOptimizing) {                    \
+    switch (GetInstructionSet()) {                                                        \
+      case kX86:                                                                          \
+      case kX86_64:                                                                       \
+        /* Instruction set has read barrier support. */                                   \
+        break;                                                                            \
+                                                                                          \
+      default:                                                                            \
+        /* Instruction set does not have barrier support. */                              \
+        printf("WARNING: TEST DISABLED FOR READ BARRIER WITH OPTIMIZING "                 \
+               "FOR THIS INSTRUCTION SET\n");                                             \
+        return;                                                                           \
+    }                                                                                     \
   }
 
 // TODO: When non-PIC works with all compilers in use, get rid of this.
