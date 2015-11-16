@@ -978,14 +978,12 @@ void CodeGeneratorARM64::InvokeRuntime(int32_t entry_point_offset,
   BlockPoolsScope block_pools(GetVIXLAssembler());
   __ Ldr(lr, MemOperand(tr, entry_point_offset));
   __ Blr(lr);
-  if (instruction != nullptr) {
-    RecordPcInfo(instruction, dex_pc, slow_path);
-    DCHECK(instruction->IsSuspendCheck()
-        || instruction->IsBoundsCheck()
-        || instruction->IsNullCheck()
-        || instruction->IsDivZeroCheck()
-        || !IsLeafMethod());
-    }
+  RecordPcInfo(instruction, dex_pc, slow_path);
+  DCHECK(instruction->IsSuspendCheck()
+         || instruction->IsBoundsCheck()
+         || instruction->IsNullCheck()
+         || instruction->IsDivZeroCheck()
+         || !IsLeafMethod());
 }
 
 void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCodeARM64* slow_path,
