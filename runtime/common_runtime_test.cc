@@ -409,6 +409,26 @@ void CommonRuntimeTest::TearDown() {
   (*icu_cleanup_fn)();
 
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
+
+  // Manually closing the JNI libraries.
+  // Runtime does not support repeatedly doing JNI->CreateVM, thus we need to manually clean up the
+  // dynamic linking loader so that gtests would not fail.
+  // Bug: 25785594
+  if (runtime_->IsStarted()) {
+    {
+      // We retrieve the handle by calling dlopen on the library. To close it, we need to call
+      // dlclose twice, the first time to undo our dlopen and the second time to actually unload it.
+      // See man dlopen.
+      void* handle = dlopen("libjavacore.so", RTLD_LAZY);
+      dlclose(handle);
+      CHECK_EQ(0, dlclose(handle));
+    }
+    {
+      void* handle = dlopen("libopenjdk.so", RTLD_LAZY);
+      dlclose(handle);
+      CHECK_EQ(0, dlclose(handle));
+    }
+  }
 }
 
 std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
