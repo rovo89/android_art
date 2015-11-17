@@ -16,41 +16,21 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Instance;
-import com.android.tools.perflib.heap.RootObj;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
-class RootsHandler implements AhatHandler {
+class RootedHandler implements AhatHandler {
 
-  private static final String ROOTS_ID = "roots";
+  private static final String ROOTED_ID = "rooted";
 
   private AhatSnapshot mSnapshot;
 
-  public RootsHandler(AhatSnapshot snapshot) {
+  public RootedHandler(AhatSnapshot snapshot) {
     mSnapshot = snapshot;
   }
 
   @Override
   public void handle(Doc doc, Query query) throws IOException {
-    doc.title("Roots");
-
-    Set<Instance> rootset = new HashSet<Instance>();
-    for (RootObj root : mSnapshot.getGCRoots()) {
-      Instance inst = root.getReferredInstance();
-      if (inst != null) {
-        rootset.add(inst);
-      }
-    }
-
-    List<Instance> roots = new ArrayList<Instance>();
-    for (Instance inst : rootset) {
-      roots.add(inst);
-    }
-    DominatedList.render(mSnapshot, doc, query, ROOTS_ID, roots);
+    doc.title("Rooted");
+    DominatedList.render(mSnapshot, doc, query, ROOTED_ID, mSnapshot.getRooted());
   }
 }
-

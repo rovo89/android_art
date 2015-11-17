@@ -19,7 +19,6 @@ package com.android.ahat;
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Heap;
 import com.android.tools.perflib.heap.Instance;
-import com.android.tools.perflib.heap.RootObj;
 import com.android.tools.perflib.heap.Snapshot;
 import com.android.tools.perflib.heap.StackFrame;
 import com.android.tools.perflib.heap.StackTrace;
@@ -30,7 +29,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +44,9 @@ class AhatSnapshot {
 
   // Map from Instance to the list of Instances it immediately dominates.
   private Map<Instance, List<Instance>> mDominated;
+
+  // Collection of objects whose immediate dominator is the SENTINEL_ROOT.
+  private List<Instance> mRooted;
 
   private Site mRootSite;
   private Map<Heap, Long> mHeapSizes;
@@ -70,6 +71,7 @@ class AhatSnapshot {
     mDominated = new HashMap<Instance, List<Instance>>();
     mRootSite = new Site("ROOT");
     mHeapSizes = new HashMap<Heap, Long>();
+    mRooted = new ArrayList<Instance>();
 
     ClassObj javaLangClass = mSnapshot.findClass("java.lang.Class");
     for (Heap heap : mHeaps) {
@@ -78,6 +80,10 @@ class AhatSnapshot {
         Instance dominator = inst.getImmediateDominator();
         if (dominator != null) {
           total += inst.getSize();
+
+          if (dominator == Snapshot.SENTINEL_ROOT) {
+            mRooted.add(inst);
+          }
 
           // Properly label the class of a class object.
           if (inst instanceof ClassObj && javaLangClass != null && inst.getClassObj() == null) {
@@ -126,8 +132,12 @@ class AhatSnapshot {
     return mSnapshot.getHeap(name);
   }
 
-  public Collection<RootObj> getGCRoots() {
-    return mSnapshot.getGCRoots();
+  /**
+   * Returns a collection of instances whose immediate dominator is the
+   * SENTINEL_ROOT.
+   */
+  public List<Instance> getRooted() {
+    return mRooted;
   }
 
   public List<Heap> getHeaps() {
