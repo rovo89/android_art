@@ -217,14 +217,12 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
   void GenerateTestAndBranch(HInstruction* instruction,
+                             size_t condition_input_index,
                              Label* true_target,
-                             Label* false_target,
-                             Label* always_true_target);
-  void GenerateCompareTestAndBranch(HIf* if_inst,
-                                    HCondition* condition,
+                             Label* false_target);
+  void GenerateCompareTestAndBranch(HCondition* condition,
                                     Label* true_target,
-                                    Label* false_target,
-                                    Label* always_true_target);
+                                    Label* false_target);
   void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
