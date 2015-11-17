@@ -120,7 +120,7 @@ public class Main implements Comparator<Main> {
       // Could do reflection for the private pid field, but String parsing is easier.
       String s = p.toString();
       if (s.startsWith("Process[pid=")) {
-          return Integer.parseInt(s.substring("Process[pid=".length(), s.length() - 1));
+          return Integer.parseInt(s.substring("Process[pid=".length(), s.indexOf(",")));
       } else {
           return -1;
       }
