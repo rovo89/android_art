@@ -526,13 +526,26 @@ void PatchOat::PatchInternedStrings(const ImageHeader* image_header) {
   temp_table.VisitRoots(&visitor, kVisitRootFlagAllRoots);
 }
 
+class RelocatedPointerVisitor {
+ public:
+  explicit RelocatedPointerVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
+
+  template <typename T>
+  T* operator()(T* ptr) const {
+    return patch_oat_->RelocatedAddressOfPointer(ptr);
+  }
+
+ private:
+  PatchOat* const patch_oat_;
+};
+
 void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots) {
   auto* dex_caches = down_cast<mirror::ObjectArray<mirror::DexCache>*>(
       img_roots->Get(ImageHeader::kDexCaches));
+  const size_t pointer_size = InstructionSetPointerSize(isa_);
   for (size_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
     auto* orig_dex_cache = dex_caches->GetWithoutChecks(i);
     auto* copy_dex_cache = RelocatedCopyOf(orig_dex_cache);
-    const size_t pointer_size = InstructionSetPointerSize(isa_);
     // Though the DexCache array fields are usually treated as native pointers, we set the full
     // 64-bit values here, clearing the top 32 bits for 32-bit targets. The zero-extension is
     // done by casting to the unsigned type uintptr_t before casting to int64_t, i.e.
@@ -543,10 +556,7 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
         mirror::DexCache::StringsOffset(),
         static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_strings)));
     if (orig_strings != nullptr) {
-      GcRoot<mirror::String>* copy_strings = RelocatedCopyOf(orig_strings);
-      for (size_t j = 0, num = orig_dex_cache->NumStrings(); j != num; ++j) {
-        copy_strings[j] = GcRoot<mirror::String>(RelocatedAddressOfPointer(orig_strings[j].Read()));
-      }
+      orig_dex_cache->FixupStrings(RelocatedCopyOf(orig_strings), RelocatedPointerVisitor(this));
     }
     GcRoot<mirror::Class>* orig_types = orig_dex_cache->GetResolvedTypes();
     GcRoot<mirror::Class>* relocated_types = RelocatedAddressOfPointer(orig_types);
@@ -554,10 +564,8 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
         mirror::DexCache::ResolvedTypesOffset(),
         static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_types)));
     if (orig_types != nullptr) {
-      GcRoot<mirror::Class>* copy_types = RelocatedCopyOf(orig_types);
-      for (size_t j = 0, num = orig_dex_cache->NumResolvedTypes(); j != num; ++j) {
-        copy_types[j] = GcRoot<mirror::Class>(RelocatedAddressOfPointer(orig_types[j].Read()));
-      }
+      orig_dex_cache->FixupResolvedTypes(RelocatedCopyOf(orig_types),
+                                         RelocatedPointerVisitor(this));
     }
     ArtMethod** orig_methods = orig_dex_cache->GetResolvedMethods();
     ArtMethod** relocated_methods = RelocatedAddressOfPointer(orig_methods);
@@ -584,25 +592,6 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
         ArtField* copy = RelocatedAddressOfPointer(orig);
         mirror::DexCache::SetElementPtrSize(copy_fields, j, copy, pointer_size);
       }
-    }
-  }
-}
-
-void PatchOat::FixupNativePointerArray(mirror::PointerArray* object) {
-  if (object->IsIntArray()) {
-    mirror::IntArray* arr = object->AsIntArray();
-    mirror::IntArray* copy_arr = down_cast<mirror::IntArray*>(RelocatedCopyOf(arr));
-    for (size_t j = 0, count2 = arr->GetLength(); j < count2; ++j) {
-      copy_arr->SetWithoutChecks<false>(
-          j, RelocatedAddressOfIntPointer(arr->GetWithoutChecks(j)));
-    }
-  } else {
-    CHECK(object->IsLongArray());
-    mirror::LongArray* arr = object->AsLongArray();
-    mirror::LongArray* copy_arr = down_cast<mirror::LongArray*>(RelocatedCopyOf(arr));
-    for (size_t j = 0, count2 = arr->GetLength(); j < count2; ++j) {
-      copy_arr->SetWithoutChecks<false>(
-          j, RelocatedAddressOfIntPointer(arr->GetWithoutChecks(j)));
     }
   }
 }
@@ -674,17 +663,14 @@ void PatchOat::VisitObject(mirror::Object* object) {
   PatchOat::PatchVisitor visitor(this, copy);
   object->VisitReferences<kVerifyNone>(visitor, visitor);
   if (object->IsClass<kVerifyNone>()) {
-    auto* klass = object->AsClass();
-    auto* copy_klass = down_cast<mirror::Class*>(copy);
-    copy_klass->SetDexCacheStrings(RelocatedAddressOfPointer(klass->GetDexCacheStrings()));
-    copy_klass->SetSFieldsPtrUnchecked(RelocatedAddressOfPointer(klass->GetSFieldsPtr()));
-    copy_klass->SetIFieldsPtrUnchecked(RelocatedAddressOfPointer(klass->GetIFieldsPtr()));
-    copy_klass->SetDirectMethodsPtrUnchecked(
-        RelocatedAddressOfPointer(klass->GetDirectMethodsPtr()));
-    copy_klass->SetVirtualMethodsPtr(RelocatedAddressOfPointer(klass->GetVirtualMethodsPtr()));
+    const size_t pointer_size = InstructionSetPointerSize(isa_);
+    mirror::Class* klass = object->AsClass();
+    mirror::Class* copy_klass = down_cast<mirror::Class*>(copy);
+    RelocatedPointerVisitor native_visitor(this);
+    klass->FixupNativePointers(copy_klass, pointer_size, native_visitor);
     auto* vtable = klass->GetVTable();
     if (vtable != nullptr) {
-      FixupNativePointerArray(vtable);
+      vtable->Fixup(RelocatedCopyOf(vtable), pointer_size, native_visitor);
     }
     auto* iftable = klass->GetIfTable();
     if (iftable != nullptr) {
@@ -692,24 +678,12 @@ void PatchOat::VisitObject(mirror::Object* object) {
         if (iftable->GetMethodArrayCount(i) > 0) {
           auto* method_array = iftable->GetMethodArray(i);
           CHECK(method_array != nullptr);
-          FixupNativePointerArray(method_array);
+          method_array->Fixup(RelocatedCopyOf(method_array), pointer_size, native_visitor);
         }
       }
     }
-    if (klass->ShouldHaveEmbeddedImtAndVTable()) {
-      const size_t pointer_size = InstructionSetPointerSize(isa_);
-      for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
-        copy_klass->SetEmbeddedVTableEntryUnchecked(i, RelocatedAddressOfPointer(
-            klass->GetEmbeddedVTableEntry(i, pointer_size)), pointer_size);
-      }
-      for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
-        copy_klass->SetEmbeddedImTableEntry(i, RelocatedAddressOfPointer(
-            klass->GetEmbeddedImTableEntry(i, pointer_size)), pointer_size);
-      }
-    }
-  }
-  if (object->GetClass() == mirror::Method::StaticClass() ||
-      object->GetClass() == mirror::Constructor::StaticClass()) {
+  } else if (object->GetClass() == mirror::Method::StaticClass() ||
+             object->GetClass() == mirror::Constructor::StaticClass()) {
     // Need to go update the ArtMethod.
     auto* dest = down_cast<mirror::AbstractMethod*>(copy);
     auto* src = down_cast<mirror::AbstractMethod*>(object);

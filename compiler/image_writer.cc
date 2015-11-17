@@ -1441,34 +1441,28 @@ T* ImageWriter::NativeLocationInImage(T* obj) {
       : reinterpret_cast<T*>(image_begin_ + NativeOffsetInImage(obj));
 }
 
-void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
-  // Update the field arrays.
-  copy->SetSFieldsPtrUnchecked(NativeLocationInImage(orig->GetSFieldsPtr()));
-  copy->SetIFieldsPtrUnchecked(NativeLocationInImage(orig->GetIFieldsPtr()));
-  // Update direct and virtual method arrays.
-  copy->SetDirectMethodsPtrUnchecked(NativeLocationInImage(orig->GetDirectMethodsPtr()));
-  copy->SetVirtualMethodsPtr(NativeLocationInImage(orig->GetVirtualMethodsPtr()));
-  // Update dex cache strings.
-  copy->SetDexCacheStrings(NativeLocationInImage(orig->GetDexCacheStrings()));
-  // Fix up embedded tables.
-  if (!orig->IsTemp()) {
-    // TODO: Why do we have temp classes in some cases?
-    if (orig->ShouldHaveEmbeddedImtAndVTable()) {
-      for (int32_t i = 0; i < orig->GetEmbeddedVTableLength(); ++i) {
-        ArtMethod* orig_method = orig->GetEmbeddedVTableEntry(i, target_ptr_size_);
-        copy->SetEmbeddedVTableEntryUnchecked(
-            i,
-            NativeLocationInImage(orig_method),
-            target_ptr_size_);
-      }
-      for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
-        copy->SetEmbeddedImTableEntry(
-            i,
-            NativeLocationInImage(orig->GetEmbeddedImTableEntry(i, target_ptr_size_)),
-            target_ptr_size_);
-      }
-    }
+template <typename T>
+T* ImageWriter::NativeCopyLocation(T* obj) {
+  return (obj == nullptr || IsInBootImage(obj))
+      ? obj
+      : reinterpret_cast<T*>(image_->Begin() + NativeOffsetInImage(obj));
+}
+
+class NativeLocationVisitor {
+ public:
+  explicit NativeLocationVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
+
+  template <typename T>
+  T* operator()(T* ptr) const {
+    return image_writer_->NativeLocationInImage(ptr);
   }
+
+ private:
+  ImageWriter* const image_writer_;
+};
+
+void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
+  orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this));
   FixupClassVisitor visitor(this, copy);
   static_cast<mirror::Object*>(orig)->VisitReferences(visitor, visitor);
 }
@@ -1528,6 +1522,21 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   }
 }
 
+
+class ImageAddressVisitor {
+ public:
+  explicit ImageAddressVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
+
+  template <typename T>
+  T* operator()(T* ptr) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return image_writer_->GetImageAddress(ptr);
+  }
+
+ private:
+  ImageWriter* const image_writer_;
+};
+
+
 void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
                                 mirror::DexCache* copy_dex_cache) {
   // Though the DexCache array fields are usually treated as native pointers, we set the full
@@ -1536,52 +1545,39 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   //     static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + offset))).
   GcRoot<mirror::String>* orig_strings = orig_dex_cache->GetStrings();
   if (orig_strings != nullptr) {
-    uintptr_t copy_strings_offset = NativeOffsetInImage(orig_strings);
-    copy_dex_cache->SetField64<false>(
-        mirror::DexCache::StringsOffset(),
-        static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + copy_strings_offset)));
-    GcRoot<mirror::String>* copy_strings =
-        reinterpret_cast<GcRoot<mirror::String>*>(image_->Begin() + copy_strings_offset);
-    for (size_t i = 0, num = orig_dex_cache->NumStrings(); i != num; ++i) {
-      copy_strings[i] = GcRoot<mirror::String>(GetImageAddress(orig_strings[i].Read()));
-    }
+    copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::StringsOffset(),
+                                               NativeLocationInImage(orig_strings),
+                                               /*pointer size*/8u);
+    orig_dex_cache->FixupStrings(NativeCopyLocation(orig_strings), ImageAddressVisitor(this));
   }
   GcRoot<mirror::Class>* orig_types = orig_dex_cache->GetResolvedTypes();
   if (orig_types != nullptr) {
-    uintptr_t copy_types_offset = NativeOffsetInImage(orig_types);
-    copy_dex_cache->SetField64<false>(
-        mirror::DexCache::ResolvedTypesOffset(),
-        static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + copy_types_offset)));
-    GcRoot<mirror::Class>* copy_types =
-        reinterpret_cast<GcRoot<mirror::Class>*>(image_->Begin() + copy_types_offset);
-    for (size_t i = 0, num = orig_dex_cache->NumResolvedTypes(); i != num; ++i) {
-      copy_types[i] = GcRoot<mirror::Class>(GetImageAddress(orig_types[i].Read()));
-    }
+    copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedTypesOffset(),
+                                               NativeLocationInImage(orig_types),
+                                               /*pointer size*/8u);
+    orig_dex_cache->FixupResolvedTypes(NativeCopyLocation(orig_types), ImageAddressVisitor(this));
   }
   ArtMethod** orig_methods = orig_dex_cache->GetResolvedMethods();
   if (orig_methods != nullptr) {
-    uintptr_t copy_methods_offset = NativeOffsetInImage(orig_methods);
-    copy_dex_cache->SetField64<false>(
-        mirror::DexCache::ResolvedMethodsOffset(),
-        static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + copy_methods_offset)));
-    ArtMethod** copy_methods =
-        reinterpret_cast<ArtMethod**>(image_->Begin() + copy_methods_offset);
+    copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedMethodsOffset(),
+                                               NativeLocationInImage(orig_methods),
+                                               /*pointer size*/8u);
+    ArtMethod** copy_methods = NativeCopyLocation(orig_methods);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedMethods(); i != num; ++i) {
       ArtMethod* orig = mirror::DexCache::GetElementPtrSize(orig_methods, i, target_ptr_size_);
-      ArtMethod* copy = IsInBootImage(orig) ? orig : NativeLocationInImage(orig);
+      ArtMethod* copy = NativeLocationInImage(orig);
       mirror::DexCache::SetElementPtrSize(copy_methods, i, copy, target_ptr_size_);
     }
   }
   ArtField** orig_fields = orig_dex_cache->GetResolvedFields();
   if (orig_fields != nullptr) {
-    uintptr_t copy_fields_offset = NativeOffsetInImage(orig_fields);
-    copy_dex_cache->SetField64<false>(
-        mirror::DexCache::ResolvedFieldsOffset(),
-        static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + copy_fields_offset)));
-    ArtField** copy_fields = reinterpret_cast<ArtField**>(image_->Begin() + copy_fields_offset);
+    copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedFieldsOffset(),
+                                               NativeLocationInImage(orig_fields),
+                                               /*pointer size*/8u);
+    ArtField** copy_fields = NativeCopyLocation(orig_fields);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedFields(); i != num; ++i) {
       ArtField* orig = mirror::DexCache::GetElementPtrSize(orig_fields, i, target_ptr_size_);
-      ArtField* copy = IsInBootImage(orig) ? orig : NativeLocationInImage(orig);
+      ArtField* copy = NativeLocationInImage(orig);
       mirror::DexCache::SetElementPtrSize(copy_fields, i, copy, target_ptr_size_);
     }
   }
