@@ -2340,30 +2340,51 @@ void InstructionCodeGeneratorMIPS64::VisitTryBoundary(HTryBoundary* try_boundary
 }
 
 void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruction,
+                                                           size_t condition_input_index,
                                                            Label* true_target,
-                                                           Label* false_target,
-                                                           Label* always_true_target) {
-  HInstruction* cond = instruction->InputAt(0);
-  HCondition* condition = cond->AsCondition();
+                                                           Label* false_target) {
+  HInstruction* cond = instruction->InputAt(condition_input_index);
 
-  if (cond->IsIntConstant()) {
-    int32_t cond_value = cond->AsIntConstant()->GetValue();
-    if (cond_value == 1) {
-      if (always_true_target != nullptr) {
-        __ B(always_true_target);
+  if (true_target == nullptr && false_target == nullptr) {
+    // Nothing to do. The code always falls through.
+    return;
+  } else if (cond->IsIntConstant()) {
+    // Constant condition, statically compared against 1.
+    if (cond->AsIntConstant()->IsOne()) {
+      if (true_target != nullptr) {
+        __ B(true_target);
       }
-      return;
     } else {
-      DCHECK_EQ(cond_value, 0);
+      DCHECK(cond->AsIntConstant()->IsZero());
+      if (false_target != nullptr) {
+        __ B(false_target);
+      }
     }
-  } else if (!cond->IsCondition() || condition->NeedsMaterialization()) {
+    return;
+  }
+
+  // The following code generates these patterns:
+  //  (1) true_target == nullptr && false_target != nullptr
+  //        - opposite condition true => branch to false_target
+  //  (2) true_target != nullptr && false_target == nullptr
+  //        - condition true => branch to true_target
+  //  (3) true_target != nullptr && false_target != nullptr
+  //        - condition true => branch to true_target
+  //        - branch to false_target
+  if (IsBooleanValueOrMaterializedCondition(cond)) {
     // The condition instruction has been materialized, compare the output to 0.
-    Location cond_val = instruction->GetLocations()->InAt(0);
+    Location cond_val = instruction->GetLocations()->InAt(condition_input_index);
     DCHECK(cond_val.IsRegister());
-    __ Bnezc(cond_val.AsRegister<GpuRegister>(), true_target);
+    if (true_target == nullptr) {
+      __ Beqzc(cond_val.AsRegister<GpuRegister>(), false_target);
+    } else {
+      __ Bnezc(cond_val.AsRegister<GpuRegister>(), true_target);
+    }
   } else {
     // The condition instruction has not been materialized, use its inputs as
     // the comparison and its condition as the branch condition.
+    HCondition* condition = cond->AsCondition();
+
     GpuRegister lhs = condition->GetLocations()->InAt(0).AsRegister<GpuRegister>();
     Location rhs_location = condition->GetLocations()->InAt(1);
     GpuRegister rhs_reg = ZERO;
@@ -2375,37 +2396,46 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
       rhs_reg = rhs_location.AsRegister<GpuRegister>();
     }
 
-    IfCondition if_cond = condition->GetCondition();
+    IfCondition if_cond;
+    Label* non_fallthrough_target;
+    if (true_target == nullptr) {
+      if_cond = condition->GetOppositeCondition();
+      non_fallthrough_target = false_target;
+    } else {
+      if_cond = condition->GetCondition();
+      non_fallthrough_target = true_target;
+    }
+
     if (use_imm && rhs_imm == 0) {
       switch (if_cond) {
         case kCondEQ:
-          __ Beqzc(lhs, true_target);
+          __ Beqzc(lhs, non_fallthrough_target);
           break;
         case kCondNE:
-          __ Bnezc(lhs, true_target);
+          __ Bnezc(lhs, non_fallthrough_target);
           break;
         case kCondLT:
-          __ Bltzc(lhs, true_target);
+          __ Bltzc(lhs, non_fallthrough_target);
           break;
         case kCondGE:
-          __ Bgezc(lhs, true_target);
+          __ Bgezc(lhs, non_fallthrough_target);
           break;
         case kCondLE:
-          __ Blezc(lhs, true_target);
+          __ Blezc(lhs, non_fallthrough_target);
           break;
         case kCondGT:
-          __ Bgtzc(lhs, true_target);
+          __ Bgtzc(lhs, non_fallthrough_target);
           break;
         case kCondB:
           break;  // always false
         case kCondBE:
-          __ Beqzc(lhs, true_target);  // <= 0 if zero
+          __ Beqzc(lhs, non_fallthrough_target);  // <= 0 if zero
           break;
         case kCondA:
-          __ Bnezc(lhs, true_target);  // > 0 if non-zero
+          __ Bnezc(lhs, non_fallthrough_target);  // > 0 if non-zero
           break;
         case kCondAE:
-          __ B(true_target);  // always true
+          __ B(non_fallthrough_target);  // always true
           break;
       }
     } else {
@@ -2424,7 +2454,7 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
           case kCondBE:
           case kCondAE:
             // if lhs == rhs for a positive condition, then it is a branch
-            __ B(true_target);
+            __ B(non_fallthrough_target);
             break;
           case kCondNE:
           case kCondLT:
@@ -2437,72 +2467,68 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
       } else {
         switch (if_cond) {
           case kCondEQ:
-            __ Beqc(lhs, rhs_reg, true_target);
+            __ Beqc(lhs, rhs_reg, non_fallthrough_target);
             break;
           case kCondNE:
-            __ Bnec(lhs, rhs_reg, true_target);
+            __ Bnec(lhs, rhs_reg, non_fallthrough_target);
             break;
           case kCondLT:
-            __ Bltc(lhs, rhs_reg, true_target);
+            __ Bltc(lhs, rhs_reg, non_fallthrough_target);
             break;
           case kCondGE:
-            __ Bgec(lhs, rhs_reg, true_target);
+            __ Bgec(lhs, rhs_reg, non_fallthrough_target);
             break;
           case kCondLE:
-            __ Bgec(rhs_reg, lhs, true_target);
+            __ Bgec(rhs_reg, lhs, non_fallthrough_target);
             break;
           case kCondGT:
-            __ Bltc(rhs_reg, lhs, true_target);
+            __ Bltc(rhs_reg, lhs, non_fallthrough_target);
             break;
           case kCondB:
-            __ Bltuc(lhs, rhs_reg, true_target);
+            __ Bltuc(lhs, rhs_reg, non_fallthrough_target);
             break;
           case kCondAE:
-            __ Bgeuc(lhs, rhs_reg, true_target);
+            __ Bgeuc(lhs, rhs_reg, non_fallthrough_target);
             break;
           case kCondBE:
-            __ Bgeuc(rhs_reg, lhs, true_target);
+            __ Bgeuc(rhs_reg, lhs, non_fallthrough_target);
             break;
           case kCondA:
-            __ Bltuc(rhs_reg, lhs, true_target);
+            __ Bltuc(rhs_reg, lhs, non_fallthrough_target);
             break;
         }
       }
     }
   }
-  if (false_target != nullptr) {
+
+  // If neither branch falls through (case 3), the conditional branch to `true_target`
+  // was already emitted (case 2) and we need to emit a jump to `false_target`.
+  if (true_target != nullptr && false_target != nullptr) {
     __ B(false_target);
   }
 }
 
 void LocationsBuilderMIPS64::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  HInstruction* cond = if_instr->InputAt(0);
-  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
+  if (IsBooleanValueOrMaterializedCondition(if_instr->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
 }
 
 void InstructionCodeGeneratorMIPS64::VisitIf(HIf* if_instr) {
-  Label* true_target = codegen_->GetLabelOf(if_instr->IfTrueSuccessor());
-  Label* false_target = codegen_->GetLabelOf(if_instr->IfFalseSuccessor());
-  Label* always_true_target = true_target;
-  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                if_instr->IfTrueSuccessor())) {
-    always_true_target = nullptr;
-  }
-  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                if_instr->IfFalseSuccessor())) {
-    false_target = nullptr;
-  }
-  GenerateTestAndBranch(if_instr, true_target, false_target, always_true_target);
+  HBasicBlock* true_successor = if_instr->IfTrueSuccessor();
+  HBasicBlock* false_successor = if_instr->IfFalseSuccessor();
+  Label* true_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), true_successor) ?
+      nullptr : codegen_->GetLabelOf(true_successor);
+  Label* false_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), false_successor) ?
+      nullptr : codegen_->GetLabelOf(false_successor);
+  GenerateTestAndBranch(if_instr, /* condition_input_index */ 0, true_target, false_target);
 }
 
 void LocationsBuilderMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
   LocationSummary* locations = new (GetGraph()->GetArena())
       LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
-  HInstruction* cond = deoptimize->InputAt(0);
-  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
+  if (IsBooleanValueOrMaterializedCondition(deoptimize->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
 }
@@ -2511,8 +2537,10 @@ void InstructionCodeGeneratorMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
   SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena())
       DeoptimizationSlowPathMIPS64(deoptimize);
   codegen_->AddSlowPath(slow_path);
-  Label* slow_path_entry = slow_path->GetEntryLabel();
-  GenerateTestAndBranch(deoptimize, slow_path_entry, nullptr, slow_path_entry);
+  GenerateTestAndBranch(deoptimize,
+                        /* condition_input_index */ 0,
+                        slow_path->GetEntryLabel(),
+                        /* false_target */ nullptr);
 }
 
 void LocationsBuilderMIPS64::HandleFieldGet(HInstruction* instruction,
