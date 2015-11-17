@@ -422,8 +422,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
     const DexFile& target_dex_file;
     uint32_t element_offset;
-    // NOTE: Labels are bound to the end of the patched instruction because
-    // we don't know if there will be a veneer or how big it will be.
     vixl::Label label;
     vixl::Label* pc_insn_label;
   };
