@@ -371,6 +371,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
+  // Returns an instruction with the opposite boolean value from 'cond'.
+  // The instruction has been inserted into the graph, either as a constant, or
+  // before cursor.
+  HInstruction* InsertOppositeCondition(HInstruction* cond, HInstruction* cursor);
+
  private:
   void FindBackEdges(ArenaBitVector* visited);
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
