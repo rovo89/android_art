@@ -2890,18 +2890,18 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   switch (invoke->GetMethodLoadKind()) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
       // temp = thread->string_init_entrypoint
-      __ Ldr(XRegisterFrom(temp).X(), MemOperand(tr, invoke->GetStringInitOffset()));
+      __ Ldr(XRegisterFrom(temp), MemOperand(tr, invoke->GetStringInitOffset()));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       // Load method address from literal pool.
-      __ Ldr(XRegisterFrom(temp).X(), DeduplicateUint64Literal(invoke->GetMethodAddress()));
+      __ Ldr(XRegisterFrom(temp), DeduplicateUint64Literal(invoke->GetMethodAddress()));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
       // Load method address from literal pool with a link-time patch.
-      __ Ldr(XRegisterFrom(temp).X(),
+      __ Ldr(XRegisterFrom(temp),
              DeduplicateMethodAddressLiteral(invoke->GetTargetMethod()));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
@@ -2911,16 +2911,19 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       vixl::Label* pc_insn_label = &pc_relative_dex_cache_patches_.back().label;
       {
         vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
-        __ adrp(XRegisterFrom(temp).X(), 0);
+        __ Bind(pc_insn_label);
+        __ adrp(XRegisterFrom(temp), 0);
       }
-      __ Bind(pc_insn_label);  // Bind after ADRP.
       pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
       // Add LDR with its PC-relative DexCache access patch.
       pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
                                                   invoke->GetDexCacheArrayOffset());
-      __ Ldr(XRegisterFrom(temp).X(), MemOperand(XRegisterFrom(temp).X(), 0));
-      __ Bind(&pc_relative_dex_cache_patches_.back().label);  // Bind after LDR.
-      pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
+      {
+        vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(&pc_relative_dex_cache_patches_.back().label);
+        __ ldr(XRegisterFrom(temp), MemOperand(XRegisterFrom(temp), 0));
+        pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
+      }
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
@@ -2954,8 +2957,9 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative: {
       relative_call_patches_.emplace_back(invoke->GetTargetMethod());
       vixl::Label* label = &relative_call_patches_.back().label;
-      __ Bl(label);  // Arbitrarily branch to the instruction after BL, override at link time.
-      __ Bind(label);  // Bind after BL.
+      vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+      __ Bind(label);
+      __ bl(0);  // Branch and link to itself. This will be overriden at link time.
       break;
     }
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
@@ -2968,7 +2972,7 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // LR = callee_method->entry_point_from_quick_compiled_code_;
       __ Ldr(lr, MemOperand(
-          XRegisterFrom(callee_method).X(),
+          XRegisterFrom(callee_method),
           ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize).Int32Value()));
       // lr()
       __ Blr(lr);
@@ -3024,14 +3028,14 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                      target_method.dex_method_index));
   }
   for (const MethodPatchInfo<vixl::Label>& info : relative_call_patches_) {
-    linker_patches->push_back(LinkerPatch::RelativeCodePatch(info.label.location() - 4u,
+    linker_patches->push_back(LinkerPatch::RelativeCodePatch(info.label.location(),
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
   }
   for (const PcRelativeDexCacheAccessInfo& info : pc_relative_dex_cache_patches_) {
-    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(info.label.location() - 4u,
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(info.label.location(),
                                                               &info.target_dex_file,
-                                                              info.pc_insn_label->location() - 4u,
+                                                              info.pc_insn_label->location(),
                                                               info.element_offset));
   }
 }
