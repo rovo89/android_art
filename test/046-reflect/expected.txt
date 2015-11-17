@@ -96,8 +96,8 @@ got expected exception for Class.newInstance
 got expected exception for Constructor.newInstance
 ReflectTest done!
 public method
-static java.lang.Object java.util.Collections.checkType(java.lang.Object,java.lang.Class) accessible=false
-static java.lang.Object java.util.Collections.checkType(java.lang.Object,java.lang.Class) accessible=true
+private static void java.util.Collections.swap(java.lang.Object[],int,int) accessible=false
+private static void java.util.Collections.swap(java.lang.Object[],int,int) accessible=true
 checkType invoking null
 checkType got expected exception
 calling const-class FieldNoisyInitUser.class
