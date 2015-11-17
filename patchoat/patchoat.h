@@ -102,8 +102,6 @@ class PatchOat {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupMethod(ArtMethod* object, ArtMethod* copy)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void FixupNativePointerArray(mirror::PointerArray* object)
-      SHARED_REQUIRES(Locks::mutator_lock_);
   bool InHeap(mirror::Object*);
 
   // Patches oat in place, modifying the oat_file given to the constructor.
@@ -200,6 +198,7 @@ class PatchOat {
   TimingLogger* timings_;
 
   friend class FixupRootVisitor;
+  friend class RelocatedPointerVisitor;
   friend class PatchOatArtFieldVisitor;
   friend class PatchOatArtMethodVisitor;
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);

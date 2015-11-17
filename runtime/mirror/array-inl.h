@@ -394,6 +394,19 @@ inline void PointerArray::SetElementPtrSize(uint32_t idx, T element, size_t ptr_
   }
 }
 
+template <typename Visitor>
+inline void PointerArray::Fixup(mirror::PointerArray* dest,
+                                size_t pointer_size,
+                                const Visitor& visitor) {
+  for (size_t i = 0, count = GetLength(); i < count; ++i) {
+    void* ptr = GetElementPtrSize<void*>(i, pointer_size);
+    void* new_ptr = visitor(ptr);
+    if (ptr != new_ptr) {
+      dest->SetElementPtrSize<false, true>(i, new_ptr, pointer_size);
+    }
+  }
+}
+
 }  // namespace mirror
 }  // namespace art
 
