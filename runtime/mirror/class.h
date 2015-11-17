@@ -1157,6 +1157,13 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetVirtualMethodsPtrUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Fix up all of the native pointers in the class by running them through the visitor. Only sets
+  // the corresponding entry in dest if visitor(obj) != obj to prevent dirty memory. Dest should be
+  // initialized to a copy of *this to prevent issues.
+  template <typename Visitor>
+  void FixupNativePointers(mirror::Class* dest, size_t pointer_size, const Visitor& visitor)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   void SetVerifyError(Object* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
