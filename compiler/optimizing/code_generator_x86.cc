@@ -35,6 +35,9 @@
 
 namespace art {
 
+template<class MirrorType>
+class GcRoot;
+
 namespace x86 {
 
 static constexpr int kCurrentMethodStackOffset = 0;
@@ -300,15 +303,6 @@ class TypeCheckSlowPathX86 : public SlowPathCode {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
 
-    if (instruction_->IsCheckCast()) {
-      // The codegen for the instruction overwrites `temp`, so put it back in place.
-      Register obj = locations->InAt(0).AsRegister<Register>();
-      Register temp = locations->GetTemp(0).AsRegister<Register>();
-      uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-      __ movl(temp, Address(obj, class_offset));
-      __ MaybeUnpoisonHeapReference(temp);
-    }
-
     if (!is_fatal_) {
       SaveLiveRegisters(codegen, locations);
     }
@@ -329,12 +323,15 @@ class TypeCheckSlowPathX86 : public SlowPathCode {
                                  instruction_,
                                  instruction_->GetDexPc(),
                                  this);
+      CheckEntrypointTypes<
+          kQuickInstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
       x86_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),
                                  instruction_,
                                  instruction_->GetDexPc(),
                                  this);
+      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
     }
 
     if (!is_fatal_) {
@@ -425,6 +422,221 @@ class ArraySetSlowPathX86 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathX86);
 };
 
+// Slow path generating a read barrier for a heap reference.
+class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
+ public:
+  ReadBarrierForHeapReferenceSlowPathX86(HInstruction* instruction,
+                                         Location out,
+                                         Location ref,
+                                         Location obj,
+                                         uint32_t offset,
+                                         Location index)
+      : instruction_(instruction),
+        out_(out),
+        ref_(ref),
+        obj_(obj),
+        offset_(offset),
+        index_(index) {
+    DCHECK(kEmitCompilerReadBarrier);
+    // If `obj` is equal to `out` or `ref`, it means the initial object
+    // has been overwritten by (or after) the heap object reference load
+    // to be instrumented, e.g.:
+    //
+    //   __ movl(out, Address(out, offset));
+    //   codegen_->GenerateReadBarrier(instruction, out_loc, out_loc, out_loc, offset);
+    //
+    // In that case, we have lost the information about the original
+    // object, and the emitted read barrier cannot work properly.
+    DCHECK(!obj.Equals(out)) << "obj=" << obj << " out=" << out;
+    DCHECK(!obj.Equals(ref)) << "obj=" << obj << " ref=" << ref;
+  }
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
+    LocationSummary* locations = instruction_->GetLocations();
+    Register reg_out = out_.AsRegister<Register>();
+    DCHECK(locations->CanCall());
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg_out));
+    DCHECK(!instruction_->IsInvoke() ||
+           (instruction_->IsInvokeStaticOrDirect() &&
+            instruction_->GetLocations()->Intrinsified()));
+
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    // We may have to change the index's value, but as `index_` is a
+    // constant member (like other "inputs" of this slow path),
+    // introduce a copy of it, `index`.
+    Location index = index_;
+    if (index_.IsValid()) {
+      // Handle `index_` for HArrayGet and intrinsic UnsafeGetObject.
+      if (instruction_->IsArrayGet()) {
+        // Compute the actual memory offset and store it in `index`.
+        Register index_reg = index_.AsRegister<Register>();
+        DCHECK(locations->GetLiveRegisters()->ContainsCoreRegister(index_reg));
+        if (codegen->IsCoreCalleeSaveRegister(index_reg)) {
+          // We are about to change the value of `index_reg` (see the
+          // calls to art::x86::X86Assembler::shll and
+          // art::x86::X86Assembler::AddImmediate below), but it has
+          // not been saved by the previous call to
+          // art::SlowPathCode::SaveLiveRegisters, as it is a
+          // callee-save register --
+          // art::SlowPathCode::SaveLiveRegisters does not consider
+          // callee-save registers, as it has been designed with the
+          // assumption that callee-save registers are supposed to be
+          // handled by the called function.  So, as a callee-save
+          // register, `index_reg` _would_ eventually be saved onto
+          // the stack, but it would be too late: we would have
+          // changed its value earlier.  Therefore, we manually save
+          // it here into another freely available register,
+          // `free_reg`, chosen of course among the caller-save
+          // registers (as a callee-save `free_reg` register would
+          // exhibit the same problem).
+          //
+          // Note we could have requested a temporary register from
+          // the register allocator instead; but we prefer not to, as
+          // this is a slow path, and we know we can find a
+          // caller-save register that is available.
+          Register free_reg = FindAvailableCallerSaveRegister(codegen);
+          __ movl(free_reg, index_reg);
+          index_reg = free_reg;
+          index = Location::RegisterLocation(index_reg);
+        } else {
+          // The initial register stored in `index_` has already been
+          // saved in the call to art::SlowPathCode::SaveLiveRegisters
+          // (as it is not a callee-save register), so we can freely
+          // use it.
+        }
+        // Shifting the index value contained in `index_reg` by the scale
+        // factor (2) cannot overflow in practice, as the runtime is
+        // unable to allocate object arrays with a size larger than
+        // 2^26 - 1 (that is, 2^28 - 4 bytes).
+        __ shll(index_reg, Immediate(TIMES_4));
+        static_assert(
+            sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+            "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
+        __ AddImmediate(index_reg, Immediate(offset_));
+      } else {
+        DCHECK(instruction_->IsInvoke());
+        DCHECK(instruction_->GetLocations()->Intrinsified());
+        DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
+               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile))
+            << instruction_->AsInvoke()->GetIntrinsic();
+        DCHECK_EQ(offset_, 0U);
+        DCHECK(index_.IsRegisterPair());
+        // UnsafeGet's offset location is a register pair, the low
+        // part contains the correct offset.
+        index = index_.ToLow();
+      }
+    }
+
+    // We're moving two or three locations to locations that could
+    // overlap, so we need a parallel move resolver.
+    InvokeRuntimeCallingConvention calling_convention;
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+    parallel_move.AddMove(ref_,
+                          Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+                          Primitive::kPrimNot,
+                          nullptr);
+    parallel_move.AddMove(obj_,
+                          Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+                          Primitive::kPrimNot,
+                          nullptr);
+    if (index.IsValid()) {
+      parallel_move.AddMove(index,
+                            Location::RegisterLocation(calling_convention.GetRegisterAt(2)),
+                            Primitive::kPrimInt,
+                            nullptr);
+      codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+    } else {
+      codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+      __ movl(calling_convention.GetRegisterAt(2), Immediate(offset_));
+    }
+    x86_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pReadBarrierSlow),
+                               instruction_,
+                               instruction_->GetDexPc(),
+                               this);
+    CheckEntrypointTypes<
+        kQuickReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t>();
+    x86_codegen->Move32(out_, Location::RegisterLocation(EAX));
+
+    RestoreLiveRegisters(codegen, locations);
+    __ jmp(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "ReadBarrierForHeapReferenceSlowPathX86"; }
+
+ private:
+  Register FindAvailableCallerSaveRegister(CodeGenerator* codegen) {
+    size_t ref = static_cast<int>(ref_.AsRegister<Register>());
+    size_t obj = static_cast<int>(obj_.AsRegister<Register>());
+    for (size_t i = 0, e = codegen->GetNumberOfCoreRegisters(); i < e; ++i) {
+      if (i != ref && i != obj && !codegen->IsCoreCalleeSaveRegister(i)) {
+        return static_cast<Register>(i);
+      }
+    }
+    // We shall never fail to find a free caller-save register, as
+    // there are more than two core caller-save registers on x86
+    // (meaning it is possible to find one which is different from
+    // `ref` and `obj`).
+    DCHECK_GT(codegen->GetNumberOfCoreCallerSaveRegisters(), 2u);
+    LOG(FATAL) << "Could not find a free caller-save register";
+    UNREACHABLE();
+  }
+
+  HInstruction* const instruction_;
+  const Location out_;
+  const Location ref_;
+  const Location obj_;
+  const uint32_t offset_;
+  // An additional location containing an index to an array.
+  // Only used for HArrayGet and the UnsafeGetObject &
+  // UnsafeGetObjectVolatile intrinsics.
+  const Location index_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReadBarrierForHeapReferenceSlowPathX86);
+};
+
+// Slow path generating a read barrier for a GC root.
+class ReadBarrierForRootSlowPathX86 : public SlowPathCode {
+ public:
+  ReadBarrierForRootSlowPathX86(HInstruction* instruction, Location out, Location root)
+      : instruction_(instruction), out_(out), root_(root) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    Register reg_out = out_.AsRegister<Register>();
+    DCHECK(locations->CanCall());
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg_out));
+    DCHECK(instruction_->IsLoadClass() || instruction_->IsLoadString());
+
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
+    x86_codegen->Move32(Location::RegisterLocation(calling_convention.GetRegisterAt(0)), root_);
+    x86_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pReadBarrierForRootSlow),
+                               instruction_,
+                               instruction_->GetDexPc(),
+                               this);
+    CheckEntrypointTypes<kQuickReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*>();
+    x86_codegen->Move32(out_, Location::RegisterLocation(EAX));
+
+    RestoreLiveRegisters(codegen, locations);
+    __ jmp(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "ReadBarrierForRootSlowPathX86"; }
+
+ private:
+  HInstruction* const instruction_;
+  const Location out_;
+  const Location root_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReadBarrierForRootSlowPathX86);
+};
+
 #undef __
 #define __ down_cast<X86Assembler*>(GetAssembler())->
 
@@ -513,9 +725,9 @@ void CodeGeneratorX86::InvokeRuntime(int32_t entry_point_offset,
 }
 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
-                   const X86InstructionSetFeatures& isa_features,
-                   const CompilerOptions& compiler_options,
-                   OptimizingCompilerStats* stats)
+                                   const X86InstructionSetFeatures& isa_features,
+                                   const CompilerOptions& compiler_options,
+                                   OptimizingCompilerStats* stats)
     : CodeGenerator(graph,
                     kNumberOfCpuRegisters,
                     kNumberOfXmmRegisters,
@@ -582,7 +794,7 @@ Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type) const {
       LOG(FATAL) << "Unreachable type " << type;
   }
 
-  return Location();
+  return Location::NoLocation();
 }
 
 void CodeGeneratorX86::SetupBlockedRegisters(bool is_baseline) const {
@@ -783,7 +995,7 @@ Location InvokeDexCallingConventionVisitorX86::GetNextLocation(Primitive::Type t
       LOG(FATAL) << "Unexpected parameter type " << type;
       break;
   }
-  return Location();
+  return Location::NoLocation();
 }
 
 void CodeGeneratorX86::Move32(Location destination, Location source) {
@@ -1767,6 +1979,9 @@ void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderX86::VisitInvokeInterface(HInvokeInterface* invoke) {
+  // This call to HandleInvoke allocates a temporary (core) register
+  // which is also used to transfer the hidden argument from FP to
+  // core register.
   HandleInvoke(invoke);
   // Add the hidden argument.
   invoke->GetLocations()->AddTemp(Location::FpuRegisterLocation(XMM7));
@@ -1774,31 +1989,42 @@ void LocationsBuilderX86::VisitInvokeInterface(HInvokeInterface* invoke) {
 
 void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke) {
   // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
+  LocationSummary* locations = invoke->GetLocations();
+  Register temp = locations->GetTemp(0).AsRegister<Register>();
+  XmmRegister hidden_reg = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
   uint32_t method_offset = mirror::Class::EmbeddedImTableEntryOffset(
       invoke->GetImtIndex() % mirror::Class::kImtSize, kX86PointerSize).Uint32Value();
-  LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
 
-  // Set the hidden argument.
+  // Set the hidden argument. This is safe to do this here, as XMM7
+  // won't be modified thereafter, before the `call` instruction.
+  DCHECK_EQ(XMM7, hidden_reg);
   __ movl(temp, Immediate(invoke->GetDexMethodIndex()));
-  __ movd(invoke->GetLocations()->GetTemp(1).AsFpuRegister<XmmRegister>(), temp);
+  __ movd(hidden_reg, temp);
 
-  // temp = object->GetClass();
   if (receiver.IsStackSlot()) {
     __ movl(temp, Address(ESP, receiver.GetStackIndex()));
+    // /* HeapReference<Class> */ temp = temp->klass_
     __ movl(temp, Address(temp, class_offset));
   } else {
+    // /* HeapReference<Class> */ temp = receiver->klass_
     __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
   }
   codegen_->MaybeRecordImplicitNullCheck(invoke);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
   __ MaybeUnpoisonHeapReference(temp);
   // temp = temp->GetImtEntryAt(method_offset);
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
-  __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86WordSize).Int32Value()));
+  __ call(Address(temp,
+                  ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -3871,7 +4097,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
         method_reg = reg;
         __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
       }
-      // temp = temp->dex_cache_resolved_methods_;
+      // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
       __ movl(reg, Address(method_reg,
                            ArtMethod::DexCacheResolvedMethodsOffset(kX86PointerSize).Int32Value()));
       // temp = temp[index_in_cache]
@@ -3915,10 +4141,17 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  // temp = object->GetClass();
   DCHECK(receiver.IsRegister());
+  // /* HeapReference<Class> */ temp = receiver->klass_
   __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
   MaybeRecordImplicitNullCheck(invoke);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
   __ MaybeUnpoisonHeapReference(temp);
   // temp = temp->GetMethodAt(method_offset);
   __ movl(temp, Address(temp, method_offset));
@@ -3980,18 +4213,29 @@ void CodeGeneratorX86::MarkGCCard(Register temp,
 
 void LocationsBuilderX86::HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info) {
   DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
+
+  bool object_field_get_with_read_barrier =
+      kEmitCompilerReadBarrier && (instruction->GetType() == Primitive::kPrimNot);
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(instruction,
+                                                   kEmitCompilerReadBarrier ?
+                                                       LocationSummary::kCallOnSlowPath :
+                                                       LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
 
   if (Primitive::IsFloatingPointType(instruction->GetType())) {
     locations->SetOut(Location::RequiresFpuRegister());
   } else {
-    // The output overlaps in case of long: we don't want the low move to overwrite
-    // the object's location.
-    locations->SetOut(Location::RequiresRegister(),
-        (instruction->GetType() == Primitive::kPrimLong) ? Location::kOutputOverlap
-                                                         : Location::kNoOutputOverlap);
+    // The output overlaps in case of long: we don't want the low move
+    // to overwrite the object's location.  Likewise, in the case of
+    // an object field get with read barriers enabled, we do not want
+    // the move to overwrite the object's location, as we need it to emit
+    // the read barrier.
+    locations->SetOut(
+        Location::RequiresRegister(),
+        (object_field_get_with_read_barrier || instruction->GetType() == Primitive::kPrimLong) ?
+            Location::kOutputOverlap :
+            Location::kNoOutputOverlap);
   }
 
   if (field_info.IsVolatile() && (field_info.GetFieldType() == Primitive::kPrimLong)) {
@@ -4007,7 +4251,8 @@ void InstructionCodeGeneratorX86::HandleFieldGet(HInstruction* instruction,
   DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
 
   LocationSummary* locations = instruction->GetLocations();
-  Register base = locations->InAt(0).AsRegister<Register>();
+  Location base_loc = locations->InAt(0);
+  Register base = base_loc.AsRegister<Register>();
   Location out = locations->Out();
   bool is_volatile = field_info.IsVolatile();
   Primitive::Type field_type = field_info.GetFieldType();
@@ -4082,7 +4327,7 @@ void InstructionCodeGeneratorX86::HandleFieldGet(HInstruction* instruction,
   }
 
   if (field_type == Primitive::kPrimNot) {
-    __ MaybeUnpoisonHeapReference(out.AsRegister<Register>());
+    codegen_->MaybeGenerateReadBarrier(instruction, out, out, base_loc, offset);
   }
 }
 
@@ -4410,24 +4655,35 @@ void InstructionCodeGeneratorX86::VisitNullCheck(HNullCheck* instruction) {
 }
 
 void LocationsBuilderX86::VisitArrayGet(HArrayGet* instruction) {
+  bool object_array_get_with_read_barrier =
+      kEmitCompilerReadBarrier && (instruction->GetType() == Primitive::kPrimNot);
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(instruction,
+                                                   object_array_get_with_read_barrier ?
+                                                       LocationSummary::kCallOnSlowPath :
+                                                       LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
   if (Primitive::IsFloatingPointType(instruction->GetType())) {
     locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
   } else {
-    // The output overlaps in case of long: we don't want the low move to overwrite
-    // the array's location.
-    locations->SetOut(Location::RequiresRegister(),
-        (instruction->GetType() == Primitive::kPrimLong) ? Location::kOutputOverlap
-                                                         : Location::kNoOutputOverlap);
+    // The output overlaps in case of long: we don't want the low move
+    // to overwrite the array's location.  Likewise, in the case of an
+    // object array get with read barriers enabled, we do not want the
+    // move to overwrite the array's location, as we need it to emit
+    // the read barrier.
+    locations->SetOut(
+        Location::RequiresRegister(),
+        (instruction->GetType() == Primitive::kPrimLong || object_array_get_with_read_barrier) ?
+            Location::kOutputOverlap :
+            Location::kNoOutputOverlap);
   }
 }
 
 void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  Register obj = locations->InAt(0).AsRegister<Register>();
+  Location obj_loc = locations->InAt(0);
+  Register obj = obj_loc.AsRegister<Register>();
   Location index = locations->InAt(1);
 
   Primitive::Type type = instruction->GetType();
@@ -4482,6 +4738,9 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
+      static_assert(
+          sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+          "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
@@ -4546,8 +4805,17 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
   }
 
   if (type == Primitive::kPrimNot) {
-    Register out = locations->Out().AsRegister<Register>();
-    __ MaybeUnpoisonHeapReference(out);
+    static_assert(
+        sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+        "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
+    uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+    Location out = locations->Out();
+    if (index.IsConstant()) {
+      uint32_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+      codegen_->MaybeGenerateReadBarrier(instruction, out, out, obj_loc, offset);
+    } else {
+      codegen_->MaybeGenerateReadBarrier(instruction, out, out, obj_loc, data_offset, index);
+    }
   }
 }
 
@@ -4558,14 +4826,18 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
   // optimization.
 
   Primitive::Type value_type = instruction->GetComponentType();
+
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
-
-  bool may_need_runtime_call = instruction->NeedsTypeCheck();
+  bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
+  bool object_array_set_with_read_barrier =
+      kEmitCompilerReadBarrier && (value_type == Primitive::kPrimNot);
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
       instruction,
-      may_need_runtime_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
+      (may_need_runtime_call_for_type_check || object_array_set_with_read_barrier) ?
+          LocationSummary::kCallOnSlowPath :
+          LocationSummary::kNoCall);
 
   bool is_byte_type = (value_type == Primitive::kPrimBoolean)
       || (value_type == Primitive::kPrimByte);
@@ -4586,20 +4858,21 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     // Temporary registers for the write barrier.
     locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
     // Ensure the card is in a byte register.
-    locations->AddTemp(Location::RegisterLocation(ECX));
+    locations->AddTemp(Location::RegisterLocation(ECX));  // Possibly used for read barrier too.
   }
 }
 
 void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  Register array = locations->InAt(0).AsRegister<Register>();
+  Location array_loc = locations->InAt(0);
+  Register array = array_loc.AsRegister<Register>();
   Location index = locations->InAt(1);
   Location value = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
-  bool may_need_runtime_call = locations->CanCall();
+  bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
 
@@ -4639,6 +4912,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       Address address = index.IsConstant()
           ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
           : Address(array, index.AsRegister<Register>(), TIMES_4, offset);
+
       if (!value.IsRegister()) {
         // Just setting null.
         DCHECK(instruction->InputAt(2)->IsNullConstant());
@@ -4646,7 +4920,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
         __ movl(address, Immediate(0));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         DCHECK(!needs_write_barrier);
-        DCHECK(!may_need_runtime_call);
+        DCHECK(!may_need_runtime_call_for_type_check);
         break;
       }
 
@@ -4655,7 +4929,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       NearLabel done, not_null, do_put;
       SlowPathCode* slow_path = nullptr;
       Register temp = locations->GetTemp(0).AsRegister<Register>();
-      if (may_need_runtime_call) {
+      if (may_need_runtime_call_for_type_check) {
         slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathX86(instruction);
         codegen_->AddSlowPath(slow_path);
         if (instruction->GetValueCanBeNull()) {
@@ -4667,22 +4941,62 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
           __ Bind(&not_null);
         }
 
-        __ movl(temp, Address(array, class_offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ MaybeUnpoisonHeapReference(temp);
-        __ movl(temp, Address(temp, component_offset));
-        // No need to poison/unpoison, we're comparing two poisoned references.
-        __ cmpl(temp, Address(register_value, class_offset));
-        if (instruction->StaticTypeOfArrayIsObjectArray()) {
-          __ j(kEqual, &do_put);
-          __ MaybeUnpoisonHeapReference(temp);
-          __ movl(temp, Address(temp, super_offset));
-          // No need to unpoison, we're comparing against null..
-          __ testl(temp, temp);
-          __ j(kNotEqual, slow_path->GetEntryLabel());
-          __ Bind(&do_put);
+        if (kEmitCompilerReadBarrier) {
+          // When read barriers are enabled, the type checking
+          // instrumentation requires two read barriers:
+          //
+          //   __ movl(temp2, temp);
+          //   // /* HeapReference<Class> */ temp = temp->component_type_
+          //   __ movl(temp, Address(temp, component_offset));
+          //   codegen_->GenerateReadBarrier(
+          //       instruction, temp_loc, temp_loc, temp2_loc, component_offset);
+          //
+          //   // /* HeapReference<Class> */ temp2 = register_value->klass_
+          //   __ movl(temp2, Address(register_value, class_offset));
+          //   codegen_->GenerateReadBarrier(
+          //       instruction, temp2_loc, temp2_loc, value, class_offset, temp_loc);
+          //
+          //   __ cmpl(temp, temp2);
+          //
+          // However, the second read barrier may trash `temp`, as it
+          // is a temporary register, and as such would not be saved
+          // along with live registers before calling the runtime (nor
+          // restored afterwards).  So in this case, we bail out and
+          // delegate the work to the array set slow path.
+          //
+          // TODO: Extend the register allocator to support a new
+          // "(locally) live temp" location so as to avoid always
+          // going into the slow path when read barriers are enabled.
+          __ jmp(slow_path->GetEntryLabel());
         } else {
-          __ j(kNotEqual, slow_path->GetEntryLabel());
+          // /* HeapReference<Class> */ temp = array->klass_
+          __ movl(temp, Address(array, class_offset));
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ MaybeUnpoisonHeapReference(temp);
+
+          // /* HeapReference<Class> */ temp = temp->component_type_
+          __ movl(temp, Address(temp, component_offset));
+          // If heap poisoning is enabled, no need to unpoison `temp`
+          // nor the object reference in `register_value->klass`, as
+          // we are comparing two poisoned references.
+          __ cmpl(temp, Address(register_value, class_offset));
+
+          if (instruction->StaticTypeOfArrayIsObjectArray()) {
+            __ j(kEqual, &do_put);
+            // If heap poisoning is enabled, the `temp` reference has
+            // not been unpoisoned yet; unpoison it now.
+            __ MaybeUnpoisonHeapReference(temp);
+
+            // /* HeapReference<Class> */ temp = temp->super_class_
+            __ movl(temp, Address(temp, super_offset));
+            // If heap poisoning is enabled, no need to unpoison
+            // `temp`, as we are comparing against null below.
+            __ testl(temp, temp);
+            __ j(kNotEqual, slow_path->GetEntryLabel());
+            __ Bind(&do_put);
+          } else {
+            __ j(kNotEqual, slow_path->GetEntryLabel());
+          }
         }
       }
 
@@ -4693,7 +5007,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       } else {
         __ movl(address, register_value);
       }
-      if (!may_need_runtime_call) {
+      if (!may_need_runtime_call_for_type_check) {
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       }
 
@@ -4708,6 +5022,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 
       break;
     }
+
     case Primitive::kPrimInt: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
       Address address = index.IsConstant()
@@ -5178,7 +5493,8 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
   CodeGenerator::CreateLoadClassLocationSummary(
       cls,
       Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-      Location::RegisterLocation(EAX));
+      Location::RegisterLocation(EAX),
+      /* code_generator_supports_read_barrier */ true);
 }
 
 void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
@@ -5192,18 +5508,40 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
     return;
   }
 
-  Register out = locations->Out().AsRegister<Register>();
+  Location out_loc = locations->Out();
+  Register out = out_loc.AsRegister<Register>();
   Register current_method = locations->InAt(0).AsRegister<Register>();
+
   if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
-    __ movl(out, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
+    uint32_t declaring_class_offset = ArtMethod::DeclaringClassOffset().Int32Value();
+    if (kEmitCompilerReadBarrier) {
+      // /* GcRoot<mirror::Class>* */ out = &(current_method->declaring_class_)
+      __ leal(out, Address(current_method, declaring_class_offset));
+      // /* mirror::Class* */ out = out->Read()
+      codegen_->GenerateReadBarrierForRoot(cls, out_loc, out_loc);
+    } else {
+      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
+      __ movl(out, Address(current_method, declaring_class_offset));
+    }
   } else {
     DCHECK(cls->CanCallRuntime());
-    __ movl(out, Address(
-        current_method, ArtMethod::DexCacheResolvedTypesOffset(kX86PointerSize).Int32Value()));
-    __ movl(out, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
-    // TODO: We will need a read barrier here.
+    // /* GcRoot<mirror::Class>[] */ out =
+    //        current_method.ptr_sized_fields_->dex_cache_resolved_types_
+    __ movl(out, Address(current_method,
+                         ArtMethod::DexCacheResolvedTypesOffset(kX86PointerSize).Int32Value()));
+
+    size_t cache_offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex());
+    if (kEmitCompilerReadBarrier) {
+      // /* GcRoot<mirror::Class>* */ out = &out[type_index]
+      __ leal(out, Address(out, cache_offset));
+      // /* mirror::Class* */ out = out->Read()
+      codegen_->GenerateReadBarrierForRoot(cls, out_loc, out_loc);
+    } else {
+      // /* GcRoot<mirror::Class> */ out = out[type_index]
+      __ movl(out, Address(out, cache_offset));
+    }
 
     SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
@@ -5257,12 +5595,35 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
   codegen_->AddSlowPath(slow_path);
 
   LocationSummary* locations = load->GetLocations();
-  Register out = locations->Out().AsRegister<Register>();
+  Location out_loc = locations->Out();
+  Register out = out_loc.AsRegister<Register>();
   Register current_method = locations->InAt(0).AsRegister<Register>();
-  __ movl(out, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
+
+  uint32_t declaring_class_offset = ArtMethod::DeclaringClassOffset().Int32Value();
+  if (kEmitCompilerReadBarrier) {
+    // /* GcRoot<mirror::Class>* */ out = &(current_method->declaring_class_)
+    __ leal(out, Address(current_method, declaring_class_offset));
+    // /* mirror::Class* */ out = out->Read()
+    codegen_->GenerateReadBarrierForRoot(load, out_loc, out_loc);
+  } else {
+    // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
+    __ movl(out, Address(current_method, declaring_class_offset));
+  }
+
+  // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
   __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
-  __ movl(out, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
-  // TODO: We will need a read barrier here.
+
+  size_t cache_offset = CodeGenerator::GetCacheOffset(load->GetStringIndex());
+  if (kEmitCompilerReadBarrier) {
+    // /* GcRoot<mirror::String>* */ out = &out[string_index]
+    __ leal(out, Address(out, cache_offset));
+    // /* mirror::String* */ out = out->Read()
+    codegen_->GenerateReadBarrierForRoot(load, out_loc, out_loc);
+  } else {
+    // /* GcRoot<mirror::String> */ out = out[string_index]
+    __ movl(out, Address(out, cache_offset));
+  }
+
   __ testl(out, out);
   __ j(kEqual, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
@@ -5306,40 +5667,44 @@ void InstructionCodeGeneratorX86::VisitThrow(HThrow* instruction) {
 
 void LocationsBuilderX86::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
-  switch (instruction->GetTypeCheckKind()) {
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
     case TypeCheckKind::kClassHierarchyCheck:
     case TypeCheckKind::kArrayObjectCheck:
-      call_kind = LocationSummary::kNoCall;
-      break;
-    case TypeCheckKind::kUnresolvedCheck:
-    case TypeCheckKind::kInterfaceCheck:
-      call_kind = LocationSummary::kCall;
+      call_kind =
+          kEmitCompilerReadBarrier ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall;
       break;
     case TypeCheckKind::kArrayCheck:
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
       call_kind = LocationSummary::kCallOnSlowPath;
       break;
   }
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
-  if (call_kind != LocationSummary::kCall) {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::Any());
-    // Note that TypeCheckSlowPathX86 uses this register too.
-    locations->SetOut(Location::RequiresRegister());
-  } else {
-    InvokeRuntimeCallingConvention calling_convention;
-    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-    locations->SetOut(Location::RegisterLocation(EAX));
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::Any());
+  // Note that TypeCheckSlowPathX86 uses this "out" register too.
+  locations->SetOut(Location::RequiresRegister());
+  // When read barriers are enabled, we need a temporary register for
+  // some cases.
+  if (kEmitCompilerReadBarrier &&
+      (type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+       type_check_kind == TypeCheckKind::kArrayObjectCheck)) {
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
 void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  Register obj = locations->InAt(0).AsRegister<Register>();
+  Location obj_loc = locations->InAt(0);
+  Register obj = obj_loc.AsRegister<Register>();
   Location cls = locations->InAt(1);
-  Register out = locations->Out().AsRegister<Register>();
+  Location out_loc = locations->Out();
+  Register out = out_loc.AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
@@ -5354,15 +5719,9 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
     __ j(kEqual, &zero);
   }
 
-  // In case of an interface/unresolved check, we put the object class into the object register.
-  // This is safe, as the register is caller-save, and the object must be in another
-  // register if it survives the runtime call.
-  Register target = (instruction->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) ||
-      (instruction->GetTypeCheckKind() == TypeCheckKind::kUnresolvedCheck)
-      ? obj
-      : out;
-  __ movl(target, Address(obj, class_offset));
-  __ MaybeUnpoisonHeapReference(target);
+  // /* HeapReference<Class> */ out = obj->klass_
+  __ movl(out, Address(obj, class_offset));
+  codegen_->MaybeGenerateReadBarrier(instruction, out_loc, out_loc, obj_loc, class_offset);
 
   switch (instruction->GetTypeCheckKind()) {
     case TypeCheckKind::kExactCheck: {
@@ -5379,13 +5738,23 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       __ jmp(&done);
       break;
     }
+
     case TypeCheckKind::kAbstractClassCheck: {
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       NearLabel loop;
       __ Bind(&loop);
+      Location temp_loc = kEmitCompilerReadBarrier ? locations->GetTemp(0) : Location::NoLocation();
+      if (kEmitCompilerReadBarrier) {
+        // Save the value of `out` into `temp` before overwriting it
+        // in the following move operation, as we will need it for the
+        // read barrier below.
+        Register temp = temp_loc.AsRegister<Register>();
+        __ movl(temp, out);
+      }
+      // /* HeapReference<Class> */ out = out->super_class_
       __ movl(out, Address(out, super_offset));
-      __ MaybeUnpoisonHeapReference(out);
+      codegen_->MaybeGenerateReadBarrier(instruction, out_loc, out_loc, temp_loc, super_offset);
       __ testl(out, out);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ j(kEqual, &done);
@@ -5402,6 +5771,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       }
       break;
     }
+
     case TypeCheckKind::kClassHierarchyCheck: {
       // Walk over the class hierarchy to find a match.
       NearLabel loop, success;
@@ -5413,8 +5783,17 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
         __ cmpl(out, Address(ESP, cls.GetStackIndex()));
       }
       __ j(kEqual, &success);
+      Location temp_loc = kEmitCompilerReadBarrier ? locations->GetTemp(0) : Location::NoLocation();
+      if (kEmitCompilerReadBarrier) {
+        // Save the value of `out` into `temp` before overwriting it
+        // in the following move operation, as we will need it for the
+        // read barrier below.
+        Register temp = temp_loc.AsRegister<Register>();
+        __ movl(temp, out);
+      }
+      // /* HeapReference<Class> */ out = out->super_class_
       __ movl(out, Address(out, super_offset));
-      __ MaybeUnpoisonHeapReference(out);
+      codegen_->MaybeGenerateReadBarrier(instruction, out_loc, out_loc, temp_loc, super_offset);
       __ testl(out, out);
       __ j(kNotEqual, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
@@ -5426,6 +5805,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       }
       break;
     }
+
     case TypeCheckKind::kArrayObjectCheck: {
       // Do an exact check.
       NearLabel exact_check;
@@ -5436,9 +5816,18 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
         __ cmpl(out, Address(ESP, cls.GetStackIndex()));
       }
       __ j(kEqual, &exact_check);
-      // Otherwise, we need to check that the object's class is a non primitive array.
+      // Otherwise, we need to check that the object's class is a non-primitive array.
+      Location temp_loc = kEmitCompilerReadBarrier ? locations->GetTemp(0) : Location::NoLocation();
+      if (kEmitCompilerReadBarrier) {
+        // Save the value of `out` into `temp` before overwriting it
+        // in the following move operation, as we will need it for the
+        // read barrier below.
+        Register temp = temp_loc.AsRegister<Register>();
+        __ movl(temp, out);
+      }
+      // /* HeapReference<Class> */ out = out->component_type_
       __ movl(out, Address(out, component_offset));
-      __ MaybeUnpoisonHeapReference(out);
+      codegen_->MaybeGenerateReadBarrier(instruction, out_loc, out_loc, temp_loc, component_offset);
       __ testl(out, out);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ j(kEqual, &done);
@@ -5449,6 +5838,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       __ jmp(&done);
       break;
     }
+
     case TypeCheckKind::kArrayCheck: {
       if (cls.IsRegister()) {
         __ cmpl(out, cls.AsRegister<Register>());
@@ -5457,8 +5847,8 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
         __ cmpl(out, Address(ESP, cls.GetStackIndex()));
       }
       DCHECK(locations->OnlyCallsOnSlowPath());
-      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
-          instruction, /* is_fatal */ false);
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(instruction,
+                                                                    /* is_fatal */ false);
       codegen_->AddSlowPath(slow_path);
       __ j(kNotEqual, slow_path->GetEntryLabel());
       __ movl(out, Immediate(1));
@@ -5467,13 +5857,25 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       }
       break;
     }
+
     case TypeCheckKind::kUnresolvedCheck:
-    case TypeCheckKind::kInterfaceCheck:
-    default: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial),
-                              instruction,
-                              instruction->GetDexPc(),
-                              nullptr);
+    case TypeCheckKind::kInterfaceCheck: {
+      // Note that we indeed only call on slow path, but we always go
+      // into the slow path for the unresolved & interface check
+      // cases.
+      //
+      // We cannot directly call the InstanceofNonTrivial runtime
+      // entry point without resorting to a type checking slow path
+      // here (i.e. by calling InvokeRuntime directly), as it would
+      // require to assign fixed registers for the inputs of this
+      // HInstanceOf instruction (following the runtime calling
+      // convention), which might be cluttered by the potential first
+      // read barrier emission at the beginning of this method.
+      DCHECK(locations->OnlyCallsOnSlowPath());
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(instruction,
+                                                                    /* is_fatal */ false);
+      codegen_->AddSlowPath(slow_path);
+      __ jmp(slow_path->GetEntryLabel());
       if (zero.IsLinked()) {
         __ jmp(&done);
       }
@@ -5498,75 +5900,73 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
 void LocationsBuilderX86::VisitCheckCast(HCheckCast* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
-
-  switch (instruction->GetTypeCheckKind()) {
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
     case TypeCheckKind::kClassHierarchyCheck:
     case TypeCheckKind::kArrayObjectCheck:
-      call_kind = throws_into_catch
-          ? LocationSummary::kCallOnSlowPath
-          : LocationSummary::kNoCall;
-      break;
-    case TypeCheckKind::kInterfaceCheck:
-    case TypeCheckKind::kUnresolvedCheck:
-      call_kind = LocationSummary::kCall;
+      call_kind = (throws_into_catch || kEmitCompilerReadBarrier) ?
+          LocationSummary::kCallOnSlowPath :
+          LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
       break;
     case TypeCheckKind::kArrayCheck:
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
       call_kind = LocationSummary::kCallOnSlowPath;
       break;
   }
-
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction, call_kind);
-  if (call_kind != LocationSummary::kCall) {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::Any());
-    // Note that TypeCheckSlowPathX86 uses this register too.
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::Any());
+  // Note that TypeCheckSlowPathX86 uses this "temp" register too.
+  locations->AddTemp(Location::RequiresRegister());
+  // When read barriers are enabled, we need an additional temporary
+  // register for some cases.
+  if (kEmitCompilerReadBarrier &&
+      (type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+       type_check_kind == TypeCheckKind::kArrayObjectCheck)) {
     locations->AddTemp(Location::RequiresRegister());
-  } else {
-    InvokeRuntimeCallingConvention calling_convention;
-    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   }
 }
 
 void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  Register obj = locations->InAt(0).AsRegister<Register>();
+  Location obj_loc = locations->InAt(0);
+  Register obj = obj_loc.AsRegister<Register>();
   Location cls = locations->InAt(1);
-  Register temp = locations->WillCall()
-      ? kNoRegister
-      : locations->GetTemp(0).AsRegister<Register>();
-
+  Location temp_loc = locations->GetTemp(0);
+  Register temp = temp_loc.AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
   uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
-  SlowPathCode* slow_path = nullptr;
 
-  if (!locations->WillCall()) {
-    slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
-        instruction, !locations->CanCall());
-    codegen_->AddSlowPath(slow_path);
-  }
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  bool is_type_check_slow_path_fatal =
+      (type_check_kind == TypeCheckKind::kExactCheck ||
+       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+       type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
+      !instruction->CanThrowIntoCatchBlock();
+  SlowPathCode* type_check_slow_path =
+      new (GetGraph()->GetArena()) TypeCheckSlowPathX86(instruction,
+                                                        is_type_check_slow_path_fatal);
+  codegen_->AddSlowPath(type_check_slow_path);
 
-  NearLabel done, abstract_entry;
+  NearLabel done;
   // Avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
     __ testl(obj, obj);
     __ j(kEqual, &done);
   }
 
-  if (locations->WillCall()) {
-    __ movl(obj, Address(obj, class_offset));
-    __ MaybeUnpoisonHeapReference(obj);
-  } else {
-    __ movl(temp, Address(obj, class_offset));
-    __ MaybeUnpoisonHeapReference(temp);
-  }
+  // /* HeapReference<Class> */ temp = obj->klass_
+  __ movl(temp, Address(obj, class_offset));
+  codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, obj_loc, class_offset);
 
-  switch (instruction->GetTypeCheckKind()) {
+  switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kArrayCheck: {
       if (cls.IsRegister()) {
@@ -5577,19 +5977,44 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       }
       // Jump to slow path for throwing the exception or doing a
       // more involved array check.
-      __ j(kNotEqual, slow_path->GetEntryLabel());
+      __ j(kNotEqual, type_check_slow_path->GetEntryLabel());
       break;
     }
+
     case TypeCheckKind::kAbstractClassCheck: {
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
-      NearLabel loop, success;
+      NearLabel loop, compare_classes;
       __ Bind(&loop);
+      Location temp2_loc =
+          kEmitCompilerReadBarrier ? locations->GetTemp(1) : Location::NoLocation();
+      if (kEmitCompilerReadBarrier) {
+        // Save the value of `temp` into `temp2` before overwriting it
+        // in the following move operation, as we will need it for the
+        // read barrier below.
+        Register temp2 = temp2_loc.AsRegister<Register>();
+        __ movl(temp2, temp);
+      }
+      // /* HeapReference<Class> */ temp = temp->super_class_
       __ movl(temp, Address(temp, super_offset));
-      __ MaybeUnpoisonHeapReference(temp);
+      codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, temp2_loc, super_offset);
+
+      // If the class reference currently in `temp` is not null, jump
+      // to the `compare_classes` label to compare it with the checked
+      // class.
       __ testl(temp, temp);
-      // Jump to the slow path to throw the exception.
-      __ j(kEqual, slow_path->GetEntryLabel());
+      __ j(kNotEqual, &compare_classes);
+      // Otherwise, jump to the slow path to throw the exception.
+      //
+      // But before, move back the object's class into `temp` before
+      // going into the slow path, as it has been overwritten in the
+      // meantime.
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ movl(temp, Address(obj, class_offset));
+      codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, obj_loc, class_offset);
+      __ jmp(type_check_slow_path->GetEntryLabel());
+
+      __ Bind(&compare_classes);
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<Register>());
       } else {
@@ -5599,6 +6024,7 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       __ j(kNotEqual, &loop);
       break;
     }
+
     case TypeCheckKind::kClassHierarchyCheck: {
       // Walk over the class hierarchy to find a match.
       NearLabel loop;
@@ -5610,16 +6036,39 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
         __ cmpl(temp, Address(ESP, cls.GetStackIndex()));
       }
       __ j(kEqual, &done);
+
+      Location temp2_loc =
+          kEmitCompilerReadBarrier ? locations->GetTemp(1) : Location::NoLocation();
+      if (kEmitCompilerReadBarrier) {
+        // Save the value of `temp` into `temp2` before overwriting it
+        // in the following move operation, as we will need it for the
+        // read barrier below.
+        Register temp2 = temp2_loc.AsRegister<Register>();
+        __ movl(temp2, temp);
+      }
+      // /* HeapReference<Class> */ temp = temp->super_class_
       __ movl(temp, Address(temp, super_offset));
-      __ MaybeUnpoisonHeapReference(temp);
+      codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, temp2_loc, super_offset);
+
+      // If the class reference currently in `temp` is not null, jump
+      // back at the beginning of the loop.
       __ testl(temp, temp);
       __ j(kNotEqual, &loop);
-      // Jump to the slow path to throw the exception.
-      __ jmp(slow_path->GetEntryLabel());
+      // Otherwise, jump to the slow path to throw the exception.
+      //
+      // But before, move back the object's class into `temp` before
+      // going into the slow path, as it has been overwritten in the
+      // meantime.
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ movl(temp, Address(obj, class_offset));
+      codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, obj_loc, class_offset);
+      __ jmp(type_check_slow_path->GetEntryLabel());
       break;
     }
+
     case TypeCheckKind::kArrayObjectCheck: {
       // Do an exact check.
+      NearLabel check_non_primitive_component_type;
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<Register>());
       } else {
@@ -5627,29 +6076,67 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
         __ cmpl(temp, Address(ESP, cls.GetStackIndex()));
       }
       __ j(kEqual, &done);
-      // Otherwise, we need to check that the object's class is a non primitive array.
+
+      // Otherwise, we need to check that the object's class is a non-primitive array.
+      Location temp2_loc =
+          kEmitCompilerReadBarrier ? locations->GetTemp(1) : Location::NoLocation();
+      if (kEmitCompilerReadBarrier) {
+        // Save the value of `temp` into `temp2` before overwriting it
+        // in the following move operation, as we will need it for the
+        // read barrier below.
+        Register temp2 = temp2_loc.AsRegister<Register>();
+        __ movl(temp2, temp);
+      }
+      // /* HeapReference<Class> */ temp = temp->component_type_
       __ movl(temp, Address(temp, component_offset));
-      __ MaybeUnpoisonHeapReference(temp);
+      codegen_->MaybeGenerateReadBarrier(
+          instruction, temp_loc, temp_loc, temp2_loc, component_offset);
+
+      // If the component type is not null (i.e. the object is indeed
+      // an array), jump to label `check_non_primitive_component_type`
+      // to further check that this component type is not a primitive
+      // type.
       __ testl(temp, temp);
-      __ j(kEqual, slow_path->GetEntryLabel());
+      __ j(kNotEqual, &check_non_primitive_component_type);
+      // Otherwise, jump to the slow path to throw the exception.
+      //
+      // But before, move back the object's class into `temp` before
+      // going into the slow path, as it has been overwritten in the
+      // meantime.
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ movl(temp, Address(obj, class_offset));
+      codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, obj_loc, class_offset);
+      __ jmp(type_check_slow_path->GetEntryLabel());
+
+      __ Bind(&check_non_primitive_component_type);
       __ cmpw(Address(temp, primitive_offset), Immediate(Primitive::kPrimNot));
-      __ j(kNotEqual, slow_path->GetEntryLabel());
+      __ j(kEqual, &done);
+      // Same comment as above regarding `temp` and the slow path.
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ movl(temp, Address(obj, class_offset));
+      codegen_->MaybeGenerateReadBarrier(instruction, temp_loc, temp_loc, obj_loc, class_offset);
+      __ jmp(type_check_slow_path->GetEntryLabel());
       break;
     }
+
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
-    default:
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),
-                              instruction,
-                              instruction->GetDexPc(),
-                              nullptr);
+      // We always go into the type check slow path for the unresolved &
+      // interface check cases.
+      //
+      // We cannot directly call the CheckCast runtime entry point
+      // without resorting to a type checking slow path here (i.e. by
+      // calling InvokeRuntime directly), as it would require to
+      // assign fixed registers for the inputs of this HInstanceOf
+      // instruction (following the runtime calling convention), which
+      // might be cluttered by the potential first read barrier
+      // emission at the beginning of this method.
+      __ jmp(type_check_slow_path->GetEntryLabel());
       break;
   }
   __ Bind(&done);
 
-  if (slow_path != nullptr) {
-    __ Bind(slow_path->GetExitLabel());
-  }
+  __ Bind(type_check_slow_path->GetExitLabel());
 }
 
 void LocationsBuilderX86::VisitMonitorOperation(HMonitorOperation* instruction) {
@@ -5798,6 +6285,82 @@ void InstructionCodeGeneratorX86::HandleBitwiseOperation(HBinaryOperation* instr
       }
     }
   }
+}
+
+void CodeGeneratorX86::GenerateReadBarrier(HInstruction* instruction,
+                                           Location out,
+                                           Location ref,
+                                           Location obj,
+                                           uint32_t offset,
+                                           Location index) {
+  DCHECK(kEmitCompilerReadBarrier);
+
+  // If heap poisoning is enabled, the unpoisoning of the loaded
+  // reference will be carried out by the runtime within the slow
+  // path.
+  //
+  // Note that `ref` currently does not get unpoisoned (when heap
+  // poisoning is enabled), which is alright as the `ref` argument is
+  // not used by the artReadBarrierSlow entry point.
+  //
+  // TODO: Unpoison `ref` when it is used by artReadBarrierSlow.
+  SlowPathCode* slow_path = new (GetGraph()->GetArena())
+      ReadBarrierForHeapReferenceSlowPathX86(instruction, out, ref, obj, offset, index);
+  AddSlowPath(slow_path);
+
+  // TODO: When read barrier has a fast path, add it here.
+  /* Currently the read barrier call is inserted after the original load.
+   * However, if we have a fast path, we need to perform the load of obj.LockWord *before* the
+   * original load. This load-load ordering is required by the read barrier.
+   * The fast path/slow path (for Baker's algorithm) should look like:
+   *
+   * bool isGray = obj.LockWord & kReadBarrierMask;
+   * lfence;  // load fence or artificial data dependence to prevent load-load reordering
+   * ref = obj.field;    // this is the original load
+   * if (isGray) {
+   *   ref = Mark(ref);  // ideally the slow path just does Mark(ref)
+   * }
+   */
+
+  __ jmp(slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void CodeGeneratorX86::MaybeGenerateReadBarrier(HInstruction* instruction,
+                                                Location out,
+                                                Location ref,
+                                                Location obj,
+                                                uint32_t offset,
+                                                Location index) {
+  if (kEmitCompilerReadBarrier) {
+    // If heap poisoning is enabled, unpoisoning will be taken care of
+    // by the runtime within the slow path.
+    GenerateReadBarrier(instruction, out, ref, obj, offset, index);
+  } else if (kPoisonHeapReferences) {
+    __ UnpoisonHeapReference(out.AsRegister<Register>());
+  }
+}
+
+void CodeGeneratorX86::GenerateReadBarrierForRoot(HInstruction* instruction,
+                                                  Location out,
+                                                  Location root) {
+  DCHECK(kEmitCompilerReadBarrier);
+
+  // Note that GC roots are not affected by heap poisoning, so we do
+  // not need to do anything special for this here.
+  SlowPathCode* slow_path =
+      new (GetGraph()->GetArena()) ReadBarrierForRootSlowPathX86(instruction, out, root);
+  AddSlowPath(slow_path);
+
+  // TODO: Implement a fast path for ReadBarrierForRoot, performing
+  // the following operation (for Baker's algorithm):
+  //
+  //   if (thread.tls32_.is_gc_marking) {
+  //     root = Mark(root);
+  //   }
+
+  __ jmp(slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void LocationsBuilderX86::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {

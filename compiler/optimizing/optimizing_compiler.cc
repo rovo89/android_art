@@ -383,6 +383,13 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
+// Read barrier are supported only on x86 and x86-64 at the moment.
+// TODO: Add support for other architectures and remove this function
+static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
+  return instruction_set == kX86
+      || instruction_set == kX86_64;
+}
+
 static void RunOptimizations(HOptimization* optimizations[],
                              size_t length,
                              PassObserver* pass_observer) {
@@ -673,6 +680,12 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     return nullptr;
   }
 
+  // When read barriers are enabled, do not attempt to compile for
+  // instruction sets that have no read barrier support.
+  if (kEmitCompilerReadBarrier && !InstructionSetSupportsReadBarrier(instruction_set)) {
+    return nullptr;
+  }
+
   if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledPathological);
     return nullptr;
@@ -841,9 +854,14 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   if (kIsDebugBuild &&
       IsCompilingWithCoreImage() &&
-      IsInstructionSetSupported(compiler_driver->GetInstructionSet())) {
-    // For testing purposes, we put a special marker on method names that should be compiled
-    // with this compiler. This makes sure we're not regressing.
+      IsInstructionSetSupported(compiler_driver->GetInstructionSet()) &&
+      (!kEmitCompilerReadBarrier ||
+       InstructionSetSupportsReadBarrier(compiler_driver->GetInstructionSet()))) {
+    // For testing purposes, we put a special marker on method names
+    // that should be compiled with this compiler (when the the
+    // instruction set is supported -- and has support for read
+    // barriers, if they are enabled). This makes sure we're not
+    // regressing.
     std::string method_name = PrettyMethod(method_idx, dex_file);
     bool shouldCompile = method_name.find("$opt$") != std::string::npos;
     DCHECK((method != nullptr) || !shouldCompile) << "Didn't compile " << method_name;

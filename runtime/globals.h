@@ -87,8 +87,18 @@ static constexpr bool kUseTableLookupReadBarrier = false;
 #endif
 
 static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier;
-static constexpr bool kUseReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier ||
-    kUseTableLookupReadBarrier;
+static constexpr bool kUseReadBarrier =
+    kUseBakerReadBarrier || kUseBrooksReadBarrier || kUseTableLookupReadBarrier;
+
+// Debugging flag that forces the generation of read barriers, but
+// does not trigger the use of the concurrent copying GC.
+//
+// TODO: Remove this flag when the read barriers compiler
+// instrumentation is completed.
+static constexpr bool kForceReadBarrier = false;
+// TODO: Likewise, remove this flag when kForceReadBarrier is removed
+// and replace it with kUseReadBarrier.
+static constexpr bool kEmitCompilerReadBarrier = kForceReadBarrier || kUseReadBarrier;
 
 // If true, references within the heap are poisoned (negated).
 #ifdef USE_HEAP_POISONING

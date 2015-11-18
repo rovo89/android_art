@@ -122,7 +122,7 @@ class MANAGED PrimitiveArray : public Array {
   T Get(int32_t i) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
 
   T GetWithoutChecks(int32_t i) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(CheckIsValidIndex(i));
+    DCHECK(CheckIsValidIndex(i)) << "i=" << i << " length=" << GetLength();
     return GetData()[i];
   }
 
