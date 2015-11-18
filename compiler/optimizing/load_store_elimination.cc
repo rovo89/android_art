@@ -738,8 +738,6 @@ class LSEVisitor : public HGraphVisitor {
     }
     if (same_value || possibly_redundant) {
       possibly_removed_stores_.push_back(instruction);
-      // Same-value/singleton-field store shouldn't have a null check.
-      DCHECK(!ref->InputAt(0)->IsNullCheck());
     }
 
     if (!same_value) {
