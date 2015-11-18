@@ -133,6 +133,15 @@ class MipsAssembler FINAL : public Assembler {
   void Xori(Register rt, Register rs, uint16_t imm16);
   void Nor(Register rd, Register rs, Register rt);
 
+  void Movz(Register rd, Register rs, Register rt);  // R2
+  void Movn(Register rd, Register rs, Register rt);  // R2
+  void Seleqz(Register rd, Register rs, Register rt);  // R6
+  void Selnez(Register rd, Register rs, Register rt);  // R6
+  void ClzR6(Register rd, Register rs);
+  void ClzR2(Register rd, Register rs);
+  void CloR6(Register rd, Register rs);
+  void CloR2(Register rd, Register rs);
+
   void Seb(Register rd, Register rt);  // R2+
   void Seh(Register rd, Register rt);  // R2+
   void Wsbh(Register rd, Register rt);  // R2+
