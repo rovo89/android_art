@@ -64,8 +64,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     DEBUG_ENABLE_ASSERT             = 1 << 2,
     DEBUG_ENABLE_SAFEMODE           = 1 << 3,
     DEBUG_ENABLE_JNI_LOGGING        = 1 << 4,
-    DEBUG_ENABLE_JIT                = 1 << 5,
-    DEBUG_GENERATE_DEBUG_INFO       = 1 << 6,
+    DEBUG_GENERATE_DEBUG_INFO       = 1 << 5,
   };
 
   Runtime* const runtime = Runtime::Current();
@@ -97,20 +96,9 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   if (safe_mode) {
     // Ensure that any (secondary) oat files will be interpreted.
     runtime->AddCompilerOption("--compiler-filter=interpret-only");
+    runtime->SetSafeMode(true);
     debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
   }
-
-  bool use_jit = false;
-  if ((debug_flags & DEBUG_ENABLE_JIT) != 0) {
-    if (safe_mode) {
-      LOG(INFO) << "Not enabling JIT due to safe mode";
-    } else {
-      use_jit = true;
-      LOG(INFO) << "Late-enabling JIT";
-    }
-    debug_flags &= ~DEBUG_ENABLE_JIT;
-  }
-  runtime->GetJITOptions()->SetUseJIT(use_jit);
 
   const bool generate_debug_info = (debug_flags & DEBUG_GENERATE_DEBUG_INFO) != 0;
   if (generate_debug_info) {
