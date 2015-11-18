@@ -2,3 +2,4 @@ About to null reference and request GC.
 Finalizer started and spinning...
 Finalizer done spinning.
 Finalizer sleeping forever now.
+Caught exception: Main$BadFinalizer.finalize() timed out after 10 seconds

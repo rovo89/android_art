@@ -30,6 +30,14 @@ public class Main {
     }
 
     public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler(
+            new Thread.UncaughtExceptionHandler() {
+                @Override
+                public void uncaughtException(Thread t, Throwable e) {
+                    System.out.println("Caught exception: " + e.getMessage());
+                }
+            });
+
         createAndForget();
 
         System.gc();
@@ -56,8 +64,6 @@ public class Main {
         } catch (InterruptedException ie) {
             System.err.println(ie);
         }
-
-        System.out.println("done");
     }
 
     protected void finalize() throws Throwable {
