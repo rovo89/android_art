@@ -14,17 +14,22 @@
  * limitations under the License.
  */
 
-interface Interface {
+interface SuperInterface {
+  void superInterfaceMethod();
+}
+
+interface OtherInterface extends SuperInterface {
+}
+
+interface Interface extends SuperInterface {
   void $noinline$f();
 }
 
 class Super implements Interface {
+  public void superInterfaceMethod() {}
   public void $noinline$f() {
     throw new RuntimeException();
   }
-
-  public int instanceField;
-
 }
 
 class SubclassA extends Super {
@@ -551,40 +556,30 @@ public class Main {
   private void argumentCheck(Super s, double d, SubclassA a, Final f) {
   }
 
-  /// CHECK-START: Main Main.getMain(boolean) reference_type_propagation (after)
-  /// CHECK:      <<Phi:l\d+>>       Phi klass:Main
-  /// CHECK:                         Return [<<Phi>>]
-  private Main getMain(boolean cond) {
-    return cond ? null : new Main();
-  }
-
-  /// CHECK-START: Super Main.getSuper(boolean, SubclassA, SubclassB) reference_type_propagation (after)
-  /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
-  /// CHECK:                         Return [<<Phi>>]
-  private Super getSuper(boolean cond, SubclassA a, SubclassB b) {
-    return cond ? a : b;
-  }
-
   private Main getNull() {
     return null;
   }
 
   private int mainField = 0;
 
-  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean, SubclassA, SubclassB) inliner (before)
-  /// CHECK:      <<Int:i\d+>>       IntConstant 0
-  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Super
-  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Invoke>>] klass:Super exact:false
-  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
-
-  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean, SubclassA, SubclassB) inliner (after)
-  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK-START: SuperInterface Main.getWiderType(boolean, Interface, OtherInterface) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
-  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:Super exact:false
-  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
-  private void testInlinerWidensReturnType(boolean cond, SubclassA a, SubclassB b) {
-    Super o = getSuper(cond, a, b);
-    o.instanceField = 0;
+  /// CHECK:                         Return [<<Phi>>]
+  private SuperInterface getWiderType(boolean cond, Interface a, OtherInterface b) {
+    return cond ? a : b;
+  }
+
+  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean, Interface, OtherInterface) inliner (before)
+  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:SuperInterface
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Invoke>>] klass:SuperInterface exact:false
+  /// CHECK:                         InvokeInterface [<<NullCheck>>]
+
+  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean, Interface, OtherInterface) inliner (after)
+  /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:SuperInterface exact:false
+  /// CHECK:                         InvokeInterface [<<NullCheck>>]
+  private void testInlinerWidensReturnType(boolean cond, Interface a, OtherInterface b) {
+    getWiderType(cond, a, b).superInterfaceMethod();
   }
 
   /// CHECK-START: void Main.testInlinerReturnsNull() inliner (before)
