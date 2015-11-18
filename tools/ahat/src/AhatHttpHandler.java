@@ -44,7 +44,7 @@ class AhatHttpHandler implements HttpHandler {
       DocString menu = new DocString();
       menu.appendLink(DocString.uri("/"), DocString.text("overview"));
       menu.append(" - ");
-      menu.appendLink(DocString.uri("roots"), DocString.text("roots"));
+      menu.appendLink(DocString.uri("rooted"), DocString.text("rooted"));
       menu.append(" - ");
       menu.appendLink(DocString.uri("sites"), DocString.text("allocations"));
       menu.append(" - ");

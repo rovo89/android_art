@@ -50,7 +50,7 @@ class OverviewHandler implements AhatHandler {
     printHeapSizes(doc, query);
 
     DocString menu = new DocString();
-    menu.appendLink(DocString.uri("roots"), DocString.text("Roots"));
+    menu.appendLink(DocString.uri("rooted"), DocString.text("Rooted"));
     menu.append(" - ");
     menu.appendLink(DocString.uri("site"), DocString.text("Allocations"));
     menu.append(" - ");

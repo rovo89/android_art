@@ -74,7 +74,7 @@ public class Main {
     InetSocketAddress addr = new InetSocketAddress(loopback, port);
     HttpServer server = HttpServer.create(addr, 0);
     server.createContext("/", new AhatHttpHandler(new OverviewHandler(ahat, hprof)));
-    server.createContext("/roots", new AhatHttpHandler(new RootsHandler(ahat)));
+    server.createContext("/rooted", new AhatHttpHandler(new RootedHandler(ahat)));
     server.createContext("/object", new AhatHttpHandler(new ObjectHandler(ahat)));
     server.createContext("/objects", new AhatHttpHandler(new ObjectsHandler(ahat)));
     server.createContext("/site", new AhatHttpHandler(new SiteHandler(ahat)));
