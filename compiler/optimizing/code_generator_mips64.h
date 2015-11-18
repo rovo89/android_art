@@ -351,7 +351,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void MoveFromReturnRegister(Location trg ATTRIBUTE_UNUSED,
                               Primitive::Type type ATTRIBUTE_UNUSED) OVERRIDE {
-    UNIMPLEMENTED(FATAL);
+    UNIMPLEMENTED(FATAL) << "Not implemented on MIPS64";
   }
 
  private:

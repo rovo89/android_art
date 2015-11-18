@@ -335,6 +335,18 @@ TEST_F(AssemblerMIPSTest, Nor) {
   DriverStr(RepeatRRR(&mips::MipsAssembler::Nor, "nor ${reg1}, ${reg2}, ${reg3}"), "Nor");
 }
 
+//////////
+// MISC //
+//////////
+
+TEST_F(AssemblerMIPSTest, Movz) {
+  DriverStr(RepeatRRR(&mips::MipsAssembler::Movz, "movz ${reg1}, ${reg2}, ${reg3}"), "Movz");
+}
+
+TEST_F(AssemblerMIPSTest, Movn) {
+  DriverStr(RepeatRRR(&mips::MipsAssembler::Movn, "movn ${reg1}, ${reg2}, ${reg3}"), "Movn");
+}
+
 TEST_F(AssemblerMIPSTest, Seb) {
   DriverStr(RepeatRR(&mips::MipsAssembler::Seb, "seb ${reg1}, ${reg2}"), "Seb");
 }
@@ -361,6 +373,10 @@ TEST_F(AssemblerMIPSTest, Sllv) {
 
 TEST_F(AssemblerMIPSTest, Srlv) {
   DriverStr(RepeatRRR(&mips::MipsAssembler::Srlv, "srlv ${reg1}, ${reg2}, ${reg3}"), "Srlv");
+}
+
+TEST_F(AssemblerMIPSTest, Rotrv) {
+  DriverStr(RepeatRRR(&mips::MipsAssembler::Rotrv, "rotrv ${reg1}, ${reg2}, ${reg3}"), "rotrv");
 }
 
 TEST_F(AssemblerMIPSTest, Srav) {
@@ -405,6 +421,14 @@ TEST_F(AssemblerMIPSTest, Ext) {
   DriverStr(expected, "Ext");
 }
 
+TEST_F(AssemblerMIPSTest, ClzR2) {
+  DriverStr(RepeatRR(&mips::MipsAssembler::ClzR2, "clz ${reg1}, ${reg2}"), "clzR2");
+}
+
+TEST_F(AssemblerMIPSTest, CloR2) {
+  DriverStr(RepeatRR(&mips::MipsAssembler::CloR2, "clo ${reg1}, ${reg2}"), "cloR2");
+}
+
 TEST_F(AssemblerMIPSTest, Lb) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Lb, -16, "lb ${reg1}, {imm}(${reg2})"), "Lb");
 }
@@ -413,8 +437,16 @@ TEST_F(AssemblerMIPSTest, Lh) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Lh, -16, "lh ${reg1}, {imm}(${reg2})"), "Lh");
 }
 
+TEST_F(AssemblerMIPSTest, Lwl) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::Lwl, -16, "lwl ${reg1}, {imm}(${reg2})"), "Lwl");
+}
+
 TEST_F(AssemblerMIPSTest, Lw) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Lw, -16, "lw ${reg1}, {imm}(${reg2})"), "Lw");
+}
+
+TEST_F(AssemblerMIPSTest, Lwr) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::Lwr, -16, "lwr ${reg1}, {imm}(${reg2})"), "Lwr");
 }
 
 TEST_F(AssemblerMIPSTest, Lbu) {
@@ -445,8 +477,16 @@ TEST_F(AssemblerMIPSTest, Sh) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Sh, -16, "sh ${reg1}, {imm}(${reg2})"), "Sh");
 }
 
+TEST_F(AssemblerMIPSTest, Swl) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::Swl, -16, "swl ${reg1}, {imm}(${reg2})"), "Swl");
+}
+
 TEST_F(AssemblerMIPSTest, Sw) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Sw, -16, "sw ${reg1}, {imm}(${reg2})"), "Sw");
+}
+
+TEST_F(AssemblerMIPSTest, Swr) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::Swr, -16, "swr ${reg1}, {imm}(${reg2})"), "Swr");
 }
 
 TEST_F(AssemblerMIPSTest, Slt) {
