@@ -68,6 +68,10 @@ using helpers::ARM64EncodableConstantOrRegister;
 using helpers::ArtVixlRegCodeCoherentForRegSet;
 
 static constexpr int kCurrentMethodStackOffset = 0;
+// The compare/jump sequence will generate about (2 * num_entries + 1) instructions. While jump
+// table version generates 7 instructions and num_entries literals. Compare/jump sequence will
+// generates less code/data with a small num_entries.
+static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
 
 inline Condition ARM64Condition(IfCondition cond) {
   switch (cond) {
@@ -545,6 +549,28 @@ class ArraySetSlowPathARM64 : public SlowPathCodeARM64 {
   DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARM64);
 };
 
+void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
+  uint32_t num_entries = switch_instr_->GetNumEntries();
+  DCHECK_GE(num_entries, kPackedSwitchJumpTableThreshold);
+
+  // We are about to use the assembler to place literals directly. Make sure we have enough
+  // underlying code buffer and we have generated the jump table with right size.
+  CodeBufferCheckScope scope(codegen->GetVIXLAssembler(), num_entries * sizeof(int32_t),
+                             CodeBufferCheckScope::kCheck, CodeBufferCheckScope::kExactSize);
+
+  __ Bind(&table_start_);
+  const ArenaVector<HBasicBlock*>& successors = switch_instr_->GetBlock()->GetSuccessors();
+  for (uint32_t i = 0; i < num_entries; i++) {
+    vixl::Label* target_label = codegen->GetLabelOf(successors[i]);
+    DCHECK(target_label->IsBound());
+    ptrdiff_t jump_offset = target_label->location() - table_start_.location();
+    DCHECK_GT(jump_offset, std::numeric_limits<int32_t>::min());
+    DCHECK_LE(jump_offset, std::numeric_limits<int32_t>::max());
+    Literal<int32_t> literal(jump_offset);
+    __ place(&literal);
+  }
+}
+
 #undef __
 
 Location InvokeDexCallingConventionVisitorARM64::GetNextLocation(Primitive::Type type) {
@@ -587,6 +613,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                     compiler_options,
                     stats),
       block_labels_(nullptr),
+      jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -603,10 +630,16 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
   AddAllocatedRegister(LocationFrom(lr));
 }
 
-#undef __
 #define __ GetVIXLAssembler()->
 
+void CodeGeneratorARM64::EmitJumpTables() {
+  for (auto jump_table : jump_tables_) {
+    jump_table->EmitTable(this);
+  }
+}
+
 void CodeGeneratorARM64::Finalize(CodeAllocator* allocator) {
+  EmitJumpTables();
   // Ensure we emit the literal pool.
   __ FinalizeCode();
 
@@ -3848,26 +3881,73 @@ void LocationsBuilderARM64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
 
 void InstructionCodeGeneratorARM64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
+  uint32_t num_entries = switch_instr->GetNumEntries();
   Register value_reg = InputRegisterAt(switch_instr, 0);
   HBasicBlock* default_block = switch_instr->GetDefaultBlock();
 
-  // Create a series of compare/jumps.
-  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-  for (int32_t i = 0; i < num_entries; i++) {
-    int32_t case_value = lower_bound + i;
-    vixl::Label* succ = codegen_->GetLabelOf(successors[i]);
-    if (case_value == 0) {
-      __ Cbz(value_reg, succ);
-    } else {
-      __ Cmp(value_reg, vixl::Operand(case_value));
-      __ B(eq, succ);
-    }
-  }
+  // Roughly set 16 as max average assemblies generated per HIR in a graph.
+  static constexpr int32_t kMaxExpectedSizePerHInstruction = 16 * vixl::kInstructionSize;
+  // ADR has a limited range(+/-1MB), so we set a threshold for the number of HIRs in the graph to
+  // make sure we don't emit it if the target may run out of range.
+  // TODO: Instead of emitting all jump tables at the end of the code, we could keep track of ADR
+  // ranges and emit the tables only as required.
+  static constexpr int32_t kJumpTableInstructionThreshold = 1* MB / kMaxExpectedSizePerHInstruction;
 
-  // And the default for any other value.
-  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
-    __ B(codegen_->GetLabelOf(default_block));
+  if (num_entries < kPackedSwitchJumpTableThreshold ||
+      // Current instruction id is an upper bound of the number of HIRs in the graph.
+      GetGraph()->GetCurrentInstructionId() > kJumpTableInstructionThreshold) {
+    // Create a series of compare/jumps.
+    const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+    for (uint32_t i = 0; i < num_entries; i++) {
+      int32_t case_value = lower_bound + i;
+      vixl::Label* succ = codegen_->GetLabelOf(successors[i]);
+      if (case_value == 0) {
+        __ Cbz(value_reg, succ);
+      } else {
+        __ Cmp(value_reg, Operand(case_value));
+        __ B(eq, succ);
+      }
+    }
+
+    // And the default for any other value.
+    if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+      __ B(codegen_->GetLabelOf(default_block));
+    }
+  } else {
+    JumpTableARM64* jump_table = new (GetGraph()->GetArena()) JumpTableARM64(switch_instr);
+    codegen_->AddJumpTable(jump_table);
+
+    UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
+
+    // Below instructions should use at most one blocked register. Since there are two blocked
+    // registers, we are free to block one.
+    Register temp_w = temps.AcquireW();
+    Register index;
+    // Remove the bias.
+    if (lower_bound != 0) {
+      index = temp_w;
+      __ Sub(index, value_reg, Operand(lower_bound));
+    } else {
+      index = value_reg;
+    }
+
+    // Jump to default block if index is out of the range.
+    __ Cmp(index, Operand(num_entries));
+    __ B(hs, codegen_->GetLabelOf(default_block));
+
+    // In current VIXL implementation, it won't require any blocked registers to encode the
+    // immediate value for Adr. So we are free to use both VIXL blocked registers to reduce the
+    // register pressure.
+    Register table_base = temps.AcquireX();
+    // Load jump offset from the table.
+    __ Adr(table_base, jump_table->GetTableStartLabel());
+    Register jump_offset = temp_w;
+    __ Ldr(jump_offset, MemOperand(table_base, index, UXTW, 2));
+
+    // Jump to target block by branching to table_base(pc related) + offset.
+    Register target_address = table_base;
+    __ Add(target_address, table_base, Operand(jump_offset, SXTW));
+    __ Br(target_address);
   }
 }
 
