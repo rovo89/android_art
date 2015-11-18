@@ -314,6 +314,11 @@ void MipsAssembler::Wsbh(Register rd, Register rt) {
   EmitR(0x1f, static_cast<Register>(0), rt, rd, 2, 0x20);
 }
 
+void MipsAssembler::Bitswap(Register rd, Register rt) {
+  CHECK(IsR6());
+  EmitR(0x1f, static_cast<Register>(0), rt, rd, 0x0, 0x20);
+}
+
 void MipsAssembler::Sll(Register rd, Register rt, int shamt) {
   CHECK(IsUint<5>(shamt)) << shamt;
   EmitR(0, static_cast<Register>(0), rt, rd, shamt, 0x00);
