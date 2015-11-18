@@ -22,6 +22,9 @@ class Super implements Interface {
   public void $noinline$f() {
     throw new RuntimeException();
   }
+
+  public int instanceField;
+
 }
 
 class SubclassA extends Super {
@@ -549,10 +552,17 @@ public class Main {
   }
 
   /// CHECK-START: Main Main.getMain(boolean) reference_type_propagation (after)
-  /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
+  /// CHECK:      <<Phi:l\d+>>       Phi klass:Main
   /// CHECK:                         Return [<<Phi>>]
   private Main getMain(boolean cond) {
     return cond ? null : new Main();
+  }
+
+  /// CHECK-START: Super Main.getSuper(boolean, SubclassA, SubclassB) reference_type_propagation (after)
+  /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
+  /// CHECK:                         Return [<<Phi>>]
+  private Super getSuper(boolean cond, SubclassA a, SubclassB b) {
+    return cond ? a : b;
   }
 
   private Main getNull() {
@@ -561,20 +571,20 @@ public class Main {
 
   private int mainField = 0;
 
-  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean) inliner (before)
+  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean, SubclassA, SubclassB) inliner (before)
   /// CHECK:      <<Int:i\d+>>       IntConstant 0
-  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Main
-  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Invoke>>] klass:Main exact:false
+  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Super
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Invoke>>] klass:Super exact:false
   /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
 
-  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean) inliner (after)
+  /// CHECK-START: void Main.testInlinerWidensReturnType(boolean, SubclassA, SubclassB) inliner (after)
   /// CHECK:      <<Int:i\d+>>       IntConstant 0
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
-  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:Main exact:false
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:Super exact:false
   /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
-  private void testInlinerWidensReturnType(boolean cond) {
-    Main o = getMain(cond);
-    o.mainField = 0;
+  private void testInlinerWidensReturnType(boolean cond, SubclassA a, SubclassB b) {
+    Super o = getSuper(cond, a, b);
+    o.instanceField = 0;
   }
 
   /// CHECK-START: void Main.testInlinerReturnsNull() inliner (before)
@@ -591,6 +601,26 @@ public class Main {
   private void testInlinerReturnsNull() {
     Main o = getNull();
     o.mainField = 0;
+  }
+
+  /// CHECK-START: void Main.testPhiHasOnlyNullInputs(boolean) inliner (before)
+  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK:      <<Phi:l\d+>>       Phi klass:Main exact:false
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:Main exact:false
+  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
+
+  /// CHECK-START: void Main.testPhiHasOnlyNullInputs(boolean) inliner (after)
+  /// CHECK:      <<Int:i\d+>>       IntConstant 0
+  /// CHECK:      <<Null:l\d+>>      NullConstant klass:java.lang.Object
+  /// CHECK:      <<Phi:l\d+>>       Phi [<<Null>>,<<Null>>] klass:java.lang.Object exact:false
+  /// CHECK:      <<NullCheck:l\d+>> NullCheck [<<Phi>>] klass:java.lang.Object exact:false
+  /// CHECK:                         InstanceFieldSet [<<NullCheck>>,<<Int>>]
+  private void testPhiHasOnlyNullInputs(boolean cond) {
+    Main o = cond ? null : getNull();
+    o.mainField = 0;
+    // getSuper() will force a type propagation after inlining
+    // because returns a more precise type.
+    getSuper();
   }
 
   public static void main(String[] args) {

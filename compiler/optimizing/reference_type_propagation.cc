@@ -719,14 +719,35 @@ void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
   instr->SetReferenceTypeInfo(new_rti);
 }
 
+// NullConstant inputs are ignored during merging as they do not provide any useful information.
+// If all the inputs are NullConstants then the type of the phi will be set to Object.
 void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
-  ReferenceTypeInfo new_rti = instr->InputAt(0)->GetReferenceTypeInfo();
+  size_t input_count = instr->InputCount();
+  size_t first_input_index_not_null = 0;
+  while (first_input_index_not_null < input_count &&
+      instr->InputAt(first_input_index_not_null)->IsNullConstant()) {
+    first_input_index_not_null++;
+  }
+  if (first_input_index_not_null == input_count) {
+    // All inputs are NullConstants, set the type to object.
+    // This may happen in the presence of inlining.
+    instr->SetReferenceTypeInfo(
+        ReferenceTypeInfo::Create(object_class_handle_, /* is_exact */ false));
+    return;
+  }
+
+  ReferenceTypeInfo new_rti = instr->InputAt(first_input_index_not_null)->GetReferenceTypeInfo();
+
   if (new_rti.IsValid() && new_rti.IsObjectClass() && !new_rti.IsExact()) {
     // Early return if we are Object and inexact.
     instr->SetReferenceTypeInfo(new_rti);
     return;
   }
-  for (size_t i = 1; i < instr->InputCount(); i++) {
+
+  for (size_t i = first_input_index_not_null + 1; i < input_count; i++) {
+    if (instr->InputAt(i)->IsNullConstant()) {
+      continue;
+    }
     new_rti = MergeTypes(new_rti, instr->InputAt(i)->GetReferenceTypeInfo());
     if (new_rti.IsValid() && new_rti.IsObjectClass()) {
       if (!new_rti.IsExact()) {
