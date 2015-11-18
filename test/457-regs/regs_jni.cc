@@ -68,7 +68,7 @@ class TestVisitor : public StackVisitor {
         CHECK(!success);
       }
 
-      CHECK(GetVReg(m, 3, kReferenceVReg, &value));
+      CHECK(GetVReg(m, 3, kIntVReg, &value));
       CHECK_EQ(value, 1u);
 
       CHECK(GetVReg(m, 4, kFloatVReg, &value));

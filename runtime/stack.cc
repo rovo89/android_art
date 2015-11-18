@@ -265,7 +265,12 @@ bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t*
     }
   } else {
     DCHECK(cur_shadow_frame_ != nullptr);
-    *val = cur_shadow_frame_->GetVReg(vreg);
+    if (kind == kReferenceVReg) {
+      *val = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+          cur_shadow_frame_->GetVRegReference(vreg)));
+    } else {
+      *val = cur_shadow_frame_->GetVReg(vreg);
+    }
     return true;
   }
 }
