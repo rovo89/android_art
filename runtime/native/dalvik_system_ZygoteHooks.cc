@@ -181,9 +181,9 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
     if (isa != kNone && isa != kRuntimeISA) {
       action = Runtime::NativeBridgeAction::kInitialize;
     }
-    Runtime::Current()->DidForkFromZygote(env, action, isa_string.c_str());
+    Runtime::Current()->InitNonZygoteOrPostFork(env, action, isa_string.c_str());
   } else {
-    Runtime::Current()->DidForkFromZygote(env, Runtime::NativeBridgeAction::kUnload, nullptr);
+    Runtime::Current()->InitNonZygoteOrPostFork(env, Runtime::NativeBridgeAction::kUnload, nullptr);
   }
 }
 
