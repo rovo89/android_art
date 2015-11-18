@@ -81,6 +81,22 @@ class SlowPathCodeARM64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM64);
 };
 
+class JumpTableARM64 : public ArenaObject<kArenaAllocSwitchTable> {
+ public:
+  explicit JumpTableARM64(HPackedSwitch* switch_instr)
+    : switch_instr_(switch_instr), table_start_() {}
+
+  vixl::Label* GetTableStartLabel() { return &table_start_; }
+
+  void EmitTable(CodeGeneratorARM64* codegen);
+
+ private:
+  HPackedSwitch* const switch_instr_;
+  vixl::Label table_start_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpTableARM64);
+};
+
 static const vixl::Register kRuntimeParameterCoreRegisters[] =
     { vixl::x0, vixl::x1, vixl::x2, vixl::x3, vixl::x4, vixl::x5, vixl::x6, vixl::x7 };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
@@ -358,6 +374,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
     block_labels_ = CommonInitializeLabels<vixl::Label>();
   }
 
+  void AddJumpTable(JumpTableARM64* jump_table) {
+    jump_tables_.push_back(jump_table);
+  }
+
   void Finalize(CodeAllocator* allocator) OVERRIDE;
 
   // Code generation helpers.
@@ -426,9 +446,12 @@ class CodeGeneratorARM64 : public CodeGenerator {
     vixl::Label* pc_insn_label;
   };
 
+  void EmitJumpTables();
+
   // Labels for each block that will be compiled.
   vixl::Label* block_labels_;  // Indexed by block id.
   vixl::Label frame_entry_label_;
+  ArenaVector<JumpTableARM64*> jump_tables_;
 
   LocationsBuilderARM64 location_builder_;
   InstructionCodeGeneratorARM64 instruction_visitor_;
