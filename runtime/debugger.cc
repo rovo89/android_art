@@ -2684,26 +2684,26 @@ JDWP::JdwpError Dbg::SetLocalValue(Thread* thread, StackVisitor& visitor, int sl
     case JDWP::JT_BOOLEAN:
     case JDWP::JT_BYTE:
       CHECK_EQ(width, 1U);
-      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
+      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
     case JDWP::JT_SHORT:
     case JDWP::JT_CHAR:
       CHECK_EQ(width, 2U);
-      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
+      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
     case JDWP::JT_INT:
       CHECK_EQ(width, 4U);
-      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
+      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
     case JDWP::JT_FLOAT:
       CHECK_EQ(width, 4U);
-      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kFloatVReg)) {
+      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kFloatVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
@@ -2721,7 +2721,7 @@ JDWP::JdwpError Dbg::SetLocalValue(Thread* thread, StackVisitor& visitor, int sl
         VLOG(jdwp) << tag << " object " << o << " is an invalid object";
         return JDWP::ERR_INVALID_OBJECT;
       }
-      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)),
+      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)),
                                  kReferenceVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, reinterpret_cast<uintptr_t>(o));
       }
@@ -2729,14 +2729,14 @@ JDWP::JdwpError Dbg::SetLocalValue(Thread* thread, StackVisitor& visitor, int sl
     }
     case JDWP::JT_DOUBLE: {
       CHECK_EQ(width, 8U);
-      if (!visitor.SetVRegPairFromDebugger(m, vreg, value, kDoubleLoVReg, kDoubleHiVReg)) {
+      if (!visitor.SetVRegPair(m, vreg, value, kDoubleLoVReg, kDoubleHiVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, value);
       }
       break;
     }
     case JDWP::JT_LONG: {
       CHECK_EQ(width, 8U);
-      if (!visitor.SetVRegPairFromDebugger(m, vreg, value, kLongLoVReg, kLongHiVReg)) {
+      if (!visitor.SetVRegPair(m, vreg, value, kLongLoVReg, kLongHiVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, value);
       }
       break;
