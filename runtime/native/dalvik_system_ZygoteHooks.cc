@@ -159,23 +159,17 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
         proc_name = StringPrintf("%u", static_cast<uint32_t>(pid));
       }
 
-      std::string profiles_dir(GetDalvikCache("profiles", false /* create_if_absent */));
-      if (!profiles_dir.empty()) {
-        std::string trace_file = StringPrintf("%s/%s.trace.bin", profiles_dir.c_str(),
-                                              proc_name.c_str());
-        Trace::Start(trace_file.c_str(),
-                     -1,
-                     buffer_size,
-                     0,   // TODO: Expose flags.
-                     output_mode,
-                     trace_mode,
-                     0);  // TODO: Expose interval.
-        if (thread->IsExceptionPending()) {
-          ScopedObjectAccess soa(env);
-          thread->ClearException();
-        }
-      } else {
-        LOG(ERROR) << "Profiles dir is empty?!?!";
+      std::string trace_file = StringPrintf("/data/misc/trace/%s.trace.bin", proc_name.c_str());
+      Trace::Start(trace_file.c_str(),
+                   -1,
+                   buffer_size,
+                   0,   // TODO: Expose flags.
+                   output_mode,
+                   trace_mode,
+                   0);  // TODO: Expose interval.
+      if (thread->IsExceptionPending()) {
+        ScopedObjectAccess soa(env);
+        thread->ClearException();
       }
     }
   }

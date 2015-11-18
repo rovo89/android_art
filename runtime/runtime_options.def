@@ -97,7 +97,7 @@ RUNTIME_OPTIONS_KEY (LogVerbosity,        Verbose)
 RUNTIME_OPTIONS_KEY (unsigned int,        LockProfThreshold)
 RUNTIME_OPTIONS_KEY (std::string,         StackTraceFile)
 RUNTIME_OPTIONS_KEY (Unit,                MethodTrace)
-RUNTIME_OPTIONS_KEY (std::string,         MethodTraceFile,                "/data/method-trace-file.bin")
+RUNTIME_OPTIONS_KEY (std::string,         MethodTraceFile,                "/data/misc/trace/method-trace-file.bin")
 RUNTIME_OPTIONS_KEY (unsigned int,        MethodTraceFileSize,            10 * MB)
 RUNTIME_OPTIONS_KEY (Unit,                MethodTraceStreaming)
 RUNTIME_OPTIONS_KEY (TraceClockSource,    ProfileClock,                   kDefaultTraceClockSource)  // -Xprofile:
