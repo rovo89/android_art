@@ -600,22 +600,18 @@ class StackVisitor {
                    uint64_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
+  // is triggered to make the values effective.
   bool SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
   // is triggered to make the values effective.
-  bool SetVRegFromDebugger(ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  bool SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
-                   VRegKind kind_lo, VRegKind kind_hi)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
-  // is triggered to make the values effective.
-  bool SetVRegPairFromDebugger(ArtMethod* m, uint16_t vreg, uint64_t new_value,
-                               VRegKind kind_lo, VRegKind kind_hi)
+  bool SetVRegPair(ArtMethod* m,
+                   uint16_t vreg,
+                   uint64_t new_value,
+                   VRegKind kind_lo,
+                   VRegKind kind_hi)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   uintptr_t* GetGPRAddress(uint32_t reg) const;
@@ -749,22 +745,12 @@ class StackVisitor {
     DCHECK(IsAccessibleRegister(reg, is_float));
     return is_float ? GetFPR(reg) : GetGPR(reg);
   }
-  void SetRegister(uint32_t reg, uintptr_t value, bool is_float) {
-    DCHECK(IsAccessibleRegister(reg, is_float));
-    if (is_float) {
-      SetFPR(reg, value);
-    } else {
-      SetGPR(reg, value);
-    }
-  }
 
   bool IsAccessibleGPR(uint32_t reg) const;
   uintptr_t GetGPR(uint32_t reg) const;
-  void SetGPR(uint32_t reg, uintptr_t value);
 
   bool IsAccessibleFPR(uint32_t reg) const;
   uintptr_t GetFPR(uint32_t reg) const;
-  void SetFPR(uint32_t reg, uintptr_t value);
 
   bool GetVRegFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind, uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -787,19 +773,6 @@ class StackVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi, VRegKind kind_lo,
                                    uint64_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  bool SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t new_value,
-                            VRegKind kind)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool SetRegisterIfAccessible(uint32_t reg, uint32_t new_value, VRegKind kind)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  bool SetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, uint64_t new_value,
-                                VRegKind kind_lo, VRegKind kind_hi)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool SetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi, uint64_t new_value,
-                                   bool is_float)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SanityCheckFrame() const SHARED_REQUIRES(Locks::mutator_lock_);
