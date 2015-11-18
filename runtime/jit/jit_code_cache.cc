@@ -44,73 +44,89 @@ static constexpr int kProtCode = PROT_READ | PROT_EXEC;
     }                                                       \
   } while (false)                                           \
 
-JitCodeCache* JitCodeCache::Create(size_t capacity, std::string* error_msg) {
-  CHECK_GT(capacity, 0U);
-  CHECK_LT(capacity, kMaxCapacity);
+JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
+                                   size_t max_capacity,
+                                   std::string* error_msg) {
+  CHECK_GE(max_capacity, initial_capacity);
+  // We need to have 32 bit offsets from method headers in code cache which point to things
+  // in the data cache. If the maps are more than 4G apart, having multiple maps wouldn't work.
+  // Ensure we're below 1 GB to be safe.
+  if (max_capacity > 1 * GB) {
+    std::ostringstream oss;
+    oss << "Maxium code cache capacity is limited to 1 GB, "
+        << PrettySize(max_capacity) << " is too big";
+    *error_msg = oss.str();
+    return nullptr;
+  }
+
   std::string error_str;
   // Map name specific for android_os_Debug.cpp accounting.
   MemMap* data_map = MemMap::MapAnonymous(
-    "data-code-cache", nullptr, capacity, kProtAll, false, false, &error_str);
+    "data-code-cache", nullptr, max_capacity, kProtAll, false, false, &error_str);
   if (data_map == nullptr) {
     std::ostringstream oss;
-    oss << "Failed to create read write execute cache: " << error_str << " size=" << capacity;
+    oss << "Failed to create read write execute cache: " << error_str << " size=" << max_capacity;
     *error_msg = oss.str();
     return nullptr;
   }
+
+  // Align both capacities to page size, as that's the unit mspaces use.
+  initial_capacity = RoundDown(initial_capacity, 2 * kPageSize);
+  max_capacity = RoundDown(max_capacity, 2 * kPageSize);
 
   // Data cache is 1 / 2 of the map.
   // TODO: Make this variable?
-  size_t data_size = RoundUp(data_map->Size() / 2, kPageSize);
-  size_t code_size = data_map->Size() - data_size;
+  size_t data_size = max_capacity / 2;
+  size_t code_size = max_capacity - data_size;
+  DCHECK_EQ(code_size + data_size, max_capacity);
   uint8_t* divider = data_map->Begin() + data_size;
 
-  // We need to have 32 bit offsets from method headers in code cache which point to things
-  // in the data cache. If the maps are more than 4G apart, having multiple maps wouldn't work.
   MemMap* code_map = data_map->RemapAtEnd(divider, "jit-code-cache", kProtAll, &error_str);
   if (code_map == nullptr) {
     std::ostringstream oss;
-    oss << "Failed to create read write execute cache: " << error_str << " size=" << capacity;
+    oss << "Failed to create read write execute cache: " << error_str << " size=" << max_capacity;
     *error_msg = oss.str();
     return nullptr;
   }
-  DCHECK_EQ(code_map->Size(), code_size);
   DCHECK_EQ(code_map->Begin(), divider);
-  return new JitCodeCache(code_map, data_map);
+  data_size = initial_capacity / 2;
+  code_size = initial_capacity - data_size;
+  DCHECK_EQ(code_size + data_size, initial_capacity);
+  return new JitCodeCache(code_map, data_map, code_size, data_size, max_capacity);
 }
 
-JitCodeCache::JitCodeCache(MemMap* code_map, MemMap* data_map)
+JitCodeCache::JitCodeCache(MemMap* code_map,
+                           MemMap* data_map,
+                           size_t initial_code_capacity,
+                           size_t initial_data_capacity,
+                           size_t max_capacity)
     : lock_("Jit code cache", kJitCodeCacheLock),
       lock_cond_("Jit code cache variable", lock_),
       collection_in_progress_(false),
       code_map_(code_map),
-      data_map_(data_map) {
+      data_map_(data_map),
+      max_capacity_(max_capacity),
+      current_capacity_(initial_code_capacity + initial_data_capacity),
+      code_end_(initial_code_capacity),
+      data_end_(initial_data_capacity),
+      has_done_one_collection_(false) {
 
-  code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_map_->Size(), false /*locked*/);
-  data_mspace_ = create_mspace_with_base(data_map_->Begin(), data_map_->Size(), false /*locked*/);
+  code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
+  data_mspace_ = create_mspace_with_base(data_map_->Begin(), data_end_, false /*locked*/);
 
   if (code_mspace_ == nullptr || data_mspace_ == nullptr) {
     PLOG(FATAL) << "create_mspace_with_base failed";
   }
 
-  // Prevent morecore requests from the mspace.
-  mspace_set_footprint_limit(code_mspace_, code_map_->Size());
-  mspace_set_footprint_limit(data_mspace_, data_map_->Size());
+  SetFootprintLimit(current_capacity_);
 
   CHECKED_MPROTECT(code_map_->Begin(), code_map_->Size(), kProtCode);
   CHECKED_MPROTECT(data_map_->Begin(), data_map_->Size(), kProtData);
 
-  live_bitmap_.reset(CodeCacheBitmap::Create("code-cache-bitmap",
-                                             reinterpret_cast<uintptr_t>(code_map_->Begin()),
-                                             reinterpret_cast<uintptr_t>(code_map_->End())));
-
-  if (live_bitmap_.get() == nullptr) {
-    PLOG(FATAL) << "creating bitmaps for the JIT code cache failed";
-  }
-
-  VLOG(jit) << "Created jit code cache: data size="
-            << PrettySize(data_map_->Size())
-            << ", code size="
-            << PrettySize(code_map_->Size());
+  VLOG(jit) << "Created jit code cache: initial data size="
+            << PrettySize(initial_data_capacity)
+            << ", initial code size="
+            << PrettySize(initial_code_capacity);
 }
 
 bool JitCodeCache::ContainsPc(const void* ptr) const {
@@ -433,13 +449,48 @@ class MarkCodeClosure FINAL : public Closure {
   Barrier* const barrier_;
 };
 
-void JitCodeCache::GarbageCollectCache(Thread* self) {
-  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-    LOG(INFO) << "Clearing code cache, code="
-              << PrettySize(CodeCacheSize())
-              << ", data=" << PrettySize(DataCacheSize());
+void JitCodeCache::NotifyCollectionDone(Thread* self) {
+  collection_in_progress_ = false;
+  lock_cond_.Broadcast(self);
+}
+
+void JitCodeCache::SetFootprintLimit(size_t new_footprint) {
+  size_t per_space_footprint = new_footprint / 2;
+  DCHECK(IsAlignedParam(per_space_footprint, kPageSize));
+  DCHECK_EQ(per_space_footprint * 2, new_footprint);
+  mspace_set_footprint_limit(data_mspace_, per_space_footprint);
+  {
+    ScopedCodeCacheWrite scc(code_map_.get());
+    mspace_set_footprint_limit(code_mspace_, per_space_footprint);
+  }
+}
+
+bool JitCodeCache::IncreaseCodeCacheCapacity() {
+  if (current_capacity_ == max_capacity_) {
+    return false;
   }
 
+  // Double the capacity if we're below 1MB, or increase it by 1MB if
+  // we're above.
+  if (current_capacity_ < 1 * MB) {
+    current_capacity_ *= 2;
+  } else {
+    current_capacity_ += 1 * MB;
+  }
+  if (current_capacity_ > max_capacity_) {
+    current_capacity_ = max_capacity_;
+  }
+
+  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+    LOG(INFO) << "Increasing code cache capacity to " << PrettySize(current_capacity_);
+  }
+
+  SetFootprintLimit(current_capacity_);
+
+  return true;
+}
+
+void JitCodeCache::GarbageCollectCache(Thread* self) {
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
 
   // Wait for an existing collection, or let everyone know we are starting one.
@@ -451,6 +502,28 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     } else {
       collection_in_progress_ = true;
     }
+  }
+
+  // Check if we just need to grow the capacity. If we don't, allocate the bitmap while
+  // we hold the lock.
+  {
+    MutexLock mu(self, lock_);
+    if (has_done_one_collection_ && IncreaseCodeCacheCapacity()) {
+      has_done_one_collection_ = false;
+      NotifyCollectionDone(self);
+      return;
+    } else {
+      live_bitmap_.reset(CodeCacheBitmap::Create(
+          "code-cache-bitmap",
+          reinterpret_cast<uintptr_t>(code_map_->Begin()),
+          reinterpret_cast<uintptr_t>(code_map_->Begin() + current_capacity_ / 2)));
+    }
+  }
+
+  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+    LOG(INFO) << "Clearing code cache, code="
+              << PrettySize(CodeCacheSize())
+              << ", data=" << PrettySize(DataCacheSize());
   }
   // Walk over all compiled methods and set the entry points of these
   // methods to interpreter.
@@ -500,7 +573,6 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
         }
       }
     }
-    GetLiveBitmap()->Bitmap::Clear();
 
     // Free all profiling info.
     for (ProfilingInfo* info : profiling_infos_) {
@@ -509,8 +581,9 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     }
     profiling_infos_.clear();
 
-    collection_in_progress_ = false;
-    lock_cond_.Broadcast(self);
+    live_bitmap_.reset(nullptr);
+    has_done_one_collection_ = true;
+    NotifyCollectionDone(self);
   }
 
   if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
@@ -587,6 +660,21 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
   method->SetProfilingInfo(info);
   profiling_infos_.push_back(info);
   return info;
+}
+
+// NO_THREAD_SAFETY_ANALYSIS as this is called from mspace code, at which point the lock
+// is already held.
+void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_SAFETY_ANALYSIS {
+  if (code_mspace_ == mspace) {
+    size_t result = code_end_;
+    code_end_ += increment;
+    return reinterpret_cast<void*>(result + code_map_->Begin());
+  } else {
+    DCHECK_EQ(data_mspace_, mspace);
+    size_t result = data_end_;
+    data_end_ += increment;
+    return reinterpret_cast<void*>(result + data_map_->Begin());
+  }
 }
 
 }  // namespace jit
