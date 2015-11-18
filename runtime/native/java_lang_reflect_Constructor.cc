@@ -46,8 +46,9 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
   }
   // Verify that we can access the class.
   if (!m->IsAccessible() && !c->IsPublic()) {
-    // Go 2 frames back, this method is always called from the newInstance(Object... args)
-    auto* caller = GetCallingClass(soa.Self(), 2);
+    // Go 3 frames back, this method is always called from newInstance0, which is called from
+    // Constructor.newInstance(Object... args).
+    auto* caller = GetCallingClass(soa.Self(), 3);
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
     if (caller != nullptr && !caller->CanAccess(c.Get())) {
@@ -75,7 +76,7 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
 
   // String constructor is replaced by a StringFactory method in InvokeMethod.
   if (c->IsStringClass()) {
-    return InvokeMethod(soa, javaMethod, nullptr, javaArgs, 1);
+    return InvokeMethod(soa, javaMethod, nullptr, javaArgs, 2);
   }
 
   mirror::Object* receiver =
@@ -84,7 +85,7 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
     return nullptr;
   }
   jobject javaReceiver = soa.AddLocalReference<jobject>(receiver);
-  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, 1);
+  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, 2);
   // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
   return javaReceiver;
 }
