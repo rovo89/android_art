@@ -1391,6 +1391,108 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+// boolean java.lang.String.equals(Object anObject)
+void IntrinsicLocationsBuilderMIPS64::VisitStringEquals(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+
+  // Temporary registers to store lengths of strings and for calculations.
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringEquals(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  GpuRegister str = locations->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister arg = locations->InAt(1).AsRegister<GpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  GpuRegister temp1 = locations->GetTemp(0).AsRegister<GpuRegister>();
+  GpuRegister temp2 = locations->GetTemp(1).AsRegister<GpuRegister>();
+  GpuRegister temp3 = locations->GetTemp(2).AsRegister<GpuRegister>();
+
+  Label loop;
+  Label end;
+  Label return_true;
+  Label return_false;
+
+  // Get offsets of count, value, and class fields within a string object.
+  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+  const int32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  // Note that the null check must have been done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
+
+  // If the register containing the pointer to "this", and the register
+  // containing the pointer to "anObject" are the same register then
+  // "this", and "anObject" are the same object and we can
+  // short-circuit the logic to a true result.
+  if (str == arg) {
+    __ LoadConst64(out, 1);
+    return;
+  }
+
+  // Check if input is null, return false if it is.
+  __ Beqzc(arg, &return_false);
+
+  // Reference equality check, return true if same reference.
+  __ Beqc(str, arg, &return_true);
+
+  // Instanceof check for the argument by comparing class fields.
+  // All string objects must have the same type since String cannot be subclassed.
+  // Receiver must be a string object, so its class field is equal to all strings' class fields.
+  // If the argument is a string object, its class field must be equal to receiver's class field.
+  __ Lw(temp1, str, class_offset);
+  __ Lw(temp2, arg, class_offset);
+  __ Bnec(temp1, temp2, &return_false);
+
+  // Load lengths of this and argument strings.
+  __ Lw(temp1, str, count_offset);
+  __ Lw(temp2, arg, count_offset);
+  // Check if lengths are equal, return false if they're not.
+  __ Bnec(temp1, temp2, &return_false);
+  // Return true if both strings are empty.
+  __ Beqzc(temp1, &return_true);
+
+  // Don't overwrite input registers
+  __ Move(TMP, str);
+  __ Move(temp3, arg);
+
+  // Assertions that must hold in order to compare strings 4 characters at a time.
+  DCHECK_ALIGNED(value_offset, 8);
+  static_assert(IsAligned<8>(kObjectAlignment), "String of odd length is not zero padded");
+
+  // Loop to compare strings 4 characters at a time starting at the beginning of the string.
+  // Ok to do this because strings are zero-padded to be 8-byte aligned.
+  __ Bind(&loop);
+  __ Ld(out, TMP, value_offset);
+  __ Ld(temp2, temp3, value_offset);
+  __ Bnec(out, temp2, &return_false);
+  __ Daddiu(TMP, TMP, 8);
+  __ Daddiu(temp3, temp3, 8);
+  __ Addiu(temp1, temp1, -4);
+  __ Bgtzc(temp1, &loop);
+
+  // Return true and exit the function.
+  // If loop does not result in returning false, we return true.
+  __ Bind(&return_true);
+  __ LoadConst64(out, 1);
+  __ B(&end);
+
+  // Return false and exit the function.
+  __ Bind(&return_false);
+  __ LoadConst64(out, 0);
+  __ Bind(&end);
+}
+
 static void GenerateStringIndexOf(HInvoke* invoke,
                                   Mips64Assembler* assembler,
                                   CodeGeneratorMIPS64* codegen,
@@ -1585,8 +1687,6 @@ void IntrinsicCodeGeneratorMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
-
-UNIMPLEMENTED_INTRINSIC(StringEquals)
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
