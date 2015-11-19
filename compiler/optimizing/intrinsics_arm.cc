@@ -44,7 +44,23 @@ using IntrinsicSlowPathARM = IntrinsicSlowPath<InvokeDexCallingConventionVisitor
 bool IntrinsicLocationsBuilderARM::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
-  return res != nullptr && res->Intrinsified();
+  if (res == nullptr) {
+    return false;
+  }
+  if (kEmitCompilerReadBarrier && res->CanCall()) {
+    // Generating an intrinsic for this HInvoke may produce an
+    // IntrinsicSlowPathARM slow path.  Currently this approach
+    // does not work when using read barriers, as the emitted
+    // calling sequence will make use of another slow path
+    // (ReadBarrierForRootSlowPathARM for HInvokeStaticOrDirect,
+    // ReadBarrierSlowPathARM for HInvokeVirtual).  So we bail
+    // out in this case.
+    //
+    // TODO: Find a way to have intrinsics work with read barriers.
+    invoke->SetLocations(nullptr);
+    return false;
+  }
+  return res->Intrinsified();
 }
 
 #define __ assembler->
@@ -662,20 +678,23 @@ static void GenUnsafeGet(HInvoke* invoke,
          (type == Primitive::kPrimLong) ||
          (type == Primitive::kPrimNot));
   ArmAssembler* assembler = codegen->GetAssembler();
-  Register base = locations->InAt(1).AsRegister<Register>();           // Object pointer.
-  Register offset = locations->InAt(2).AsRegisterPairLow<Register>();  // Long offset, lo part only.
+  Location base_loc = locations->InAt(1);
+  Register base = base_loc.AsRegister<Register>();             // Object pointer.
+  Location offset_loc = locations->InAt(2);
+  Register offset = offset_loc.AsRegisterPairLow<Register>();  // Long offset, lo part only.
+  Location trg_loc = locations->Out();
 
   if (type == Primitive::kPrimLong) {
-    Register trg_lo = locations->Out().AsRegisterPairLow<Register>();
+    Register trg_lo = trg_loc.AsRegisterPairLow<Register>();
     __ add(IP, base, ShifterOperand(offset));
     if (is_volatile && !codegen->GetInstructionSetFeatures().HasAtomicLdrdAndStrd()) {
-      Register trg_hi = locations->Out().AsRegisterPairHigh<Register>();
+      Register trg_hi = trg_loc.AsRegisterPairHigh<Register>();
       __ ldrexd(trg_lo, trg_hi, IP);
     } else {
       __ ldrd(trg_lo, Address(IP));
     }
   } else {
-    Register trg = locations->Out().AsRegister<Register>();
+    Register trg = trg_loc.AsRegister<Register>();
     __ ldr(trg, Address(base, offset));
   }
 
@@ -684,14 +703,18 @@ static void GenUnsafeGet(HInvoke* invoke,
   }
 
   if (type == Primitive::kPrimNot) {
-    Register trg = locations->Out().AsRegister<Register>();
-    __ MaybeUnpoisonHeapReference(trg);
+    codegen->MaybeGenerateReadBarrier(invoke, trg_loc, trg_loc, base_loc, 0U, offset_loc);
   }
 }
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           can_call ?
+                                                               LocationSummary::kCallOnSlowPath :
+                                                               LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
@@ -936,6 +959,7 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   __ Bind(&loop_head);
 
   __ ldrex(tmp_lo, tmp_ptr);
+  // TODO: Do we need a read barrier here when `type == Primitive::kPrimNot`?
 
   __ subs(tmp_lo, tmp_lo, ShifterOperand(expected_lo));
 
@@ -964,7 +988,11 @@ void IntrinsicLocationsBuilderARM::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic does not always work when heap
   // poisoning is enabled (it breaks run-test 004-UnsafeTest); turn it
   // off temporarily as a quick fix.
+  //
   // TODO(rpl): Fix it and turn it back on.
+  //
+  // TODO(rpl): Also, we should investigate whether we need a read
+  // barrier in the generated code.
   if (kPoisonHeapReferences) {
     return;
   }
@@ -1400,6 +1428,10 @@ static void CheckPosition(ArmAssembler* assembler,
   }
 }
 
+// TODO: Implement read barriers in the SystemArrayCopy intrinsic.
+// Note that this code path is not used (yet) because we do not
+// intrinsify methods that can go into the IntrinsicSlowPathARM
+// slow path.
 void IntrinsicCodeGeneratorARM::VisitSystemArrayCopy(HInvoke* invoke) {
   ArmAssembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();

@@ -383,10 +383,11 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
-// Read barrier are supported only on x86 and x86-64 at the moment.
+// Read barrier are supported only on ARM, x86 and x86-64 at the moment.
 // TODO: Add support for other architectures and remove this function
 static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
-  return instruction_set == kX86
+  return instruction_set == kThumb2
+      || instruction_set == kX86
       || instruction_set == kX86_64;
 }
 
@@ -668,8 +669,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   CompilerDriver* compiler_driver = GetCompilerDriver();
   InstructionSet instruction_set = compiler_driver->GetInstructionSet();
 
-  // Always use the thumb2 assembler: some runtime functionality (like implicit stack
-  // overflow checks) assume thumb2.
+  // Always use the Thumb-2 assembler: some runtime functionality
+  // (like implicit stack overflow checks) assume Thumb-2.
   if (instruction_set == kArm) {
     instruction_set = kThumb2;
   }
