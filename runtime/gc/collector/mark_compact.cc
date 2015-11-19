@@ -45,7 +45,7 @@ void MarkCompact::BindBitmaps() {
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect ||
         space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect) {
-      CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
+      immune_spaces_.AddSpace(space);
     }
   }
 }
@@ -115,7 +115,7 @@ void MarkCompact::InitializePhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
-  immune_region_.Reset();
+  immune_spaces_.Reset();
   CHECK(space_->CanMoveObjects()) << "Attempting compact non-movable space from " << *space_;
   // TODO: I don't think we should need heap bitmap lock to Get the mark bitmap.
   ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
@@ -148,7 +148,7 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
     // Verify all the objects have the correct forward pointer installed.
     obj->AssertReadBarrierPointer();
   }
-  if (!immune_region_.ContainsObject(obj)) {
+  if (!immune_spaces_.IsInImmuneRegion(obj)) {
     if (objects_before_forwarding_->HasAddress(obj)) {
       if (!objects_before_forwarding_->Set(obj)) {
         MarkStackPush(obj);  // This object was not previously marked.
@@ -218,7 +218,7 @@ void MarkCompact::UpdateAndMarkModUnion() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   for (auto& space : heap_->GetContinuousSpaces()) {
     // If the space is immune then we need to mark the references to other spaces.
-    if (immune_region_.ContainsSpace(space)) {
+    if (immune_spaces_.ContainsSpace(space)) {
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       if (table != nullptr) {
         // TODO: Improve naming.
@@ -475,7 +475,7 @@ inline mirror::Object* MarkCompact::GetMarkedForwardAddress(mirror::Object* obj)
 }
 
 mirror::Object* MarkCompact::IsMarked(mirror::Object* object) {
-  if (immune_region_.ContainsObject(object)) {
+  if (immune_spaces_.IsInImmuneRegion(object)) {
     return object;
   }
   if (updating_references_) {
@@ -498,7 +498,7 @@ void MarkCompact::SweepSystemWeaks() {
 }
 
 bool MarkCompact::ShouldSweepSpace(space::ContinuousSpace* space) const {
-  return space != space_ && !immune_region_.ContainsSpace(space);
+  return space != space_ && !immune_spaces_.ContainsSpace(space);
 }
 
 class MoveObjectVisitor {

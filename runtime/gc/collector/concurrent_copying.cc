@@ -134,10 +134,10 @@ void ConcurrentCopying::BindBitmaps() {
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : heap_->GetContinuousSpaces()) {
-    if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect
-        || space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect) {
+    if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect ||
+        space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect) {
       CHECK(space->IsZygoteSpace() || space->IsImageSpace());
-      CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
+      immune_spaces_.AddSpace(space);
       const char* bitmap_name = space->IsImageSpace() ? "cc image space bitmap" :
           "cc zygote space bitmap";
       // TODO: try avoiding using bitmaps for image/zygote to save space.
@@ -164,7 +164,7 @@ void ConcurrentCopying::InitializePhase() {
               << reinterpret_cast<void*>(region_space_->Limit());
   }
   CheckEmptyMarkStack();
-  immune_region_.Reset();
+  immune_spaces_.Reset();
   bytes_moved_.StoreRelaxed(0);
   objects_moved_.StoreRelaxed(0);
   if (GetCurrentIteration()->GetGcCause() == kGcCauseExplicit ||
@@ -177,7 +177,11 @@ void ConcurrentCopying::InitializePhase() {
   BindBitmaps();
   if (kVerboseMode) {
     LOG(INFO) << "force_evacuate_all=" << force_evacuate_all_;
-    LOG(INFO) << "Immune region: " << immune_region_.Begin() << "-" << immune_region_.End();
+    LOG(INFO) << "Largest immune region: " << immune_spaces_.GetLargestImmuneRegion().Begin()
+              << "-" << immune_spaces_.GetLargestImmuneRegion().End();
+    for (space::ContinuousSpace* space : immune_spaces_.GetSpaces()) {
+      LOG(INFO) << "Immune space: " << *space;
+    }
     LOG(INFO) << "GC end of InitializePhase";
   }
 }
@@ -300,7 +304,7 @@ class ConcurrentCopyingImmuneSpaceObjVisitor {
   void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_)
       SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
-    DCHECK(collector_->immune_region_.ContainsObject(obj));
+    DCHECK(collector_->immune_spaces_.ContainsObject(obj));
     accounting::ContinuousSpaceBitmap* cc_bitmap =
         collector_->cc_heap_bitmap_->GetContinuousSpaceBitmap(obj);
     DCHECK(cc_bitmap != nullptr)
@@ -383,15 +387,13 @@ void ConcurrentCopying::MarkingPhase() {
   }
 
   // Immune spaces.
-  for (auto& space : heap_->GetContinuousSpaces()) {
-    if (immune_region_.ContainsSpace(space)) {
-      DCHECK(space->IsImageSpace() || space->IsZygoteSpace());
-      accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
-      ConcurrentCopyingImmuneSpaceObjVisitor visitor(this);
-      live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
-                                    reinterpret_cast<uintptr_t>(space->Limit()),
-                                    visitor);
-    }
+  for (auto& space : immune_spaces_.GetSpaces()) {
+    DCHECK(space->IsImageSpace() || space->IsZygoteSpace());
+    accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
+    ConcurrentCopyingImmuneSpaceObjVisitor visitor(this);
+    live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                  reinterpret_cast<uintptr_t>(space->Limit()),
+                                  visitor);
   }
 
   Thread* self = Thread::Current();
@@ -1205,7 +1207,7 @@ void ConcurrentCopying::Sweep(bool swap_bitmaps) {
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
-      if (space == region_space_ || immune_region_.ContainsSpace(space)) {
+      if (space == region_space_ || immune_spaces_.ContainsSpace(space)) {
         continue;
       }
       TimingLogger::ScopedTiming split2(
@@ -1507,8 +1509,8 @@ void ConcurrentCopying::LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset 
     }
   } else {
     // In a non-moving space.
-    if (immune_region_.ContainsObject(obj)) {
-      LOG(INFO) << "holder is in the image or the zygote space.";
+    if (immune_spaces_.ContainsObject(obj)) {
+      LOG(INFO) << "holder is in an immune image or the zygote space.";
       accounting::ContinuousSpaceBitmap* cc_bitmap =
           cc_heap_bitmap_->GetContinuousSpaceBitmap(obj);
       CHECK(cc_bitmap != nullptr)
@@ -1519,7 +1521,7 @@ void ConcurrentCopying::LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset 
         LOG(INFO) << "holder is NOT marked in the bit map.";
       }
     } else {
-      LOG(INFO) << "holder is in a non-moving (or main) space.";
+      LOG(INFO) << "holder is in a non-immune, non-moving (or main) space.";
       accounting::ContinuousSpaceBitmap* mark_bitmap =
           heap_mark_bitmap_->GetContinuousSpaceBitmap(obj);
       accounting::LargeObjectBitmap* los_bitmap =
@@ -1547,7 +1549,7 @@ void ConcurrentCopying::LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset 
 void ConcurrentCopying::AssertToSpaceInvariantInNonMovingSpace(mirror::Object* obj,
                                                                mirror::Object* ref) {
   // In a non-moving spaces. Check that the ref is marked.
-  if (immune_region_.ContainsObject(ref)) {
+  if (immune_spaces_.ContainsObject(ref)) {
     accounting::ContinuousSpaceBitmap* cc_bitmap =
         cc_heap_bitmap_->GetContinuousSpaceBitmap(ref);
     CHECK(cc_bitmap != nullptr)
@@ -1932,7 +1934,7 @@ mirror::Object* ConcurrentCopying::IsMarked(mirror::Object* from_ref) {
     }
   } else {
     // from_ref is in a non-moving space.
-    if (immune_region_.ContainsObject(from_ref)) {
+    if (immune_spaces_.ContainsObject(from_ref)) {
       accounting::ContinuousSpaceBitmap* cc_bitmap =
           cc_heap_bitmap_->GetContinuousSpaceBitmap(from_ref);
       DCHECK(cc_bitmap != nullptr)
@@ -1986,7 +1988,7 @@ bool ConcurrentCopying::IsOnAllocStack(mirror::Object* ref) {
 mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref) {
   // ref is in a non-moving space (from_ref == to_ref).
   DCHECK(!region_space_->HasAddress(ref)) << ref;
-  if (immune_region_.ContainsObject(ref)) {
+  if (immune_spaces_.ContainsObject(ref)) {
     accounting::ContinuousSpaceBitmap* cc_bitmap =
         cc_heap_bitmap_->GetContinuousSpaceBitmap(ref);
     DCHECK(cc_bitmap != nullptr)
