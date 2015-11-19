@@ -322,7 +322,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
 }
 
-void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path) {
+bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path,
+                                   std::string* error_msg) {
   VLOG(startup) << "ClassLinker::Init";
 
   Thread* const self = Thread::Current();
@@ -477,9 +478,15 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // Setup boot_class_path_ and register class_path now that we can use AllocObjectArray to create
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
   // these roots.
-  CHECK_NE(0U, boot_class_path.size());
+  if (boot_class_path.empty()) {
+    *error_msg = "Boot classpath is empty.";
+    return false;
+  }
   for (auto& dex_file : boot_class_path) {
-    CHECK(dex_file.get() != nullptr);
+    if (dex_file.get() == nullptr) {
+      *error_msg = "Null dex file.";
+      return false;
+    }
     AppendToBootClassPath(self, *dex_file);
     opened_dex_files_.push_back(std::move(dex_file));
   }
@@ -660,6 +667,8 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   FinishInit(self);
 
   VLOG(startup) << "ClassLinker::InitFromCompiler exiting";
+
+  return true;
 }
 
 void ClassLinker::FinishInit(Thread* self) {
@@ -850,7 +859,7 @@ class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
   DISALLOW_COPY_AND_ASSIGN(SetInterpreterEntrypointArtMethodVisitor);
 };
 
-void ClassLinker::InitFromImage() {
+bool ClassLinker::InitFromImage(std::string* error_msg) {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
 
@@ -895,22 +904,32 @@ void ClassLinker::InitFromImage() {
                                                          java_lang_Object->GetObjectSize(),
                                                          VoidFunctor()));
 
-  CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
-           static_cast<uint32_t>(dex_caches->GetLength()));
+  if (oat_file->GetOatHeader().GetDexFileCount() !=
+      static_cast<uint32_t>(dex_caches->GetLength())) {
+    *error_msg = "Dex cache count and dex file count mismatch while trying to initialize from "
+                 "image";
+    return false;
+  }
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
     StackHandleScope<1> hs2(self);
     Handle<mirror::DexCache> dex_cache(hs2.NewHandle(dex_caches->Get(i)));
     const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location.c_str(),
                                                                       nullptr);
-    CHECK(oat_dex_file != nullptr) << oat_file->GetLocation() << " " << dex_file_location;
-    std::string error_msg;
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+    if (oat_dex_file == nullptr) {
+      *error_msg = StringPrintf("Failed finding oat dex file for %s %s",
+                                oat_file->GetLocation().c_str(),
+                                dex_file_location.c_str());
+      return false;
+    }
+    std::string inner_error_msg;
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&inner_error_msg);
     if (dex_file == nullptr) {
-      LOG(FATAL) << "Failed to open dex file " << dex_file_location
-                 << " from within oat file " << oat_file->GetLocation()
-                 << " error '" << error_msg << "'";
-      UNREACHABLE();
+      *error_msg = StringPrintf("Failed to open dex file %s from within oat file %s error '%s'",
+                                dex_file_location.c_str(),
+                                oat_file->GetLocation().c_str(),
+                                inner_error_msg.c_str());
+      return false;
     }
 
     if (kSanityCheckObjects) {
@@ -920,13 +939,22 @@ void ClassLinker::InitFromImage() {
                                        space);
     }
 
-    CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
+    if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
+      *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
+                                dex_file_location.c_str(),
+                                dex_file->GetLocationChecksum(),
+                                oat_dex_file->GetDexFileLocationChecksum());
+      return false;
+    }
 
     AppendToBootClassPath(*dex_file.get(), dex_cache);
     opened_dex_files_.push_back(std::move(dex_file));
   }
 
-  CHECK(ValidPointerSize(image_pointer_size_)) << image_pointer_size_;
+  if (!ValidPointerSize(image_pointer_size_)) {
+    *error_msg = StringPrintf("Invalid image pointer size: %zu", image_pointer_size_);
+    return false;
+  }
 
   // Set classes on AbstractMethod early so that IsMethod tests can be performed during the live
   // bitmap walk.
@@ -934,7 +962,12 @@ void ClassLinker::InitFromImage() {
     // Only the Aot compiler supports having an image with a different pointer size than the
     // runtime. This happens on the host for compile 32 bit tests since we use a 64 bit libart
     // compiler. We may also use 32 bit dex2oat on a system with 64 bit apps.
-    CHECK_EQ(image_pointer_size_, sizeof(void*));
+    if (image_pointer_size_ != sizeof(void*)) {
+      *error_msg = StringPrintf("Runtime must use current image pointer size: %zu vs %zu",
+                                image_pointer_size_ ,
+                                sizeof(void*));
+      return false;
+    }
   }
 
   if (kSanityCheckObjects) {
@@ -987,6 +1020,8 @@ void ClassLinker::InitFromImage() {
   FinishInit(self);
 
   VLOG(startup) << "ClassLinker::InitFromImage exiting";
+
+  return true;
 }
 
 bool ClassLinker::ClassInClassTable(mirror::Class* klass) {
