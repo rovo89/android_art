@@ -3031,7 +3031,7 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
                         invoke->GetStringInitOffset());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ LoadConst32(temp.AsRegister<Register>(), invoke->GetMethodAddress());
@@ -3043,7 +3043,7 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
       LOG(FATAL) << "Unsupported";
       UNREACHABLE();
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       Register reg = temp.AsRegister<Register>();
       Register method_reg;
       if (current_method.IsRegister()) {

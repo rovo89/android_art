@@ -113,9 +113,8 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     if (invoke_static_or_direct != nullptr && invoke_static_or_direct->HasPcRelativeDexCache()) {
       InitializePCRelativeBasePointer(invoke);
       // Add the extra parameter base_.
-      uint32_t index = invoke_static_or_direct->GetCurrentMethodInputIndex();
       DCHECK(!invoke_static_or_direct->HasCurrentMethodInput());
-      invoke_static_or_direct->InsertInputAt(index, base_);
+      invoke_static_or_direct->AddSpecialInput(base_);
     }
     // Ensure that we can load FP arguments from the constant area.
     for (size_t i = 0, e = invoke->InputCount(); i < e; i++) {

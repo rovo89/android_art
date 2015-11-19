@@ -718,7 +718,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                     Address::Absolute(invoke->GetStringInitOffset(), true));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ movq(temp.AsRegister<CpuRegister>(), Immediate(invoke->GetMethodAddress()));
@@ -737,7 +737,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ Bind(&pc_relative_dex_cache_patches_.back().label);
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       Register method_reg;
       CpuRegister reg = temp.AsRegister<CpuRegister>();
       if (current_method.IsRegister()) {
