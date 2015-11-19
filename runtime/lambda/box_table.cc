@@ -62,7 +62,7 @@ BoxTable::BoxTable()
 
 BoxTable::~BoxTable() {
   // Free all the copies of our closures.
-  for (auto map_iterator = map_.begin(); map_iterator != map_.end(); ++map_iterator) {
+  for (auto map_iterator = map_.begin(); map_iterator != map_.end(); ) {
     std::pair<UnorderedMapKeyType, ValueType>& key_value_pair = *map_iterator;
 
     Closure* closure = key_value_pair.first;
