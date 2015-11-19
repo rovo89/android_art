@@ -66,8 +66,9 @@ void SemiSpace::BindBitmaps() {
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect ||
         space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect) {
-      CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
+      immune_spaces_.AddSpace(space);
     } else if (space->GetLiveBitmap() != nullptr) {
+      // TODO: We can probably also add this space to the immune region.
       if (space == to_space_ || collect_from_space_only_) {
         if (collect_from_space_only_) {
           // Bind the bitmaps of the main free list space and the non-moving space we are doing a
@@ -144,7 +145,7 @@ void SemiSpace::InitializePhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
-  immune_region_.Reset();
+  immune_spaces_.Reset();
   is_large_object_space_immune_ = false;
   saved_bytes_ = 0;
   bytes_moved_ = 0;
@@ -376,7 +377,13 @@ void SemiSpace::MarkReachableObjects() {
           << "generational_=" << generational_ << " "
           << "collect_from_space_only_=" << collect_from_space_only_;
       accounting::RememberedSet* rem_set = GetHeap()->FindRememberedSetFromSpace(space);
-      CHECK_EQ(rem_set != nullptr, kUseRememberedSet);
+      if (kUseRememberedSet) {
+        // App images currently do not have remembered sets.
+        DCHECK((space->IsImageSpace() && space != heap_->GetBootImageSpace()) ||
+               rem_set != nullptr);
+      } else {
+        DCHECK(rem_set == nullptr);
+      }
       if (rem_set != nullptr) {
         TimingLogger::ScopedTiming t2("UpdateAndMarkRememberedSet", GetTimings());
         rem_set->UpdateAndMarkReferences(from_space_, this);
@@ -767,7 +774,8 @@ mirror::Object* SemiSpace::IsMarked(mirror::Object* obj) {
   if (from_space_->HasAddress(obj)) {
     // Returns either the forwarding address or null.
     return GetForwardingAddressInFromSpace(obj);
-  } else if (collect_from_space_only_ || immune_region_.ContainsObject(obj) ||
+  } else if (collect_from_space_only_ ||
+             immune_spaces_.IsInImmuneRegion(obj) ||
              to_space_->HasAddress(obj)) {
     return obj;  // Already forwarded, must be marked.
   }

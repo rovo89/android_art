@@ -19,7 +19,7 @@
 
 #include "barrier.h"
 #include "garbage_collector.h"
-#include "immune_region.h"
+#include "immune_spaces.h"
 #include "jni.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -200,7 +200,7 @@ class ConcurrentCopying : public GarbageCollector {
   bool is_marking_;                       // True while marking is ongoing.
   bool is_active_;                        // True while the collection is ongoing.
   bool is_asserting_to_space_invariant_;  // True while asserting the to-space invariant.
-  ImmuneRegion immune_region_;
+  ImmuneSpaces immune_spaces_;
   std::unique_ptr<accounting::HeapBitmap> cc_heap_bitmap_;
   std::vector<accounting::SpaceBitmap<kObjectAlignment>*> cc_bitmaps_;
   accounting::SpaceBitmap<kObjectAlignment>* region_space_bitmap_;
