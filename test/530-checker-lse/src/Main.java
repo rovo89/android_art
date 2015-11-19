@@ -22,7 +22,7 @@ class Circle {
     return radius * radius * Math.PI;
   }
   private double radius;
-};
+}
 
 class TestClass {
   TestClass() {
@@ -35,17 +35,31 @@ class TestClass {
   int j;
   volatile int k;
   TestClass next;
+  String str;
   static int si;
-};
+}
 
 class SubTestClass extends TestClass {
   int k;
-};
+}
 
 class TestClass2 {
   int i;
   int j;
-};
+}
+
+class Finalizable {
+  static boolean sVisited = false;
+  static final int VALUE = 0xbeef;
+  int i;
+
+  protected void finalize() {
+    if (i != VALUE) {
+      System.out.println("Where is the beef?");
+    }
+    sVisited = true;
+  }
+}
 
 public class Main {
 
@@ -56,7 +70,7 @@ public class Main {
 
   /// CHECK-START: double Main.calcCircleArea(double) load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
   static double calcCircleArea(double radius) {
@@ -117,7 +131,7 @@ public class Main {
   /// CHECK: InstanceFieldGet
   /// CHECK: InstanceFieldSet
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
   // A new allocation shouldn't alias with pre-existing values.
@@ -223,7 +237,7 @@ public class Main {
 
   /// CHECK-START: int Main.test8() load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK: InvokeVirtual
   /// CHECK-NOT: NullCheck
   /// CHECK-NOT: InstanceFieldGet
@@ -381,8 +395,8 @@ public class Main {
 
   /// CHECK-START: int Main.test16() load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK-NOT: StaticFieldSet
-  /// CHECK-NOT: StaticFieldGet
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
 
   // Test inlined constructor.
   static int test16() {
@@ -398,8 +412,8 @@ public class Main {
   /// CHECK-START: int Main.test17() load_store_elimination (after)
   /// CHECK: <<Const0:i\d+>> IntConstant 0
   /// CHECK: NewInstance
-  /// CHECK-NOT: StaticFieldSet
-  /// CHECK-NOT: StaticFieldGet
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
   /// CHECK: Return [<<Const0>>]
 
   // Test getting default value.
@@ -455,6 +469,148 @@ public class Main {
     return obj;
   }
 
+  /// CHECK-START: void Main.test21() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: StaticFieldSet
+  /// CHECK: StaticFieldGet
+
+  /// CHECK-START: void Main.test21() load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: StaticFieldSet
+  /// CHECK: InstanceFieldGet
+
+  // Loop side effects can kill heap values, stores need to be kept in that case.
+  static void test21() {
+    TestClass obj = new TestClass();
+    obj.str = "abc";
+    for (int i = 0; i < 2; i++) {
+      // Generate some loop side effect that does write.
+      obj.si = 1;
+    }
+    System.out.print(obj.str.substring(0, 0));
+  }
+
+  /// CHECK-START: int Main.test22() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: InstanceFieldGet
+
+  /// CHECK-START: int Main.test22() load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: NewInstance
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
+  /// CHECK: NewInstance
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK-NOT: InstanceFieldGet
+
+  // Loop side effects only affects stores into singletons that dominiates the loop header.
+  static int test22() {
+    int sum = 0;
+    TestClass obj1 = new TestClass();
+    obj1.i = 2;       // This store can't be eliminated since it can be killed by loop side effects.
+    for (int i = 0; i < 2; i++) {
+      TestClass obj2 = new TestClass();
+      obj2.i = 3;    // This store can be eliminated since the singleton is inside the loop.
+      sum += obj2.i;
+    }
+    TestClass obj3 = new TestClass();
+    obj3.i = 5;      // This store can be eliminated since the singleton is created after the loop.
+    sum += obj1.i + obj3.i;
+    return sum;
+  }
+
+  /// CHECK-START: int Main.test23(boolean) load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: Return
+  /// CHECK: InstanceFieldGet
+  /// CHECK: InstanceFieldSet
+
+  /// CHECK-START: int Main.test23(boolean) load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: Return
+  /// CHECK-NOT: InstanceFieldGet
+  /// CHECK: InstanceFieldSet
+
+  // Test store elimination on merging.
+  static int test23(boolean b) {
+    TestClass obj = new TestClass();
+    obj.i = 3;      // This store can be eliminated since the value flows into each branch.
+    if (b) {
+      obj.i += 1;   // This store cannot be eliminated due to the merge later.
+    } else {
+      obj.i += 2;   // This store cannot be eliminated due to the merge later.
+    }
+    return obj.i;
+  }
+
+  /// CHECK-START: void Main.testFinalizable() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+
+  /// CHECK-START: void Main.testFinalizable() load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+
+  // Allocations and stores into finalizable objects cannot be eliminated.
+  static void testFinalizable() {
+    Finalizable finalizable = new Finalizable();
+    finalizable.i = Finalizable.VALUE;
+  }
+
+  static java.lang.ref.WeakReference<Object> getWeakReference() {
+    return new java.lang.ref.WeakReference<>(new Object());
+  }
+
+  static void testFinalizableByForcingGc() {
+    testFinalizable();
+    java.lang.ref.WeakReference<Object> reference = getWeakReference();
+
+    Runtime runtime = Runtime.getRuntime();
+    for (int i = 0; i < 20; ++i) {
+      runtime.gc();
+      System.runFinalization();
+      try {
+        Thread.sleep(1);
+      } catch (InterruptedException e) {
+        throw new AssertionError(e);
+      }
+
+      // Check to see if the weak reference has been garbage collected.
+      if (reference.get() == null) {
+        // A little bit more sleep time to make sure.
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          throw new AssertionError(e);
+        }
+        if (!Finalizable.sVisited) {
+          System.out.println("finalize() not called.");
+        }
+        return;
+      }
+    }
+    System.out.println("testFinalizableByForcingGc() failed to force gc.");
+  }
+
   public static void assertIntEquals(int expected, int result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -508,5 +664,10 @@ public class Main {
     float[] fa2 = { 1.8f };
     assertFloatEquals(test19(fa1, fa2), 1.8f);
     assertFloatEquals(test20().i, 0);
+    test21();
+    assertIntEquals(test22(), 13);
+    assertIntEquals(test23(true), 4);
+    assertIntEquals(test23(false), 5);
+    testFinalizableByForcingGc();
   }
 }

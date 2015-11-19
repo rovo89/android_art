@@ -3643,10 +3643,14 @@ class HNewInstance : public HExpression<1> {
                uint32_t dex_pc,
                uint16_t type_index,
                const DexFile& dex_file,
+               bool can_throw,
+               bool finalizable,
                QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
+        can_throw_(can_throw),
+        finalizable_(finalizable),
         entrypoint_(entrypoint) {
     SetRawInputAt(0, current_method);
   }
@@ -3656,11 +3660,13 @@ class HNewInstance : public HExpression<1> {
 
   // Calls runtime so needs an environment.
   bool NeedsEnvironment() const OVERRIDE { return true; }
-  // It may throw when called on:
-  //   - interfaces
-  //   - abstract/innaccessible/unknown classes
-  // TODO: optimize when possible.
-  bool CanThrow() const OVERRIDE { return true; }
+
+  // It may throw when called on type that's not instantiable/accessible.
+  // It can throw OOME.
+  // TODO: distinguish between the two cases so we can for example allow allocation elimination.
+  bool CanThrow() const OVERRIDE { return can_throw_ || true; }
+
+  bool IsFinalizable() const { return finalizable_; }
 
   bool CanBeNull() const OVERRIDE { return false; }
 
@@ -3671,6 +3677,8 @@ class HNewInstance : public HExpression<1> {
  private:
   const uint16_t type_index_;
   const DexFile& dex_file_;
+  const bool can_throw_;
+  const bool finalizable_;
   const QuickEntrypointEnum entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
