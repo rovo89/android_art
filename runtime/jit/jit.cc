@@ -34,8 +34,10 @@ namespace jit {
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
   jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
-  jit_options->code_cache_capacity_ =
-      options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheCapacity);
+  jit_options->code_cache_initial_capacity_ =
+      options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheInitialCapacity);
+  jit_options->code_cache_max_capacity_ =
+      options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheMaxCapacity);
   jit_options->compile_threshold_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
   jit_options->warmup_threshold_ =
@@ -69,13 +71,15 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   if (!jit->LoadCompiler(error_msg)) {
     return nullptr;
   }
-  jit->code_cache_.reset(JitCodeCache::Create(options->GetCodeCacheCapacity(), error_msg));
+  jit->code_cache_.reset(JitCodeCache::Create(
+      options->GetCodeCacheInitialCapacity(), options->GetCodeCacheMaxCapacity(), error_msg));
   if (jit->GetCodeCache() == nullptr) {
     return nullptr;
   }
-  LOG(INFO) << "JIT created with code_cache_capacity="
-      << PrettySize(options->GetCodeCacheCapacity())
-      << " compile_threshold=" << options->GetCompileThreshold();
+  LOG(INFO) << "JIT created with initial_capacity="
+      << PrettySize(options->GetCodeCacheInitialCapacity())
+      << ", max_capacity=" << PrettySize(options->GetCodeCacheMaxCapacity())
+      << ", compile_threshold=" << options->GetCompileThreshold();
   return jit.release();
 }
 
