@@ -81,6 +81,7 @@ class SsaBuilder : public HGraphVisitor {
   static constexpr const char* kSsaBuilderPassName = "ssa_builder";
 
  private:
+  void SetLoopHeaderPhiInputs();
   void FixNullConstantType();
   void EquivalentPhisCleanup();
 

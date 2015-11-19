@@ -4313,9 +4313,13 @@ class HPhi : public HInstruction {
       : HInstruction(SideEffects::None(), dex_pc),
         inputs_(number_of_inputs, arena->Adapter(kArenaAllocPhiInputs)),
         reg_number_(reg_number),
-        type_(type),
-        is_live_(false),
+        type_(ToPhiType(type)),
+        // Phis are constructed live and marked dead if conflicting or unused.
+        // Individual steps of SsaBuilder should assume that if a phi has been
+        // marked dead, it can be ignored and will be removed by SsaPhiElimination.
+        is_live_(true),
         can_be_null_(true) {
+    DCHECK_NE(type_, Primitive::kPrimVoid);
   }
 
   // Returns a type equivalent to the given `type`, but that a `HPhi` can hold.

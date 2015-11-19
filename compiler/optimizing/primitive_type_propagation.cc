@@ -63,7 +63,6 @@ bool PrimitiveTypePropagation::UpdateType(HPhi* phi) {
             : SsaBuilder::GetFloatOrDoubleEquivalent(phi, input, new_type);
         phi->ReplaceInput(equivalent, i);
         if (equivalent->IsPhi()) {
-          equivalent->AsPhi()->SetLive();
           AddToWorklist(equivalent->AsPhi());
         } else if (equivalent == input) {
           // The input has changed its type. It can be an input of other phis,
