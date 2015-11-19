@@ -83,7 +83,7 @@ public class Main {
   // before the next pass (liveness analysis) instead.
 
   /// CHECK-START: void Main.invokeStaticNotInlined() liveness (before)
-  /// CHECK:                               InvokeStaticOrDirect
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:implicit
 
   /// CHECK-START: void Main.invokeStaticNotInlined() liveness (before)
   /// CHECK-NOT:                           LoadClass
@@ -269,7 +269,7 @@ public class Main {
   /// CHECK-START: void Main.noClinitBecauseOfInvokeStatic() liveness (before)
   /// CHECK-DAG:     <<IntConstant:i\d+>>  IntConstant 0
   /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
-  /// CHECK-DAG:                           InvokeStaticOrDirect
+  /// CHECK-DAG:                           InvokeStaticOrDirect clinit_check:implicit
   /// CHECK-DAG:                           StaticFieldSet [<<LoadClass>>,<<IntConstant>>]
 
   /// CHECK-START: void Main.noClinitBecauseOfInvokeStatic() liveness (before)
@@ -289,13 +289,213 @@ public class Main {
   /// CHECK-DAG:     <<IntConstant:i\d+>>  IntConstant 0
   /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:true
   /// CHECK-DAG:                           StaticFieldSet [<<LoadClass>>,<<IntConstant>>]
-  /// CHECK-DAG:                           InvokeStaticOrDirect
+  /// CHECK-DAG:                           InvokeStaticOrDirect clinit_check:none
 
   /// CHECK-START: void Main.clinitBecauseOfFieldAccess() liveness (before)
   /// CHECK-NOT:                           ClinitCheck
   static void clinitBecauseOfFieldAccess() {
     ClassWithClinit2.doThrow = false;
     ClassWithClinit2.$noinline$staticMethod();
+  }
+
+  /*
+   * Verify that LoadClass from const-class is not merged with
+   * later invoke-static (or it's ClinitCheck).
+   */
+
+  /// CHECK-START: void Main.constClassAndInvokeStatic(java.lang.Iterable) liveness (before)
+  /// CHECK:                               LoadClass gen_clinit_check:false
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:implicit
+
+  /// CHECK-START: void Main.constClassAndInvokeStatic(java.lang.Iterable) liveness (before)
+  /// CHECK-NOT:                           ClinitCheck
+
+  static void constClassAndInvokeStatic(Iterable it) {
+    $opt$inline$ignoreClass(ClassWithClinit7.class);
+    ClassWithClinit7.someStaticMethod(it);
+  }
+
+  static void $opt$inline$ignoreClass(Class c) {
+  }
+
+  static class ClassWithClinit7 {
+    static {
+      System.out.println("Main$ClassWithClinit7's static initializer");
+    }
+
+    // Note: not inlined from constClassAndInvokeStatic() but fully inlined from main().
+    static void someStaticMethod(Iterable it) {
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
+    }
+  }
+
+  /*
+   * Verify that LoadClass from sget is not merged with later invoke-static.
+   */
+
+  /// CHECK-START: void Main.sgetAndInvokeStatic(java.lang.Iterable) liveness (before)
+  /// CHECK:                               LoadClass gen_clinit_check:true
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:none
+
+  /// CHECK-START: void Main.sgetAndInvokeStatic(java.lang.Iterable) liveness (before)
+  /// CHECK-NOT:                           ClinitCheck
+
+  static void sgetAndInvokeStatic(Iterable it) {
+    $opt$inline$ignoreInt(ClassWithClinit8.value);
+    ClassWithClinit8.someStaticMethod(it);
+  }
+
+  static void $opt$inline$ignoreInt(int i) {
+  }
+
+  static class ClassWithClinit8 {
+    public static int value = 0;
+    static {
+      System.out.println("Main$ClassWithClinit8's static initializer");
+    }
+
+    // Note: not inlined from sgetAndInvokeStatic() but fully inlined from main().
+    static void someStaticMethod(Iterable it) {
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
+    }
+  }
+
+  /*
+   * Verify that LoadClass from const-class, ClinitCheck from sget and
+   * InvokeStaticOrDirect from invoke-static are not merged.
+   */
+
+  /// CHECK-START: void Main.constClassSgetAndInvokeStatic(java.lang.Iterable) liveness (before)
+  /// CHECK:                               LoadClass gen_clinit_check:false
+  /// CHECK:                               ClinitCheck
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:none
+
+  static void constClassSgetAndInvokeStatic(Iterable it) {
+    $opt$inline$ignoreClass(ClassWithClinit9.class);
+    $opt$inline$ignoreInt(ClassWithClinit9.value);
+    ClassWithClinit9.someStaticMethod(it);
+  }
+
+  static class ClassWithClinit9 {
+    public static int value = 0;
+    static {
+      System.out.println("Main$ClassWithClinit9's static initializer");
+    }
+
+    // Note: not inlined from constClassSgetAndInvokeStatic() but fully inlined from main().
+    static void someStaticMethod(Iterable it) {
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
+    }
+  }
+
+  /*
+   * Verify that LoadClass from a fully-inlined invoke-static is not merged
+   * with InvokeStaticOrDirect from a later invoke-static to the same method.
+   */
+
+  /// CHECK-START: void Main.inlinedInvokeStaticViaNonStatic(java.lang.Iterable) liveness (before)
+  /// CHECK:                               LoadClass gen_clinit_check:true
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:none
+
+  /// CHECK-START: void Main.inlinedInvokeStaticViaNonStatic(java.lang.Iterable) liveness (before)
+  /// CHECK-NOT:                           ClinitCheck
+
+  static void inlinedInvokeStaticViaNonStatic(Iterable it) {
+    inlinedInvokeStaticViaNonStaticHelper(null);
+    inlinedInvokeStaticViaNonStaticHelper(it);
+  }
+
+  static void inlinedInvokeStaticViaNonStaticHelper(Iterable it) {
+    ClassWithClinit10.inlinedForNull(it);
+  }
+
+  static class ClassWithClinit10 {
+    public static int value = 0;
+    static {
+      System.out.println("Main$ClassWithClinit10's static initializer");
+    }
+
+    static void inlinedForNull(Iterable it) {
+      if (it != null) {
+        // We're not inlining invoke-interface at the moment.
+        it.iterator();
+      }
+    }
+  }
+
+  /*
+   * Check that the LoadClass from an invoke-static C.foo() doesn't get merged with
+   * an invoke-static inside C.foo(). This would mess up the stack walk in the
+   * resolution trampoline where we would have to load C (if C isn't loaded yet)
+   * which is not permitted there.
+   *
+   * Note: In case of failure, we would get an failed assertion during compilation,
+   * so we wouldn't really get to the checker tests below.
+   */
+
+  /// CHECK-START: void Main.inlinedInvokeStaticViaStatic(java.lang.Iterable) liveness (before)
+  /// CHECK:                               LoadClass gen_clinit_check:true
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:none
+
+  /// CHECK-START: void Main.inlinedInvokeStaticViaStatic(java.lang.Iterable) liveness (before)
+  /// CHECK-NOT:                           ClinitCheck
+
+  static void inlinedInvokeStaticViaStatic(Iterable it) {
+    ClassWithClinit11.callInlinedForNull(it);
+  }
+
+  static class ClassWithClinit11 {
+    public static int value = 0;
+    static {
+      System.out.println("Main$ClassWithClinit11's static initializer");
+    }
+
+    static void callInlinedForNull(Iterable it) {
+      inlinedForNull(it);
+    }
+
+    static void inlinedForNull(Iterable it) {
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
+    }
+  }
+
+  /*
+   * A test similar to inlinedInvokeStaticViaStatic() but doing the indirect invoke
+   * twice with the first one to be fully inlined.
+   */
+
+  /// CHECK-START: void Main.inlinedInvokeStaticViaStaticTwice(java.lang.Iterable) liveness (before)
+  /// CHECK:                               LoadClass gen_clinit_check:true
+  /// CHECK:                               InvokeStaticOrDirect clinit_check:none
+
+  /// CHECK-START: void Main.inlinedInvokeStaticViaStaticTwice(java.lang.Iterable) liveness (before)
+  /// CHECK-NOT:                           ClinitCheck
+
+  static void inlinedInvokeStaticViaStaticTwice(Iterable it) {
+    ClassWithClinit12.callInlinedForNull(null);
+    ClassWithClinit12.callInlinedForNull(it);
+  }
+
+  static class ClassWithClinit12 {
+    public static int value = 0;
+    static {
+      System.out.println("Main$ClassWithClinit12's static initializer");
+    }
+
+    static void callInlinedForNull(Iterable it) {
+      inlinedForNull(it);
+    }
+
+    static void inlinedForNull(Iterable it) {
+      if (it != null) {
+        // We're not inlining invoke-interface at the moment.
+        it.iterator();
+      }
+    }
   }
 
   // TODO: Add a test for the case of a static method whose declaring
@@ -310,5 +510,12 @@ public class Main {
     ClassWithClinit4.invokeStaticNotInlined();
     SubClassOfClassWithClinit5.invokeStaticInlined();
     SubClassOfClassWithClinit6.invokeStaticNotInlined();
+    Iterable it = new Iterable() { public java.util.Iterator iterator() { return null; } };
+    constClassAndInvokeStatic(it);
+    sgetAndInvokeStatic(it);
+    constClassSgetAndInvokeStatic(it);
+    inlinedInvokeStaticViaNonStatic(it);
+    inlinedInvokeStaticViaStatic(it);
+    inlinedInvokeStaticViaStaticTwice(it);
   }
 }

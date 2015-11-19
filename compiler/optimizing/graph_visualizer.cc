@@ -397,6 +397,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
                                       << invoke->IsRecursive()
                                       << std::noboolalpha;
     StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
+    if (invoke->IsStatic()) {
+      StartAttributeStream("clinit_check") << invoke->GetClinitCheckRequirement();
+    }
   }
 
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* field_access) OVERRIDE {
