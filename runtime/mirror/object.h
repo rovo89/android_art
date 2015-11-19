@@ -92,13 +92,13 @@ class MANAGED LOCKABLE Object {
   void SetClass(Class* new_klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
   Object* GetReadBarrierPointer() SHARED_REQUIRES(Locks::mutator_lock_);
+
 #ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
   NO_RETURN
 #endif
   void SetReadBarrierPointer(Object* rb_ptr) SHARED_REQUIRES(Locks::mutator_lock_);
-#ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
-  NO_RETURN
-#endif
+
+  template<bool kCasRelease = false>
   ALWAYS_INLINE bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void AssertReadBarrierPointer() const SHARED_REQUIRES(Locks::mutator_lock_);
