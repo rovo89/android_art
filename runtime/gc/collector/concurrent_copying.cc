@@ -1080,7 +1080,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
                 !IsInToSpace(to_ref->AsReference()->GetReferent<kWithoutReadBarrier>())))) {
     // Leave this Reference gray in the queue so that GetReferent() will trigger a read barrier. We
     // will change it to black or white later in ReferenceQueue::DequeuePendingReference().
-    CHECK(to_ref->AsReference()->IsEnqueued()) << "Left unenqueued ref gray " << to_ref;
+    DCHECK(to_ref->AsReference()->IsEnqueued()) << "Left unenqueued ref gray " << to_ref;
   } else {
     // We may occasionally leave a Reference black or white in the queue if its referent happens to
     // be concurrently marked after the Scan() call above has enqueued the Reference, in which case
@@ -1089,9 +1089,10 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
     if (kUseBakerReadBarrier) {
       if (region_space_->IsInToSpace(to_ref)) {
         // If to-space, change from gray to white.
-        bool success = to_ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(),
-                                                           ReadBarrier::WhitePtr());
-        CHECK(success) << "Must succeed as we won the race.";
+        bool success = to_ref->AtomicSetReadBarrierPointer</*kCasRelease*/true>(
+            ReadBarrier::GrayPtr(),
+            ReadBarrier::WhitePtr());
+        DCHECK(success) << "Must succeed as we won the race.";
         DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::WhitePtr());
       } else {
         // If non-moving space/unevac from space, change from gray
@@ -1101,9 +1102,10 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         // indicate non-moving objects that have been marked
         // through. Note we'd need to change from black to white
         // later (concurrently).
-        bool success = to_ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(),
-                                                           ReadBarrier::BlackPtr());
-        CHECK(success) << "Must succeed as we won the race.";
+        bool success = to_ref->AtomicSetReadBarrierPointer</*kCasRelease*/true>(
+            ReadBarrier::GrayPtr(),
+            ReadBarrier::BlackPtr());
+        DCHECK(success) << "Must succeed as we won the race.";
         DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
       }
     }
@@ -1227,9 +1229,6 @@ class ConcurrentCopyingClearBlackPtrsVisitor {
  public:
   explicit ConcurrentCopyingClearBlackPtrsVisitor(ConcurrentCopying* cc)
       : collector_(cc) {}
-#ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
-  NO_RETURN
-#endif
   void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_)
       SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);

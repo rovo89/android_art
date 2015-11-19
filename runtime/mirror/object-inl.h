@@ -163,6 +163,7 @@ inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
 #endif
 }
 
+template<bool kCasRelease>
 inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr) {
 #ifdef USE_BAKER_READ_BARRIER
   DCHECK(kUseBakerReadBarrier);
@@ -181,10 +182,13 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(expected_rb_ptr)));
     new_lw = lw;
     new_lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
-    // This CAS is a CAS release so that when GC updates all the fields of an object and then
-    // changes the object from gray to black, the field updates (stores) will be visible (won't be
-    // reordered after this CAS.)
-  } while (!CasLockWordWeakRelease(expected_lw, new_lw));
+    // ConcurrentCopying::ProcessMarkStackRef uses this with kCasRelease == true.
+    // If kCasRelease == true, use a CAS release so that when GC updates all the fields of
+    // an object and then changes the object from gray to black, the field updates (stores) will be
+    // visible (won't be reordered after this CAS.)
+  } while (!(kCasRelease ?
+             CasLockWordWeakRelease(expected_lw, new_lw) :
+             CasLockWordWeakRelaxed(expected_lw, new_lw)));
   return true;
 #elif USE_BROOKS_READ_BARRIER
   DCHECK(kUseBrooksReadBarrier);
