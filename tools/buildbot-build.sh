@@ -21,7 +21,7 @@ fi
 
 out_dir=${OUT_DIR-out}
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
-common_targets="vogar ${java_libraries_dir}/core-tests_intermediates/javalib.jar apache-harmony-jdwp-tests-hostdex ${java_libraries_dir}/jsr166-tests_intermediates/javalib.jar"
+common_targets="vogar ${java_libraries_dir}/core-tests_intermediates/javalib.jar apache-harmony-jdwp-tests-hostdex ${java_libraries_dir}/jsr166-tests_intermediates/javalib.jar ${out_dir}/host/linux-x86/bin/jack"
 mode="target"
 j_arg="-j$(nproc)"
 showcommands=
