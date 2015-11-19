@@ -2068,6 +2068,19 @@ void HInvokeStaticOrDirect::RemoveInputAt(size_t index) {
   }
 }
 
+std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckRequirement rhs) {
+  switch (rhs) {
+    case HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit:
+      return os << "explicit";
+    case HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit:
+      return os << "implicit";
+    case HInvokeStaticOrDirect::ClinitCheckRequirement::kNone:
+      return os << "none";
+    default:
+      return os << "unknown:" << static_cast<int>(rhs);
+  }
+}
+
 void HInstruction::RemoveEnvironmentUsers() {
   for (HUseIterator<HEnvironment*> use_it(GetEnvUses()); !use_it.Done(); use_it.Advance()) {
     HUseListNode<HEnvironment*>* user_node = use_it.Current();
