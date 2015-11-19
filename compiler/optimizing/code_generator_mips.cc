@@ -3478,17 +3478,12 @@ void LocationsBuilderMIPS::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
 }
 
 void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
-  InvokeRuntimeCallingConvention calling_convention;
-  Register current_method_register = calling_convention.GetRegisterAt(1);
-  __ Lw(current_method_register, SP, kCurrentMethodStackOffset);
-  // Move an uint16_t value to a register.
-  __ LoadConst32(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
       GetThreadOffset<kMipsWordSize>(instruction->GetEntrypoint()).Int32Value(),
       instruction,

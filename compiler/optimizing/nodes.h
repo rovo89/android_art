@@ -3637,9 +3637,10 @@ class HInvokeInterface : public HInvoke {
   DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);
 };
 
-class HNewInstance : public HExpression<1> {
+class HNewInstance : public HExpression<2> {
  public:
-  HNewInstance(HCurrentMethod* current_method,
+  HNewInstance(HInstruction* cls,
+               HCurrentMethod* current_method,
                uint32_t dex_pc,
                uint16_t type_index,
                const DexFile& dex_file,
@@ -3652,7 +3653,8 @@ class HNewInstance : public HExpression<1> {
         can_throw_(can_throw),
         finalizable_(finalizable),
         entrypoint_(entrypoint) {
-    SetRawInputAt(0, current_method);
+    SetRawInputAt(0, cls);
+    SetRawInputAt(1, current_method);
   }
 
   uint16_t GetTypeIndex() const { return type_index_; }
@@ -3672,6 +3674,10 @@ class HNewInstance : public HExpression<1> {
 
   QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
 
+  void SetEntrypoint(QuickEntrypointEnum entrypoint) {
+    entrypoint_ = entrypoint;
+  }
+
   DECLARE_INSTRUCTION(NewInstance);
 
  private:
@@ -3679,7 +3685,7 @@ class HNewInstance : public HExpression<1> {
   const DexFile& dex_file_;
   const bool can_throw_;
   const bool finalizable_;
-  const QuickEntrypointEnum entrypoint_;
+  QuickEntrypointEnum entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
 };
@@ -4912,6 +4918,7 @@ class HClinitCheck : public HExpression<1> {
     return true;
   }
 
+  bool CanThrow() const OVERRIDE { return true; }
 
   HLoadClass* GetLoadClass() const { return InputAt(0)->AsLoadClass(); }
 

@@ -3191,14 +3191,12 @@ void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(Location::RegisterLocation(R0));
 }
 
 void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
-  InvokeRuntimeCallingConvention calling_convention;
-  __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(),
