@@ -115,12 +115,15 @@ class ClassLinker {
   ~ClassLinker();
 
   // Initialize class linker by bootstraping from dex files.
-  void InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path)
+  bool InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path,
+                        std::string* error_msg)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
   // Initialize class linker from one or more images.
-  void InitFromImage() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+  bool InitFromImage(std::string* error_msg)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_);
 
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
