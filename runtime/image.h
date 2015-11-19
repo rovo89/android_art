@@ -84,7 +84,7 @@ class PACKED(4) ImageHeader {
         image_roots_(0U), pointer_size_(0U), compile_pic_(0) {}
 
   ImageHeader(uint32_t image_begin,
-              uint32_t image_size_,
+              uint32_t image_size,
               ImageSection* sections,
               uint32_t image_roots,
               uint32_t oat_checksum,
@@ -93,7 +93,7 @@ class PACKED(4) ImageHeader {
               uint32_t oat_data_end,
               uint32_t oat_file_end,
               uint32_t pointer_size,
-              bool compile_pic_);
+              bool compile_pic);
 
   bool IsValid() const;
   const char* GetMagic() const;

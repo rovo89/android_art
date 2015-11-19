@@ -74,7 +74,7 @@ inline void SemiSpace::MarkObject(
       MarkStackPush(forward_address);
     }
     obj_ptr->Assign(forward_address);
-  } else if (!collect_from_space_only_ && !immune_region_.ContainsObject(obj)) {
+  } else if (!collect_from_space_only_ && !immune_spaces_.IsInImmuneRegion(obj)) {
     BitmapSetSlowPathVisitor visitor(this);
     if (!mark_bitmap_->Set(obj, visitor)) {
       // This object was not previously marked.

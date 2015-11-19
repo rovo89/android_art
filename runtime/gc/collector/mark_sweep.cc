@@ -86,7 +86,7 @@ void MarkSweep::BindBitmaps() {
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect) {
-      CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
+      immune_spaces_.AddSpace(space);
     }
   }
 }
@@ -115,7 +115,7 @@ void MarkSweep::InitializePhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
-  immune_region_.Reset();
+  immune_spaces_.Reset();
   no_reference_class_count_.StoreRelaxed(0);
   normal_count_.StoreRelaxed(0);
   class_count_.StoreRelaxed(0);
@@ -268,16 +268,41 @@ void MarkSweep::MarkingPhase() {
   PreCleanCards();
 }
 
+class ScanObjectVisitor {
+ public:
+  explicit ScanObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE
+      : mark_sweep_(mark_sweep) {}
+
+  void operator()(mirror::Object* obj) const
+      ALWAYS_INLINE
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (kCheckLocks) {
+      Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+      Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
+    }
+    mark_sweep_->ScanObject(obj);
+  }
+
+ private:
+  MarkSweep* const mark_sweep_;
+};
+
 void MarkSweep::UpdateAndMarkModUnion() {
-  for (const auto& space : heap_->GetContinuousSpaces()) {
-    if (immune_region_.ContainsSpace(space)) {
-      const char* name = space->IsZygoteSpace()
-          ? "UpdateAndMarkZygoteModUnionTable"
-          : "UpdateAndMarkImageModUnionTable";
-      TimingLogger::ScopedTiming t(name, GetTimings());
-      accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
-      CHECK(mod_union_table != nullptr);
+  for (const auto& space : immune_spaces_.GetSpaces()) {
+    const char* name = space->IsZygoteSpace()
+        ? "UpdateAndMarkZygoteModUnionTable"
+        : "UpdateAndMarkImageModUnionTable";
+    DCHECK(space->IsZygoteSpace() || space->IsImageSpace()) << *space;
+    TimingLogger::ScopedTiming t(name, GetTimings());
+    accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
+    if (mod_union_table != nullptr) {
       mod_union_table->UpdateAndMarkReferences(this);
+    } else {
+      // No mod-union table, scan all the live bits. This can only occur for app images.
+      space->GetLiveBitmap()->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                               reinterpret_cast<uintptr_t>(space->End()),
+                                               ScanObjectVisitor(this));
     }
   }
 }
@@ -460,7 +485,7 @@ inline void MarkSweep::MarkObjectNonNull(mirror::Object* obj,
     // Verify all the objects have the correct pointer installed.
     obj->AssertReadBarrierPointer();
   }
-  if (immune_region_.ContainsObject(obj)) {
+  if (immune_spaces_.IsInImmuneRegion(obj)) {
     if (kCountMarkedObjects) {
       ++mark_immune_count_;
     }
@@ -501,7 +526,7 @@ inline bool MarkSweep::MarkObjectParallel(mirror::Object* obj) {
     // Verify all the objects have the correct pointer installed.
     obj->AssertReadBarrierPointer();
   }
-  if (immune_region_.ContainsObject(obj)) {
+  if (immune_spaces_.IsInImmuneRegion(obj)) {
     DCHECK(IsMarked(obj) != nullptr);
     return false;
   }
@@ -605,26 +630,6 @@ void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
   Runtime::Current()->VisitConcurrentRoots(
       this, static_cast<VisitRootFlags>(flags | kVisitRootFlagNonMoving));
 }
-
-class ScanObjectVisitor {
- public:
-  explicit ScanObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE
-      : mark_sweep_(mark_sweep) {}
-
-  void operator()(mirror::Object* obj) const
-      ALWAYS_INLINE
-      REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (kCheckLocks) {
-      Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
-      Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
-    }
-    mark_sweep_->ScanObject(obj);
-  }
-
- private:
-  MarkSweep* const mark_sweep_;
-};
 
 class DelayReferenceReferentVisitor {
  public:
@@ -1193,7 +1198,8 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   std::vector<space::ContinuousSpace*> sweep_spaces;
   space::ContinuousSpace* non_moving_space = nullptr;
   for (space::ContinuousSpace* space : heap_->GetContinuousSpaces()) {
-    if (space->IsAllocSpace() && !immune_region_.ContainsSpace(space) &&
+    if (space->IsAllocSpace() &&
+        !immune_spaces_.ContainsSpace(space) &&
         space->GetLiveBitmap() != nullptr) {
       if (space == heap_->GetNonMovingSpace()) {
         non_moving_space = space;
@@ -1422,7 +1428,7 @@ void MarkSweep::ProcessMarkStack(bool paused) {
 }
 
 inline mirror::Object* MarkSweep::IsMarked(mirror::Object* object) {
-  if (immune_region_.ContainsObject(object)) {
+  if (immune_spaces_.IsInImmuneRegion(object)) {
     return object;
   }
   if (current_space_bitmap_->HasAddress(object)) {
