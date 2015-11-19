@@ -25,7 +25,7 @@
 #include "garbage_collector.h"
 #include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
-#include "immune_region.h"
+#include "immune_spaces.h"
 #include "mirror/object_reference.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -201,8 +201,8 @@ class SemiSpace : public GarbageCollector {
   // object.
   accounting::ObjectStack* mark_stack_;
 
-  // Immune region, every object inside the immune region is assumed to be marked.
-  ImmuneRegion immune_region_;
+  // Every object inside the immune spaces is assumed to be marked.
+  ImmuneSpaces immune_spaces_;
 
   // If true, the large object space is immune.
   bool is_large_object_space_immune_;
