@@ -389,8 +389,6 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void EmitBranch(Condition cond, Label* label, bool link);
   static int32_t EncodeBranchOffset(int offset, int32_t inst);
   static int DecodeBranchOffset(int32_t inst);
-  int32_t EncodeTstOffset(int offset, int32_t inst);
-  int DecodeTstOffset(int32_t inst);
   bool ShifterOperandCanHoldArm32(uint32_t immediate, ShifterOperand* shifter_op);
 };
 

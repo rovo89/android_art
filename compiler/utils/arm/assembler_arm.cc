@@ -342,9 +342,9 @@ bool Address::CanHoldLoadOffsetThumb(LoadOperandType type, int offset) {
       return IsAbsoluteUint<12>(offset);
     case kLoadSWord:
     case kLoadDWord:
-      return IsAbsoluteUint<10>(offset);  // VFP addressing mode.
+      return IsAbsoluteUint<10>(offset) && (offset & 3) == 0;  // VFP addressing mode.
     case kLoadWordPair:
-      return IsAbsoluteUint<10>(offset);
+      return IsAbsoluteUint<10>(offset) && (offset & 3) == 0;
     default:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
@@ -360,9 +360,9 @@ bool Address::CanHoldStoreOffsetThumb(StoreOperandType type, int offset) {
       return IsAbsoluteUint<12>(offset);
     case kStoreSWord:
     case kStoreDWord:
-      return IsAbsoluteUint<10>(offset);  // VFP addressing mode.
+      return IsAbsoluteUint<10>(offset) && (offset & 3) == 0;  // VFP addressing mode.
     case kStoreWordPair:
-      return IsAbsoluteUint<10>(offset);
+      return IsAbsoluteUint<10>(offset) && (offset & 3) == 0;
     default:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
