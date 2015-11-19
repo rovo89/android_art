@@ -457,8 +457,10 @@ TEST_F(CmdlineParserTest, TestJitOptions) {
     EXPECT_SINGLE_PARSE_VALUE(false, "-Xusejit:false", M::UseJIT);
   }
   {
-    EXPECT_SINGLE_PARSE_VALUE(MemoryKiB(16 * KB), "-Xjitcodecachesize:16K", M::JITCodeCacheCapacity);
-    EXPECT_SINGLE_PARSE_VALUE(MemoryKiB(16 * MB), "-Xjitcodecachesize:16M", M::JITCodeCacheCapacity);
+    EXPECT_SINGLE_PARSE_VALUE(
+        MemoryKiB(16 * KB), "-Xjitcodecacheinitialcapacity:16K", M::JITCodeCacheInitialCapacity);
+    EXPECT_SINGLE_PARSE_VALUE(
+        MemoryKiB(16 * MB), "-Xjitcodecacheinitialcapacity:16M", M::JITCodeCacheInitialCapacity);
   }
   {
     EXPECT_SINGLE_PARSE_VALUE(12345u, "-Xjitthreshold:12345", M::JITCompileThreshold);

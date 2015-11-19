@@ -102,8 +102,11 @@ class JitOptions {
   size_t GetWarmupThreshold() const {
     return warmup_threshold_;
   }
-  size_t GetCodeCacheCapacity() const {
-    return code_cache_capacity_;
+  size_t GetCodeCacheInitialCapacity() const {
+    return code_cache_initial_capacity_;
+  }
+  size_t GetCodeCacheMaxCapacity() const {
+    return code_cache_max_capacity_;
   }
   bool DumpJitInfoOnShutdown() const {
     return dump_info_on_shutdown_;
@@ -117,13 +120,18 @@ class JitOptions {
 
  private:
   bool use_jit_;
-  size_t code_cache_capacity_;
+  size_t code_cache_initial_capacity_;
+  size_t code_cache_max_capacity_;
   size_t compile_threshold_;
   size_t warmup_threshold_;
   bool dump_info_on_shutdown_;
 
-  JitOptions() : use_jit_(false), code_cache_capacity_(0), compile_threshold_(0),
-      dump_info_on_shutdown_(false) { }
+  JitOptions()
+      : use_jit_(false),
+        code_cache_initial_capacity_(0),
+        code_cache_max_capacity_(0),
+        compile_threshold_(0),
+        dump_info_on_shutdown_(false) { }
 
   DISALLOW_COPY_AND_ASSIGN(JitOptions);
 };
