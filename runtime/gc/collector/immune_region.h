@@ -39,35 +39,34 @@ namespace collector {
 class ImmuneRegion {
  public:
   ImmuneRegion();
+
   void Reset();
-  bool AddContinuousSpace(space::ContinuousSpace* space)
-      REQUIRES(Locks::heap_bitmap_lock_);
-  bool ContainsSpace(const space::ContinuousSpace* space) const;
+
   // Returns true if an object is inside of the immune region (assumed to be marked).
-  bool ContainsObject(const mirror::Object* obj) const ALWAYS_INLINE {
+  ALWAYS_INLINE bool ContainsObject(const mirror::Object* obj) const {
     // Note: Relies on integer underflow behavior.
     return reinterpret_cast<uintptr_t>(obj) - reinterpret_cast<uintptr_t>(begin_) < size_;
   }
+
   void SetBegin(mirror::Object* begin) {
     begin_ = begin;
     UpdateSize();
   }
+
   void SetEnd(mirror::Object* end) {
     end_ = end;
     UpdateSize();
   }
 
-  mirror::Object* Begin() {
+  mirror::Object* Begin() const {
     return begin_;
   }
-  mirror::Object* End() {
+
+  mirror::Object* End() const {
     return end_;
   }
 
  private:
-  bool IsEmpty() const {
-    return size_ == 0;
-  }
   void UpdateSize() {
     size_ = reinterpret_cast<uintptr_t>(end_) - reinterpret_cast<uintptr_t>(begin_);
   }

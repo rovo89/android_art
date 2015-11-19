@@ -119,7 +119,22 @@ class ImageSpace : public MemMapSpace {
                                 bool* has_data,
                                 bool *is_global_cache);
 
- private:
+  // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
+  uint8_t* GetImageEnd() const {
+    return Begin() + GetImageHeader().GetImageSize();
+  }
+
+  // Return the start of the associated oat file.
+  uint8_t* GetOatFileBegin() const {
+    return GetImageHeader().GetOatFileBegin();
+  }
+
+  // Return the end of the associated oat file.
+  uint8_t* GetOatFileEnd() const {
+    return GetImageHeader().GetOatFileEnd();
+  }
+
+ protected:
   // Tries to initialize an ImageSpace from the given image path,
   // returning null on error.
   //
@@ -157,6 +172,7 @@ class ImageSpace : public MemMapSpace {
 
   const std::string image_location_;
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };
 

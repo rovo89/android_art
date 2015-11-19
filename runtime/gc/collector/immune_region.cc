@@ -32,39 +32,6 @@ void ImmuneRegion::Reset() {
   SetEnd(nullptr);
 }
 
-bool ImmuneRegion::AddContinuousSpace(space::ContinuousSpace* space) {
-  // Bind live to mark bitmap if necessary.
-  if (space->GetLiveBitmap() != space->GetMarkBitmap()) {
-    CHECK(space->IsContinuousMemMapAllocSpace());
-    space->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
-  }
-  mirror::Object* space_begin = reinterpret_cast<mirror::Object*>(space->Begin());
-  mirror::Object* space_limit = reinterpret_cast<mirror::Object*>(space->Limit());
-  if (IsEmpty()) {
-    SetBegin(space_begin);
-    SetEnd(space_limit);
-  } else {
-    if (space_limit <= begin_) {  // Space is before the immune region.
-      SetBegin(space_begin);
-    } else if (space_begin >= end_) {  // Space is after the immune region.
-      SetEnd(space_limit);
-    } else {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool ImmuneRegion::ContainsSpace(const space::ContinuousSpace* space) const {
-  bool contains =
-      begin_ <= reinterpret_cast<mirror::Object*>(space->Begin()) &&
-      end_ >= reinterpret_cast<mirror::Object*>(space->Limit());
-  if (kIsDebugBuild && contains) {
-    // A bump pointer space shoult not be in the immune region.
-    DCHECK(space->GetType() != space::kSpaceTypeBumpPointerSpace);
-  }
-  return contains;
-}
 
 }  // namespace collector
 }  // namespace gc

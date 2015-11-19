@@ -60,6 +60,7 @@ LIBART_COMMON_SRC_FILES := \
   gc/collector/concurrent_copying.cc \
   gc/collector/garbage_collector.cc \
   gc/collector/immune_region.cc \
+  gc/collector/immune_spaces.cc \
   gc/collector/mark_compact.cc \
   gc/collector/mark_sweep.cc \
   gc/collector/partial_mark_sweep.cc \
