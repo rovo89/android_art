@@ -128,6 +128,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
 #define TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS() \
   if (kUseReadBarrier && GetCompilerKind() == Compiler::kOptimizing) {                    \
     switch (GetInstructionSet()) {                                                        \
+      case kThumb2:                                                                       \
       case kX86:                                                                          \
       case kX86_64:                                                                       \
         /* Instruction set has read barrier support. */                                   \
