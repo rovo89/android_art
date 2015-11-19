@@ -152,10 +152,10 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .WithType<bool>()
           .WithValueMap({{"false", false}, {"true", true}})
           .IntoKey(M::UseJIT)
-      .Define("-Xjitcodecacheinitialcapacity:_")
+      .Define("-Xjitinitialsize:_")
           .WithType<MemoryKiB>()
           .IntoKey(M::JITCodeCacheInitialCapacity)
-      .Define("-Xjitcodecachemaxcapacity:_")
+      .Define("-Xjitmaxsize:_")
           .WithType<MemoryKiB>()
           .IntoKey(M::JITCodeCacheMaxCapacity)
       .Define("-Xjitthreshold:_")
@@ -643,7 +643,6 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:ForegroundHeapGrowthMultiplier=doublevalue\n");
   UsageMessage(stream, "  -XX:LowMemoryMode\n");
   UsageMessage(stream, "  -Xprofile:{threadcpuclock,wallclock,dualclock}\n");
-  UsageMessage(stream, "  -Xjitcodecachesize:N\n");
   UsageMessage(stream, "  -Xjitthreshold:integervalue\n");
   UsageMessage(stream, "\n");
 
@@ -687,6 +686,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Xpatchoat:filename\n");
   UsageMessage(stream, "  -Xusejit:booleanvalue\n");
+  UsageMessage(stream, "  -Xjitinitialsize:N\n");
+  UsageMessage(stream, "  -Xjitmaxsize:N\n");
   UsageMessage(stream, "  -X[no]relocate\n");
   UsageMessage(stream, "  -X[no]dex2oat (Whether to invoke dex2oat on the application)\n");
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
@@ -721,6 +722,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xjitblocking\n");
   UsageMessage(stream, "  -Xjitmethod:signature[,signature]* (eg Ljava/lang/String\\;replace)\n");
   UsageMessage(stream, "  -Xjitclass:classname[,classname]*\n");
+  UsageMessage(stream, "  -Xjitcodecachesize:N\n");
   UsageMessage(stream, "  -Xjitoffset:offset[,offset]\n");
   UsageMessage(stream, "  -Xjitconfig:filename\n");
   UsageMessage(stream, "  -Xjitcheckcg\n");
