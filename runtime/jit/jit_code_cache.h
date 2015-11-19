@@ -41,20 +41,20 @@ namespace jit {
 
 class JitInstrumentationCache;
 
-// Alignment that will suit all architectures.
+// Alignment in bits that will suit all architectures.
 static constexpr int kJitCodeAlignment = 16;
 using CodeCacheBitmap = gc::accounting::MemoryRangeBitmap<kJitCodeAlignment>;
 
 class JitCodeCache {
  public:
-  static constexpr size_t kMaxCapacity = 1 * GB;
+  static constexpr size_t kMaxCapacity = 64 * MB;
   // Put the default to a very low amount for debug builds to stress the code cache
   // collection.
-  static constexpr size_t kDefaultCapacity = kIsDebugBuild ? 20 * KB : 2 * MB;
+  static constexpr size_t kInitialCapacity = kIsDebugBuild ? 16 * KB : 64 * KB;
 
   // Create the code cache with a code + data capacity equal to "capacity", error message is passed
   // in the out arg error_msg.
-  static JitCodeCache* Create(size_t capacity, std::string* error_msg);
+  static JitCodeCache* Create(size_t initial_capacity, size_t max_capacity, std::string* error_msg);
 
   // Number of bytes allocated in the code cache.
   size_t CodeCacheSize() REQUIRES(!lock_);
@@ -133,9 +133,19 @@ class JitCodeCache {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool OwnsSpace(const void* mspace) const NO_THREAD_SAFETY_ANALYSIS {
+    return mspace == code_mspace_ || mspace == data_mspace_;
+  }
+
+  void* MoreCore(const void* mspace, intptr_t increment);
+
  private:
-  // Take ownership of code_mem_map.
-  JitCodeCache(MemMap* code_map, MemMap* data_map);
+  // Take ownership of maps.
+  JitCodeCache(MemMap* code_map,
+               MemMap* data_map,
+               size_t initial_code_capacity,
+               size_t initial_data_capacity,
+               size_t max_capacity);
 
   // Internal version of 'CommitCode' that will not retry if the
   // allocation fails. Return null if the allocation fails.
@@ -172,6 +182,16 @@ class JitCodeCache {
   // Number of bytes allocated in the data cache.
   size_t DataCacheSizeLocked() REQUIRES(lock_);
 
+  // Notify all waiting threads that a collection is done.
+  void NotifyCollectionDone(Thread* self) REQUIRES(lock_);
+
+  // Try to increase the current capacity of the code cache. Return whether we
+  // succeeded at doing so.
+  bool IncreaseCodeCacheCapacity() REQUIRES(lock_);
+
+  // Set the footprint limit of the code cache.
+  void SetFootprintLimit(size_t new_footprint) REQUIRES(lock_);
+
   // Lock for guarding allocations, collections, and the method_code_map_.
   Mutex lock_;
   // Condition to wait on during collection.
@@ -192,6 +212,21 @@ class JitCodeCache {
   SafeMap<const void*, ArtMethod*> method_code_map_ GUARDED_BY(lock_);
   // ProfilingInfo objects we have allocated.
   std::vector<ProfilingInfo*> profiling_infos_ GUARDED_BY(lock_);
+
+  // The maximum capacity in bytes this code cache can go to.
+  size_t max_capacity_ GUARDED_BY(lock_);
+
+  // The current capacity in bytes of the code cache.
+  size_t current_capacity_ GUARDED_BY(lock_);
+
+  // The current footprint in bytes of the code portion of the code cache.
+  size_t code_end_ GUARDED_BY(lock_);
+
+  // The current footprint in bytes of the data portion of the code cache.
+  size_t data_end_ GUARDED_BY(lock_);
+
+  // Whether a collection has already been done on the current capacity.
+  bool has_done_one_collection_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };

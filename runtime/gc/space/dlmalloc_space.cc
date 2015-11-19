@@ -20,6 +20,8 @@
 #include "gc/accounting/card_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "memory_tool_malloc_space-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -318,10 +320,17 @@ namespace allocator {
 
 // Implement the dlmalloc morecore callback.
 void* ArtDlMallocMoreCore(void* mspace, intptr_t increment) {
-  Heap* heap = Runtime::Current()->GetHeap();
+  Runtime* runtime = Runtime::Current();
+  Heap* heap = runtime->GetHeap();
   ::art::gc::space::DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();
   // Support for multiple DlMalloc provided by a slow path.
   if (UNLIKELY(dlmalloc_space == nullptr || dlmalloc_space->GetMspace() != mspace)) {
+    if (LIKELY(runtime->GetJit() != nullptr)) {
+      jit::JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
+      if (code_cache->OwnsSpace(mspace)) {
+        return code_cache->MoreCore(mspace, increment);
+      }
+    }
     dlmalloc_space = nullptr;
     for (space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
       if (space->IsDlMallocSpace()) {
