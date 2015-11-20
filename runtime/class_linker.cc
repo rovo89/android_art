@@ -6629,7 +6629,9 @@ bool ClassLinker::MayBeCalledWithDirectCodePointer(ArtMethod* m) {
   }
 }
 
-jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files) {
+jobject ClassLinker::CreatePathClassLoader(Thread* self,
+                                           std::vector<const DexFile*>& dex_files,
+                                           jobject parent_loader) {
   // SOAAlreadyRunnable is protected, and we need something to add a global reference.
   // We could move the jobject to the callers, but all call-sites do this...
   ScopedObjectAccessUnchecked soa(self);
@@ -6660,8 +6662,8 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   for (const DexFile* dex_file : dex_files) {
     StackHandleScope<3> hs2(self);
 
-    // CreatePathClassLoader is only used by gtests. Index 0 of h_long_array is supposed to be the
-    // oat file but we can leave it null.
+    // CreatePathClassLoader is only used by gtests and dex2oat. Index 0 of h_long_array is
+    // supposed to be the oat file but we can leave it null.
     Handle<mirror::LongArray> h_long_array = hs2.NewHandle(mirror::LongArray::Alloc(
         self,
         kDexFileIndexStart + 1));
@@ -6707,9 +6709,10 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
       mirror::Class::FindField(self, hs.NewHandle(h_path_class_loader->GetClass()), "parent",
                                "Ljava/lang/ClassLoader;");
   DCHECK(parent_field != nullptr);
-  mirror::Object* boot_cl =
-      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
-  parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);
+  mirror::Object* parent = (parent_loader != nullptr)
+      ? soa.Decode<mirror::ClassLoader*>(parent_loader)
+      : soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
+  parent_field->SetObject<false>(h_path_class_loader.Get(), parent);
 
   // Make it a global ref and return.
   ScopedLocalRef<jobject> local_ref(
