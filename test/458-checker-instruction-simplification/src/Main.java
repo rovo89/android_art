@@ -1226,6 +1226,46 @@ public class Main {
     return arg / -0.25f;
   }
 
+  /**
+   * Test strength reduction of factors of the form (2^n + 1).
+   */
+
+  /// CHECK-START: int Main.mulPow2Plus1(int) instruction_simplifier (before)
+  /// CHECK-DAG:   <<Arg:i\d+>>         ParameterValue
+  /// CHECK-DAG:   <<Const9:i\d+>>      IntConstant 9
+  /// CHECK:                            Mul [<<Arg>>,<<Const9>>]
+
+  /// CHECK-START: int Main.mulPow2Plus1(int) instruction_simplifier (after)
+  /// CHECK-DAG:   <<Arg:i\d+>>         ParameterValue
+  /// CHECK-DAG:   <<Const3:i\d+>>      IntConstant 3
+  /// CHECK:       <<Shift:i\d+>>       Shl [<<Arg>>,<<Const3>>]
+  /// CHECK-NEXT:                       Add [<<Arg>>,<<Shift>>]
+
+  public static int mulPow2Plus1(int arg) {
+    return arg * 9;
+  }
+
+
+  /**
+   * Test strength reduction of factors of the form (2^n - 1).
+   */
+
+  /// CHECK-START: long Main.mulPow2Minus1(long) instruction_simplifier (before)
+  /// CHECK-DAG:   <<Arg:j\d+>>         ParameterValue
+  /// CHECK-DAG:   <<Const31:j\d+>>     LongConstant 31
+  /// CHECK:                            Mul [<<Arg>>,<<Const31>>]
+
+  /// CHECK-START: long Main.mulPow2Minus1(long) instruction_simplifier (after)
+  /// CHECK-DAG:   <<Arg:j\d+>>         ParameterValue
+  /// CHECK-DAG:   <<Const5:i\d+>>      IntConstant 5
+  /// CHECK:       <<Shift:j\d+>>       Shl [<<Arg>>,<<Const5>>]
+  /// CHECK-NEXT:                       Sub [<<Shift>>,<<Arg>>]
+
+  public static long mulPow2Minus1(long arg) {
+    return arg * 31;
+  }
+
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -1283,5 +1323,15 @@ public class Main {
     assertLongEquals(Shr56And255(0xc123456787654321L), 0xc1L);
     assertIntEquals(Shr24And127(0xc1234567), 0x41);
     assertLongEquals(Shr56And127(0xc123456787654321L), 0x41L);
+    assertIntEquals(0, mulPow2Plus1(0));
+    assertIntEquals(9, mulPow2Plus1(1));
+    assertIntEquals(18, mulPow2Plus1(2));
+    assertIntEquals(900, mulPow2Plus1(100));
+    assertIntEquals(111105, mulPow2Plus1(12345));
+    assertLongEquals(0, mulPow2Minus1(0));
+    assertLongEquals(31, mulPow2Minus1(1));
+    assertLongEquals(62, mulPow2Minus1(2));
+    assertLongEquals(3100, mulPow2Minus1(100));
+    assertLongEquals(382695, mulPow2Minus1(12345));
   }
 }
