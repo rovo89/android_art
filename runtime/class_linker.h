@@ -514,7 +514,10 @@ class ClassLinker {
 
   // Creates a GlobalRef PathClassLoader that can be used to load classes from the given dex files.
   // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
-  jobject CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files)
+  // If parent_loader is null then we use the boot class loader.
+  jobject CreatePathClassLoader(Thread* self,
+                                std::vector<const DexFile*>& dex_files,
+                                jobject parent_loader)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
