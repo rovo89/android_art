@@ -110,24 +110,23 @@ class PassScope;
 class PassObserver : public ValueObject {
  public:
   PassObserver(HGraph* graph,
-               const char* method_name,
                CodeGenerator* codegen,
                std::ostream* visualizer_output,
                CompilerDriver* compiler_driver)
       : graph_(graph),
-        method_name_(method_name),
+        cached_method_name_(),
         timing_logger_enabled_(compiler_driver->GetDumpPasses()),
-        timing_logger_(method_name, true, true),
+        timing_logger_(timing_logger_enabled_ ? GetMethodName() : "", true, true),
         disasm_info_(graph->GetArena()),
         visualizer_enabled_(!compiler_driver->GetDumpCfgFileName().empty()),
         visualizer_(visualizer_output, graph, *codegen),
         graph_in_bad_state_(false) {
     if (timing_logger_enabled_ || visualizer_enabled_) {
-      if (!IsVerboseMethod(compiler_driver, method_name)) {
+      if (!IsVerboseMethod(compiler_driver, GetMethodName())) {
         timing_logger_enabled_ = visualizer_enabled_ = false;
       }
       if (visualizer_enabled_) {
-        visualizer_.PrintHeader(method_name_);
+        visualizer_.PrintHeader(GetMethodName());
         codegen->SetDisassemblyInformation(&disasm_info_);
       }
     }
@@ -135,7 +134,7 @@ class PassObserver : public ValueObject {
 
   ~PassObserver() {
     if (timing_logger_enabled_) {
-      LOG(INFO) << "TIMINGS " << method_name_;
+      LOG(INFO) << "TIMINGS " << GetMethodName();
       LOG(INFO) << Dumpable<TimingLogger>(timing_logger_);
     }
   }
@@ -147,6 +146,14 @@ class PassObserver : public ValueObject {
   }
 
   void SetGraphInBadState() { graph_in_bad_state_ = true; }
+
+  const char* GetMethodName() {
+    // PrettyMethod() is expensive, so we delay calling it until we actually have to.
+    if (cached_method_name_.empty()) {
+      cached_method_name_ = PrettyMethod(graph_->GetMethodIdx(), graph_->GetDexFile());
+    }
+    return cached_method_name_.c_str();
+  }
 
  private:
   void StartPass(const char* pass_name) {
@@ -206,7 +213,8 @@ class PassObserver : public ValueObject {
   }
 
   HGraph* const graph_;
-  const char* method_name_;
+
+  std::string cached_method_name_;
 
   bool timing_logger_enabled_;
   TimingLogger timing_logger_;
@@ -664,7 +672,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                                               jobject class_loader,
                                               const DexFile& dex_file,
                                               Handle<mirror::DexCache> dex_cache) const {
-  std::string method_name = PrettyMethod(method_idx, dex_file);
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
   InstructionSet instruction_set = compiler_driver->GetInstructionSet();
@@ -728,7 +735,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       compiler_driver->GetCompilerOptions().GetGenerateDebugInfo());
 
   PassObserver pass_observer(graph,
-                             method_name.c_str(),
                              codegen.get(),
                              visualizer_output_.get(),
                              compiler_driver);
@@ -756,7 +762,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                         interpreter_metadata,
                         dex_cache);
 
-  VLOG(compiler) << "Building " << method_name;
+  VLOG(compiler) << "Building " << pass_observer.GetMethodName();
 
   {
     PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
@@ -766,13 +772,14 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     }
   }
 
-  VLOG(compiler) << "Optimizing " << method_name;
+  VLOG(compiler) << "Optimizing " << pass_observer.GetMethodName();
   if (run_optimizations_) {
     {
       PassScope scope(SsaBuilder::kSsaBuilderPassName, &pass_observer);
       if (!graph->TryBuildingSsa()) {
         // We could not transform the graph to SSA, bailout.
-        LOG(INFO) << "Skipping compilation of " << method_name << ": it contains a non natural loop";
+        LOG(INFO) << "Skipping compilation of " << pass_observer.GetMethodName()
+            << ": it contains a non natural loop";
         MaybeRecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
         pass_observer.SetGraphInBadState();
         return nullptr;
