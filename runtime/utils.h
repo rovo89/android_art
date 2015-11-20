@@ -18,9 +18,11 @@
 #define ART_RUNTIME_UTILS_H_
 
 #include <pthread.h>
+#include <stdlib.h>
 
 #include <limits>
 #include <memory>
+#include <random>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -349,6 +351,26 @@ void ParseDouble(const std::string& option,
                  double max,
                  double* parsed_value,
                  UsageFn Usage);
+
+#if defined(__BIONIC__)
+struct Arc4RandomGenerator {
+  typedef uint32_t result_type;
+  static constexpr uint32_t min() { return std::numeric_limits<uint32_t>::min(); }
+  static constexpr uint32_t max() { return std::numeric_limits<uint32_t>::max(); }
+  uint32_t operator() () { return arc4random(); }
+};
+using RNG = Arc4RandomGenerator;
+#else
+using RNG = std::random_device;
+#endif
+
+template <typename T>
+T GetRandomNumber(T min, T max) {
+  CHECK_LT(min, max);
+  std::uniform_int_distribution<T> dist(min, max);
+  RNG rng;
+  return dist(rng);
+}
 
 }  // namespace art
 
