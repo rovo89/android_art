@@ -285,7 +285,7 @@ TEST_F(DwarfTest, DebugInfo) {
   constexpr bool is64bit = false;
   DebugInfoEntryWriter<> info(is64bit, &debug_abbrev_data_);
   DW_CHECK("Contents of the .debug_info section:");
-  info.StartTag(dwarf::DW_TAG_compile_unit, dwarf::DW_CHILDREN_yes);
+  info.StartTag(dwarf::DW_TAG_compile_unit);
   DW_CHECK("Abbrev Number: 1 (DW_TAG_compile_unit)");
   info.WriteStrp(dwarf::DW_AT_producer, "Compiler name", &debug_str_data_);
   DW_CHECK_NEXT("DW_AT_producer    : (indirect string, offset: 0x0): Compiler name");
@@ -293,7 +293,7 @@ TEST_F(DwarfTest, DebugInfo) {
   DW_CHECK_NEXT("DW_AT_low_pc      : 0x1000000");
   info.WriteAddr(dwarf::DW_AT_high_pc, 0x02000000);
   DW_CHECK_NEXT("DW_AT_high_pc     : 0x2000000");
-  info.StartTag(dwarf::DW_TAG_subprogram, dwarf::DW_CHILDREN_no);
+  info.StartTag(dwarf::DW_TAG_subprogram);
   DW_CHECK("Abbrev Number: 2 (DW_TAG_subprogram)");
   info.WriteStrp(dwarf::DW_AT_name, "Foo", &debug_str_data_);
   DW_CHECK_NEXT("DW_AT_name        : (indirect string, offset: 0xe): Foo");
@@ -302,7 +302,7 @@ TEST_F(DwarfTest, DebugInfo) {
   info.WriteAddr(dwarf::DW_AT_high_pc, 0x01020000);
   DW_CHECK_NEXT("DW_AT_high_pc     : 0x1020000");
   info.EndTag();  // DW_TAG_subprogram
-  info.StartTag(dwarf::DW_TAG_subprogram, dwarf::DW_CHILDREN_no);
+  info.StartTag(dwarf::DW_TAG_subprogram);
   DW_CHECK("Abbrev Number: 2 (DW_TAG_subprogram)");
   info.WriteStrp(dwarf::DW_AT_name, "Bar", &debug_str_data_);
   DW_CHECK_NEXT("DW_AT_name        : (indirect string, offset: 0x12): Bar");
@@ -313,7 +313,7 @@ TEST_F(DwarfTest, DebugInfo) {
   info.EndTag();  // DW_TAG_subprogram
   info.EndTag();  // DW_TAG_compile_unit
   // Test that previous list was properly terminated and empty children.
-  info.StartTag(dwarf::DW_TAG_compile_unit, dwarf::DW_CHILDREN_yes);
+  info.StartTag(dwarf::DW_TAG_compile_unit);
   info.EndTag();  // DW_TAG_compile_unit
 
   // The abbrev table is just side product, but check it as well.
@@ -327,7 +327,7 @@ TEST_F(DwarfTest, DebugInfo) {
   DW_CHECK_NEXT("DW_AT_name         DW_FORM_strp");
   DW_CHECK_NEXT("DW_AT_low_pc       DW_FORM_addr");
   DW_CHECK_NEXT("DW_AT_high_pc      DW_FORM_addr");
-  DW_CHECK("3      DW_TAG_compile_unit    [has children]");
+  DW_CHECK("3      DW_TAG_compile_unit    [no children]");
 
   std::vector<uintptr_t> debug_info_patches;
   std::vector<uintptr_t> expected_patches { 16, 20, 29, 33, 42, 46 };  // NOLINT
