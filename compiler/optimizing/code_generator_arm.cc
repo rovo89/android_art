@@ -5828,7 +5828,7 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), TR, invoke->GetStringInitOffset());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ LoadImmediate(temp.AsRegister<Register>(), invoke->GetMethodAddress());
@@ -5843,7 +5843,7 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       LOG(FATAL) << "Unsupported";
       UNREACHABLE();
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       Register method_reg;
       Register reg = temp.AsRegister<Register>();
       if (current_method.IsRegister()) {
