@@ -948,7 +948,12 @@ void ThreadList::SuspendAllForDebugger() {
   Locks::mutator_lock_->ExclusiveLock(self);
   Locks::mutator_lock_->ExclusiveUnlock(self);
 #endif
-  AssertThreadsAreSuspended(self, self, debug_thread);
+  // Disabled for the following race condition:
+  // Thread 1 calls SuspendAllForDebugger, gets preempted after pulsing the mutator lock.
+  // Thread 2 calls SuspendAll and SetStateUnsafe (perhaps from Dbg::Disconnected).
+  // Thread 1 fails assertion that all threads are suspended due to thread 2 being in a runnable
+  // state (from SetStateUnsafe).
+  // AssertThreadsAreSuspended(self, self, debug_thread);
 
   VLOG(threads) << *self << " SuspendAllForDebugger complete";
 }
