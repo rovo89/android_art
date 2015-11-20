@@ -383,11 +383,11 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
     HInvokeStaticOrDirect* call = invoke->AsInvokeStaticOrDirect();
     switch (call->GetMethodLoadKind()) {
       case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-        locations->SetInAt(call->GetCurrentMethodInputIndex(), visitor->GetMethodLocation());
+        locations->SetInAt(call->GetSpecialInputIndex(), visitor->GetMethodLocation());
         break;
       case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
         locations->AddTemp(visitor->GetMethodLocation());
-        locations->SetInAt(call->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+        locations->SetInAt(call->GetSpecialInputIndex(), Location::RequiresRegister());
         break;
       default:
         locations->AddTemp(visitor->GetMethodLocation());

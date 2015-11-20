@@ -3434,14 +3434,19 @@ class HInvokeStaticOrDirect : public HInvoke {
     DCHECK(had_current_method_input || !needs_current_method_input);
 
     if (had_current_method_input && !needs_current_method_input) {
-      DCHECK_EQ(InputAt(GetCurrentMethodInputIndex()), GetBlock()->GetGraph()->GetCurrentMethod());
-      RemoveInputAt(GetCurrentMethodInputIndex());
+      DCHECK_EQ(InputAt(GetSpecialInputIndex()), GetBlock()->GetGraph()->GetCurrentMethod());
+      RemoveInputAt(GetSpecialInputIndex());
     }
     dispatch_info_ = dispatch_info;
   }
 
-  void InsertInputAt(size_t index, HInstruction* input);
-  void RemoveInputAt(size_t index);
+  void AddSpecialInput(HInstruction* input) {
+    // We allow only one special input.
+    DCHECK(!IsStringInit() && !HasCurrentMethodInput());
+    DCHECK(InputCount() == GetSpecialInputIndex() ||
+           (InputCount() == GetSpecialInputIndex() + 1 && IsStaticWithExplicitClinitCheck()));
+    InsertInputAt(GetSpecialInputIndex(), input);
+  }
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const OVERRIDE {
     // We access the method via the dex cache so we can't do an implicit null check.
@@ -3453,13 +3458,20 @@ class HInvokeStaticOrDirect : public HInvoke {
     return return_type_ == Primitive::kPrimNot && !IsStringInit();
   }
 
+  // Get the index of the special input, if any.
+  //
+  // If the invoke IsStringInit(), it initially has a HFakeString special argument
+  // which is removed by the instruction simplifier; if the invoke HasCurrentMethodInput(),
+  // the "special input" is the current method pointer; otherwise there may be one
+  // platform-specific special input, such as PC-relative addressing base.
+  uint32_t GetSpecialInputIndex() const { return GetNumberOfArguments(); }
+
   InvokeType GetInvokeType() const { return invoke_type_; }
   MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
   CodePtrLocation GetCodePtrLocation() const { return dispatch_info_.code_ptr_location; }
   bool IsRecursive() const { return GetMethodLoadKind() == MethodLoadKind::kRecursive; }
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE;
   bool IsStringInit() const { return GetMethodLoadKind() == MethodLoadKind::kStringInit; }
-  uint32_t GetCurrentMethodInputIndex() const { return GetNumberOfArguments(); }
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
   bool HasPcRelativeDexCache() const {
     return GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
@@ -3467,11 +3479,11 @@ class HInvokeStaticOrDirect : public HInvoke {
   bool HasCurrentMethodInput() const {
     // This function can be called only after the invoke has been fully initialized by the builder.
     if (NeedsCurrentMethodInput(GetMethodLoadKind())) {
-      DCHECK(InputAt(GetCurrentMethodInputIndex())->IsCurrentMethod());
+      DCHECK(InputAt(GetSpecialInputIndex())->IsCurrentMethod());
       return true;
     } else {
-      DCHECK(InputCount() == GetCurrentMethodInputIndex() ||
-             !InputAt(GetCurrentMethodInputIndex())->IsCurrentMethod());
+      DCHECK(InputCount() == GetSpecialInputIndex() ||
+             !InputAt(GetSpecialInputIndex())->IsCurrentMethod());
       return false;
     }
   }
@@ -3570,6 +3582,9 @@ class HInvokeStaticOrDirect : public HInvoke {
     }
     return input_record;
   }
+
+  void InsertInputAt(size_t index, HInstruction* input);
+  void RemoveInputAt(size_t index);
 
  private:
   const InvokeType invoke_type_;
