@@ -18,12 +18,14 @@
 
 #include <inttypes.h>
 #include <pthread.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <memory>
+#include <random>
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -59,6 +61,26 @@ namespace art {
 #if defined(__linux__)
 static constexpr bool kUseAddr2line = !kIsTargetBuild;
 #endif
+
+#if defined(__BIONIC__)
+struct Arc4RandomGenerator {
+  typedef uint32_t result_type;
+  uint32_t min() { return std::numeric_limits<uint32_t>::min(); }
+  uint32_t max() { return std::numeric_limits<uint32_t>::max(); }
+  uint32_t operator() { return arc4random(); }
+};
+using RNG = Arc4RandomGenerator;
+#else
+using RNG = std::random_device;
+#endif
+
+template <typename T>
+T GetRandomNumber(T min, T max) {
+  CHECK_LT(min, max);
+  std::uniform_int_distribution<T> dist(min, max);
+  RNG rng;
+  return dist(rng);
+}
 
 pid_t GetTid() {
 #if defined(__APPLE__)
