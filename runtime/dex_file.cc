@@ -1870,10 +1870,10 @@ bool DexFile::ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t*
         Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
         ArtField* enum_field = Runtime::Current()->GetClassLinker()->ResolveField(
             klass->GetDexFile(), index, dex_cache, class_loader, true);
-        Handle<mirror::Class> field_class(hs.NewHandle(enum_field->GetDeclaringClass()));
         if (enum_field == nullptr) {
           return false;
         } else {
+          Handle<mirror::Class> field_class(hs.NewHandle(enum_field->GetDeclaringClass()));
           Runtime::Current()->GetClassLinker()->EnsureInitialized(self, field_class, true, true);
           element_object = enum_field->GetObject(field_class.Get());
           set_object = true;
