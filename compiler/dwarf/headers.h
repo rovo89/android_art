@@ -138,6 +138,7 @@ void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
   writer.PushUint32(debug_abbrev_offset);
   writer.PushUint8(entries.Is64bit() ? 8 : 4);
   size_t entries_offset = writer.data()->size();
+  DCHECK_EQ(entries_offset, DebugInfoEntryWriter<Vector>::kCompilationUnitHeaderSize);
   writer.PushData(*entries.data());
   writer.UpdateUint32(start, writer.data()->size() - start - 4);
   // Copy patch locations and make them relative to .debug_info section.

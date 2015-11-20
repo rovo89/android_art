@@ -19,9 +19,11 @@
 #include <unordered_set>
 
 #include "base/casts.h"
+#include "base/stl_util.h"
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
 #include "dex_file-inl.h"
+#include "dwarf/dedup_vector.h"
 #include "dwarf/headers.h"
 #include "dwarf/register.h"
 #include "elf_builder.h"
@@ -249,9 +251,216 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   }
 }
 
+struct CompilationUnit {
+  std::vector<const OatWriter::DebugInfo*> methods_;
+  size_t debug_line_offset_ = 0;
+  uint32_t low_pc_ = 0xFFFFFFFFU;
+  uint32_t high_pc_ = 0;
+};
+
+// Helper class to write .debug_info and its supporting sections.
 template<typename ElfTypes>
 class DebugInfoWriter {
   typedef typename ElfTypes::Addr Elf_Addr;
+
+  // Helper class to write one compilation unit.
+  // It holds helper methods and temporary state.
+  class CompilationUnitWriter {
+   public:
+    explicit CompilationUnitWriter(DebugInfoWriter* owner)
+      : owner_(owner),
+        info_(Is64BitInstructionSet(owner_->builder_->GetIsa()), &debug_abbrev_) {
+    }
+
+    void Write(const CompilationUnit& compilation_unit) {
+      CHECK(!compilation_unit.methods_.empty());
+      const Elf_Addr text_address = owner_->builder_->GetText()->GetAddress();
+
+      info_.StartTag(DW_TAG_compile_unit);
+      info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
+      info_.WriteData1(DW_AT_language, DW_LANG_Java);
+      info_.WriteAddr(DW_AT_low_pc, text_address + compilation_unit.low_pc_);
+      info_.WriteAddr(DW_AT_high_pc, text_address + compilation_unit.high_pc_);
+      info_.WriteData4(DW_AT_stmt_list, compilation_unit.debug_line_offset_);
+
+      const char* last_dex_class_desc = nullptr;
+      for (auto mi : compilation_unit.methods_) {
+        const DexFile* dex = mi->dex_file_;
+        const DexFile::MethodId& dex_method = dex->GetMethodId(mi->dex_method_index_);
+        const DexFile::ProtoId& dex_proto = dex->GetMethodPrototype(dex_method);
+        const DexFile::TypeList* dex_params = dex->GetProtoParameters(dex_proto);
+        const char* dex_class_desc = dex->GetMethodDeclaringClassDescriptor(dex_method);
+
+        // Enclose the method in correct class definition.
+        if (last_dex_class_desc != dex_class_desc) {
+          if (last_dex_class_desc != nullptr) {
+            EndClassTag(last_dex_class_desc);
+          }
+          size_t offset = StartClassTag(dex_class_desc);
+          type_cache_.emplace(dex_class_desc, offset);
+          // Check that each class is defined only once.
+          bool unique = owner_->defined_dex_classes_.insert(dex_class_desc).second;
+          CHECK(unique) << "Redefinition of " << dex_class_desc;
+          last_dex_class_desc = dex_class_desc;
+        }
+
+        std::vector<const char*> param_names;
+        if (mi->code_item_ != nullptr) {
+          const uint8_t* stream = dex->GetDebugInfoStream(mi->code_item_);
+          if (stream != nullptr) {
+            DecodeUnsignedLeb128(&stream);  // line.
+            uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
+            for (uint32_t i = 0; i < parameters_size; ++i) {
+              uint32_t id = DecodeUnsignedLeb128P1(&stream);
+              param_names.push_back(mi->dex_file_->StringDataByIdx(id));
+            }
+          }
+        }
+
+        int start_depth = info_.Depth();
+        info_.StartTag(DW_TAG_subprogram);
+        WriteName(dex->GetMethodName(dex_method));
+        info_.WriteAddr(DW_AT_low_pc, text_address + mi->low_pc_);
+        info_.WriteAddr(DW_AT_high_pc, text_address + mi->high_pc_);
+        WriteLazyType(dex->GetReturnTypeDescriptor(dex_proto));
+        if (dex_params != nullptr) {
+          for (uint32_t i = 0; i < dex_params->Size(); ++i) {
+            info_.StartTag(DW_TAG_formal_parameter);
+            // Parameter names may not be always available.
+            if (i < param_names.size() && param_names[i] != nullptr) {
+              WriteName(param_names[i]);
+            }
+            WriteLazyType(dex->StringByTypeIdx(dex_params->GetTypeItem(i).type_idx_));
+            info_.EndTag();
+          }
+        }
+        info_.EndTag();
+        CHECK_EQ(info_.Depth(), start_depth);  // Balanced start/end.
+      }
+      if (last_dex_class_desc != nullptr) {
+        EndClassTag(last_dex_class_desc);
+      }
+      CHECK_EQ(info_.Depth(), 1);
+      FinishLazyTypes();
+      info_.EndTag();  // DW_TAG_compile_unit
+      std::vector<uint8_t> buffer;
+      buffer.reserve(info_.data()->size() + KB);
+      const size_t offset = owner_->builder_->GetDebugInfo()->GetSize();
+      const size_t debug_abbrev_offset =
+          owner_->debug_abbrev_.Insert(debug_abbrev_.data(), debug_abbrev_.size());
+      WriteDebugInfoCU(debug_abbrev_offset, info_, offset, &buffer, &owner_->debug_info_patches_);
+      owner_->builder_->GetDebugInfo()->WriteFully(buffer.data(), buffer.size());
+    }
+
+    // Some types are difficult to define as we go since they need
+    // to be enclosed in the right set of namespaces. Therefore we
+    // just define all types lazily at the end of compilation unit.
+    void WriteLazyType(const char* type_descriptor) {
+      DCHECK(type_descriptor != nullptr);
+      if (type_descriptor[0] != 'V') {
+        lazy_types_.emplace(type_descriptor, info_.size());
+        info_.WriteRef4(DW_AT_type, 0);
+      }
+    }
+
+    void FinishLazyTypes() {
+      for (const auto& lazy_type : lazy_types_) {
+        info_.UpdateUint32(lazy_type.second, WriteType(lazy_type.first));
+      }
+      lazy_types_.clear();
+    }
+
+   private:
+    void WriteName(const char* name) {
+      info_.WriteStrp(DW_AT_name, owner_->WriteString(name));
+    }
+
+    // Convert dex type descriptor to DWARF.
+    // Returns offset in the compilation unit.
+    size_t WriteType(const char* desc) {
+      const auto& it = type_cache_.find(desc);
+      if (it != type_cache_.end()) {
+        return it->second;
+      }
+
+      size_t offset;
+      if (*desc == 'L') {
+        // Class type. For example: Lpackage/name;
+        offset = StartClassTag(desc);
+        info_.WriteFlag(DW_AT_declaration, true);
+        EndClassTag(desc);
+      } else if (*desc == '[') {
+        // Array type.
+        size_t element_type = WriteType(desc + 1);
+        offset = info_.StartTag(DW_TAG_array_type);
+        info_.WriteRef(DW_AT_type, element_type);
+        info_.EndTag();
+      } else {
+        // Primitive types.
+        const char* name;
+        switch (*desc) {
+        case 'B': name = "byte"; break;
+        case 'C': name = "char"; break;
+        case 'D': name = "double"; break;
+        case 'F': name = "float"; break;
+        case 'I': name = "int"; break;
+        case 'J': name = "long"; break;
+        case 'S': name = "short"; break;
+        case 'Z': name = "boolean"; break;
+        case 'V': name = "void"; break;
+        default:
+          LOG(FATAL) << "Unknown dex type descriptor: " << desc;
+          UNREACHABLE();
+        }
+        offset = info_.StartTag(DW_TAG_base_type);
+        WriteName(name);
+        info_.EndTag();
+      }
+
+      type_cache_.emplace(desc, offset);
+      return offset;
+    }
+
+    // Start DW_TAG_class_type tag nested in DW_TAG_namespace tags.
+    // Returns offset of the class tag in the compilation unit.
+    size_t StartClassTag(const char* desc) {
+      DCHECK(desc != nullptr && desc[0] == 'L');
+      // Enclose the type in namespace tags.
+      const char* end;
+      for (desc = desc + 1; (end = strchr(desc, '/')) != nullptr; desc = end + 1) {
+        info_.StartTag(DW_TAG_namespace);
+        WriteName(std::string(desc, end - desc).c_str());
+      }
+      // Start the class tag.
+      size_t offset = info_.StartTag(DW_TAG_class_type);
+      end = strchr(desc, ';');
+      CHECK(end != nullptr);
+      WriteName(std::string(desc, end - desc).c_str());
+      return offset;
+    }
+
+    void EndClassTag(const char* desc) {
+      DCHECK(desc != nullptr && desc[0] == 'L');
+      // End the class tag.
+      info_.EndTag();
+      // Close namespace tags.
+      const char* end;
+      for (desc = desc + 1; (end = strchr(desc, '/')) != nullptr; desc = end + 1) {
+        info_.EndTag();
+      }
+    }
+
+    // For access to the ELF sections.
+    DebugInfoWriter<ElfTypes>* owner_;
+    // Debug abbrevs for this compilation unit only.
+    std::vector<uint8_t> debug_abbrev_;
+    // Temporary buffer to create and store the entries.
+    DebugInfoEntryWriter<> info_;
+    // Cache of already translated type descriptors.
+    std::map<const char*, size_t, CStringLess> type_cache_;  // type_desc -> definition_offset.
+    // 32-bit references which need to be resolved to a type later.
+    std::multimap<const char*, size_t, CStringLess> lazy_types_;  // type_desc -> patch_offset.
+  };
 
  public:
   explicit DebugInfoWriter(ElfBuilder<ElfTypes>* builder) : builder_(builder) {
@@ -261,54 +470,29 @@ class DebugInfoWriter {
     builder_->GetDebugInfo()->Start();
   }
 
-  void Write(const std::vector<const OatWriter::DebugInfo*>& method_infos,
-             size_t debug_line_offset) {
-    const bool is64bit = Is64BitInstructionSet(builder_->GetIsa());
-    const Elf_Addr text_address = builder_->GetText()->GetAddress();
-    uint32_t cunit_low_pc = 0xFFFFFFFFU;
-    uint32_t cunit_high_pc = 0;
-    for (auto method_info : method_infos) {
-      cunit_low_pc = std::min(cunit_low_pc, method_info->low_pc_);
-      cunit_high_pc = std::max(cunit_high_pc, method_info->high_pc_);
-    }
-
-    size_t debug_abbrev_offset = debug_abbrev_.size();
-    DebugInfoEntryWriter<> info(is64bit, &debug_abbrev_);
-    info.StartTag(DW_TAG_compile_unit, DW_CHILDREN_yes);
-    info.WriteStrp(DW_AT_producer, "Android dex2oat", &debug_str_);
-    info.WriteData1(DW_AT_language, DW_LANG_Java);
-    info.WriteAddr(DW_AT_low_pc, text_address + cunit_low_pc);
-    info.WriteAddr(DW_AT_high_pc, text_address + cunit_high_pc);
-    info.WriteData4(DW_AT_stmt_list, debug_line_offset);
-    for (auto method_info : method_infos) {
-      std::string method_name = PrettyMethod(method_info->dex_method_index_,
-                                             *method_info->dex_file_, true);
-      info.StartTag(DW_TAG_subprogram, DW_CHILDREN_no);
-      info.WriteStrp(DW_AT_name, method_name.data(), &debug_str_);
-      info.WriteAddr(DW_AT_low_pc, text_address + method_info->low_pc_);
-      info.WriteAddr(DW_AT_high_pc, text_address + method_info->high_pc_);
-      info.EndTag();  // DW_TAG_subprogram
-    }
-    info.EndTag();  // DW_TAG_compile_unit
-    std::vector<uint8_t> buffer;
-    buffer.reserve(info.data()->size() + KB);
-    size_t offset = builder_->GetDebugInfo()->GetSize();
-    WriteDebugInfoCU(debug_abbrev_offset, info, offset, &buffer, &debug_info_patches_);
-    builder_->GetDebugInfo()->WriteFully(buffer.data(), buffer.size());
+  void WriteCompilationUnit(const CompilationUnit& compilation_unit) {
+    CompilationUnitWriter writer(this);
+    writer.Write(compilation_unit);
   }
 
   void End() {
     builder_->GetDebugInfo()->End();
     builder_->WritePatches(".debug_info.oat_patches", &debug_info_patches_);
-    builder_->WriteSection(".debug_abbrev", &debug_abbrev_);
-    builder_->WriteSection(".debug_str", &debug_str_);
+    builder_->WriteSection(".debug_abbrev", &debug_abbrev_.Data());
+    builder_->WriteSection(".debug_str", &debug_str_.Data());
   }
 
  private:
+  size_t WriteString(const char* str) {
+    return debug_str_.Insert(reinterpret_cast<const uint8_t*>(str), strlen(str) + 1);
+  }
+
   ElfBuilder<ElfTypes>* builder_;
   std::vector<uintptr_t> debug_info_patches_;
-  std::vector<uint8_t> debug_abbrev_;
-  std::vector<uint8_t> debug_str_;
+  DedupVector debug_abbrev_;
+  DedupVector debug_str_;
+
+  std::unordered_set<const char*> defined_dex_classes_;  // For CHECKs only.
 };
 
 template<typename ElfTypes>
@@ -325,15 +509,11 @@ class DebugLineWriter {
 
   // Write line table for given set of methods.
   // Returns the number of bytes written.
-  size_t Write(const std::vector<const OatWriter::DebugInfo*>& method_infos) {
+  size_t WriteCompilationUnit(CompilationUnit& compilation_unit) {
     const bool is64bit = Is64BitInstructionSet(builder_->GetIsa());
     const Elf_Addr text_address = builder_->GetText()->GetAddress();
-    uint32_t cunit_low_pc = 0xFFFFFFFFU;
-    uint32_t cunit_high_pc = 0;
-    for (auto method_info : method_infos) {
-      cunit_low_pc = std::min(cunit_low_pc, method_info->low_pc_);
-      cunit_high_pc = std::max(cunit_high_pc, method_info->high_pc_);
-    }
+
+    compilation_unit.debug_line_offset_ = builder_->GetDebugLine()->GetSize();
 
     std::vector<FileEntry> files;
     std::unordered_map<std::string, size_t> files_map;
@@ -358,11 +538,17 @@ class DebugLineWriter {
         break;
     }
     DebugLineOpCodeWriter<> opcodes(is64bit, code_factor_bits_);
-    opcodes.SetAddress(text_address + cunit_low_pc);
+    opcodes.SetAddress(text_address + compilation_unit.low_pc_);
     if (dwarf_isa != -1) {
       opcodes.SetISA(dwarf_isa);
     }
-    for (const OatWriter::DebugInfo* mi : method_infos) {
+    for (const OatWriter::DebugInfo* mi : compilation_unit.methods_) {
+      // Ignore function if we have already generated line table for the same address.
+      // It would confuse the debugger and the DWARF specification forbids it.
+      if (mi->deduped_) {
+        continue;
+      }
+
       struct DebugInfoCallbacks {
         static bool NewPosition(void* ctx, uint32_t address, uint32_t line) {
           auto* context = reinterpret_cast<DebugInfoCallbacks*>(ctx);
@@ -461,7 +647,7 @@ class DebugLineWriter {
         opcodes.AddRow(method_address, 0);
       }
     }
-    opcodes.AdvancePC(text_address + cunit_high_pc);
+    opcodes.AdvancePC(text_address + compilation_unit.high_pc_);
     opcodes.EndSequence();
     std::vector<uint8_t> buffer;
     buffer.reserve(opcodes.data()->size() + KB);
@@ -484,36 +670,28 @@ class DebugLineWriter {
 template<typename ElfTypes>
 void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
                         const std::vector<OatWriter::DebugInfo>& method_infos) {
-  struct CompilationUnit {
-    std::vector<const OatWriter::DebugInfo*> methods_;
-    size_t debug_line_offset_ = 0;
-  };
-
   // Group the methods into compilation units based on source file.
   std::vector<CompilationUnit> compilation_units;
   const char* last_source_file = nullptr;
   for (const OatWriter::DebugInfo& mi : method_infos) {
-    // Attribute given instruction range only to single method.
-    // Otherwise the debugger might get really confused.
-    if (!mi.deduped_) {
-      auto& dex_class_def = mi.dex_file_->GetClassDef(mi.class_def_index_);
-      const char* source_file = mi.dex_file_->GetSourceFile(dex_class_def);
-      if (compilation_units.empty() || source_file != last_source_file) {
-        compilation_units.push_back(CompilationUnit());
-      }
-      compilation_units.back().methods_.push_back(&mi);
-      last_source_file = source_file;
+    auto& dex_class_def = mi.dex_file_->GetClassDef(mi.class_def_index_);
+    const char* source_file = mi.dex_file_->GetSourceFile(dex_class_def);
+    if (compilation_units.empty() || source_file != last_source_file) {
+      compilation_units.push_back(CompilationUnit());
     }
+    CompilationUnit& cu = compilation_units.back();
+    cu.methods_.push_back(&mi);
+    cu.low_pc_ = std::min(cu.low_pc_, mi.low_pc_);
+    cu.high_pc_ = std::max(cu.high_pc_, mi.high_pc_);
+    last_source_file = source_file;
   }
 
   // Write .debug_line section.
   {
     DebugLineWriter<ElfTypes> line_writer(builder);
     line_writer.Start();
-    size_t offset = 0;
     for (auto& compilation_unit : compilation_units) {
-      compilation_unit.debug_line_offset_ = offset;
-      offset += line_writer.Write(compilation_unit.methods_);
+      line_writer.WriteCompilationUnit(compilation_unit);
     }
     line_writer.End();
   }
@@ -523,7 +701,7 @@ void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
     DebugInfoWriter<ElfTypes> info_writer(builder);
     info_writer.Start();
     for (const auto& compilation_unit : compilation_units) {
-      info_writer.Write(compilation_unit.methods_, compilation_unit.debug_line_offset_);
+      info_writer.WriteCompilationUnit(compilation_unit);
     }
     info_writer.End();
   }
