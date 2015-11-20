@@ -2822,9 +2822,9 @@ void LocationsBuilderMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
   // sorted out.
   if (invoke->HasCurrentMethodInput()) {
     LocationSummary* locations = invoke->GetLocations();
-    Location location = locations->InAt(invoke->GetCurrentMethodInputIndex());
+    Location location = locations->InAt(invoke->GetSpecialInputIndex());
     if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
-      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::NoLocation());
+      locations->SetInAt(invoke->GetSpecialInputIndex(), Location::NoLocation());
     }
   }
 }
@@ -2882,7 +2882,7 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                         invoke->GetStringInitOffset());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ LoadConst64(temp.AsRegister<GpuRegister>(), invoke->GetMethodAddress());
@@ -2894,7 +2894,7 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       LOG(FATAL) << "Unsupported";
       UNREACHABLE();
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       GpuRegister reg = temp.AsRegister<GpuRegister>();
       GpuRegister method_reg;
       if (current_method.IsRegister()) {

@@ -1908,7 +1908,7 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
-      invoke->GetLocations()->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::Any());
+      invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
     }
     return;
   }
@@ -1917,7 +1917,7 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 
   // For PC-relative dex cache the invoke has an extra input, the PC-relative address base.
   if (invoke->HasPcRelativeDexCache()) {
-    invoke->GetLocations()->SetInAt(invoke->GetCurrentMethodInputIndex(),
+    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(),
                                     Location::RequiresRegister());
   }
 
@@ -1926,9 +1926,9 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
     // needs a register. We therefore do not require a register for it, and let
     // the code generation of the invoke handle it.
     LocationSummary* locations = invoke->GetLocations();
-    Location location = locations->InAt(invoke->GetCurrentMethodInputIndex());
+    Location location = locations->InAt(invoke->GetSpecialInputIndex());
     if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
-      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::NoLocation());
+      locations->SetInAt(invoke->GetSpecialInputIndex(), Location::NoLocation());
     }
   }
 }
@@ -4032,7 +4032,7 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOr
 Register CodeGeneratorX86::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
                                                                  Register temp) {
   DCHECK_EQ(invoke->InputCount(), invoke->GetNumberOfArguments() + 1u);
-  Location location = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+  Location location = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
   if (!invoke->GetLocations()->Intrinsified()) {
     return location.AsRegister<Register>();
   }
@@ -4063,7 +4063,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ fs()->movl(temp.AsRegister<Register>(), Address::Absolute(invoke->GetStringInitOffset()));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ movl(temp.AsRegister<Register>(), Immediate(invoke->GetMethodAddress()));
@@ -4084,7 +4084,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       Register method_reg;
       Register reg = temp.AsRegister<Register>();
       if (current_method.IsRegister()) {
