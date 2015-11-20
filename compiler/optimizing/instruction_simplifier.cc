@@ -796,6 +796,34 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       HShl* shl = new(allocator) HShl(type, input_other, shift);
       block->ReplaceAndRemoveInstructionWith(instruction, shl);
       RecordSimplification();
+    } else if (IsPowerOfTwo(factor - 1)) {
+      // Transform code looking like
+      //    MUL dst, src, (2^n + 1)
+      // into
+      //    SHL tmp, src, n
+      //    ADD dst, src, tmp
+      HShl* shl = new (allocator) HShl(type,
+                                       input_other,
+                                       GetGraph()->GetIntConstant(WhichPowerOf2(factor - 1)));
+      HAdd* add = new (allocator) HAdd(type, input_other, shl);
+
+      block->InsertInstructionBefore(shl, instruction);
+      block->ReplaceAndRemoveInstructionWith(instruction, add);
+      RecordSimplification();
+    } else if (IsPowerOfTwo(factor + 1)) {
+      // Transform code looking like
+      //    MUL dst, src, (2^n - 1)
+      // into
+      //    SHL tmp, src, n
+      //    SUB dst, tmp, src
+      HShl* shl = new (allocator) HShl(type,
+                                       input_other,
+                                       GetGraph()->GetIntConstant(WhichPowerOf2(factor + 1)));
+      HSub* sub = new (allocator) HSub(type, shl, input_other);
+
+      block->InsertInstructionBefore(shl, instruction);
+      block->ReplaceAndRemoveInstructionWith(instruction, sub);
+      RecordSimplification();
     }
   }
 }
