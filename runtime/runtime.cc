@@ -1199,10 +1199,13 @@ void Runtime::InitNativeMethods() {
   // First set up JniConstants, which is used by both the runtime's built-in native
   // methods and libcore.
   JniConstants::init(env);
-  WellKnownClasses::Init(env);
 
   // Then set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);
+
+  // Initialize classes used in JNI. The initialization requires runtime native
+  // methods to be loaded first.
+  WellKnownClasses::Init(env);
 
   // Then set up libjavacore / libopenjdk, which are just a regular JNI libraries with
   // a regular JNI_OnLoad. Most JNI libraries can just use System.loadLibrary, but
