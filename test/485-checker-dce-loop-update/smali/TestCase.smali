@@ -136,11 +136,11 @@
 ## CHECK-DAG:     <<Cst1:i\d+>>  IntConstant 1
 ## CHECK-DAG:     <<Cst5:i\d+>>  IntConstant 5
 ## CHECK-DAG:     <<Cst7:i\d+>>  IntConstant 7
-## CHECK-DAG:     <<Cst9:i\d+>>  IntConstant 9
+## CHECK-DAG:     <<Cst11:i\d+>> IntConstant 11
 ## CHECK-DAG:     <<PhiX1:i\d+>> Phi [<<ArgX>>,<<Add5:i\d+>>,<<Add7:i\d+>>] loop:<<HeaderY:B\d+>>
 ## CHECK-DAG:                    If [<<ArgY>>]                              loop:<<HeaderY>>
 ## CHECK-DAG:                    If [<<ArgZ>>]                              loop:<<HeaderY>>
-## CHECK-DAG:     <<Mul9:i\d+>>  Mul [<<PhiX1>>,<<Cst9>>]                   loop:<<HeaderY>>
+## CHECK-DAG:     <<Mul9:i\d+>>  Mul [<<PhiX1>>,<<Cst11>>]                  loop:<<HeaderY>>
 ## CHECK-DAG:     <<PhiX2:i\d+>> Phi [<<PhiX1>>,<<Mul9>>]                   loop:<<HeaderY>>
 ## CHECK-DAG:                    If [<<Cst1>>]                              loop:<<HeaderY>>
 ## CHECK-DAG:     <<Add5>>       Add [<<PhiX2>>,<<Cst5>>]                   loop:<<HeaderY>>
@@ -152,12 +152,12 @@
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<Cst7:i\d+>>  IntConstant 7
-## CHECK-DAG:     <<Cst9:i\d+>>  IntConstant 9
+## CHECK-DAG:     <<Cst11:i\d+>> IntConstant 11
 ## CHECK-DAG:     <<PhiX1:i\d+>> Phi [<<ArgX>>,<<Add7:i\d+>>]               loop:<<HeaderY:B\d+>>
 ## CHECK-DAG:                    If [<<ArgY>>]                              loop:<<HeaderY>>
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX1>>,<<Cst7>>]                   loop:<<HeaderY>>
 ## CHECK-DAG:                    If [<<ArgZ>>]                              loop:none
-## CHECK-DAG:     <<Mul9:i\d+>>  Mul [<<PhiX1>>,<<Cst9>>]                   loop:none
+## CHECK-DAG:     <<Mul9:i\d+>>  Mul [<<PhiX1>>,<<Cst11>>]                  loop:none
 ## CHECK-DAG:     <<PhiX2:i\d+>> Phi [<<PhiX1>>,<<Mul9>>]                   loop:none
 ## CHECK-DAG:                    Return [<<PhiX2>>]                         loop:none
 
@@ -177,7 +177,7 @@
 
   # Additional logic which will end up outside the loop
   if-eqz p2, :skip_if
-  mul-int/lit8 p0, p0, 9
+  mul-int/lit8 p0, p0, 11
   :skip_if
 
   if-nez v0, :loop_end    # will always take the branch
