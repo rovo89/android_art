@@ -1025,7 +1025,7 @@ TEST_F(OatFileAssistantTest, RaceToGenerate) {
 
   // We use the lib core dex file, because it's large, and hopefully should
   // take a while to generate.
-  Copy(GetLibCoreDexFileName(), dex_location);
+  Copy(GetLibCoreDexFileNames()[0], dex_location);
 
   const int kNumThreads = 32;
   Thread* self = Thread::Current();

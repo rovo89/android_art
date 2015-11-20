@@ -4,12 +4,12 @@ spawning child #1
 spawning child
 process manager: RUNNABLE
 child died
-process manager: WAITING
+process manager: TIMED_WAITING
 
 spawning child #2
 spawning child
 process manager: RUNNABLE
 child died
-process manager: WAITING
+process manager: TIMED_WAITING
 
 done!

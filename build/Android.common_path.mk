@@ -80,7 +80,7 @@ HOST_CORE_IMG_LOCATION := $(HOST_OUT_JAVA_LIBRARIES)/core.art
 TARGET_CORE_IMG_LOCATION := $(ART_TARGET_TEST_OUT)/core.art
 
 # Jar files for core.art.
-TARGET_CORE_JARS := core-libart conscrypt okhttp bouncycastle
+TARGET_CORE_JARS := core-oj core-libart conscrypt okhttp bouncycastle
 HOST_CORE_JARS := $(addsuffix -hostdex,$(TARGET_CORE_JARS))
 
 HOST_CORE_DEX_LOCATIONS   := $(foreach jar,$(HOST_CORE_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)
@@ -91,9 +91,9 @@ TARGET_CORE_DEX_FILES := $(foreach jar,$(TARGET_CORE_JARS),$(call intermediates-
 
 ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
 # Classpath for Jack compilation: we only need core-libart.
-HOST_JACK_CLASSPATH_DEPENDENCIES   := $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart-hostdex,t,COMMON)/classes.jack
-HOST_JACK_CLASSPATH                := $(foreach dep,$(HOST_JACK_CLASSPATH_DEPENDENCIES),$(abspath $(dep)))
-TARGET_JACK_CLASSPATH_DEPENDENCIES := $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack
-TARGET_JACK_CLASSPATH              := $(foreach dep,$(TARGET_JACK_CLASSPATH_DEPENDENCIES),$(abspath $(dep)))
+HOST_JACK_CLASSPATH_DEPENDENCIES   := $(call intermediates-dir-for,JAVA_LIBRARIES,core-oj-hostdex,t,COMMON)/classes.jack $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart-hostdex,t,COMMON)/classes.jack
+HOST_JACK_CLASSPATH                := $(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-oj-hostdex,t,COMMON)/classes.jack):$(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart-hostdex,t,COMMON)/classes.jack)
+TARGET_JACK_CLASSPATH_DEPENDENCIES := $(call intermediates-dir-for,JAVA_LIBRARIES,core-oj, ,COMMON)/classes.jack $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack
+TARGET_JACK_CLASSPATH              := $(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-oj, ,COMMON)/classes.jack):$(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack)
 endif
 endif # ART_ANDROID_COMMON_PATH_MK

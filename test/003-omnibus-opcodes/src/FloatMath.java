@@ -245,10 +245,9 @@ public class FloatMath {
     }
     static void checkConvF(float[] results) {
         System.out.println("FloatMath.checkConvF");
-        // TODO: Main.assertTrue values
-        for (int i = 0; i < results.length; i++)
-            System.out.println(" " + i + ": " + results[i]);
-        System.out.println("-2.0054409E9, -8.6133031E18, -3.1415927");
+        Main.assertTrue(results[0] == -2.0054409E9f);
+        Main.assertTrue(results[1] == -8.613303E18f);
+        Main.assertTrue(results[2] == -3.1415927f);
     }
 
     static double[] convD(int i, long l, float f) {
@@ -260,10 +259,9 @@ public class FloatMath {
     }
     static void checkConvD(double[] results) {
         System.out.println("FloatMath.checkConvD");
-        // TODO: Main.assertTrue values
-        for (int i = 0; i < results.length; i++)
-            System.out.println(" " + i + ": " + results[i]);
-        System.out.println("-2.005440939E9, -8.6133032459203287E18, 123.4560012817382");
+        Main.assertTrue(results[0] == -2.005440939E9);
+        Main.assertTrue(results[1] == -8.6133032459203287E18);
+        Main.assertTrue(results[2] == 123.45600128173828);
     }
 
     static void checkConsts() {

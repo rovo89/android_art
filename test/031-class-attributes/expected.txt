@@ -84,7 +84,7 @@ abstract final [LClassAttrs$PackagePrivateInnerInterface;
   enclosingCon: null
   enclosingMeth: null
   modifiers: 1
-  package: package otherpackage
+  package: package otherpackage, Unknown, version 0.0
   declaredClasses: [0]
   member classes: [0]
   isAnnotation: false

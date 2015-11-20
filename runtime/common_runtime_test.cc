@@ -302,7 +302,12 @@ void CommonRuntimeTest::SetUp() {
 
 
   RuntimeOptions options;
-  std::string boot_class_path_string = "-Xbootclasspath:" + GetLibCoreDexFileName();
+  std::string boot_class_path_string = "-Xbootclasspath";
+  for (const std::string &core_dex_file_name : GetLibCoreDexFileNames()) {
+    boot_class_path_string += ":";
+    boot_class_path_string += core_dex_file_name;
+  }
+
   options.push_back(std::make_pair(boot_class_path_string, nullptr));
   options.push_back(std::make_pair("-Xcheck:jni", nullptr));
   options.push_back(std::make_pair(min_heap_string, nullptr));
@@ -406,8 +411,8 @@ void CommonRuntimeTest::TearDown() {
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
 }
 
-std::string CommonRuntimeTest::GetLibCoreDexFileName() {
-  return GetDexFileName("core-libart");
+std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
+  return std::vector<std::string>({GetDexFileName("core-oj"), GetDexFileName("core-libart")});
 }
 
 std::string CommonRuntimeTest::GetDexFileName(const std::string& jar_prefix) {

@@ -156,7 +156,7 @@ TEST_F(ImageTest, WriteRead) {
   java_lang_dex_file_ = nullptr;
 
   MemMap::Init();
-  std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str()));
+  std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileNames()[0].c_str()));
 
   RuntimeOptions options;
   std::string image("-Ximage:");
