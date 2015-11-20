@@ -310,15 +310,27 @@ void MipsAssembler::Seh(Register rd, Register rt) {
   EmitR(0x1f, static_cast<Register>(0), rt, rd, 0x18, 0x20);
 }
 
+void MipsAssembler::Wsbh(Register rd, Register rt) {
+  EmitR(0x1f, static_cast<Register>(0), rt, rd, 2, 0x20);
+}
+
 void MipsAssembler::Sll(Register rd, Register rt, int shamt) {
+  CHECK(IsUint<5>(shamt)) << shamt;
   EmitR(0, static_cast<Register>(0), rt, rd, shamt, 0x00);
 }
 
 void MipsAssembler::Srl(Register rd, Register rt, int shamt) {
+  CHECK(IsUint<5>(shamt)) << shamt;
   EmitR(0, static_cast<Register>(0), rt, rd, shamt, 0x02);
 }
 
+void MipsAssembler::Rotr(Register rd, Register rt, int shamt) {
+  CHECK(IsUint<5>(shamt)) << shamt;
+  EmitR(0, static_cast<Register>(1), rt, rd, shamt, 0x02);
+}
+
 void MipsAssembler::Sra(Register rd, Register rt, int shamt) {
+  CHECK(IsUint<5>(shamt)) << shamt;
   EmitR(0, static_cast<Register>(0), rt, rd, shamt, 0x03);
 }
 
