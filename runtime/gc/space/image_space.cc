@@ -58,10 +58,7 @@ static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta)
   CHECK_ALIGNED(max_delta, kPageSize);
   CHECK_LT(min_delta, max_delta);
 
-  std::default_random_engine generator;
-  generator.seed(NanoTime() * getpid());
-  std::uniform_int_distribution<int32_t> distribution(min_delta, max_delta);
-  int32_t r = distribution(generator);
+  int32_t r = GetRandomNumber<int32_t>(min_delta, max_delta);
   if (r % 2 == 0) {
     r = RoundUp(r, kPageSize);
   } else {
