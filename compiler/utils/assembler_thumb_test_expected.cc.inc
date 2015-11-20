@@ -201,6 +201,24 @@ const char* DataProcessingShiftedRegisterResults[] = {
   "  32:	ea5f 0834 	movs.w	r8, r4, rrx\n",
   nullptr
 };
+const char* ShiftImmediateResults[] = {
+  "   0:  0123        lsls  r3, r4, #4\n",
+  "   2:  0963        lsrs  r3, r4, #5\n",
+  "   4:  11a3        asrs  r3, r4, #6\n",
+  "   6:  ea4f 13f4   mov.w  r3, r4, ror #7\n",
+  "   a:  ea4f 0334   mov.w  r3, r4, rrx\n",
+  "   e:  ea4f 1304   mov.w r3, r4, lsl #4\n",
+  "  12:  ea4f 1354   mov.w r3, r4, lsr #5\n",
+  "  16:  ea4f 13a4   mov.w r3, r4, asr #6\n",
+  "  1a:  ea4f 13f4   mov.w r3, r4, ror #7\n",
+  "  1e:  ea4f 0334   mov.w r3, r4, rrx\n",
+  "  22:  ea5f 1804   movs.w  r8, r4, lsl #4\n",
+  "  26:  ea5f 1854   movs.w  r8, r4, lsr #5\n",
+  "  2a:  ea5f 18a4   movs.w  r8, r4, asr #6\n",
+  "  2e:  ea5f 18f4   movs.w  r8, r4, ror #7\n",
+  "  32:  ea5f 0834   movs.w  r8, r4, rrx\n",
+  nullptr
+};
 const char* BasicLoadResults[] = {
   "   0:	69a3      	ldr	r3, [r4, #24]\n",
   "   2:	7e23      	ldrb	r3, [r4, #24]\n",
@@ -4952,6 +4970,7 @@ void setup_results() {
     test_results["DataProcessingModifiedImmediate"] = DataProcessingModifiedImmediateResults;
     test_results["DataProcessingModifiedImmediates"] = DataProcessingModifiedImmediatesResults;
     test_results["DataProcessingShiftedRegister"] = DataProcessingShiftedRegisterResults;
+    test_results["ShiftImmediate"] = ShiftImmediateResults;
     test_results["BasicLoad"] = BasicLoadResults;
     test_results["BasicStore"] = BasicStoreResults;
     test_results["ComplexLoad"] = ComplexLoadResults;
