@@ -155,7 +155,9 @@ static jobject DexFile_openDexFileNative(JNIEnv* env,
                                          jstring javaOutputName,
                                          jint flags ATTRIBUTE_UNUSED,
                                          // class_loader will be used for app images.
-                                         jobject class_loader ATTRIBUTE_UNUSED) {
+                                         jobject class_loader ATTRIBUTE_UNUSED,
+                                         // dex_elements will be used for app images.
+                                         jobject dex_elements ATTRIBUTE_UNUSED) {
   ScopedUtfChars sourceName(env, javaSourceName);
   if (sourceName.c_str() == nullptr) {
     return 0;
@@ -445,7 +447,12 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, getDexOptNeeded,
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I"),
   NATIVE_METHOD(DexFile, openDexFileNative,
-                "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/ClassLoader;)Ljava/lang/Object;"),
+                "(Ljava/lang/String;"
+                "Ljava/lang/String;"
+                "I"
+                "Ljava/lang/ClassLoader;"
+                "[Ldalvik/system/DexPathList$Element;"
+                ")Ljava/lang/Object;"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
