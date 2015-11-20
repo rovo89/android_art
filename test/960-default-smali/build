@@ -22,7 +22,7 @@ ${ANDROID_BUILD_TOP}/art/test/utils/python/generate_smali_main.py ./smali
 
 # Should we compile with Java source code. By default we will use Smali.
 USES_JAVA_SOURCE="false"
-if [[ $ARGS == *"--jvm"* ]]; then
+if [[ $@ == *"--jvm"* ]]; then
   USES_JAVA_SOURCE="true"
 elif [[ "$USE_JACK" == "true" ]]; then
   if $JACK -D jack.java.source.version=1.8 >& /dev/null; then
