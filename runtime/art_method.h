@@ -263,6 +263,9 @@ class ArtMethod FINAL {
   mirror::Class* GetClassFromTypeIndex(uint16_t type_idx, bool resolve, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Returns true if this method has the same name and signature of the other method.
+  bool HasSameNameAndSignature(ArtMethod* other) SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Find the method that this method overrides.
   ArtMethod* FindOverriddenMethod(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
