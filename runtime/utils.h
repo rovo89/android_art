@@ -350,6 +350,9 @@ void ParseDouble(const std::string& option,
                  double* parsed_value,
                  UsageFn Usage);
 
+template <typename T>
+T GetRandomNumber(T min, T max);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
