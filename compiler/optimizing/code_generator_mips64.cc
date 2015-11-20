@@ -37,9 +37,6 @@ namespace mips64 {
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr GpuRegister kMethodRegisterArgument = A0;
 
-// We need extra temporary/scratch registers (in addition to AT) in some cases.
-static constexpr FpuRegister FTMP = F8;
-
 Location Mips64ReturnLocation(Primitive::Type return_type) {
   switch (return_type) {
     case Primitive::kPrimBoolean:
