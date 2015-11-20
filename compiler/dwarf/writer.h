@@ -114,9 +114,9 @@ class Writer {
     data_->insert(data_->end(), value, value + strlen(value) + 1);
   }
 
-  void PushData(const void* ptr, size_t size) {
+  void PushData(const void* ptr, size_t num_bytes) {
     const char* p = reinterpret_cast<const char*>(ptr);
-    data_->insert(data_->end(), p, p + size);
+    data_->insert(data_->end(), p, p + num_bytes);
   }
 
   template<typename Vector2>
@@ -162,6 +162,10 @@ class Writer {
 
   const Vector* data() const {
     return data_;
+  }
+
+  size_t size() const {
+    return data_->size();
   }
 
   explicit Writer(Vector* buffer) : data_(buffer) { }

@@ -149,6 +149,13 @@ bool ContainsElement(const Container& container, const T& value, size_t start_po
   return it != container.end();
 }
 
+// const char* compare function suitable for std::map or std::set.
+struct CStringLess {
+  bool operator()(const char* lhs, const char* rhs) const {
+    return strcmp(lhs, rhs) < 0;
+  }
+};
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_STL_UTIL_H_
