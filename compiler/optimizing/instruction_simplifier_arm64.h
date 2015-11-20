@@ -40,8 +40,14 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
                                     HInstruction* index,
                                     int access_size);
 
+  bool TrySimpleMultiplyAccumulatePatterns(HMul* mul,
+                                           HBinaryOperation* input_binop,
+                                           HInstruction* input_other);
+
+  // HInstruction visitors, sorted alphabetically.
   void VisitArrayGet(HArrayGet* instruction) OVERRIDE;
   void VisitArraySet(HArraySet* instruction) OVERRIDE;
+  void VisitMul(HMul* instruction) OVERRIDE;
 
   OptimizingCompilerStats* stats_;
 };

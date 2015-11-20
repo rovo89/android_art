@@ -42,6 +42,40 @@ class HArm64IntermediateAddress : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HArm64IntermediateAddress);
 };
 
+class HArm64MultiplyAccumulate : public HExpression<3> {
+ public:
+  HArm64MultiplyAccumulate(Primitive::Type type,
+                           InstructionKind op,
+                           HInstruction* accumulator,
+                           HInstruction* mul_left,
+                           HInstruction* mul_right,
+                           uint32_t dex_pc = kNoDexPc)
+      : HExpression(type, SideEffects::None(), dex_pc), op_kind_(op) {
+    SetRawInputAt(kInputAccumulatorIndex, accumulator);
+    SetRawInputAt(kInputMulLeftIndex, mul_left);
+    SetRawInputAt(kInputMulRightIndex, mul_right);
+  }
+
+  static constexpr int kInputAccumulatorIndex = 0;
+  static constexpr int kInputMulLeftIndex = 1;
+  static constexpr int kInputMulRightIndex = 2;
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    return op_kind_ == other->AsArm64MultiplyAccumulate()->op_kind_;
+  }
+
+  InstructionKind GetOpKind() const { return op_kind_; }
+
+  DECLARE_INSTRUCTION(Arm64MultiplyAccumulate);
+
+ private:
+  // Indicates if this is a MADD or MSUB.
+  InstructionKind op_kind_;
+
+  DISALLOW_COPY_AND_ASSIGN(HArm64MultiplyAccumulate);
+};
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_NODES_ARM64_H_

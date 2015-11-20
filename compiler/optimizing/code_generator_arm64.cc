@@ -1628,6 +1628,47 @@ void InstructionCodeGeneratorARM64::VisitArm64IntermediateAddress(
          Operand(InputOperandAt(instruction, 1)));
 }
 
+void LocationsBuilderARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
+  locations->SetInAt(HArm64MultiplyAccumulate::kInputAccumulatorIndex,
+                     Location::RequiresRegister());
+  locations->SetInAt(HArm64MultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
+  locations->SetInAt(HArm64MultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instr) {
+  Register res = OutputRegister(instr);
+  Register accumulator = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputAccumulatorIndex);
+  Register mul_left = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputMulLeftIndex);
+  Register mul_right = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputMulRightIndex);
+
+  // Avoid emitting code that could trigger Cortex A53's erratum 835769.
+  // This fixup should be carried out for all multiply-accumulate instructions:
+  // madd, msub, smaddl, smsubl, umaddl and umsubl.
+  if (instr->GetType() == Primitive::kPrimLong &&
+      codegen_->GetInstructionSetFeatures().NeedFixCortexA53_835769()) {
+    MacroAssembler* masm = down_cast<CodeGeneratorARM64*>(codegen_)->GetVIXLAssembler();
+    vixl::Instruction* prev = masm->GetCursorAddress<vixl::Instruction*>() - vixl::kInstructionSize;
+    if (prev->IsLoadOrStore()) {
+      // Make sure we emit only exactly one nop.
+      vixl::CodeBufferCheckScope scope(masm,
+                                       vixl::kInstructionSize,
+                                       vixl::CodeBufferCheckScope::kCheck,
+                                       vixl::CodeBufferCheckScope::kExactSize);
+      __ nop();
+    }
+  }
+
+  if (instr->GetOpKind() == HInstruction::kAdd) {
+    __ Madd(res, mul_left, mul_right, accumulator);
+  } else {
+    DCHECK(instr->GetOpKind() == HInstruction::kSub);
+    __ Msub(res, mul_left, mul_right, accumulator);
+  }
+}
+
 void LocationsBuilderARM64::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
