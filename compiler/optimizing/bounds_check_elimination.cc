@@ -1138,8 +1138,8 @@ class BCEVisitor : public HGraphVisitor {
   void VisitArrayGet(HArrayGet* array_get) OVERRIDE {
     if (!has_deoptimization_on_constant_subscripts_ && array_get->IsInLoop()) {
       HLoopInformation* loop = array_get->GetBlock()->GetLoopInformation();
-      if (loop->IsLoopInvariant(array_get->InputAt(0), false) &&
-          loop->IsLoopInvariant(array_get->InputAt(1), false)) {
+      if (loop->IsDefinedOutOfTheLoop(array_get->InputAt(0)) &&
+          loop->IsDefinedOutOfTheLoop(array_get->InputAt(1))) {
         SideEffects loop_effects = side_effects_.GetLoopEffects(loop->GetHeader());
         if (!array_get->GetSideEffects().MayDependOn(loop_effects)) {
           HoistToPreheaderOrDeoptBlock(loop, array_get);
@@ -1349,7 +1349,7 @@ class BCEVisitor : public HGraphVisitor {
    * by handling the null check under the hood of the array length operation.
    */
   bool CanHandleLength(HLoopInformation* loop, HInstruction* length, bool needs_taken_test) {
-    if (loop->IsLoopInvariant(length, false)) {
+    if (loop->IsDefinedOutOfTheLoop(length)) {
       return true;
     } else if (length->IsArrayLength() && length->GetBlock()->GetLoopInformation() == loop) {
       if (CanHandleNullCheck(loop, length->InputAt(0), needs_taken_test)) {
@@ -1365,11 +1365,11 @@ class BCEVisitor : public HGraphVisitor {
    * by generating a deoptimization test.
    */
   bool CanHandleNullCheck(HLoopInformation* loop, HInstruction* check, bool needs_taken_test) {
-    if (loop->IsLoopInvariant(check, false)) {
+    if (loop->IsDefinedOutOfTheLoop(check)) {
       return true;
     } else if (check->IsNullCheck() && check->GetBlock()->GetLoopInformation() == loop) {
       HInstruction* array = check->InputAt(0);
-      if (loop->IsLoopInvariant(array, false)) {
+      if (loop->IsDefinedOutOfTheLoop(array)) {
         // Generate: if (array == null) deoptimize;
         HBasicBlock* block = TransformLoopForDeoptimizationIfNeeded(loop, needs_taken_test);
         HInstruction* cond =

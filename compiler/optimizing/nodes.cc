@@ -587,15 +587,8 @@ bool HLoopInformation::IsIn(const HLoopInformation& other) const {
   return other.blocks_.IsBitSet(header_->GetBlockId());
 }
 
-bool HLoopInformation::IsLoopInvariant(HInstruction* instruction, bool must_dominate) const {
-  HLoopInformation* other_loop = instruction->GetBlock()->GetLoopInformation();
-  if (other_loop != this && (other_loop == nullptr || !other_loop->IsIn(*this))) {
-    if (must_dominate) {
-      return instruction->GetBlock()->Dominates(GetHeader());
-    }
-    return true;
-  }
-  return false;
+bool HLoopInformation::IsDefinedOutOfTheLoop(HInstruction* instruction) const {
+  return !blocks_.IsBitSet(instruction->GetBlock()->GetBlockId());
 }
 
 size_t HLoopInformation::GetLifetimeEnd() const {
