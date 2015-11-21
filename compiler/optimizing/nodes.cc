@@ -1890,7 +1890,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
  *             |
  *          if_block
  *           /    \
- *  dummy_block   deopt_block
+ *  true_block   false_block
  *           \    /
  *       new_pre_header
  *             |
@@ -1898,62 +1898,73 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
  */
 void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   DCHECK(header->IsLoopHeader());
-  HBasicBlock* pre_header = header->GetDominator();
+  HBasicBlock* old_pre_header = header->GetDominator();
 
-  // Need this to avoid critical edge.
+  // Need extra block to avoid critical edge.
   HBasicBlock* if_block = new (arena_) HBasicBlock(this, header->GetDexPc());
-  // Need this to avoid critical edge.
-  HBasicBlock* dummy_block = new (arena_) HBasicBlock(this, header->GetDexPc());
-  HBasicBlock* deopt_block = new (arena_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* true_block = new (arena_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* false_block = new (arena_) HBasicBlock(this, header->GetDexPc());
   HBasicBlock* new_pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
   AddBlock(if_block);
-  AddBlock(dummy_block);
-  AddBlock(deopt_block);
+  AddBlock(true_block);
+  AddBlock(false_block);
   AddBlock(new_pre_header);
 
-  header->ReplacePredecessor(pre_header, new_pre_header);
-  pre_header->successors_.clear();
-  pre_header->dominated_blocks_.clear();
+  header->ReplacePredecessor(old_pre_header, new_pre_header);
+  old_pre_header->successors_.clear();
+  old_pre_header->dominated_blocks_.clear();
 
-  pre_header->AddSuccessor(if_block);
-  if_block->AddSuccessor(dummy_block);  // True successor
-  if_block->AddSuccessor(deopt_block);  // False successor
-  dummy_block->AddSuccessor(new_pre_header);
-  deopt_block->AddSuccessor(new_pre_header);
+  old_pre_header->AddSuccessor(if_block);
+  if_block->AddSuccessor(true_block);  // True successor
+  if_block->AddSuccessor(false_block);  // False successor
+  true_block->AddSuccessor(new_pre_header);
+  false_block->AddSuccessor(new_pre_header);
 
-  pre_header->dominated_blocks_.push_back(if_block);
-  if_block->SetDominator(pre_header);
-  if_block->dominated_blocks_.push_back(dummy_block);
-  dummy_block->SetDominator(if_block);
-  if_block->dominated_blocks_.push_back(deopt_block);
-  deopt_block->SetDominator(if_block);
+  old_pre_header->dominated_blocks_.push_back(if_block);
+  if_block->SetDominator(old_pre_header);
+  if_block->dominated_blocks_.push_back(true_block);
+  true_block->SetDominator(if_block);
+  if_block->dominated_blocks_.push_back(false_block);
+  false_block->SetDominator(if_block);
   if_block->dominated_blocks_.push_back(new_pre_header);
   new_pre_header->SetDominator(if_block);
   new_pre_header->dominated_blocks_.push_back(header);
   header->SetDominator(new_pre_header);
 
+  // Fix reverse post order.
   size_t index_of_header = IndexOfElement(reverse_post_order_, header);
   MakeRoomFor(&reverse_post_order_, 4, index_of_header - 1);
   reverse_post_order_[index_of_header++] = if_block;
-  reverse_post_order_[index_of_header++] = dummy_block;
-  reverse_post_order_[index_of_header++] = deopt_block;
+  reverse_post_order_[index_of_header++] = true_block;
+  reverse_post_order_[index_of_header++] = false_block;
   reverse_post_order_[index_of_header++] = new_pre_header;
 
-  HLoopInformation* info = pre_header->GetLoopInformation();
-  if (info != nullptr) {
-    if_block->SetLoopInformation(info);
-    dummy_block->SetLoopInformation(info);
-    deopt_block->SetLoopInformation(info);
-    new_pre_header->SetLoopInformation(info);
-    for (HLoopInformationOutwardIterator loop_it(*pre_header);
+  // Fix loop information.
+  HLoopInformation* loop_info = old_pre_header->GetLoopInformation();
+  if (loop_info != nullptr) {
+    if_block->SetLoopInformation(loop_info);
+    true_block->SetLoopInformation(loop_info);
+    false_block->SetLoopInformation(loop_info);
+    new_pre_header->SetLoopInformation(loop_info);
+    // Add blocks to all enveloping loops.
+    for (HLoopInformationOutwardIterator loop_it(*old_pre_header);
          !loop_it.Done();
          loop_it.Advance()) {
       loop_it.Current()->Add(if_block);
-      loop_it.Current()->Add(dummy_block);
-      loop_it.Current()->Add(deopt_block);
+      loop_it.Current()->Add(true_block);
+      loop_it.Current()->Add(false_block);
       loop_it.Current()->Add(new_pre_header);
     }
   }
+
+  // Fix try/catch information.
+  TryCatchInformation* try_catch_info = old_pre_header->IsTryBlock()
+      ? old_pre_header->GetTryCatchInformation()
+      : nullptr;
+  if_block->SetTryCatchInformation(try_catch_info);
+  true_block->SetTryCatchInformation(try_catch_info);
+  false_block->SetTryCatchInformation(try_catch_info);
+  new_pre_header->SetTryCatchInformation(try_catch_info);
 }
 
 void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
