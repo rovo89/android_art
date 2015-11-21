@@ -652,19 +652,20 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
 
   void foo1(int[] array, int start, int end, boolean expectInterpreter) {
-    // Three HDeoptimize will be added. Two for the index
+    // Three HDeoptimize will be added. One for
+    // start >= 0, one for end <= array.length,
     // and one for null check on array (to hoist null
     // check and array.length out of loop).
     for (int i = start ; i < end; i++) {
@@ -684,25 +685,27 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
+
   /// CHECK-START: void Main.foo2(int[], int, int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
 
   void foo2(int[] array, int start, int end, boolean expectInterpreter) {
-    // Three HDeoptimize will be added. Two for the index
+    // Three HDeoptimize will be added. One for
+    // start >= 0, one for end <= array.length,
     // and one for null check on array (to hoist null
     // check and array.length out of loop).
     for (int i = start ; i <= end; i++) {
@@ -722,25 +725,25 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
+
   /// CHECK-START: void Main.foo3(int[], int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
-  /// CHECK: Deoptimize
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
 
   void foo3(int[] array, int end, boolean expectInterpreter) {
-    // Three HDeoptimize will be added. Two for the index
+    // Two HDeoptimize will be added. One for end < array.length,
     // and one for null check on array (to hoist null check
     // and array.length out of loop).
     for (int i = 3 ; i <= end; i++) {
@@ -767,19 +770,18 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
-  /// CHECK: Deoptimize
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
 
   void foo4(int[] array, int end, boolean expectInterpreter) {
-    // Three HDeoptimize will be added. Two for the index
+    // Two HDeoptimize will be added. One for end <= array.length,
     // and one for null check on array (to hoist null check
     // and array.length out of loop).
     for (int i = end ; i > 0; i--) {
@@ -814,18 +816,14 @@ public class Main {
   /// CHECK: ArrayGet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  //  array.length is defined before the loop header so no phi is needed.
+  /// CHECK-NOT: Phi
   /// CHECK: Goto
 
   void foo5(int[] array, int end, boolean expectInterpreter) {
@@ -833,8 +831,8 @@ public class Main {
     for (int i = array.length - 1 ; i >= 0; i--) {
       array[i] = 1;
     }
-    // Several HDeoptimize will be added. Two for each index.
-    // The null check is not necessary.
+    // One HDeoptimize will be added.
+    // It's for (end - 2 <= array.length - 2).
     for (int i = end - 2 ; i > 0; i--) {
       if (expectInterpreter) {
         assertIsInterpreted();
@@ -861,6 +859,7 @@ public class Main {
   /// CHECK: ArrayGet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
+
   /// CHECK-START: void Main.foo6(int[], int, int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
@@ -875,27 +874,23 @@ public class Main {
   /// CHECK: ArrayGet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK-NOT: Deoptimize
 
   void foo6(int[] array, int start, int end, boolean expectInterpreter) {
-    // Several HDeoptimize will be added.
+    // Three HDeoptimize will be added. One for
+    // start >= 2, one for end <= array.length - 3,
+    // and one for null check on array (to hoist null
+    // check and array.length out of loop).
     for (int i = end; i >= start; i--) {
       if (expectInterpreter) {
         assertIsInterpreted();
@@ -919,19 +914,20 @@ public class Main {
   /// CHECK: ArrayGet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
 
   void foo7(int[] array, int start, int end, boolean lowEnd) {
-    // Three HDeoptimize will be added. One for the index
+    // Three HDeoptimize will be added. One for
+    // start >= 0, one for end <= array.length,
     // and one for null check on array (to hoist null
     // check and array.length out of loop).
     for (int i = start ; i < end; i++) {
@@ -959,28 +955,26 @@ public class Main {
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
-  //  Added blocks at end for deoptimization.
-  /// CHECK: Exit
+  //  Added blocks for deoptimization.
   /// CHECK: If
+  /// CHECK: Goto
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
-  /// CHECK: Goto
-  /// CHECK: Goto
-  /// CHECK: Goto
-  /// CHECK: If
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Goto
-  /// CHECK: Goto
+  /// CHECK: Phi
   /// CHECK: Goto
 
   void foo8(int[][] matrix, int start, int end) {
-    // Three HDeoptimize will be added for the outer loop,
-    // two for the index, and null check on matrix. Same
-    // for the inner loop.
+    // Three HDeoptimize will be added for the outer loop.
+    // start >= 0, end <= matrix.length, and null check on matrix.
+    // Three HDeoptimize will be added for the inner loop
+    // start >= 0 (TODO: this may be optimized away),
+    // end <= row.length, and null check on row.
     for (int i = start; i < end; i++) {
       int[] row = matrix[i];
       for (int j = start; j < end; j++) {
@@ -1000,22 +994,15 @@ public class Main {
   //  loop for loop body entry test.
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
   /// CHECK-NOT: Deoptimize
   /// CHECK: Phi
   /// CHECK-NOT: NullCheck
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo9(int[], boolean) instruction_simplifier_after_bce (after)
-  //  Simplification removes the redundant check
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK-NOT: Deoptimize
-
   void foo9(int[] array, boolean expectInterpreter) {
-    // Two HDeoptimize will be added. Two for the index
-    // and one for null check on array.
+    // Two HDeoptimize will be added. One for
+    // 10 <= array.length, and one for null check on array.
     for (int i = 0 ; i < 10; i++) {
       if (expectInterpreter) {
         assertIsInterpreted();
