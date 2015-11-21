@@ -425,13 +425,9 @@ bool InductionVarRange::GenerateCode(HInstruction* context,
     }
     HInductionVarAnalysis::InductionInfo* trip =
         induction_analysis_->LookupInfo(loop, header->GetLastInstruction());
-    // Determine what tests are needed. A finite test is needed if the evaluation code uses the
-    // trip-count and the loop maybe unsafe (because in such cases, the index could "overshoot"
-    // the computed range). A taken test is needed for any unknown trip-count, even if evaluation
-    // code does not use the trip-count explicitly (since there could be an implicit relation
-    // between e.g. an invariant subscript and a not-taken condition).
+    // Determine what tests are needed.
     *needs_finite_test = NeedsTripCount(info) && IsUnsafeTripCount(trip);
-    *needs_taken_test = IsBodyTripCount(trip);
+    *needs_taken_test = NeedsTripCount(info) && IsBodyTripCount(trip);
     // Code generation for taken test: generate the code when requested or otherwise analyze
     // if code generation is feasible when taken test is needed.
     if (taken_test != nullptr) {
@@ -549,42 +545,29 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
         }
         break;
       case HInductionVarAnalysis::kLinear: {
-        // Linear induction a * i + b, for normalized 0 <= i < TC. Restrict to unit stride only
-        // to avoid arithmetic wrap-around situations that are hard to guard against.
-        int32_t stride_value = 0;
-        if (GetConstant(info->op_a, &stride_value)) {
-          if (stride_value == 1 || stride_value == -1) {
-            const bool is_min_a = stride_value == 1 ? is_min : !is_min;
-            if (GenerateCode(trip,       trip, graph, block, &opa, in_body, is_min_a) &&
-                GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
-              if (graph != nullptr) {
-                HInstruction* oper;
-                if (stride_value == 1) {
-                  oper = new (graph->GetArena()) HAdd(type, opa, opb);
-                } else {
-                  oper = new (graph->GetArena()) HSub(type, opb, opa);
+          // Linear induction a * i + b, for normalized 0 <= i < TC. Restrict to unit stride only
+          // to avoid arithmetic wrap-around situations that are hard to guard against.
+          int32_t stride_value = 0;
+          if (GetConstant(info->op_a, &stride_value)) {
+            if (stride_value == 1 || stride_value == -1) {
+              const bool is_min_a = stride_value == 1 ? is_min : !is_min;
+              if (GenerateCode(trip,       trip, graph, block, &opa, in_body, is_min_a) &&
+                  GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
+                if (graph != nullptr) {
+                  HInstruction* oper;
+                  if (stride_value == 1) {
+                    oper = new (graph->GetArena()) HAdd(type, opa, opb);
+                  } else {
+                    oper = new (graph->GetArena()) HSub(type, opb, opa);
+                  }
+                  *result = Insert(block, oper);
                 }
-                *result = Insert(block, oper);
+                return true;
               }
-              return true;
             }
           }
         }
         break;
-      }
-      case HInductionVarAnalysis::kWrapAround:
-      case HInductionVarAnalysis::kPeriodic: {
-        // Wrap-around and periodic inductions are restricted to constants only, so that extreme
-        // values are easy to test at runtime without complications of arithmetic wrap-around.
-        Value extreme = GetVal(info, trip, in_body, is_min);
-        if (extreme.is_known && extreme.a_constant == 0) {
-          if (graph != nullptr) {
-            *result = graph->GetIntConstant(extreme.b_constant);
-          }
-          return true;
-        }
-        break;
-      }
       default:
         break;
     }
