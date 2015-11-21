@@ -57,14 +57,15 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
   const auto pointer_size = kTransactionActive ?
       Runtime::Current()->GetClassLinker()->GetImagePointerSize() : sizeof(void*);
   auto dex_field_index = field->GetDexFieldIndex();
-  auto* resolved_field = field->GetDexCache()->GetResolvedField(dex_field_index, pointer_size);
-  if (field->GetDeclaringClass()->IsProxyClass()) {
+  if (field->GetDeclaringClass()->IsAnyProxyClass()) {
     DCHECK(field->IsStatic());
     DCHECK_LT(dex_field_index, 2U);
     // The two static fields (interfaces, throws) of all proxy classes
     // share the same dex file indices 0 and 1. So, we can't resolve
     // them in the dex cache.
   } else {
+    ArtField* resolved_field =
+        field->GetDexCache()->GetResolvedField(dex_field_index, pointer_size);
     if (resolved_field != nullptr) {
       DCHECK_EQ(resolved_field, field);
     } else {

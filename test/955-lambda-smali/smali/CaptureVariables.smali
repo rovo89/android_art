@@ -243,6 +243,8 @@
     # TODO: create-lambda should not write to both v0 and v1
     invoke-lambda v0, {}
 
+    return-void
+
 .end method
 
 #TODO: should use a closure type instead of a long
