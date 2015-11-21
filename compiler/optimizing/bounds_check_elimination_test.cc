@@ -54,7 +54,7 @@ class BoundsCheckEliminationTest : public testing::Test {
     HInductionVarAnalysis induction(graph_);
     induction.Run();
 
-    BoundsCheckElimination(graph_, &induction).Run();
+    BoundsCheckElimination(graph_, side_effects, &induction).Run();
   }
 
   ArenaPool pool_;
