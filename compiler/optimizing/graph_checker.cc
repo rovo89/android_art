@@ -735,26 +735,29 @@ void SSAChecker::VisitPhi(HPhi* phi) {
     }
   }
 
-  // Test phi equivalents. There should not be two of the same type and they
-  // should only be created for constants which were untyped in DEX.
-  for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-    HPhi* other_phi = phi_it.Current()->AsPhi();
-    if (phi != other_phi && phi->GetRegNumber() == other_phi->GetRegNumber()) {
-      if (phi->GetType() == other_phi->GetType()) {
-        std::stringstream type_str;
-        type_str << phi->GetType();
-        AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s.",
-                              phi->GetId(),
-                              phi->GetRegNumber(),
-                              type_str.str().c_str()));
-      } else {
-        ArenaBitVector visited(GetGraph()->GetArena(), 0, /* expandable */ true);
-        if (!IsConstantEquivalent(phi, other_phi, &visited)) {
-          AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
-                                "are not equivalents of constants.",
+  // Test phi equivalents. There should not be two of the same type and they should only be
+  // created for constants which were untyped in DEX. Note that this test can be skipped for
+  // a synthetic phi (indicated by lack of a virtual register).
+  if (phi->GetRegNumber() != kNoRegNumber) {
+    for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+      HPhi* other_phi = phi_it.Current()->AsPhi();
+      if (phi != other_phi && phi->GetRegNumber() == other_phi->GetRegNumber()) {
+        if (phi->GetType() == other_phi->GetType()) {
+          std::stringstream type_str;
+          type_str << phi->GetType();
+          AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s.",
                                 phi->GetId(),
-                                other_phi->GetId(),
-                                phi->GetRegNumber()));
+                                phi->GetRegNumber(),
+                                type_str.str().c_str()));
+        } else {
+          ArenaBitVector visited(GetGraph()->GetArena(), 0, /* expandable */ true);
+          if (!IsConstantEquivalent(phi, other_phi, &visited)) {
+            AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
+                                  "are not equivalents of constants.",
+                                  phi->GetId(),
+                                  other_phi->GetId(),
+                                  phi->GetRegNumber()));
+          }
         }
       }
     }
