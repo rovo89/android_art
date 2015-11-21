@@ -75,7 +75,7 @@ void ClosureBuilder::CaptureVariableLambda(Closure* closure) {
   if (LIKELY(is_dynamic_size_ == false)) {
     // Write in the extra bytes to store the dynamic size the first time.
     is_dynamic_size_ = true;
-    size_ += sizeof(Closure::captured_[0].dynamic_.size_);
+    size_ += sizeof(ClosureStorage::captured_[0].dynamic_.size_);
   }
 
   // A closure may be sized dynamically, so always query it for the true size.
@@ -107,38 +107,40 @@ Closure* ClosureBuilder::CreateInPlace(void* memory, ArtLambdaMethod* target_met
     << "number of variables captured at runtime does not match "
     << "number of variables captured at compile time";
 
-  Closure* closure = new (memory) Closure;
-  closure->lambda_info_ = target_method;
+  ClosureStorage* closure_storage = new (memory) ClosureStorage;
+  closure_storage->lambda_info_ = target_method;
 
-  static_assert(offsetof(Closure, captured_) == kInitialSize, "wrong initial size");
+  static_assert(offsetof(ClosureStorage, captured_) == kInitialSize, "wrong initial size");
 
   size_t written_size;
   if (UNLIKELY(is_dynamic_size_)) {
     // The closure size must be set dynamically (i.e. nested lambdas).
-    closure->captured_[0].dynamic_.size_ = GetSize();
-    size_t header_size = offsetof(Closure, captured_[0].dynamic_.variables_);
+    closure_storage->captured_[0].dynamic_.size_ = GetSize();
+    size_t header_size = offsetof(ClosureStorage, captured_[0].dynamic_.variables_);
     DCHECK_LE(header_size, GetSize());
     size_t variables_size = GetSize() - header_size;
     written_size =
         WriteValues(target_method,
-                    closure->captured_[0].dynamic_.variables_,
+                    closure_storage->captured_[0].dynamic_.variables_,
                     header_size,
                     variables_size);
   } else {
     // The closure size is known statically (i.e. no nested lambdas).
     DCHECK(GetSize() == target_method->GetStaticClosureSize());
-    size_t header_size = offsetof(Closure, captured_[0].static_variables_);
+    size_t header_size = offsetof(ClosureStorage, captured_[0].static_variables_);
     DCHECK_LE(header_size, GetSize());
     size_t variables_size = GetSize() - header_size;
     written_size =
         WriteValues(target_method,
-                    closure->captured_[0].static_variables_,
+                    closure_storage->captured_[0].static_variables_,
                     header_size,
                     variables_size);
   }
 
-  DCHECK_EQ(written_size, closure->GetSize());
+  // OK: The closure storage is guaranteed to be the same as a closure.
+  Closure* closure = reinterpret_cast<Closure*>(closure_storage);
 
+  DCHECK_EQ(written_size, closure->GetSize());
   return closure;
 }
 

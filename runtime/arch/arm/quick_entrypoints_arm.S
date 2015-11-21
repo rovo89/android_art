@@ -1045,6 +1045,26 @@ ENTRY art_quick_proxy_invoke_handler
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
+// Forward call from boxed innate lambda to the underlying lambda closure's target method.
+     .extern artQuickLambdaProxyInvokeHandler
+ENTRY art_quick_lambda_proxy_invoke_handler
+// TODO: have a faster handler that doesn't need to set up a frame
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_R0
+    mov     r2, r9                 @ pass Thread::Current
+    mov     r3, sp                 @ pass SP
+    blx     artQuickLambdaProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
+    ldr     r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    // Tear down the callee-save frame. Skip arg registers.
+    add     sp, #(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
+    .cfi_adjust_cfa_offset -(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    cbnz    r2, 1f                 @ success if no exception is pending
+    vmov    d0, r0, r1             @ store into fpr, for when it's a fpr return...
+    bx      lr                     @ return on success
+1:
+    DELIVER_PENDING_EXCEPTION
+END art_quick_lambda_proxy_invoke_handler
+
     /*
      * Called to resolve an imt conflict. r12 is a hidden argument that holds the target method's
      * dex method index.

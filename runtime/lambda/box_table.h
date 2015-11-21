@@ -30,6 +30,9 @@ namespace art {
 class ArtMethod;  // forward declaration
 
 namespace mirror {
+class Class;   // forward declaration
+class ClassLoader;  // forward declaration
+class LambdaProxy;  // forward declaration
 class Object;  // forward declaration
 }  // namespace mirror
 
@@ -48,8 +51,11 @@ class BoxTable FINAL {
   using ClosureType = art::lambda::Closure*;
 
   // Boxes a closure into an object. Returns null and throws an exception on failure.
-  mirror::Object* BoxLambda(const ClosureType& closure)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::lambda_table_lock_);
+  mirror::Object* BoxLambda(const ClosureType& closure,
+                            const char* class_name,
+                            mirror::ClassLoader* class_loader)
+      REQUIRES(!Locks::lambda_table_lock_, !Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Unboxes an object back into the lambda. Returns false and throws an exception on failure.
   bool UnboxLambda(mirror::Object* object, ClosureType* out_closure)
@@ -128,7 +134,16 @@ class BoxTable FINAL {
                                     TrackingAllocator<std::pair<ClosureType, ValueType>,
                                                       kAllocatorTagLambdaBoxTable>>;
 
+  using ClassMap = art::HashMap<std::string,
+                                GcRoot<mirror::Class>,
+                                EmptyFn,
+                                HashFn,
+                                EqualsFn,
+                                TrackingAllocator<std::pair<ClosureType, ValueType>,
+                                                      kAllocatorTagLambdaProxyClassBoxTable>>;
+
   UnorderedMap map_                                          GUARDED_BY(Locks::lambda_table_lock_);
+  UnorderedMap classes_map_                                  GUARDED_BY(Locks::lambda_table_lock_);
   bool allow_new_weaks_                                      GUARDED_BY(Locks::lambda_table_lock_);
   ConditionVariable new_weaks_condition_                     GUARDED_BY(Locks::lambda_table_lock_);
 

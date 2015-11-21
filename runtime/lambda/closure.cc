@@ -20,9 +20,6 @@
 #include "lambda/art_lambda_method.h"
 #include "runtime/mirror/object_reference.h"
 
-static constexpr const bool kClosureSupportsReferences = false;
-static constexpr const bool kClosureSupportsGarbageCollection = false;
-
 namespace art {
 namespace lambda {
 
@@ -126,6 +123,10 @@ void Closure::CopyTo(void* target, size_t target_size) const {
 
 ArtMethod* Closure::GetTargetMethod() const {
   return const_cast<ArtMethod*>(lambda_info_->GetArtMethod());
+}
+
+ArtLambdaMethod* Closure::GetLambdaInfo() const {
+  return const_cast<ArtLambdaMethod*>(lambda_info_);
 }
 
 uint32_t Closure::GetHashCode() const {

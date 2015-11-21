@@ -69,8 +69,8 @@ ArtField* ArtField::FindStaticFieldWithOffset(mirror::Class* klass, uint32_t fie
   return nullptr;
 }
 
-mirror::Class* ArtField::ProxyFindSystemClass(const char* descriptor) {
-  DCHECK(GetDeclaringClass()->IsProxyClass());
+mirror::Class* ArtField::AnyProxyFindSystemClass(const char* descriptor) {
+  DCHECK(GetDeclaringClass()->IsAnyProxyClass());
   return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(), descriptor);
 }
 

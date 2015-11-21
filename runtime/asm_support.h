@@ -19,9 +19,12 @@
 
 #if defined(__cplusplus)
 #include "art_method.h"
+#include "lambda/art_lambda_method.h"
+#include "lambda/closure.h"
 #include "gc/allocator/rosalloc.h"
 #include "lock_word.h"
 #include "mirror/class.h"
+#include "mirror/lambda_proxy.h"
 #include "mirror/string.h"
 #include "runtime.h"
 #include "thread.h"
@@ -48,6 +51,8 @@
 #ifndef ADD_TEST_EQ  // Allow #include-r to replace with their own.
 #define ADD_TEST_EQ(x, y) CHECK_EQ(x, y);
 #endif
+
+namespace art {
 
 static inline void CheckAsmSupportOffsetsAndSizes() {
 #else
@@ -298,9 +303,80 @@ ADD_TEST_EQ(ROSALLOC_SLOT_NEXT_OFFSET,
             static_cast<int32_t>(art::gc::allocator::RosAlloc::RunSlotNextOffset()))
 // Assert this so that we can avoid zeroing the next field by installing the class pointer.
 ADD_TEST_EQ(ROSALLOC_SLOT_NEXT_OFFSET, MIRROR_OBJECT_CLASS_OFFSET)
+// Working with raw lambdas (lambda::Closure) in raw memory:
+//
+//     |---------------------|
+//     | ArtLambdaMethod*    |  <-- pointer to lambda art method, has the info like the size.
+//     |---------------------|  <-- 'data offset'
+//     | [ Dynamic Size ]    |  <-- OPTIONAL: only if the ArtLambdaMethod::dynamic_size_ is true.
+//     |---------------------|
+//     | Captured Variables  |
+//     |        ...          |
+//     |---------------------|  <-- total length determined by "dynamic size" if it is present,
+//                                  otherwise by the ArtLambdaMethod::static_size_
+
+// Offset from start of lambda::Closure to the ArtLambdaMethod*.
+#define LAMBDA_CLOSURE_METHOD_OFFSET 0
+ADD_TEST_EQ(static_cast<size_t>(LAMBDA_CLOSURE_METHOD_OFFSET),
+            offsetof(art::lambda::ClosureStorage, lambda_info_))
+// Offset from the start of lambda::Closure to the data (captured vars or dynamic size).
+#define LAMBDA_CLOSURE_DATA_OFFSET __SIZEOF_POINTER__
+ADD_TEST_EQ(static_cast<size_t>(LAMBDA_CLOSURE_DATA_OFFSET),
+            offsetof(art::lambda::ClosureStorage, captured_))
+// Offsets to captured variables intentionally omitted as it needs a runtime branch.
+
+// The size of a lambda closure after it's been compressed down for storage.
+// -- Although a lambda closure is a virtual register pair (64-bit), we only need 32-bit
+//    to track the pointer when we are on 32-bit architectures.
+//    Both the compiler and the runtime therefore compress the closure down for 32-bit archs.
+#define LAMBDA_CLOSURE_COMPRESSED_POINTER_SIZE __SIZEOF_POINTER__
+ADD_TEST_EQ(static_cast<size_t>(LAMBDA_CLOSURE_COMPRESSED_POINTER_SIZE),
+            sizeof(art::lambda::Closure*))
+
+// Working with boxed innate lambdas (as a mirror::Object) in raw memory:
+// --- Note that this layout only applies to lambdas originally made with create-lambda.
+// --- Boxing a lambda created from a new-instance instruction is simply the original object.
+//
+//     |---------------------|
+//     |   object header     |
+//     |---------------------|
+//     | lambda::Closure*    | <-- long on 64-bit, int on 32-bit
+//     |---------------------|
+#define MIRROR_OBJECT_BOXED_INNATE_LAMBDA_CLOSURE_POINTER_OFFSET (MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(static_cast<size_t>(MIRROR_OBJECT_BOXED_INNATE_LAMBDA_CLOSURE_POINTER_OFFSET),
+            art::mirror::LambdaProxy::GetInstanceFieldOffsetClosure().SizeValue())
+            // Equivalent to (private) offsetof(art::mirror::LambdaProxy, closure_))
+
+// Working with boxed innate lambdas (as a mirror::Object) in raw memory:
+// --- Note that this layout only applies to lambdas originally made with create-lambda.
+// --- Boxing a lambda created from a new-instance instruction is simply the original object.
+//
+//     |---------------------|
+//     |   object header     |
+//     |---------------------|
+//     | lambda::Closure*    | <-- long on 64-bit, int on 32-bit
+//     |---------------------|
+#define ART_LAMBDA_METHOD_ART_METHOD_OFFSET (0)
+ADD_TEST_EQ(static_cast<size_t>(ART_LAMBDA_METHOD_ART_METHOD_OFFSET),
+            art::lambda::ArtLambdaMethod::GetArtMethodOffset())
+
+#if defined(NDEBUG)
+// Release should be faaast. So just jump directly to the lambda method.
+#define LAMBDA_PROXY_SETUP_FRAME 0
+#else
+// Debug can be slower, and we want to get better stack traces. Set up a frame.
+#define LAMBDA_PROXY_SETUP_FRAME 1
+#endif
+
+// For WIP implementation, lambda types are all "longs"
+// which means on a 32-bit implementation we need to fill the argument with 32-bit 0s
+// whenever we invoke a method with a lambda in it.
+// TODO: remove all usages of this once we go to a proper \LambdaType; system.
+#define LAMBDA_INVOKE_USES_LONG 1
 
 #if defined(__cplusplus)
 }  // End of CheckAsmSupportOffsets.
+}  // namespace art
 #endif
 
 #endif  // ART_RUNTIME_ASM_SUPPORT_H_
