@@ -518,6 +518,9 @@ void CompilerDriver::CompileAll(jobject class_loader,
 static DexToDexCompilationLevel GetDexToDexCompilationlevel(
     Thread* self, Handle<mirror::ClassLoader> class_loader, const DexFile& dex_file,
     const DexFile::ClassDef& class_def) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (Runtime::Current()->IsRecompiling()) {
+    return kDontDexToDexCompile;
+  }
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* klass = class_linker->FindClass(self, descriptor, class_loader);

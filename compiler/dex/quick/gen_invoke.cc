@@ -1112,9 +1112,13 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
-    res = GetReturn(LocToRegClass(info->result));
+    // If result is unused, return a sink target based on type of invoke target.
+    res = GetReturn(
+        ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   } else {
     res = info->result;
+    DCHECK_EQ(LocToRegClass(res),
+              ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   }
   return res;
 }
@@ -1122,9 +1126,13 @@ RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
 RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
-    res = GetReturnWide(kCoreReg);
+    // If result is unused, return a sink target based on type of invoke target.
+    res = GetReturnWide(ShortyToRegClass(
+        mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   } else {
     res = info->result;
+    DCHECK_EQ(LocToRegClass(res),
+              ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   }
   return res;
 }
@@ -1706,7 +1714,8 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     return;
   }
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+  const DexFile* dex_file = info->method_ref.dex_file;
+  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(dex_file)
       ->GenIntrinsic(this, info)) {
     return;
   }

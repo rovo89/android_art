@@ -1400,10 +1400,10 @@ void MIRGraph::GetBlockName(BasicBlock* bb, char* name) {
   }
 }
 
-const char* MIRGraph::GetShortyFromTargetIdx(int target_idx) {
-  // TODO: for inlining support, use current code unit.
-  const DexFile::MethodId& method_id = cu_->dex_file->GetMethodId(target_idx);
-  return cu_->dex_file->GetShorty(method_id.proto_idx_);
+const char* MIRGraph::GetShortyFromMethodReference(const MethodReference& target_method) {
+  const DexFile::MethodId& method_id =
+      target_method.dex_file->GetMethodId(target_method.dex_method_index);
+  return target_method.dex_file->GetShorty(method_id.proto_idx_);
 }
 
 /* Debug Utility - dump a compilation unit */
@@ -1469,6 +1469,14 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   info->opt_flags = mir->optimization_flags;
   info->type = type;
   info->is_range = is_range;
+  if (mir->dalvikInsn.opcode == Instruction::INVOKE_VIRTUAL_QUICK ||
+      mir->dalvikInsn.opcode == Instruction::INVOKE_VIRTUAL_RANGE_QUICK) {
+    const auto& method_info = GetMethodLoweringInfo(mir);
+    info->method_ref = method_info.GetTargetMethod();
+  } else {
+    info->method_ref = MethodReference(GetCurrentDexCompilationUnit()->GetDexFile(),
+                                       mir->dalvikInsn.vB);
+  }
   info->index = mir->dalvikInsn.vB;
   info->offset = mir->offset;
   info->mir = mir;
