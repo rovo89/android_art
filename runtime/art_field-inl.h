@@ -255,7 +255,7 @@ inline void ArtField::SetObject(mirror::Object* object, mirror::Object* l) {
 
 inline const char* ArtField::GetName() SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t field_index = GetDexFieldIndex();
-  if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
+  if (UNLIKELY(GetDeclaringClass()->IsAnyProxyClass())) {
     DCHECK(IsStatic());
     DCHECK_LT(field_index, 2U);
     return field_index == 0 ? "interfaces" : "throws";
@@ -266,7 +266,7 @@ inline const char* ArtField::GetName() SHARED_REQUIRES(Locks::mutator_lock_) {
 
 inline const char* ArtField::GetTypeDescriptor() SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t field_index = GetDexFieldIndex();
-  if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
+  if (UNLIKELY(GetDeclaringClass()->IsAnyProxyClass())) {
     DCHECK(IsStatic());
     DCHECK_LT(field_index, 2U);
     // 0 == Class[] interfaces; 1 == Class[][] throws;
@@ -290,8 +290,8 @@ template <bool kResolve>
 inline mirror::Class* ArtField::GetType() {
   const uint32_t field_index = GetDexFieldIndex();
   auto* declaring_class = GetDeclaringClass();
-  if (UNLIKELY(declaring_class->IsProxyClass())) {
-    return ProxyFindSystemClass(GetTypeDescriptor());
+  if (UNLIKELY(declaring_class->IsAnyProxyClass())) {
+    return AnyProxyFindSystemClass(GetTypeDescriptor());
   }
   auto* dex_cache = declaring_class->GetDexCache();
   const DexFile* const dex_file = dex_cache->GetDexFile();

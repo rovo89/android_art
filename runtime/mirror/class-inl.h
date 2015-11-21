@@ -695,7 +695,11 @@ inline bool Class::IsClassClass() {
 }
 
 inline const DexFile& Class::GetDexFile() {
-  return *GetDexCache()->GetDexFile();
+  DexCache* dex_cache = GetDexCache();
+  DCHECK(dex_cache != nullptr);
+  const DexFile* dex_file = dex_cache->GetDexFile();
+  DCHECK(dex_file != nullptr);
+  return *dex_file;
 }
 
 inline bool Class::DescriptorEquals(const char* match) {
@@ -703,8 +707,8 @@ inline bool Class::DescriptorEquals(const char* match) {
     return match[0] == '[' && GetComponentType()->DescriptorEquals(match + 1);
   } else if (IsPrimitive()) {
     return strcmp(Primitive::Descriptor(GetPrimitiveType()), match) == 0;
-  } else if (IsProxyClass()) {
-    return ProxyDescriptorEquals(match);
+  } else if (IsAnyProxyClass()) {
+    return AnyProxyDescriptorEquals(match);
   } else {
     const DexFile& dex_file = GetDexFile();
     const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
@@ -720,22 +724,32 @@ inline void Class::AssertInitializedOrInitializingInThread(Thread* self) {
   }
 }
 
-inline ObjectArray<Class>* Class::GetInterfaces() {
-  CHECK(IsProxyClass());
+inline ObjectArray<Class>* Class::GetInterfacesForAnyProxy() {
+  CHECK(IsAnyProxyClass());
   // First static field.
   auto* field = GetStaticField(0);
   DCHECK_STREQ(field->GetName(), "interfaces");
   MemberOffset field_offset = field->GetOffset();
-  return GetFieldObject<ObjectArray<Class>>(field_offset);
+  ObjectArray<Class>* interfaces_array = GetFieldObject<ObjectArray<Class>>(field_offset);
+
+  CHECK(interfaces_array != nullptr);
+  if (UNLIKELY(IsLambdaProxyClass())) {
+    DCHECK_EQ(1, interfaces_array->GetLength())
+        << "Lambda proxies cannot have multiple direct interfaces implemented";
+  }
+  return interfaces_array;
 }
 
-inline ObjectArray<ObjectArray<Class>>* Class::GetThrows() {
-  CHECK(IsProxyClass());
+inline ObjectArray<ObjectArray<Class>>* Class::GetThrowsForAnyProxy() {
+  CHECK(IsAnyProxyClass());
   // Second static field.
   auto* field = GetStaticField(1);
   DCHECK_STREQ(field->GetName(), "throws");
+
   MemberOffset field_offset = field->GetOffset();
-  return GetFieldObject<ObjectArray<ObjectArray<Class>>>(field_offset);
+  auto* throws_array = GetFieldObject<ObjectArray<ObjectArray<Class>>>(field_offset);
+  CHECK(throws_array != nullptr);
+  return throws_array;
 }
 
 inline MemberOffset Class::GetDisableIntrinsicFlagOffset() {
@@ -796,8 +810,8 @@ inline uint32_t Class::NumDirectInterfaces() {
     return 0;
   } else if (IsArrayClass()) {
     return 2;
-  } else if (IsProxyClass()) {
-    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfaces();
+  } else if (IsAnyProxyClass()) {
+    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfacesForAnyProxy();
     return interfaces != nullptr ? interfaces->GetLength() : 0;
   } else {
     const DexFile::TypeList* interfaces = GetInterfaceTypeList();
