@@ -56,7 +56,7 @@ void Field::VisitRoots(RootVisitor* visitor) {
 
 ArtField* Field::GetArtField() {
   mirror::Class* declaring_class = GetDeclaringClass();
-  if (UNLIKELY(declaring_class->IsProxyClass())) {
+  if (UNLIKELY(declaring_class->IsAnyProxyClass())) {
     DCHECK(IsStatic());
     DCHECK_EQ(declaring_class->NumStaticFields(), 2U);
     // 0 == Class[] interfaces; 1 == Class[][] throws;

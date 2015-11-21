@@ -31,6 +31,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/field.h"
+#include "mirror/lambda_proxy.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -552,6 +553,7 @@ struct ClassLoaderOffsets : public CheckOffsets<mirror::ClassLoader> {
   ClassLoaderOffsets() : CheckOffsets<mirror::ClassLoader>(false, "Ljava/lang/ClassLoader;") {
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, allocator_), "allocator");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, class_table_), "classTable");
+    addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, lambda_proxy_cache_), "lambdaProxyCache");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, packages_), "packages");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, parent_), "parent");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, proxyCache_), "proxyCache");
@@ -563,6 +565,13 @@ struct ProxyOffsets : public CheckOffsets<mirror::Proxy> {
     addOffset(OFFSETOF_MEMBER(mirror::Proxy, h_), "h");
   };
 };
+
+struct LambdaProxyOffsets : public CheckOffsets<mirror::LambdaProxy> {
+  LambdaProxyOffsets() : CheckOffsets<mirror::LambdaProxy>(false, "Ljava/lang/LambdaProxy;") {
+    addOffset(OFFSETOF_MEMBER(mirror::LambdaProxy, closure_), "closure");
+  };
+};
+
 
 struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
@@ -639,6 +648,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(StackTraceElementOffsets().Check());
   EXPECT_TRUE(ClassLoaderOffsets().Check());
   EXPECT_TRUE(ProxyOffsets().Check());
+  EXPECT_TRUE(LambdaProxyOffsets().Check());
   EXPECT_TRUE(DexCacheOffsets().Check());
   EXPECT_TRUE(ReferenceOffsets().Check());
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());

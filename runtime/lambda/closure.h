@@ -33,12 +33,52 @@ namespace lambda {
 class ArtLambdaMethod;  // forward declaration
 class ClosureBuilder;   // forward declaration
 
+// TODO: Remove these constants once closures are supported properly.
+
+// Does the lambda closure support containing references? If so, all the users of lambdas
+// must be updated to also support references.
+static constexpr const bool kClosureSupportsReferences = false;
+// Does the lambda closure support being garbage collected? If so, all the users of lambdas
+// must be updated to also support garbage collection.
+static constexpr const bool kClosureSupportsGarbageCollection = false;
+// Does the lambda closure support being garbage collected with a read barrier? If so,
+// all the users of the lambdas msut also be updated to support read barrier GC.
+static constexpr const bool kClosureSupportsReadBarrier = false;
+
+// Is this closure being stored as a 'long' in shadow frames and the quick ABI?
+static constexpr const bool kClosureIsStoredAsLong = true;
+
+
+// Raw memory layout for the lambda closure.
+//
+// WARNING:
+// * This should only be used by the compiler and tests, as they need to offsetof the raw fields.
+// * Runtime/interpreter should always access closures through a Closure pointer.
+struct ClosureStorage {
+  // Compile-time known lambda information such as the type descriptor and size.
+  ArtLambdaMethod* lambda_info_;
+
+  // A contiguous list of captured variables, and possibly the closure size.
+  // The runtime size can always be determined through GetSize().
+  union {
+    // Read from here if the closure size is static (ArtLambdaMethod::IsStatic)
+    uint8_t static_variables_[0];
+    struct {
+      // Read from here if the closure size is dynamic (ArtLambdaMethod::IsDynamic)
+      size_t size_;  // The lambda_info_ and the size_ itself is also included as part of the size.
+      uint8_t variables_[0];
+    } dynamic_;
+  } captured_[0];
+  // captured_ will always consist of one array element at runtime.
+  // Set to [0] so that 'size_' is not counted in sizeof(Closure).
+};
+
 // Inline representation of a lambda closure.
 // Contains the target method and the set of packed captured variables as a copy.
 //
 // The closure itself is logically immutable, although in practice any object references
 // it (recursively) contains can be moved and updated by the GC.
-struct PACKED(sizeof(ArtLambdaMethod*)) Closure {
+struct Closure : private ClosureStorage {
   // Get the size of the Closure in bytes.
   // This is necessary in order to allocate a large enough area to copy the Closure into.
   // Do *not* copy the closure with memcpy, since references also need to get moved.
@@ -51,6 +91,9 @@ struct PACKED(sizeof(ArtLambdaMethod*)) Closure {
 
   // Get the target method, i.e. the method that will be dispatched into with invoke-lambda.
   ArtMethod* GetTargetMethod() const;
+
+  // Get the static lambda info that never changes.
+  ArtLambdaMethod* GetLambdaInfo() const;
 
   // Calculates the hash code. Value is recomputed each time.
   uint32_t GetHashCode() const SHARED_REQUIRES(Locks::mutator_lock_);
@@ -156,27 +199,14 @@ struct PACKED(sizeof(ArtLambdaMethod*)) Closure {
   static size_t GetClosureSize(const uint8_t* closure);
 
   ///////////////////////////////////////////////////////////////////////////////////
-
-  // Compile-time known lambda information such as the type descriptor and size.
-  ArtLambdaMethod* lambda_info_;
-
-  // A contiguous list of captured variables, and possibly the closure size.
-  // The runtime size can always be determined through GetSize().
-  union {
-    // Read from here if the closure size is static (ArtLambdaMethod::IsStatic)
-    uint8_t static_variables_[0];
-    struct {
-      // Read from here if the closure size is dynamic (ArtLambdaMethod::IsDynamic)
-      size_t size_;  // The lambda_info_ and the size_ itself is also included as part of the size.
-      uint8_t variables_[0];
-    } dynamic_;
-  } captured_[0];
-  // captured_ will always consist of one array element at runtime.
-  // Set to [0] so that 'size_' is not counted in sizeof(Closure).
-
-  friend class ClosureBuilder;
+  // NOTE: Actual fields are declared in ClosureStorage.
   friend class ClosureTest;
 };
+
+// ABI guarantees:
+// * Closure same size as a ClosureStorage
+// * ClosureStorage begins at the same point a Closure would begin.
+static_assert(sizeof(Closure) == sizeof(ClosureStorage), "Closure size must match ClosureStorage");
 
 }  // namespace lambda
 }  // namespace art

@@ -40,6 +40,11 @@ namespace space {
   class ImageSpace;
 }  // namespace space
 }  // namespace gc
+
+namespace lambda {
+  class BoxClassTable;
+}  // namespace lambda
+
 namespace mirror {
   class ClassLoader;
   class DexCache;
@@ -82,6 +87,7 @@ class ClassLinker {
     kJavaLangReflectField,
     kJavaLangReflectMethod,
     kJavaLangReflectProxy,
+    kJavaLangLambdaProxy,
     kJavaLangStringArrayClass,
     kJavaLangReflectConstructorArrayClass,
     kJavaLangReflectFieldArrayClass,
@@ -424,10 +430,44 @@ class ClassLinker {
                                   jobjectArray methods,
                                   jobjectArray throws)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  std::string GetDescriptorForProxy(mirror::Class* proxy_class)
+
+  // Get the long type descriptor, e.g. "LProxyName$1234;" for the requested proxy class.
+  static std::string GetDescriptorForAnyProxy(mirror::Class* proxy_class)
       SHARED_REQUIRES(Locks::mutator_lock_);
   ArtMethod* FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method)
       REQUIRES(!dex_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Create a lambda proxy class.
+  // -- Nominally used when boxing an innate lambda, since that has no corresponding class.
+  //
+  // * name must be a fully-qualified class name (and dotted), e.g. "java.lang.Runnable"
+  // * interfaces is an array of java.lang.Class for interfaces that will be the supertype
+  //   (note that there must be exactly 1 element here for a lambda interface since lambda
+  //   types can only target 1 interface).
+  // * loader must be a java.lang.ClassLoader where the proxy class will be created
+  // * methods must be an array of java.lang.reflect.Method that consists of the
+  //   deduplicated methods from all of the interfaces specified.
+  // * throws must be an array of java.lang.Class[] where each index corresponds to that of
+  //   methods, and it signifies the "throws" keyword of each method
+  //   (this is not directly used by the runtime itself, but it is available via reflection).
+  //
+  // Returns a non-null pointer to a class upon success, otherwise null and throws an exception.
+  //
+  // If the class was already created previously (with the same name but potentially different
+  // parameters), already_exists is set to true; otherwise already_exists is set to false.
+  // The already_exists value is undefined when an exception was thrown.
+  //
+  // Sidenote: interfaces is an array to simplify the libcore code which creates a Java
+  // array in an attempt to reduce code duplication.
+  // TODO: this should probably also take the target single-abstract-method as well.
+  mirror::Class* CreateLambdaProxyClass(ScopedObjectAccessAlreadyRunnable& soa,
+                                        jstring name,
+                                        jobjectArray interfaces,
+                                        jobject loader,
+                                        jobjectArray methods,
+                                        jobjectArray throws,
+                                        /*out*/bool* already_exists)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the oat code for a method when its class isn't yet initialized
@@ -573,6 +613,7 @@ class ClassLinker {
     jweak weak_root;  // Weak root to enable class unloading.
     ClassTable* class_table;
     LinearAlloc* allocator;
+    lambda::BoxClassTable* lambda_box_class_table;
   };
 
   // Ensures that the supertype of 'klass' ('supertype') is verified. Returns false and throws
@@ -907,7 +948,11 @@ class ClassLinker {
 
   void CheckProxyConstructor(ArtMethod* constructor) const
       SHARED_REQUIRES(Locks::mutator_lock_);
+  void CheckLambdaProxyConstructor(ArtMethod* constructor) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void CheckLambdaProxyMethod(ArtMethod* method, ArtMethod* prototype) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // For use by ImageWriter to find DexCaches for its roots
@@ -926,7 +971,17 @@ class ClassLinker {
 
   void CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod* out)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Copy the constructor from java.lang.LambdaProxy into the 'klass'.
+  // The copy is written into 'method_constructor'.
+  void CreateLambdaProxyConstructor(Handle<mirror::Class> klass,
+                                    /*out*/ArtMethod* method_constructor)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   void CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prototype, ArtMethod* out)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void CreateLambdaProxyMethod(Handle<mirror::Class> klass, ArtMethod* prototype, ArtMethod* out)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Ensures that methods have the kAccPreverified bit set. We use the kAccPreverfied bit on the
@@ -940,7 +995,10 @@ class ClassLinker {
   // Returns null if not found.
   ClassTable* ClassTableForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_, Locks::classlinker_classes_lock_);
-  // Insert a new class table if not found.
+
+  // Insert a new class table if not found. Uses bootclasspath if class_loader is null.
+  // Returns either the existing table, or the new one if there wasn't one previously
+  // (the return value is always non-null).
   ClassTable* InsertClassTableForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(Locks::classlinker_classes_lock_);

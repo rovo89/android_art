@@ -171,7 +171,15 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
+  // Does this method live on a declaring class that is itself any proxy class?
+  // -- Returns true for both java.lang.reflect.Proxy and java.lang.LambdaProxy subclasses.
   bool IsProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Does this method live in a java.lang.reflect.Proxy subclass?
+  bool IsReflectProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Does this method live in a java.lang.LambdaProxy subclass?
+  bool IsLambdaProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool IsPreverified() {
     return (GetAccessFlags() & kAccPreverified) != 0;
@@ -274,7 +282,15 @@ class ArtMethod FINAL {
                                             uint32_t name_and_signature_idx)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, const char* shorty)
+  // Invoke this method, passing all the virtual registers in args.
+  // -- args_size must be the size in bytes (not size in words)!
+  // -- shorty must be the method shorty (i.e. it includes the return type).
+  // The result is set when the method finishes execution successfully.
+  void Invoke(Thread* self,
+              uint32_t* args,
+              uint32_t args_size,  // NOTE: size in bytes
+              /*out*/JValue* result,
+              const char* shorty)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   const void* GetEntryPointFromQuickCompiledCode() {
@@ -428,6 +444,9 @@ class ArtMethod FINAL {
 
   mirror::DexCache* GetDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Returns the current method ('this') if this is a regular, non-proxy method.
+  // Otherwise, when this class is a proxy (IsProxyMethod), look-up the original interface's
+  // method (that the proxy is "overriding") and return that.
   ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
