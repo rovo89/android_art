@@ -1219,7 +1219,7 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
       cu_, cu_->class_loader, cu_->class_linker, *target.dex_file,
       nullptr /* code_item not used */, 0u /* class_def_idx not used */, target.dex_method_index,
       0u /* access_flags not used */, nullptr /* verified_method not used */);
-  MirIFieldLoweringInfo inlined_field_info(field_idx);
+  MirIFieldLoweringInfo inlined_field_info(field_idx, false);
   MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
   DCHECK(inlined_field_info.IsResolved());
 

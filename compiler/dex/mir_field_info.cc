@@ -35,8 +35,9 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     DCHECK(field_infos != nullptr);
     DCHECK_NE(count, 0u);
     for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
-      MirIFieldLoweringInfo unresolved(it->field_idx_);
-      DCHECK_EQ(memcmp(&unresolved, &*it, sizeof(*it)), 0);
+      MirIFieldLoweringInfo unresolved(it->field_idx_, it->IsQuickened());
+      unresolved.field_offset_ = it->field_offset_;
+      unresolved.CheckEquals(*it);
     }
   }
 
@@ -49,13 +50,31 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
       hs.NewHandle(compiler_driver->GetClassLoader(soa, mUnit)));
   Handle<mirror::Class> referrer_class(hs.NewHandle(
       compiler_driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit)));
+  const VerifiedMethod* const verified_method = mUnit->GetVerifiedMethod();
   // Even if the referrer class is unresolved (i.e. we're compiling a method without class
   // definition) we still want to resolve fields and record all available info.
 
   for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
-    uint32_t field_idx = it->field_idx_;
-    mirror::ArtField* resolved_field =
-        compiler_driver->ResolveField(soa, dex_cache, class_loader, mUnit, field_idx, false);
+    uint32_t field_idx;
+    mirror::ArtField* resolved_field;
+    if (!it->IsQuickened()) {
+      field_idx = it->field_idx_;
+      resolved_field = compiler_driver->ResolveField(soa, dex_cache, class_loader, mUnit,
+                                                     field_idx, false);
+    } else {
+      const auto mir_offset = it->field_idx_;
+      // For quickened instructions, it->field_offset_ actually contains the mir offset.
+      // We need to use the de-quickening info to get dex file / field idx
+      auto* field_idx_ptr = verified_method->GetDequickenIndex(mir_offset);
+      CHECK(field_idx_ptr != nullptr);
+      field_idx = field_idx_ptr->index;
+      StackHandleScope<1> hs2(soa.Self());
+      auto h_dex_cache = hs2.NewHandle(compiler_driver->FindDexCache(field_idx_ptr->dex_file));
+      resolved_field = compiler_driver->ResolveFieldWithDexFile(
+          soa, h_dex_cache, class_loader, field_idx_ptr->dex_file, field_idx, false);
+      // Since we don't have a valid field index we can't go slow path later.
+      CHECK(resolved_field != nullptr);
+    }
     if (UNLIKELY(resolved_field == nullptr)) {
       continue;
     }

@@ -63,14 +63,29 @@ class MirFieldInfo {
     return (flags_ & kFlagIsVolatile) != 0u;
   }
 
+  // IGET_QUICK, IGET_OBJECT_QUICK, ...
+  bool IsQuickened() const {
+    return (flags_ & kFlagIsQuickened) != 0u;
+  }
+
+  void CheckEquals(const MirFieldInfo& other) const {
+    CHECK_EQ(field_idx_, other.field_idx_);
+    CHECK_EQ(flags_, other.flags_);
+    CHECK_EQ(declaring_field_idx_, other.declaring_field_idx_);
+    CHECK_EQ(declaring_class_idx_, other.declaring_class_idx_);
+    CHECK_EQ(declaring_dex_file_, other.declaring_dex_file_);
+  }
+
  protected:
   enum {
     kBitIsStatic = 0,
     kBitIsVolatile,
+    kBitIsQuickened,
     kFieldInfoBitEnd
   };
   static constexpr uint16_t kFlagIsVolatile = 1u << kBitIsVolatile;
   static constexpr uint16_t kFlagIsStatic = 1u << kBitIsStatic;
+  static constexpr uint16_t kFlagIsQuickened = 1u << kBitIsQuickened;
 
   MirFieldInfo(uint16_t field_idx, uint16_t flags)
       : field_idx_(field_idx),
@@ -107,8 +122,9 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Construct an unresolved instance field lowering info.
-  explicit MirIFieldLoweringInfo(uint16_t field_idx)
-      : MirFieldInfo(field_idx, kFlagIsVolatile),  // Without kFlagIsStatic.
+  explicit MirIFieldLoweringInfo(uint16_t field_idx, bool is_quickened)
+      : MirFieldInfo(field_idx,
+        kFlagIsVolatile | (is_quickened ? kFlagIsQuickened : 0u)),  // Without kFlagIsStatic.
         field_offset_(0u) {
   }
 
@@ -122,6 +138,11 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
 
   MemberOffset FieldOffset() const {
     return field_offset_;
+  }
+
+  void CheckEquals(const MirIFieldLoweringInfo& other) const {
+    MirFieldInfo::CheckEquals(other);
+    CHECK_EQ(field_offset_.Uint32Value(), other.field_offset_.Uint32Value());
   }
 
  private:

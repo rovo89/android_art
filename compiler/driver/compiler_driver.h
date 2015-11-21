@@ -44,6 +44,10 @@
 
 namespace art {
 
+namespace mirror {
+class DexCache;
+}  // namespace mirror
+
 namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
@@ -241,6 +245,13 @@ class CompilerDriver {
       uint32_t field_idx, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Resolve a field with a given dex file.
+  mirror::ArtField* ResolveFieldWithDexFile(
+      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader, const DexFile* dex_file,
+      uint32_t field_idx, bool is_static)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Get declaration location of a resolved field.
   void GetResolvedFieldDexFileLocation(
       mirror::ArtField* resolved_field, const DexFile** declaring_dex_file,
@@ -248,6 +259,10 @@ class CompilerDriver {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsFieldVolatile(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Find a dex cache for a dex file.
+  inline mirror::DexCache* FindDexCache(const DexFile* dex_file)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
@@ -268,7 +283,7 @@ class CompilerDriver {
   mirror::ArtMethod* ResolveMethod(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-      uint32_t method_idx, InvokeType invoke_type)
+      uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get declaration location of a resolved field.

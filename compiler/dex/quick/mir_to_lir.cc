@@ -730,14 +730,17 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenArrayPut(opt_flags, kUnsignedByte, rl_src[1], rl_src[2], rl_src[0], 0, false);
       break;
 
+    case Instruction::IGET_OBJECT_QUICK:
     case Instruction::IGET_OBJECT:
       GenIGet(mir, opt_flags, kReference, rl_dest, rl_src[0], false, true);
       break;
 
+    case Instruction::IGET_WIDE_QUICK:
     case Instruction::IGET_WIDE:
       GenIGet(mir, opt_flags, k64, rl_dest, rl_src[0], true, false);
       break;
 
+    case Instruction::IGET_QUICK:
     case Instruction::IGET:
       GenIGet(mir, opt_flags, k32, rl_dest, rl_src[0], false, false);
       break;
@@ -755,14 +758,17 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenIGet(mir, opt_flags, kUnsignedByte, rl_dest, rl_src[0], false, false);
       break;
 
+    case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_WIDE:
       GenIPut(mir, opt_flags, k64, rl_src[0], rl_src[1], true, false);
       break;
 
+    case Instruction::IPUT_OBJECT_QUICK:
     case Instruction::IPUT_OBJECT:
       GenIPut(mir, opt_flags, kReference, rl_src[0], rl_src[1], false, true);
       break;
 
+    case Instruction::IPUT_QUICK:
     case Instruction::IPUT:
       GenIPut(mir, opt_flags, k32, rl_src[0], rl_src[1], false, false);
       break;
@@ -839,12 +845,14 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       }
       break;
 
+    case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, false));
       if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, true));
       if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {

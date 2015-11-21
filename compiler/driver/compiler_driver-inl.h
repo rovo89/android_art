@@ -57,14 +57,13 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
   return referrer_class;
 }
 
-inline mirror::ArtField* CompilerDriver::ResolveField(
+inline mirror::ArtField* CompilerDriver::ResolveFieldWithDexFile(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
+    Handle<mirror::ClassLoader> class_loader, const DexFile* dex_file,
     uint32_t field_idx, bool is_static) {
-  DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
-  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-  mirror::ArtField* resolved_field = mUnit->GetClassLinker()->ResolveField(
-      *mUnit->GetDexFile(), field_idx, dex_cache, class_loader, is_static);
+  DCHECK_EQ(dex_cache->GetDexFile(), dex_file);
+  mirror::ArtField* resolved_field = Runtime::Current()->GetClassLinker()->ResolveField(
+      *dex_file, field_idx, dex_cache, class_loader, is_static);
   DCHECK_EQ(resolved_field == nullptr, soa.Self()->IsExceptionPending());
   if (UNLIKELY(resolved_field == nullptr)) {
     // Clean up any exception left by type resolution.
@@ -77,6 +76,19 @@ inline mirror::ArtField* CompilerDriver::ResolveField(
     return nullptr;
   }
   return resolved_field;
+}
+
+inline mirror::DexCache* CompilerDriver::FindDexCache(const DexFile* dex_file) {
+  return Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
+}
+
+inline mirror::ArtField* CompilerDriver::ResolveField(
+    const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
+    uint32_t field_idx, bool is_static) {
+  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  return ResolveFieldWithDexFile(soa, dex_cache, class_loader, mUnit->GetDexFile(), field_idx,
+                                 is_static);
 }
 
 inline void CompilerDriver::GetResolvedFieldDexFileLocation(
@@ -176,7 +188,7 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
 inline mirror::ArtMethod* CompilerDriver::ResolveMethod(
     ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-    uint32_t method_idx, InvokeType invoke_type) {
+    uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   mirror::ArtMethod* resolved_method = mUnit->GetClassLinker()->ResolveMethod(
@@ -188,7 +200,8 @@ inline mirror::ArtMethod* CompilerDriver::ResolveMethod(
     soa.Self()->ClearException();
     return nullptr;
   }
-  if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(invoke_type))) {
+  if (check_incompatible_class_change &&
+      UNLIKELY(resolved_method->CheckIncompatibleClassChange(invoke_type))) {
     // Silently return nullptr on incompatible class change.
     return nullptr;
   }
@@ -234,11 +247,12 @@ inline int CompilerDriver::IsFastInvoke(
 
   // Sharpen a virtual call into a direct call when the target is known not to have been
   // overridden (ie is final).
-  bool can_sharpen_virtual_based_on_type =
+  const bool same_dex_file = target_method->dex_file == mUnit->GetDexFile();
+  bool can_sharpen_virtual_based_on_type = same_dex_file &&
       (*invoke_type == kVirtual) && (resolved_method->IsFinal() || methods_class->IsFinal());
   // For invoke-super, ensure the vtable index will be correct to dispatch in the vtable of
   // the super class.
-  bool can_sharpen_super_based_on_type = (*invoke_type == kSuper) &&
+  bool can_sharpen_super_based_on_type = same_dex_file && (*invoke_type == kSuper) &&
       (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
       resolved_method->GetMethodIndex() < methods_class->GetVTableLength() &&
       (methods_class->GetVTableEntry(resolved_method->GetMethodIndex()) == resolved_method) &&
@@ -247,10 +261,10 @@ inline int CompilerDriver::IsFastInvoke(
   if (can_sharpen_virtual_based_on_type || can_sharpen_super_based_on_type) {
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's
     // dex cache, check that this resolved method is where we expect it.
-    CHECK(target_method->dex_file == mUnit->GetDexFile());
-    DCHECK(dex_cache.Get() == mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-    CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index) ==
-        resolved_method) << PrettyMethod(resolved_method);
+    CHECK_EQ(target_method->dex_file, mUnit->GetDexFile());
+    DCHECK_EQ(dex_cache.Get(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+    CHECK_EQ(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index),
+             resolved_method) << PrettyMethod(resolved_method);
     int stats_flags = kFlagMethodResolved;
     GetCodeAndMethodForDirectCall(/*out*/invoke_type,
                                   kDirect,  // Sharp type

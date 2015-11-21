@@ -424,7 +424,7 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
   InlineMethod intrinsic;
   {
     ReaderMutexLock mu(Thread::Current(), lock_);
-    auto it = inline_methods_.find(info->index);
+    auto it = inline_methods_.find(info->method_ref.dex_method_index);
     if (it == inline_methods_.end() || (it->second.flags & kInlineIntrinsic) == 0) {
       return false;
     }

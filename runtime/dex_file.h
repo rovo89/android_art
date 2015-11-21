@@ -1026,6 +1026,13 @@ class DexFile {
   // from an oat file, e.g., directly from an apk.
   const OatFile* oat_file_;
 };
+
+struct DexFileReference {
+  DexFileReference(const DexFile* file, uint32_t idx) : dex_file(file), index(idx) { }
+  const DexFile* dex_file;
+  uint32_t index;
+};
+
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 
 // Iterate over a dex file's ProtoId's paramters
