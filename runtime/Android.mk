@@ -106,6 +106,7 @@ LIBART_COMMON_SRC_FILES := \
   jit/profiling_info.cc \
   lambda/art_lambda_method.cc \
   lambda/box_table.cc \
+  lambda/box_class_table.cc \
   lambda/closure.cc \
   lambda/closure_builder.cc \
   lambda/leaking_allocator.cc \

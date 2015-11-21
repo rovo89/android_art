@@ -218,6 +218,56 @@ TEST_F(ShortyFieldTypeTest, TestParseFromFieldTypeDescriptor) {
   }
 }  // TEST_F
 
+TEST_F(ShortyFieldTypeTest, TestCalculateVRegSize) {
+  // Make sure the single calculation for each value is correct.
+  std::pair<size_t, char> expected_actual_single[] = {
+      // Primitives
+      { 1u, 'Z' },
+      { 1u, 'B' },
+      { 1u, 'C' },
+      { 1u, 'S' },
+      { 1u, 'I' },
+      { 1u, 'F' },
+      { 2u, 'J' },
+      { 2u, 'D' },
+      // Non-primitives
+      { 1u, 'L' },
+      { 2u, '\\' },
+  };
+
+  for (auto pair : expected_actual_single) {
+    SCOPED_TRACE(pair.second);
+    EXPECT_EQ(pair.first, ShortyFieldType(pair.second).GetVirtualRegisterCount());
+  }
+
+  // Make sure we are correctly calculating how many virtual registers a shorty descriptor takes.
+  std::pair<size_t, const char*> expected_actual[] = {
+      // Empty list
+      { 0u, "" },
+      // Primitives
+      { 1u, "Z" },
+      { 1u, "B" },
+      { 1u, "C" },
+      { 1u, "S" },
+      { 1u, "I" },
+      { 1u, "F" },
+      { 2u, "J" },
+      { 2u, "D" },
+      // Non-primitives
+      { 1u, "L" },
+      { 2u, "\\" },
+      // Multiple things at once:
+      { 10u, "ZBCSIFJD" },
+      { 5u, "LLSSI" },
+      { 6u, "LLL\\L" }
+  };
+
+  for (auto pair : expected_actual) {
+    SCOPED_TRACE(pair.second);
+    EXPECT_EQ(pair.first, ShortyFieldType::CountVirtualRegistersRequired(pair.second));
+  }
+}  // TEST_F
+
 // Helper class to probe a shorty's characteristics by minimizing copy-and-paste tests.
 template <typename T, decltype(ShortyFieldType::kByte) kShortyEnum>
 struct ShortyTypeCharacteristics {

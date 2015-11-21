@@ -419,7 +419,7 @@ static jobject Field_getAnnotationNative(JNIEnv* env, jobject javaField, jclass 
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  if (field->GetDeclaringClass()->IsProxyClass()) {
+  if (field->GetDeclaringClass()->IsAnyProxyClass()) {
     return nullptr;
   }
   Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
@@ -429,7 +429,7 @@ static jobject Field_getAnnotationNative(JNIEnv* env, jobject javaField, jclass 
 static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField) {
   ScopedFastNativeObjectAccess soa(env);
   ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  if (field->GetDeclaringClass()->IsProxyClass()) {
+  if (field->GetDeclaringClass()->IsAnyProxyClass()) {
     // Return an empty array instead of a null pointer.
     mirror::Class* annotation_array_class =
         soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
@@ -443,7 +443,7 @@ static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField)
 static jobjectArray Field_getSignatureAnnotation(JNIEnv* env, jobject javaField) {
   ScopedFastNativeObjectAccess soa(env);
   ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  if (field->GetDeclaringClass()->IsProxyClass()) {
+  if (field->GetDeclaringClass()->IsAnyProxyClass()) {
     return nullptr;
   }
   return soa.AddLocalReference<jobjectArray>(
@@ -455,7 +455,7 @@ static jboolean Field_isAnnotationPresentNative(JNIEnv* env, jobject javaField,
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  if (field->GetDeclaringClass()->IsProxyClass()) {
+  if (field->GetDeclaringClass()->IsAnyProxyClass()) {
     return false;
   }
   Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));

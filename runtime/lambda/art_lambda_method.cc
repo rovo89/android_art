@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "art_method-inl.h"
 #include "lambda/art_lambda_method.h"
 
 #include "base/logging.h"
@@ -71,6 +72,13 @@ ArtLambdaMethod::ArtLambdaMethod(ArtMethod* target_method,
         << "' (" << long_count << ")" << " did not match short type '"
         << captured_variables_shorty << "' (" << shorty_count << ")";
   }
+}
+
+size_t ArtLambdaMethod::GetArgumentVRegCount() const {
+  DCHECK(GetArtMethod()->IsStatic());  // Instance methods don't have receiver in shorty.
+  const char* method_shorty = GetArtMethod()->GetShorty();
+  DCHECK_NE(*method_shorty, '\0') << method_shorty;
+  return ShortyFieldType::CountVirtualRegistersRequired(method_shorty + 1);  // skip return type
 }
 
 }  // namespace lambda

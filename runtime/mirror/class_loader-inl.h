@@ -21,6 +21,7 @@
 
 #include "base/mutex-inl.h"
 #include "class_table-inl.h"
+#include "lambda/box_class_table-inl.h"
 
 namespace art {
 namespace mirror {
@@ -34,6 +35,10 @@ inline void ClassLoader::VisitReferences(mirror::Class* klass, const Visitor& vi
   ClassTable* const class_table = GetClassTable();
   if (class_table != nullptr) {
     class_table->VisitRoots(visitor);
+  }
+  lambda::BoxClassTable* const lambda_box_class_table = GetLambdaProxyCache();
+  if (lambda_box_class_table != nullptr) {
+    lambda_box_class_table->VisitRoots(visitor);
   }
 }
 

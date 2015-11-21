@@ -27,15 +27,31 @@
 namespace art {
 
 static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring name, jobjectArray interfaces,
-                                  jobject loader, jobjectArray methods, jobjectArray throws) {
+                                  jobject loader, jobjectArray methods, jobjectArray throws,
+                                  jboolean is_lambda_proxy) {
   ScopedFastNativeObjectAccess soa(env);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  return soa.AddLocalReference<jclass>(class_linker->CreateProxyClass(
-      soa, name, interfaces, loader, methods, throws));
+
+  mirror::Class* proxy_class = nullptr;
+
+  if (UNLIKELY(is_lambda_proxy)) {
+    bool already_exists;  // XX: Perhaps add lambdaProxyCache to java.lang.ClassLoader ?
+    proxy_class = class_linker->CreateLambdaProxyClass(soa,
+                                                       name,
+                                                       interfaces,
+                                                       loader,
+                                                       methods,
+                                                       throws,
+                                                       /*out*/&already_exists);
+  } else {
+    proxy_class = class_linker->CreateProxyClass(soa, name, interfaces, loader, methods, throws);
+  }
+
+  return soa.AddLocalReference<jclass>(proxy_class);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Proxy, generateProxy, "!(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Proxy, generateProxy, "!(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;Z)Ljava/lang/Class;"),
 };
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {
