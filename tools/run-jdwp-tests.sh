@@ -28,6 +28,18 @@ if [ ! -f $test_jar ]; then
   exit 1
 fi
 
+if [ "x$ART_USE_READ_BARRIER" = xtrue ]; then
+  # For the moment, skip JDWP tests when read barriers are enabled, as
+  # they sometimes exhibit a deadlock issue with the concurrent
+  # copying collector in the read barrier configuration, between the
+  # HeapTaskDeamon and the JDWP thread (b/25800335).
+  #
+  # TODO: Re-enable the JDWP tests when this deadlock issue is fixed.
+  echo "JDWP tests are temporarily disabled in the read barrier configuration because of"
+  echo "a deadlock issue (b/25800335)."
+  exit 0
+fi
+
 art="/data/local/tmp/system/bin/art"
 art_debugee="sh /data/local/tmp/system/bin/art"
 args=$@
