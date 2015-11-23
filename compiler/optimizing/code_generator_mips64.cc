@@ -1852,7 +1852,7 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
   }
 }
 
-void LocationsBuilderMIPS64::VisitCondition(HCondition* instruction) {
+void LocationsBuilderMIPS64::HandleCondition(HCondition* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   switch (instruction->InputAt(0)->GetType()) {
     default:
@@ -1872,7 +1872,7 @@ void LocationsBuilderMIPS64::VisitCondition(HCondition* instruction) {
   }
 }
 
-void InstructionCodeGeneratorMIPS64::VisitCondition(HCondition* instruction) {
+void InstructionCodeGeneratorMIPS64::HandleCondition(HCondition* instruction) {
   if (!instruction->NeedsMaterialization()) {
     return;
   }
@@ -4075,83 +4075,83 @@ void InstructionCodeGeneratorMIPS64::VisitBoundType(HBoundType* instruction ATTR
 }
 
 void LocationsBuilderMIPS64::VisitEqual(HEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitEqual(HEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitNotEqual(HNotEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitNotEqual(HNotEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitLessThan(HLessThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitLessThan(HLessThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitGreaterThan(HGreaterThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitGreaterThan(HGreaterThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitBelow(HBelow* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitBelow(HBelow* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitBelowOrEqual(HBelowOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitBelowOrEqual(HBelowOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitAbove(HAbove* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitAbove(HAbove* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitAboveOrEqual(HAboveOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitAboveOrEqual(HAboveOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderMIPS64::VisitFakeString(HFakeString* instruction) {

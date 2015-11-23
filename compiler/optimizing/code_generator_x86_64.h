@@ -172,6 +172,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
  private:
   void HandleInvoke(HInvoke* invoke);
   void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleCondition(HCondition* condition);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction);
@@ -213,6 +214,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void DivByPowerOfTwo(HDiv* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
+  void HandleCondition(HCondition* condition);
   void HandleShift(HBinaryOperation* operation);
 
   void HandleFieldSet(HInstruction* instruction,
