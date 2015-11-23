@@ -4330,7 +4330,7 @@ void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
   if (needs_write_barrier) {
     // Temporary registers for the write barrier.
     locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
-    locations->AddTemp(Location::RequiresRegister());  // Possibly used for read barrier too.
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
