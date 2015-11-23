@@ -823,28 +823,79 @@ TEST(Thumb2AssemblerTest, SpecialAddSub) {
 
   __ add(R2, SP, ShifterOperand(0xf00));  // 32 bit due to imm size.
   __ add(SP, SP, ShifterOperand(0xf00));  // 32 bit due to imm size.
+  __ add(SP, SP, ShifterOperand(0xffc));  // 32 bit due to imm size; encoding T4.
 
-  __ sub(SP, SP, ShifterOperand(0x50));     // 16 bit
-  __ sub(R0, SP, ShifterOperand(0x50));     // 32 bit
-  __ sub(R8, SP, ShifterOperand(0x50));     // 32 bit.
+  __ sub(SP, SP, ShifterOperand(0x50));   // 16 bit
+  __ sub(R0, SP, ShifterOperand(0x50));   // 32 bit
+  __ sub(R8, SP, ShifterOperand(0x50));   // 32 bit.
 
-  __ sub(SP, SP, ShifterOperand(0xf00));   // 32 bit due to imm size
+  __ sub(SP, SP, ShifterOperand(0xf00));  // 32 bit due to imm size
+  __ sub(SP, SP, ShifterOperand(0xffc));  // 32 bit due to imm size; encoding T4.
 
   EmitAndCheck(&assembler, "SpecialAddSub");
+}
+
+TEST(Thumb2AssemblerTest, LoadFromOffset) {
+  arm::Thumb2Assembler assembler;
+
+  __ LoadFromOffset(kLoadWord, R2, R4, 12);
+  __ LoadFromOffset(kLoadWord, R2, R4, 0xfff);
+  __ LoadFromOffset(kLoadWord, R2, R4, 0x1000);
+  __ LoadFromOffset(kLoadWord, R2, R4, 0x1000a4);
+  __ LoadFromOffset(kLoadWord, R2, R4, 0x101000);
+  __ LoadFromOffset(kLoadWord, R4, R4, 0x101000);
+  __ LoadFromOffset(kLoadUnsignedHalfword, R2, R4, 12);
+  __ LoadFromOffset(kLoadUnsignedHalfword, R2, R4, 0xfff);
+  __ LoadFromOffset(kLoadUnsignedHalfword, R2, R4, 0x1000);
+  __ LoadFromOffset(kLoadUnsignedHalfword, R2, R4, 0x1000a4);
+  __ LoadFromOffset(kLoadUnsignedHalfword, R2, R4, 0x101000);
+  __ LoadFromOffset(kLoadUnsignedHalfword, R4, R4, 0x101000);
+  __ LoadFromOffset(kLoadWordPair, R2, R4, 12);
+  __ LoadFromOffset(kLoadWordPair, R2, R4, 0x3fc);
+  __ LoadFromOffset(kLoadWordPair, R2, R4, 0x400);
+  __ LoadFromOffset(kLoadWordPair, R2, R4, 0x400a4);
+  __ LoadFromOffset(kLoadWordPair, R2, R4, 0x40400);
+  __ LoadFromOffset(kLoadWordPair, R4, R4, 0x40400);
+
+  __ LoadFromOffset(kLoadWord, R0, R12, 12);  // 32-bit because of R12.
+  __ LoadFromOffset(kLoadWord, R2, R4, 0xa4 - 0x100000);
+
+  __ LoadFromOffset(kLoadSignedByte, R2, R4, 12);
+  __ LoadFromOffset(kLoadUnsignedByte, R2, R4, 12);
+  __ LoadFromOffset(kLoadSignedHalfword, R2, R4, 12);
+
+  EmitAndCheck(&assembler, "LoadFromOffset");
 }
 
 TEST(Thumb2AssemblerTest, StoreToOffset) {
   arm::Thumb2Assembler assembler;
 
-  __ StoreToOffset(kStoreWord, R2, R4, 12);     // Simple
-  __ StoreToOffset(kStoreWord, R2, R4, 0x2000);     // Offset too big.
-  __ StoreToOffset(kStoreWord, R0, R12, 12);
-  __ StoreToOffset(kStoreHalfword, R0, R12, 12);
-  __ StoreToOffset(kStoreByte, R2, R12, 12);
+  __ StoreToOffset(kStoreWord, R2, R4, 12);
+  __ StoreToOffset(kStoreWord, R2, R4, 0xfff);
+  __ StoreToOffset(kStoreWord, R2, R4, 0x1000);
+  __ StoreToOffset(kStoreWord, R2, R4, 0x1000a4);
+  __ StoreToOffset(kStoreWord, R2, R4, 0x101000);
+  __ StoreToOffset(kStoreWord, R4, R4, 0x101000);
+  __ StoreToOffset(kStoreHalfword, R2, R4, 12);
+  __ StoreToOffset(kStoreHalfword, R2, R4, 0xfff);
+  __ StoreToOffset(kStoreHalfword, R2, R4, 0x1000);
+  __ StoreToOffset(kStoreHalfword, R2, R4, 0x1000a4);
+  __ StoreToOffset(kStoreHalfword, R2, R4, 0x101000);
+  __ StoreToOffset(kStoreHalfword, R4, R4, 0x101000);
+  __ StoreToOffset(kStoreWordPair, R2, R4, 12);
+  __ StoreToOffset(kStoreWordPair, R2, R4, 0x3fc);
+  __ StoreToOffset(kStoreWordPair, R2, R4, 0x400);
+  __ StoreToOffset(kStoreWordPair, R2, R4, 0x400a4);
+  __ StoreToOffset(kStoreWordPair, R2, R4, 0x40400);
+  __ StoreToOffset(kStoreWordPair, R4, R4, 0x40400);
+
+  __ StoreToOffset(kStoreWord, R0, R12, 12);  // 32-bit because of R12.
+  __ StoreToOffset(kStoreWord, R2, R4, 0xa4 - 0x100000);
+
+  __ StoreToOffset(kStoreByte, R2, R4, 12);
 
   EmitAndCheck(&assembler, "StoreToOffset");
 }
-
 
 TEST(Thumb2AssemblerTest, IfThen) {
   arm::Thumb2Assembler assembler;
