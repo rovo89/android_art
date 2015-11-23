@@ -22,6 +22,13 @@
 
 namespace art {
 
+// Returns whether this is a loop header phi which was eagerly created but later
+// found inconsistent due to the vreg being undefined in one of its predecessors.
+// Such phi is marked dead and should be ignored until its removal in SsaPhiElimination.
+static bool IsUndefinedLoopHeaderPhi(HPhi* phi) {
+  return phi->IsLoopHeaderPhi() && phi->InputCount() != phi->GetBlock()->GetPredecessors().size();
+}
+
 /**
  * A debuggable application may require to reviving phis, to ensure their
  * associated DEX register is available to a debugger. This class implements
@@ -165,17 +172,15 @@ bool DeadPhiHandling::UpdateType(HPhi* phi) {
 void DeadPhiHandling::VisitBasicBlock(HBasicBlock* block) {
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
+    if (IsUndefinedLoopHeaderPhi(phi)) {
+      DCHECK(phi->IsDead());
+      continue;
+    }
     if (phi->IsDead() && phi->HasEnvironmentUses()) {
       phi->SetLive();
       if (block->IsLoopHeader()) {
-        // Give a type to the loop phi to guarantee convergence of the algorithm.
-        // Note that the dead phi may already have a type if it is an equivalent
-        // generated for a typed LoadLocal. In that case we do not change the
-        // type because it could lead to an unsupported PrimNot/Float/Double ->
-        // PrimInt/Long transition and create same type equivalents.
-        if (phi->GetType() == Primitive::kPrimVoid) {
-          phi->SetType(phi->InputAt(0)->GetType());
-        }
+        // Loop phis must have a type to guarantee convergence of the algorithm.
+        DCHECK_NE(phi->GetType(), Primitive::kPrimVoid);
         AddToWorklist(phi);
       } else {
         // Because we are doing a reverse post order visit, all inputs of
@@ -218,6 +223,27 @@ void DeadPhiHandling::Run() {
     VisitBasicBlock(it.Current());
   }
   ProcessWorklist();
+}
+
+void SsaBuilder::SetLoopHeaderPhiInputs() {
+  for (size_t i = loop_headers_.size(); i > 0; --i) {
+    HBasicBlock* block = loop_headers_[i - 1];
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+      HPhi* phi = it.Current()->AsPhi();
+      size_t vreg = phi->GetRegNumber();
+      for (HBasicBlock* predecessor : block->GetPredecessors()) {
+        HInstruction* value = ValueOfLocal(predecessor, vreg);
+        if (value == nullptr) {
+          // Vreg is undefined at this predecessor. Mark it dead and leave with
+          // fewer inputs than predecessors. SsaChecker will fail if not removed.
+          phi->SetDead();
+          break;
+        } else {
+          phi->AddInput(value);
+        }
+      }
+    }
+  }
 }
 
 void SsaBuilder::FixNullConstantType() {
@@ -283,15 +309,7 @@ void SsaBuilder::BuildSsa() {
   }
 
   // 2) Set inputs of loop phis.
-  for (HBasicBlock* block : loop_headers_) {
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HPhi* phi = it.Current()->AsPhi();
-      for (HBasicBlock* predecessor : block->GetPredecessors()) {
-        HInstruction* input = ValueOfLocal(predecessor, phi->GetRegNumber());
-        phi->AddInput(input);
-      }
-    }
-  }
+  SetLoopHeaderPhiInputs();
 
   // 3) Mark dead phis. This will mark phis that are only used by environments:
   // at the DEX level, the type of these phis does not need to be consistent, but
@@ -403,8 +421,13 @@ ArenaVector<HInstruction*>* SsaBuilder::GetLocalsFor(HBasicBlock* block) {
       for (size_t i = 0; i < vregs; ++i) {
         // No point in creating the catch phi if it is already undefined at
         // the first throwing instruction.
-        if ((*current_locals_)[i] != nullptr) {
-          HPhi* phi = new (arena) HPhi(arena, i, 0, Primitive::kPrimVoid);
+        HInstruction* current_local_value = (*current_locals_)[i];
+        if (current_local_value != nullptr) {
+          HPhi* phi = new (arena) HPhi(
+              arena,
+              i,
+              0,
+              current_local_value->GetType());
           block->AddPhi(phi);
           (*locals)[i] = phi;
         }
@@ -451,7 +474,10 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
       HInstruction* incoming = ValueOfLocal(block->GetLoopInformation()->GetPreHeader(), local);
       if (incoming != nullptr) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
-            GetGraph()->GetArena(), local, 0, Primitive::kPrimVoid);
+            GetGraph()->GetArena(),
+            local,
+            0,
+            incoming->GetType());
         block->AddPhi(phi);
         (*current_locals_)[local] = phi;
       }
@@ -484,8 +510,12 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
       }
 
       if (is_different) {
+        HInstruction* first_input = ValueOfLocal(block->GetPredecessors()[0], local);
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
-            GetGraph()->GetArena(), local, block->GetPredecessors().size(), Primitive::kPrimVoid);
+            GetGraph()->GetArena(),
+            local,
+            block->GetPredecessors().size(),
+            first_input->GetType());
         for (size_t i = 0; i < block->GetPredecessors().size(); i++) {
           HInstruction* pred_value = ValueOfLocal(block->GetPredecessors()[i], local);
           phi->SetRawInputAt(i, pred_value);
@@ -583,8 +613,16 @@ HPhi* SsaBuilder::GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive:
     phi->GetBlock()->InsertPhiAfter(new_phi, phi);
     return new_phi;
   } else {
-    DCHECK_EQ(next->GetType(), type);
-    return next->AsPhi();
+    HPhi* next_phi = next->AsPhi();
+    DCHECK_EQ(next_phi->GetType(), type);
+    if (next_phi->IsDead()) {
+      // TODO(dbrazdil): Remove this SetLive (we should not need to revive phis)
+      // once we stop running MarkDeadPhis before PrimitiveTypePropagation. This
+      // cannot revive undefined loop header phis because they cannot have uses.
+      DCHECK(!IsUndefinedLoopHeaderPhi(next_phi));
+      next_phi->SetLive();
+    }
+    return next_phi;
   }
 }
 
@@ -638,7 +676,36 @@ void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
 }
 
 void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
-  (*current_locals_)[store->GetLocal()->GetRegNumber()] = store->InputAt(1);
+  uint32_t reg_number = store->GetLocal()->GetRegNumber();
+  HInstruction* stored_value = store->InputAt(1);
+  Primitive::Type stored_type = stored_value->GetType();
+  DCHECK_NE(stored_type, Primitive::kPrimVoid);
+
+  // Storing into vreg `reg_number` may implicitly invalidate the surrounding
+  // registers. Consider the following cases:
+  // (1) Storing a wide value must overwrite previous values in both `reg_number`
+  //     and `reg_number+1`. We store `nullptr` in `reg_number+1`.
+  // (2) If vreg `reg_number-1` holds a wide value, writing into `reg_number`
+  //     must invalidate it. We store `nullptr` in `reg_number-1`.
+  // Consequently, storing a wide value into the high vreg of another wide value
+  // will invalidate both `reg_number-1` and `reg_number+1`.
+
+  if (reg_number != 0) {
+    HInstruction* local_low = (*current_locals_)[reg_number - 1];
+    if (local_low != nullptr && Primitive::Is64BitType(local_low->GetType())) {
+      // The vreg we are storing into was previously the high vreg of a pair.
+      // We need to invalidate its low vreg.
+      DCHECK((*current_locals_)[reg_number] == nullptr);
+      (*current_locals_)[reg_number - 1] = nullptr;
+    }
+  }
+
+  (*current_locals_)[reg_number] = stored_value;
+  if (Primitive::Is64BitType(stored_type)) {
+    // We are storing a pair. Invalidate the instruction in the high vreg.
+    (*current_locals_)[reg_number + 1] = nullptr;
+  }
+
   store->GetBlock()->RemoveInstruction(store);
 }
 
