@@ -3361,7 +3361,19 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
             __ mov(o_l, ShifterOperand(high));
             __ LoadImmediate(o_h, 0);
           }
-        } else {  // shift_value < 32
+        } else if (shift_value == 1) {
+          if (op->IsShl()) {
+            __ Lsls(o_l, low, 1);
+            __ adc(o_h, high, ShifterOperand(high));
+          } else if (op->IsShr()) {
+            __ Asrs(o_h, high, 1);
+            __ Rrx(o_l, low);
+          } else {
+            __ Lsrs(o_h, high, 1);
+            __ Rrx(o_l, low);
+          }
+        } else {
+          DCHECK(2 <= shift_value && shift_value < 32) << shift_value;
           if (op->IsShl()) {
             __ Lsl(o_h, high, shift_value);
             __ orr(o_h, o_h, ShifterOperand(low, LSR, 32 - shift_value));
