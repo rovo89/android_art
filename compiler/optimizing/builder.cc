@@ -1390,7 +1390,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   HInstruction* cls = constant;
 
   Handle<mirror::Class> klass(hs.NewHandle(resolved_field->GetDeclaringClass()));
-  if (!IsInitialized(klass, storage_index)){
+  if (!IsInitialized(klass, storage_index)) {
     cls = new (arena_) HClinitCheck(constant, dex_pc);
     current_block_->AddInstruction(cls);
   }
