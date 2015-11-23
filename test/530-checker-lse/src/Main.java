@@ -136,6 +136,9 @@ public class Main {
 
   // A new allocation shouldn't alias with pre-existing values.
   static int test3(TestClass obj) {
+    // Do an allocation here to avoid the HLoadClass and HClinitCheck
+    // at the second allocation.
+    new TestClass();
     obj.i = 1;
     obj.next.j = 2;
     TestClass obj2 = new TestClass();
