@@ -2090,4 +2090,43 @@ void HInstruction::RemoveEnvironmentUsers() {
   env_uses_.Clear();
 }
 
+// Returns an instruction with the opposite boolean value from 'cond'.
+HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* cursor) {
+  ArenaAllocator* allocator = GetArena();
+
+  if (cond->IsCondition() &&
+      !Primitive::IsFloatingPointType(cond->InputAt(0)->GetType())) {
+    // Can't reverse floating point conditions.  We have to use HBooleanNot in that case.
+    HInstruction* lhs = cond->InputAt(0);
+    HInstruction* rhs = cond->InputAt(1);
+    HInstruction* replacement;
+    switch (cond->AsCondition()->GetOppositeCondition()) {  // get *opposite*
+      case kCondEQ: replacement = new (allocator) HEqual(lhs, rhs); break;
+      case kCondNE: replacement = new (allocator) HNotEqual(lhs, rhs); break;
+      case kCondLT: replacement = new (allocator) HLessThan(lhs, rhs); break;
+      case kCondLE: replacement = new (allocator) HLessThanOrEqual(lhs, rhs); break;
+      case kCondGT: replacement = new (allocator) HGreaterThan(lhs, rhs); break;
+      case kCondGE: replacement = new (allocator) HGreaterThanOrEqual(lhs, rhs); break;
+      case kCondB:  replacement = new (allocator) HBelow(lhs, rhs); break;
+      case kCondBE: replacement = new (allocator) HBelowOrEqual(lhs, rhs); break;
+      case kCondA:  replacement = new (allocator) HAbove(lhs, rhs); break;
+      case kCondAE: replacement = new (allocator) HAboveOrEqual(lhs, rhs); break;
+    }
+    cursor->GetBlock()->InsertInstructionBefore(replacement, cursor);
+    return replacement;
+  } else if (cond->IsIntConstant()) {
+    HIntConstant* int_const = cond->AsIntConstant();
+    if (int_const->IsZero()) {
+      return GetIntConstant(1);
+    } else {
+      DCHECK(int_const->IsOne());
+      return GetIntConstant(0);
+    }
+  } else {
+    HInstruction* replacement = new (allocator) HBooleanNot(cond);
+    cursor->GetBlock()->InsertInstructionBefore(replacement, cursor);
+    return replacement;
+  }
+}
+
 }  // namespace art
