@@ -3561,12 +3561,20 @@ const RegType& MethodVerifier::FallbackToDebugInfo(const RegType& type, Register
   std::string location(StringPrintf("%s: [0x%X] ", PrettyMethod(dex_method_idx_, *dex_file_).c_str(), work_insn_idx_));
   if (context.matches.size() == 1) {
     const RegType& actual_type = reg_types_.FromDescriptor(GetClassLoader(), context.matches.begin()->c_str(), false);
-    LOG(WARNING) << location << "Using type '" << actual_type << "' from debug information for v" << slot
+    VLOG(verifier) << location << "Using type '" << actual_type << "' from debug information for v" << slot
         << (context.has_exact_match ? " (exact match)" : " (no other possiblities)");
     reg_line->SetRegisterType(this, slot, actual_type);
     return actual_type;
   } else {
     LOG(ERROR) << location << "Could not get type for v" << slot << " from debug information";
+    if (context.matches.empty()) {
+      LOG(ERROR) << "-> No type information found";
+    } else {
+      LOG(ERROR) << "-> Possible types:";
+      for (auto descriptor : context.matches) {
+        LOG(ERROR) << "  - " << descriptor;
+      }
+    }
     return type;
   }
 }
@@ -4128,7 +4136,8 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
 ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                       RegisterLine* reg_line) {
   DCHECK(IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) << inst->Opcode();
-  const RegType& object_type = reg_line->GetRegisterType(this, inst->VRegB_22c());
+  auto obj_reg = inst->VRegB_22c();
+  const RegType& object_type = FallbackToDebugInfo(reg_line->GetRegisterType(this, obj_reg), reg_line, obj_reg);
   if (!object_type.HasClass()) {
     VLOG(verifier) << "Failed to get mirror::Class* from '" << object_type << "'";
     return nullptr;
