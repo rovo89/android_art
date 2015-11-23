@@ -1245,7 +1245,6 @@ public class Main {
     return arg * 9;
   }
 
-
   /**
    * Test strength reduction of factors of the form (2^n - 1).
    */
@@ -1265,6 +1264,91 @@ public class Main {
     return arg * 31;
   }
 
+  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier (before)
+  /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
+  /// CHECK-DAG:      <<NE:z\d+>>       NotEqual [<<Field>>,<<Const1>>]
+  /// CHECK-DAG:                        If [<<NE>>]
+
+  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier (after)
+  /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
+  /// CHECK-DAG:      <<Not:z\d+>>      BooleanNot [<<Field>>]
+  /// CHECK-DAG:                        If [<<Not>>]
+
+  public static int booleanFieldNotEqualOne() {
+    return (booleanField == true) ? 13 : 54;
+  }
+
+  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier (before)
+  /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
+  /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
+  /// CHECK-DAG:      <<EQ:z\d+>>       Equal [<<Field>>,<<Const0>>]
+  /// CHECK-DAG:                        If [<<EQ>>]
+
+  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier (after)
+  /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
+  /// CHECK-DAG:      <<Not:z\d+>>      BooleanNot [<<Field>>]
+  /// CHECK-DAG:                        If [<<Not>>]
+
+  public static int booleanFieldEqualZero() {
+    return (booleanField != false) ? 13 : 54;
+  }
+
+  /// CHECK-START: int Main.intConditionNotEqualOne(int) instruction_simplifier_after_bce (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
+  /// CHECK-DAG:      <<GT:z\d+>>       GreaterThan [<<Arg>>,<<Const42>>]
+  /// CHECK-DAG:      <<NE:z\d+>>       NotEqual [<<GT>>,<<Const1>>]
+  /// CHECK-DAG:                        If [<<NE>>]
+
+  /// CHECK-START: int Main.intConditionNotEqualOne(int) instruction_simplifier_after_bce (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
+  /// CHECK-DAG:                        If [<<LE:z\d+>>]
+  /// CHECK-DAG:      <<LE>>            LessThanOrEqual [<<Arg>>,<<Const42>>]
+  // Note that we match `LE` from If because there are two identical LessThanOrEqual instructions.
+
+  public static int intConditionNotEqualOne(int i) {
+    return ((i > 42) == true) ? 13 : 54;
+  }
+
+  /// CHECK-START: int Main.intConditionEqualZero(int) instruction_simplifier_after_bce (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
+  /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
+  /// CHECK-DAG:      <<GT:z\d+>>       GreaterThan [<<Arg>>,<<Const42>>]
+  /// CHECK-DAG:      <<EQ:z\d+>>       Equal [<<GT>>,<<Const0>>]
+  /// CHECK-DAG:                        If [<<EQ>>]
+
+  /// CHECK-START: int Main.intConditionEqualZero(int) instruction_simplifier_after_bce (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
+  /// CHECK-DAG:                        If [<<LE:z\d+>>]
+  /// CHECK-DAG:      <<LE>>            LessThanOrEqual [<<Arg>>,<<Const42>>]
+  // Note that we match `LE` from If because there are two identical LessThanOrEqual instructions.
+
+  public static int intConditionEqualZero(int i) {
+    return ((i > 42) != false) ? 13 : 54;
+  }
+
+  // Test that conditions on float/double are not flipped.
+
+  /// CHECK-START: int Main.floatConditionNotEqualOne(float) register (before)
+  /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:                        NotEqual [{{i\d+}},<<Const1>>]
+
+  public static int floatConditionNotEqualOne(float f) {
+    return ((f > 42.0f) == true) ? 13 : 54;
+  }
+
+  /// CHECK-START: int Main.doubleConditionEqualZero(double) register (before)
+  /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
+  /// CHECK-DAG:                        Equal [{{i\d+}},<<Const0>>]
+
+  public static int doubleConditionEqualZero(double d) {
+    return ((d > 42.0) != false) ? 13 : 54;
+  }
 
   public static void main(String[] args) {
     int arg = 123456;
@@ -1333,5 +1417,22 @@ public class Main {
     assertLongEquals(62, mulPow2Minus1(2));
     assertLongEquals(3100, mulPow2Minus1(100));
     assertLongEquals(382695, mulPow2Minus1(12345));
+
+    booleanField = false;
+    assertIntEquals(booleanFieldNotEqualOne(), 54);
+    assertIntEquals(booleanFieldEqualZero(), 54);
+    booleanField = true;
+    assertIntEquals(booleanFieldNotEqualOne(), 13);
+    assertIntEquals(booleanFieldEqualZero(), 13);
+    assertIntEquals(intConditionNotEqualOne(6), 54);
+    assertIntEquals(intConditionNotEqualOne(43), 13);
+    assertIntEquals(intConditionEqualZero(6), 54);
+    assertIntEquals(intConditionEqualZero(43), 13);
+    assertIntEquals(floatConditionNotEqualOne(6.0f), 54);
+    assertIntEquals(floatConditionNotEqualOne(43.0f), 13);
+    assertIntEquals(doubleConditionEqualZero(6.0), 54);
+    assertIntEquals(doubleConditionEqualZero(43.0), 13);
   }
+
+  public static boolean booleanField;
 }
