@@ -145,7 +145,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   // TODO: check that all Method::GetCode() values are non-null
 }
 
-TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
+TEST_F(CompilerDriverTest, DISABLED_AbstractMethodErrorStub) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING_WITH_QUICK();
   TEST_DISABLED_FOR_READ_BARRIER_WITH_QUICK();
   TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS();
