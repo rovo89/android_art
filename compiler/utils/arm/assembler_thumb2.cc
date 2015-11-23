@@ -3221,7 +3221,7 @@ void Thumb2Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
 
 void Thumb2Assembler::Rrx(Register rd, Register rm, Condition cond, SetCc set_cc) {
   CheckCondition(cond);
-  EmitShift(rd, rm, RRX, rm, cond, set_cc);
+  EmitShift(rd, rm, RRX, 0, cond, set_cc);
 }
 
 
