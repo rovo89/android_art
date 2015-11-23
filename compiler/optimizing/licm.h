@@ -26,8 +26,9 @@ class SideEffectsAnalysis;
 
 class LICM : public HOptimization {
  public:
-  LICM(HGraph* graph, const SideEffectsAnalysis& side_effects)
-      : HOptimization(graph, kLoopInvariantCodeMotionPassName), side_effects_(side_effects) {}
+  LICM(HGraph* graph, const SideEffectsAnalysis& side_effects, OptimizingCompilerStats* stats)
+      : HOptimization(graph, kLoopInvariantCodeMotionPassName, stats),
+        side_effects_(side_effects) {}
 
   void Run() OVERRIDE;
 

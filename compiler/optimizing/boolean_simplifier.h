@@ -62,8 +62,8 @@ namespace art {
 
 class HBooleanSimplifier : public HOptimization {
  public:
-  explicit HBooleanSimplifier(HGraph* graph)
-    : HOptimization(graph, kBooleanSimplifierPassName) {}
+  HBooleanSimplifier(HGraph* graph, OptimizingCompilerStats* stats)
+    : HOptimization(graph, kBooleanSimplifierPassName, stats) {}
 
   void Run() OVERRIDE;
 
