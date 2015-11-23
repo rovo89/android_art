@@ -1631,6 +1631,11 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
     return holder_;
   }
 
+
+  bool IsFromInlinedInvoke() const {
+    return GetParent() != nullptr;
+  }
+
  private:
   // Record instructions' use entries of this environment for constant-time removal.
   // It should only be called by HInstruction when a new environment use is added.
@@ -3243,7 +3248,7 @@ class HInvoke : public HInstruction {
   void SetIntrinsic(Intrinsics intrinsic, IntrinsicNeedsEnvironmentOrCache needs_env_or_cache);
 
   bool IsFromInlinedInvoke() const {
-    return GetEnvironment()->GetParent() != nullptr;
+    return GetEnvironment()->IsFromInlinedInvoke();
   }
 
   bool CanThrow() const OVERRIDE { return true; }
