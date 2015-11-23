@@ -61,40 +61,6 @@ static bool NegatesCondition(HInstruction* input_true, HInstruction* input_false
       && input_false->IsIntConstant() && input_false->AsIntConstant()->IsOne();
 }
 
-// Returns an instruction with the opposite boolean value from 'cond'.
-static HInstruction* GetOppositeCondition(HInstruction* cond) {
-  HGraph* graph = cond->GetBlock()->GetGraph();
-  ArenaAllocator* allocator = graph->GetArena();
-
-  if (cond->IsCondition()) {
-    HInstruction* lhs = cond->InputAt(0);
-    HInstruction* rhs = cond->InputAt(1);
-    switch (cond->AsCondition()->GetOppositeCondition()) {  // get *opposite*
-      case kCondEQ: return new (allocator) HEqual(lhs, rhs);
-      case kCondNE: return new (allocator) HNotEqual(lhs, rhs);
-      case kCondLT: return new (allocator) HLessThan(lhs, rhs);
-      case kCondLE: return new (allocator) HLessThanOrEqual(lhs, rhs);
-      case kCondGT: return new (allocator) HGreaterThan(lhs, rhs);
-      case kCondGE: return new (allocator) HGreaterThanOrEqual(lhs, rhs);
-      case kCondB:  return new (allocator) HBelow(lhs, rhs);
-      case kCondBE: return new (allocator) HBelowOrEqual(lhs, rhs);
-      case kCondA:  return new (allocator) HAbove(lhs, rhs);
-      case kCondAE: return new (allocator) HAboveOrEqual(lhs, rhs);
-    }
-  } else if (cond->IsIntConstant()) {
-    HIntConstant* int_const = cond->AsIntConstant();
-    if (int_const->IsZero()) {
-      return graph->GetIntConstant(1);
-    } else {
-      DCHECK(int_const->IsOne());
-      return graph->GetIntConstant(0);
-    }
-  }
-  // General case when 'cond' is another instruction of type boolean,
-  // as verified by SSAChecker.
-  return new (allocator) HBooleanNot(cond);
-}
-
 void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
   DCHECK(block->EndsWithIf());
 
@@ -126,10 +92,7 @@ void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
 
   HInstruction* replacement;
   if (NegatesCondition(true_value, false_value)) {
-    replacement = GetOppositeCondition(if_condition);
-    if (replacement->GetBlock() == nullptr) {
-      block->InsertInstructionBefore(replacement, if_instruction);
-    }
+    replacement = graph_->InsertOppositeCondition(if_condition, if_instruction);
   } else if (PreservesCondition(true_value, false_value)) {
     replacement = if_condition;
   } else {
