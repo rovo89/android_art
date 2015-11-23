@@ -2099,7 +2099,7 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
     // Can't reverse floating point conditions.  We have to use HBooleanNot in that case.
     HInstruction* lhs = cond->InputAt(0);
     HInstruction* rhs = cond->InputAt(1);
-    HInstruction* replacement;
+    HInstruction* replacement = nullptr;
     switch (cond->AsCondition()->GetOppositeCondition()) {  // get *opposite*
       case kCondEQ: replacement = new (allocator) HEqual(lhs, rhs); break;
       case kCondNE: replacement = new (allocator) HNotEqual(lhs, rhs); break;
@@ -2111,6 +2111,9 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
       case kCondBE: replacement = new (allocator) HBelowOrEqual(lhs, rhs); break;
       case kCondA:  replacement = new (allocator) HAbove(lhs, rhs); break;
       case kCondAE: replacement = new (allocator) HAboveOrEqual(lhs, rhs); break;
+      default:
+        LOG(FATAL) << "Unexpected condition";
+        UNREACHABLE();
     }
     cursor->GetBlock()->InsertInstructionBefore(replacement, cursor);
     return replacement;
