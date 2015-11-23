@@ -62,6 +62,67 @@ void InstructionSimplifierArm64Visitor::TryExtractArrayAccessAddress(HInstructio
   RecordSimplification();
 }
 
+bool InstructionSimplifierArm64Visitor::TrySimpleMultiplyAccumulatePatterns(
+    HMul* mul, HBinaryOperation* input_binop, HInstruction* input_other) {
+  DCHECK(Primitive::IsIntOrLongType(mul->GetType()));
+  DCHECK(input_binop->IsAdd() || input_binop->IsSub());
+  DCHECK_NE(input_binop, input_other);
+  if (!input_binop->HasOnlyOneNonEnvironmentUse()) {
+    return false;
+  }
+
+  // Try to interpret patterns like
+  //    a * (b <+/-> 1)
+  // as
+  //    (a * b) <+/-> a
+  HInstruction* input_a = input_other;
+  HInstruction* input_b = nullptr;  // Set to a non-null value if we found a pattern to optimize.
+  HInstruction::InstructionKind op_kind;
+
+  if (input_binop->IsAdd()) {
+    if ((input_binop->GetConstantRight() != nullptr) && input_binop->GetConstantRight()->IsOne()) {
+      // Interpret
+      //    a * (b + 1)
+      // as
+      //    (a * b) + a
+      input_b = input_binop->GetLeastConstantLeft();
+      op_kind = HInstruction::kAdd;
+    }
+  } else {
+    DCHECK(input_binop->IsSub());
+    if (input_binop->GetRight()->IsConstant() &&
+        input_binop->GetRight()->AsConstant()->IsMinusOne()) {
+      // Interpret
+      //    a * (b - (-1))
+      // as
+      //    a + (a * b)
+      input_b = input_binop->GetLeft();
+      op_kind = HInstruction::kAdd;
+    } else if (input_binop->GetLeft()->IsConstant() &&
+               input_binop->GetLeft()->AsConstant()->IsOne()) {
+      // Interpret
+      //    a * (1 - b)
+      // as
+      //    a - (a * b)
+      input_b = input_binop->GetRight();
+      op_kind = HInstruction::kSub;
+    }
+  }
+
+  if (input_b == nullptr) {
+    // We did not find a pattern we can optimize.
+    return false;
+  }
+
+  HArm64MultiplyAccumulate* mulacc = new(GetGraph()->GetArena()) HArm64MultiplyAccumulate(
+      mul->GetType(), op_kind, input_a, input_a, input_b, mul->GetDexPc());
+
+  mul->GetBlock()->ReplaceAndRemoveInstructionWith(mul, mulacc);
+  input_binop->GetBlock()->RemoveInstruction(input_binop);
+
+  return false;
+}
+
 void InstructionSimplifierArm64Visitor::VisitArrayGet(HArrayGet* instruction) {
   TryExtractArrayAccessAddress(instruction,
                                instruction->GetArray(),
@@ -74,6 +135,79 @@ void InstructionSimplifierArm64Visitor::VisitArraySet(HArraySet* instruction) {
                                instruction->GetArray(),
                                instruction->GetIndex(),
                                Primitive::ComponentSize(instruction->GetComponentType()));
+}
+
+void InstructionSimplifierArm64Visitor::VisitMul(HMul* instruction) {
+  Primitive::Type type = instruction->GetType();
+  if (!Primitive::IsIntOrLongType(type)) {
+    return;
+  }
+
+  HInstruction* use = instruction->HasNonEnvironmentUses()
+      ? instruction->GetUses().GetFirst()->GetUser()
+      : nullptr;
+
+  if (instruction->HasOnlyOneNonEnvironmentUse() && (use->IsAdd() || use->IsSub())) {
+    // Replace code looking like
+    //    MUL tmp, x, y
+    //    SUB dst, acc, tmp
+    // with
+    //    MULSUB dst, acc, x, y
+    // Note that we do not want to (unconditionally) perform the merge when the
+    // multiplication has multiple uses and it can be merged in all of them.
+    // Multiple uses could happen on the same control-flow path, and we would
+    // then increase the amount of work. In the future we could try to evaluate
+    // whether all uses are on different control-flow paths (using dominance and
+    // reverse-dominance information) and only perform the merge when they are.
+    HInstruction* accumulator = nullptr;
+    HBinaryOperation* binop = use->AsBinaryOperation();
+    HInstruction* binop_left = binop->GetLeft();
+    HInstruction* binop_right = binop->GetRight();
+    // Be careful after GVN. This should not happen since the `HMul` has only
+    // one use.
+    DCHECK_NE(binop_left, binop_right);
+    if (binop_right == instruction) {
+      accumulator = binop_left;
+    } else if (use->IsAdd()) {
+      DCHECK_EQ(binop_left, instruction);
+      accumulator = binop_right;
+    }
+
+    if (accumulator != nullptr) {
+      HArm64MultiplyAccumulate* mulacc =
+          new (GetGraph()->GetArena()) HArm64MultiplyAccumulate(type,
+                                                                binop->GetKind(),
+                                                                accumulator,
+                                                                instruction->GetLeft(),
+                                                                instruction->GetRight());
+
+      binop->GetBlock()->ReplaceAndRemoveInstructionWith(binop, mulacc);
+      DCHECK(!instruction->HasUses());
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      RecordSimplification();
+      return;
+    }
+  }
+
+  // Use multiply accumulate instruction for a few simple patterns.
+  // We prefer not applying the following transformations if the left and
+  // right inputs perform the same operation.
+  // We rely on GVN having squashed the inputs if appropriate. However the
+  // results are still correct even if that did not happen.
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    return;
+  }
+
+  HInstruction* left = instruction->GetLeft();
+  HInstruction* right = instruction->GetRight();
+  if ((right->IsAdd() || right->IsSub()) &&
+      TrySimpleMultiplyAccumulatePatterns(instruction, right->AsBinaryOperation(), left)) {
+    return;
+  }
+  if ((left->IsAdd() || left->IsSub()) &&
+      TrySimpleMultiplyAccumulatePatterns(instruction, left->AsBinaryOperation(), right)) {
+    return;
+  }
 }
 
 }  // namespace arm64
