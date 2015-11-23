@@ -123,7 +123,6 @@ void LICM::Run() {
             UpdateLoopPhisIn(instruction->GetEnvironment(), loop_info);
           }
           instruction->MoveBefore(pre_header->GetLastInstruction());
-          MaybeRecordStat(MethodCompilationStat::kLICM);
         } else if (instruction->CanThrow()) {
           // If `instruction` can throw, we cannot move further instructions
           // that can throw as well.
