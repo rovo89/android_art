@@ -422,6 +422,12 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("kind") << (try_boundary->IsEntry() ? "entry" : "exit");
   }
 
+#ifdef ART_ENABLE_CODEGEN_arm64
+  void VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instruction) OVERRIDE {
+    StartAttributeStream("kind") << instruction->GetOpKind();
+  }
+#endif
+
   bool IsPass(const char* name) {
     return strcmp(pass_name_, name) == 0;
   }
