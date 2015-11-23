@@ -68,7 +68,6 @@ void HConstantFolding::Run() {
         } else {
           inst->Accept(&simplifier);
         }
-        MaybeRecordStat(MethodCompilationStat::kConstantFolding);
       } else if (inst->IsUnaryOperation()) {
         // Constant folding: replace `op(a)' with a constant at compile
         // time if `a' is a constant.
@@ -77,7 +76,6 @@ void HConstantFolding::Run() {
           inst->ReplaceWith(constant);
           inst->GetBlock()->RemoveInstruction(inst);
         }
-        MaybeRecordStat(MethodCompilationStat::kConstantFolding);
       } else if (inst->IsTypeConversion()) {
         // Constant folding: replace `TypeConversion(a)' with a constant at
         // compile time if `a' is a constant.
@@ -86,7 +84,6 @@ void HConstantFolding::Run() {
           inst->ReplaceWith(constant);
           inst->GetBlock()->RemoveInstruction(inst);
         }
-        MaybeRecordStat(MethodCompilationStat::kConstantFolding);
       } else if (inst->IsDivZeroCheck()) {
         // We can safely remove the check if the input is a non-null constant.
         HDivZeroCheck* check = inst->AsDivZeroCheck();
@@ -95,7 +92,6 @@ void HConstantFolding::Run() {
           check->ReplaceWith(check_input);
           check->GetBlock()->RemoveInstruction(check);
         }
-        MaybeRecordStat(MethodCompilationStat::kConstantFolding);
       }
     }
   }
