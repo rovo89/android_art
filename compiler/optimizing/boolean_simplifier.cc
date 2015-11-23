@@ -36,8 +36,6 @@ void HBooleanSimplifier::TryRemovingNegatedCondition(HBasicBlock* block) {
   if (!boolean_not->HasUses()) {
     boolean_not->GetBlock()->RemoveInstruction(boolean_not);
   }
-
-  MaybeRecordStat(MethodCompilationStat::kBooleanSimplifier);
 }
 
 // Returns true if 'block1' and 'block2' are empty, merge into the same single
@@ -147,8 +145,6 @@ void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
   true_block->DisconnectAndDelete();
   block->MergeWith(false_block);
   block->MergeWith(merge_block);
-
-  MaybeRecordStat(MethodCompilationStat::kBooleanSimplifier);
 
   // No need to update any dominance information, as we are simplifying
   // a simple diamond shape, where the join block is merged with the
