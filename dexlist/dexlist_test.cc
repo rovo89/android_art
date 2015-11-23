@@ -37,7 +37,7 @@ class DexListTest : public CommonRuntimeTest {
   virtual void SetUp() {
     CommonRuntimeTest::SetUp();
     // Dogfood our own lib core dex file.
-    dex_file_ = GetLibCoreDexFileName();
+    dex_file_ = GetLibCoreDexFileNames()[0];
   }
 
   // Runs test with given arguments.

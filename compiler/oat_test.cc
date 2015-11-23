@@ -176,7 +176,7 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
-  ASSERT_EQ(1U, oat_header.GetDexFileCount());  // core
+  ASSERT_EQ(class_linker->GetBootClassPath().size(), oat_header.GetDexFileCount());  // core
   ASSERT_EQ(42U, oat_header.GetImageFileLocationOatChecksum());
   ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatDataBegin());
   ASSERT_EQ("lue.art", std::string(oat_header.GetStoreValueByKey(OatHeader::kImageLocationKey)));

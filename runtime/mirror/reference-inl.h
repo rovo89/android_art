@@ -23,7 +23,7 @@ namespace art {
 namespace mirror {
 
 inline uint32_t Reference::ClassSize(size_t pointer_size) {
-  uint32_t vtable_entries = Object::kVTableLength + 5;
+  uint32_t vtable_entries = Object::kVTableLength + 4;
   return Class::ComputeClassSize(false, vtable_entries, 2, 0, 0, 0, 0, pointer_size);
 }
 

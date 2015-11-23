@@ -20,7 +20,7 @@ public class Main {
             throw new AssertionError();
         } catch (InvocationTargetException expected) {
             IllegalArgumentException iae = (IllegalArgumentException) expected.getCause();
-            if (!iae.getMessage().equals("class java.lang.String is not an enum type")) {
+            if (!iae.getMessage().equals("class java.lang.String is not an enum type.")) {
                 throw new AssertionError();
             }
         }

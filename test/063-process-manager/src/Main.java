@@ -30,7 +30,7 @@ public class Main {
                  traces.entrySet()) {
             Thread t = entry.getKey();
             String name = t.getName();
-            if (name.equals("java.lang.ProcessManager")) {
+            if (name.indexOf("process reaper") >= 0) {
                 System.out.println("process manager: " + t.getState());
                 found = true;
             }
