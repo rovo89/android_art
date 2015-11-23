@@ -377,9 +377,10 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
 
   HInstruction* current = block->GetFirstInstruction();
   while (current != nullptr) {
-    set->Kill(current->GetSideEffects());
     // Save the next instruction in case `current` is removed from the graph.
     HInstruction* next = current->GetNext();
+    // Do not kill the set with the side effects of the instruction just now: if
+    // the instruction is GVN'ed, we don't need to kill.
     if (current->CanBeMoved()) {
       if (current->IsBinaryOperation() && current->AsBinaryOperation()->IsCommutative()) {
         // For commutative ops, (x op y) will be treated the same as (y op x)
@@ -395,8 +396,11 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
         current->ReplaceWith(existing);
         current->GetBlock()->RemoveInstruction(current);
       } else {
+        set->Kill(current->GetSideEffects());
         set->Add(current);
       }
+    } else {
+      set->Kill(current->GetSideEffects());
     }
     current = next;
   }

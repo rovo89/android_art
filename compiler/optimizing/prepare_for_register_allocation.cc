@@ -48,22 +48,34 @@ void PrepareForRegisterAllocation::VisitBoundType(HBoundType* bound_type) {
 }
 
 void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
-  // Try to find a static invoke from which this check originated.
-  HInvokeStaticOrDirect* invoke = nullptr;
+  // Try to find a static invoke or a new-instance from which this check originated.
+  HInstruction* implicit_clinit = nullptr;
   for (HUseIterator<HInstruction*> it(check->GetUses()); !it.Done(); it.Advance()) {
     HInstruction* user = it.Current()->GetUser();
-    if (user->IsInvokeStaticOrDirect() && CanMoveClinitCheck(check, user)) {
-      invoke = user->AsInvokeStaticOrDirect();
-      DCHECK(invoke->IsStaticWithExplicitClinitCheck());
-      invoke->RemoveExplicitClinitCheck(HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
+    if ((user->IsInvokeStaticOrDirect() || user->IsNewInstance()) &&
+        CanMoveClinitCheck(check, user)) {
+      implicit_clinit = user;
+      if (user->IsInvokeStaticOrDirect()) {
+        DCHECK(user->AsInvokeStaticOrDirect()->IsStaticWithExplicitClinitCheck());
+        user->AsInvokeStaticOrDirect()->RemoveExplicitClinitCheck(
+            HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
+      } else {
+        DCHECK(user->IsNewInstance());
+        // We delegate the initialization duty to the allocation.
+        if (user->AsNewInstance()->GetEntrypoint() == kQuickAllocObjectInitialized) {
+          user->AsNewInstance()->SetEntrypoint(kQuickAllocObjectResolved);
+        }
+      }
       break;
     }
   }
-  // If we found a static invoke for merging, remove the check from all other static invokes.
-  if (invoke != nullptr) {
+  // If we found a static invoke or new-instance for merging, remove the check
+  // from dominated static invokes.
+  if (implicit_clinit != nullptr) {
     for (HUseIterator<HInstruction*> it(check->GetUses()); !it.Done(); ) {
       HInstruction* user = it.Current()->GetUser();
-      DCHECK(invoke->StrictlyDominates(user));  // All other uses must be dominated.
+      // All other uses must be dominated.
+      DCHECK(implicit_clinit->StrictlyDominates(user) || (implicit_clinit == user));
       it.Advance();  // Advance before we remove the node, reference to the next node is preserved.
       if (user->IsInvokeStaticOrDirect()) {
         user->AsInvokeStaticOrDirect()->RemoveExplicitClinitCheck(
@@ -77,8 +89,8 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
 
   check->ReplaceWith(load_class);
 
-  if (invoke != nullptr) {
-    // Remove the check from the graph. It has been merged into the invoke.
+  if (implicit_clinit != nullptr) {
+    // Remove the check from the graph. It has been merged into the invoke or new-instance.
     check->GetBlock()->RemoveInstruction(check);
     // Check if we can merge the load class as well.
     if (can_merge_with_load_class && !load_class->HasUses()) {
@@ -89,6 +101,27 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
     // and remove the instruction from the graph.
     load_class->SetMustGenerateClinitCheck(true);
     check->GetBlock()->RemoveInstruction(check);
+  }
+}
+
+void PrepareForRegisterAllocation::VisitNewInstance(HNewInstance* instruction) {
+  HLoadClass* load_class = instruction->InputAt(0)->AsLoadClass();
+  bool has_only_one_use = load_class->HasOnlyOneNonEnvironmentUse();
+  // Change the entrypoint to kQuickAllocObject if either:
+  // - the class is finalizable (only kQuickAllocObject handles finalizable classes),
+  // - the class needs access checks (we do not know if it's finalizable),
+  // - or the load class has only one use.
+  if (instruction->IsFinalizable() || has_only_one_use || load_class->NeedsAccessCheck()) {
+    instruction->SetEntrypoint(kQuickAllocObject);
+    instruction->ReplaceInput(GetGraph()->GetIntConstant(load_class->GetTypeIndex()), 0);
+    if (has_only_one_use) {
+      // We can remove the load class from the graph. If it needed access checks, we delegate
+      // the access check to the allocation.
+      if (load_class->NeedsAccessCheck()) {
+        instruction->SetEntrypoint(kQuickAllocObjectWithAccessCheck);
+      }
+      load_class->GetBlock()->RemoveInstruction(load_class);
+    }
   }
 }
 
