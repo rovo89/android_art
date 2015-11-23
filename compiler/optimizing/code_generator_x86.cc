@@ -3769,13 +3769,11 @@ void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   locations->SetOut(Location::RegisterLocation(EAX));
   InvokeRuntimeCallingConvention calling_convention;
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
-  InvokeRuntimeCallingConvention calling_convention;
-  __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(),
