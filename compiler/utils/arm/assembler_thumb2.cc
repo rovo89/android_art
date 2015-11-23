@@ -1349,7 +1349,8 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
   int32_t encoding = 0;
   if (so.IsImmediate()) {
     // Check special cases.
-    if ((opcode == SUB || opcode == ADD) && (so.GetImmediate() < (1u << 12))) {
+    if ((opcode == SUB || opcode == ADD) && (so.GetImmediate() < (1u << 12)) &&
+        /* Prefer T3 encoding to T4. */ !ShifterOperandCanAlwaysHold(so.GetImmediate())) {
       if (set_cc != kCcSet) {
         if (opcode == SUB) {
           thumb_opcode = 5U;
@@ -3469,6 +3470,73 @@ void Thumb2Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) 
   }
 }
 
+int32_t Thumb2Assembler::GetAllowedLoadOffsetBits(LoadOperandType type) {
+  switch (type) {
+    case kLoadSignedByte:
+    case kLoadSignedHalfword:
+    case kLoadUnsignedHalfword:
+    case kLoadUnsignedByte:
+    case kLoadWord:
+      // We can encode imm12 offset.
+      return 0xfffu;
+    case kLoadSWord:
+    case kLoadDWord:
+    case kLoadWordPair:
+      // We can encode imm8:'00' offset.
+      return 0xff << 2;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+  }
+}
+
+int32_t Thumb2Assembler::GetAllowedStoreOffsetBits(StoreOperandType type) {
+  switch (type) {
+    case kStoreHalfword:
+    case kStoreByte:
+    case kStoreWord:
+      // We can encode imm12 offset.
+      return 0xfff;
+    case kStoreSWord:
+    case kStoreDWord:
+    case kStoreWordPair:
+      // We can encode imm8:'00' offset.
+      return 0xff << 2;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+  }
+}
+
+bool Thumb2Assembler::CanSplitLoadStoreOffset(int32_t allowed_offset_bits,
+                                              int32_t offset,
+                                              /*out*/ int32_t* add_to_base,
+                                              /*out*/ int32_t* offset_for_load_store) {
+  int32_t other_bits = offset & ~allowed_offset_bits;
+  if (ShifterOperandCanAlwaysHold(other_bits) || ShifterOperandCanAlwaysHold(-other_bits)) {
+    *add_to_base = offset & ~allowed_offset_bits;
+    *offset_for_load_store = offset & allowed_offset_bits;
+    return true;
+  }
+  return false;
+}
+
+int32_t Thumb2Assembler::AdjustLoadStoreOffset(int32_t allowed_offset_bits,
+                                               Register temp,
+                                               Register base,
+                                               int32_t offset,
+                                               Condition cond) {
+  DCHECK_NE(offset & ~allowed_offset_bits, 0);
+  int32_t add_to_base, offset_for_load;
+  if (CanSplitLoadStoreOffset(allowed_offset_bits, offset, &add_to_base, &offset_for_load)) {
+    AddConstant(temp, base, add_to_base, cond, kCcKeep);
+    return offset_for_load;
+  } else {
+    LoadImmediate(temp, offset, cond);
+    add(temp, temp, ShifterOperand(base), cond, kCcKeep);
+    return 0;
+  }
+}
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffsetThumb.
@@ -3479,12 +3547,26 @@ void Thumb2Assembler::LoadFromOffset(LoadOperandType type,
                                      Condition cond) {
   if (!Address::CanHoldLoadOffsetThumb(type, offset)) {
     CHECK_NE(base, IP);
-    LoadImmediate(IP, offset, cond);
-    add(IP, IP, ShifterOperand(base), cond);
-    base = IP;
-    offset = 0;
+    // Inlined AdjustLoadStoreOffset() allows us to pull a few more tricks.
+    int32_t allowed_offset_bits = GetAllowedLoadOffsetBits(type);
+    DCHECK_NE(offset & ~allowed_offset_bits, 0);
+    int32_t add_to_base, offset_for_load;
+    if (CanSplitLoadStoreOffset(allowed_offset_bits, offset, &add_to_base, &offset_for_load)) {
+      // Use reg for the adjusted base. If it's low reg, we may end up using 16-bit load.
+      AddConstant(reg, base, add_to_base, cond, kCcKeep);
+      base = reg;
+      offset = offset_for_load;
+    } else {
+      Register temp = (reg == base) ? IP : reg;
+      LoadImmediate(temp, offset, cond);
+      // TODO: Implement indexed load (not available for LDRD) and use it here to avoid the ADD.
+      // Use reg for the adjusted base. If it's low reg, we may end up using 16-bit load.
+      add(reg, reg, ShifterOperand((reg == base) ? IP : base), cond, kCcKeep);
+      base = reg;
+      offset = 0;
+    }
   }
-  CHECK(Address::CanHoldLoadOffsetThumb(type, offset));
+  DCHECK(Address::CanHoldLoadOffsetThumb(type, offset));
   switch (type) {
     case kLoadSignedByte:
       ldrsb(reg, Address(base, offset), cond);
@@ -3510,7 +3592,6 @@ void Thumb2Assembler::LoadFromOffset(LoadOperandType type,
   }
 }
 
-
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffsetThumb, as expected by JIT::GuardedLoadFromOffset.
 void Thumb2Assembler::LoadSFromOffset(SRegister reg,
@@ -3519,12 +3600,10 @@ void Thumb2Assembler::LoadSFromOffset(SRegister reg,
                                       Condition cond) {
   if (!Address::CanHoldLoadOffsetThumb(kLoadSWord, offset)) {
     CHECK_NE(base, IP);
-    LoadImmediate(IP, offset, cond);
-    add(IP, IP, ShifterOperand(base), cond);
+    offset = AdjustLoadStoreOffset(GetAllowedLoadOffsetBits(kLoadSWord), IP, base, offset, cond);
     base = IP;
-    offset = 0;
   }
-  CHECK(Address::CanHoldLoadOffsetThumb(kLoadSWord, offset));
+  DCHECK(Address::CanHoldLoadOffsetThumb(kLoadSWord, offset));
   vldrs(reg, Address(base, offset), cond);
 }
 
@@ -3537,12 +3616,10 @@ void Thumb2Assembler::LoadDFromOffset(DRegister reg,
                                       Condition cond) {
   if (!Address::CanHoldLoadOffsetThumb(kLoadDWord, offset)) {
     CHECK_NE(base, IP);
-    LoadImmediate(IP, offset, cond);
-    add(IP, IP, ShifterOperand(base), cond);
+    offset = AdjustLoadStoreOffset(GetAllowedLoadOffsetBits(kLoadDWord), IP, base, offset, cond);
     base = IP;
-    offset = 0;
   }
-  CHECK(Address::CanHoldLoadOffsetThumb(kLoadDWord, offset));
+  DCHECK(Address::CanHoldLoadOffsetThumb(kLoadDWord, offset));
   vldrd(reg, Address(base, offset), cond);
 }
 
@@ -3573,12 +3650,12 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
         offset += kRegisterSize;
       }
     }
-    LoadImmediate(tmp_reg, offset, cond);
-    add(tmp_reg, tmp_reg, ShifterOperand(base), AL);
+    // TODO: Implement indexed store (not available for STRD), inline AdjustLoadStoreOffset()
+    // and in the "unsplittable" path get rid of the "add" by using the store indexed instead.
+    offset = AdjustLoadStoreOffset(GetAllowedStoreOffsetBits(type), tmp_reg, base, offset, cond);
     base = tmp_reg;
-    offset = 0;
   }
-  CHECK(Address::CanHoldStoreOffsetThumb(type, offset));
+  DCHECK(Address::CanHoldStoreOffsetThumb(type, offset));
   switch (type) {
     case kStoreByte:
       strb(reg, Address(base, offset), cond);
@@ -3611,12 +3688,10 @@ void Thumb2Assembler::StoreSToOffset(SRegister reg,
                                      Condition cond) {
   if (!Address::CanHoldStoreOffsetThumb(kStoreSWord, offset)) {
     CHECK_NE(base, IP);
-    LoadImmediate(IP, offset, cond);
-    add(IP, IP, ShifterOperand(base), cond);
+    offset = AdjustLoadStoreOffset(GetAllowedStoreOffsetBits(kStoreSWord), IP, base, offset, cond);
     base = IP;
-    offset = 0;
   }
-  CHECK(Address::CanHoldStoreOffsetThumb(kStoreSWord, offset));
+  DCHECK(Address::CanHoldStoreOffsetThumb(kStoreSWord, offset));
   vstrs(reg, Address(base, offset), cond);
 }
 
@@ -3629,12 +3704,10 @@ void Thumb2Assembler::StoreDToOffset(DRegister reg,
                                      Condition cond) {
   if (!Address::CanHoldStoreOffsetThumb(kStoreDWord, offset)) {
     CHECK_NE(base, IP);
-    LoadImmediate(IP, offset, cond);
-    add(IP, IP, ShifterOperand(base), cond);
+    offset = AdjustLoadStoreOffset(GetAllowedStoreOffsetBits(kStoreDWord), IP, base, offset, cond);
     base = IP;
-    offset = 0;
   }
-  CHECK(Address::CanHoldStoreOffsetThumb(kStoreDWord, offset));
+  DCHECK(Address::CanHoldStoreOffsetThumb(kStoreDWord, offset));
   vstrd(reg, Address(base, offset), cond);
 }
 

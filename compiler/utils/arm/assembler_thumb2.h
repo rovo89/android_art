@@ -729,12 +729,22 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void EmitBranch(Condition cond, Label* label, bool link, bool x);
   static int32_t EncodeBranchOffset(int32_t offset, int32_t inst);
   static int DecodeBranchOffset(int32_t inst);
-  int32_t EncodeTstOffset(int offset, int32_t inst);
-  int DecodeTstOffset(int32_t inst);
   void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount,
                  Condition cond = AL, SetCc set_cc = kCcDontCare);
   void EmitShift(Register rd, Register rn, Shift shift, Register rm,
                  Condition cond = AL, SetCc set_cc = kCcDontCare);
+
+  static int32_t GetAllowedLoadOffsetBits(LoadOperandType type);
+  static int32_t GetAllowedStoreOffsetBits(StoreOperandType type);
+  bool CanSplitLoadStoreOffset(int32_t allowed_offset_bits,
+                               int32_t offset,
+                               /*out*/ int32_t* add_to_base,
+                               /*out*/ int32_t* offset_for_load_store);
+  int32_t AdjustLoadStoreOffset(int32_t allowed_offset_bits,
+                                Register temp,
+                                Register base,
+                                int32_t offset,
+                                Condition cond);
 
   // Whether the assembler can relocate branches. If false, unresolved branches will be
   // emitted on 32bits.
