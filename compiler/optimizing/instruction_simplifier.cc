@@ -169,16 +169,6 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
       //    src
       instruction->ReplaceWith(input_other);
       instruction->GetBlock()->RemoveInstruction(instruction);
-    } else if (instruction->IsShl() && input_cst->IsOne()) {
-      // Replace Shl looking like
-      //    SHL dst, src, 1
-      // with
-      //    ADD dst, src, src
-      HAdd *add = new(GetGraph()->GetArena()) HAdd(instruction->GetType(),
-                                                   input_other,
-                                                   input_other);
-      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, add);
-      RecordSimplification();
     }
   }
 }

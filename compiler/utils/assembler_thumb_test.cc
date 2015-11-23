@@ -466,6 +466,38 @@ TEST(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
   EmitAndCheck(&assembler, "DataProcessingShiftedRegister");
 }
 
+TEST(Thumb2AssemblerTest, ShiftImmediate) {
+  // Note: This test produces the same results as DataProcessingShiftedRegister
+  // but it does so using shift functions instead of mov().
+  arm::Thumb2Assembler assembler;
+
+  // 16-bit variants.
+  __ Lsl(R3, R4, 4);
+  __ Lsr(R3, R4, 5);
+  __ Asr(R3, R4, 6);
+
+  // 32-bit ROR because ROR immediate doesn't have the same 16-bit version as other shifts.
+  __ Ror(R3, R4, 7);
+
+  // 32-bit RRX because RRX has no 16-bit version.
+  __ Rrx(R3, R4);
+
+  // 32 bit variants (not setting condition codes).
+  __ Lsl(R3, R4, 4, AL, kCcKeep);
+  __ Lsr(R3, R4, 5, AL, kCcKeep);
+  __ Asr(R3, R4, 6, AL, kCcKeep);
+  __ Ror(R3, R4, 7, AL, kCcKeep);
+  __ Rrx(R3, R4, AL, kCcKeep);
+
+  // 32 bit variants (high registers).
+  __ Lsls(R8, R4, 4);
+  __ Lsrs(R8, R4, 5);
+  __ Asrs(R8, R4, 6);
+  __ Rors(R8, R4, 7);
+  __ Rrxs(R8, R4);
+
+  EmitAndCheck(&assembler, "ShiftImmediate");
+}
 
 TEST(Thumb2AssemblerTest, BasicLoad) {
   arm::Thumb2Assembler assembler;
