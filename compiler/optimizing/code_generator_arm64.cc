@@ -3372,17 +3372,13 @@ void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
   CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
 }
 
 void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
-  DCHECK(type_index.Is(w0));
-  __ Mov(type_index, instruction->GetTypeIndex());
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(),
