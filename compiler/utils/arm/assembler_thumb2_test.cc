@@ -243,7 +243,7 @@ TEST_F(AssemblerThumb2Test, sub) {
 
   const char* expected =
       "subs r1, r0, #42\n"
-      "subw r1, r0, #42\n"
+      "sub.w r1, r0, #42\n"
       "subs r1, r0, r2, asr #31\n"
       "sub r1, r0, r2, asr #31\n";
   DriverStr(expected, "sub");
@@ -257,7 +257,7 @@ TEST_F(AssemblerThumb2Test, add) {
 
   const char* expected =
       "adds r1, r0, #42\n"
-      "addw r1, r0, #42\n"
+      "add.w r1, r0, #42\n"
       "adds r1, r0, r2, asr #31\n"
       "add r1, r0, r2, asr #31\n";
   DriverStr(expected, "add");
@@ -305,21 +305,18 @@ TEST_F(AssemblerThumb2Test, StoreWordToNonThumbOffset) {
   __ StoreToOffset(type, arm::IP, arm::R5, offset);
 
   const char* expected =
-      "mov ip, #4096\n"       // LoadImmediate(ip, 4096)
-      "add ip, ip, sp\n"
+      "add.w ip, sp, #4096\n"   // AddConstant(ip, sp, 4096)
       "str r0, [ip, #0]\n"
 
-      "str r5, [sp, #-4]!\n"  // Push(r5)
-      "movw r5, #4100\n"      // LoadImmediate(r5, 4096 + kRegisterSize)
-      "add r5, r5, sp\n"
-      "str ip, [r5, #0]\n"
-      "ldr r5, [sp], #4\n"    // Pop(r5)
+      "str r5, [sp, #-4]!\n"    // Push(r5)
+      "add.w r5, sp, #4096\n"   // AddConstant(r5, 4100 & ~0xfff)
+      "str ip, [r5, #4]\n"      // StoreToOffset(type, ip, r5, 4100 & 0xfff)
+      "ldr r5, [sp], #4\n"      // Pop(r5)
 
-      "str r6, [sp, #-4]!\n"  // Push(r6)
-      "mov r6, #4096\n"       // LoadImmediate(r6, 4096)
-      "add r6, r6, r5\n"
-      "str ip, [r6, #0]\n"
-      "ldr r6, [sp], #4\n";   // Pop(r6)
+      "str r6, [sp, #-4]!\n"    // Push(r6)
+      "add.w r6, r5, #4096\n"   // AddConstant(r6, r5, 4096 & ~0xfff)
+      "str ip, [r6, #0]\n"      // StoreToOffset(type, ip, r6, 4096 & 0xfff)
+      "ldr r6, [sp], #4\n";     // Pop(r6)
   DriverStr(expected, "StoreWordToNonThumbOffset");
 }
 
@@ -360,20 +357,17 @@ TEST_F(AssemblerThumb2Test, StoreWordPairToNonThumbOffset) {
   __ StoreToOffset(type, arm::R11, arm::R5, offset);
 
   const char* expected =
-      "mov ip, #1024\n"           // LoadImmediate(ip, 1024)
-      "add ip, ip, sp\n"
+      "add.w ip, sp, #1024\n"     // AddConstant(ip, sp, 1024)
       "strd r0, r1, [ip, #0]\n"
 
       "str r5, [sp, #-4]!\n"      // Push(r5)
-      "movw r5, #1028\n"          // LoadImmediate(r5, 1024 + kRegisterSize)
-      "add r5, r5, sp\n"
-      "strd r11, ip, [r5, #0]\n"
+      "add.w r5, sp, #1024\n"     // AddConstant(r5, sp, (1024 + kRegisterSize) & ~0x3fc)
+      "strd r11, ip, [r5, #4]\n"  // StoreToOffset(type, r11, sp, (1024 + kRegisterSize) & 0x3fc)
       "ldr r5, [sp], #4\n"        // Pop(r5)
 
       "str r6, [sp, #-4]!\n"      // Push(r6)
-      "mov r6, #1024\n"           // LoadImmediate(r6, 1024)
-      "add r6, r6, r5\n"
-      "strd r11, ip, [r6, #0]\n"
+      "add.w r6, r5, #1024\n"     // AddConstant(r6, r5, 1024 & ~0x3fc)
+      "strd r11, ip, [r6, #0]\n"  // StoreToOffset(type, r11, r6, 1024 & 0x3fc)
       "ldr r6, [sp], #4\n";       // Pop(r6)
   DriverStr(expected, "StoreWordPairToNonThumbOffset");
 }
