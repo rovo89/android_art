@@ -16,6 +16,8 @@
 
 #include "ssa_phi_elimination.h"
 
+#include "base/arena_containers.h"
+
 namespace art {
 
 void SsaDeadPhiElimination::Run() {
@@ -24,20 +26,34 @@ void SsaDeadPhiElimination::Run() {
 }
 
 void SsaDeadPhiElimination::MarkDeadPhis() {
+  // Phis are constructed live and should not be revived if previously marked
+  // dead. This algorithm temporarily breaks that invariant but we DCHECK that
+  // only phis which were initially live are revived.
+  ArenaSet<HPhi*> initially_live(graph_->GetArena()->Adapter());
+
   // Add to the worklist phis referenced by non-phi instructions.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HPhi* phi = inst_it.Current()->AsPhi();
-      // Set dead ahead of running through uses. The phi may have no use.
-      phi->SetDead();
+      if (phi->IsDead()) {
+        continue;
+      }
+
+      bool has_non_phi_use = false;
       for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
-        HUseListNode<HInstruction*>* current = use_it.Current();
-        HInstruction* user = current->GetUser();
-        if (!user->IsPhi()) {
-          worklist_.push_back(phi);
-          phi->SetLive();
+        if (!use_it.Current()->GetUser()->IsPhi()) {
+          has_non_phi_use = true;
           break;
+        }
+      }
+
+      if (has_non_phi_use) {
+        worklist_.push_back(phi);
+      } else {
+        phi->SetDead();
+        if (kIsDebugBuild) {
+          initially_live.insert(phi);
         }
       }
     }
@@ -48,10 +64,13 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
     HPhi* phi = worklist_.back();
     worklist_.pop_back();
     for (HInputIterator it(phi); !it.Done(); it.Advance()) {
-      HInstruction* input = it.Current();
-      if (input->IsPhi() && input->AsPhi()->IsDead()) {
-        worklist_.push_back(input->AsPhi());
-        input->AsPhi()->SetLive();
+      HPhi* input = it.Current()->AsPhi();
+      if (input != nullptr && input->IsDead()) {
+        // Input is a dead phi. Revive it and add to the worklist. We make sure
+        // that the phi was not dead initially (see definition of `initially_live`).
+        DCHECK(ContainsElement(initially_live, input));
+        input->SetLive();
+        worklist_.push_back(input);
       }
     }
   }
@@ -118,7 +137,6 @@ void SsaRedundantPhiElimination::Run() {
     }
 
     if (phi->InputCount() == 0) {
-      DCHECK(phi->IsCatchPhi());
       DCHECK(phi->IsDead());
       continue;
     }
