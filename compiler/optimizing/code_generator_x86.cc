@@ -5540,7 +5540,6 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
       __ movl(out, Address(current_method, declaring_class_offset));
     }
   } else {
-    DCHECK(cls->CanCallRuntime());
     // /* GcRoot<mirror::Class>[] */ out =
     //        current_method.ptr_sized_fields_->dex_cache_resolved_types_
     __ movl(out, Address(current_method,
@@ -5557,15 +5556,22 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
       __ movl(out, Address(out, cache_offset));
     }
 
-    SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
-        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
-    codegen_->AddSlowPath(slow_path);
-    __ testl(out, out);
-    __ j(kEqual, slow_path->GetEntryLabel());
-    if (cls->MustGenerateClinitCheck()) {
-      GenerateClassInitializationCheck(slow_path, out);
-    } else {
-      __ Bind(slow_path->GetExitLabel());
+    if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
+      DCHECK(cls->CanCallRuntime());
+      SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
+          cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+      codegen_->AddSlowPath(slow_path);
+
+      if (!cls->IsInDexCache()) {
+        __ testl(out, out);
+        __ j(kEqual, slow_path->GetEntryLabel());
+      }
+
+      if (cls->MustGenerateClinitCheck()) {
+        GenerateClassInitializationCheck(slow_path, out);
+      } else {
+        __ Bind(slow_path->GetExitLabel());
+      }
     }
   }
 }
