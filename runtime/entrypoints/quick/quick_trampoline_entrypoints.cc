@@ -23,12 +23,9 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
-#include "lambda/closure.h"
-#include "lambda/art_lambda_method.h"
 #include "method_reference.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/lambda_proxy.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -297,8 +294,7 @@ class QuickArgumentVisitor {
   // 1st GPR.
   static mirror::Object* GetProxyThisObject(ArtMethod** sp)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    // TODO: Lambda proxies only set up a frame when debugging
-    CHECK((*sp)->IsReflectProxyMethod() || ((*sp)->IsLambdaProxyMethod() /*&& kIsDebugBuild*/));
+    CHECK((*sp)->IsProxyMethod());
     CHECK_GT(kNumQuickGprArgs, 0u);
     constexpr uint32_t kThisGprIndex = 0u;  // 'this' is in the 1st GPR.
     size_t this_arg_offset = kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset +
@@ -838,9 +834,8 @@ void BuildQuickArgumentVisitor::FixupReferences() {
 extern "C" uint64_t artQuickProxyInvokeHandler(
     ArtMethod* proxy_method, mirror::Object* receiver, Thread* self, ArtMethod** sp)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  DCHECK(proxy_method->GetDeclaringClass()->IsReflectProxyClass()) << PrettyMethod(proxy_method);
-  DCHECK(proxy_method->IsReflectProxyMethod()) << PrettyMethod(proxy_method);
-  DCHECK(receiver->GetClass()->IsReflectProxyClass()) << PrettyMethod(proxy_method);
+  DCHECK(proxy_method->IsProxyMethod()) << PrettyMethod(proxy_method);
+  DCHECK(receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
@@ -879,175 +874,6 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
   // that performs allocations.
   JValue result = InvokeProxyInvocationHandler(soa, shorty, rcvr_jobj, interface_method_jobj, args);
   // Restore references which might have moved.
-  local_ref_visitor.FixupReferences();
-  return result.GetJ();
-}
-
-extern "C" uint64_t artQuickLambdaProxyInvokeHandler(
-    ArtMethod* proxy_method, mirror::LambdaProxy* receiver, Thread* self, ArtMethod** sp)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  using lambda::ShortyFieldType;
-
-  DCHECK(proxy_method->GetDeclaringClass()->IsLambdaProxyClass()) << PrettyMethod(proxy_method);
-  DCHECK(proxy_method->IsLambdaProxyMethod()) << PrettyMethod(proxy_method);
-  DCHECK(receiver->GetClass()->IsLambdaProxyClass()) << PrettyMethod(proxy_method);
-
-  lambda::Closure* lambda_closure = receiver->GetClosure();
-  DCHECK(lambda_closure != nullptr);  // Should've NPEd during the invoke-interface.
-  // Learned lambdas have their own implementation of the SAM, they must not go through here.
-  DCHECK(lambda_closure->GetLambdaInfo()->IsInnateLambda());
-  ArtMethod* target_method = lambda_closure->GetTargetMethod();
-
-  // Lambda targets are always static.
-  // TODO: This should really be a target_method->IsLambda(), once we add the access flag.
-  CHECK(target_method->IsStatic()) << PrettyMethod(proxy_method) << " "
-                                   << PrettyMethod(target_method);
-
-  // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
-  const char* old_cause =
-      self->StartAssertNoThreadSuspension("Adding to IRT/SF lambda proxy object arguments");
-  // Register the top of the managed stack, making stack crawlable.
-  DCHECK_EQ((*sp), proxy_method) << PrettyMethod(proxy_method);
-  self->VerifyStack();
-  // Start new JNI local reference state.
-  JNIEnvExt* env = self->GetJniEnv();
-  ScopedObjectAccessUnchecked soa(env);
-
-  // Placing arguments into args vector and remove the receiver.
-  ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy(sizeof(void*));
-  CHECK(!non_proxy_method->IsStatic()) << PrettyMethod(proxy_method) << " "
-                                       << PrettyMethod(non_proxy_method);
-  uint32_t shorty_len = 0;
-  const char* shorty = non_proxy_method->GetShorty(/*out*/&shorty_len);
-
-  std::vector<jvalue> args;
-  // Make a quick visitor so we can restore the refs incase they move after a GC.
-  BuildQuickArgumentVisitor local_ref_visitor(sp,
-                                              false /*is_static*/,
-                                              shorty,
-                                              shorty_len,
-                                              &soa,
-                                              /*out*/&args);
-  local_ref_visitor.VisitArguments();
-
-  static_assert(lambda::kClosureIsStoredAsLong,
-                "Need to update this code once closures are no "
-                "longer treated as a 'long' in quick abi");
-
-  // Allocate one vreg more than usual because we need to convert our
-  // receiver Object (1 vreg) into a long (2 vregs).
-  // TODO: Ugly... move to traits instead?
-  const uint32_t first_arg_reg = ShortyFieldType(ShortyFieldType::kLambda).GetVirtualRegisterCount()
-        - ShortyFieldType(ShortyFieldType::kObject).GetVirtualRegisterCount();
-  const uint32_t num_vregs = lambda_closure->GetLambdaInfo()->GetArgumentVRegCount();
-  DCHECK_GE(num_vregs, first_arg_reg);
-  if (kIsDebugBuild) {
-    const char* method_shorty = non_proxy_method->GetShorty();
-    DCHECK_NE(*method_shorty, '\0') << method_shorty;
-    const char* arg_shorty = method_shorty + 1;  // Skip return type.
-
-    // Proxy method should have an object (1 vreg) receiver,
-    // Lambda method should have a lambda (2 vregs) receiver.
-    // -- All other args are the same as before.
-    // -- Make sure vreg count is what we thought it was.
-    uint32_t non_proxy_num_vregs =
-        ShortyFieldType::CountVirtualRegistersRequired(arg_shorty)  // doesn't count receiver
-        + ShortyFieldType(ShortyFieldType::kObject).GetVirtualRegisterCount();  // implicit receiver
-
-    CHECK_EQ(non_proxy_num_vregs + first_arg_reg, num_vregs)
-        << PrettyMethod(non_proxy_method) << " " << PrettyMethod(lambda_closure->GetTargetMethod());
-  }
-
-  ShadowFrameAllocaUniquePtr shadow_frame = CREATE_SHADOW_FRAME(num_vregs,
-                                                                /*link*/nullptr,
-                                                                target_method,
-                                                                /*dex_pc*/0);
-
-  // Copy our proxy method caller's arguments into this ShadowFrame.
-  BuildQuickShadowFrameVisitor local_sf_visitor(sp,
-                                                /*is_static*/false,
-                                                shorty,
-                                                shorty_len,
-                                                shadow_frame.get(),
-                                                first_arg_reg);
-
-  local_sf_visitor.VisitArguments();
-  // Now fix up the arguments, with each ArgK being a vreg:
-
-  // (Before):
-  // Arg0 = proxy receiver (LambdaProxy)
-  // Arg1 = first-user defined argument
-  // Arg2 = second user-defined argument
-  // ....
-  // ArgN = ...
-
-  // (After)
-  // Arg0 = closure (hi)
-  // Arg1 =  closure (lo) = 0x00 on 32-bit
-  // Arg2 = <?> (first user-defined argument)
-  // Arg3 = <?> (first user-defined argument)
-  // ...
-  // argN+1 = ...
-
-  // Transformation diagram:
-  /*
-     Arg0  Arg2  Arg3 ... ArgN
-       |       \     \        \
-       |        \     \        \
-     ClHi  ClLo  Arg2  Arg3 ... ArgN:
-   */
-
-  // 1) memmove vregs 1-N into 2-N+1
-  uint32_t* shadow_frame_vregs = shadow_frame->GetVRegArgs(/*i*/0);
-  if (lambda::kClosureIsStoredAsLong ||
-      sizeof(void*) != sizeof(mirror::CompressedReference<mirror::LambdaProxy>)) {
-    // Suspending here would be very bad since we are doing a raw memmove
-
-    // Move the primitive vregs over.
-    {
-      size_t shadow_frame_vregs_size = num_vregs;
-      memmove(shadow_frame_vregs + first_arg_reg,
-              shadow_frame_vregs,
-              shadow_frame_vregs_size - first_arg_reg);
-    }
-
-    // Move the reference vregs over.
-    if (LIKELY(shadow_frame->HasReferenceArray())) {
-      uint32_t* shadow_frame_references = shadow_frame_vregs + num_vregs;
-      size_t shadow_frame_references_size = num_vregs;
-      memmove(shadow_frame_references + first_arg_reg,
-              shadow_frame_references,
-              shadow_frame_references_size - first_arg_reg);
-    }
-
-    static_assert(lambda::kClosureSupportsReadBarrier == false,
-                  "Using this memmove code with a read barrier GC seems like it could be unsafe.");
-
-    static_assert(sizeof(mirror::CompressedReference<mirror::LambdaProxy>) == sizeof(uint32_t),
-                  "This block of code assumes a compressed reference fits into exactly 1 vreg");
-  }
-  // 2) replace proxy receiver with lambda
-  shadow_frame->SetVRegLong(0, static_cast<int64_t>(reinterpret_cast<uintptr_t>(lambda_closure)));
-
-  // OK: After we do the invoke, the target method takes over managing the arguments
-  //     and we won't ever access the shadow frame again (if any references moved).
-  self->EndAssertNoThreadSuspension(old_cause);
-
-  // The shadow frame vreg contents are now 'owned' by the Invoke method, and
-  // will be managed by it during a GC despite being a raw uint32_t array.
-  // We however have no guarantee that it is updated on the way out, so do not read out of the
-  // shadow frame after this call.
-  JValue result;
-  target_method->Invoke(self,
-                        shadow_frame_vregs,
-                        num_vregs * sizeof(uint32_t),
-                        /*out*/&result,
-                        target_method->GetShorty());
-
-  // Restore references on the proxy caller stack frame which might have moved.
-  // -- This is necessary because the QuickFrameInfo is just the generic runtime "RefsAndArgs"
-  //    which means that the regular stack visitor wouldn't know how to GC-move any references
-  //    that we spilled ourselves in the proxy stub.
   local_ref_visitor.FixupReferences();
   return result.GetJ();
 }

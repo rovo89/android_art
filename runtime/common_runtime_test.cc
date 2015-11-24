@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
   // Gtests can be very noisy. For example, an executable with multiple tests will trigger native
   // bridge warnings. The following line reduces the minimum log severity to ERROR and suppresses
   // everything else. In case you want to see all messages, comment out the line.
+  setenv("ANDROID_LOG_TAGS", "*:e", 1);
 
   art::InitLogging(argv);
   LOG(::art::INFO) << "Running main() from common_runtime_test.cc...";

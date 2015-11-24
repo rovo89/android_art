@@ -60,7 +60,6 @@ enum LockLevel {
   kUnexpectedSignalLock,
   kThreadSuspendCountLock,
   kAbortLock,
-  kLambdaClassTableLock,
   kLambdaTableLock,
   kJdwpSocketLock,
   kRegionSpaceRegionLock,
@@ -693,10 +692,6 @@ class Locks {
   // Allow reader-writer mutual exclusion on the boxed table of lambda objects.
   // TODO: this should be a RW mutex lock, except that ConditionVariables don't work with it.
   static Mutex* lambda_table_lock_ ACQUIRED_AFTER(mutator_lock_);
-
-  // Allow reader-writer mutual exclusion on the boxed table of lambda proxy classes.
-  // TODO: this should be a RW mutex lock, except that ConditionVariables don't work with it.
-  static Mutex* lambda_class_table_lock_ ACQUIRED_AFTER(lambda_table_lock_);
 };
 
 class Roles {
