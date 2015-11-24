@@ -3045,22 +3045,26 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
     __ LoadFromOffset(kLoadUnsignedWord, out, current_method,
                       ArtMethod::DeclaringClassOffset().Int32Value());
   } else {
-    DCHECK(cls->CanCallRuntime());
     __ LoadFromOffset(kLoadDoubleword, out, current_method,
                       ArtMethod::DexCacheResolvedTypesOffset(kMips64PointerSize).Int32Value());
     __ LoadFromOffset(kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
     // TODO: We will need a read barrier here.
-    SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS64(
-        cls,
-        cls,
-        cls->GetDexPc(),
-        cls->MustGenerateClinitCheck());
-    codegen_->AddSlowPath(slow_path);
-    __ Beqzc(out, slow_path->GetEntryLabel());
-    if (cls->MustGenerateClinitCheck()) {
-      GenerateClassInitializationCheck(slow_path, out);
-    } else {
-      __ Bind(slow_path->GetExitLabel());
+    if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
+      DCHECK(cls->CanCallRuntime());
+      SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS64(
+          cls,
+          cls,
+          cls->GetDexPc(),
+          cls->MustGenerateClinitCheck());
+      codegen_->AddSlowPath(slow_path);
+      if (!cls->IsInDexCache()) {
+        __ Beqzc(out, slow_path->GetEntryLabel());
+      }
+      if (cls->MustGenerateClinitCheck()) {
+        GenerateClassInitializationCheck(slow_path, out);
+      } else {
+        __ Bind(slow_path->GetExitLabel());
+      }
     }
   }
 }

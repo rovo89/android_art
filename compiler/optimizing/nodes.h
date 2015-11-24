@@ -4796,13 +4796,15 @@ class HLoadClass : public HExpression<1> {
              const DexFile& dex_file,
              bool is_referrers_class,
              uint32_t dex_pc,
-             bool needs_access_check)
+             bool needs_access_check,
+             bool is_in_dex_cache)
       : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls(), dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
         is_referrers_class_(is_referrers_class),
         generate_clinit_check_(false),
         needs_access_check_(needs_access_check),
+        is_in_dex_cache_(is_in_dex_cache),
         loaded_class_rti_(ReferenceTypeInfo::CreateInvalid()) {
     // Referrers class should not need access check. We never inline unverified
     // methods so we can't possibly end up in this situation.
@@ -4827,14 +4829,13 @@ class HLoadClass : public HExpression<1> {
   bool CanBeNull() const OVERRIDE { return false; }
 
   bool NeedsEnvironment() const OVERRIDE {
-    // Will call runtime and load the class if the class is not loaded yet.
-    // TODO: finer grain decision.
-    return !is_referrers_class_;
+    return CanCallRuntime();
   }
 
   bool MustGenerateClinitCheck() const {
     return generate_clinit_check_;
   }
+
   void SetMustGenerateClinitCheck(bool generate_clinit_check) {
     // The entrypoint the code generator is going to call does not do
     // clinit of the class.
@@ -4843,7 +4844,9 @@ class HLoadClass : public HExpression<1> {
   }
 
   bool CanCallRuntime() const {
-    return MustGenerateClinitCheck() || !is_referrers_class_ || needs_access_check_;
+    return MustGenerateClinitCheck() ||
+           (!is_referrers_class_ && !is_in_dex_cache_) ||
+           needs_access_check_;
   }
 
   bool NeedsAccessCheck() const {
@@ -4851,8 +4854,6 @@ class HLoadClass : public HExpression<1> {
   }
 
   bool CanThrow() const OVERRIDE {
-    // May call runtime and and therefore can throw.
-    // TODO: finer grain decision.
     return CanCallRuntime();
   }
 
@@ -4874,6 +4875,8 @@ class HLoadClass : public HExpression<1> {
     return SideEffects::CanTriggerGC();
   }
 
+  bool IsInDexCache() const { return is_in_dex_cache_; }
+
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
@@ -4883,7 +4886,8 @@ class HLoadClass : public HExpression<1> {
   // Whether this instruction must generate the initialization check.
   // Used for code generation.
   bool generate_clinit_check_;
-  bool needs_access_check_;
+  const bool needs_access_check_;
+  const bool is_in_dex_cache_;
 
   ReferenceTypeInfo loaded_class_rti_;
 
