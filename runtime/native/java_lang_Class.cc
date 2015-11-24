@@ -103,7 +103,7 @@ static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Class* c = DecodeClass(soa, javaThis);
-  return soa.AddLocalReference<jobjectArray>(c->GetInterfacesForAnyProxy()->Clone(soa.Self()));
+  return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
 }
 
 static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
@@ -489,7 +489,7 @@ static jobject Class_getDeclaredAnnotation(JNIEnv* env, jobject javaThis, jclass
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
   Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
@@ -501,7 +501,7 @@ static jobjectArray Class_getDeclaredAnnotations(JNIEnv* env, jobject javaThis) 
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     // Return an empty array instead of a null pointer.
     mirror::Class* annotation_array_class =
         soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
@@ -517,7 +517,7 @@ static jobjectArray Class_getDeclaredClasses(JNIEnv* env, jobject javaThis) {
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
   mirror::ObjectArray<mirror::Class>* classes = nullptr;
-  if (!klass->IsAnyProxyClass() && klass->GetDexCache() != nullptr) {
+  if (!klass->IsProxyClass() && klass->GetDexCache() != nullptr) {
     classes = klass->GetDexFile().GetDeclaredClasses(klass);
   }
   if (classes == nullptr) {
@@ -543,7 +543,7 @@ static jclass Class_getEnclosingClass(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
   return soa.AddLocalReference<jclass>(klass->GetDexFile().GetEnclosingClass(klass));
@@ -553,7 +553,7 @@ static jobject Class_getEnclosingConstructorNative(JNIEnv* env, jobject javaThis
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
   mirror::Object* method = klass->GetDexFile().GetEnclosingMethod(klass);
@@ -570,7 +570,7 @@ static jobject Class_getEnclosingMethodNative(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
   mirror::Object* method = klass->GetDexFile().GetEnclosingMethod(klass);
@@ -587,7 +587,7 @@ static jint Class_getInnerClassFlags(JNIEnv* env, jobject javaThis, jint default
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return defaultValue;
   }
   uint32_t flags;
@@ -601,7 +601,7 @@ static jstring Class_getInnerClassName(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
   mirror::String* class_name = nullptr;
@@ -615,7 +615,7 @@ static jboolean Class_isAnonymousClass(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return false;
   }
   mirror::String* class_name = nullptr;
@@ -630,7 +630,7 @@ static jboolean Class_isDeclaredAnnotationPresent(JNIEnv* env, jobject javaThis,
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return false;
   }
   Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
@@ -641,7 +641,7 @@ static jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsAnyProxyClass() || klass->GetDexCache() == nullptr) {
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
   // Return null for anonymous classes.

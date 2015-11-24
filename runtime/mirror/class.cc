@@ -538,7 +538,6 @@ ArtMethod* Class::FindVirtualMethod(
 
 ArtMethod* Class::FindClassInitializer(size_t pointer_size) {
   for (ArtMethod& method : GetDirectMethods(pointer_size)) {
-    DCHECK(reinterpret_cast<volatile void*>(&method) != nullptr);
     if (method.IsClassInitializer()) {
       DCHECK_STREQ(method.GetName(), "<clinit>");
       DCHECK_STREQ(method.GetSignature().ToString().c_str(), "()V");
@@ -743,8 +742,8 @@ const char* Class::GetDescriptor(std::string* storage) {
     return Primitive::Descriptor(GetPrimitiveType());
   } else if (IsArrayClass()) {
     return GetArrayDescriptor(storage);
-  } else if (IsAnyProxyClass()) {
-    *storage = Runtime::Current()->GetClassLinker()->GetDescriptorForAnyProxy(this);
+  } else if (IsProxyClass()) {
+    *storage = Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this);
     return storage->c_str();
   } else {
     const DexFile& dex_file = GetDexFile();
@@ -787,10 +786,8 @@ mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> kla
       DCHECK_EQ(1U, idx);
       return class_linker->FindSystemClass(self, "Ljava/io/Serializable;");
     }
-  } else if (klass->IsAnyProxyClass()) {
-    // Proxies don't have a dex cache, so look at the
-    // interfaces through the magic static field "interfaces" from the proxy class itself.
-    mirror::ObjectArray<mirror::Class>* interfaces = klass.Get()->GetInterfacesForAnyProxy();
+  } else if (klass->IsProxyClass()) {
+    mirror::ObjectArray<mirror::Class>* interfaces = klass.Get()->GetInterfaces();
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {
@@ -829,7 +826,7 @@ const char* Class::GetSourceFile() {
 
 std::string Class::GetLocation() {
   mirror::DexCache* dex_cache = GetDexCache();
-  if (dex_cache != nullptr && !IsAnyProxyClass()) {
+  if (dex_cache != nullptr && !IsProxyClass()) {
     return dex_cache->GetLocation()->ToModifiedUtf8();
   }
   // Arrays and proxies are generated and have no corresponding dex file location.
@@ -947,9 +944,9 @@ Class* Class::CopyOf(Thread* self, int32_t new_length,
   return new_class->AsClass();
 }
 
-bool Class::AnyProxyDescriptorEquals(const char* match) {
-  DCHECK(IsAnyProxyClass());
-  return Runtime::Current()->GetClassLinker()->GetDescriptorForAnyProxy(this) == match;
+bool Class::ProxyDescriptorEquals(const char* match) {
+  DCHECK(IsProxyClass());
+  return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
 }
 
 // TODO: Move this to java_lang_Class.cc?

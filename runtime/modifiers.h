@@ -54,8 +54,6 @@ static constexpr uint32_t kAccDefault =              0x00400000;  // method (run
 // if any particular method needs to be a default conflict. Used to figure out at runtime if
 // invoking this method will throw an exception.
 static constexpr uint32_t kAccDefaultConflict =      0x00800000;  // method (runtime)
-// Set by the class linker when creating a class that's a subtype of LambdaProxy.
-static constexpr uint32_t kAccClassIsLambdaProxy =   0x01000000;  // class  (dex only)
 
 // Special runtime-only flags.
 // Interface and all its super-interfaces with default methods have been recursively initialized.

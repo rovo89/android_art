@@ -24,12 +24,6 @@ namespace art {
 struct ClassLoaderOffsets;
 class ClassTable;
 
-namespace lambda {
-
-class BoxClassTable;
-
-}  // namespace lambda
-
 namespace mirror {
 
 class Class;
@@ -66,16 +60,6 @@ class MANAGED ClassLoader : public Object {
                       reinterpret_cast<uint64_t>(allocator));
   }
 
-  lambda::BoxClassTable* GetLambdaProxyCache() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return reinterpret_cast<lambda::BoxClassTable*>(
-        GetField64(OFFSET_OF_OBJECT_MEMBER(ClassLoader, lambda_proxy_cache_)));
-  }
-
-  void SetLambdaProxyCache(lambda::BoxClassTable* cache) SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetField64<false>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, lambda_proxy_cache_),
-                      reinterpret_cast<uint64_t>(cache));
-  }
-
  private:
   // Visit instance fields of the class loader as well as its associated classes.
   // Null class loader is handled by ClassLinker::VisitClassRoots.
@@ -92,7 +76,6 @@ class MANAGED ClassLoader : public Object {
   uint32_t padding_ ATTRIBUTE_UNUSED;
   uint64_t allocator_;
   uint64_t class_table_;
-  uint64_t lambda_proxy_cache_;
 
   friend struct art::ClassLoaderOffsets;  // for verifying offset information
   friend class Object;  // For VisitReferences

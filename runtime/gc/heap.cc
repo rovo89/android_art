@@ -672,8 +672,8 @@ std::string Heap::SafeGetClassDescriptor(mirror::Class* klass) {
     return result;
   } else if (UNLIKELY(klass->IsPrimitive<kVerifyNone>())) {
     return Primitive::Descriptor(klass->GetPrimitiveType<kVerifyNone>());
-  } else if (UNLIKELY(klass->IsAnyProxyClass<kVerifyNone>())) {
-    return Runtime::Current()->GetClassLinker()->GetDescriptorForAnyProxy(klass);
+  } else if (UNLIKELY(klass->IsProxyClass<kVerifyNone>())) {
+    return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(klass);
   } else {
     mirror::DexCache* dex_cache = klass->GetDexCache<kVerifyNone>();
     if (!IsValidContinuousSpaceObjectAddress(dex_cache)) {

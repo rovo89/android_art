@@ -313,7 +313,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
           reinterpret_cast<uintptr_t>(virtual_methods)) / method_size;
       CHECK_LT(throws_index, static_cast<int>(num_virtuals));
       mirror::ObjectArray<mirror::Class>* declared_exceptions =
-          proxy_class->GetThrowsForAnyProxy()->Get(throws_index);
+          proxy_class->GetThrows()->Get(throws_index);
       mirror::Class* exception_class = exception->GetClass();
       bool declares_exception = false;
       for (int32_t i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {

@@ -53,7 +53,6 @@ enum AllocatorTag {
   kAllocatorTagClassTable,
   kAllocatorTagInternTable,
   kAllocatorTagLambdaBoxTable,
-  kAllocatorTagLambdaProxyClassBoxTable,
   kAllocatorTagMaps,
   kAllocatorTagLOS,
   kAllocatorTagSafeMap,

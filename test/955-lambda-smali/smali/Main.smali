@@ -25,7 +25,6 @@
     invoke-static {}, LBoxUnbox;->run()V
     invoke-static {}, LMoveResult;->run()V
     invoke-static {}, LCaptureVariables;->run()V
-    invoke-static {}, LBoxInvoke;->run()V
 
 # TODO: add tests when verification fails
 

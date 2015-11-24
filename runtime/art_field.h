@@ -191,9 +191,7 @@ class ArtField FINAL {
   }
 
  private:
-  mirror::Class* AnyProxyFindSystemClass(const char* descriptor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::Class* LambdaProxyFindSystemClass(const char* descriptor)
+  mirror::Class* ProxyFindSystemClass(const char* descriptor)
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::Class* ResolveGetType(uint32_t type_idx) SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::String* ResolveGetStringName(Thread* self, const DexFile& dex_file, uint32_t string_idx,
