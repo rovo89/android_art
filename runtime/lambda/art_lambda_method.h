@@ -90,17 +90,6 @@ class ArtLambdaMethod {
     return strlen(captured_variables_shorty_);
   }
 
-  // Return the offset in bytes from the start of ArtLambdaMethod to the method_.
-  // -- Only should be used by assembly (stubs) support code and compiled code.
-  static constexpr size_t GetArtMethodOffset() {
-    return offsetof(ArtLambdaMethod, method_);
-  }
-
-  // Calculate how many vregs all the arguments will use when doing an invoke.
-  // (Most primitives are 1 vregs, double/long are 2, reference is 1, lambda is 2).
-  // -- This is used to know how big to set up shadow frame when invoking into the target method.
-  size_t GetArgumentVRegCount() const SHARED_REQUIRES(Locks::mutator_lock_);
-
  private:
   // TODO: ArtMethod, or at least the entry points should be inlined into this struct
   // to avoid an extra indirect load when doing invokes.

@@ -292,7 +292,7 @@ inline const char* ArtMethod::GetDeclaringClassDescriptor() {
 }
 
 inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
-  DCHECK(!IsProxyMethod() || IsLambdaProxyMethod());  // OK: lambda proxies use parent dex cache.
+  DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodShorty(dex_file->GetMethodId(GetDexMethodIndex()), out_length);
 }
@@ -354,31 +354,10 @@ inline const DexFile::ProtoId& ArtMethod::GetPrototype() {
 }
 
 inline const DexFile::TypeList* ArtMethod::GetParameterTypeList() {
-  // XX: Do proxy methods have a dex file?  not sure.
+  DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
-  const DexFile::MethodId* method_id = nullptr;
-
-  if (kIsDebugBuild) {
-    if (UNLIKELY(IsProxyMethod())) {
-      // Proxy method case.
-      CHECK(IsLambdaProxyMethod()) << "Cannot GetParameterTypeList for java.lang.reflect.Proxy";
-
-      //
-      // We do not have a method ID, so look up one of the supers we overrode,
-      // it will have the same exact parameter type list as we do.
-
-      // Lambda proxy classes have the dex cache from their single interface parent.
-      // Proxy classes have multiple interface parents, so they use the root dexcache instead.
-      //
-      // For lambda proxy classes only, get the type list data from the parent.
-      // (code happens to look the same as the usual non-proxy path).
-    }
-  }
-
-  method_id = &dex_file->GetMethodId(GetDexMethodIndex());
-  DCHECK(method_id != nullptr);
-
-  const DexFile::ProtoId& proto = dex_file->GetMethodPrototype(*method_id);
+  const DexFile::ProtoId& proto = dex_file->GetMethodPrototype(
+      dex_file->GetMethodId(GetDexMethodIndex()));
   return dex_file->GetProtoParameters(proto);
 }
 
@@ -418,20 +397,12 @@ inline mirror::ClassLoader* ArtMethod::GetClassLoader() {
 }
 
 inline mirror::DexCache* ArtMethod::GetDexCache() {
-  DCHECK(!IsProxyMethod() || IsLambdaProxyMethod());  // OK: lambda proxies use parent dex cache.
+  DCHECK(!IsProxyMethod());
   return GetDeclaringClass()->GetDexCache();
 }
 
 inline bool ArtMethod::IsProxyMethod() {
-  return GetDeclaringClass()->IsAnyProxyClass();
-}
-
-inline bool ArtMethod::IsReflectProxyMethod() {
-  return GetDeclaringClass()->IsReflectProxyClass();
-}
-
-inline bool ArtMethod::IsLambdaProxyMethod() {
-  return GetDeclaringClass()->IsLambdaProxyClass();
+  return GetDeclaringClass()->IsProxyClass();
 }
 
 inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(size_t pointer_size) {
@@ -477,9 +448,9 @@ template<typename RootVisitorType>
 void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
   ArtMethod* interface_method = nullptr;
   mirror::Class* klass = declaring_class_.Read();
-  if (UNLIKELY(klass != nullptr && klass->IsAnyProxyClass())) {
+  if (UNLIKELY(klass != nullptr && klass->IsProxyClass())) {
     // For normal methods, dex cache shortcuts will be visited through the declaring class.
-    // However, for any proxies we need to keep the interface method alive, so we visit its roots.
+    // However, for proxies we need to keep the interface method alive, so we visit its roots.
     interface_method = mirror::DexCache::GetElementPtrSize(
         GetDexCacheResolvedMethods(pointer_size),
         GetDexMethodIndex(),

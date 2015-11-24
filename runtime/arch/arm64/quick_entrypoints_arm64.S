@@ -1582,28 +1582,6 @@ ENTRY art_quick_proxy_invoke_handler
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
-     /*
-     * Called by managed code that is attempting to call a method on a lambda proxy class. On entry
-     * x0 holds the lambda proxy method and x1 holds the receiver; The frame size of the invoked
-     * lambda proxy method agrees with a ref and args callee save frame.
-     */
-     .extern artQuickLambdaProxyInvokeHandler
-ENTRY art_quick_lambda_proxy_invoke_handler
-// TODO: have a faster way to invoke lambda proxies without setting up the whole frame.
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_X0
-    mov     x2, xSELF                   // pass Thread::Current
-    mov     x3, sp                      // pass SP
-    bl      artQuickLambdaProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, SP)
-    ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
-    cbnz    x2, .Lexception_in_lambda_proxy    // success if no exception is pending
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME // Restore frame
-    fmov    d0, x0                      // Store result in d0 in case it was float or double
-    ret                                 // return on success
-.Lexception_in_lambda_proxy:
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
-    DELIVER_PENDING_EXCEPTION
-END art_quick_lambda_proxy_invoke_handler
-
     /*
      * Called to resolve an imt conflict. xIP1 is a hidden argument that holds the target method's
      * dex method index.

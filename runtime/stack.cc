@@ -172,20 +172,9 @@ mirror::Object* StackVisitor::GetThisObject() const {
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
-  } else if (m->IsReflectProxyMethod()) {
+  } else if (m->IsProxyMethod()) {
     if (cur_quick_frame_ != nullptr) {
       return artQuickGetProxyThisObject(cur_quick_frame_);
-    } else {
-      return cur_shadow_frame_->GetVRegReference(0);
-    }
-  } else if (m->IsLambdaProxyMethod()) {
-    if (cur_quick_frame_ != nullptr) {
-      // XX: Should be safe to return null here, the lambda proxies
-      // don't set up their own quick frame because they don't need to spill any registers.
-      // By the time we are executing inside of the final target of the proxy invoke,
-      // the original 'this' reference is no longer live.
-      LOG(WARNING) << "Lambda proxies don't have a quick frame, do they?!";
-      return nullptr;
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
@@ -825,27 +814,7 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
     // compiled method without any stubs. Therefore the method must have a OatQuickMethodHeader.
     DCHECK(!method->IsDirect() && !method->IsConstructor())
         << "Constructors of proxy classes must have a OatQuickMethodHeader";
-
-    if (method->IsReflectProxyMethod()) {
-      return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-    } else if (method->IsLambdaProxyMethod()) {
-      // Set this to true later once every stub works without a frame.
-      // This is currently 'false' because using a closure as a "long"
-      // requires a quick frame to be set up on 32-bit architectures.
-      constexpr bool kLambdaProxyStubsSupportFrameless = false;
-      if (kIsDebugBuild || !kLambdaProxyStubsSupportFrameless) {
-        // When debugging we always use the 'RefAndArgs' quick frame to allow us
-        // to see a runtime stub when unwinding.
-        return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-      } else {
-        // Lambda proxies don't bother setting up a quick frame for release builds.
-        LOG(FATAL) << "Requested QuickMethodFrameInfo for a lambda proxy,"
-                   << "but it doesn't have one, for method: " << PrettyMethod(method);
-        UNREACHABLE();
-      }
-    } else {
-      LOG(FATAL) << "Unknown type of proxy method " << PrettyMethod(method);
-    }
+    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
 
   // The only remaining case is if the method is native and uses the generic JNI stub.

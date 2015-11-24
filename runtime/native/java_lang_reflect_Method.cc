@@ -32,7 +32,7 @@ namespace art {
 static jobject Method_getAnnotationNative(JNIEnv* env, jobject javaMethod, jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsAnyProxyClass()) {
+  if (method->GetDeclaringClass()->IsProxyClass()) {
     return nullptr;
   }
   StackHandleScope<1> hs(soa.Self());
@@ -44,7 +44,7 @@ static jobject Method_getAnnotationNative(JNIEnv* env, jobject javaMethod, jclas
 static jobjectArray Method_getDeclaredAnnotations(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsAnyProxyClass()) {
+  if (method->GetDeclaringClass()->IsProxyClass()) {
     // Return an empty array instead of a null pointer.
     mirror::Class* annotation_array_class =
         soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
@@ -67,7 +67,7 @@ static jobject Method_getDefaultValue(JNIEnv* env, jobject javaMethod) {
 static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsAnyProxyClass()) {
+  if (method->GetDeclaringClass()->IsProxyClass()) {
     mirror::Class* klass = method->GetDeclaringClass();
     int throws_index = -1;
     size_t i = 0;
@@ -79,8 +79,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
       ++i;
     }
     CHECK_NE(throws_index, -1);
-    mirror::ObjectArray<mirror::Class>* declared_exceptions =
-        klass->GetThrowsForAnyProxy()->Get(throws_index);
+    mirror::ObjectArray<mirror::Class>* declared_exceptions = klass->GetThrows()->Get(throws_index);
     return soa.AddLocalReference<jobjectArray>(declared_exceptions->Clone(soa.Self()));
   } else {
     mirror::ObjectArray<mirror::Class>* result_array =
@@ -105,7 +104,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
 static jobjectArray Method_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsAnyProxyClass()) {
+  if (method->GetDeclaringClass()->IsProxyClass()) {
     return nullptr;
   }
   return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetParameterAnnotations(method));
@@ -121,7 +120,7 @@ static jboolean Method_isAnnotationPresentNative(JNIEnv* env, jobject javaMethod
                                                  jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsAnyProxyClass()) {
+  if (method->GetDeclaringClass()->IsProxyClass()) {
     return false;
   }
   StackHandleScope<1> hs(soa.Self());
