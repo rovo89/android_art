@@ -2637,6 +2637,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
   Register obj = locations->InAt(0).AsRegister<Register>();
   LoadOperandType load_type = kLoadUnsignedByte;
   bool is_volatile = field_info.IsVolatile();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
 
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -2667,8 +2668,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
 
   if (is_volatile && load_type == kLoadDoubleword) {
     InvokeRuntimeCallingConvention calling_convention;
-    __ Addiu32(locations->GetTemp(0).AsRegister<Register>(),
-               obj, field_info.GetFieldOffset().Uint32Value());
+    __ Addiu32(locations->GetTemp(0).AsRegister<Register>(), obj, offset);
     // Do implicit Null check
     __ Lw(ZERO, locations->GetTemp(0).AsRegister<Register>(), 0);
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
@@ -2691,21 +2691,34 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
       if (type == Primitive::kPrimLong) {
         DCHECK(locations->Out().IsRegisterPair());
         dst = locations->Out().AsRegisterPairLow<Register>();
+        Register dst_high = locations->Out().AsRegisterPairHigh<Register>();
+        if (obj == dst) {
+          __ LoadFromOffset(kLoadWord, dst_high, obj, offset + kMipsWordSize);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ LoadFromOffset(kLoadWord, dst, obj, offset);
+        } else {
+          __ LoadFromOffset(kLoadWord, dst, obj, offset);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ LoadFromOffset(kLoadWord, dst_high, obj, offset + kMipsWordSize);
+        }
       } else {
         DCHECK(locations->Out().IsRegister());
         dst = locations->Out().AsRegister<Register>();
+        __ LoadFromOffset(load_type, dst, obj, offset);
       }
-      __ LoadFromOffset(load_type, dst, obj, field_info.GetFieldOffset().Uint32Value());
     } else {
       DCHECK(locations->Out().IsFpuRegister());
       FRegister dst = locations->Out().AsFpuRegister<FRegister>();
       if (type == Primitive::kPrimFloat) {
-        __ LoadSFromOffset(dst, obj, field_info.GetFieldOffset().Uint32Value());
+        __ LoadSFromOffset(dst, obj, offset);
       } else {
-        __ LoadDFromOffset(dst, obj, field_info.GetFieldOffset().Uint32Value());
+        __ LoadDFromOffset(dst, obj, offset);
       }
     }
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
+    // Longs are handled earlier.
+    if (type != Primitive::kPrimLong) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
   }
 
   if (is_volatile) {
@@ -2751,6 +2764,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
   Register obj = locations->InAt(0).AsRegister<Register>();
   StoreOperandType store_type = kStoreByte;
   bool is_volatile = field_info.IsVolatile();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
 
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -2781,8 +2795,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
 
   if (is_volatile && store_type == kStoreDoubleword) {
     InvokeRuntimeCallingConvention calling_convention;
-    __ Addiu32(locations->GetTemp(0).AsRegister<Register>(),
-               obj, field_info.GetFieldOffset().Uint32Value());
+    __ Addiu32(locations->GetTemp(0).AsRegister<Register>(), obj, offset);
     // Do implicit Null check.
     __ Lw(ZERO, locations->GetTemp(0).AsRegister<Register>(), 0);
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
@@ -2805,21 +2818,28 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
       if (type == Primitive::kPrimLong) {
         DCHECK(locations->InAt(1).IsRegisterPair());
         src = locations->InAt(1).AsRegisterPairLow<Register>();
+        Register src_high = locations->InAt(1).AsRegisterPairHigh<Register>();
+        __ StoreToOffset(kStoreWord, src, obj, offset);
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ StoreToOffset(kStoreWord, src_high, obj, offset + kMipsWordSize);
       } else {
         DCHECK(locations->InAt(1).IsRegister());
         src = locations->InAt(1).AsRegister<Register>();
+        __ StoreToOffset(store_type, src, obj, offset);
       }
-      __ StoreToOffset(store_type, src, obj, field_info.GetFieldOffset().Uint32Value());
     } else {
       DCHECK(locations->InAt(1).IsFpuRegister());
       FRegister src = locations->InAt(1).AsFpuRegister<FRegister>();
       if (type == Primitive::kPrimFloat) {
-        __ StoreSToOffset(src, obj, field_info.GetFieldOffset().Uint32Value());
+        __ StoreSToOffset(src, obj, offset);
       } else {
-        __ StoreDToOffset(src, obj, field_info.GetFieldOffset().Uint32Value());
+        __ StoreDToOffset(src, obj, offset);
       }
     }
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
+    // Longs are handled earlier.
+    if (type != Primitive::kPrimLong) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
   }
 
   // TODO: memory barriers?
