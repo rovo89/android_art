@@ -1,2 +1,2 @@
 In finalizer
-Caught exception: whee
+done

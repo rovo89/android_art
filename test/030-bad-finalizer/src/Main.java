@@ -21,15 +21,6 @@ public class Main {
     public static void main(String[] args) {
         BadFinalizer bf = new BadFinalizer();
 
-        Thread.setDefaultUncaughtExceptionHandler(
-            new Thread.UncaughtExceptionHandler() {
-                @Override
-                public void uncaughtException(Thread t, Throwable e) {
-                    System.out.println("Caught exception: " + e.getMessage());
-                    System.exit(0);
-                }
-            });
-
         System.out.println("About to null reference and request GC.");
         bf = null;
         Runtime.getRuntime().gc();
