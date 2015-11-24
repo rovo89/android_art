@@ -77,6 +77,7 @@ class NullCheckSlowPathARM : public SlowPathCode {
     }
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowNullPointer), instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
 
   bool IsFatal() const OVERRIDE { return true; }
@@ -101,6 +102,7 @@ class DivZeroCheckSlowPathARM : public SlowPathCode {
     }
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
 
   bool IsFatal() const OVERRIDE { return true; }
@@ -123,6 +125,7 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
     SaveLiveRegisters(codegen, instruction_->GetLocations());
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pTestSuspend), instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickTestSuspend, void, void>();
     RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ b(GetReturnLabel());
@@ -179,6 +182,7 @@ class BoundsCheckSlowPathARM : public SlowPathCode {
         Primitive::kPrimInt);
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
   bool IsFatal() const OVERRIDE { return true; }
@@ -214,6 +218,11 @@ class LoadClassSlowPathARM : public SlowPathCode {
         ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
         : QUICK_ENTRY_POINT(pInitializeType);
     arm_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_, this);
+    if (do_clinit_) {
+      CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t>();
+    } else {
+      CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t>();
+    }
 
     // Move the class to the desired location.
     Location out = locations->Out();
@@ -260,6 +269,7 @@ class LoadStringSlowPathARM : public SlowPathCode {
     __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction_->GetStringIndex());
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
     arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
 
     RestoreLiveRegisters(codegen, locations);
@@ -351,6 +361,7 @@ class DeoptimizationSlowPathARM : public SlowPathCode {
     uint32_t dex_pc = deoptimize->GetDexPc();
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
+    CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM"; }
@@ -393,6 +404,7 @@ class ArraySetSlowPathARM : public SlowPathCode {
                                instruction_,
                                instruction_->GetDexPc(),
                                this);
+    CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
     RestoreLiveRegisters(codegen, locations);
     __ b(GetExitLabel());
   }
@@ -2410,6 +2422,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
                                   conversion,
                                   conversion->GetDexPc(),
                                   nullptr);
+          CheckEntrypointTypes<kQuickF2l, int64_t, float>();
           break;
 
         case Primitive::kPrimDouble:
@@ -2418,6 +2431,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
                                   conversion,
                                   conversion->GetDexPc(),
                                   nullptr);
+          CheckEntrypointTypes<kQuickD2l, int64_t, double>();
           break;
 
         default:
@@ -2463,6 +2477,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
                                   conversion,
                                   conversion->GetDexPc(),
                                   nullptr);
+          CheckEntrypointTypes<kQuickL2f, float, int64_t>();
           break;
 
         case Primitive::kPrimDouble:
@@ -2985,6 +3000,7 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
         DCHECK_EQ(R0, out.AsRegister<Register>());
 
         codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pIdivmod), div, div->GetDexPc(), nullptr);
+        CheckEntrypointTypes<kQuickIdivmod, int32_t, int32_t, int32_t>();
       }
       break;
     }
@@ -2999,6 +3015,7 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
       DCHECK_EQ(R1, out.AsRegisterPairHigh<Register>());
 
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLdiv), div, div->GetDexPc(), nullptr);
+      CheckEntrypointTypes<kQuickLdiv, int64_t, int64_t, int64_t>();
       break;
     }
 
@@ -3127,22 +3144,26 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
         DCHECK_EQ(R1, out.AsRegister<Register>());
 
         codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pIdivmod), rem, rem->GetDexPc(), nullptr);
+        CheckEntrypointTypes<kQuickIdivmod, int32_t, int32_t, int32_t>();
       }
       break;
     }
 
     case Primitive::kPrimLong: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod), rem, rem->GetDexPc(), nullptr);
+        CheckEntrypointTypes<kQuickLmod, int64_t, int64_t, int64_t>();
       break;
     }
 
     case Primitive::kPrimFloat: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmodf), rem, rem->GetDexPc(), nullptr);
+      CheckEntrypointTypes<kQuickFmodf, float, float, float>();
       break;
     }
 
     case Primitive::kPrimDouble: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmod), rem, rem->GetDexPc(), nullptr);
+      CheckEntrypointTypes<kQuickFmod, double, double, double>();
       break;
     }
 
@@ -3437,6 +3458,7 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
+  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
 }
 
 void LocationsBuilderARM::VisitNewArray(HNewArray* instruction) {
@@ -3458,6 +3480,7 @@ void InstructionCodeGeneratorARM::VisitNewArray(HNewArray* instruction) {
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
+  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
 }
 
 void LocationsBuilderARM::VisitParameterValue(HParameterValue* instruction) {
@@ -4947,6 +4970,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
                             cls,
                             cls->GetDexPc(),
                             nullptr);
+    CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
   }
 
@@ -5107,6 +5131,7 @@ void LocationsBuilderARM::VisitThrow(HThrow* instruction) {
 void InstructionCodeGeneratorARM::VisitThrow(HThrow* instruction) {
   codegen_->InvokeRuntime(
       QUICK_ENTRY_POINT(pDeliverException), instruction, instruction->GetDexPc(), nullptr);
+  CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
 void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
@@ -5547,6 +5572,11 @@ void InstructionCodeGeneratorARM::VisitMonitorOperation(HMonitorOperation* instr
       instruction,
       instruction->GetDexPc(),
       nullptr);
+  if (instruction->IsEnter()) {
+    CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
+  } else {
+    CheckEntrypointTypes<kQuickUnlockObject, void, mirror::Object*>();
+  }
 }
 
 void LocationsBuilderARM::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction, AND); }

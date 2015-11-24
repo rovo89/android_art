@@ -65,6 +65,7 @@ class NullCheckSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
 
   bool IsFatal() const OVERRIDE { return true; }
@@ -91,6 +92,7 @@ class DivZeroCheckSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
 
   bool IsFatal() const OVERRIDE { return true; }
@@ -149,6 +151,7 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickTestSuspend, void, void>();
     RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
@@ -203,6 +206,7 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
   bool IsFatal() const OVERRIDE { return true; }
@@ -240,6 +244,11 @@ class LoadClassSlowPathX86_64 : public SlowPathCode {
                                   at_,
                                   dex_pc_,
                                   this);
+    if (do_clinit_) {
+      CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t>();
+    } else {
+      CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t>();
+    }
 
     Location out = locations->Out();
     // Move the class to the desired location.
@@ -290,6 +299,7 @@ class LoadStringSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
     x86_64_codegen->Move(locations->Out(), Location::RegisterLocation(RAX));
     RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());
@@ -386,6 +396,7 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCode {
                                   deoptimize,
                                   deoptimize->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathX86_64"; }
@@ -428,6 +439,7 @@ class ArraySetSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
     RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());
   }
@@ -3777,6 +3789,7 @@ void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction)
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
+  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
 
   DCHECK(!codegen_->IsLeafMethod());
 }
@@ -3795,13 +3808,13 @@ void InstructionCodeGeneratorX86_64::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   codegen_->Load64BitValue(CpuRegister(calling_convention.GetRegisterAt(0)),
                            instruction->GetTypeIndex());
-
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(),
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
+  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
 
   DCHECK(!codegen_->IsLeafMethod());
 }
@@ -5123,6 +5136,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
                             cls,
                             cls->GetDexPc(),
                             nullptr);
+    CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
   }
 
@@ -5272,6 +5286,7 @@ void InstructionCodeGeneratorX86_64::VisitThrow(HThrow* instruction) {
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
+  CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
 void LocationsBuilderX86_64::VisitInstanceOf(HInstanceOf* instruction) {
@@ -5766,6 +5781,11 @@ void InstructionCodeGeneratorX86_64::VisitMonitorOperation(HMonitorOperation* in
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
+  if (instruction->IsEnter()) {
+    CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
+  } else {
+    CheckEntrypointTypes<kQuickUnlockObject, void, mirror::Object*>();
+  }
 }
 
 void LocationsBuilderX86_64::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction); }
