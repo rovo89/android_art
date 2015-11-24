@@ -4496,8 +4496,6 @@ void LocationsBuilderX86_64::VisitArraySet(HArraySet* instruction) {
     // This first temporary register is possibly used for heap
     // reference poisoning and/or read barrier emission too.
     locations->AddTemp(Location::RequiresRegister());
-    // This second temporary register is possibly used for read
-    // barrier emission too.
     locations->AddTemp(Location::RequiresRegister());
   }
 }
