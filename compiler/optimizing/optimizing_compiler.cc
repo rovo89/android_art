@@ -391,10 +391,11 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
-// Read barrier are supported only on ARM, x86 and x86-64 at the moment.
+// Read barrier are supported on ARM, ARM64, x86 and x86-64 at the moment.
 // TODO: Add support for other architectures and remove this function
 static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
-  return instruction_set == kThumb2
+  return instruction_set == kArm64
+      || instruction_set == kThumb2
       || instruction_set == kX86
       || instruction_set == kX86_64;
 }
