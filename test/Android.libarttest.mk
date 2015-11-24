@@ -37,7 +37,8 @@ LIBARTTEST_COMMON_SRC_FILES := \
   457-regs/regs_jni.cc \
   461-get-reference-vreg/get_reference_vreg_jni.cc \
   466-get-live-vreg/get_live_vreg_jni.cc \
-  497-inlining-and-class-loader/clear_dex_cache.cc
+  497-inlining-and-class-loader/clear_dex_cache.cc \
+  543-env-long-ref/env_long_ref.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttestd.so
