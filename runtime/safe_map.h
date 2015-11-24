@@ -92,7 +92,7 @@ class SafeMap {
     DCHECK(result.second);  // Check we didn't accidentally overwrite an existing value.
     return result.first;
   }
-  iterator Put(const K& k, const V&& v) {
+  iterator Put(const K& k, V&& v) {
     std::pair<iterator, bool> result = map_.emplace(k, std::move(v));
     DCHECK(result.second);  // Check we didn't accidentally overwrite an existing value.
     return result.first;
@@ -105,7 +105,7 @@ class SafeMap {
     DCHECK(pos == map_.begin() || map_.key_comp()((--iterator(pos))->first, k));
     return map_.emplace_hint(pos, k, v);
   }
-  iterator PutBefore(iterator pos, const K& k, const V&& v) {
+  iterator PutBefore(iterator pos, const K& k, V&& v) {
     // Check that we're using the correct position and the key is not in the map.
     DCHECK(pos == map_.end() || map_.key_comp()(k, pos->first));
     DCHECK(pos == map_.begin() || map_.key_comp()((--iterator(pos))->first, k));
