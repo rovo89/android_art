@@ -153,6 +153,7 @@ struct WellKnownClasses {
   static jfieldID java_lang_Thread_uncaughtHandler;
   static jfieldID java_lang_Thread_nativePeer;
   static jfieldID java_lang_ThreadGroup_groups;
+  static jfieldID java_lang_ThreadGroup_ngroups;
   static jfieldID java_lang_ThreadGroup_mainThreadGroup;
   static jfieldID java_lang_ThreadGroup_name;
   static jfieldID java_lang_ThreadGroup_parent;

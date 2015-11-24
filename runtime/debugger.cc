@@ -2017,29 +2017,28 @@ static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Objec
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(thread_group != nullptr);
 
-  // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
-  ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
-  mirror::Object* groups_array_list = groups_field->GetObject(thread_group);
-  {
-    // The "groups" field is declared as a java.util.List: check it really is
-    // an instance of java.util.ArrayList.
-    CHECK(groups_array_list != nullptr);
-    mirror::Class* java_util_ArrayList_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_util_ArrayList);
-    CHECK(groups_array_list->InstanceOf(java_util_ArrayList_class));
+  // Get the int "ngroups" count of this thread group...
+  ArtField* ngroups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_ngroups);
+  CHECK(ngroups_field != nullptr);
+  const int32_t size = ngroups_field->GetInt(thread_group);
+  if (size == 0) {
+    return;
   }
 
-  // Get the array and size out of the ArrayList<ThreadGroup>...
-  ArtField* array_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_array);
-  ArtField* size_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_size);
-  mirror::ObjectArray<mirror::Object>* groups_array =
-      array_field->GetObject(groups_array_list)->AsObjectArray<mirror::Object>();
-  const int32_t size = size_field->GetInt(groups_array_list);
+  // Get the ThreadGroup[] "groups" out of this thread group...
+  ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
+  mirror::Object* groups_array = groups_field->GetObject(thread_group);
+
+  CHECK(groups_array != nullptr);
+  CHECK(groups_array->IsObjectArray());
+
+  mirror::ObjectArray<mirror::Object>* groups_array_as_array =
+      groups_array->AsObjectArray<mirror::Object>();
 
   // Copy the first 'size' elements out of the array into the result.
   ObjectRegistry* registry = Dbg::GetObjectRegistry();
   for (int32_t i = 0; i < size; ++i) {
-    child_thread_group_ids->push_back(registry->Add(groups_array->Get(i)));
+    child_thread_group_ids->push_back(registry->Add(groups_array_as_array->Get(i)));
   }
 }
 
