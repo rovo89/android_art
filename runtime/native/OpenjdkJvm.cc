@@ -43,6 +43,11 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
+#ifdef __ANDROID__
+// This function is provided by android linker.
+extern "C" void android_update_LD_LIBRARY_PATH(const char* ld_library_path);
+#endif  // __ANDROID__
+
 #undef LOG_TAG
 #define LOG_TAG "artopenjdx"
 
@@ -334,34 +339,45 @@ JNIEXPORT __attribute__((noreturn)) void JVM_Exit(jint status) {
   exit(status);
 }
 
+static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
+#ifdef __ANDROID__
+  if (javaLdLibraryPath != nullptr) {
+    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
+    if (ldLibraryPath.c_str() != nullptr) {
+      android_update_LD_LIBRARY_PATH(ldLibraryPath.c_str());
+    }
+  }
+
+#else
+  LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
+  UNUSED(javaLdLibraryPath, env);
+#endif
+}
+
+
 JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject javaLoader,
-                                 jstring javaLdLibraryPath) {
+                                 jstring javaLdLibraryPath, jstring javaLibraryPermittedPath) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
   }
 
-  if (javaLdLibraryPath != NULL) {
-    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
-    if (ldLibraryPath.c_str() == NULL) {
-      return NULL;
-    }
-    void* sym = dlsym(RTLD_DEFAULT, "android_update_LD_LIBRARY_PATH");
-    if (sym != NULL) {
-      typedef void (*Fn)(const char*);
-      Fn android_update_LD_LIBRARY_PATH = reinterpret_cast<Fn>(sym);
-      (*android_update_LD_LIBRARY_PATH)(ldLibraryPath.c_str());
-    } else {
-      LOG(ERROR) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
-    }
+  int32_t target_sdk_version = art::Runtime::Current()->GetTargetSdkVersion();
+
+  // Starting with N nativeLoad uses classloader local
+  // linker namespace instead of global LD_LIBRARY_PATH
+  // (23 is Marshmallow)
+  if (target_sdk_version <= 23) {
+    SetLdLibraryPath(env, javaLdLibraryPath);
   }
 
-  std::string detail;
+  std::string error_msg;
   {
     art::ScopedObjectAccess soa(env);
     art::StackHandleScope<1> hs(soa.Self());
     art::JavaVMExt* vm = art::Runtime::Current()->GetJavaVM();
-    bool success = vm->LoadNativeLibrary(env, filename.c_str(), javaLoader, &detail);
+    bool success = vm->LoadNativeLibrary(env, filename.c_str(), javaLoader,
+                                         javaLdLibraryPath, javaLibraryPermittedPath, &error_msg);
     if (success) {
       return nullptr;
     }
@@ -369,7 +385,7 @@ JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject java
 
   // Don't let a pending exception from JNI_OnLoad cause a CheckJNI issue with NewStringUTF.
   env->ExceptionClear();
-  return env->NewStringUTF(detail.c_str());
+  return env->NewStringUTF(error_msg.c_str());
 }
 
 JNIEXPORT void JVM_StartThread(JNIEnv* env, jobject jthread, jlong stack_size, jboolean daemon) {

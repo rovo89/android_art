@@ -1229,9 +1229,9 @@ void Runtime::InitNativeMethods() {
     }
   }
   {
-    std::string reason;
-    if (!java_vm_->LoadNativeLibrary(env, "libopenjdk.so", nullptr, &reason)) {
-      LOG(FATAL) << "LoadNativeLibrary failed for \"libopenjdk.so\": " << reason;
+    std::string error_msg;
+    if (!java_vm_->LoadNativeLibrary(env, "libopenjdk.so", nullptr, nullptr, nullptr, &error_msg)) {
+      LOG(FATAL) << "LoadNativeLibrary failed for \"libopenjdk.so\": " << error_msg;
     }
   }
 
