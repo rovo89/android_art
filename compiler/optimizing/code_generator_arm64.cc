@@ -3204,20 +3204,24 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
     DCHECK(!cls->MustGenerateClinitCheck());
     __ Ldr(out, MemOperand(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
   } else {
-    DCHECK(cls->CanCallRuntime());
     MemberOffset resolved_types_offset = ArtMethod::DexCacheResolvedTypesOffset(kArm64PointerSize);
     __ Ldr(out.X(), MemOperand(current_method, resolved_types_offset.Int32Value()));
     __ Ldr(out, MemOperand(out.X(), CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
     // TODO: We will need a read barrier here.
 
-    SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM64(
-        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
-    codegen_->AddSlowPath(slow_path);
-    __ Cbz(out, slow_path->GetEntryLabel());
-    if (cls->MustGenerateClinitCheck()) {
-      GenerateClassInitializationCheck(slow_path, out);
-    } else {
-      __ Bind(slow_path->GetExitLabel());
+    if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
+      DCHECK(cls->CanCallRuntime());
+      SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM64(
+          cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+      codegen_->AddSlowPath(slow_path);
+      if (!cls->IsInDexCache()) {
+        __ Cbz(out, slow_path->GetEntryLabel());
+      }
+      if (cls->MustGenerateClinitCheck()) {
+        GenerateClassInitializationCheck(slow_path, out);
+      } else {
+        __ Bind(slow_path->GetExitLabel());
+      }
     }
   }
 }
