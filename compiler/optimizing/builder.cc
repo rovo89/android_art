@@ -912,7 +912,7 @@ bool HGraphBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc) {
 
   current_block_->AddInstruction(load_class);
   HInstruction* cls = load_class;
-  if (!IsInitialized(resolved_class, type_index)) {
+  if (!IsInitialized(resolved_class)) {
     cls = new (arena_) HClinitCheck(load_class, dex_pc);
     current_block_->AddInstruction(cls);
   }
@@ -929,17 +929,34 @@ bool HGraphBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc) {
   return true;
 }
 
-bool HGraphBuilder::IsInitialized(Handle<mirror::Class> cls, uint16_t type_index) const {
+static bool IsSubClass(mirror::Class* to_test, mirror::Class* super_class)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  return to_test != nullptr && !to_test->IsInterface() && to_test->IsSubClass(super_class);
+}
+
+bool HGraphBuilder::IsInitialized(Handle<mirror::Class> cls) const {
   if (cls.Get() == nullptr) {
     return false;
   }
-  if (GetOutermostCompilingClass() == cls.Get()) {
+
+  // `CanAssumeClassIsLoaded` will return true if we're JITting, or will
+  // check whether the class is in an image for the AOT compilation.
+  if (cls->IsInitialized() &&
+      compiler_driver_->CanAssumeClassIsLoaded(cls.Get())) {
     return true;
   }
-  // TODO: find out why this check is needed.
-  bool is_in_dex_cache = compiler_driver_->CanAssumeTypeIsPresentInDexCache(
-      *outer_compilation_unit_->GetDexFile(), type_index);
-  return cls->IsInitialized() && is_in_dex_cache;
+
+  if (IsSubClass(GetOutermostCompilingClass(), cls.Get())) {
+    return true;
+  }
+
+  // TODO: We should walk over the inlined methods, but we don't pass
+  //       that information to the builder.
+  if (IsSubClass(GetCompilingClass(), cls.Get())) {
+    return true;
+  }
+
+  return false;
 }
 
 HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
@@ -962,6 +979,7 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
   Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
       outer_compilation_unit_->GetClassLinker()->FindDexCache(soa.Self(), outer_dex_file)));
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
+  Handle<mirror::Class> resolved_method_class(hs.NewHandle(resolved_method->GetDeclaringClass()));
 
   // The index at which the method's class is stored in the DexCache's type array.
   uint32_t storage_index = DexFile::kDexNoIndex;
@@ -979,36 +997,20 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
 
   HClinitCheck* clinit_check = nullptr;
 
-  if (!outer_class->IsInterface()
-      && outer_class->IsSubClass(resolved_method->GetDeclaringClass())) {
-    // If the outer class is the declaring class or a subclass
-    // of the declaring class, no class initialization is needed
-    // before the static method call.
-    // Note that in case of inlining, we do not need to add clinit checks
-    // to calls that satisfy this subclass check with any inlined methods. This
-    // will be detected by the optimization passes.
+  if (IsInitialized(resolved_method_class)) {
     *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
   } else if (storage_index != DexFile::kDexNoIndex) {
-    // If the method's class type index is available, check
-    // whether we should add an explicit class initialization
-    // check for its declaring class before the static method call.
-
-    Handle<mirror::Class> cls(hs.NewHandle(resolved_method->GetDeclaringClass()));
-    if (IsInitialized(cls, storage_index)) {
-      *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
-    } else {
-      *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
-      HLoadClass* load_class = new (arena_) HLoadClass(
-          graph_->GetCurrentMethod(),
-          storage_index,
-          *dex_compilation_unit_->GetDexFile(),
-          is_outer_class,
-          dex_pc,
-          /*needs_access_check*/ false);
-      current_block_->AddInstruction(load_class);
-      clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
-      current_block_->AddInstruction(clinit_check);
-    }
+    *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
+    HLoadClass* load_class = new (arena_) HLoadClass(
+        graph_->GetCurrentMethod(),
+        storage_index,
+        *dex_compilation_unit_->GetDexFile(),
+        is_outer_class,
+        dex_pc,
+        /*needs_access_check*/ false);
+    current_block_->AddInstruction(load_class);
+    clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
+    current_block_->AddInstruction(clinit_check);
   }
   return clinit_check;
 }
@@ -1390,7 +1392,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   HInstruction* cls = constant;
 
   Handle<mirror::Class> klass(hs.NewHandle(resolved_field->GetDeclaringClass()));
-  if (!IsInitialized(klass, storage_index)) {
+  if (!IsInitialized(klass)) {
     cls = new (arena_) HClinitCheck(constant, dex_pc);
     current_block_->AddInstruction(cls);
   }

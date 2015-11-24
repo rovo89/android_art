@@ -482,6 +482,10 @@ class CompilerDriver {
     return &compiled_method_storage_;
   }
 
+  // Can we assume that the klass is loaded?
+  bool CanAssumeClassIsLoaded(mirror::Class* klass)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   // Return whether the declaring class of `resolved_member` is
   // available to `referrer_class` for read or write access using two
@@ -514,10 +518,6 @@ class CompilerDriver {
   bool CanAssumeClassIsInitialized(mirror::Class* klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool CanReferrerAssumeClassIsInitialized(mirror::Class* referrer_class, mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Can we assume that the klass is loaded?
-  bool CanAssumeClassIsLoaded(mirror::Class* klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.
