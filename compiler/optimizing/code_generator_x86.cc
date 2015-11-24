@@ -4854,7 +4854,7 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     // Temporary registers for the write barrier.
     locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
     // Ensure the card is in a byte register.
-    locations->AddTemp(Location::RegisterLocation(ECX));  // Possibly used for read barrier too.
+    locations->AddTemp(Location::RegisterLocation(ECX));
   }
 }
 
