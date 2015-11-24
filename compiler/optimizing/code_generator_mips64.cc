@@ -366,13 +366,11 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                     instruction_,
                                     dex_pc,
                                     this);
+      CheckEntrypointTypes<
+          kQuickInstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       mips64_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
-      CheckEntrypointTypes<kQuickInstanceofNonTrivial,
-                           uint32_t,
-                           const mirror::Class*,
-                           const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
       mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc, this);
@@ -404,6 +402,7 @@ class DeoptimizationSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     uint32_t dex_pc = deoptimize->GetDexPc();
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
+    CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathMIPS64"; }
@@ -1611,6 +1610,7 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
                                 instruction,
                                 instruction->GetDexPc(),
                                 nullptr);
+        CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
       }
       break;
     }
@@ -1819,6 +1819,19 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
                                                      : QUICK_ENTRY_POINT(pCmplDouble);
       }
       codegen_->InvokeRuntime(entry_point_offset, instruction, instruction->GetDexPc(), nullptr);
+      if (in_type == Primitive::kPrimFloat) {
+        if (instruction->IsGtBias()) {
+          CheckEntrypointTypes<kQuickCmpgFloat, int32_t, float, float>();
+        } else {
+          CheckEntrypointTypes<kQuickCmplFloat, int32_t, float, float>();
+        }
+      } else {
+        if (instruction->IsGtBias()) {
+          CheckEntrypointTypes<kQuickCmpgDouble, int32_t, double, double>();
+        } else {
+          CheckEntrypointTypes<kQuickCmplDouble, int32_t, double, double>();
+        }
+      }
       break;
     }
 
@@ -3020,6 +3033,7 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
                             cls,
                             cls->GetDexPc(),
                             nullptr);
+    CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
   }
 
@@ -3136,7 +3150,11 @@ void InstructionCodeGeneratorMIPS64::VisitMonitorOperation(HMonitorOperation* in
                           instruction,
                           instruction->GetDexPc(),
                           nullptr);
-  CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
+  if (instruction->IsEnter()) {
+    CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
+  } else {
+    CheckEntrypointTypes<kQuickUnlockObject, void, mirror::Object*>();
+  }
 }
 
 void LocationsBuilderMIPS64::VisitMul(HMul* mul) {
@@ -3455,6 +3473,11 @@ void InstructionCodeGeneratorMIPS64::VisitRem(HRem* instruction) {
       int32_t entry_offset = (type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pFmodf)
                                                              : QUICK_ENTRY_POINT(pFmod);
       codegen_->InvokeRuntime(entry_offset, instruction, instruction->GetDexPc(), nullptr);
+      if (type == Primitive::kPrimFloat) {
+        CheckEntrypointTypes<kQuickFmodf, float, float, float>();
+      } else {
+        CheckEntrypointTypes<kQuickFmod, double, double, double>();
+      }
       break;
     }
     default:
@@ -3764,6 +3787,11 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
                               conversion,
                               conversion->GetDexPc(),
                               nullptr);
+      if (result_type == Primitive::kPrimFloat) {
+        CheckEntrypointTypes<kQuickL2f, float, int64_t>();
+      } else {
+        CheckEntrypointTypes<kQuickL2d, double, int64_t>();
+      }
     }
   } else if (Primitive::IsIntegralType(result_type) && Primitive::IsFloatingPointType(input_type)) {
     CHECK(result_type == Primitive::kPrimInt || result_type == Primitive::kPrimLong);
@@ -3779,6 +3807,19 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
                             conversion,
                             conversion->GetDexPc(),
                             nullptr);
+    if (result_type != Primitive::kPrimLong) {
+      if (input_type == Primitive::kPrimFloat) {
+        CheckEntrypointTypes<kQuickF2iz, int32_t, float>();
+      } else {
+        CheckEntrypointTypes<kQuickD2iz, int32_t, double>();
+      }
+    } else {
+      if (input_type == Primitive::kPrimFloat) {
+        CheckEntrypointTypes<kQuickF2l, int64_t, float>();
+      } else {
+        CheckEntrypointTypes<kQuickD2l, int64_t, double>();
+      }
+    }
   } else if (Primitive::IsFloatingPointType(result_type) &&
              Primitive::IsFloatingPointType(input_type)) {
     FpuRegister dst = locations->Out().AsFpuRegister<FpuRegister>();
