@@ -905,10 +905,11 @@ bool HGraphBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc) {
   HLoadClass* load_class = new (arena_) HLoadClass(
       graph_->GetCurrentMethod(),
       type_index,
-      *dex_compilation_unit_->GetDexFile(),
+      outer_dex_file,
       IsOutermostCompilingClass(type_index),
       dex_pc,
-      /*needs_access_check*/ can_throw);
+      /*needs_access_check*/ can_throw,
+      compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_file, type_index));
 
   current_block_->AddInstruction(load_class);
   HInstruction* cls = load_class;
@@ -1004,10 +1005,11 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
     HLoadClass* load_class = new (arena_) HLoadClass(
         graph_->GetCurrentMethod(),
         storage_index,
-        *dex_compilation_unit_->GetDexFile(),
+        outer_dex_file,
         is_outer_class,
         dex_pc,
-        /*needs_access_check*/ false);
+        /*needs_access_check*/ false,
+        compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_file, storage_index));
     current_block_->AddInstruction(load_class);
     clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
     current_block_->AddInstruction(clinit_check);
@@ -1381,12 +1383,15 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     }
   }
 
+  bool is_in_cache =
+      compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_file, storage_index);
   HLoadClass* constant = new (arena_) HLoadClass(graph_->GetCurrentMethod(),
                                                  storage_index,
-                                                 *dex_compilation_unit_->GetDexFile(),
+                                                 outer_dex_file,
                                                  is_outer_class,
                                                  dex_pc,
-                                                 /*needs_access_check*/ false);
+                                                 /*needs_access_check*/ false,
+                                                 is_in_cache);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
@@ -1661,19 +1666,20 @@ void HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
 
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
+  const DexFile& dex_file = *dex_compilation_unit_->GetDexFile();
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
-      dex_compilation_unit_->GetClassLinker()->FindDexCache(
-          soa.Self(), *dex_compilation_unit_->GetDexFile())));
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(soa.Self(), dex_file)));
   Handle<mirror::Class> resolved_class(hs.NewHandle(dex_cache->GetResolvedType(type_index)));
 
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot, dex_pc);
   HLoadClass* cls = new (arena_) HLoadClass(
       graph_->GetCurrentMethod(),
       type_index,
-      *dex_compilation_unit_->GetDexFile(),
+      dex_file,
       IsOutermostCompilingClass(type_index),
       dex_pc,
-      !can_access);
+      !can_access,
+      compiler_driver_->CanAssumeTypeIsPresentInDexCache(dex_file, type_index));
   current_block_->AddInstruction(cls);
 
   // The class needs a temporary before being used by the type check.
@@ -2799,10 +2805,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       current_block_->AddInstruction(new (arena_) HLoadClass(
           graph_->GetCurrentMethod(),
           type_index,
-          *dex_compilation_unit_->GetDexFile(),
+          *dex_file_,
           IsOutermostCompilingClass(type_index),
           dex_pc,
-          !can_access));
+          !can_access,
+          compiler_driver_->CanAssumeTypeIsPresentInDexCache(*dex_file_, type_index)));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction(), dex_pc);
       break;
     }
