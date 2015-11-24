@@ -29,7 +29,6 @@ GTEST_DEX_DIRECTORIES := \
   GetMethodSignature \
   Instrumentation \
   Interfaces \
-  LambdaInterfaces \
   Lookup \
   Main \
   MultiDex \
@@ -78,7 +77,6 @@ ART_GTEST_oat_file_test_DEX_DEPS := Main MultiDex
 ART_GTEST_oat_test_DEX_DEPS := Main
 ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
 ART_GTEST_proxy_test_DEX_DEPS := Interfaces
-ART_GTEST_lambda_proxy_test_DEX_DEPS := LambdaInterfaces
 ART_GTEST_reflection_test_DEX_DEPS := Main NonStaticLeafMethods StaticLeafMethods
 ART_GTEST_stub_test_DEX_DEPS := AllFields
 ART_GTEST_transaction_test_DEX_DEPS := Transaction
@@ -99,7 +97,6 @@ ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
 
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
-ART_GTEST_lambda_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 
 # The dexdump test requires an image and the dexdump utility.
 # TODO: rename into dexdump when migration completes
@@ -236,7 +233,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 
 COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/jni_internal_test.cc \
-  runtime/lambda_proxy_test.cc \
   runtime/proxy_test.cc \
   runtime/reflection_test.cc \
   compiler/compiled_method_test.cc \
@@ -745,7 +741,6 @@ ART_GTEST_oat_file_assistant_test_HOST_DEPS :=
 ART_GTEST_oat_file_assistant_test_TARGET_DEPS :=
 ART_GTEST_object_test_DEX_DEPS :=
 ART_GTEST_proxy_test_DEX_DEPS :=
-ART_GTEST_lambda_proxy_test_DEX_DEPS :=
 ART_GTEST_reflection_test_DEX_DEPS :=
 ART_GTEST_stub_test_DEX_DEPS :=
 ART_GTEST_transaction_test_DEX_DEPS :=

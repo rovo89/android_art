@@ -18,10 +18,8 @@
 #include "base/mutex.h"
 #include "common_throws.h"
 #include "gc_root-inl.h"
-#include "lambda/box_class_table.h"
 #include "lambda/closure.h"
 #include "lambda/leaking_allocator.h"
-#include "mirror/lambda_proxy.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "thread.h"
@@ -30,13 +28,12 @@
 
 namespace art {
 namespace lambda {
-// All closures are boxed into a subtype of LambdaProxy which implements the lambda's interface.
-using BoxedClosurePointerType = mirror::LambdaProxy*;
+// Temporarily represent the lambda Closure as its raw bytes in an array.
+// TODO: Generate a proxy class for the closure when boxing the first time.
+using BoxedClosurePointerType = mirror::ByteArray*;
 
-// Returns the base class for all boxed closures.
-// Note that concrete closure boxes are actually a subtype of mirror::LambdaProxy.
-static mirror::Class* GetBoxedClosureBaseClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-  return Runtime::Current()->GetClassLinker()->GetClassRoot(ClassLinker::kJavaLangLambdaProxy);
+static mirror::Class* GetBoxedClosureClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+  return mirror::ByteArray::GetArrayClass();
 }
 
 namespace {
@@ -57,14 +54,6 @@ namespace {
       return closure;
     }
   };
-
-  struct DeleterForClosure {
-    void operator()(Closure* closure) const {
-      ClosureAllocator::Delete(closure);
-    }
-  };
-
-  using UniqueClosurePtr = std::unique_ptr<Closure, DeleterForClosure>;
 }  // namespace
 
 BoxTable::BoxTable()
@@ -86,9 +75,7 @@ BoxTable::~BoxTable() {
   }
 }
 
-mirror::Object* BoxTable::BoxLambda(const ClosureType& closure,
-                                    const char* class_name,
-                                    mirror::ClassLoader* class_loader) {
+mirror::Object* BoxTable::BoxLambda(const ClosureType& closure) {
   Thread* self = Thread::Current();
 
   {
@@ -104,7 +91,7 @@ mirror::Object* BoxTable::BoxLambda(const ClosureType& closure,
     //   Functional f = () -> 5;  // vF = create-lambda
     //   Object a = f;            // vA = box-lambda vA
     //   Object b = f;            // vB = box-lambda vB
-    //   assert(a == b)
+    //   assert(a == f)
     ValueType value = FindBoxedLambda(closure);
     if (!value.IsNull()) {
       return value.Read();
@@ -113,62 +100,30 @@ mirror::Object* BoxTable::BoxLambda(const ClosureType& closure,
     // Otherwise we need to box ourselves and insert it into the hash map
   }
 
-  // Convert the Closure into a managed object instance, whose supertype of java.lang.LambdaProxy.
-
-  // TODO: Boxing a learned lambda (i.e. made with unbox-lambda) should return the original object
-  StackHandleScope<2> hs{self};  // NOLINT: [readability/braces] [4]
-
-  Handle<mirror::ClassLoader> class_loader_handle = hs.NewHandle(class_loader);
-
   // Release the lambda table lock here, so that thread suspension is allowed.
-  self->AllowThreadSuspension();
 
-  lambda::BoxClassTable* lambda_box_class_table;
+  // Convert the Closure into a managed byte[] which will serve
+  // as the temporary 'boxed' version of the lambda. This is good enough
+  // to check all the basic object identities that a boxed lambda must retain.
+  // It's also good enough to contain all the captured primitive variables.
 
-  // Find the lambda box class table, which can be in the system class loader if classloader is null
-  if (class_loader == nullptr) {
-    ScopedObjectAccessUnchecked soa(self);
-    mirror::ClassLoader* system_class_loader =
-        soa.Decode<mirror::ClassLoader*>(Runtime::Current()->GetSystemClassLoader());
-    lambda_box_class_table = system_class_loader->GetLambdaProxyCache();
-  } else {
-    lambda_box_class_table = class_loader_handle->GetLambdaProxyCache();
-    // OK: can't be deleted while we hold a handle to the class loader.
-  }
-  DCHECK(lambda_box_class_table != nullptr);
+  // TODO: Boxing an innate lambda (i.e. made with create-lambda) should make a proxy class
+  // TODO: Boxing a learned lambda (i.e. made with unbox-lambda) should return the original object
+  BoxedClosurePointerType closure_as_array_object =
+      mirror::ByteArray::Alloc(self, closure->GetSize());
 
-  Handle<mirror::Class> closure_class(hs.NewHandle(
-      lambda_box_class_table->GetOrCreateBoxClass(class_name, class_loader_handle)));
-  if (UNLIKELY(closure_class.Get() == nullptr)) {
+  // There are no thread suspension points after this, so we don't need to put it into a handle.
+
+  if (UNLIKELY(closure_as_array_object == nullptr)) {
     // Most likely an OOM has occurred.
-    self->AssertPendingException();
+    CHECK(self->IsExceptionPending());
     return nullptr;
   }
 
-  BoxedClosurePointerType closure_as_object = nullptr;
-  UniqueClosurePtr closure_table_copy;
-  // Create an instance of the class, and assign the pointer to the closure into it.
-  {
-    closure_as_object = down_cast<BoxedClosurePointerType>(closure_class->AllocObject(self));
-    if (UNLIKELY(closure_as_object == nullptr)) {
-      self->AssertPendingOOMException();
-      return nullptr;
-    }
-
-    // Make a copy of the closure that we will store in the hash map.
-    // The proxy instance will also point to this same hash map.
-    // Note that the closure pointer is cleaned up only after the proxy is GCd.
-    closure_table_copy.reset(ClosureAllocator::Allocate(closure->GetSize()));
-    closure_as_object->SetClosure(closure_table_copy.get());
-  }
-
-  // There are no thread suspension points after this, so we don't need to put it into a handle.
-  ScopedAssertNoThreadSuspension soants{self,                                                    // NOLINT: [whitespace/braces] [5]
-                                        "box lambda table - box lambda - no more suspensions"};  // NOLINT: [whitespace/braces] [5]
-
-  // Write the raw closure data into the proxy instance's copy of the closure.
-  closure->CopyTo(closure_table_copy.get(),
-                  closure->GetSize());
+  // Write the raw closure data into the byte[].
+  closure->CopyTo(closure_as_array_object->GetRawData(sizeof(uint8_t),  // component size
+                                                      0 /*index*/),     // index
+                  closure_as_array_object->GetLength());
 
   // The method has been successfully boxed into an object, now insert it into the hash map.
   {
@@ -179,21 +134,24 @@ mirror::Object* BoxTable::BoxLambda(const ClosureType& closure,
     // we were allocating the object before.
     ValueType value = FindBoxedLambda(closure);
     if (UNLIKELY(!value.IsNull())) {
-      // Let the GC clean up closure_as_object at a later time.
-      // (We will not see this object when sweeping, it wasn't inserted yet.)
-      closure_as_object->SetClosure(nullptr);
+      // Let the GC clean up method_as_object at a later time.
       return value.Read();
     }
 
     // Otherwise we need to insert it into the hash map in this thread.
 
-    // The closure_table_copy is deleted by us manually when we erase it from the map.
+    // Make a copy for the box table to keep, in case the closure gets collected from the stack.
+    // TODO: GC may need to sweep for roots in the box table's copy of the closure.
+    Closure* closure_table_copy = ClosureAllocator::Allocate(closure->GetSize());
+    closure->CopyTo(closure_table_copy, closure->GetSize());
+
+    // The closure_table_copy needs to be deleted by us manually when we erase it from the map.
 
     // Actually insert into the table.
-    map_.Insert({closure_table_copy.release(), ValueType(closure_as_object)});
+    map_.Insert({closure_table_copy, ValueType(closure_as_array_object)});
   }
 
-  return closure_as_object;
+  return closure_as_array_object;
 }
 
 bool BoxTable::UnboxLambda(mirror::Object* object, ClosureType* out_closure) {
@@ -207,35 +165,29 @@ bool BoxTable::UnboxLambda(mirror::Object* object, ClosureType* out_closure) {
 
   mirror::Object* boxed_closure_object = object;
 
-  // Raise ClassCastException if object is not instanceof LambdaProxy
-  if (UNLIKELY(!boxed_closure_object->InstanceOf(GetBoxedClosureBaseClass()))) {
-    ThrowClassCastException(GetBoxedClosureBaseClass(), boxed_closure_object->GetClass());
+  // Raise ClassCastException if object is not instanceof byte[]
+  if (UNLIKELY(!boxed_closure_object->InstanceOf(GetBoxedClosureClass()))) {
+    ThrowClassCastException(GetBoxedClosureClass(), boxed_closure_object->GetClass());
     return false;
   }
 
   // TODO(iam): We must check that the closure object extends/implements the type
-  // specified in [type id]. This is not currently implemented since the type id is unavailable.
+  // specified in [type id]. This is not currently implemented since it's always a byte[].
 
   // If we got this far, the inputs are valid.
-  // Shuffle the java.lang.LambdaProxy back into a raw closure, then allocate it, copy,
-  // and return it.
-  BoxedClosurePointerType boxed_closure =
+  // Shuffle the byte[] back into a raw closure, then allocate it, copy, and return it.
+  BoxedClosurePointerType boxed_closure_as_array =
       down_cast<BoxedClosurePointerType>(boxed_closure_object);
 
-  DCHECK_ALIGNED(boxed_closure->GetClosure(), alignof(Closure));
-  const Closure* aligned_interior_closure = boxed_closure->GetClosure();
-  DCHECK(aligned_interior_closure != nullptr);
-
-  // TODO: we probably don't need to make a copy here later on, once there's GC support.
+  const int8_t* unaligned_interior_closure = boxed_closure_as_array->GetData();
 
   // Allocate a copy that can "escape" and copy the closure data into that.
   Closure* unboxed_closure =
-      LeakingAllocator::MakeFlexibleInstance<Closure>(self, aligned_interior_closure->GetSize());
-  DCHECK_ALIGNED(unboxed_closure, alignof(Closure));
+      LeakingAllocator::MakeFlexibleInstance<Closure>(self, boxed_closure_as_array->GetLength());
   // TODO: don't just memcpy the closure, it's unsafe when we add references to the mix.
-  memcpy(unboxed_closure, aligned_interior_closure, aligned_interior_closure->GetSize());
+  memcpy(unboxed_closure, unaligned_interior_closure, boxed_closure_as_array->GetLength());
 
-  DCHECK_EQ(unboxed_closure->GetSize(), aligned_interior_closure->GetSize());
+  DCHECK_EQ(unboxed_closure->GetSize(), static_cast<size_t>(boxed_closure_as_array->GetLength()));
 
   *out_closure = unboxed_closure;
   return true;
@@ -284,10 +236,9 @@ void BoxTable::SweepWeakBoxedLambdas(IsMarkedVisitor* visitor) {
 
     if (new_value == nullptr) {
       // The object has been swept away.
-      Closure* closure = key_value_pair.first;
+      const ClosureType& closure = key_value_pair.first;
 
       // Delete the entry from the map.
-      // (Remove from map first to avoid accessing dangling pointer).
       map_iterator = map_.Erase(map_iterator);
 
       // Clean up the memory by deleting the closure.
@@ -339,10 +290,7 @@ void BoxTable::EmptyFn::MakeEmpty(std::pair<UnorderedMapKeyType, ValueType>& ite
 }
 
 bool BoxTable::EmptyFn::IsEmpty(const std::pair<UnorderedMapKeyType, ValueType>& item) const {
-  bool is_empty = item.first == nullptr;
-  DCHECK_EQ(item.second.IsNull(), is_empty);
-
-  return is_empty;
+  return item.first == nullptr;
 }
 
 bool BoxTable::EqualsFn::operator()(const UnorderedMapKeyType& lhs,

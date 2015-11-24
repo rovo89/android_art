@@ -26,5 +26,3 @@ Caught NPE
 (CaptureVariables) (0-args, 1 captured variable 'D'): value is -Infinity
 (CaptureVariables) (0-args, 8 captured variable 'ZBCSIJFD'): value is true,R,∂,1000,12345678,3287471278325742,Infinity,-Infinity
 (CaptureVariables) Caught NPE
-(BoxInvoke) Hello boxing world! (0-args, no closure) void
-(BoxInvoke) Hello boxing world!(1-args, no closure) returned: 12345678

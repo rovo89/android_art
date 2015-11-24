@@ -285,39 +285,6 @@ struct ShortyFieldType : ValueObject {
     }
   }
 
-  // Get the number of virtual registers necessary to represent this type as a stack local.
-  inline size_t GetVirtualRegisterCount() const {
-    if (IsPrimitiveNarrow()) {
-      return 1;
-    } else if (IsPrimitiveWide()) {
-      return 2;
-    } else if (IsObject()) {
-      return kObjectReferenceSize / sizeof(uint32_t);
-    } else if (IsLambda()) {
-      return 2;
-    } else {
-      DCHECK(false) << "unknown shorty field type '" << static_cast<char>(value_) << "'";
-      UNREACHABLE();
-    }
-  }
-
-  // Count how many virtual registers would be necessary in order to store this list of shorty
-  // field types.
-  inline size_t static CountVirtualRegistersRequired(const char* shorty) {
-    size_t size = 0;
-
-    while (shorty != nullptr && *shorty != '\0') {
-      // Each argument appends to the size.
-      ShortyFieldType shorty_field{*shorty};  // NOLINT [readability/braces] [4]
-
-      size += shorty_field.GetVirtualRegisterCount();
-
-      ++shorty;
-  }
-
-    return size;
-  }
-
   // Implicitly convert to the anonymous nested inner type. Used for exhaustive switch detection.
   inline operator decltype(kByte)() const {
     return value_;
