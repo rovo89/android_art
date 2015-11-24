@@ -51,7 +51,6 @@
     .registers 3
 
     create-lambda v0, LBoxUnbox;->doHelloWorld(J)V
-    const-string v2, "Ljava/lang/Runnable;"
     box-lambda v2, v0 # v2 = box(v0)
     unbox-lambda v0, v2, J # v0 = unbox(v2)
     invoke-lambda v0, {}
@@ -64,9 +63,7 @@
    .registers 6 # 0 parameters, 6 locals
 
     create-lambda v0, LBoxUnbox;->doHelloWorld(J)V
-    const-string v2, "Ljava/lang/Runnable;"
     box-lambda v2, v0 # v2 = box(v0)
-    const-string v3, "Ljava/lang/Runnable;"
     box-lambda v3, v0 # v3 = box(v0)
 
     # The objects should be not-null, and they should have the same reference
@@ -119,7 +116,6 @@
     const v0, 0  # v0 = null
     const v1, 0  # v1 = null
 :start
-    const-string v2, "Ljava/lang/Runnable;"
     box-lambda v2, v0  # attempting to box a null lambda will throw NPE
 :end
     return-void

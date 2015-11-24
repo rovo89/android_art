@@ -102,8 +102,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   size_t lambda_captured_variable_index = 0;
   while (true) {
     dex_pc = inst->GetDexPc(insns);
-    DCHECK_LE(dex_pc, code_item->insns_size_in_code_units_)
-        << "Dex PC overflowed code item size; missing return instruction?";
     shadow_frame.SetDexPC(dex_pc);
     TraceExecution(shadow_frame, inst, dex_pc);
     inst_data = inst->Fetch16(0);

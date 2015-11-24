@@ -56,7 +56,6 @@
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
-#include "lambda/box_class_table.h"
 #include "leb128.h"
 #include "linear_alloc.h"
 #include "mirror/class.h"
@@ -65,7 +64,6 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/field.h"
 #include "mirror/iftable-inl.h"
-#include "mirror/lambda_proxy.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -582,9 +580,6 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   // Create java.lang.reflect.Proxy root.
   SetClassRoot(kJavaLangReflectProxy, FindSystemClass(self, "Ljava/lang/reflect/Proxy;"));
-
-  // Create java.lang.LambdaProxy root.
-  SetClassRoot(kJavaLangLambdaProxy, FindSystemClass(self, "Ljava/lang/LambdaProxy;"));
 
   // Create java.lang.reflect.Field.class root.
   auto* class_root = FindSystemClass(self, "Ljava/lang/reflect/Field;");
@@ -1262,7 +1257,6 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data) {
   }
   delete data.allocator;
   delete data.class_table;
-  delete data.lambda_box_class_table;
 }
 
 mirror::PointerArray* ClassLinker::AllocPointerArray(Thread* self, size_t length) {
@@ -1904,10 +1898,8 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* 
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
   CHECK(method->IsInvokable()) << PrettyMethod(method);
-  if (method->IsReflectProxyMethod()) {
+  if (method->IsProxyMethod()) {
     return GetQuickProxyInvokeHandler();
-  } else if (method->IsLambdaProxyMethod()) {
-    return GetQuickLambdaProxyInvokeHandler();
   }
   bool found;
   OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
@@ -3265,7 +3257,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   klass->SetName(soa.Decode<mirror::String*>(name));
   klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
-  std::string descriptor(GetDescriptorForAnyProxy(klass.Get()));
+  std::string descriptor(GetDescriptorForProxy(klass.Get()));
   const size_t hash = ComputeModifiedUtf8Hash(descriptor.c_str());
 
   // Needs to be before we insert the class so that the allocator field is set.
@@ -3385,228 +3377,23 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
                                                decoded_name->ToModifiedUtf8().c_str()));
     CHECK_EQ(PrettyField(klass->GetStaticField(1)), throws_field_name);
 
-    CHECK_EQ(klass.Get()->GetInterfacesForAnyProxy(),
+    CHECK_EQ(klass.Get()->GetInterfaces(),
              soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    CHECK_EQ(klass.Get()->GetThrowsForAnyProxy(),
+    CHECK_EQ(klass.Get()->GetThrows(),
              soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
   }
   return klass.Get();
 }
 
-mirror::Class* ClassLinker::CreateLambdaProxyClass(ScopedObjectAccessAlreadyRunnable& soa,
-                                                   jstring name,
-                                                   jobjectArray interfaces,
-                                                   jobject loader,
-                                                   jobjectArray methods,
-                                                   jobjectArray throws,
-                                                   bool* already_exists) {
-  DCHECK(already_exists != nullptr);
-  *already_exists = false;
-
-  Thread* self = soa.Self();
-  StackHandleScope<10> hs(self);
-
-  // Allocate a new java.lang.Class object for a mirror::Proxy.
-  MutableHandle<mirror::Class> klass =
-      hs.NewHandle(AllocClass(self, GetClassRoot(kJavaLangClass), sizeof(mirror::Class)));
-  if (klass.Get() == nullptr) {
-    CHECK(self->IsExceptionPending());  // OOME.
-    return nullptr;
-  }
-  DCHECK(klass->GetClass() != nullptr);
-  klass->SetObjectSize(sizeof(mirror::LambdaProxy));
-
-  // Set the class access flags incl. preverified, so we do not try to set the flag on the methods.
-  klass->SetAccessFlags(kAccClassIsLambdaProxy | kAccPublic | kAccFinal | kAccPreverified);
-  klass->SetClassLoader(soa.Decode<mirror::ClassLoader*>(loader));
-  DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
-  klass->SetName(soa.Decode<mirror::String*>(name));
-  klass->SetDexCache(GetClassRoot(kJavaLangLambdaProxy)->GetDexCache());
-  // Set the status to be just before after loading it, but before anything is resolved.
-  mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
-  // Convert "foo.bar.baz" string to "Lfoo/bar/baz;"
-  std::string type_descriptor(GetDescriptorForAnyProxy(klass.Get()));
-
-  mirror::Class* existing;
-  {
-    const size_t hash = ComputeModifiedUtf8Hash(type_descriptor.c_str());
-
-    // Insert the class before loading the fields as the field roots
-    // (ArtField::declaring_class_) are only visited from the class
-    // table. There can't be any suspend points between inserting the
-    // class and setting the field arrays below.
-    existing = InsertClass(type_descriptor.c_str(), klass.Get(), hash);
-  }
-  if (UNLIKELY(existing != nullptr)) {
-    // We had already made the lambda proxy previously. Return it.
-
-    *already_exists = true;
-    return existing;
-    // Let the GC clean up the class we had already allocated but isn't being used.
-  }
-
-  // Needs to be after we insert the class so that the allocator field is set.
-  LinearAlloc* const allocator = GetOrCreateAllocatorForClassLoader(klass->GetClassLoader());
-
-  // Instance fields are inherited, but we add a couple of static fields...
-  LengthPrefixedArray<ArtField>* sfields =
-      AllocArtFieldArray(self, allocator, mirror::LambdaProxy::kStaticFieldCount);
-  klass->SetSFieldsPtr(sfields);
-
-  // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
-  // our proxy, so Class.getInterfaces doesn't return the flattened set.
-  // -- private static java.lang.Class[] interfaces;  // list of declared interfaces
-  ArtField& interfaces_sfield = sfields->At(mirror::LambdaProxy::kStaticFieldIndexInterfaces);
-  interfaces_sfield.SetDexFieldIndex(mirror::LambdaProxy::kStaticFieldIndexInterfaces);
-  interfaces_sfield.SetDeclaringClass(klass.Get());
-  interfaces_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
-
-  // 2. Create a static field 'throws' that holds the classes of exceptions thrown by our methods.
-  // This is returned by java.lang.reflect.Method#getExceptionTypes()
-  // --- private static java.lang.Class[][] throws;  // maps vtable id to list of classes.
-  ArtField& throws_sfield = sfields->At(mirror::LambdaProxy::kStaticFieldIndexThrows);
-  throws_sfield.SetDexFieldIndex(mirror::LambdaProxy::kStaticFieldIndexThrows);
-  throws_sfield.SetDeclaringClass(klass.Get());
-  throws_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
-
-  // Set up the Constructor method.
-  {
-    // Lambda proxies have 1 direct method, the constructor.
-    static constexpr size_t kNumDirectMethods = 1;
-    LengthPrefixedArray<ArtMethod>* directs = AllocArtMethodArray(self,
-                                                                  allocator,
-                                                                  kNumDirectMethods);
-    // Currently AllocArtMethodArray cannot return null, but the OOM logic is left there in case we
-    // want to throw OOM in the future.
-    if (UNLIKELY(directs == nullptr)) {
-      self->AssertPendingOOMException();
-      return nullptr;
-    }
-    klass->SetDirectMethodsPtr(directs);
-    CreateLambdaProxyConstructor(klass, klass->GetDirectMethodUnchecked(0, image_pointer_size_));
-  }
-
-  // Create virtual method using specified prototypes.
-  auto h_methods = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Method>*>(methods));
-  DCHECK_EQ(h_methods->GetClass(), mirror::Method::ArrayClass())
-      << PrettyClass(h_methods->GetClass());
-  const size_t num_virtual_methods = h_methods->GetLength();
-  auto* virtuals = AllocArtMethodArray(self, allocator, num_virtual_methods);
-  // Currently AllocArtMethodArray cannot return null, but the OOM logic is left there in case we
-  // want to throw OOM in the future.
-  if (UNLIKELY(virtuals == nullptr)) {
-    self->AssertPendingOOMException();
-    return nullptr;
-  }
-  klass->SetVirtualMethodsPtr(virtuals);
-  size_t abstract_methods = 0;
-  for (size_t i = 0; i < num_virtual_methods; ++i) {
-    ArtMethod* virtual_method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
-    ArtMethod* prototype = h_methods->Get(i)->GetArtMethod();
-    if (UNLIKELY((prototype->GetAccessFlags() & kAccDefault) != 0)) {
-      UNIMPLEMENTED(FATAL) << "Lambda proxies don't support default methods yet";
-    }
-    if (prototype->IsAbstract()) {
-      abstract_methods++;
-    }
-    VLOG(class_linker) << "Creating lambda proxy method for " << PrettyMethod(prototype);
-
-    CreateLambdaProxyMethod(klass, prototype, virtual_method);
-    DCHECK(virtual_method->GetDeclaringClass() != nullptr);
-    DCHECK(prototype->GetDeclaringClass() != nullptr);
-  }
-  // Ignore any methods from Object and default methods, it doesn't matter.
-  // Sanity check that the prototype interface is indeed compatible with lambdas.
-  DCHECK_EQ(abstract_methods, 1u)
-      << "Interface must be a single-abstract-method type" << PrettyClass(klass.Get());
-
-  // The super class is java.lang.LambdaProxy
-  klass->SetSuperClass(GetClassRoot(kJavaLangLambdaProxy));
-  // Now effectively in the loaded state.
-  mirror::Class::SetStatus(klass, mirror::Class::kStatusLoaded, self);
-  self->AssertNoPendingException();
-
-  MutableHandle<mirror::Class> new_class = hs.NewHandle<mirror::Class>(nullptr);
-  {
-    // Must hold lock on object when resolved.
-    ObjectLock<mirror::Class> resolution_lock(self, klass);
-    // Link the fields and virtual methods, creating vtable and iftables.
-    // The new class will replace the old one in the class table.
-    Handle<mirror::ObjectArray<mirror::Class>> h_interfaces(
-        hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces)));
-
-    {
-      DCHECK_EQ(1, h_interfaces->GetLength()) << "Lambda proxies must implement 1 interface only";
-      mirror::Class* single_abstract_interface = h_interfaces->Get(0);
-      DCHECK(single_abstract_interface != nullptr);
-
-      // Use the dex cache from the interface, which will enable most of the
-      // dex-using mechanisms on the class and its methods will work.
-      klass->SetDexCache(single_abstract_interface->GetDexCache());
-    }
-
-    if (!LinkClass(self, type_descriptor.c_str(), klass, h_interfaces, &new_class)) {
-      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
-      return nullptr;
-    }
-  }
-  CHECK(klass->IsRetired());
-  CHECK_NE(klass.Get(), new_class.Get());
-  klass.Assign(new_class.Get());
-
-  CHECK_EQ(interfaces_sfield.GetDeclaringClass(), klass.Get());
-  interfaces_sfield.SetObject<false>(klass.Get(),
-                                     soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-
-  CHECK_EQ(throws_sfield.GetDeclaringClass(), klass.Get());
-  throws_sfield.SetObject<false>(
-      klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
-
-  {
-    // Lock on klass is released. Lock new class object.
-    ObjectLock<mirror::Class> initialization_lock(self, klass);
-    mirror::Class::SetStatus(klass, mirror::Class::kStatusInitialized, self);
-  }
-
-  // Sanity checks
-  if (kIsDebugBuild) {
-    CHECK(klass->GetIFieldsPtr() == nullptr);
-    CheckLambdaProxyConstructor(klass->GetDirectMethod(0, image_pointer_size_));
-
-    for (size_t i = 0; i < num_virtual_methods; ++i) {
-      ArtMethod* virtual_method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
-      ArtMethod* prototype = h_methods->Get(i++)->GetArtMethod();
-      CheckLambdaProxyMethod(virtual_method, prototype);
-    }
-
-    StackHandleScope<1> hs2(self);
-    Handle<mirror::String> decoded_name = hs2.NewHandle(soa.Decode<mirror::String*>(name));
-    std::string interfaces_field_name(StringPrintf("java.lang.Class[] %s.interfaces",
-                                                   decoded_name->ToModifiedUtf8().c_str()));
-    CHECK_EQ(PrettyField(klass->GetStaticField(0)), interfaces_field_name);
-
-    std::string throws_field_name(StringPrintf("java.lang.Class[][] %s.throws",
-                                               decoded_name->ToModifiedUtf8().c_str()));
-    CHECK_EQ(PrettyField(klass->GetStaticField(1)), throws_field_name);
-
-    CHECK_EQ(klass.Get()->GetInterfacesForAnyProxy(),
-             soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    CHECK_EQ(klass.Get()->GetThrowsForAnyProxy(),
-             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
-  }
-  return klass.Get();
-}
-
-std::string ClassLinker::GetDescriptorForAnyProxy(mirror::Class* proxy_class) {
-  DCHECK(proxy_class != nullptr);
-  DCHECK(proxy_class->IsAnyProxyClass());
+std::string ClassLinker::GetDescriptorForProxy(mirror::Class* proxy_class) {
+  DCHECK(proxy_class->IsProxyClass());
   mirror::String* name = proxy_class->GetName();
   DCHECK(name != nullptr);
   return DotToDescriptor(name->ToModifiedUtf8().c_str());
 }
 
 ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method) {
-  DCHECK(proxy_class->IsAnyProxyClass());
+  DCHECK(proxy_class->IsProxyClass());
   DCHECK(proxy_method->IsProxyMethod());
   {
     Thread* const self = Thread::Current();
@@ -3634,7 +3421,7 @@ ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod
 
 void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod* out) {
   // Create constructor for Proxy that must initialize the method.
-  CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 18u);
+  CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 16u);
   ArtMethod* proxy_constructor = GetClassRoot(kJavaLangReflectProxy)->GetDirectMethodUnchecked(
       2, image_pointer_size_);
   // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden
@@ -3650,51 +3437,11 @@ void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod*
   out->SetDeclaringClass(klass.Get());
 }
 
-void ClassLinker::CreateLambdaProxyConstructor(Handle<mirror::Class> klass,
-                                               /*out*/ArtMethod* method_constructor) {
-  DCHECK(klass.Get() != nullptr);
-  DCHECK(method_constructor != nullptr);
-
-  // Create constructor for Proxy that must initialize the method.
-  // Lambda proxy superclass only has 1 direct method, the constructor (<init>()V)
-  CHECK_EQ(GetClassRoot(kJavaLangLambdaProxy)->NumDirectMethods(),
-           mirror::LambdaProxy::kDirectMethodCount);
-  // Get the constructor method.
-  ArtMethod* proxy_constructor = GetClassRoot(kJavaLangLambdaProxy)->GetDirectMethodUnchecked(
-      mirror::LambdaProxy::kDirectMethodIndexConstructor,
-      image_pointer_size_);
-
-  // Verify constructor method is indeed a constructor.
-  CHECK(proxy_constructor != nullptr);
-
-  // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden
-  // constructor method.
-  GetClassRoot(kJavaLangLambdaProxy)->GetDexCache()->SetResolvedMethod(
-      proxy_constructor->GetDexMethodIndex(),
-      proxy_constructor,
-      image_pointer_size_);
-
-  // Clone the existing constructor of LambdaProxy
-  // (our constructor would just invoke it so steal its code_ too).
-  method_constructor->CopyFrom(proxy_constructor, image_pointer_size_);
-  // Make this constructor public and fix the class to be our LambdaProxy version
-  method_constructor->SetAccessFlags((method_constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
-  method_constructor->SetDeclaringClass(klass.Get());
-}
-
 void ClassLinker::CheckProxyConstructor(ArtMethod* constructor) const {
   CHECK(constructor->IsConstructor());
   auto* np = constructor->GetInterfaceMethodIfProxy(image_pointer_size_);
   CHECK_STREQ(np->GetName(), "<init>");
   CHECK_STREQ(np->GetSignature().ToString().c_str(), "(Ljava/lang/reflect/InvocationHandler;)V");
-  DCHECK(constructor->IsPublic());
-}
-
-void ClassLinker::CheckLambdaProxyConstructor(ArtMethod* constructor) const {
-  CHECK(constructor->IsConstructor());
-  auto* np = constructor->GetInterfaceMethodIfProxy(image_pointer_size_);
-  CHECK_STREQ(np->GetName(), "<init>");
-  CHECK_STREQ(np->GetSignature().ToString().c_str(), "()V");
   DCHECK(constructor->IsPublic());
 }
 
@@ -3709,7 +3456,6 @@ void ClassLinker::CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prot
     dex_cache->SetResolvedMethod(
         prototype->GetDexMethodIndex(), prototype, image_pointer_size_);
   }
-
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
   DCHECK(out != nullptr);
@@ -3723,42 +3469,6 @@ void ClassLinker::CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prot
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
   out->SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
-}
-
-void ClassLinker::CreateLambdaProxyMethod(Handle<mirror::Class> klass,
-                                          ArtMethod* prototype,
-                                          ArtMethod* out) {
-  DCHECK(prototype != nullptr);
-  DCHECK(out != nullptr);
-
-  // DO NOT go through the proxy invoke handler for the default methods. They have no idea
-  // how to handle the raw closure, so they must get the regular object when invoked.
-  CHECK_EQ(prototype->GetAccessFlags() & kAccDefault, 0u) << "Default methods must not be proxied";
-
-  // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
-  // prototype method
-  auto* dex_cache = prototype->GetDeclaringClass()->GetDexCache();
-  // Avoid dirtying the dex cache unless we need to.
-  if (dex_cache->GetResolvedMethod(prototype->GetDexMethodIndex(), image_pointer_size_) !=
-      prototype) {
-    dex_cache->SetResolvedMethod(
-        prototype->GetDexMethodIndex(), prototype, image_pointer_size_);
-  }
-  // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
-  // as necessary
-  out->CopyFrom(prototype, image_pointer_size_);
-
-  // Set class to be the concrete proxy class and clear the abstract flag, modify exceptions to
-  // the intersection of throw exceptions as defined in Proxy
-  out->SetDeclaringClass(klass.Get());
-  out->SetAccessFlags((out->GetAccessFlags() & ~kAccAbstract) | kAccFinal);
-
-  // Setting the entry point isn't safe for AOT since ASLR loads it anywhere at runtime.
-  CHECK(!Runtime::Current()->IsAotCompiler());
-
-  // At runtime the method looks like a reference and argument saving method, clone the code
-  // related parameters from this method.
-  out->SetEntryPointFromQuickCompiledCode(GetQuickLambdaProxyInvokeHandler());
 }
 
 void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) const {
@@ -3780,11 +3490,6 @@ void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) cons
   // More complex sanity - via dex cache
   CHECK_EQ(np->GetReturnType(true /* resolve */, image_pointer_size_),
            prototype->GetReturnType(true /* resolve */, image_pointer_size_));
-}
-
-void ClassLinker::CheckLambdaProxyMethod(ArtMethod* method, ArtMethod* prototype) const {
-  // same as above.
-  return CheckProxyMethod(method, prototype);
 }
 
 bool ClassLinker::CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
@@ -4418,9 +4123,7 @@ ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* cla
     class_loader->SetClassTable(data.class_table);
     // Should have been set when we registered the dex file.
     data.allocator = class_loader->GetAllocator();
-    CHECK(class_loader->GetLambdaProxyCache() == nullptr);
-    data.lambda_box_class_table = new lambda::BoxClassTable();
-    class_loader->SetLambdaProxyCache(data.lambda_box_class_table);
+    CHECK(data.allocator != nullptr);
     class_loaders_.push_back(data);
   }
   return class_table;
@@ -6863,7 +6566,6 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "Ljava/lang/reflect/Field;",
     "Ljava/lang/reflect/Method;",
     "Ljava/lang/reflect/Proxy;",
-    "Ljava/lang/LambdaProxy;",
     "[Ljava/lang/String;",
     "[Ljava/lang/reflect/Constructor;",
     "[Ljava/lang/reflect/Field;",

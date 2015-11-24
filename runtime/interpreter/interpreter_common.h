@@ -888,56 +888,12 @@ static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const In
     return false;
   }
 
-  StackHandleScope<1> hs{self};  // NOLINT: [readability/braces] [4];
-
-  // Use the lambda method's class loader since it's close enough.
-  // TODO: create-lambda should capture the current method's class loader and use that instead.
-  // TODO: Do we want create-lambda to work for static methods outside of the declaring class?
-  // --> then we need to store a classloader in the lambda method. otherwise we don't
-  //     because it would always use the declaring class's class loader.
-  // TODO: add a GetClassLoader to the lambda closure which knows how to do this,
-  //       don't hardcode this here.
-  Handle<ClassLoader> current_class_loader = hs.NewHandle(
-      lambda_closure->GetTargetMethod()->GetDeclaringClass()->GetClassLoader());
-
-  // TODO: get the type ID from the instruction
-  std::string class_name;
-  {
-    // Temporary hack to read the interface corresponding to a box-lambda.
-    // TODO: The box-lambda should encode the type ID instead, so we don't need to do this.
-    {
-      // Do a hack where we read from const-string the interface name
-      mirror::Object* string_reference = shadow_frame.GetVRegReference(vreg_target_object);
-
-      CHECK(string_reference != nullptr)
-          << "box-lambda needs the type name stored in string vA (target), but it was null";
-
-      CHECK(string_reference->IsString())
-          << "box-lambda needs the type name stored in string vA (target)";
-
-      mirror::String* as_string = string_reference->AsString();
-      class_name = as_string->ToModifiedUtf8();
-    }
-
-    // Trigger class loading of the functional interface.
-    // TODO: This should actually be done by the create-lambda...
-    if (Runtime::Current()->GetClassLinker()
-            ->FindClass(self, class_name.c_str(), current_class_loader) == nullptr) {
-      CHECK(self->IsExceptionPending());
-      self->AssertPendingException();
-      return false;
-    }
-  }
-
   mirror::Object* closure_as_object =
-      Runtime::Current()->GetLambdaBoxTable()->BoxLambda(lambda_closure,
-                                                         class_name.c_str(),
-                                                         current_class_loader.Get());
+      Runtime::Current()->GetLambdaBoxTable()->BoxLambda(lambda_closure);
 
   // Failed to box the lambda, an exception was raised.
   if (UNLIKELY(closure_as_object == nullptr)) {
     CHECK(self->IsExceptionPending());
-    shadow_frame.SetVRegReference(vreg_target_object, nullptr);
     return false;
   }
 
