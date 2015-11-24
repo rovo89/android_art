@@ -27,8 +27,8 @@
 #include "mirror/class-inl.h"
 #include "offsets.h"
 #include "thread.h"
-#include "utils/mips64/assembler_mips64.h"
 #include "utils/assembler.h"
+#include "utils/mips64/assembler_mips64.h"
 #include "utils/stack_checks.h"
 
 namespace art {
@@ -210,7 +210,7 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     }
 
     RestoreLiveRegisters(codegen, locations);
-    __ B(GetExitLabel());
+    __ Bc(GetExitLabel());
   }
 
   const char* GetDescription() const OVERRIDE { return "LoadClassSlowPathMIPS64"; }
@@ -257,7 +257,7 @@ class LoadStringSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                  type);
 
     RestoreLiveRegisters(codegen, locations);
-    __ B(GetExitLabel());
+    __ Bc(GetExitLabel());
   }
 
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathMIPS64"; }
@@ -312,13 +312,13 @@ class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
     RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
-      __ B(GetReturnLabel());
+      __ Bc(GetReturnLabel());
     } else {
-      __ B(mips64_codegen->GetLabelOf(successor_));
+      __ Bc(mips64_codegen->GetLabelOf(successor_));
     }
   }
 
-  Label* GetReturnLabel() {
+  Mips64Label* GetReturnLabel() {
     DCHECK(successor_ == nullptr);
     return &return_label_;
   }
@@ -331,7 +331,7 @@ class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   HBasicBlock* const successor_;
 
   // If `successor_` is null, the label to branch to after the suspend check.
-  Label return_label_;
+  Mips64Label return_label_;
 
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathMIPS64);
 };
@@ -380,7 +380,7 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     }
 
     RestoreLiveRegisters(codegen, locations);
-    __ B(GetExitLabel());
+    __ Bc(GetExitLabel());
   }
 
   const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathMIPS64"; }
@@ -441,6 +441,32 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, x).Int32Value()
 
 void CodeGeneratorMIPS64::Finalize(CodeAllocator* allocator) {
+  // Ensure that we fix up branches.
+  __ FinalizeCode();
+
+  // Adjust native pc offsets in stack maps.
+  for (size_t i = 0, num = stack_map_stream_.GetNumberOfStackMaps(); i != num; ++i) {
+    uint32_t old_position = stack_map_stream_.GetStackMap(i).native_pc_offset;
+    uint32_t new_position = __ GetAdjustedPosition(old_position);
+    DCHECK_GE(new_position, old_position);
+    stack_map_stream_.SetStackMapNativePcOffset(i, new_position);
+  }
+
+  // Adjust pc offsets for the disassembly information.
+  if (disasm_info_ != nullptr) {
+    GeneratedCodeInterval* frame_entry_interval = disasm_info_->GetFrameEntryInterval();
+    frame_entry_interval->start = __ GetAdjustedPosition(frame_entry_interval->start);
+    frame_entry_interval->end = __ GetAdjustedPosition(frame_entry_interval->end);
+    for (auto& it : *disasm_info_->GetInstructionIntervals()) {
+      it.second.start = __ GetAdjustedPosition(it.second.start);
+      it.second.end = __ GetAdjustedPosition(it.second.end);
+    }
+    for (auto& it : *disasm_info_->GetSlowPathIntervals()) {
+      it.code_interval.start = __ GetAdjustedPosition(it.code_interval.start);
+      it.code_interval.end = __ GetAdjustedPosition(it.code_interval.end);
+    }
+  }
+
   CodeGenerator::Finalize(allocator);
 }
 
@@ -603,6 +629,7 @@ void CodeGeneratorMIPS64::GenerateFrameExit() {
   }
 
   __ Jr(RA);
+  __ Nop();
 
   __ cfi().RestoreState();
   __ cfi().DefCFAOffset(GetFrameSize());
@@ -939,7 +966,7 @@ Location CodeGeneratorMIPS64::GetStackLocation(HLoadLocal* load) const {
 }
 
 void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object, GpuRegister value) {
-  Label done;
+  Mips64Label done;
   GpuRegister card = AT;
   GpuRegister temp = TMP;
   __ Beqzc(value, &done);
@@ -1048,6 +1075,7 @@ void CodeGeneratorMIPS64::InvokeRuntime(int32_t entry_point_offset,
   // TODO: anything related to T9/GP/GOT/PIC/.so's?
   __ LoadFromOffset(kLoadDoubleword, T9, TR, entry_point_offset);
   __ Jalr(T9);
+  __ Nop();
   RecordPcInfo(instruction, dex_pc, slow_path);
 }
 
@@ -1079,7 +1107,7 @@ void InstructionCodeGeneratorMIPS64::GenerateSuspendCheck(HSuspendCheck* instruc
     __ Bind(slow_path->GetReturnLabel());
   } else {
     __ Beqzc(TMP, codegen_->GetLabelOf(successor));
-    __ B(slow_path->GetEntryLabel());
+    __ Bc(slow_path->GetEntryLabel());
     // slow_path will return to GetLabelOf(successor).
   }
 }
@@ -1669,12 +1697,7 @@ void InstructionCodeGeneratorMIPS64::VisitBoundsCheck(HBoundsCheck* instruction)
   // length is limited by the maximum positive signed 32-bit integer.
   // Unsigned comparison of length and index checks for index < 0
   // and for length <= index simultaneously.
-  // Mips R6 requires lhs != rhs for compact branches.
-  if (index == length) {
-    __ B(slow_path->GetEntryLabel());
-  } else {
-    __ Bgeuc(index, length, slow_path->GetEntryLabel());
-  }
+  __ Bgeuc(index, length, slow_path->GetEntryLabel());
 }
 
 void LocationsBuilderMIPS64::VisitCheckCast(HCheckCast* instruction) {
@@ -2264,7 +2287,7 @@ void InstructionCodeGeneratorMIPS64::VisitDivZeroCheck(HDivZeroCheck* instructio
   if (value.IsConstant()) {
     int64_t divisor = codegen_->GetInt64ValueOf(value.GetConstant()->AsConstant());
     if (divisor == 0) {
-      __ B(slow_path->GetEntryLabel());
+      __ Bc(slow_path->GetEntryLabel());
     } else {
       // A division by a non-null constant is valid. We don't need to perform
       // any check, so simply fall through.
@@ -2316,7 +2339,7 @@ void InstructionCodeGeneratorMIPS64::HandleGoto(HInstruction* got, HBasicBlock* 
     GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
   }
   if (!codegen_->GoesToNextBlock(block, successor)) {
-    __ B(codegen_->GetLabelOf(successor));
+    __ Bc(codegen_->GetLabelOf(successor));
   }
 }
 
@@ -2341,8 +2364,8 @@ void InstructionCodeGeneratorMIPS64::VisitTryBoundary(HTryBoundary* try_boundary
 
 void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruction,
                                                            size_t condition_input_index,
-                                                           Label* true_target,
-                                                           Label* false_target) {
+                                                           Mips64Label* true_target,
+                                                           Mips64Label* false_target) {
   HInstruction* cond = instruction->InputAt(condition_input_index);
 
   if (true_target == nullptr && false_target == nullptr) {
@@ -2352,12 +2375,12 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
     // Constant condition, statically compared against 1.
     if (cond->AsIntConstant()->IsOne()) {
       if (true_target != nullptr) {
-        __ B(true_target);
+        __ Bc(true_target);
       }
     } else {
       DCHECK(cond->AsIntConstant()->IsZero());
       if (false_target != nullptr) {
-        __ B(false_target);
+        __ Bc(false_target);
       }
     }
     return;
@@ -2397,7 +2420,7 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
     }
 
     IfCondition if_cond;
-    Label* non_fallthrough_target;
+    Mips64Label* non_fallthrough_target;
     if (true_target == nullptr) {
       if_cond = condition->GetOppositeCondition();
       non_fallthrough_target = false_target;
@@ -2435,7 +2458,7 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
           __ Bnezc(lhs, non_fallthrough_target);  // > 0 if non-zero
           break;
         case kCondAE:
-          __ B(non_fallthrough_target);  // always true
+          __ Bc(non_fallthrough_target);  // always true
           break;
       }
     } else {
@@ -2443,60 +2466,37 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
         rhs_reg = TMP;
         __ LoadConst32(rhs_reg, rhs_imm);
       }
-      // It looks like we can get here with lhs == rhs. Should that be possible at all?
-      // Mips R6 requires lhs != rhs for compact branches.
-      if (lhs == rhs_reg) {
-        DCHECK(!use_imm);
-        switch (if_cond) {
-          case kCondEQ:
-          case kCondGE:
-          case kCondLE:
-          case kCondBE:
-          case kCondAE:
-            // if lhs == rhs for a positive condition, then it is a branch
-            __ B(non_fallthrough_target);
-            break;
-          case kCondNE:
-          case kCondLT:
-          case kCondGT:
-          case kCondB:
-          case kCondA:
-            // if lhs == rhs for a negative condition, then it is a NOP
-            break;
-        }
-      } else {
-        switch (if_cond) {
-          case kCondEQ:
-            __ Beqc(lhs, rhs_reg, non_fallthrough_target);
-            break;
-          case kCondNE:
-            __ Bnec(lhs, rhs_reg, non_fallthrough_target);
-            break;
-          case kCondLT:
-            __ Bltc(lhs, rhs_reg, non_fallthrough_target);
-            break;
-          case kCondGE:
-            __ Bgec(lhs, rhs_reg, non_fallthrough_target);
-            break;
-          case kCondLE:
-            __ Bgec(rhs_reg, lhs, non_fallthrough_target);
-            break;
-          case kCondGT:
-            __ Bltc(rhs_reg, lhs, non_fallthrough_target);
-            break;
-          case kCondB:
-            __ Bltuc(lhs, rhs_reg, non_fallthrough_target);
-            break;
-          case kCondAE:
-            __ Bgeuc(lhs, rhs_reg, non_fallthrough_target);
-            break;
-          case kCondBE:
-            __ Bgeuc(rhs_reg, lhs, non_fallthrough_target);
-            break;
-          case kCondA:
-            __ Bltuc(rhs_reg, lhs, non_fallthrough_target);
-            break;
-        }
+      switch (if_cond) {
+        case kCondEQ:
+          __ Beqc(lhs, rhs_reg, non_fallthrough_target);
+          break;
+        case kCondNE:
+          __ Bnec(lhs, rhs_reg, non_fallthrough_target);
+          break;
+        case kCondLT:
+          __ Bltc(lhs, rhs_reg, non_fallthrough_target);
+          break;
+        case kCondGE:
+          __ Bgec(lhs, rhs_reg, non_fallthrough_target);
+          break;
+        case kCondLE:
+          __ Bgec(rhs_reg, lhs, non_fallthrough_target);
+          break;
+        case kCondGT:
+          __ Bltc(rhs_reg, lhs, non_fallthrough_target);
+          break;
+        case kCondB:
+          __ Bltuc(lhs, rhs_reg, non_fallthrough_target);
+          break;
+        case kCondAE:
+          __ Bgeuc(lhs, rhs_reg, non_fallthrough_target);
+          break;
+        case kCondBE:
+          __ Bgeuc(rhs_reg, lhs, non_fallthrough_target);
+          break;
+        case kCondA:
+          __ Bltuc(rhs_reg, lhs, non_fallthrough_target);
+          break;
       }
     }
   }
@@ -2504,7 +2504,7 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
   // If neither branch falls through (case 3), the conditional branch to `true_target`
   // was already emitted (case 2) and we need to emit a jump to `false_target`.
   if (true_target != nullptr && false_target != nullptr) {
-    __ B(false_target);
+    __ Bc(false_target);
   }
 }
 
@@ -2518,9 +2518,9 @@ void LocationsBuilderMIPS64::VisitIf(HIf* if_instr) {
 void InstructionCodeGeneratorMIPS64::VisitIf(HIf* if_instr) {
   HBasicBlock* true_successor = if_instr->IfTrueSuccessor();
   HBasicBlock* false_successor = if_instr->IfFalseSuccessor();
-  Label* true_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), true_successor) ?
+  Mips64Label* true_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), true_successor) ?
       nullptr : codegen_->GetLabelOf(true_successor);
-  Label* false_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), false_successor) ?
+  Mips64Label* false_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), false_successor) ?
       nullptr : codegen_->GetLabelOf(false_successor);
   GenerateTestAndBranch(if_instr, /* condition_input_index */ 0, true_target, false_target);
 }
@@ -2695,7 +2695,7 @@ void InstructionCodeGeneratorMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
   GpuRegister cls = locations->InAt(1).AsRegister<GpuRegister>();
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
 
-  Label done;
+  Mips64Label done;
 
   // Return 0 if `obj` is null.
   // TODO: Avoid this check if we know `obj` is not null.
@@ -2790,6 +2790,7 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeInterface(HInvokeInterface* invo
   __ LoadFromOffset(kLoadDoubleword, T9, temp, entry_point.Int32Value());
   // T9();
   __ Jalr(T9);
+  __ Nop();
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
@@ -2924,13 +2925,14 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
 
   switch (invoke->GetCodePtrLocation()) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
-      __ Jalr(&frame_entry_label_, T9);
+      __ Jialc(&frame_entry_label_, T9);
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
       // LR = invoke->GetDirectCodePtr();
       __ LoadConst64(T9, invoke->GetDirectCodePtr());
       // LR()
       __ Jalr(T9);
+      __ Nop();
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
@@ -2947,6 +2949,7 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                             kMips64WordSize).Int32Value());
       // T9()
       __ Jalr(T9);
+      __ Nop();
       break;
   }
   DCHECK(!IsLeafMethod());
@@ -2988,6 +2991,7 @@ void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
   __ LoadFromOffset(kLoadDoubleword, T9, temp, entry_point.Int32Value());
   // T9();
   __ Jalr(T9);
+  __ Nop();
 }
 
 void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -3926,7 +3930,7 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
   const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
   for (int32_t i = 0; i < num_entries; i++) {
     int32_t case_value = lower_bound + i;
-    Label* succ = codegen_->GetLabelOf(successors[i]);
+    Mips64Label* succ = codegen_->GetLabelOf(successors[i]);
     if (case_value == 0) {
       __ Beqzc(value_reg, succ);
     } else {
@@ -3937,7 +3941,7 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
 
   // And the default for any other value.
   if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
-    __ B(codegen_->GetLabelOf(default_block));
+    __ Bc(codegen_->GetLabelOf(default_block));
   }
 }
 
