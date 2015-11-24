@@ -724,7 +724,9 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                       graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       call_patches_(MethodReferenceComparator(),
                     graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+      relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      dex_cache_arrays_base_labels_(std::less<HArmDexCacheArraysBase*>(),
+                                    graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Always save the LR register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(LR));
 }
@@ -1922,10 +1924,18 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
                                          codegen_->GetAssembler(),
                                          codegen_->GetInstructionSetFeatures());
   if (intrinsic.TryDispatch(invoke)) {
+    if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
+      invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
+    }
     return;
   }
 
   HandleInvoke(invoke);
+
+  // For PC-relative dex cache the invoke has an extra input, the PC-relative address base.
+  if (invoke->HasPcRelativeDexCache()) {
+    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::RequiresRegister());
+  }
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM* codegen) {
@@ -5818,16 +5828,6 @@ void CodeGeneratorARM::GenerateReadBarrierForRoot(HInstruction* instruction,
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method) {
-  if (desired_dispatch_info.method_load_kind ==
-      HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative) {
-    // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
-    return HInvokeStaticOrDirect::DispatchInfo {
-      HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
-      HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-      0u,
-      0u
-    };
-  }
   if (desired_dispatch_info.code_ptr_location ==
       HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative) {
     const DexFile& outer_dex_file = GetGraph()->GetDexFile();
@@ -5848,6 +5848,32 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOr
     }
   }
   return desired_dispatch_info;
+}
+
+Register CodeGeneratorARM::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
+                                                                 Register temp) {
+  DCHECK_EQ(invoke->InputCount(), invoke->GetNumberOfArguments() + 1u);
+  Location location = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
+  if (!invoke->GetLocations()->Intrinsified()) {
+    return location.AsRegister<Register>();
+  }
+  // For intrinsics we allow any location, so it may be on the stack.
+  if (!location.IsRegister()) {
+    __ LoadFromOffset(kLoadWord, temp, SP, location.GetStackIndex());
+    return temp;
+  }
+  // For register locations, check if the register was saved. If so, get it from the stack.
+  // Note: There is a chance that the register was saved but not overwritten, so we could
+  // save one load. However, since this is just an intrinsic slow path we prefer this
+  // simple and more robust approach rather that trying to determine if that's the case.
+  SlowPathCode* slow_path = GetCurrentSlowPath();
+  DCHECK(slow_path != nullptr);  // For intrinsified invokes the call is emitted on the slow path.
+  if (slow_path->IsCoreRegisterSaved(location.AsRegister<Register>())) {
+    int stack_offset = slow_path->GetStackOffsetOfCoreRegister(location.AsRegister<Register>());
+    __ LoadFromOffset(kLoadWord, temp, SP, stack_offset);
+    return temp;
+  }
+  return location.AsRegister<Register>();
 }
 
 void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
@@ -5881,11 +5907,15 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ LoadLiteral(temp.AsRegister<Register>(),
                      DeduplicateMethodAddressLiteral(invoke->GetTargetMethod()));
       break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement this type.
-      // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
-      LOG(FATAL) << "Unsupported";
-      UNREACHABLE();
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
+      HArmDexCacheArraysBase* base =
+          invoke->InputAt(invoke->GetSpecialInputIndex())->AsArmDexCacheArraysBase();
+      Register base_reg = GetInvokeStaticOrDirectExtraParameter(invoke,
+                                                                temp.AsRegister<Register>());
+      int32_t offset = invoke->GetDexCacheArrayOffset() - base->GetElementOffset();
+      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), base_reg, offset);
+      break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
       Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       Register method_reg;
@@ -5970,7 +6000,11 @@ void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
 
 void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
-  size_t size = method_patches_.size() + call_patches_.size() + relative_call_patches_.size();
+  size_t size =
+      method_patches_.size() +
+      call_patches_.size() +
+      relative_call_patches_.size() +
+      /* MOVW+MOVT for each base */ 2u * dex_cache_arrays_base_labels_.size();
   linker_patches->reserve(size);
   for (const auto& entry : method_patches_) {
     const MethodReference& target_method = entry.first;
@@ -5995,6 +6029,28 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
     linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
+  }
+  for (const auto& pair : dex_cache_arrays_base_labels_) {
+    HArmDexCacheArraysBase* base = pair.first;
+    const DexCacheArraysBaseLabels* labels = &pair.second;
+    const DexFile& dex_file = base->GetDexFile();
+    size_t base_element_offset = base->GetElementOffset();
+    DCHECK(labels->add_pc_label.IsBound());
+    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(labels->add_pc_label.Position());
+    // Add MOVW patch.
+    DCHECK(labels->movw_label.IsBound());
+    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(labels->movw_label.Position());
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(movw_offset,
+                                                              &dex_file,
+                                                              add_pc_offset,
+                                                              base_element_offset));
+    // Add MOVT patch.
+    DCHECK(labels->movt_label.IsBound());
+    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(labels->movt_label.Position());
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(movt_offset,
+                                                              &dex_file,
+                                                              add_pc_offset,
+                                                              base_element_offset));
   }
 }
 
@@ -6105,6 +6161,23 @@ void InstructionCodeGeneratorARM::VisitPackedSwitch(HPackedSwitch* switch_instr)
     // Dispatch is a direct add to the PC (for Thumb2).
     __ EmitJumpTableDispatch(table, temp_reg);
   }
+}
+
+void LocationsBuilderARM::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(base);
+  locations->SetOut(Location::RequiresRegister());
+  codegen_->AddDexCacheArraysBase(base);
+}
+
+void InstructionCodeGeneratorARM::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
+  Register base_reg = base->GetLocations()->Out().AsRegister<Register>();
+  CodeGeneratorARM::DexCacheArraysBaseLabels* labels = codegen_->GetDexCacheArraysBaseLabels(base);
+  __ BindTrackedLabel(&labels->movw_label);
+  __ movw(base_reg, 0u);
+  __ BindTrackedLabel(&labels->movt_label);
+  __ movt(base_reg, 0u);
+  __ BindTrackedLabel(&labels->add_pc_label);
+  __ add(base_reg, base_reg, ShifterOperand(PC));
 }
 
 void CodeGeneratorARM::MoveFromReturnRegister(Location trg, Primitive::Type type) {

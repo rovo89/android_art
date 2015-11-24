@@ -20,6 +20,10 @@
 #include <stdint.h>
 
 #ifdef ART_ENABLE_CODEGEN_arm64
+#include "dex_cache_array_fixups_arm.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_arm64
 #include "instruction_simplifier_arm64.h"
 #endif
 
@@ -434,6 +438,17 @@ static void RunArchOptimizations(InstructionSet instruction_set,
                                  PassObserver* pass_observer) {
   ArenaAllocator* arena = graph->GetArena();
   switch (instruction_set) {
+#ifdef ART_ENABLE_CODEGEN_arm
+    case kThumb2:
+    case kArm: {
+      arm::DexCacheArrayFixups* fixups = new (arena) arm::DexCacheArrayFixups(graph, stats);
+      HOptimization* arm_optimizations[] = {
+        fixups
+      };
+      RunOptimizations(arm_optimizations, arraysize(arm_optimizations), pass_observer);
+      break;
+    }
+#endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64: {
       arm64::InstructionSimplifierArm64* simplifier =
