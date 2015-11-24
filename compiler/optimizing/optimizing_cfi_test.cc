@@ -25,6 +25,7 @@
 #include "utils/assembler.h"
 #include "utils/arm/assembler_thumb2.h"
 #include "utils/mips/assembler_mips.h"
+#include "utils/mips64/assembler_mips64.h"
 
 #include "optimizing/optimizing_cfi_test_expected.inc"
 
@@ -210,6 +211,34 @@ TEST_F(OptimizingCFITest, kMipsAdjust) {
 #undef __
   Finish();
   Check(kMips, "kMips_adjust", expected_asm, expected_cfi);
+}
+
+TEST_F(OptimizingCFITest, kMips64Adjust) {
+  // One NOP in forbidden slot, 1 << 15 NOPS have size 1 << 17 which exceeds 18-bit signed maximum.
+  static constexpr size_t kNumNops = 1u + (1u << 15);
+  std::vector<uint8_t> expected_asm(
+      expected_asm_kMips64_adjust_head,
+      expected_asm_kMips64_adjust_head + arraysize(expected_asm_kMips64_adjust_head));
+  expected_asm.resize(expected_asm.size() + kNumNops * 4u, 0u);
+  expected_asm.insert(
+      expected_asm.end(),
+      expected_asm_kMips64_adjust_tail,
+      expected_asm_kMips64_adjust_tail + arraysize(expected_asm_kMips64_adjust_tail));
+  std::vector<uint8_t> expected_cfi(
+      expected_cfi_kMips64_adjust,
+      expected_cfi_kMips64_adjust + arraysize(expected_cfi_kMips64_adjust));
+  SetUpFrame(kMips64);
+#define __ down_cast<mips64::Mips64Assembler*>(GetCodeGenerator()->GetAssembler())->
+  mips64::Mips64Label target;
+  __ Beqc(mips64::A1, mips64::A2, &target);
+  // Push the target out of range of BEQC.
+  for (size_t i = 0; i != kNumNops; ++i) {
+    __ Nop();
+  }
+  __ Bind(&target);
+#undef __
+  Finish();
+  Check(kMips64, "kMips64_adjust", expected_asm, expected_cfi);
 }
 
 #endif  // __ANDROID__
