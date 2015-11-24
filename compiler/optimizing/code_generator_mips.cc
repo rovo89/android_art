@@ -415,13 +415,11 @@ class TypeCheckSlowPathMIPS : public SlowPathCodeMIPS {
                                   dex_pc,
                                   this,
                                   IsDirectEntrypoint(kQuickInstanceofNonTrivial));
+      CheckEntrypointTypes<
+          kQuickInstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       mips_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
-      CheckEntrypointTypes<kQuickInstanceofNonTrivial,
-                           uint32_t,
-                           const mirror::Class*,
-                           const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
       mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),
@@ -461,6 +459,7 @@ class DeoptimizationSlowPathMIPS : public SlowPathCodeMIPS {
                                 dex_pc,
                                 this,
                                 IsDirectEntrypoint(kQuickDeoptimize));
+    CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathMIPS"; }
@@ -3170,6 +3169,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
                             cls->GetDexPc(),
                             nullptr,
                             IsDirectEntrypoint(kQuickInitializeTypeAndVerifyAccess));
+    CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
   }
 
@@ -3700,7 +3700,7 @@ void InstructionCodeGeneratorMIPS::VisitRem(HRem* instruction) {
                               instruction, instruction->GetDexPc(),
                               nullptr,
                               IsDirectEntrypoint(kQuickFmodf));
-      CheckEntrypointTypes<kQuickL2f, float, int64_t>();
+      CheckEntrypointTypes<kQuickFmodf, float, float, float>();
       break;
     }
     case Primitive::kPrimDouble: {
@@ -3708,7 +3708,7 @@ void InstructionCodeGeneratorMIPS::VisitRem(HRem* instruction) {
                               instruction, instruction->GetDexPc(),
                               nullptr,
                               IsDirectEntrypoint(kQuickFmod));
-      CheckEntrypointTypes<kQuickL2d, double, int64_t>();
+      CheckEntrypointTypes<kQuickFmod, double, double, double>();
       break;
     }
     default:
