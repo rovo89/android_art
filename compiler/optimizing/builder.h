@@ -311,9 +311,8 @@ class HGraphBuilder : public ValueObject {
   // Build a HNewInstance instruction.
   bool BuildNewInstance(uint16_t type_index, uint32_t dex_pc);
 
-  // Return whether the compiler can assume `cls` is initialized. `type_index` is the index
-  // of the class in the outer dex file.
-  bool IsInitialized(Handle<mirror::Class> cls, uint16_t type_index) const
+  // Return whether the compiler can assume `cls` is initialized.
+  bool IsInitialized(Handle<mirror::Class> cls) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArenaAllocator* const arena_;
