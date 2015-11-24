@@ -352,33 +352,14 @@ class MANAGED Class FINAL : public Object {
   static String* ComputeName(Handle<Class> h_this) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  // Is this either a java.lang.reflect.Proxy or a boxed lambda (java.lang.LambdaProxy)?
-  // -- Most code doesn't need to make the distinction, and this is the preferred thing to check.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool IsAnyProxyClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return IsReflectProxyClass() || IsLambdaProxyClass();
-  }
-
-  // Is this a java.lang.reflect.Proxy ?
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool IsReflectProxyClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsProxyClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     // Read access flags without using getter as whether something is a proxy can be check in
     // any loaded state
     // TODO: switch to a check if the super class is java.lang.reflect.Proxy?
     uint32_t access_flags = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
     return (access_flags & kAccClassIsProxy) != 0;
   }
-
-  // Is this a boxed lambda (java.lang.LambdaProxy)?
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool IsLambdaProxyClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    // Read access flags without using getter as whether something is a proxy can be check in
-    // any loaded state
-    // TODO: switch to a check if the super class is java.lang.reflect.Proxy?
-    uint32_t access_flags = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
-    return (access_flags & kAccClassIsLambdaProxy) != 0;
-  }
-
 
   static MemberOffset PrimitiveTypeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_);
@@ -696,8 +677,6 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Class, super_class_));
   }
 
-  // Returns the class's ClassLoader.
-  // A null value is returned if and only if this is a boot classpath class.
   ClassLoader* GetClassLoader() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetClassLoader(ClassLoader* new_cl) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1097,8 +1076,6 @@ class MANAGED Class FINAL : public Object {
 
   bool DescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns the backing DexFile's class definition for this class.
-  // This returns null if and only if the class has no backing DexFile.
   const DexFile::ClassDef* GetClassDef() SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE uint32_t NumDirectInterfaces() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1125,15 +1102,11 @@ class MANAGED Class FINAL : public Object {
                 size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  // For any proxy class only. Returns list of directly implemented interfaces.
-  // The value returned is always non-null.
-  ObjectArray<Class>* GetInterfacesForAnyProxy() SHARED_REQUIRES(Locks::mutator_lock_);
+  // For proxy class only.
+  ObjectArray<Class>* GetInterfaces() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // For any proxy class only. Returns a 2d array of classes.
-  // -- The 0th dimension correponds to the vtable index.
-  // -- The 1st dimension is a list of checked exception classes.
-  // The value returned is always non-null.
-  ObjectArray<ObjectArray<Class>>* GetThrowsForAnyProxy() SHARED_REQUIRES(Locks::mutator_lock_);
+  // For proxy class only.
+  ObjectArray<ObjectArray<Class>>* GetThrows() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // For reference class only.
   MemberOffset GetDisableIntrinsicFlagOffset() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1221,7 +1194,7 @@ class MANAGED Class FINAL : public Object {
   IterationRange<StrideIterator<ArtField>> GetIFieldsUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool AnyProxyDescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool ProxyDescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Check that the pointer size matches the one in the class linker.
   ALWAYS_INLINE static void CheckPointerSize(size_t pointer_size);
