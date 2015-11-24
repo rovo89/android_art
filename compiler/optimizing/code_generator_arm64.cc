@@ -3850,16 +3850,15 @@ void InstructionCodeGeneratorARM64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UN
 }
 
 void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
-  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
-  codegen_->AddSlowPath(slow_path);
-
   Location out_loc = load->GetLocations()->Out();
   Register out = OutputRegister(load);
   Register current_method = InputRegisterAt(load, 0);
@@ -3889,8 +3888,12 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
     __ Ldr(out, MemOperand(out.X(), cache_offset));
   }
 
-  __ Cbz(out, slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
+  if (!load->IsInDexCache()) {
+    SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
+    codegen_->AddSlowPath(slow_path);
+    __ Cbz(out, slow_path->GetEntryLabel());
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void LocationsBuilderARM64::VisitLocal(HLocal* local) {

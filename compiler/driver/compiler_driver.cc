@@ -1134,15 +1134,21 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   // See also Compiler::ResolveDexFile
 
   bool result = false;
-  if (IsBootImage()) {
-    // We resolve all const-string strings when building for the image.
+  if (IsBootImage() || Runtime::Current()->UseJit()) {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
         soa.Self(), dex_file, false)));
-    class_linker->ResolveString(dex_file, string_idx, dex_cache);
-    result = true;
+    if (IsBootImage()) {
+      // We resolve all const-string strings when building for the image.
+      class_linker->ResolveString(dex_file, string_idx, dex_cache);
+      result = true;
+    } else {
+      // Just check whether the dex cache already has the string.
+      DCHECK(Runtime::Current()->UseJit());
+      result = (dex_cache->GetResolvedString(string_idx) != nullptr);
+    }
   }
   if (result) {
     stats_->StringInDexCache();
