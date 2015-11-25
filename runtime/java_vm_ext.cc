@@ -736,7 +736,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
     // it's okay to decode it without worrying about unexpectedly marking it alive.
     mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(class_loader);
     class_loader_allocator =
-        Runtime::Current()->GetClassLinker()->GetAllocatorForClassLoader(loader);
+        Runtime::Current()->GetClassLinker()->GetOrCreateAllocatorForClassLoader(loader);
     CHECK(class_loader_allocator != nullptr);
   }
   if (library != nullptr) {
