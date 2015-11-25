@@ -670,9 +670,9 @@ export TEST_NAME=`basename ${test_dir}`
 # -------------------------------
 # Return whether the Optimizing compiler has read barrier support for ARCH.
 function arch_supports_read_barrier() {
-  # Optimizing has read barrier support for ARM, x86 and x86-64 at the
+  # Optimizing has read barrier support for ARM, ARM64, x86 and x86-64 at the
   # moment.
-  [ "x$1" = xarm ] || [ "x$1" = xx86 ] || [ "x$1" = xx86_64 ]
+  [ "x$1" = xarm ] || [ "x$1" = xarm64 ] || [ "x$1" = xx86 ] || [ "x$1" = xx86_64 ]
 }
 
 # Tests named '<number>-checker-*' will also have their CFGs verified with
@@ -740,8 +740,8 @@ fi
 if [ "$run_checker" = "yes" -a "$target_mode" = "yes" ]; then
   # We will need to `adb pull` the .cfg output from the target onto the host to
   # run checker on it. This file can be big.
-  build_file_size_limit=16384
-  run_file_size_limit=16384
+  build_file_size_limit=24576
+  run_file_size_limit=24576
 fi
 if [ ${USE_JACK} = "false" ]; then
   # Set ulimit if we build with dx only, Jack can generate big temp files.

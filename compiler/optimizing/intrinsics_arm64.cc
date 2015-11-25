@@ -143,7 +143,23 @@ class IntrinsicSlowPathARM64 : public SlowPathCodeARM64 {
 bool IntrinsicLocationsBuilderARM64::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
-  return res != nullptr && res->Intrinsified();
+  if (res == nullptr) {
+    return false;
+  }
+  if (kEmitCompilerReadBarrier && res->CanCall()) {
+    // Generating an intrinsic for this HInvoke may produce an
+    // IntrinsicSlowPathARM64 slow path.  Currently this approach
+    // does not work when using read barriers, as the emitted
+    // calling sequence will make use of another slow path
+    // (ReadBarrierForRootSlowPathARM64 for HInvokeStaticOrDirect,
+    // ReadBarrierSlowPathARM64 for HInvokeVirtual).  So we bail
+    // out in this case.
+    //
+    // TODO: Find a way to have intrinsics work with read barriers.
+    invoke->SetLocations(nullptr);
+    return false;
+  }
+  return res->Intrinsified();
 }
 
 #define __ masm->
@@ -818,9 +834,12 @@ static void GenUnsafeGet(HInvoke* invoke,
          (type == Primitive::kPrimLong) ||
          (type == Primitive::kPrimNot));
   vixl::MacroAssembler* masm = codegen->GetAssembler()->vixl_masm_;
-  Register base = WRegisterFrom(locations->InAt(1));    // Object pointer.
-  Register offset = XRegisterFrom(locations->InAt(2));  // Long offset.
-  Register trg = RegisterFrom(locations->Out(), type);
+  Location base_loc = locations->InAt(1);
+  Register base = WRegisterFrom(base_loc);      // Object pointer.
+  Location offset_loc = locations->InAt(2);
+  Register offset = XRegisterFrom(offset_loc);  // Long offset.
+  Location trg_loc = locations->Out();
+  Register trg = RegisterFrom(trg_loc, type);
   bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
 
   MemOperand mem_op(base.X(), offset);
@@ -837,13 +856,18 @@ static void GenUnsafeGet(HInvoke* invoke,
 
   if (type == Primitive::kPrimNot) {
     DCHECK(trg.IsW());
-    codegen->GetAssembler()->MaybeUnpoisonHeapReference(trg);
+    codegen->MaybeGenerateReadBarrier(invoke, trg_loc, trg_loc, base_loc, 0U, offset_loc);
   }
 }
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           can_call ?
+                                                               LocationSummary::kCallOnSlowPath :
+                                                               LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
@@ -1057,6 +1081,9 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   if (use_acquire_release) {
     __ Bind(&loop_head);
     __ Ldaxr(tmp_value, MemOperand(tmp_ptr));
+    // TODO: Do we need a read barrier here when `type == Primitive::kPrimNot`?
+    // Note that this code is not (yet) used when read barriers are
+    // enabled (see IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject).
     __ Cmp(tmp_value, expected);
     __ B(&exit_loop, ne);
     __ Stlxr(tmp_32, value, MemOperand(tmp_ptr));
@@ -1065,6 +1092,9 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
     __ Dmb(InnerShareable, BarrierWrites);
     __ Bind(&loop_head);
     __ Ldxr(tmp_value, MemOperand(tmp_ptr));
+    // TODO: Do we need a read barrier here when `type == Primitive::kPrimNot`?
+    // Note that this code is not (yet) used when read barriers are
+    // enabled (see IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject).
     __ Cmp(tmp_value, expected);
     __ B(&exit_loop, ne);
     __ Stxr(tmp_32, value, MemOperand(tmp_ptr));
@@ -1090,7 +1120,11 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic does not always work when heap
   // poisoning is enabled (it breaks run-test 004-UnsafeTest); turn it
   // off temporarily as a quick fix.
+  //
   // TODO(rpl): Fix it and turn it back on.
+  //
+  // TODO(rpl): Also, we should investigate whether we need a read
+  // barrier in the generated code.
   if (kPoisonHeapReferences) {
     return;
   }
