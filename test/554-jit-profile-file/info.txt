@@ -1,0 +1,1 @@
+Check that saving and restoring profile files works correctly in a JIT environment.
