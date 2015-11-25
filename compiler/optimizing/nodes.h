@@ -1101,6 +1101,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
 #else
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                          \
+  M(Arm64DataProcWithShifterOp, Instruction)                            \
   M(Arm64IntermediateAddress, Instruction)                              \
   M(Arm64MultiplyAccumulate, Instruction)
 #endif
