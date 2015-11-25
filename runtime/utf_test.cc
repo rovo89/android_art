@@ -19,6 +19,7 @@
 #include "common_runtime_test.h"
 #include "utf-inl.h"
 
+#include <map>
 #include <vector>
 
 namespace art {
@@ -156,9 +157,43 @@ TEST_F(UtfTest, CountAndConvertUtf8Bytes_UnpairedSurrogate) {
   // Unpaired trailing surrogate at the end of input.
   AssertConversion({ 'h', 'e', 0xd801 }, { 'h', 'e', 0xed, 0xa0, 0x81 });
   // Unpaired (or incorrectly paired) surrogates in the middle of the input.
-  AssertConversion({ 'h', 0xd801, 'e' }, { 'h', 0xed, 0xa0, 0x81, 'e' });
-  AssertConversion({ 'h', 0xd801, 0xd801, 'e' }, { 'h', 0xed, 0xa0, 0x81, 0xed, 0xa0, 0x81, 'e' });
-  AssertConversion({ 'h', 0xdc00, 0xdc00, 'e' }, { 'h', 0xed, 0xb0, 0x80, 0xed, 0xb0, 0x80, 'e' });
+  const std::map<std::vector<uint16_t>, std::vector<uint8_t>> prefixes {
+      {{ 'h' }, { 'h' }},
+      {{ 0 }, { 0xc0, 0x80 }},
+      {{ 0x81 }, { 0xc2, 0x81 }},
+      {{ 0x801 }, { 0xe0, 0xa0, 0x81 }},
+  };
+  const std::map<std::vector<uint16_t>, std::vector<uint8_t>> suffixes {
+      {{ 'e' }, { 'e' }},
+      {{ 0 }, { 0xc0, 0x80 }},
+      {{ 0x7ff }, { 0xdf, 0xbf }},
+      {{ 0xffff }, { 0xef, 0xbf, 0xbf }},
+  };
+  const std::map<std::vector<uint16_t>, std::vector<uint8_t>> tests {
+      {{ 0xd801 }, { 0xed, 0xa0, 0x81 }},
+      {{ 0xdc00 }, { 0xed, 0xb0, 0x80 }},
+      {{ 0xd801, 0xd801 }, { 0xed, 0xa0, 0x81, 0xed, 0xa0, 0x81 }},
+      {{ 0xdc00, 0xdc00 }, { 0xed, 0xb0, 0x80, 0xed, 0xb0, 0x80 }},
+  };
+  for (const auto& prefix : prefixes) {
+    const std::vector<uint16_t>& prefix_in = prefix.first;
+    const std::vector<uint8_t>& prefix_out = prefix.second;
+    for (const auto& test : tests) {
+      const std::vector<uint16_t>& test_in = test.first;
+      const std::vector<uint8_t>& test_out = test.second;
+      for (const auto& suffix : suffixes) {
+        const std::vector<uint16_t>& suffix_in = suffix.first;
+        const std::vector<uint8_t>& suffix_out = suffix.second;
+        std::vector<uint16_t> in = prefix_in;
+        in.insert(in.end(), test_in.begin(), test_in.end());
+        in.insert(in.end(), suffix_in.begin(), suffix_in.end());
+        std::vector<uint8_t> out = prefix_out;
+        out.insert(out.end(), test_out.begin(), test_out.end());
+        out.insert(out.end(), suffix_out.begin(), suffix_out.end());
+        AssertConversion(in, out);
+      }
+    }
+  }
 }
 
 // Old versions of functions, here to compare answers with optimized versions.
