@@ -116,6 +116,10 @@ class MANAGED String FINAL : public Object {
   static String* AllocFromModifiedUtf8(Thread* self, const char* utf)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
+  static String* AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
+                                       const char* utf8_data_in, int32_t utf8_length)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
   static String* AllocFromModifiedUtf8(Thread* self, int32_t utf16_length, const char* utf8_data_in)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 

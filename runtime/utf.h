@@ -40,6 +40,7 @@ namespace mirror {
  * Returns the number of UTF-16 characters in the given modified UTF-8 string.
  */
 size_t CountModifiedUtf8Chars(const char* utf8);
+size_t CountModifiedUtf8Chars(const char* utf8, size_t byte_count);
 
 /*
  * Returns the number of modified UTF-8 bytes needed to represent the given
@@ -51,6 +52,8 @@ size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count);
  * Convert from Modified UTF-8 to UTF-16.
  */
 void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, const char* utf8_in);
+void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, size_t out_chars,
+                                const char* utf8_in, size_t in_bytes);
 
 /*
  * Compare two modified UTF-8 strings as UTF-16 code point values in a non-locale sensitive manner
@@ -71,7 +74,8 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
  * this anyway, so if you want a NUL-terminated string, you know where to
  * put the NUL byte.
  */
-void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t char_count);
+void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
+                                const uint16_t* utf16_in, size_t char_count);
 
 /*
  * The java.lang.String hashCode() algorithm.
