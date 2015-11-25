@@ -3201,21 +3201,26 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
     __ LoadFromOffset(kLoadWord, out, current_method,
                       ArtMethod::DeclaringClassOffset().Int32Value());
   } else {
-    DCHECK(cls->CanCallRuntime());
     __ LoadFromOffset(kLoadWord, out, current_method,
                       ArtMethod::DexCacheResolvedTypesOffset(kMipsPointerSize).Int32Value());
     __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
-    SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS(
-        cls,
-        cls,
-        cls->GetDexPc(),
-        cls->MustGenerateClinitCheck());
-    codegen_->AddSlowPath(slow_path);
-    __ Beqz(out, slow_path->GetEntryLabel());
-    if (cls->MustGenerateClinitCheck()) {
-      GenerateClassInitializationCheck(slow_path, out);
-    } else {
-      __ Bind(slow_path->GetExitLabel());
+
+    if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
+      DCHECK(cls->CanCallRuntime());
+      SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS(
+          cls,
+          cls,
+          cls->GetDexPc(),
+          cls->MustGenerateClinitCheck());
+      codegen_->AddSlowPath(slow_path);
+      if (!cls->IsInDexCache()) {
+        __ Beqz(out, slow_path->GetEntryLabel());
+      }
+      if (cls->MustGenerateClinitCheck()) {
+        GenerateClassInitializationCheck(slow_path, out);
+      } else {
+        __ Bind(slow_path->GetExitLabel());
+      }
     }
   }
 }
