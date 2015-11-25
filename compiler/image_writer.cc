@@ -592,6 +592,17 @@ bool ImageWriter::IsBootClassLoaderNonImageClass(mirror::Class* klass) {
 }
 
 bool ImageWriter::ContainsBootClassLoaderNonImageClass(mirror::Class* klass) {
+  bool early_exit = false;
+  std::unordered_set<mirror::Class*> visited;
+  return ContainsBootClassLoaderNonImageClassInternal(klass, &early_exit, &visited);
+}
+
+bool ImageWriter::ContainsBootClassLoaderNonImageClassInternal(
+    mirror::Class* klass,
+    bool* early_exit,
+    std::unordered_set<mirror::Class*>* visited) {
+  DCHECK(early_exit != nullptr);
+  DCHECK(visited != nullptr);
   if (klass == nullptr) {
     return false;
   }
@@ -600,14 +611,22 @@ bool ImageWriter::ContainsBootClassLoaderNonImageClass(mirror::Class* klass) {
     // Already computed, return the found value.
     return found->second;
   }
-  // Place holder value to prevent infinite recursion.
-  prune_class_memo_.emplace(klass, false);
+  // Circular dependencies, return false but do not store the result in the memoization table.
+  if (visited->find(klass) != visited->end()) {
+    *early_exit = true;
+    return false;
+  }
+  visited->emplace(klass);
   bool result = IsBootClassLoaderNonImageClass(klass);
+  bool my_early_exit = false;  // Only for ourselves, ignore caller.
   if (!result) {
     // Check interfaces since these wont be visited through VisitReferences.)
     mirror::IfTable* if_table = klass->GetIfTable();
     for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
-      result = result || ContainsBootClassLoaderNonImageClass(if_table->GetInterface(i));
+      result = result || ContainsBootClassLoaderNonImageClassInternal(
+          if_table->GetInterface(i),
+          &my_early_exit,
+          visited);
     }
   }
   // Check static fields and their classes.
@@ -621,16 +640,38 @@ bool ImageWriter::ContainsBootClassLoaderNonImageClass(mirror::Class* klass) {
       mirror::Object* ref = klass->GetFieldObject<mirror::Object>(field_offset);
       if (ref != nullptr) {
         if (ref->IsClass()) {
-          result = result || ContainsBootClassLoaderNonImageClass(ref->AsClass());
+          result = result ||
+                   ContainsBootClassLoaderNonImageClassInternal(
+                       ref->AsClass(),
+                       &my_early_exit,
+                       visited);
         }
-        result = result || ContainsBootClassLoaderNonImageClass(ref->GetClass());
+        result = result ||
+                 ContainsBootClassLoaderNonImageClassInternal(
+                     ref->GetClass(),
+                     &my_early_exit,
+                     visited);
       }
       field_offset = MemberOffset(field_offset.Uint32Value() +
                                   sizeof(mirror::HeapReference<mirror::Object>));
     }
   }
-  result = result || ContainsBootClassLoaderNonImageClass(klass->GetSuperClass());
-  prune_class_memo_[klass] = result;
+  result = result ||
+           ContainsBootClassLoaderNonImageClassInternal(
+               klass->GetSuperClass(),
+               &my_early_exit,
+               visited);
+  // Erase the element we stored earlier since we are exiting the function.
+  auto it = visited->find(klass);
+  DCHECK(it != visited->end());
+  visited->erase(it);
+  // Only store result if it is true or none of the calls early exited due to circular
+  // dependencies. If visited is empty then we are the root caller, in this case the cycle was in
+  // a child call and we can remember the result.
+  if (result == true || !my_early_exit || visited->empty()) {
+    prune_class_memo_[klass] = result;
+  }
+  *early_exit |= my_early_exit;
   return result;
 }
 

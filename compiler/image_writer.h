@@ -343,6 +343,12 @@ class ImageWriter FINAL {
   bool ContainsBootClassLoaderNonImageClass(mirror::Class* klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // early_exit is true if we had a cyclic dependency anywhere down the chain.
+  bool ContainsBootClassLoaderNonImageClassInternal(mirror::Class* klass,
+                                                    bool* early_exit,
+                                                    std::unordered_set<mirror::Class*>* visited)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
 
   uintptr_t NativeOffsetInImage(void* obj);
