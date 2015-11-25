@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "art_method-inl.h"
+#include "base/time_utils.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
 #include "jit/profiling_info.h"
@@ -109,7 +110,8 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       current_capacity_(initial_code_capacity + initial_data_capacity),
       code_end_(initial_code_capacity),
       data_end_(initial_data_capacity),
-      has_done_one_collection_(false) {
+      has_done_one_collection_(false),
+      last_update_time_ns_(0) {
 
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
   data_mspace_ = create_mspace_with_base(data_map_->Begin(), data_end_, false /*locked*/);
@@ -314,6 +316,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       // code.
       GetLiveBitmap()->AtomicTestAndSet(FromCodeToAllocation(code_ptr));
     }
+    last_update_time_ns_ = NanoTime();
     VLOG(jit)
         << "JIT added "
         << PrettyMethod(method) << "@" << method
@@ -677,5 +680,19 @@ void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_S
   }
 }
 
+void JitCodeCache::GetCompiledArtMethods(const OatFile* oat_file,
+                                         std::set<ArtMethod*>& methods) {
+  MutexLock mu(Thread::Current(), lock_);
+  for (auto it : method_code_map_) {
+    if (it.second->GetDexFile()->GetOatDexFile()->GetOatFile() == oat_file) {
+      methods.insert(it.second);
+    }
+  }
+}
+
+uint64_t JitCodeCache::GetLastUpdateTimeNs() {
+  MutexLock mu(Thread::Current(), lock_);
+  return last_update_time_ns_;
+}
 }  // namespace jit
 }  // namespace art
