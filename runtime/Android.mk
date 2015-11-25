@@ -103,6 +103,7 @@ LIBART_COMMON_SRC_FILES := \
   jit/jit.cc \
   jit/jit_code_cache.cc \
   jit/jit_instrumentation.cc \
+  jit/offline_profiling_info.cc \
   jit/profiling_info.cc \
   lambda/art_lambda_method.cc \
   lambda/box_table.cc \
