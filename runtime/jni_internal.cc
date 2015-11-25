@@ -1689,7 +1689,8 @@ class JNI {
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
       const jchar* chars = s->GetValue();
-      ConvertUtf16ToModifiedUtf8(buf, chars + start, length);
+      size_t bytes = CountUtf8Bytes(chars + start, length);
+      ConvertUtf16ToModifiedUtf8(buf, bytes, chars + start, length);
     }
   }
 
@@ -1772,7 +1773,7 @@ class JNI {
     char* bytes = new char[byte_count + 1];
     CHECK(bytes != nullptr);  // bionic aborts anyway.
     const uint16_t* chars = s->GetValue();
-    ConvertUtf16ToModifiedUtf8(bytes, chars, s->GetLength());
+    ConvertUtf16ToModifiedUtf8(bytes, byte_count, chars, s->GetLength());
     bytes[byte_count] = '\0';
     return bytes;
   }

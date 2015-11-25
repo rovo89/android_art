@@ -23,28 +23,50 @@
 
 namespace art {
 
+// This is used only from debugger and test code.
 size_t CountModifiedUtf8Chars(const char* utf8) {
+  return CountModifiedUtf8Chars(utf8, strlen(utf8));
+}
+
+/*
+ * This does not validate UTF8 rules (nor did older code). But it gets the right answer
+ * for valid UTF-8 and that's fine because it's used only to size a buffer for later
+ * conversion.
+ *
+ * Modified UTF-8 consists of a series of bytes up to 21 bit Unicode code points as follows:
+ * U+0001  - U+007F   0xxxxxxx
+ * U+0080  - U+07FF   110xxxxx 10xxxxxx
+ * U+0800  - U+FFFF   1110xxxx 10xxxxxx 10xxxxxx
+ * U+10000 - U+1FFFFF 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+ *
+ * U+0000 is encoded using the 2nd form to avoid nulls inside strings (this differs from
+ * standard UTF-8).
+ * The four byte encoding converts to two utf16 characters.
+ */
+size_t CountModifiedUtf8Chars(const char* utf8, size_t byte_count) {
+  DCHECK_LE(byte_count, strlen(utf8));
   size_t len = 0;
-  int ic;
-  while ((ic = *utf8++) != '\0') {
+  const char* end = utf8 + byte_count;
+  for (; utf8 < end; ++utf8) {
+    int ic = *utf8;
     len++;
-    if ((ic & 0x80) == 0) {
-      // one-byte encoding
+    if (LIKELY((ic & 0x80) == 0)) {
+      // One-byte encoding.
       continue;
     }
-    // two- or three-byte encoding
+    // Two- or three-byte encoding.
     utf8++;
     if ((ic & 0x20) == 0) {
-      // two-byte encoding
+      // Two-byte encoding.
       continue;
     }
     utf8++;
     if ((ic & 0x10) == 0) {
-      // three-byte encoding
+      // Three-byte encoding.
       continue;
     }
 
-    // four-byte encoding: needs to be converted into a surrogate
+    // Four-byte encoding: needs to be converted into a surrogate
     // pair.
     utf8++;
     len++;
@@ -52,6 +74,7 @@ size_t CountModifiedUtf8Chars(const char* utf8) {
   return len;
 }
 
+// This is used only from debugger and test code.
 void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_in) {
   while (*utf8_data_in != '\0') {
     const uint32_t ch = GetUtf16FromUtf8(&utf8_data_in);
@@ -65,13 +88,53 @@ void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_
   }
 }
 
-void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t char_count) {
+void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, size_t out_chars,
+                                const char* utf8_data_in, size_t in_bytes) {
+  const char *in_start = utf8_data_in;
+  const char *in_end = utf8_data_in + in_bytes;
+  uint16_t *out_p = utf16_data_out;
+
+  if (LIKELY(out_chars == in_bytes)) {
+    // Common case where all characters are ASCII.
+    for (const char *p = in_start; p < in_end;) {
+      // Safe even if char is signed because ASCII characters always have
+      // the high bit cleared.
+      *out_p++ = dchecked_integral_cast<uint16_t>(*p++);
+    }
+    return;
+  }
+
+  // String contains non-ASCII characters.
+  for (const char *p = in_start; p < in_end;) {
+    const uint32_t ch = GetUtf16FromUtf8(&p);
+    const uint16_t leading = GetLeadingUtf16Char(ch);
+    const uint16_t trailing = GetTrailingUtf16Char(ch);
+
+    *out_p++ = leading;
+    if (trailing != 0) {
+      *out_p++ = trailing;
+    }
+  }
+}
+
+void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
+                                const uint16_t* utf16_in, size_t char_count) {
+  if (LIKELY(byte_count == char_count)) {
+    // Common case where all characters are ASCII.
+    const uint16_t *utf16_end = utf16_in + char_count;
+    for (const uint16_t *p = utf16_in; p < utf16_end;) {
+      *utf8_out++ = dchecked_integral_cast<char>(*p++);
+    }
+    return;
+  }
+
+  // String contains non-ASCII characters.
   while (char_count--) {
     const uint16_t ch = *utf16_in++;
     if (ch > 0 && ch <= 0x7f) {
       *utf8_out++ = ch;
     } else {
-      // char_count == 0 here implies we've encountered an unpaired
+      // Char_count == 0 here implies we've encountered an unpaired
       // surrogate and we have no choice but to encode it as 3-byte UTF
       // sequence. Note that unpaired surrogates can occur as a part of
       // "normal" operation.
@@ -161,34 +224,31 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
 
 size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count) {
   size_t result = 0;
-  while (char_count--) {
+  const uint16_t *end = chars + char_count;
+  while (chars < end) {
     const uint16_t ch = *chars++;
-    if (ch > 0 && ch <= 0x7f) {
-      ++result;
-    } else if (ch >= 0xd800 && ch <= 0xdbff) {
-      if (char_count > 0) {
+    if (LIKELY(ch != 0 && ch < 0x80)) {
+      result++;
+      continue;
+    }
+    if (ch < 0x800) {
+      result += 2;
+      continue;
+    }
+    if (ch >= 0xd800 && ch < 0xdc00) {
+      if (chars < end) {
         const uint16_t ch2 = *chars;
         // If we find a properly paired surrogate, we emit it as a 4 byte
         // UTF sequence. If we find an unpaired leading or trailing surrogate,
         // we emit it as a 3 byte sequence like would have done earlier.
-        if (ch2 >= 0xdc00 && ch2 <= 0xdfff) {
+        if (ch2 >= 0xdc00 && ch2 < 0xe000) {
           chars++;
-          char_count--;
-
           result += 4;
-        } else {
-          result += 3;
+          continue;
         }
-      } else {
-        // This implies we found an unpaired trailing surrogate at the end
-        // of a string.
-        result += 3;
       }
-    } else if (ch > 0x7ff) {
-      result += 3;
-    } else {
-      result += 2;
     }
+    result += 3;
   }
   return result;
 }
