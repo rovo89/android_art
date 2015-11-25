@@ -218,6 +218,9 @@ Runtime::~Runtime() {
   if (is_native_bridge_loaded_) {
     UnloadNativeBridge();
   }
+
+  MaybeSaveJitProfilingInfo();
+
   if (dump_gc_performance_on_shutdown_) {
     // This can't be called from the Heap destructor below because it
     // could call RosAlloc::InspectAll() which needs the thread_list
@@ -601,7 +604,6 @@ bool Runtime::Start() {
       LOG(INFO) << "Failed to access the profile file. Profiler disabled.";
       return true;
     }
-    StartProfiler(profile_output_filename_.c_str());
   }
 
   if (trace_config_.get() != nullptr && trace_config_->trace_file != "") {
@@ -1618,10 +1620,8 @@ void Runtime::SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type) {
   callee_save_methods_[type] = reinterpret_cast<uintptr_t>(method);
 }
 
-void Runtime::StartProfiler(const char* profile_output_filename) {
+void Runtime::SetJitProfilingFilename(const char* profile_output_filename) {
   profile_output_filename_ = profile_output_filename;
-  profiler_started_ =
-      BackgroundMethodSamplingProfiler::Start(profile_output_filename_, profiler_options_);
 }
 
 // Transaction support.
@@ -1767,8 +1767,16 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
   argv->push_back(feature_string);
 }
 
+void Runtime::MaybeSaveJitProfilingInfo() {
+  if (jit_.get() != nullptr && !profile_output_filename_.empty()) {
+    jit_->SaveProfilingInfo(profile_output_filename_);
+  }
+}
+
 void Runtime::UpdateProfilerState(int state) {
-  VLOG(profiler) << "Profiler state updated to " << state;
+  if (state == kProfileBackground) {
+    MaybeSaveJitProfilingInfo();
+  }
 }
 
 void Runtime::CreateJit() {

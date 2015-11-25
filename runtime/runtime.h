@@ -457,7 +457,7 @@ class Runtime {
     return &instrumentation_;
   }
 
-  void StartProfiler(const char* profile_output_filename);
+  void SetJitProfilingFilename(const char* profile_output_filename);
   void UpdateProfilerState(int state);
 
   // Transaction support.
@@ -608,12 +608,14 @@ class Runtime {
   void StartDaemonThreads();
   void StartSignalCatcher();
 
+  void MaybeSaveJitProfilingInfo();
+
   // A pointer to the active runtime or null.
   static Runtime* instance_;
 
   // NOTE: these must match the gc::ProcessState values as they come directly from the framework.
   static constexpr int kProfileForground = 0;
-  static constexpr int kProfileBackgrouud = 1;
+  static constexpr int kProfileBackground = 1;
 
   // 64 bit so that we can share the same asm offsets for both 32 and 64 bits.
   uint64_t callee_save_methods_[kLastCalleeSaveType];
