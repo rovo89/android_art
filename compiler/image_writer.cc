@@ -330,10 +330,20 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
 }
 
 void ImageWriter::PrepareDexCacheArraySlots() {
+  // Prepare dex cache array starts based on the ordering specified in the CompilerDriver.
+  uint32_t size = 0u;
+  for (const DexFile* dex_file : compiler_driver_.GetDexFilesForOatFile()) {
+    dex_cache_array_starts_.Put(dex_file, size);
+    DexCacheArraysLayout layout(target_ptr_size_, dex_file);
+    size += layout.Size();
+  }
+  // Set the slot size early to avoid DCHECK() failures in IsImageBinSlotAssigned()
+  // when AssignImageBinSlot() assigns their indexes out or order.
+  bin_slot_sizes_[kBinDexCacheArray] = size;
+
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, *class_linker->DexLock());
-  uint32_t size = 0u;
   for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
     mirror::DexCache* dex_cache =
         down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
@@ -341,22 +351,18 @@ void ImageWriter::PrepareDexCacheArraySlots() {
       continue;
     }
     const DexFile* dex_file = dex_cache->GetDexFile();
-    dex_cache_array_starts_.Put(dex_file, size);
     DexCacheArraysLayout layout(target_ptr_size_, dex_file);
     DCHECK(layout.Valid());
+    uint32_t start = dex_cache_array_starts_.Get(dex_file);
     DCHECK_EQ(dex_file->NumTypeIds() != 0u, dex_cache->GetResolvedTypes() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetResolvedTypes(), size + layout.TypesOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetResolvedTypes(), start + layout.TypesOffset());
     DCHECK_EQ(dex_file->NumMethodIds() != 0u, dex_cache->GetResolvedMethods() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetResolvedMethods(), size + layout.MethodsOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetResolvedMethods(), start + layout.MethodsOffset());
     DCHECK_EQ(dex_file->NumFieldIds() != 0u, dex_cache->GetResolvedFields() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetResolvedFields(), size + layout.FieldsOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetResolvedFields(), start + layout.FieldsOffset());
     DCHECK_EQ(dex_file->NumStringIds() != 0u, dex_cache->GetStrings() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetStrings(), size + layout.StringsOffset());
-    size += layout.Size();
+    AddDexCacheArrayRelocation(dex_cache->GetStrings(), start + layout.StringsOffset());
   }
-  // Set the slot size early to avoid DCHECK() failures in IsImageBinSlotAssigned()
-  // when AssignImageBinSlot() assigns their indexes out or order.
-  bin_slot_sizes_[kBinDexCacheArray] = size;
 }
 
 void ImageWriter::AddDexCacheArrayRelocation(void* array, size_t offset) {
