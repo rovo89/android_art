@@ -1177,6 +1177,59 @@ void HInstruction::MoveBefore(HInstruction* cursor) {
   }
 }
 
+void HInstruction::MoveBeforeFirstUserAndOutOfLoops() {
+  DCHECK(!CanThrow());
+  DCHECK(!HasSideEffects());
+  DCHECK(!HasEnvironmentUses());
+  DCHECK(HasNonEnvironmentUses());
+  DCHECK(!IsPhi());  // Makes no sense for Phi.
+  DCHECK_EQ(InputCount(), 0u);
+
+  // Find the target block.
+  HUseIterator<HInstruction*> uses_it(GetUses());
+  HBasicBlock* target_block = uses_it.Current()->GetUser()->GetBlock();
+  uses_it.Advance();
+  while (!uses_it.Done() && uses_it.Current()->GetUser()->GetBlock() == target_block) {
+    uses_it.Advance();
+  }
+  if (!uses_it.Done()) {
+    // This instruction has uses in two or more blocks. Find the common dominator.
+    CommonDominator finder(target_block);
+    for (; !uses_it.Done(); uses_it.Advance()) {
+      finder.Update(uses_it.Current()->GetUser()->GetBlock());
+    }
+    target_block = finder.Get();
+    DCHECK(target_block != nullptr);
+  }
+  // Move to the first dominator not in a loop.
+  while (target_block->IsInLoop()) {
+    target_block = target_block->GetDominator();
+    DCHECK(target_block != nullptr);
+  }
+
+  // Find insertion position.
+  HInstruction* insert_pos = nullptr;
+  for (HUseIterator<HInstruction*> uses_it2(GetUses()); !uses_it2.Done(); uses_it2.Advance()) {
+    if (uses_it2.Current()->GetUser()->GetBlock() == target_block &&
+        (insert_pos == nullptr || uses_it2.Current()->GetUser()->StrictlyDominates(insert_pos))) {
+      insert_pos = uses_it2.Current()->GetUser();
+    }
+  }
+  if (insert_pos == nullptr) {
+    // No user in `target_block`, insert before the control flow instruction.
+    insert_pos = target_block->GetLastInstruction();
+    DCHECK(insert_pos->IsControlFlow());
+    // Avoid splitting HCondition from HIf to prevent unnecessary materialization.
+    if (insert_pos->IsIf()) {
+      HInstruction* if_input = insert_pos->AsIf()->InputAt(0);
+      if (if_input == insert_pos->GetPrevious()) {
+        insert_pos = if_input;
+      }
+    }
+  }
+  MoveBefore(insert_pos);
+}
+
 HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented.";
   DCHECK_EQ(cursor->GetBlock(), this);

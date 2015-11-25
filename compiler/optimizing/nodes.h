@@ -1956,6 +1956,14 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   // Move `this` instruction before `cursor`.
   void MoveBefore(HInstruction* cursor);
 
+  // Move `this` before its first user and out of any loops. If there is no
+  // out-of-loop user that dominates all other users, move the instruction
+  // to the end of the out-of-loop common dominator of the user's blocks.
+  //
+  // This can be used only on non-throwing instructions with no side effects that
+  // have at least one use but no environment uses.
+  void MoveBeforeFirstUserAndOutOfLoops();
+
 #define INSTRUCTION_TYPE_CHECK(type, super)                                    \
   bool Is##type() const { return (As##type() != nullptr); }                    \
   virtual const H##type* As##type() const { return nullptr; }                  \
