@@ -81,7 +81,7 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
     return nullptr;
   }
   jit->offline_profile_info_.reset(nullptr);
-  if (true) {
+  if (options->GetSaveProfilingInfo()) {
     jit->offline_profile_info_.reset(new OfflineProfilingInfo());
   }
   LOG(INFO) << "JIT created with initial_capacity="
