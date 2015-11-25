@@ -139,6 +139,13 @@ class JitCodeCache {
 
   void* MoreCore(const void* mspace, intptr_t increment);
 
+  // Adds to `methods` all the compiled ArtMethods which are part of the given `oat_file`.
+  void GetCompiledArtMethods(const OatFile* oat_file, std::set<ArtMethod*>& methods)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  uint64_t GetLastUpdateTimeNs() REQUIRES(!lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
@@ -227,6 +234,9 @@ class JitCodeCache {
 
   // Whether a collection has already been done on the current capacity.
   bool has_done_one_collection_ GUARDED_BY(lock_);
+
+  // Last time the the code_cache was updated.
+  uint64_t last_update_time_ns_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };
