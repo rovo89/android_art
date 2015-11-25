@@ -20,18 +20,24 @@
 
 namespace art {
 
-BufferedOutputStream::BufferedOutputStream(OutputStream* out)
-    : OutputStream(out->GetLocation()), out_(out), used_(0) {}
+BufferedOutputStream::BufferedOutputStream(std::unique_ptr<OutputStream> out)
+    : OutputStream(out->GetLocation()),  // Before out is moved to out_.
+      out_(std::move(out)),
+      used_(0) {}
+
+BufferedOutputStream::~BufferedOutputStream() {
+  FlushBuffer();
+}
 
 bool BufferedOutputStream::WriteFully(const void* buffer, size_t byte_count) {
   if (byte_count > kBufferSize) {
-    if (!Flush()) {
+    if (!FlushBuffer()) {
       return false;
     }
     return out_->WriteFully(buffer, byte_count);
   }
   if (used_ + byte_count > kBufferSize) {
-    if (!Flush()) {
+    if (!FlushBuffer()) {
       return false;
     }
   }
@@ -42,6 +48,10 @@ bool BufferedOutputStream::WriteFully(const void* buffer, size_t byte_count) {
 }
 
 bool BufferedOutputStream::Flush() {
+  return FlushBuffer() && out_->Flush();
+}
+
+bool BufferedOutputStream::FlushBuffer() {
   bool success = true;
   if (used_ > 0) {
     success = out_->WriteFully(&buffer_[0], used_);
@@ -51,7 +61,7 @@ bool BufferedOutputStream::Flush() {
 }
 
 off_t BufferedOutputStream::Seek(off_t offset, Whence whence) {
-  if (!Flush()) {
+  if (!FlushBuffer()) {
     return -1;
   }
   return out_->Seek(offset, whence);

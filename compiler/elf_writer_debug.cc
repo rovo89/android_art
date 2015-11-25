@@ -17,6 +17,7 @@
 #include "elf_writer_debug.h"
 
 #include <unordered_set>
+#include <vector>
 
 #include "base/casts.h"
 #include "base/stl_util.h"
@@ -25,6 +26,7 @@
 #include "dex_file-inl.h"
 #include "dwarf/dedup_vector.h"
 #include "dwarf/headers.h"
+#include "dwarf/method_debug_info.h"
 #include "dwarf/register.h"
 #include "elf_builder.h"
 #include "oat_writer.h"
@@ -203,7 +205,7 @@ static void WriteCIE(InstructionSet isa,
 
 template<typename ElfTypes>
 void WriteCFISection(ElfBuilder<ElfTypes>* builder,
-                     const std::vector<OatWriter::DebugInfo>& method_infos,
+                     const ArrayRef<const MethodDebugInfo>& method_infos,
                      CFIFormat format) {
   CHECK(format == dwarf::DW_DEBUG_FRAME_FORMAT ||
         format == dwarf::DW_EH_FRAME_FORMAT);
@@ -233,7 +235,7 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
     cfi_section->WriteFully(buffer.data(), buffer.size());
     buffer_address += buffer.size();
     buffer.clear();
-    for (const OatWriter::DebugInfo& mi : method_infos) {
+    for (const MethodDebugInfo& mi : method_infos) {
       if (!mi.deduped_) {  // Only one FDE per unique address.
         ArrayRef<const uint8_t> opcodes = mi.compiled_method_->GetCFIInfo();
         if (!opcodes.empty()) {
@@ -286,12 +288,13 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
     header_section->WriteFully(binary_search_table.data(), binary_search_table.size());
     header_section->End();
   } else {
-    builder->WritePatches(".debug_frame.oat_patches", &patch_locations);
+    builder->WritePatches(".debug_frame.oat_patches",
+                          ArrayRef<const uintptr_t>(patch_locations));
   }
 }
 
 struct CompilationUnit {
-  std::vector<const OatWriter::DebugInfo*> methods_;
+  std::vector<const MethodDebugInfo*> methods_;
   size_t debug_line_offset_ = 0;
   uint32_t low_pc_ = 0xFFFFFFFFU;
   uint32_t high_pc_ = 0;
@@ -417,7 +420,7 @@ class DebugInfoWriter {
     // Write table into .debug_loc which describes location of dex register.
     // The dex register might be valid only at some points and it might
     // move between machine registers and stack.
-    void WriteRegLocation(const OatWriter::DebugInfo* method_info, uint16_t vreg,
+    void WriteRegLocation(const MethodDebugInfo* method_info, uint16_t vreg,
                           bool is64bitValue, uint32_t compilation_unit_low_pc) {
       using Kind = DexRegisterLocation::Kind;
       bool is_optimizing = method_info->compiled_method_->GetQuickCode().size() > 0 &&
@@ -736,7 +739,8 @@ class DebugInfoWriter {
 
   void End() {
     builder_->GetDebugInfo()->End();
-    builder_->WritePatches(".debug_info.oat_patches", &debug_info_patches_);
+    builder_->WritePatches(".debug_info.oat_patches",
+                           ArrayRef<const uintptr_t>(debug_info_patches_));
     builder_->WriteSection(".debug_abbrev", &debug_abbrev_.Data());
     builder_->WriteSection(".debug_str", &debug_str_.Data());
     builder_->WriteSection(".debug_loc", &debug_loc_);
@@ -803,7 +807,7 @@ class DebugLineWriter {
     if (dwarf_isa != -1) {
       opcodes.SetISA(dwarf_isa);
     }
-    for (const OatWriter::DebugInfo* mi : compilation_unit.methods_) {
+    for (const MethodDebugInfo* mi : compilation_unit.methods_) {
       // Ignore function if we have already generated line table for the same address.
       // It would confuse the debugger and the DWARF specification forbids it.
       if (mi->deduped_) {
@@ -920,7 +924,8 @@ class DebugLineWriter {
 
   void End() {
     builder_->GetDebugLine()->End();
-    builder_->WritePatches(".debug_line.oat_patches", &debug_line_patches);
+    builder_->WritePatches(".debug_line.oat_patches",
+                           ArrayRef<const uintptr_t>(debug_line_patches));
   }
 
  private:
@@ -930,11 +935,11 @@ class DebugLineWriter {
 
 template<typename ElfTypes>
 void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
-                        const std::vector<OatWriter::DebugInfo>& method_infos) {
+                        const ArrayRef<const MethodDebugInfo>& method_infos) {
   // Group the methods into compilation units based on source file.
   std::vector<CompilationUnit> compilation_units;
   const char* last_source_file = nullptr;
-  for (const OatWriter::DebugInfo& mi : method_infos) {
+  for (const MethodDebugInfo& mi : method_infos) {
     auto& dex_class_def = mi.dex_file_->GetClassDef(mi.class_def_index_);
     const char* source_file = mi.dex_file_->GetSourceFile(dex_class_def);
     if (compilation_units.empty() || source_file != last_source_file) {
@@ -971,18 +976,18 @@ void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
 // Explicit instantiations
 template void WriteCFISection<ElfTypes32>(
     ElfBuilder<ElfTypes32>* builder,
-    const std::vector<OatWriter::DebugInfo>& method_infos,
+    const ArrayRef<const MethodDebugInfo>& method_infos,
     CFIFormat format);
 template void WriteCFISection<ElfTypes64>(
     ElfBuilder<ElfTypes64>* builder,
-    const std::vector<OatWriter::DebugInfo>& method_infos,
+    const ArrayRef<const MethodDebugInfo>& method_infos,
     CFIFormat format);
 template void WriteDebugSections<ElfTypes32>(
     ElfBuilder<ElfTypes32>* builder,
-    const std::vector<OatWriter::DebugInfo>& method_infos);
+    const ArrayRef<const MethodDebugInfo>& method_infos);
 template void WriteDebugSections<ElfTypes64>(
     ElfBuilder<ElfTypes64>* builder,
-    const std::vector<OatWriter::DebugInfo>& method_infos);
+    const ArrayRef<const MethodDebugInfo>& method_infos);
 
 }  // namespace dwarf
 }  // namespace art

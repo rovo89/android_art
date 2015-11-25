@@ -38,6 +38,10 @@ class OutputStream;
 class TimingLogger;
 class TypeLookupTable;
 
+namespace dwarf {
+struct MethodDebugInfo;
+}  // namespace dwarf
+
 // OatHeader         variable length with count of D OatDexFiles
 //
 // OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
@@ -129,19 +133,7 @@ class OatWriter {
 
   ~OatWriter();
 
-  struct DebugInfo {
-    const DexFile* dex_file_;
-    size_t class_def_index_;
-    uint32_t dex_method_index_;
-    uint32_t access_flags_;
-    const DexFile::CodeItem *code_item_;
-    bool deduped_;
-    uint32_t low_pc_;
-    uint32_t high_pc_;
-    CompiledMethod* compiled_method_;
-  };
-
-  const std::vector<DebugInfo>& GetMethodDebugInfo() const {
+  const std::vector<dwarf::MethodDebugInfo>& GetMethodDebugInfo() const {
     return method_info_;
   }
 
@@ -280,7 +272,7 @@ class OatWriter {
     DISALLOW_COPY_AND_ASSIGN(OatClass);
   };
 
-  std::vector<DebugInfo> method_info_;
+  std::vector<dwarf::MethodDebugInfo> method_info_;
 
   const CompilerDriver* const compiler_driver_;
   ImageWriter* const image_writer_;

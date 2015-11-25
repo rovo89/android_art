@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_BUFFERED_OUTPUT_STREAM_H_
 #define ART_COMPILER_BUFFERED_OUTPUT_STREAM_H_
 
+#include <memory>
+
 #include "output_stream.h"
 
 #include "globals.h"
@@ -25,26 +27,23 @@ namespace art {
 
 class BufferedOutputStream FINAL : public OutputStream {
  public:
-  explicit BufferedOutputStream(OutputStream* out);
+  explicit BufferedOutputStream(std::unique_ptr<OutputStream> out);
 
-  virtual ~BufferedOutputStream() {
-    Flush();
-    delete out_;
-  }
+  ~BufferedOutputStream() OVERRIDE;
 
-  virtual bool WriteFully(const void* buffer, size_t byte_count);
+  bool WriteFully(const void* buffer, size_t byte_count) OVERRIDE;
 
-  virtual off_t Seek(off_t offset, Whence whence);
+  off_t Seek(off_t offset, Whence whence) OVERRIDE;
 
-  bool Flush();
+  bool Flush() OVERRIDE;
 
  private:
   static const size_t kBufferSize = 8 * KB;
 
-  OutputStream* const out_;
+  bool FlushBuffer();
 
+  std::unique_ptr<OutputStream> const out_;
   uint8_t buffer_[kBufferSize];
-
   size_t used_;
 
   DISALLOW_COPY_AND_ASSIGN(BufferedOutputStream);

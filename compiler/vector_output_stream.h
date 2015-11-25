@@ -29,9 +29,9 @@ class VectorOutputStream FINAL : public OutputStream {
  public:
   VectorOutputStream(const std::string& location, std::vector<uint8_t>* vector);
 
-  virtual ~VectorOutputStream() {}
+  ~VectorOutputStream() OVERRIDE {}
 
-  bool WriteFully(const void* buffer, size_t byte_count) {
+  bool WriteFully(const void* buffer, size_t byte_count) OVERRIDE {
     if (static_cast<size_t>(offset_) == vector_->size()) {
       const uint8_t* start = reinterpret_cast<const uint8_t*>(buffer);
       vector_->insert(vector_->end(), &start[0], &start[byte_count]);
@@ -45,7 +45,11 @@ class VectorOutputStream FINAL : public OutputStream {
     return true;
   }
 
-  off_t Seek(off_t offset, Whence whence);
+  off_t Seek(off_t offset, Whence whence) OVERRIDE;
+
+  bool Flush() OVERRIDE {
+    return true;
+  }
 
  private:
   void EnsureCapacity(off_t new_offset) {

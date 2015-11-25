@@ -33,4 +33,8 @@ off_t FileOutputStream::Seek(off_t offset, Whence whence) {
   return lseek(file_->Fd(), offset, static_cast<int>(whence));
 }
 
+bool FileOutputStream::Flush() {
+  return file_->Flush() == 0;
+}
+
 }  // namespace art
