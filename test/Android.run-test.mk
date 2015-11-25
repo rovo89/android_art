@@ -227,7 +227,6 @@ endif
 
 # Tests that currently fail due to enso.
 TEST_ART_ENSO_RELATED_FAILING_TESTS := \
-  070-nio-buffer \
   955-lambda-smali
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
