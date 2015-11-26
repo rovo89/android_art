@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_COMMON_ARM64_H_
 #define ART_COMPILER_OPTIMIZING_COMMON_ARM64_H_
 
+#include "code_generator.h"
 #include "locations.h"
 #include "nodes.h"
 #include "utils/arm64/assembler_arm64.h"
@@ -253,6 +254,67 @@ static inline bool ArtVixlRegCodeCoherentForRegSet(uint32_t art_core_registers,
   }
   // There is no register code translation for float registers.
   return true;
+}
+
+static inline vixl::Shift ShiftFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
+  switch (op_kind) {
+    case HArm64DataProcWithShifterOp::kASR: return vixl::ASR;
+    case HArm64DataProcWithShifterOp::kLSL: return vixl::LSL;
+    case HArm64DataProcWithShifterOp::kLSR: return vixl::LSR;
+    default:
+      LOG(FATAL) << "Unexpected op kind " << op_kind;
+      UNREACHABLE();
+      return vixl::NO_SHIFT;
+  }
+}
+
+static inline vixl::Extend ExtendFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
+  switch (op_kind) {
+    case HArm64DataProcWithShifterOp::kUXTB: return vixl::UXTB;
+    case HArm64DataProcWithShifterOp::kUXTH: return vixl::UXTH;
+    case HArm64DataProcWithShifterOp::kUXTW: return vixl::UXTW;
+    case HArm64DataProcWithShifterOp::kSXTB: return vixl::SXTB;
+    case HArm64DataProcWithShifterOp::kSXTH: return vixl::SXTH;
+    case HArm64DataProcWithShifterOp::kSXTW: return vixl::SXTW;
+    default:
+      LOG(FATAL) << "Unexpected op kind " << op_kind;
+      UNREACHABLE();
+      return vixl::NO_EXTEND;
+  }
+}
+
+static inline bool CanFitInShifterOperand(HInstruction* instruction) {
+  if (instruction->IsTypeConversion()) {
+    HTypeConversion* conversion = instruction->AsTypeConversion();
+    Primitive::Type result_type = conversion->GetResultType();
+    Primitive::Type input_type = conversion->GetInputType();
+    // We don't expect to see the same type as input and result.
+    return Primitive::IsIntegralType(result_type) && Primitive::IsIntegralType(input_type) &&
+        (result_type != input_type);
+  } else {
+    return (instruction->IsShl() && instruction->AsShl()->InputAt(1)->IsIntConstant()) ||
+        (instruction->IsShr() && instruction->AsShr()->InputAt(1)->IsIntConstant()) ||
+        (instruction->IsUShr() && instruction->AsUShr()->InputAt(1)->IsIntConstant());
+  }
+}
+
+static inline bool HasShifterOperand(HInstruction* instr) {
+  // `neg` instructions are an alias of `sub` using the zero register as the
+  // first register input.
+  bool res = instr->IsAdd() || instr->IsAnd() || instr->IsNeg() ||
+      instr->IsOr() || instr->IsSub() || instr->IsXor();
+  return res;
+}
+
+static inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
+  DCHECK(HasShifterOperand(instruction));
+  // Although the `neg` instruction is an alias of the `sub` instruction, `HNeg`
+  // does *not* support extension. This is because the `extended register` form
+  // of the `sub` instruction interprets the left register with code 31 as the
+  // stack pointer and not the zero register. (So does the `immediate` form.) In
+  // the other form `shifted register, the register with code 31 is interpreted
+  // as the zero register.
+  return instruction->IsAdd() || instruction->IsSub();
 }
 
 }  // namespace helpers
