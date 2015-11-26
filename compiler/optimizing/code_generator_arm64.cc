@@ -1889,6 +1889,82 @@ void InstructionCodeGeneratorARM64::VisitAnd(HAnd* instruction) {
   HandleBinaryOp(instruction);
 }
 
+void LocationsBuilderARM64::VisitArm64DataProcWithShifterOp(
+    HArm64DataProcWithShifterOp* instruction) {
+  DCHECK(instruction->GetType() == Primitive::kPrimInt ||
+         instruction->GetType() == Primitive::kPrimLong);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  if (instruction->GetInstrKind() == HInstruction::kNeg) {
+    locations->SetInAt(0, Location::ConstantLocation(instruction->InputAt(0)->AsConstant()));
+  } else {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
+    HArm64DataProcWithShifterOp* instruction) {
+  Primitive::Type type = instruction->GetType();
+  HInstruction::InstructionKind kind = instruction->GetInstrKind();
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+  Register out = OutputRegister(instruction);
+  Register left;
+  if (kind != HInstruction::kNeg) {
+    left = InputRegisterAt(instruction, 0);
+  }
+  // If this `HArm64DataProcWithShifterOp` was created by merging a type conversion as the
+  // shifter operand operation, the IR generating `right_reg` (input to the type
+  // conversion) can have a different type from the current instruction's type,
+  // so we manually indicate the type.
+  Register right_reg = RegisterFrom(instruction->GetLocations()->InAt(1), type);
+  int64_t shift_amount = (type == Primitive::kPrimInt)
+    ? static_cast<uint32_t>(instruction->GetShiftAmount() & kMaxIntShiftValue)
+    : static_cast<uint32_t>(instruction->GetShiftAmount() & kMaxLongShiftValue);
+
+  Operand right_operand(0);
+
+  HArm64DataProcWithShifterOp::OpKind op_kind = instruction->GetOpKind();
+  if (HArm64DataProcWithShifterOp::IsExtensionOp(op_kind)) {
+    right_operand = Operand(right_reg, helpers::ExtendFromOpKind(op_kind));
+  } else {
+    right_operand = Operand(right_reg, helpers::ShiftFromOpKind(op_kind), shift_amount);
+  }
+
+  // Logical binary operations do not support extension operations in the
+  // operand. Note that VIXL would still manage if it was passed by generating
+  // the extension as a separate instruction.
+  // `HNeg` also does not support extension. See comments in `ShifterOperandSupportsExtension()`.
+  DCHECK(!right_operand.IsExtendedRegister() ||
+         (kind != HInstruction::kAnd && kind != HInstruction::kOr && kind != HInstruction::kXor &&
+          kind != HInstruction::kNeg));
+  switch (kind) {
+    case HInstruction::kAdd:
+      __ Add(out, left, right_operand);
+      break;
+    case HInstruction::kAnd:
+      __ And(out, left, right_operand);
+      break;
+    case HInstruction::kNeg:
+      DCHECK(instruction->InputAt(0)->AsConstant()->IsZero());
+      __ Neg(out, right_operand);
+      break;
+    case HInstruction::kOr:
+      __ Orr(out, left, right_operand);
+      break;
+    case HInstruction::kSub:
+      __ Sub(out, left, right_operand);
+      break;
+    case HInstruction::kXor:
+      __ Eor(out, left, right_operand);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected operation kind: " << kind;
+      UNREACHABLE();
+  }
+}
+
 void LocationsBuilderARM64::VisitArm64IntermediateAddress(HArm64IntermediateAddress* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
@@ -4389,9 +4465,7 @@ void InstructionCodeGeneratorARM64::VisitTypeConversion(HTypeConversion* convers
     int min_size = std::min(result_size, input_size);
     Register output = OutputRegister(conversion);
     Register source = InputRegisterAt(conversion, 0);
-    if ((result_type == Primitive::kPrimChar) && (input_size < result_size)) {
-      __ Ubfx(output, source, 0, result_size * kBitsPerByte);
-    } else if (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimLong) {
+    if (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimLong) {
       // 'int' values are used directly as W registers, discarding the top
       // bits, so we don't need to sign-extend and can just perform a move.
       // We do not pass the `kDiscardForSameWReg` argument to force clearing the
@@ -4400,9 +4474,11 @@ void InstructionCodeGeneratorARM64::VisitTypeConversion(HTypeConversion* convers
       // 32bit input value as a 64bit value assuming that the top 32 bits are
       // zero.
       __ Mov(output.W(), source.W());
-    } else if ((result_type == Primitive::kPrimChar) ||
-               ((input_type == Primitive::kPrimChar) && (result_size > input_size))) {
-      __ Ubfx(output, output.IsX() ? source.X() : source.W(), 0, min_size * kBitsPerByte);
+    } else if (result_type == Primitive::kPrimChar ||
+               (input_type == Primitive::kPrimChar && input_size < result_size)) {
+      __ Ubfx(output,
+              output.IsX() ? source.X() : source.W(),
+              0, Primitive::ComponentSize(Primitive::kPrimChar) * kBitsPerByte);
     } else {
       __ Sbfx(output, output.IsX() ? source.X() : source.W(), 0, min_size * kBitsPerByte);
     }
