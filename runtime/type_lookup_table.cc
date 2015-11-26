@@ -16,6 +16,7 @@
 
 #include "type_lookup_table.h"
 
+#include "base/bit_utils.h"
 #include "dex_file-inl.h"
 #include "utf-inl.h"
 #include "utils.h"
@@ -42,25 +43,39 @@ uint32_t TypeLookupTable::RawDataLength() const {
 }
 
 uint32_t TypeLookupTable::RawDataLength(const DexFile& dex_file) {
-  return RoundUpToPowerOfTwo(dex_file.NumClassDefs()) * sizeof(Entry);
+  return RawDataLength(dex_file.NumClassDefs());
 }
 
-TypeLookupTable* TypeLookupTable::Create(const DexFile& dex_file) {
+uint32_t TypeLookupTable::RawDataLength(uint32_t num_class_defs) {
+  return SupportedSize(num_class_defs) ? RoundUpToPowerOfTwo(num_class_defs) * sizeof(Entry) : 0u;
+}
+
+uint32_t TypeLookupTable::CalculateMask(uint32_t num_class_defs) {
+  return SupportedSize(num_class_defs) ? RoundUpToPowerOfTwo(num_class_defs) - 1u : 0u;
+}
+
+bool TypeLookupTable::SupportedSize(uint32_t num_class_defs) {
+  return num_class_defs != 0u && num_class_defs <= std::numeric_limits<uint16_t>::max();
+}
+
+TypeLookupTable* TypeLookupTable::Create(const DexFile& dex_file, uint8_t* storage) {
   const uint32_t num_class_defs = dex_file.NumClassDefs();
-  return (num_class_defs == 0 || num_class_defs > std::numeric_limits<uint16_t>::max())
-      ? nullptr
-      : new TypeLookupTable(dex_file);
+  return SupportedSize(num_class_defs)
+      ? new TypeLookupTable(dex_file, storage)
+      : nullptr;
 }
 
 TypeLookupTable* TypeLookupTable::Open(const uint8_t* raw_data, const DexFile& dex_file) {
   return new TypeLookupTable(raw_data, dex_file);
 }
 
-TypeLookupTable::TypeLookupTable(const DexFile& dex_file)
+TypeLookupTable::TypeLookupTable(const DexFile& dex_file, uint8_t* storage)
     : dex_file_(dex_file),
-      mask_(RoundUpToPowerOfTwo(dex_file.NumClassDefs()) - 1),
-      entries_(new Entry[mask_ + 1]),
-      owns_entries_(true) {
+      mask_(CalculateMask(dex_file.NumClassDefs())),
+      entries_(storage != nullptr ? reinterpret_cast<Entry*>(storage) : new Entry[mask_ + 1]),
+      owns_entries_(storage == nullptr) {
+  static_assert(alignof(Entry) == 4u, "Expecting Entry to be 4-byte aligned.");
+  DCHECK_ALIGNED(storage, alignof(Entry));
   std::vector<uint16_t> conflict_class_defs;
   // The first stage. Put elements on their initial positions. If an initial position is already
   // occupied then delay the insertion of the element to the second stage to reduce probing
@@ -93,7 +108,7 @@ TypeLookupTable::TypeLookupTable(const DexFile& dex_file)
 
 TypeLookupTable::TypeLookupTable(const uint8_t* raw_data, const DexFile& dex_file)
     : dex_file_(dex_file),
-      mask_(RoundUpToPowerOfTwo(dex_file.NumClassDefs()) - 1),
+      mask_(CalculateMask(dex_file.NumClassDefs())),
       entries_(reinterpret_cast<Entry*>(const_cast<uint8_t*>(raw_data))),
       owns_entries_(false) {}
 

@@ -1131,10 +1131,14 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     }
 
     std::vector<std::unique_ptr<const DexFile>> boot_class_path;
-    OpenDexFiles(dex_filenames,
-                 dex_locations,
-                 runtime_options.GetOrDefault(Opt::Image),
-                 &boot_class_path);
+    if (runtime_options.Exists(Opt::BootClassPathDexList)) {
+      boot_class_path.swap(*runtime_options.GetOrDefault(Opt::BootClassPathDexList));
+    } else {
+      OpenDexFiles(dex_filenames,
+                   dex_locations,
+                   runtime_options.GetOrDefault(Opt::Image),
+                   &boot_class_path);
+    }
     instruction_set_ = runtime_options.GetOrDefault(Opt::ImageInstructionSet);
     std::string error_msg;
     if (!class_linker_->InitWithoutImage(std::move(boot_class_path), &error_msg)) {
