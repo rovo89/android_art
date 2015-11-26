@@ -150,7 +150,9 @@ static const MipsInstruction gMipsInstructions[] = {
   { kSpecial2Mask | 0x3f, (28 << kOpcodeShift) | 0x3f, "sdbbp", "" },  // TODO: code
 
   // SPECIAL3
+  { kSpecial3Mask | 0x3f, (31 << kOpcodeShift), "ext", "TSAZ", },
   { kSpecial3Mask | 0x3f, (31 << kOpcodeShift) | 3, "dext", "TSAZ", },
+  { kSpecial3Mask | 0x3f, (31 << kOpcodeShift) | 4, "ins", "TSAz", },
   { kSpecial3Mask | (0x1f << 21) | (0x1f << 6) | 0x3f,
     (31 << kOpcodeShift) | (16 << 6) | 32,
     "seb",
@@ -421,7 +423,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
       opcode = gMipsInstructions[i].name;
       for (const char* args_fmt = gMipsInstructions[i].args_fmt; *args_fmt; ++args_fmt) {
         switch (*args_fmt) {
-          case 'A':  // sa (shift amount or [d]ext position).
+          case 'A':  // sa (shift amount or [d]ins/[d]ext position).
             args << sa;
             break;
           case 'B':  // Branch offset.
@@ -519,7 +521,8 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
           case 's': args << 'f' << rs; break;
           case 'T': args << 'r' << rt; break;
           case 't': args << 'f' << rt; break;
-          case 'Z': args << rd; break;   // sz ([d]ext size).
+          case 'Z': args << (rd + 1); break;  // sz ([d]ext size).
+          case 'z': args << (rd - sa + 1); break;  // sz ([d]ins size).
         }
         if (*(args_fmt + 1)) {
           args << ", ";

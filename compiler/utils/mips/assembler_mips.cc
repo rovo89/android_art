@@ -400,6 +400,20 @@ void MipsAssembler::Srav(Register rd, Register rt, Register rs) {
   EmitR(0, rs, rt, rd, 0, 0x07);
 }
 
+void MipsAssembler::Ext(Register rd, Register rt, int pos, int size) {
+  CHECK(IsUint<5>(pos)) << pos;
+  CHECK(0 < size && size <= 32) << size;
+  CHECK(0 < pos + size && pos + size <= 32) << pos << " + " << size;
+  EmitR(0x1f, rt, rd, static_cast<Register>(size - 1), pos, 0x00);
+}
+
+void MipsAssembler::Ins(Register rd, Register rt, int pos, int size) {
+  CHECK(IsUint<5>(pos)) << pos;
+  CHECK(0 < size && size <= 32) << size;
+  CHECK(0 < pos + size && pos + size <= 32) << pos << " + " << size;
+  EmitR(0x1f, rt, rd, static_cast<Register>(pos + size - 1), pos, 0x04);
+}
+
 void MipsAssembler::Lb(Register rt, Register rs, uint16_t imm16) {
   EmitI(0x20, rs, rt, imm16);
 }
@@ -1121,8 +1135,14 @@ void MipsAssembler::LoadConst32(Register rd, int32_t value) {
 }
 
 void MipsAssembler::LoadConst64(Register reg_hi, Register reg_lo, int64_t value) {
-  LoadConst32(reg_lo, Low32Bits(value));
-  LoadConst32(reg_hi, High32Bits(value));
+  uint32_t low = Low32Bits(value);
+  uint32_t high = High32Bits(value);
+  LoadConst32(reg_lo, low);
+  if (high != low) {
+    LoadConst32(reg_hi, high);
+  } else {
+    Move(reg_hi, reg_lo);
+  }
 }
 
 void MipsAssembler::StoreConst32ToOffset(int32_t value,
@@ -1136,7 +1156,11 @@ void MipsAssembler::StoreConst32ToOffset(int32_t value,
     base = AT;
     offset = 0;
   }
-  LoadConst32(temp, value);
+  if (value == 0) {
+    temp = ZERO;
+  } else {
+    LoadConst32(temp, value);
+  }
   Sw(temp, base, offset);
 }
 
@@ -1152,22 +1176,48 @@ void MipsAssembler::StoreConst64ToOffset(int64_t value,
     base = AT;
     offset = 0;
   }
-  LoadConst32(temp, Low32Bits(value));
-  Sw(temp, base, offset);
-  LoadConst32(temp, High32Bits(value));
-  Sw(temp, base, offset + kMipsWordSize);
+  uint32_t low = Low32Bits(value);
+  uint32_t high = High32Bits(value);
+  if (low == 0) {
+    Sw(ZERO, base, offset);
+  } else {
+    LoadConst32(temp, low);
+    Sw(temp, base, offset);
+  }
+  if (high == 0) {
+    Sw(ZERO, base, offset + kMipsWordSize);
+  } else {
+    if (high != low) {
+      LoadConst32(temp, high);
+    }
+    Sw(temp, base, offset + kMipsWordSize);
+  }
 }
 
 void MipsAssembler::LoadSConst32(FRegister r, int32_t value, Register temp) {
-  LoadConst32(temp, value);
+  if (value == 0) {
+    temp = ZERO;
+  } else {
+    LoadConst32(temp, value);
+  }
   Mtc1(temp, r);
 }
 
 void MipsAssembler::LoadDConst64(FRegister rd, int64_t value, Register temp) {
-  LoadConst32(temp, Low32Bits(value));
-  Mtc1(temp, rd);
-  LoadConst32(temp, High32Bits(value));
-  Mthc1(temp, rd);
+  uint32_t low = Low32Bits(value);
+  uint32_t high = High32Bits(value);
+  if (low == 0) {
+    Mtc1(ZERO, rd);
+  } else {
+    LoadConst32(temp, low);
+    Mtc1(temp, rd);
+  }
+  if (high == 0) {
+    Mthc1(ZERO, rd);
+  } else {
+    LoadConst32(temp, high);
+    Mthc1(temp, rd);
+  }
 }
 
 void MipsAssembler::Addiu32(Register rt, Register rs, int32_t value, Register temp) {

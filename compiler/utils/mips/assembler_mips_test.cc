@@ -367,6 +367,44 @@ TEST_F(AssemblerMIPSTest, Srav) {
   DriverStr(RepeatRRR(&mips::MipsAssembler::Srav, "srav ${reg1}, ${reg2}, ${reg3}"), "Srav");
 }
 
+TEST_F(AssemblerMIPSTest, Ins) {
+  std::vector<mips::Register*> regs = GetRegisters();
+  WarnOnCombinations(regs.size() * regs.size() * 33 * 16);
+  std::string expected;
+  for (mips::Register* reg1 : regs) {
+    for (mips::Register* reg2 : regs) {
+      for (int32_t pos = 0; pos < 32; pos++) {
+        for (int32_t size = 1; pos + size <= 32; size++) {
+          __ Ins(*reg1, *reg2, pos, size);
+          std::ostringstream instr;
+          instr << "ins $" << *reg1 << ", $" << *reg2 << ", " << pos << ", " << size << "\n";
+          expected += instr.str();
+        }
+      }
+    }
+  }
+  DriverStr(expected, "Ins");
+}
+
+TEST_F(AssemblerMIPSTest, Ext) {
+  std::vector<mips::Register*> regs = GetRegisters();
+  WarnOnCombinations(regs.size() * regs.size() * 33 * 16);
+  std::string expected;
+  for (mips::Register* reg1 : regs) {
+    for (mips::Register* reg2 : regs) {
+      for (int32_t pos = 0; pos < 32; pos++) {
+        for (int32_t size = 1; pos + size <= 32; size++) {
+          __ Ext(*reg1, *reg2, pos, size);
+          std::ostringstream instr;
+          instr << "ext $" << *reg1 << ", $" << *reg2 << ", " << pos << ", " << size << "\n";
+          expected += instr.str();
+        }
+      }
+    }
+  }
+  DriverStr(expected, "Ext");
+}
+
 TEST_F(AssemblerMIPSTest, Lb) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Lb, -16, "lb ${reg1}, {imm}(${reg2})"), "Lb");
 }
