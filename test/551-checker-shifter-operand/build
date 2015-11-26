@@ -1,0 +1,212 @@
+#!/bin/bash
+#
+# Copyright (C) 2008 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# This is an almost exact copy of `art/test/etc/default-build`. Only the parsing
+# of `dx` option has been overriden.
+
+# Stop if something fails.
+set -e
+
+# Set default values for directories.
+if [ -d smali ]; then
+  HAS_SMALI=true
+else
+  HAS_SMALI=false
+fi
+
+if [ -d src ]; then
+  HAS_SRC=true
+else
+  HAS_SRC=false
+fi
+
+if [ -d src2 ]; then
+  HAS_SRC2=true
+else
+  HAS_SRC2=false
+fi
+
+if [ -d src-multidex ]; then
+  HAS_SRC_MULTIDEX=true
+else
+  HAS_SRC_MULTIDEX=false
+fi
+
+if [ -d src-ex ]; then
+  HAS_SRC_EX=true
+else
+  HAS_SRC_EX=false
+fi
+
+DX_FLAGS=""
+SKIP_DX_MERGER="false"
+EXPERIMENTAL=""
+
+# Setup experimental flag mappings in a bash associative array.
+declare -A JACK_EXPERIMENTAL_ARGS
+JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8"
+JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8"
+
+while true; do
+  if [ "x$1" = "x--dx-option" ]; then
+    shift
+    option="$1"
+    # Make sure we run this test *with* `dx` optimizations.
+    if [ "x$option" != "x--no-optimize" ]; then
+      DX_FLAGS="${DX_FLAGS} $option"
+    fi
+    shift
+  elif [ "x$1" = "x--jvm" ]; then
+    shift
+  elif [ "x$1" = "x--no-src" ]; then
+    HAS_SRC=false
+    shift
+  elif [ "x$1" = "x--no-src2" ]; then
+    HAS_SRC2=false
+    shift
+  elif [ "x$1" = "x--no-src-multidex" ]; then
+    HAS_SRC_MULTIDEX=false
+    shift
+  elif [ "x$1" = "x--no-src-ex" ]; then
+    HAS_SRC_EX=false
+    shift
+  elif [ "x$1" = "x--no-smali" ]; then
+    HAS_SMALI=false
+    shift
+  elif [ "x$1" = "x--experimental" ]; then
+    shift
+    EXPERIMENTAL="${EXPERIMENTAL} $1"
+    shift
+  elif expr "x$1" : "x--" >/dev/null 2>&1; then
+    echo "unknown $0 option: $1" 1>&2
+    exit 1
+  else
+    break
+  fi
+done
+
+# Add args from the experimental mappings.
+for experiment in ${EXPERIMENTAL}; do
+  JACK_ARGS="${JACK_ARGS} ${JACK_EXPERIMENTAL_ARGS[${experiment}]}"
+done
+
+if [ -e classes.dex ]; then
+  zip $TEST_NAME.jar classes.dex
+  exit 0
+fi
+
+if ! [ "${HAS_SRC}" = "true" ] && ! [ "${HAS_SRC2}" = "true" ]; then
+  # No src directory? Then forget about trying to run dx.
+  SKIP_DX_MERGER="true"
+fi
+
+if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
+  # Jack does not support this configuration unless we specify how to partition the DEX file
+  # with a .jpp file.
+  USE_JACK="false"
+fi
+
+if [ ${USE_JACK} = "true" ]; then
+  # Jack toolchain
+  if [ "${HAS_SRC}" = "true" ]; then
+    ${JACK} ${JACK_ARGS} --output-jack src.jack src
+    imported_jack_files="--import src.jack"
+  fi
+
+  if [ "${HAS_SRC2}" = "true" ]; then
+    ${JACK} ${JACK_ARGS} --output-jack src2.jack src2
+    imported_jack_files="--import src2.jack ${imported_jack_files}"
+  fi
+
+  # Compile jack files into a DEX file. We set jack.import.type.policy=keep-first to consider
+  # class definitions from src2 first.
+  if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ]; then
+    ${JACK} ${JACK_ARGS} ${imported_jack_files} -D jack.import.type.policy=keep-first --output-dex .
+  fi
+else
+  # Legacy toolchain with javac+dx
+  if [ "${HAS_SRC}" = "true" ]; then
+    mkdir classes
+    ${JAVAC} ${JAVAC_ARGS} -implicit:none -classpath src-multidex -d classes `find src -name '*.java'`
+  fi
+
+  if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
+    mkdir classes2
+    ${JAVAC} -implicit:none -classpath src -d classes2 `find src-multidex -name '*.java'`
+    if [ ${NEED_DEX} = "true" ]; then
+      ${DX} -JXmx256m --debug --dex --dump-to=classes2.lst --output=classes2.dex \
+        --dump-width=1000 ${DX_FLAGS} classes2
+    fi
+  fi
+
+  if [ "${HAS_SRC2}" = "true" ]; then
+    mkdir -p classes
+    ${JAVAC} ${JAVAC_ARGS} -d classes `find src2 -name '*.java'`
+  fi
+
+  if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ]; then
+    if [ ${NEED_DEX} = "true" -a ${SKIP_DX_MERGER} = "false" ]; then
+      ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
+        --dump-width=1000 ${DX_FLAGS} classes
+    fi
+  fi
+fi
+
+if [ "${HAS_SMALI}" = "true" ]; then
+  # Compile Smali classes
+  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
+
+  # Don't bother with dexmerger if we provide our own main function in a smali file.
+  if [ ${SKIP_DX_MERGER} = "false" ]; then
+    ${DXMERGER} classes.dex classes.dex smali_classes.dex
+  else
+    mv smali_classes.dex classes.dex
+  fi
+fi
+
+if [ ${HAS_SRC_EX} = "true" ]; then
+  if [ ${USE_JACK} = "true" ]; then
+      # Rename previous "classes.dex" so it is not overwritten.
+      mv classes.dex classes-1.dex
+      #TODO find another way to append src.jack to the jack classpath
+      ${JACK}:src.jack ${JACK_ARGS} --output-dex . src-ex
+      zip $TEST_NAME-ex.jar classes.dex
+      # Restore previous "classes.dex" so it can be zipped.
+      mv classes-1.dex classes.dex
+  else
+    mkdir classes-ex
+    ${JAVAC} ${JAVAC_ARGS} -d classes-ex -cp classes `find src-ex -name '*.java'`
+    if [ ${NEED_DEX} = "true" ]; then
+      ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex \
+        --dump-width=1000 ${DX_FLAGS} classes-ex
+
+      # quick shuffle so that the stored name is "classes.dex"
+      mv classes.dex classes-1.dex
+      mv classes-ex.dex classes.dex
+      zip $TEST_NAME-ex.jar classes.dex
+      mv classes.dex classes-ex.dex
+      mv classes-1.dex classes.dex
+    fi
+  fi
+fi
+
+# Create a single jar with two dex files for multidex.
+if [ ${HAS_SRC_MULTIDEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex classes2.dex
+elif [ ${NEED_DEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex
+fi

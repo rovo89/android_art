@@ -39,6 +39,17 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
                                     HInstruction* array,
                                     HInstruction* index,
                                     int access_size);
+  bool TryMergeIntoUsersShifterOperand(HInstruction* instruction);
+  bool TryMergeIntoShifterOperand(HInstruction* use,
+                                  HInstruction* bitfield_op,
+                                  bool do_merge);
+  bool CanMergeIntoShifterOperand(HInstruction* use, HInstruction* bitfield_op) {
+    return TryMergeIntoShifterOperand(use, bitfield_op, false);
+  }
+  bool MergeIntoShifterOperand(HInstruction* use, HInstruction* bitfield_op) {
+    DCHECK(CanMergeIntoShifterOperand(use, bitfield_op));
+    return TryMergeIntoShifterOperand(use, bitfield_op, true);
+  }
 
   bool TrySimpleMultiplyAccumulatePatterns(HMul* mul,
                                            HBinaryOperation* input_binop,
@@ -48,6 +59,10 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
   void VisitArrayGet(HArrayGet* instruction) OVERRIDE;
   void VisitArraySet(HArraySet* instruction) OVERRIDE;
   void VisitMul(HMul* instruction) OVERRIDE;
+  void VisitShl(HShl* instruction) OVERRIDE;
+  void VisitShr(HShr* instruction) OVERRIDE;
+  void VisitTypeConversion(HTypeConversion* instruction) OVERRIDE;
+  void VisitUShr(HUShr* instruction) OVERRIDE;
 
   OptimizingCompilerStats* stats_;
 };

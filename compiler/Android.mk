@@ -81,6 +81,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/load_store_elimination.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
+	optimizing/nodes_arm64.cc \
 	optimizing/optimization.cc \
 	optimizing/optimizing_compiler.cc \
 	optimizing/parallel_move_resolver.cc \

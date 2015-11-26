@@ -423,6 +423,13 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
 #ifdef ART_ENABLE_CODEGEN_arm64
+  void VisitArm64DataProcWithShifterOp(HArm64DataProcWithShifterOp* instruction) OVERRIDE {
+    StartAttributeStream("kind") << instruction->GetInstrKind() << "+" << instruction->GetOpKind();
+    if (HArm64DataProcWithShifterOp::IsShiftOp(instruction->GetOpKind())) {
+      StartAttributeStream("shift") << instruction->GetShiftAmount();
+    }
+  }
+
   void VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetOpKind();
   }
