@@ -134,7 +134,7 @@ void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
   Writer<> writer(debug_info);
   size_t start = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
-  writer.PushUint16(3);  // Version.
+  writer.PushUint16(4);  // Version.
   writer.PushUint32(debug_abbrev_offset);
   writer.PushUint8(entries.Is64bit() ? 8 : 4);
   size_t entries_offset = writer.data()->size();
@@ -167,10 +167,7 @@ void WriteDebugLineTable(const std::vector<std::string>& include_directories,
   Writer<> writer(debug_line);
   size_t header_start = writer.data()->size();
   writer.PushUint32(0);  // Section-length placeholder.
-  // Claim DWARF-2 version even though we use some DWARF-3 features.
-  // DWARF-2 consumers will ignore the unknown opcodes.
-  // This is what clang currently does.
-  writer.PushUint16(2);  // .debug_line version.
+  writer.PushUint16(3);  // .debug_line version.
   size_t header_length_pos = writer.data()->size();
   writer.PushUint32(0);  // Header-length placeholder.
   writer.PushUint8(1 << opcodes.GetCodeFactorBits());
