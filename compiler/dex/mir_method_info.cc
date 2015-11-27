@@ -86,7 +86,7 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     ArtMethod* resolved_method = nullptr;
 
     bool string_init = false;
-    if (default_inliner->IsStringInitMethodIndex(it->MethodIndex())) {
+    if (LIKELY(!it->IsQuickened()) && default_inliner->IsStringInitMethodIndex(it->MethodIndex())) {
       string_init = true;
       invoke_type = kDirect;
     }
@@ -151,7 +151,8 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     MethodReference target_method(it->target_dex_file_, it->target_method_idx_);
     int fast_path_flags = compiler_driver->IsFastInvoke(
         soa, current_dex_cache, class_loader, mUnit, referrer_class.Get(), resolved_method,
-        &invoke_type, &target_method, devirt_target, &it->direct_code_, &it->direct_method_);
+        &invoke_type, &target_method, devirt_target, &it->direct_code_, &it->direct_method_,
+        it->IsQuickened());
     const bool is_referrers_class = referrer_class.Get() == resolved_method->GetDeclaringClass();
     const bool is_class_initialized =
         compiler_driver->IsMethodsClassInitialized(referrer_class.Get(), resolved_method);
