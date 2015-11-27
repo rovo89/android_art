@@ -295,7 +295,7 @@ class CompilerDriver {
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       mirror::Class* referrer_class, mirror::ArtMethod* resolved_method, InvokeType* invoke_type,
       MethodReference* target_method, const MethodReference* devirt_target,
-      uintptr_t* direct_code, uintptr_t* direct_method)
+      uintptr_t* direct_code, uintptr_t* direct_method, bool is_quickened = false)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Does invokation of the resolved method need class initialization?
