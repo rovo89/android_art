@@ -495,6 +495,10 @@ class DebugInfoWriter {
               pos = WriteOpReg(pos, Reg::ArmDp(value / 2).num());
               break;
             }
+            if (isa == kMips || isa == kMips64) {
+              // TODO: Find what the DWARF floating point register numbers are on MIPS.
+              break;
+            }
             pos = WriteOpReg(pos, GetDwarfFpReg(isa, value).num());
             if (piece == 0 && reg_hi.GetKind() == Kind::kInFpuRegisterHigh &&
                 reg_hi.GetValue() == reg_lo.GetValue()) {
