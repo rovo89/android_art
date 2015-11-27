@@ -233,10 +233,15 @@ inline int CompilerDriver::IsFastInvoke(
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     mirror::Class* referrer_class, mirror::ArtMethod* resolved_method, InvokeType* invoke_type,
     MethodReference* target_method, const MethodReference* devirt_target,
-    uintptr_t* direct_code, uintptr_t* direct_method) {
+    uintptr_t* direct_code, uintptr_t* direct_method, bool is_quickened) {
   // Don't try to fast-path if we don't understand the caller's class.
   if (UNLIKELY(referrer_class == nullptr)) {
     return 0;
+  }
+  // Quickened calls are already sharpened, possibly to classes that are not accessible.
+  // Skip access checks and further attempts to sharpen the call.
+  if (is_quickened) {
+    return kFlagMethodResolved;
   }
   mirror::Class* methods_class = resolved_method->GetDeclaringClass();
   if (UNLIKELY(!referrer_class->CanAccessResolvedMethod(methods_class, resolved_method,
