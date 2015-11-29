@@ -512,7 +512,8 @@ DexToDexCompilationLevel CompilerDriver::GetDexToDexCompilationlevel(
     Thread* self, Handle<mirror::ClassLoader> class_loader, const DexFile& dex_file,
     const DexFile::ClassDef& class_def) {
   auto* const runtime = Runtime::Current();
-  if (runtime->UseJit() || GetCompilerOptions().VerifyAtRuntime()) {
+  const bool is_recompiling = dex_file.GetOatDexFile() != nullptr;
+  if (runtime->UseJit() || GetCompilerOptions().VerifyAtRuntime() || is_recompiling) {
     // Verify at runtime shouldn't dex to dex since we didn't resolve of verify.
     return kDontDexToDexCompile;
   }
