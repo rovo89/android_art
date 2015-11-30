@@ -69,10 +69,25 @@ static uint16_t CappedAllocRecordCount(size_t alloc_record_count) {
   return alloc_record_count;
 }
 
+// Takes a method and returns a 'canonical' one if the method is default (and therefore potentially
+// copied from some other class). This ensures that the debugger does not get confused as to which
+// method we are in.
+static ArtMethod* GetCanonicalMethod(ArtMethod* m)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (LIKELY(!m->IsDefault())) {
+    return m;
+  } else {
+    mirror::Class* declaring_class = m->GetDeclaringClass();
+    return declaring_class->FindDeclaredVirtualMethod(declaring_class->GetDexCache(),
+                                                      m->GetDexMethodIndex(),
+                                                      sizeof(void*));
+  }
+}
+
 class Breakpoint : public ValueObject {
  public:
   Breakpoint(ArtMethod* method, uint32_t dex_pc, DeoptimizationRequest::Kind deoptimization_kind)
-    : method_(method),
+    : method_(GetCanonicalMethod(method)),
       dex_pc_(dex_pc),
       deoptimization_kind_(deoptimization_kind) {
     CHECK(deoptimization_kind_ == DeoptimizationRequest::kNothing ||
@@ -97,6 +112,12 @@ class Breakpoint : public ValueObject {
 
   DeoptimizationRequest::Kind GetDeoptimizationKind() const {
     return deoptimization_kind_;
+  }
+
+  // Returns true if the method of this breakpoint and the passed in method should be considered the
+  // same. That is, they are either the same method or they are copied from the same method.
+  bool IsInMethod(ArtMethod* m) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return method_ == GetCanonicalMethod(m);
   }
 
  private:
@@ -306,12 +327,12 @@ bool SingleStepControl::ContainsDexPc(uint32_t dex_pc) const {
   return dex_pcs_.find(dex_pc) == dex_pcs_.end();
 }
 
-static bool IsBreakpoint(const ArtMethod* m, uint32_t dex_pc)
+static bool IsBreakpoint(ArtMethod* m, uint32_t dex_pc)
     REQUIRES(!Locks::breakpoint_lock_)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ReaderMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   for (size_t i = 0, e = gBreakpoints.size(); i < e; ++i) {
-    if (gBreakpoints[i].DexPc() == dex_pc && gBreakpoints[i].Method() == m) {
+    if (gBreakpoints[i].DexPc() == dex_pc && gBreakpoints[i].IsInMethod(m)) {
       VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
       return true;
     }
@@ -1282,9 +1303,9 @@ JDWP::FieldId Dbg::ToFieldId(const ArtField* f) {
   return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
 }
 
-static JDWP::MethodId ToMethodId(const ArtMethod* m)
+static JDWP::MethodId ToMethodId(ArtMethod* m)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
+  return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(GetCanonicalMethod(m)));
 }
 
 static ArtField* FromFieldId(JDWP::FieldId fid)
@@ -2763,7 +2784,7 @@ static void SetEventLocation(JDWP::EventLocation* location, ArtMethod* m, uint32
   if (m == nullptr) {
     memset(location, 0, sizeof(*location));
   } else {
-    location->method = m;
+    location->method = GetCanonicalMethod(m);
     location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint32_t>(-1) : dex_pc;
   }
 }
@@ -3214,7 +3235,7 @@ static bool IsMethodPossiblyInlined(Thread* self, ArtMethod* m)
 static const Breakpoint* FindFirstBreakpointForMethod(ArtMethod* m)
     SHARED_REQUIRES(Locks::mutator_lock_, Locks::breakpoint_lock_) {
   for (Breakpoint& breakpoint : gBreakpoints) {
-    if (breakpoint.Method() == m) {
+    if (breakpoint.IsInMethod(m)) {
       return &breakpoint;
     }
   }
@@ -3231,7 +3252,7 @@ static void SanityCheckExistingBreakpoints(ArtMethod* m,
                                            DeoptimizationRequest::Kind deoptimization_kind)
     SHARED_REQUIRES(Locks::mutator_lock_, Locks::breakpoint_lock_) {
   for (const Breakpoint& breakpoint : gBreakpoints) {
-    if (breakpoint.Method() == m) {
+    if (breakpoint.IsInMethod(m)) {
       CHECK_EQ(deoptimization_kind, breakpoint.GetDeoptimizationKind());
     }
   }
@@ -3274,12 +3295,15 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
 
   if (first_breakpoint == nullptr) {
     // There is no breakpoint on this method yet: we need to deoptimize. If this method may be
-    // inlined, we deoptimize everything; otherwise we deoptimize only this method.
+    // inlined or default, we deoptimize everything; otherwise we deoptimize only this method. We
+    // deoptimize with defaults because we do not know everywhere they are used. It is possible some
+    // of the copies could be inlined or otherwise missed.
+    // TODO Deoptimizing on default methods might not be necessary in all cases.
     // Note: IsMethodPossiblyInlined goes into the method verifier and may cause thread suspension.
     // Therefore we must not hold any lock when we call it.
-    bool need_full_deoptimization = IsMethodPossiblyInlined(self, m);
+    bool need_full_deoptimization = m->IsDefault() || IsMethodPossiblyInlined(self, m);
     if (need_full_deoptimization) {
-      VLOG(jdwp) << "Need full deoptimization because of possible inlining of method "
+      VLOG(jdwp) << "Need full deoptimization because of possible inlining or copying of method "
                  << PrettyMethod(m);
       return DeoptimizationRequest::kFullDeoptimization;
     } else {
@@ -3359,7 +3383,7 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location, DeoptimizationRequ
   DCHECK(m != nullptr) << "No method for method id " << location->method_id;
   DeoptimizationRequest::Kind deoptimization_kind = DeoptimizationRequest::kNothing;
   for (size_t i = 0, e = gBreakpoints.size(); i < e; ++i) {
-    if (gBreakpoints[i].DexPc() == location->dex_pc && gBreakpoints[i].Method() == m) {
+    if (gBreakpoints[i].DexPc() == location->dex_pc && gBreakpoints[i].IsInMethod(m)) {
       VLOG(jdwp) << "Removed breakpoint #" << i << ": " << gBreakpoints[i];
       deoptimization_kind = gBreakpoints[i].GetDeoptimizationKind();
       DCHECK_EQ(deoptimization_kind == DeoptimizationRequest::kSelectiveDeoptimization,
