@@ -21,6 +21,8 @@ mkdir classes
 
 # android.test.anno.MissingAnnotation is available at compile time...
 ${JAVAC} -d classes `find src -name '*.java'`
+# overwrite RenamedEnum
+${JAVAC} -d classes `find src2 -name '*.java'`
 
 # ...but not at run time.
 rm 'classes/android/test/anno/MissingAnnotation.class'
