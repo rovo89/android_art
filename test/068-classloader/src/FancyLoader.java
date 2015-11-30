@@ -38,7 +38,7 @@ public class FancyLoader extends ClassLoader {
     static final String CLASS_PATH = "classes-ex/";
 
     /* this is the "alternate" DEX/Jar file */
-    static final String DEX_FILE = System.getenv("DEX_LOCATION") + "/068-classloader-ex.jar";
+    public static final String DEX_FILE = System.getenv("DEX_LOCATION") + "/068-classloader-ex.jar";
 
     /* on Dalvik, this is a DexFile; otherwise, it's null */
     private Class mDexClass;
