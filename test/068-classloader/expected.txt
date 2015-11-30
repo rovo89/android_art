@@ -13,3 +13,4 @@ Got LinkageError on DI (early)
 Got LinkageError on IDI (early)
 class Main
 Got expected ClassNotFoundException
+JNI_OnLoad called
