@@ -19,23 +19,25 @@ public final class Main {
   public void invokeVirtual() {
   }
 
-  /// CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) inliner (before)
-  /// CHECK-DAG:     <<Invoke:v\d+>>  InvokeStaticOrDirect
+  /// CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) builder (after)
+  /// CHECK-DAG:     <<Invoke:v\d+>>  InvokeVirtual
   /// CHECK-DAG:                      ReturnVoid
 
   /// CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) inliner (after)
+  /// CHECK-NOT:                      InvokeVirtual
   /// CHECK-NOT:                      InvokeStaticOrDirect
 
   public static void inlineSharpenInvokeVirtual(Main m) {
     m.invokeVirtual();
   }
 
-  /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (before)
-  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineSharpenStringInvoke() ssa_builder (after)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeVirtual
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
   /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-NOT:                      InvokeVirtual
 
   /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
   /// CHECK-DAG:     <<Field:i\d+>>   InstanceFieldGet
