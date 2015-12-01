@@ -45,6 +45,14 @@ class OutputStream {
 
   virtual off_t Seek(off_t offset, Whence whence) = 0;
 
+  /*
+   * Flushes the stream. Returns whether the operation was successful.
+   *
+   * An OutputStream may delay reporting errors from WriteFully() or
+   * Seek(). In that case, Flush() shall report any pending error.
+   */
+  virtual bool Flush() = 0;
+
  private:
   const std::string location_;
 

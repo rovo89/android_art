@@ -101,7 +101,8 @@ TEST_F(ElfWriterTest, EncodeDecodeOatPatches) {
 
     // Encode patch locations.
     std::vector<uint8_t> oat_patches;
-    ElfBuilder<ElfTypes32>::EncodeOatPatches(patch_locations, &oat_patches);
+    ElfBuilder<ElfTypes32>::EncodeOatPatches(ArrayRef<const uintptr_t>(patch_locations),
+                                             &oat_patches);
 
     // Create buffer to be patched.
     std::vector<uint8_t> initial_data(256);

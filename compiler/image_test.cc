@@ -23,7 +23,9 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
+#include "dwarf/method_debug_info.h"
 #include "elf_writer.h"
+#include "elf_writer_quick.h"
 #include "gc/space/image_space.h"
 #include "image_writer.h"
 #include "lock_word.h"
@@ -92,12 +94,37 @@ TEST_F(ImageTest, WriteRead) {
                            /*compiling_boot_image*/true,
                            &timings,
                            &key_value_store);
-      bool success = writer->PrepareImageAddressSpace() &&
-          compiler_driver_->WriteElf(GetTestAndroidRoot(),
-                                     !kIsTargetBuild,
-                                     class_linker->GetBootClassPath(),
-                                     &oat_writer,
-                                     oat_file.GetFile());
+      std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
+          compiler_driver_->GetInstructionSet(),
+          &compiler_driver_->GetCompilerOptions(),
+          oat_file.GetFile());
+      bool success = writer->PrepareImageAddressSpace();
+      ASSERT_TRUE(success);
+
+      elf_writer->Start();
+
+      OutputStream* rodata = elf_writer->StartRoData();
+      bool rodata_ok = oat_writer.WriteRodata(rodata);
+      ASSERT_TRUE(rodata_ok);
+      elf_writer->EndRoData(rodata);
+
+      OutputStream* text = elf_writer->StartText();
+      bool text_ok = oat_writer.WriteCode(text);
+      ASSERT_TRUE(text_ok);
+      elf_writer->EndText(text);
+
+      elf_writer->SetBssSize(oat_writer.GetBssSize());
+
+      elf_writer->WriteDynamicSection();
+
+      ArrayRef<const dwarf::MethodDebugInfo> method_infos(oat_writer.GetMethodDebugInfo());
+      elf_writer->WriteDebugInfo(method_infos);
+
+      ArrayRef<const uintptr_t> patch_locations(oat_writer.GetAbsolutePatchLocations());
+      elf_writer->WritePatchLocations(patch_locations);
+
+      success = elf_writer->End();
+
       ASSERT_TRUE(success);
     }
   }
