@@ -832,11 +832,12 @@ TEST(Thumb2AssemblerTest, StoreMultiple) {
 TEST(Thumb2AssemblerTest, MovWMovT) {
   arm::Thumb2Assembler assembler;
 
-  __ movw(R4, 0);         // 16 bit.
-  __ movw(R4, 0x34);      // 16 bit.
-  __ movw(R9, 0x34);      // 32 bit due to high register.
-  __ movw(R3, 0x1234);    // 32 bit due to large value.
-  __ movw(R9, 0xffff);    // 32 bit due to large value and high register.
+  // Always 32 bit.
+  __ movw(R4, 0);
+  __ movw(R4, 0x34);
+  __ movw(R9, 0x34);
+  __ movw(R3, 0x1234);
+  __ movw(R9, 0xffff);
 
   // Always 32 bit.
   __ movt(R0, 0);
