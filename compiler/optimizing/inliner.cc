@@ -192,10 +192,6 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   // We can query the dex cache directly. The verifier has populated it already.
   ArtMethod* resolved_method;
   if (invoke_instruction->IsInvokeStaticOrDirect()) {
-    if (invoke_instruction->AsInvokeStaticOrDirect()->IsStringInit()) {
-      VLOG(compiler) << "Not inlining a String.<init> method";
-      return false;
-    }
     MethodReference ref = invoke_instruction->AsInvokeStaticOrDirect()->GetTargetMethod();
     mirror::DexCache* const dex_cache = (&caller_dex_file == ref.dex_file)
         ? caller_compilation_unit_.GetDexCache().Get()
