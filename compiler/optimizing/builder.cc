@@ -735,6 +735,79 @@ static InvokeType GetInvokeTypeFromOpCode(Instruction::Code opcode) {
   }
 }
 
+ArtMethod* HGraphBuilder::ResolveMethod(uint16_t method_idx, InvokeType invoke_type) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
+
+  ClassLinker* class_linker = dex_compilation_unit_->GetClassLinker();
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+  Handle<mirror::Class> compiling_class(hs.NewHandle(GetCompilingClass()));
+
+  ArtMethod* resolved_method = class_linker->ResolveMethod(
+      *dex_compilation_unit_->GetDexFile(),
+      method_idx,
+      dex_compilation_unit_->GetDexCache(),
+      class_loader,
+      /* referrer */ nullptr,
+      invoke_type);
+
+  if (UNLIKELY(resolved_method == nullptr)) {
+    // Clean up any exception left by type resolution.
+    soa.Self()->ClearException();
+    return nullptr;
+  }
+
+  // Check access. The class linker has a fast path for looking into the dex cache
+  // and does not check the access if it hits it.
+  if (compiling_class.Get() == nullptr) {
+    if (!resolved_method->IsPublic()) {
+      return nullptr;
+    }
+  } else if (!compiling_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
+                                                       resolved_method,
+                                                       dex_compilation_unit_->GetDexCache().Get(),
+                                                       method_idx)) {
+    return nullptr;
+  }
+
+  // We have to special case the invoke-super case, as ClassLinker::ResolveMethod does not.
+  // We need to look at the referrer's super class vtable.
+  if (invoke_type == kSuper) {
+    if (compiling_class.Get() == nullptr) {
+      // Invoking a super method requires knowing the actual super class. If we did not resolve
+      // the compiling method's declaring class (which only happens for ahead of time compilation),
+      // bail out.
+      DCHECK(Runtime::Current()->IsAotCompiler());
+      return nullptr;
+    }
+    uint16_t vtable_index = resolved_method->GetMethodIndex();
+    ArtMethod* actual_method = compiling_class->GetSuperClass()->GetVTableEntry(
+        vtable_index, class_linker->GetImagePointerSize());
+    if (actual_method != resolved_method &&
+        !IsSameDexFile(*resolved_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
+      // TODO: The actual method could still be referenced in the current dex file, so we
+      // could try locating it.
+      // TODO: Remove the dex_file restriction.
+      return nullptr;
+    }
+    if (!actual_method->IsInvokable()) {
+      // Fail if the actual method cannot be invoked. Otherwise, the runtime resolution stub
+      // could resolve the callee to the wrong method.
+      return nullptr;
+    }
+    resolved_method = actual_method;
+  }
+
+  // Check for incompatible class changes. The class linker has a fast path for
+  // looking into the dex cache and does not check incompatible class changes if it hits it.
+  if (resolved_method->CheckIncompatibleClassChange(invoke_type)) {
+    return nullptr;
+  }
+
+  return resolved_method;
+}
+
 bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                 uint32_t dex_pc,
                                 uint32_t method_idx,
@@ -742,22 +815,18 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                 bool is_range,
                                 uint32_t* args,
                                 uint32_t register_index) {
-  InvokeType original_invoke_type = GetInvokeTypeFromOpCode(instruction.Opcode());
-  InvokeType optimized_invoke_type = original_invoke_type;
+  InvokeType invoke_type = GetInvokeTypeFromOpCode(instruction.Opcode());
   const char* descriptor = dex_file_->GetMethodShorty(method_idx);
   Primitive::Type return_type = Primitive::GetType(descriptor[0]);
 
   // Remove the return type from the 'proto'.
   size_t number_of_arguments = strlen(descriptor) - 1;
-  if (original_invoke_type != kStatic) {  // instance call
+  if (invoke_type != kStatic) {  // instance call
     // One extra argument for 'this'.
     number_of_arguments++;
   }
 
   MethodReference target_method(dex_file_, method_idx);
-  int32_t table_index = 0;
-  uintptr_t direct_code = 0;
-  uintptr_t direct_method = 0;
 
   // Special handling for string init.
   int32_t string_init_offset = 0;
@@ -780,7 +849,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
         method_idx,
         target_method,
         dispatch_info,
-        original_invoke_type,
+        invoke_type,
         kStatic /* optimized_invoke_type */,
         HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
     return HandleStringInit(invoke,
@@ -791,23 +860,16 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                             descriptor);
   }
 
-  // Handle unresolved methods.
-  if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_,
-                                           dex_pc,
-                                           true /* update_stats */,
-                                           true /* enable_devirtualization */,
-                                           &optimized_invoke_type,
-                                           &target_method,
-                                           &table_index,
-                                           &direct_code,
-                                           &direct_method)) {
+  ArtMethod* resolved_method = ResolveMethod(method_idx, invoke_type);
+
+  if (resolved_method == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kUnresolvedMethod);
     HInvoke* invoke = new (arena_) HInvokeUnresolved(arena_,
                                                      number_of_arguments,
                                                      return_type,
                                                      dex_pc,
                                                      method_idx,
-                                                     original_invoke_type);
+                                                     invoke_type);
     return HandleInvoke(invoke,
                         number_of_vreg_arguments,
                         args,
@@ -817,21 +879,26 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                         nullptr /* clinit_check */);
   }
 
-  // Handle resolved methods (non string init).
-
-  DCHECK(optimized_invoke_type != kSuper);
-
   // Potential class initialization check, in the case of a static method call.
   HClinitCheck* clinit_check = nullptr;
   HInvoke* invoke = nullptr;
 
-  if (optimized_invoke_type == kDirect || optimized_invoke_type == kStatic) {
+  if (invoke_type == kDirect || invoke_type == kStatic || invoke_type == kSuper) {
     // By default, consider that the called method implicitly requires
     // an initialization check of its declaring method.
     HInvokeStaticOrDirect::ClinitCheckRequirement clinit_check_requirement
         = HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit;
-    if (optimized_invoke_type == kStatic) {
-      clinit_check = ProcessClinitCheckForInvoke(dex_pc, method_idx, &clinit_check_requirement);
+    ScopedObjectAccess soa(Thread::Current());
+    if (invoke_type == kStatic) {
+      clinit_check = ProcessClinitCheckForInvoke(
+          dex_pc, resolved_method, method_idx, &clinit_check_requirement);
+    } else if (invoke_type == kSuper) {
+      if (IsSameDexFile(*resolved_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
+        // Update the target method to the one resolved. Note that this may be a no-op if
+        // we resolved to the method referenced by the instruction.
+        method_idx = resolved_method->GetDexMethodIndex();
+        target_method = MethodReference(dex_file_, method_idx);
+      }
     }
 
     HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
@@ -847,24 +914,26 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                                 method_idx,
                                                 target_method,
                                                 dispatch_info,
-                                                original_invoke_type,
-                                                optimized_invoke_type,
+                                                invoke_type,
+                                                invoke_type,
                                                 clinit_check_requirement);
-  } else if (optimized_invoke_type == kVirtual) {
+  } else if (invoke_type == kVirtual) {
+    ScopedObjectAccess soa(Thread::Current());  // Needed for the method index
     invoke = new (arena_) HInvokeVirtual(arena_,
                                          number_of_arguments,
                                          return_type,
                                          dex_pc,
                                          method_idx,
-                                         table_index);
+                                         resolved_method->GetMethodIndex());
   } else {
-    DCHECK_EQ(optimized_invoke_type, kInterface);
+    DCHECK_EQ(invoke_type, kInterface);
+    ScopedObjectAccess soa(Thread::Current());  // Needed for the method index
     invoke = new (arena_) HInvokeInterface(arena_,
                                            number_of_arguments,
                                            return_type,
                                            dex_pc,
                                            method_idx,
-                                           table_index);
+                                           resolved_method->GetDexMethodIndex());
   }
 
   return HandleInvoke(invoke,
@@ -962,23 +1031,18 @@ bool HGraphBuilder::IsInitialized(Handle<mirror::Class> cls) const {
 
 HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
       uint32_t dex_pc,
+      ArtMethod* resolved_method,
       uint32_t method_idx,
       HInvokeStaticOrDirect::ClinitCheckRequirement* clinit_check_requirement) {
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<5> hs(soa.Self());
+  const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
+  Thread* self = Thread::Current();
+  StackHandleScope<4> hs(self);
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
       dex_compilation_unit_->GetClassLinker()->FindDexCache(
-          soa.Self(), *dex_compilation_unit_->GetDexFile())));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
-  ArtMethod* resolved_method = compiler_driver_->ResolveMethod(
-      soa, dex_cache, class_loader, dex_compilation_unit_, method_idx, InvokeType::kStatic);
-
-  DCHECK(resolved_method != nullptr);
-
-  const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
+          self, *dex_compilation_unit_->GetDexFile())));
   Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
-      outer_compilation_unit_->GetClassLinker()->FindDexCache(soa.Self(), outer_dex_file)));
+      outer_compilation_unit_->GetClassLinker()->FindDexCache(
+          self, outer_dex_file)));
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
   Handle<mirror::Class> resolved_method_class(hs.NewHandle(resolved_method->GetDeclaringClass()));
 
