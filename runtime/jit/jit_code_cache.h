@@ -148,11 +148,11 @@ class JitCodeCache {
 
   // Adds to `methods` all the compiled ArtMethods which are part of any of the given dex locations.
   void GetCompiledArtMethods(const std::set<const std::string>& dex_base_locations,
-                             std::set<ArtMethod*>& methods)
+                             std::vector<ArtMethod*>& methods)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  uint64_t GetLastUpdateTimeNs() REQUIRES(!lock_);
+  uint64_t GetLastUpdateTimeNs() const;
 
  private:
   // Take ownership of maps.
@@ -244,7 +244,8 @@ class JitCodeCache {
   bool has_done_one_collection_ GUARDED_BY(lock_);
 
   // Last time the the code_cache was updated.
-  uint64_t last_update_time_ns_ GUARDED_BY(lock_);
+  // It is atomic to avoid locking when reading it.
+  Atomic<uint64_t> last_update_time_ns_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };

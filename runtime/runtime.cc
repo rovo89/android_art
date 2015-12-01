@@ -190,7 +190,6 @@ Runtime::Runtime()
       abort_(nullptr),
       stats_enabled_(false),
       is_running_on_memory_tool_(RUNNING_ON_MEMORY_TOOL),
-      profiler_started_(false),
       instrumentation_(),
       main_thread_group_(nullptr),
       system_thread_group_(nullptr),
@@ -258,11 +257,6 @@ Runtime::~Runtime() {
     self = nullptr;
   }
 
-  // Shut down background profiler before the runtime exits.
-  if (profiler_started_) {
-    BackgroundMethodSamplingProfiler::Shutdown();
-  }
-
   // Make sure to let the GC complete if it is running.
   heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
   heap_->DeleteThreadPool();
@@ -271,6 +265,8 @@ Runtime::~Runtime() {
     // Delete thread pool before the thread list since we don't want to wait forever on the
     // JIT compiler threads.
     jit_->DeleteThreadPool();
+    // Similarly, stop the profile saver thread before deleting the thread list.
+    jit_->StopProfileSaver();
   }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
@@ -616,8 +612,7 @@ bool Runtime::Start() {
     if (fd >= 0) {
       close(fd);
     } else if (errno != EEXIST) {
-      LOG(INFO) << "Failed to access the profile file. Profiler disabled.";
-      return true;
+      LOG(WARNING) << "Failed to access the profile file. Profiler disabled.";
     }
   }
 
@@ -1635,11 +1630,13 @@ void Runtime::SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type) {
 
 void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,
                               const std::string& profile_output_filename) {
+  VLOG(profiler) << "Register app with " << profile_output_filename_
+      << " " << Join(code_paths, ':');
   DCHECK(!profile_output_filename.empty());
-  if (jit_.get() != nullptr) {
-    jit_->SetDexLocationsForProfiling(code_paths);
-  }
   profile_output_filename_ = profile_output_filename;
+  if (jit_.get() != nullptr && !profile_output_filename.empty() && !code_paths.empty()) {
+    jit_->StartProfileSaver(profile_output_filename, code_paths);
+  }
 }
 
 // Transaction support.
@@ -1783,18 +1780,6 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
   std::string feature_string("--instruction-set-features=");
   feature_string += features->GetFeatureString();
   argv->push_back(feature_string);
-}
-
-void Runtime::MaybeSaveJitProfilingInfo() {
-  if (jit_.get() != nullptr && !profile_output_filename_.empty()) {
-    jit_->SaveProfilingInfo(profile_output_filename_);
-  }
-}
-
-void Runtime::UpdateProfilerState(int state) {
-  if (state == kProfileBackground) {
-    MaybeSaveJitProfilingInfo();
-  }
 }
 
 void Runtime::CreateJit() {
