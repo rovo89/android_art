@@ -99,11 +99,12 @@ class MemMap {
                             error_msg);
   }
 
-  // Map part of a file, taking care of non-page aligned offsets.  The
-  // "start" offset is absolute, not relative. This version allows
-  // requesting a specific address for the base of the
-  // mapping. "reuse" allows us to create a view into an existing
-  // mapping where we do not take ownership of the memory.
+  // Map part of a file, taking care of non-page aligned offsets.  The "start" offset is absolute,
+  // not relative. This version allows requesting a specific address for the base of the mapping.
+  // "reuse" allows us to create a view into an existing mapping where we do not take ownership of
+  // the memory. If error_msg is null then we do not print /proc/maps to the log if
+  // MapFileAtAddress fails. This helps improve performance of the fail case since reading and
+  // printing /proc/maps takes several milliseconds in the worst case.
   //
   // On success, returns returns a MemMap instance.  On failure, returns null.
   static MemMap* MapFileAtAddress(uint8_t* addr,
