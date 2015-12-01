@@ -45,7 +45,6 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
-#include "elf_writer_quick.h"
 #include "jni_internal.h"
 #include "object_lock.h"
 #include "profiler.h"
@@ -76,9 +75,6 @@
 namespace art {
 
 static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
-
-// Whether to produce 64-bit ELF files for 64-bit targets.
-static constexpr bool kProduce64BitELFFiles = true;
 
 // Whether classes-to-compile and methods-to-compile are only applied to the boot image, or, when
 // given, too all compilations.
@@ -2512,19 +2508,6 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
                                                 uint16_t class_def_index) const {
   ReaderMutexLock mu(self, freezing_constructor_lock_);
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
-}
-
-bool CompilerDriver::WriteElf(const std::string& android_root,
-                              bool is_host,
-                              const std::vector<const art::DexFile*>& dex_files,
-                              OatWriter* oat_writer,
-                              art::File* file)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (kProduce64BitELFFiles && Is64BitInstructionSet(GetInstructionSet())) {
-    return art::ElfWriterQuick64::Create(file, oat_writer, dex_files, android_root, is_host, *this);
-  } else {
-    return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host, *this);
-  }
 }
 
 bool CompilerDriver::SkipCompilation(const std::string& method_name) {
