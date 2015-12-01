@@ -739,7 +739,9 @@ void SSAChecker::VisitPhi(HPhi* phi) {
   // created for constants which were untyped in DEX. Note that this test can be skipped for
   // a synthetic phi (indicated by lack of a virtual register).
   if (phi->GetRegNumber() != kNoRegNumber) {
-    for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+    for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis());
+         !phi_it.Done();
+         phi_it.Advance()) {
       HPhi* other_phi = phi_it.Current()->AsPhi();
       if (phi != other_phi && phi->GetRegNumber() == other_phi->GetRegNumber()) {
         if (phi->GetType() == other_phi->GetType()) {
