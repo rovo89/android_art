@@ -29,6 +29,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linear(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linear(int[] x) {
     int result = 0;
     for (int i = 0; i < x.length; i++) {
@@ -41,6 +42,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearDown(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearDown(int[] x) {
     int result = 0;
     for (int i = x.length - 1; i >= 0; i--) {
@@ -53,6 +55,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearObscure(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearObscure(int[] x) {
     int result = 0;
     for (int i = x.length - 1; i >= 0; i--) {
@@ -66,6 +69,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearVeryObscure(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearVeryObscure(int[] x) {
     int result = 0;
     for (int i = 0; i < x.length; i++) {
@@ -79,6 +83,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearWhile(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearWhile(int[] x) {
     int i = 0;
     int result = 0;
@@ -92,6 +97,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearThreeWayPhi(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearThreeWayPhi(int[] x) {
     int result = 0;
     for (int i = 0; i < x.length; ) {
@@ -108,6 +114,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearFourWayPhi(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearFourWayPhi(int[] x) {
     int result = 0;
     for (int i = 0; i < x.length; ) {
@@ -128,6 +135,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.wrapAroundThenLinear(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int wrapAroundThenLinear(int[] x) {
     // Loop with wrap around (length - 1, 0, 1, 2, ..).
     int w = x.length - 1;
@@ -143,6 +151,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.wrapAroundThenLinearThreeWayPhi(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int wrapAroundThenLinearThreeWayPhi(int[] x) {
     // Loop with wrap around (length - 1, 0, 1, 2, ..).
     int w = x.length - 1;
@@ -162,6 +171,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int[] Main.linearWithParameter(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int[] linearWithParameter(int n) {
     int[] x = new int[n];
     for (int i = 0; i < n; i++) {
@@ -174,6 +184,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int[] Main.linearCopy(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int[] linearCopy(int x[]) {
     int n = x.length;
     int y[] = new int[n];
@@ -183,10 +194,55 @@ public class Main {
     return y;
   }
 
+  /// CHECK-START: int Main.linearByTwo(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: int Main.linearByTwo(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearByTwo(int x[]) {
+    int n = x.length / 2;
+    int result = 0;
+    for (int i = 0; i < n; i++) {
+      int ii = i << 1;
+      result += x[ii];
+      result += x[ii + 1];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearByTwoSkip1(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: int Main.linearByTwoSkip1(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearByTwoSkip1(int x[]) {
+    int result = 0;
+    for (int i = 0; i < x.length / 2; i++) {
+      result += x[2 * i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearByTwoSkip2(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: int Main.linearByTwoSkip2(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearByTwoSkip2(int x[]) {
+    int result = 0;
+    // This case is not optimized.
+    for (int i = 0; i < x.length; i+=2) {
+      result += x[i];
+    }
+    return result;
+  }
+
   /// CHECK-START: int Main.linearWithCompoundStride() BCE (before)
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearWithCompoundStride() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearWithCompoundStride() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
     int result = 0;
@@ -202,6 +258,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearWithLargePositiveStride() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearWithLargePositiveStride() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
     int result = 0;
@@ -218,6 +275,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearWithVeryLargePositiveStride() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearWithVeryLargePositiveStride() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
     int result = 0;
@@ -234,6 +292,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearWithLargeNegativeStride() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearWithLargeNegativeStride() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
     int result = 0;
@@ -250,6 +309,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearWithVeryLargeNegativeStride() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearWithVeryLargeNegativeStride() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
     int result = 0;
@@ -266,6 +326,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearForNEUp() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearForNEUp() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -279,6 +340,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearForNEDown() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearForNEDown() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -292,6 +354,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearDoWhileUp() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearDoWhileUp() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -306,6 +369,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearDoWhileDown() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearDoWhileDown() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -320,6 +384,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.linearShort() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int linearShort() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -330,10 +395,31 @@ public class Main {
     return result;
   }
 
+  /// CHECK-START: int Main.invariantFromPreLoop(int[], int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: int Main.invariantFromPreLoop(int[], int) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int invariantFromPreLoop(int[] x, int y) {
+    int result = 0;
+    // Strange pre-loop that sets upper bound.
+    int hi;
+    while (true) {
+      y = y % 3;
+      hi = x.length;
+      if (y != 123) break;
+    }
+    for (int i = 0; i < hi; i++) {
+       result += x[i];
+    }
+    return result;
+  }
+
   /// CHECK-START: int Main.periodicIdiom(int) BCE (before)
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.periodicIdiom(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int periodicIdiom(int tc) {
     int[] x = { 1, 3 };
     // Loop with periodic sequence (0, 1).
@@ -350,6 +436,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.periodicSequence2(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int periodicSequence2(int tc) {
     int[] x = { 1, 3 };
     // Loop with periodic sequence (0, 1).
@@ -372,6 +459,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.periodicSequence4(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int periodicSequence4(int tc) {
     int[] x = { 1, 3, 5, 7 };
     // Loop with periodic sequence (0, 1, 2, 3).
@@ -395,6 +483,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justRightUp1() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justRightUp1() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -408,6 +497,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justRightUp2() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justRightUp2() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -421,6 +511,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justRightUp3() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justRightUp3() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -434,6 +525,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justOOBUp() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justOOBUp() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -448,6 +540,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justRightDown1() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justRightDown1() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -461,6 +554,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justRightDown2() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justRightDown2() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -474,6 +568,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justRightDown3() BCE (after)
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justRightDown3() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -487,6 +582,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: int Main.justOOBDown() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static int justOOBDown() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
@@ -501,6 +597,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: void Main.lowerOOB(int[]) BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static void lowerOOB(int[] x) {
     for (int i = -1; i < x.length; i++) {
       sResult += x[i];
@@ -511,6 +608,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: void Main.upperOOB(int[]) BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static void upperOOB(int[] x) {
     for (int i = 0; i <= x.length; i++) {
       sResult += x[i];
@@ -521,6 +619,7 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: void Main.doWhileUpOOB() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static void doWhileUpOOB() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int i = 0;
@@ -533,12 +632,313 @@ public class Main {
   /// CHECK-DAG: BoundsCheck
   /// CHECK-START: void Main.doWhileDownOOB() BCE (after)
   /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: Deoptimize
   private static void doWhileDownOOB() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int i = x.length - 1;
     do {
       sResult += x[i--];
     } while (-1 <= i);
+  }
+
+  /// CHECK-START: int Main.linearDynamicBCE1(int[], int, int) BCE (before)
+  /// CHECK-DAG: StaticFieldGet
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: StaticFieldSet
+  /// CHECK-START: int Main.linearDynamicBCE1(int[], int, int) BCE (after)
+  /// CHECK-DAG: StaticFieldGet
+  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: StaticFieldSet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  private static int linearDynamicBCE1(int[] x, int lo, int hi) {
+    int result = 0;
+    for (int i = lo; i < hi; i++) {
+      sResult += x[i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearDynamicBCE2(int[], int, int, int) BCE (before)
+  /// CHECK-DAG: StaticFieldGet
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: StaticFieldSet
+  /// CHECK-START: int Main.linearDynamicBCE2(int[], int, int, int) BCE (after)
+  /// CHECK-DAG: StaticFieldGet
+  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: StaticFieldSet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  private static int linearDynamicBCE2(int[] x, int lo, int hi, int offset) {
+    int result = 0;
+    for (int i = lo; i < hi; i++) {
+      sResult += x[offset + i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.wrapAroundDynamicBCE(int[]) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-START: int Main.wrapAroundDynamicBCE(int[]) BCE (after)
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  private static int wrapAroundDynamicBCE(int[] x) {
+    int w = 9;
+    int result = 0;
+    for (int i = 0; i < 10; i++) {
+      result += x[w];
+      w = i;
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.periodicDynamicBCE(int[]) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-START: int Main.periodicDynamicBCE(int[]) BCE (after)
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  private static int periodicDynamicBCE(int[] x) {
+    int k = 0;
+    int result = 0;
+    for (int i = 0; i < 10; i++) {
+      result += x[k];
+      k = 1 - k;
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.dynamicBCEPossiblyInfiniteLoop(int[], int, int) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-START: int Main.dynamicBCEPossiblyInfiniteLoop(int[], int, int) BCE (after)
+  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  static int dynamicBCEPossiblyInfiniteLoop(int[] x, int lo, int hi) {
+    // This loop could be infinite for hi = max int. Since i is also used
+    // as subscript, however, dynamic bce can proceed.
+    int result = 0;
+    for (int i = lo; i <= hi; i++) {
+      result += x[i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.noDynamicBCEPossiblyInfiniteLoop(int[], int, int) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-START: int Main.noDynamicBCEPossiblyInfiniteLoop(int[], int, int) BCE (after)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-NOT: Deoptimize
+  static int noDynamicBCEPossiblyInfiniteLoop(int[] x, int lo, int hi) {
+    // As above, but now the index is not used as subscript,
+    // and dynamic bce is not applied.
+    int result = 0;
+    for (int k = 0, i = lo; i <= hi; i++) {
+      result += x[k++];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.noDynamicBCEMixedInductionTypes(int[], long, long) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-START: int Main.noDynamicBCEMixedInductionTypes(int[], long, long) BCE (after)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-NOT: Deoptimize
+  static int noDynamicBCEMixedInductionTypes(int[] x, long lo, long hi) {
+    int result = 0;
+    // Mix of int and long induction.
+    int k = 0;
+    for (long i = lo; i < hi; i++) {
+      result += x[k++];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.dynamicBCEAndConstantIndices(int[], int[][], int, int) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: NotEqual
+  /// CHECK-DAG: If
+  /// CHECK-DAG: If
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: If
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: int Main.dynamicBCEAndConstantIndices(int[], int[][], int, int) BCE (after)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: NotEqual
+  /// CHECK-DAG: If
+  /// CHECK-DAG: If
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: If
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-NOT: ArrayGet
+  static int dynamicBCEAndConstantIndices(int[] x, int[][] a, int lo, int hi) {
+    // Deliberately test array length on a before the loop so that only bounds checks
+    // on constant subscripts remain, making them a viable candidate for hoisting.
+    if (a.length == 0) {
+      return -1;
+    }
+    // Loop that allows BCE on x[i].
+    int result = 0;
+    for (int i = lo; i < hi; i++) {
+      result += x[i];
+      if ((i % 10) != 0) {
+        // None of the subscripts inside a conditional are removed by dynamic bce,
+        // making them a candidate for deoptimization based on constant indices.
+        // Compiler should ensure the array loads are not subsequently hoisted
+        // "above" the deoptimization "barrier" on the bounds.
+        a[0][i] = 1;
+        a[1][i] = 2;
+        a[99][i] = 3;
+      }
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.dynamicBCEAndConstantIndicesAllTypes(int[], boolean[], byte[], char[], short[], int[], long[], float[], double[], java.lang.Integer[], int, int) BCE (before)
+  /// CHECK-DAG: If
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-START: int Main.dynamicBCEAndConstantIndicesAllTypes(int[], boolean[], byte[], char[], short[], int[], long[], float[], double[], java.lang.Integer[], int, int) BCE (after)
+  /// CHECK-DAG: If
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: ArrayGet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  static int dynamicBCEAndConstantIndicesAllTypes(int[] q,
+                                                  boolean[] r,
+                                                  byte[] s,
+                                                  char[] t,
+                                                  short[] u,
+                                                  int[] v,
+                                                  long[] w,
+                                                  float[] x,
+                                                  double[] y,
+                                                  Integer[] z, int lo, int hi) {
+    int result = 0;
+    for (int i = lo; i < hi; i++) {
+      result += q[i] + (r[0] ? 1 : 0) + (int) s[0] + (int) t[0] + (int) u[0] + (int) v[0] +
+                                        (int) w[0] + (int) x[0] + (int) y[0] + (int) z[0];
+    }
+    return result;
   }
 
   //
@@ -596,6 +996,9 @@ public class Main {
     }
 
     // Linear with non-unit strides.
+    expectEquals(55, linearByTwo(x));
+    expectEquals(25, linearByTwoSkip1(x));
+    expectEquals(25, linearByTwoSkip2(x));
     expectEquals(56, linearWithCompoundStride());
     expectEquals(66, linearWithLargePositiveStride());
     expectEquals(66, linearWithVeryLargePositiveStride());
@@ -608,6 +1011,7 @@ public class Main {
     expectEquals(55, linearDoWhileUp());
     expectEquals(55, linearDoWhileDown());
     expectEquals(55, linearShort());
+    expectEquals(55, invariantFromPreLoop(x, 1));
 
     // Periodic adds (1, 3), one at the time.
     expectEquals(0, periodicIdiom(-1));
@@ -690,6 +1094,86 @@ public class Main {
       sResult += 1000;
     }
     expectEquals(1055, sResult);
+
+    // Dynamic BCE.
+    sResult = 0;
+    try {
+      linearDynamicBCE1(x, -1, x.length);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1000, sResult);
+    sResult = 0;
+    linearDynamicBCE1(x, 0, x.length);
+    expectEquals(55, sResult);
+    sResult = 0;
+    try {
+      linearDynamicBCE1(x, 0, x.length + 1);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1055, sResult);
+
+    // Dynamic BCE with offset.
+    sResult = 0;
+    try {
+      linearDynamicBCE2(x, 0, x.length, -1);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1000, sResult);
+    sResult = 0;
+    linearDynamicBCE2(x, 0, x.length, 0);
+    expectEquals(55, sResult);
+    sResult = 0;
+    try {
+      linearDynamicBCE2(x, 0, x.length, 1);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1054, sResult);
+
+    // Dynamic BCE candidates.
+    expectEquals(55, wrapAroundDynamicBCE(x));
+    expectEquals(15, periodicDynamicBCE(x));
+    expectEquals(55, dynamicBCEPossiblyInfiniteLoop(x, 0, 9));
+    expectEquals(55, noDynamicBCEPossiblyInfiniteLoop(x, 0, 9));
+    expectEquals(55, noDynamicBCEMixedInductionTypes(x, 0, 10));
+
+    // Dynamic BCE combined with constant indices.
+    int[][] a;
+    a = new int[0][0];
+    expectEquals(-1, dynamicBCEAndConstantIndices(x, a, 0, 10));
+    a = new int[100][10];
+    expectEquals(55, dynamicBCEAndConstantIndices(x, a, 0, 10));
+    for (int i = 0; i < 10; i++) {
+      expectEquals((i % 10) != 0 ? 1 : 0, a[0][i]);
+      expectEquals((i % 10) != 0 ? 2 : 0, a[1][i]);
+      expectEquals((i % 10) != 0 ? 3 : 0, a[99][i]);
+    }
+    a = new int[2][10];
+    sResult = 0;
+    try {
+      expectEquals(55, dynamicBCEAndConstantIndices(x, a, 0, 10));
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult = 1;
+    }
+    expectEquals(1, sResult);
+    expectEquals(a[0][1], 1);
+    expectEquals(a[1][1], 2);
+
+    // Dynamic BCE combined with constant indices of all types.
+    boolean[] x1 = { true };
+    byte[] x2 = { 2 };
+    char[] x3 = { 3 };
+    short[] x4 = { 4 };
+    int[] x5 = { 5 };
+    long[] x6 = { 6 };
+    float[] x7 = { 7 };
+    double[] x8 = { 8 };
+    Integer[] x9 = { 9 };
+    expectEquals(505,
+        dynamicBCEAndConstantIndicesAllTypes(x, x1, x2, x3, x4, x5, x6, x7, x8, x9, 0, 10));
   }
 
   private static void expectEquals(int expected, int result) {
