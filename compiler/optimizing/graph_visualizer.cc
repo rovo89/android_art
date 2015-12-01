@@ -402,11 +402,6 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     }
   }
 
-  void VisitInvokeVirtual(HInvokeVirtual* invoke) OVERRIDE {
-    VisitInvoke(invoke);
-    StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
-  }
-
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* field_access) OVERRIDE {
     StartAttributeStream("field_type") << field_access->GetFieldType();
   }

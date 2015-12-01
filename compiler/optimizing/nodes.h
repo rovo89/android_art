@@ -3418,7 +3418,7 @@ class HInvokeStaticOrDirect : public HInvoke {
                         MethodReference target_method,
                         DispatchInfo dispatch_info,
                         InvokeType original_invoke_type,
-                        InvokeType optimized_invoke_type,
+                        InvokeType invoke_type,
                         ClinitCheckRequirement clinit_check_requirement)
       : HInvoke(arena,
                 number_of_arguments,
@@ -3432,7 +3432,7 @@ class HInvokeStaticOrDirect : public HInvoke {
                 dex_pc,
                 method_index,
                 original_invoke_type),
-        optimized_invoke_type_(optimized_invoke_type),
+        invoke_type_(invoke_type),
         clinit_check_requirement_(clinit_check_requirement),
         target_method_(target_method),
         dispatch_info_(dispatch_info) { }
@@ -3478,11 +3478,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   // platform-specific special input, such as PC-relative addressing base.
   uint32_t GetSpecialInputIndex() const { return GetNumberOfArguments(); }
 
-  InvokeType GetOptimizedInvokeType() const { return optimized_invoke_type_; }
-  void SetOptimizedInvokeType(InvokeType invoke_type) {
-    optimized_invoke_type_ = invoke_type;
-  }
-
+  InvokeType GetInvokeType() const { return invoke_type_; }
   MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
   CodePtrLocation GetCodePtrLocation() const { return dispatch_info_.code_ptr_location; }
   bool IsRecursive() const { return GetMethodLoadKind() == MethodLoadKind::kRecursive; }
@@ -3505,7 +3501,6 @@ class HInvokeStaticOrDirect : public HInvoke {
   }
   bool HasDirectCodePtr() const { return GetCodePtrLocation() == CodePtrLocation::kCallDirect; }
   MethodReference GetTargetMethod() const { return target_method_; }
-  void SetTargetMethod(MethodReference method) { target_method_ = method; }
 
   int32_t GetStringInitOffset() const {
     DCHECK(IsStringInit());
@@ -3531,7 +3526,7 @@ class HInvokeStaticOrDirect : public HInvoke {
 
   // Is this instruction a call to a static method?
   bool IsStatic() const {
-    return GetOriginalInvokeType() == kStatic;
+    return GetInvokeType() == kStatic;
   }
 
   // Remove the HClinitCheck or the replacement HLoadClass (set as last input by
@@ -3604,7 +3599,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   void RemoveInputAt(size_t index);
 
  private:
-  InvokeType optimized_invoke_type_;
+  const InvokeType invoke_type_;
   ClinitCheckRequirement clinit_check_requirement_;
   // The target method may refer to different dex file or method index than the original
   // invoke. This happens for sharpened calls and for calls where a method was redeclared

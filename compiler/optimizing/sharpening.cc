@@ -49,8 +49,7 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   }
 
   // TODO: Avoid CompilerDriver.
-  InvokeType original_invoke_type = invoke->GetOriginalInvokeType();
-  InvokeType optimized_invoke_type = original_invoke_type;
+  InvokeType invoke_type = invoke->GetOriginalInvokeType();
   MethodReference target_method(&graph_->GetDexFile(), invoke->GetDexMethodIndex());
   int vtable_idx;
   uintptr_t direct_code, direct_method;
@@ -59,18 +58,15 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
       invoke->GetDexPc(),
       false /* update_stats: already updated in builder */,
       true /* enable_devirtualization */,
-      &optimized_invoke_type,
+      &invoke_type,
       &target_method,
       &vtable_idx,
       &direct_code,
       &direct_method);
-  if (!success) {
-    // TODO: try using kDexCachePcRelative. It's always a valid method load
-    // kind as long as it's supported by the codegen
-    return;
-  }
-  invoke->SetOptimizedInvokeType(optimized_invoke_type);
-  invoke->SetTargetMethod(target_method);
+  DCHECK(success);
+  DCHECK_EQ(invoke_type, invoke->GetInvokeType());
+  DCHECK_EQ(target_method.dex_file, invoke->GetTargetMethod().dex_file);
+  DCHECK_EQ(target_method.dex_method_index, invoke->GetTargetMethod().dex_method_index);
 
   HInvokeStaticOrDirect::MethodLoadKind method_load_kind;
   HInvokeStaticOrDirect::CodePtrLocation code_ptr_location;
