@@ -154,8 +154,10 @@ bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* 
   }
 
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
-  if (map.get() == nullptr) {
-    *error_msg = StringPrintf("Failed to build process map");
+  if (map == nullptr) {
+    if (error_msg != nullptr) {
+      *error_msg = StringPrintf("Failed to build process map");
+    }
     return false;
   }
   for (BacktraceMap::const_iterator it = map->begin(); it != map->end(); ++it) {
@@ -164,9 +166,11 @@ bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* 
       return true;
     }
   }
-  PrintFileToLog("/proc/self/maps", LogSeverity::ERROR);
-  *error_msg = StringPrintf("Requested region 0x%08" PRIxPTR "-0x%08" PRIxPTR " does not overlap "
-                            "any existing map. See process maps in the log.", begin, end);
+  if (error_msg != nullptr) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::ERROR);
+    *error_msg = StringPrintf("Requested region 0x%08" PRIxPTR "-0x%08" PRIxPTR " does not overlap "
+                              "any existing map. See process maps in the log.", begin, end);
+  }
   return false;
 }
 
@@ -239,15 +243,16 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
   std::string error_detail;
   CheckNonOverlapping(expected, limit, &error_detail);
 
-  std::ostringstream os;
-  os <<  StringPrintf("Failed to mmap at expected address, mapped at "
-                      "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR,
-                      actual, expected);
-  if (!error_detail.empty()) {
-    os << " : " << error_detail;
+  if (error_msg != nullptr) {
+    std::ostringstream os;
+    os <<  StringPrintf("Failed to mmap at expected address, mapped at "
+                        "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR,
+                        actual, expected);
+    if (!error_detail.empty()) {
+      os << " : " << error_detail;
+    }
+    *error_msg = os.str();
   }
-
-  *error_msg = os.str();
   return false;
 }
 
@@ -379,7 +384,8 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr,
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
 
-    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << *error_msg;
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg))
+        << ((error_msg != nullptr) ? *error_msg : std::string());
     flags |= MAP_FIXED;
   } else {
     CHECK_EQ(0, flags & MAP_FIXED);
@@ -414,15 +420,17 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr,
                                                            page_aligned_offset,
                                                            low_4gb));
   if (actual == MAP_FAILED) {
-    auto saved_errno = errno;
+    if (error_msg != nullptr) {
+      auto saved_errno = errno;
 
-    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+      PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
 
-    *error_msg = StringPrintf("mmap(%p, %zd, 0x%x, 0x%x, %d, %" PRId64
-                              ") of file '%s' failed: %s. See process maps in the log.",
-                              page_aligned_expected, page_aligned_byte_count, prot, flags, fd,
-                              static_cast<int64_t>(page_aligned_offset), filename,
-                              strerror(saved_errno));
+      *error_msg = StringPrintf("mmap(%p, %zd, 0x%x, 0x%x, %d, %" PRId64
+                                ") of file '%s' failed: %s. See process maps in the log.",
+                                page_aligned_expected, page_aligned_byte_count, prot, flags, fd,
+                                static_cast<int64_t>(page_aligned_offset), filename,
+                                strerror(saved_errno));
+    }
     return nullptr;
   }
   std::ostringstream check_map_request_error_msg;
