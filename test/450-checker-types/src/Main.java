@@ -618,6 +618,35 @@ public class Main {
     getSuper();
   }
 
+  /// CHECK-START: void Main.testLoopPhiWithNullFirstInput(boolean) reference_type_propagation (after)
+  /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
+  /// CHECK-DAG:  <<Main:l\d+>>      NewInstance klass:Main exact:true
+  /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<LoopPhi>>,<<Main>>] klass:Main exact:true
+  private void testLoopPhiWithNullFirstInput(boolean cond) {
+    Main a = null;
+    while (a == null) {
+      if (cond) {
+        a = new Main();
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.testLoopPhisWithNullAndCrossUses(boolean) reference_type_propagation (after)
+  /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
+  /// CHECK-DAG:  <<PhiA:l\d+>>      Phi [<<Null>>,<<PhiB:l\d+>>,<<PhiA>>] klass:java.lang.Object exact:false
+  /// CHECK-DAG:  <<PhiB>>           Phi [<<Null>>,<<PhiB>>,<<PhiA>>] klass:java.lang.Object exact:false
+  private void testLoopPhisWithNullAndCrossUses(boolean cond) {
+    Main a = null;
+    Main b = null;
+    while (a == null) {
+      if (cond) {
+        a = b;
+      } else {
+        b = a;
+      }
+    }
+  }
+
   public static void main(String[] args) {
   }
 }
