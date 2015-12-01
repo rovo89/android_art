@@ -439,14 +439,14 @@ const char* StoreMultipleResults[] = {
   nullptr
 };
 const char* MovWMovTResults[] = {
-  "   0:	2400      	movs	r4, #0\n",
-  "   2:	2434      	movs	r4, #52	; 0x34\n",
-  "   4:	f240 0934 	movw	r9, #52	; 0x34\n",
-  "   8:	f241 2334 	movw	r3, #4660	; 0x1234\n",
-  "   c:	f64f 79ff 	movw	r9, #65535	; 0xffff\n",
-  "  10:	f2c0 0000 	movt	r0, #0\n",
-  "  14:	f2c1 2034 	movt	r0, #4660	; 0x1234\n",
-  "  18:	f6cf 71ff 	movt	r1, #65535	; 0xffff\n",
+  "   0:	f240 0400 	movw  r4, #0\n",
+  "   4:	f240 0434 	movw  r4, #52 ; 0x34\n",
+  "   8:	f240 0934 	movw	r9, #52	; 0x34\n",
+  "   c:	f241 2334 	movw	r3, #4660	; 0x1234\n",
+  "  10:	f64f 79ff 	movw	r9, #65535	; 0xffff\n",
+  "  14:	f2c0 0000 	movt	r0, #0\n",
+  "  18:	f2c1 2034 	movt	r0, #4660	; 0x1234\n",
+  "  1c:	f6cf 71ff 	movt	r1, #65535	; 0xffff\n",
   nullptr
 };
 const char* SpecialAddSubResults[] = {

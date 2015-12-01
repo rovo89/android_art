@@ -2569,30 +2569,19 @@ void Thumb2Assembler::clz(Register rd, Register rm, Condition cond) {
 
 void Thumb2Assembler::movw(Register rd, uint16_t imm16, Condition cond) {
   CheckCondition(cond);
-  bool must_be_32bit = force_32bit_;
-  if (IsHighRegister(rd)|| imm16 >= 256u) {
-    must_be_32bit = true;
-  }
-
-  if (must_be_32bit) {
-    // Use encoding T3.
-    uint32_t imm4 = (imm16 >> 12) & 15U /* 0b1111 */;
-    uint32_t i = (imm16 >> 11) & 1U /* 0b1 */;
-    uint32_t imm3 = (imm16 >> 8) & 7U /* 0b111 */;
-    uint32_t imm8 = imm16 & 0xff;
-    int32_t encoding = B31 | B30 | B29 | B28 |
-                    B25 | B22 |
-                    static_cast<uint32_t>(rd) << 8 |
-                    i << 26 |
-                    imm4 << 16 |
-                    imm3 << 12 |
-                    imm8;
-    Emit32(encoding);
-  } else {
-    int16_t encoding = B13 | static_cast<uint16_t>(rd) << 8 |
-                imm16;
-    Emit16(encoding);
-  }
+  // Always 32 bits, encoding T3. (Other encondings are called MOV, not MOVW.)
+  uint32_t imm4 = (imm16 >> 12) & 15U /* 0b1111 */;
+  uint32_t i = (imm16 >> 11) & 1U /* 0b1 */;
+  uint32_t imm3 = (imm16 >> 8) & 7U /* 0b111 */;
+  uint32_t imm8 = imm16 & 0xff;
+  int32_t encoding = B31 | B30 | B29 | B28 |
+                  B25 | B22 |
+                  static_cast<uint32_t>(rd) << 8 |
+                  i << 26 |
+                  imm4 << 16 |
+                  imm3 << 12 |
+                  imm8;
+  Emit32(encoding);
 }
 
 
