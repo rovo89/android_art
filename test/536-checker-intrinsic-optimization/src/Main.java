@@ -35,7 +35,7 @@ public class Main {
   }
 
   /// CHECK-START: boolean Main.stringEqualsNull() register (after)
-  /// CHECK:      <<Invoke:z\d+>> InvokeVirtual
+  /// CHECK:      <<Invoke:z\d+>> InvokeStaticOrDirect
   /// CHECK:      Return [<<Invoke>>]
   public static boolean stringEqualsNull() {
     String o = (String)myObject;
@@ -47,7 +47,7 @@ public class Main {
   }
 
   /// CHECK-START-X86: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
-  /// CHECK:          InvokeVirtual
+  /// CHECK:          InvokeStaticOrDirect
   /// CHECK-NOT:      test
   public static boolean stringArgumentNotNull(Object obj) {
     obj.getClass();
@@ -56,7 +56,7 @@ public class Main {
 
   // Test is very brittle as it depends on the order we emit instructions.
   /// CHECK-START-X86: boolean Main.stringArgumentIsString() disassembly (after)
-  /// CHECK:      InvokeVirtual
+  /// CHECK:      InvokeStaticOrDirect
   /// CHECK:      test
   /// CHECK:      jz/eq
   // Check that we don't try to compare the classes.
