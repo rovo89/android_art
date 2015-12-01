@@ -1929,8 +1929,7 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 
   // For PC-relative dex cache the invoke has an extra input, the PC-relative address base.
   if (invoke->HasPcRelativeDexCache()) {
-    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(),
-                                    Location::RequiresRegister());
+    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::RequiresRegister());
   }
 
   if (codegen_->IsBaseline()) {

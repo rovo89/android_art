@@ -373,6 +373,31 @@ class CodeGeneratorARM : public CodeGenerator {
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
+  // The PC-relative base address is loaded with three instructions, MOVW+MOVT
+  // to load the offset to base_reg and then ADD base_reg, PC. The offset is
+  // calculated from the ADD's effective PC, i.e. PC+4 on Thumb2. Though we
+  // currently emit these 3 instructions together, instruction scheduling could
+  // split this sequence apart, so we keep separate labels for each of them.
+  struct DexCacheArraysBaseLabels {
+    DexCacheArraysBaseLabels() = default;
+    DexCacheArraysBaseLabels(DexCacheArraysBaseLabels&& other) = default;
+
+    Label movw_label;
+    Label movt_label;
+    Label add_pc_label;
+  };
+
+  void AddDexCacheArraysBase(HArmDexCacheArraysBase* base) {
+    DexCacheArraysBaseLabels labels;
+    dex_cache_arrays_base_labels_.Put(base, std::move(labels));
+  }
+
+  DexCacheArraysBaseLabels* GetDexCacheArraysBaseLabels(HArmDexCacheArraysBase* base) {
+    auto it = dex_cache_arrays_base_labels_.find(base);
+    DCHECK(it != dex_cache_arrays_base_labels_.end());
+    return &it->second;
+  }
+
   // Generate a read barrier for a heap reference within `instruction`.
   //
   // A read barrier for an object reference read from the heap is
@@ -419,7 +444,12 @@ class CodeGeneratorARM : public CodeGenerator {
   void GenerateReadBarrierForRoot(HInstruction* instruction, Location out, Location root);
 
  private:
+  Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
+
   using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
+  using DexCacheArraysBaseToLabelsMap = ArenaSafeMap<HArmDexCacheArraysBase*,
+                                                     DexCacheArraysBaseLabels,
+                                                     std::less<HArmDexCacheArraysBase*>>;
 
   Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
   Literal* DeduplicateMethodAddressLiteral(MethodReference target_method);
@@ -440,6 +470,8 @@ class CodeGeneratorARM : public CodeGenerator {
   // Relative call patch info.
   // Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
+
+  DexCacheArraysBaseToLabelsMap dex_cache_arrays_base_labels_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };
