@@ -25,10 +25,10 @@ public class Main {
   }
 
   /// CHECK-START: void Main.doTopCall(boolean) inliner (before)
-  /// CHECK-NOT:   InvokeStaticOrDirect recursive:true
+  /// CHECK-NOT:   InvokeStaticOrDirect method_load_kind:recursive
 
   /// CHECK-START: void Main.doTopCall(boolean) inliner (after)
-  /// CHECK:       InvokeStaticOrDirect recursive:true
+  /// CHECK:       InvokeStaticOrDirect method_load_kind:recursive
   public static void doTopCall(boolean first_call) {
     if (first_call) {
       inline1();
