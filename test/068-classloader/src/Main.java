@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 /**
  * Class loader test.
  */
@@ -64,28 +62,6 @@ public class Main {
         testSeparation();
 
         testClassForName();
-
-        // Attempt to load without a class table, regression test for b/25866849.
-        testLoadNativeLibrary(args[0]);
-    }
-
-    static void testLoadNativeLibrary(String libName) throws Exception {
-        Class pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
-        if (pathClassLoader == null) {
-            throw new AssertionError("Couldn't find path class loader class");
-        }
-        Constructor constructor =
-            pathClassLoader.getDeclaredConstructor(String.class, ClassLoader.class);
-        ClassLoader loader = (ClassLoader) constructor.newInstance(
-            FancyLoader.DEX_FILE, ClassLoader.getSystemClassLoader());
-        Runtime runtime = Runtime.getRuntime();
-        Method method = runtime.getClass().getDeclaredMethod("loadLibrary", String.class,
-            ClassLoader.class);
-        if (method == null) {
-            throw new RuntimeException("loadLibrary not found");
-        }
-        method.setAccessible(true);
-        method.invoke(runtime, libName, loader);
     }
 
     static void testSeparation() {
