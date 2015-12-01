@@ -598,12 +598,8 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
   } else if (type == kStatic || type == kDirect) {
     return resolved_method;
   } else if (type == kSuper) {
-    mirror::Class* super_class = referrer->GetDeclaringClass()->GetSuperClass();
-    if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
-      // The super class does not have the method.
-      return nullptr;
-    }
-    return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), sizeof(void*));
+    return referrer->GetDeclaringClass()->GetSuperClass()->GetVTableEntry(
+        resolved_method->GetMethodIndex(), sizeof(void*));
   } else {
     DCHECK(type == kVirtual);
     return this_object->GetClass()->GetVTableEntry(

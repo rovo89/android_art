@@ -3618,12 +3618,8 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
 }
 
 void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_in) {
-  // Use the calling convention instead of the location of the receiver, as
-  // intrinsics may have put the receiver in a different register. In the intrinsics
-  // slow path, the arguments have been moved to the right place, so here we are
-  // guaranteed that the receiver is the first register of the calling convention.
-  InvokeDexCallingConvention calling_convention;
-  Register receiver = calling_convention.GetRegisterAt(0);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
   Register temp = XRegisterFrom(temp_in);
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kArm64PointerSize).SizeValue();
@@ -3634,10 +3630,11 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
 
   DCHECK(receiver.IsRegister());
   // /* HeapReference<Class> */ temp = receiver->klass_
-  __ Ldr(temp.W(), HeapOperandFrom(LocationFrom(receiver), class_offset));
+  __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
   MaybeRecordImplicitNullCheck(invoke);
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
   // intermediate/temporary reference and because the current
   // concurrent copying collector keeps the from-space memory
   // intact/accessible until the end of the marking phase (the
