@@ -19,6 +19,7 @@
 
 #include "base/unix_file/fd_file.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "buffered_output_stream.h"
 #include "common_runtime_test.h"
 
@@ -48,6 +49,7 @@ class OutputStreamTest : public CommonRuntimeTest {
     EXPECT_TRUE(output_stream_->WriteFully(buf, 4));
     CheckOffset(10);
     EXPECT_TRUE(output_stream_->WriteFully(buf, 6));
+    EXPECT_TRUE(output_stream_->Flush());
   }
 
   void CheckTestOutput(const std::vector<uint8_t>& actual) {
@@ -77,9 +79,7 @@ TEST_F(OutputStreamTest, File) {
 TEST_F(OutputStreamTest, Buffered) {
   ScratchFile tmp;
   {
-    std::unique_ptr<FileOutputStream> file_output_stream(new FileOutputStream(tmp.GetFile()));
-    CHECK(file_output_stream.get() != nullptr);
-    BufferedOutputStream buffered_output_stream(file_output_stream.release());
+    BufferedOutputStream buffered_output_stream(MakeUnique<FileOutputStream>(tmp.GetFile()));
     SetOutputStream(buffered_output_stream);
     GenerateTestOutput();
   }
@@ -97,6 +97,41 @@ TEST_F(OutputStreamTest, Vector) {
   SetOutputStream(output_stream);
   GenerateTestOutput();
   CheckTestOutput(output);
+}
+
+TEST_F(OutputStreamTest, BufferedFlush) {
+  struct CheckingOutputStream : OutputStream {
+    CheckingOutputStream()
+        : OutputStream("dummy"),
+          flush_called(false) { }
+    ~CheckingOutputStream() OVERRIDE {}
+
+    bool WriteFully(const void* buffer ATTRIBUTE_UNUSED,
+                    size_t byte_count ATTRIBUTE_UNUSED) OVERRIDE {
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+    }
+
+    off_t Seek(off_t offset ATTRIBUTE_UNUSED, Whence whence ATTRIBUTE_UNUSED) OVERRIDE {
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+    }
+
+    bool Flush() OVERRIDE {
+      flush_called = true;
+      return true;
+    }
+
+    bool flush_called;
+  };
+
+  std::unique_ptr<CheckingOutputStream> cos = MakeUnique<CheckingOutputStream>();
+  CheckingOutputStream* checking_output_stream = cos.get();
+  BufferedOutputStream buffered(std::move(cos));
+  ASSERT_FALSE(checking_output_stream->flush_called);
+  bool flush_result = buffered.Flush();
+  ASSERT_TRUE(flush_result);
+  ASSERT_TRUE(checking_output_stream->flush_called);
 }
 
 }  // namespace art

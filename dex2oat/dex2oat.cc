@@ -55,8 +55,10 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
+#include "dwarf/method_debug_info.h"
 #include "elf_file.h"
 #include "elf_writer.h"
+#include "elf_writer_quick.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
@@ -494,6 +496,7 @@ class Dex2Oat FINAL {
       app_image_(false),
       boot_image_(false),
       is_host_(false),
+      image_writer_(nullptr),
       driver_(nullptr),
       dump_stats_(false),
       dump_passes_(false),
@@ -1408,8 +1411,36 @@ class Dex2Oat FINAL {
 
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
-      if (!driver_->WriteElf(android_root_, is_host_, dex_files_, oat_writer.get(),
-                             oat_file_.get())) {
+      std::unique_ptr<ElfWriter> elf_writer =
+          CreateElfWriterQuick(instruction_set_, compiler_options_.get(), oat_file_.get());
+
+      elf_writer->Start();
+
+      OutputStream* rodata = elf_writer->StartRoData();
+      if (!oat_writer->WriteRodata(rodata)) {
+        LOG(ERROR) << "Failed to write .rodata section to the ELF file " << oat_file_->GetPath();
+        return false;
+      }
+      elf_writer->EndRoData(rodata);
+
+      OutputStream* text = elf_writer->StartText();
+      if (!oat_writer->WriteCode(text)) {
+        LOG(ERROR) << "Failed to write .text section to the ELF file " << oat_file_->GetPath();
+        return false;
+      }
+      elf_writer->EndText(text);
+
+      elf_writer->SetBssSize(oat_writer->GetBssSize());
+
+      elf_writer->WriteDynamicSection();
+
+      ArrayRef<const dwarf::MethodDebugInfo> method_infos(oat_writer->GetMethodDebugInfo());
+      elf_writer->WriteDebugInfo(method_infos);
+
+      ArrayRef<const uintptr_t> patch_locations(oat_writer->GetAbsolutePatchLocations());
+      elf_writer->WritePatchLocations(patch_locations);
+
+      if (!elf_writer->End()) {
         LOG(ERROR) << "Failed to write ELF file " << oat_file_->GetPath();
         return false;
       }

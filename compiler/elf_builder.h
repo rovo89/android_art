@@ -27,6 +27,7 @@
 #include "elf_utils.h"
 #include "file_output_stream.h"
 #include "leb128.h"
+#include "utils/array_ref.h"
 
 namespace art {
 
@@ -100,7 +101,7 @@ class ElfBuilder FINAL {
       header_.sh_entsize = entsize;
     }
 
-    virtual ~Section() {
+    ~Section() OVERRIDE {
       if (started_) {
         CHECK(finished_);
       }
@@ -185,6 +186,12 @@ class ElfBuilder FINAL {
     off_t Seek(off_t offset, Whence whence) OVERRIDE {
       // Forward the seek as-is and trust the caller to use it reasonably.
       return owner_->Seek(offset, whence);
+    }
+
+    // This function flushes the output and returns whether it succeeded.
+    // If there was a previous failure, this does nothing and returns false, i.e. failed.
+    bool Flush() OVERRIDE {
+      return owner_->Flush();
     }
 
     Elf_Word GetSectionIndex() const {
@@ -312,7 +319,7 @@ class ElfBuilder FINAL {
 
   // Encode patch locations as LEB128 list of deltas between consecutive addresses.
   // (exposed publicly for tests)
-  static void EncodeOatPatches(const std::vector<uintptr_t>& locations,
+  static void EncodeOatPatches(const ArrayRef<const uintptr_t>& locations,
                                std::vector<uint8_t>* buffer) {
     buffer->reserve(buffer->size() + locations.size() * 2);  // guess 2 bytes per ULEB128.
     uintptr_t address = 0;  // relative to start of section.
@@ -323,9 +330,9 @@ class ElfBuilder FINAL {
     }
   }
 
-  void WritePatches(const char* name, const std::vector<uintptr_t>* patch_locations) {
+  void WritePatches(const char* name, const ArrayRef<const uintptr_t>& patch_locations) {
     std::vector<uint8_t> buffer;
-    EncodeOatPatches(*patch_locations, &buffer);
+    EncodeOatPatches(patch_locations, &buffer);
     std::unique_ptr<Section> s(new Section(this, name, SHT_OAT_PATCH, 0, nullptr, 0, 1, 0));
     s->Start();
     s->WriteFully(buffer.data(), buffer.size());
@@ -385,6 +392,7 @@ class ElfBuilder FINAL {
     Seek(0, kSeekSet);
     WriteFully(&elf_header, sizeof(elf_header));
     WriteFully(phdrs.data(), phdrs.size() * sizeof(phdrs[0]));
+    Flush();
   }
 
   // The running program does not have access to section headers
@@ -507,6 +515,13 @@ class ElfBuilder FINAL {
     }
     output_offset_ = new_offset;
     return new_offset;
+  }
+
+  bool Flush() {
+    if (output_good_) {
+      output_good_ = output_->Flush();
+    }
+    return output_good_;
   }
 
   static Elf_Ehdr MakeElfHeader(InstructionSet isa) {
