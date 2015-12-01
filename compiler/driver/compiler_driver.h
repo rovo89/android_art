@@ -59,7 +59,6 @@ class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
 struct InlineIGetIPutData;
 class InstructionSetFeatures;
-class OatWriter;
 class ParallelCompilationManager;
 class ScopedObjectAccess;
 template <class Allocator> class SrcMap;
@@ -397,12 +396,6 @@ class CompilerDriver {
   void SetSupportBootImageFixup(bool support_boot_image_fixup) {
     support_boot_image_fixup_ = support_boot_image_fixup;
   }
-
-  bool WriteElf(const std::string& android_root,
-                bool is_host,
-                const std::vector<const DexFile*>& dex_files,
-                OatWriter* oat_writer,
-                File* file);
 
   void SetCompilerContext(void* compiler_context) {
     compiler_context_ = compiler_context;

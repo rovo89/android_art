@@ -28,6 +28,7 @@
 #include "arch/instruction_set_features.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
@@ -116,7 +117,7 @@ class OatSymbolizer FINAL {
 
     File* elf_file = OS::CreateEmptyFile(output_name_.c_str());
     std::unique_ptr<BufferedOutputStream> output_stream(
-        new BufferedOutputStream(new FileOutputStream(elf_file)));
+        MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file)));
     builder_.reset(new ElfBuilder<ElfTypes32>(isa, output_stream.get()));
 
     builder_->Start();
@@ -162,7 +163,7 @@ class OatSymbolizer FINAL {
 
     builder_->End();
 
-    return builder_->Good() && output_stream->Flush();
+    return builder_->Good();
   }
 
   void Walk(Callback callback) {

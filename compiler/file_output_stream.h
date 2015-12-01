@@ -27,11 +27,13 @@ class FileOutputStream FINAL : public OutputStream {
  public:
   explicit FileOutputStream(File* file);
 
-  virtual ~FileOutputStream() {}
+  ~FileOutputStream() OVERRIDE {}
 
-  virtual bool WriteFully(const void* buffer, size_t byte_count);
+  bool WriteFully(const void* buffer, size_t byte_count) OVERRIDE;
 
-  virtual off_t Seek(off_t offset, Whence whence);
+  off_t Seek(off_t offset, Whence whence) OVERRIDE;
+
+  bool Flush() OVERRIDE;
 
  private:
   File* const file_;

@@ -27,6 +27,9 @@
 #include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
+#include "dwarf/method_debug_info.h"
+#include "elf_writer.h"
+#include "elf_writer_quick.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
@@ -134,11 +137,36 @@ class OatTest : public CommonCompilerTest {
                          /*compiling_boot_image*/false,
                          &timings,
                          &key_value_store);
-    return compiler_driver_->WriteElf(GetTestAndroidRoot(),
-                                      !kIsTargetBuild,
-                                      dex_files,
-                                      &oat_writer,
-                                      file);
+    std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
+        compiler_driver_->GetInstructionSet(),
+        &compiler_driver_->GetCompilerOptions(),
+        file);
+
+    elf_writer->Start();
+
+    OutputStream* rodata = elf_writer->StartRoData();
+    if (!oat_writer.WriteRodata(rodata)) {
+      return false;
+    }
+    elf_writer->EndRoData(rodata);
+
+    OutputStream* text = elf_writer->StartText();
+    if (!oat_writer.WriteCode(text)) {
+      return false;
+    }
+    elf_writer->EndText(text);
+
+    elf_writer->SetBssSize(oat_writer.GetBssSize());
+
+    elf_writer->WriteDynamicSection();
+
+    ArrayRef<const dwarf::MethodDebugInfo> method_infos(oat_writer.GetMethodDebugInfo());
+    elf_writer->WriteDebugInfo(method_infos);
+
+    ArrayRef<const uintptr_t> patch_locations(oat_writer.GetAbsolutePatchLocations());
+    elf_writer->WritePatchLocations(patch_locations);
+
+    return elf_writer->End();
   }
 
   std::unique_ptr<const InstructionSetFeatures> insn_features_;

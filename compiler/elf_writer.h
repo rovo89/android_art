@@ -25,13 +25,16 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "os.h"
+#include "utils/array_ref.h"
 
 namespace art {
 
-class CompilerDriver;
-class DexFile;
 class ElfFile;
-class OatWriter;
+class OutputStream;
+
+namespace dwarf {
+struct MethodDebugInfo;
+}  // namespace dwarf
 
 class ElfWriter {
  public:
@@ -46,21 +49,21 @@ class ElfWriter {
 
   static bool Fixup(File* file, uintptr_t oat_data_begin);
 
- protected:
-  ElfWriter(const CompilerDriver& driver, File* elf_file)
-    : compiler_driver_(&driver), elf_file_(elf_file) {
-  }
-
   virtual ~ElfWriter() {}
 
-  virtual bool Write(OatWriter* oat_writer,
-                     const std::vector<const DexFile*>& dex_files,
-                     const std::string& android_root,
-                     bool is_host)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+  virtual void Start() = 0;
+  virtual OutputStream* StartRoData() = 0;
+  virtual void EndRoData(OutputStream* rodata) = 0;
+  virtual OutputStream* StartText() = 0;
+  virtual void EndText(OutputStream* text) = 0;
+  virtual void SetBssSize(size_t bss_size) = 0;
+  virtual void WriteDynamicSection() = 0;
+  virtual void WriteDebugInfo(const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) = 0;
+  virtual void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) = 0;
+  virtual bool End() = 0;
 
-  const CompilerDriver* const compiler_driver_;
-  File* const elf_file_;
+ protected:
+  ElfWriter() = default;
 };
 
 }  // namespace art
