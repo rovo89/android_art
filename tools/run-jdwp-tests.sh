@@ -128,7 +128,7 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.verbose=true \
       --vm-arg -Djpda.settings.syncPort=34016 \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
-      --vm-arg -Djpda.settings.debuggeeJavaPath="\"$art_debugee $image $debuggee_args\"" \
+      --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
       --classpath $test_jar \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
       $test
