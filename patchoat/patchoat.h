@@ -116,6 +116,8 @@ class PatchOat {
   void PatchArtMethods(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchInternedStrings(const ImageHeader* image_header)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  void PatchClassTable(const ImageHeader* image_header)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots)
       SHARED_REQUIRES(Locks::mutator_lock_);
 

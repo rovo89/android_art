@@ -1017,6 +1017,15 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
+  const ImageHeader& header = space->GetImageHeader();
+  const ImageSection& section = header.GetImageSection(ImageHeader::kSectionClassTable);
+  if (section.Size() > 0u) {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    ClassTable* const class_table = InsertClassTableForClassLoader(nullptr);
+    class_table->ReadFromMemory(space->Begin() + section.Offset());
+    dex_cache_boot_image_class_lookup_required_ = false;
+  }
+
   FinishInit(self);
 
   VLOG(startup) << "ClassLinker::InitFromImage exiting";
@@ -2786,9 +2795,11 @@ void ClassLinker::AddImageClassesToClassTable(gc::space::ImageSpace* image_space
   Thread* self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
   ScopedAssertNoThreadSuspension ants(self, "Moving image classes to class table");
+
+  ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
+
   mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches(image_space);
   std::string temp;
-  ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     GcRoot<mirror::Class>* types = dex_cache->GetResolvedTypes();
