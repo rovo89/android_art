@@ -355,19 +355,31 @@ bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) c
 
 std::string ProfileCompilationInfo::DumpInfo(bool print_full_dex_location) const {
   std::ostringstream os;
-  os << "ProfileInfo:" << (info_.empty() ? "empty" : "");
-  const std::string kFirstDexFileKeySubstitute = ":classes.dex";
+  if (info_.empty()) {
+    return "ProfileInfo: empty";
+  }
+
+  os << "ProfileInfo:";
+
+  // Use an additional map to achieve a predefined ordered based on the dex locations.
+  SafeMap<const std::string, const DexFile*> dex_locations_map;
   for (auto info_it : info_) {
+    dex_locations_map.Put(info_it.first->GetLocation(), info_it.first);
+  }
+
+  const std::string kFirstDexFileKeySubstitute = ":classes.dex";
+  for (auto dex_file_it : dex_locations_map) {
     os << "\n";
-    const DexFile* dex_file = info_it.first;
+    const std::string& location = dex_file_it.first;
+    const DexFile* dex_file = dex_file_it.second;
     if (print_full_dex_location) {
-      os << dex_file->GetLocation();
+      os << location;
     } else {
       // Replace the (empty) multidex suffix of the first key with a substitute for easier reading.
-      std::string multidex_suffix = DexFile::GetMultiDexSuffix(dex_file->GetLocation());
+      std::string multidex_suffix = DexFile::GetMultiDexSuffix(location);
       os << (multidex_suffix.empty() ? kFirstDexFileKeySubstitute : multidex_suffix);
     }
-    for (auto class_it : info_it.second) {
+    for (auto class_it : info_.find(dex_file)->second) {
       for (auto method_it : class_it.second) {
         os << "\n  " << PrettyMethod(method_it, *dex_file, true);
       }
