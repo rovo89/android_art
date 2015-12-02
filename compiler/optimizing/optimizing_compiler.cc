@@ -624,8 +624,6 @@ CompiledMethod* OptimizingCompiler::EmitOptimized(ArenaAllocator* arena,
   stack_map.resize(codegen->ComputeStackMapsSize());
   codegen->BuildStackMaps(MemoryRegion(stack_map.data(), stack_map.size()));
 
-  MaybeRecordStat(MethodCompilationStat::kCompiledOptimized);
-
   CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
@@ -660,7 +658,6 @@ CompiledMethod* OptimizingCompiler::EmitBaseline(
   ArenaVector<uint8_t> gc_map(arena->Adapter(kArenaAllocBaselineMaps));
   codegen->BuildNativeGCMap(&gc_map, *compiler_driver);
 
-  MaybeRecordStat(MethodCompilationStat::kCompiledBaseline);
   CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
@@ -864,6 +861,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                    dex_file,
                    dex_cache));
     if (codegen.get() != nullptr) {
+      MaybeRecordStat(MethodCompilationStat::kCompiled);
       if (run_optimizations_) {
         method = EmitOptimized(&arena, &code_allocator, codegen.get(), compiler_driver);
       } else {
@@ -874,7 +872,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
       MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
     } else {
-      MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledVerificationError);
     }
   }
 
