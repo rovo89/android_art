@@ -361,7 +361,7 @@ std::string ProfileCompilationInfo::DumpInfo(bool print_full_dex_location) const
 
   os << "ProfileInfo:";
 
-  // Use an additional map to achieve a predefined ordered based on the dex locations.
+  // Use an additional map to achieve a predefined order based on the dex locations.
   SafeMap<const std::string, const DexFile*> dex_locations_map;
   for (auto info_it : info_) {
     dex_locations_map.Put(info_it.first->GetLocation(), info_it.first);
