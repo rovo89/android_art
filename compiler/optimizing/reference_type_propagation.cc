@@ -127,6 +127,87 @@ void ReferenceTypePropagation::ValidateTypes() {
   }
 }
 
+static void CheckHasNoTypedInputs(HInstruction* root_instr) {
+  ArenaAllocatorAdapter<void> adapter =
+      root_instr->GetBlock()->GetGraph()->GetArena()->Adapter(kArenaAllocReferenceTypePropagation);
+
+  ArenaVector<HPhi*> visited_phis(adapter);
+  ArenaVector<HInstruction*> worklist(adapter);
+  worklist.push_back(root_instr);
+
+  while (!worklist.empty()) {
+    HInstruction* instr = worklist.back();
+    worklist.pop_back();
+
+    if (instr->IsPhi() || instr->IsBoundType() || instr->IsNullCheck()) {
+      // Expect that both `root_instr` and its inputs have invalid RTI.
+      ScopedObjectAccess soa(Thread::Current());
+      DCHECK(!instr->GetReferenceTypeInfo().IsValid()) << "Instruction should not have valid RTI.";
+
+      // Insert all unvisited inputs to the worklist.
+      for (HInputIterator it(instr); !it.Done(); it.Advance()) {
+        HInstruction* input = it.Current();
+        if (input->IsPhi()) {
+          if (ContainsElement(visited_phis, input->AsPhi())) {
+            continue;
+          } else {
+            visited_phis.push_back(input->AsPhi());
+          }
+        }
+        worklist.push_back(input);
+      }
+    } else if (instr->IsNullConstant()) {
+      // The only input of `root_instr` allowed to have valid RTI because it is ignored.
+    } else {
+      LOG(FATAL) << "Unexpected input " << instr->DebugName() << instr->GetId() << " with RTI "
+          << instr->GetReferenceTypeInfo();
+      UNREACHABLE();
+    }
+  }
+}
+
+template<typename Functor>
+static void ForEachUntypedInstruction(HGraph* graph, Functor fn) {
+  ScopedObjectAccess soa(Thread::Current());
+  for (HReversePostOrderIterator block_it(*graph); !block_it.Done(); block_it.Advance()) {
+    for (HInstructionIterator it(block_it.Current()->GetPhis()); !it.Done(); it.Advance()) {
+      HInstruction* instr = it.Current();
+      if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
+        fn(instr);
+      }
+    }
+    for (HInstructionIterator it(block_it.Current()->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instr = it.Current();
+      if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
+        fn(instr);
+      }
+    }
+  }
+}
+
+void ReferenceTypePropagation::SetUntypedInstructionsToObject() {
+  // In some cases, the fix-point iteration will leave kPrimNot instructions with
+  // invalid RTI because bytecode does not provide enough typing information.
+  // Set the RTI of such instructions to Object.
+  // Example:
+  //   MyClass a = null, b = null;
+  //   while (a == null) {
+  //     if (cond) { a = b; } else { b = a; }
+  //   }
+
+  if (kIsDebugBuild) {
+    // Test that if we are going to set RTI from invalid to Object, that
+    // instruction did not have any typed instructions in its def-use chain
+    // and therefore its type could not be inferred.
+    ForEachUntypedInstruction(graph_, [](HInstruction* instr) { CheckHasNoTypedInputs(instr); });
+  }
+
+  ReferenceTypeInfo obj_rti = ReferenceTypeInfo::Create(object_class_handle_, /* is_exact */ false);
+  ForEachUntypedInstruction(graph_, [obj_rti](HInstruction* instr) {
+    instr->SetReferenceTypeInfo(obj_rti);
+  });
+}
+
 void ReferenceTypePropagation::Run() {
   // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
@@ -136,6 +217,7 @@ void ReferenceTypePropagation::Run() {
   }
 
   ProcessWorklist();
+  SetUntypedInstructionsToObject();
   ValidateTypes();
 }
 
@@ -534,8 +616,9 @@ void RTPVisitor::VisitLoadException(HLoadException* instr) {
 void RTPVisitor::VisitNullCheck(HNullCheck* instr) {
   ScopedObjectAccess soa(Thread::Current());
   ReferenceTypeInfo parent_rti = instr->InputAt(0)->GetReferenceTypeInfo();
-  DCHECK(parent_rti.IsValid());
-  instr->SetReferenceTypeInfo(parent_rti);
+  if (parent_rti.IsValid()) {
+    instr->SetReferenceTypeInfo(parent_rti);
+  }
 }
 
 void RTPVisitor::VisitFakeString(HFakeString* instr) {
@@ -588,11 +671,16 @@ void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
   }
 
   if (phi->GetBlock()->IsLoopHeader()) {
+    ScopedObjectAccess soa(Thread::Current());
     // Set the initial type for the phi. Use the non back edge input for reaching
     // a fixed point faster.
+    HInstruction* first_input = phi->InputAt(0);
+    ReferenceTypeInfo first_input_rti = first_input->GetReferenceTypeInfo();
+    if (first_input_rti.IsValid() && !first_input->IsNullConstant()) {
+      phi->SetCanBeNull(first_input->CanBeNull());
+      phi->SetReferenceTypeInfo(first_input_rti);
+    }
     AddToWorklist(phi);
-    phi->SetCanBeNull(phi->InputAt(0)->CanBeNull());
-    phi->SetReferenceTypeInfo(phi->InputAt(0)->GetReferenceTypeInfo());
   } else {
     // Eagerly compute the type of the phi, for quicker convergence. Note
     // that we don't need to add users to the worklist because we are
@@ -653,7 +741,9 @@ static void UpdateArrayGet(HArrayGet* instr,
   DCHECK_EQ(Primitive::kPrimNot, instr->GetType());
 
   ReferenceTypeInfo parent_rti = instr->InputAt(0)->GetReferenceTypeInfo();
-  DCHECK(parent_rti.IsValid());
+  if (!parent_rti.IsValid()) {
+    return;
+  }
 
   Handle<mirror::Class> handle = parent_rti.GetTypeHandle();
   if (handle->IsObjectArrayClass()) {
@@ -665,8 +755,6 @@ static void UpdateArrayGet(HArrayGet* instr,
     instr->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(object_class_handle, /* is_exact */ false));
   }
-
-  return;
 }
 
 bool ReferenceTypePropagation::UpdateReferenceTypeInfo(HInstruction* instr) {
@@ -683,7 +771,7 @@ bool ReferenceTypePropagation::UpdateReferenceTypeInfo(HInstruction* instr) {
       instr->SetReferenceTypeInfo(parent_rti);
     }
   } else if (instr->IsArrayGet()) {
-    // TODO: consider if it's worth "looking back" and bounding the input object
+    // TODO: consider if it's worth "looking back" and binding the input object
     // to an array type.
     UpdateArrayGet(instr->AsArrayGet(), handles_, object_class_handle_);
   } else {
@@ -711,6 +799,7 @@ void RTPVisitor::VisitArrayGet(HArrayGet* instr) {
   if (instr->GetType() != Primitive::kPrimNot) {
     return;
   }
+
   ScopedObjectAccess soa(Thread::Current());
   UpdateArrayGet(instr, handles_, object_class_handle_);
   if (!instr->GetReferenceTypeInfo().IsValid()) {
@@ -770,7 +859,10 @@ void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
       }
     }
   }
-  instr->SetReferenceTypeInfo(new_rti);
+
+  if (new_rti.IsValid()) {
+    instr->SetReferenceTypeInfo(new_rti);
+  }
 }
 
 // Re-computes and updates the nullability of the instruction. Returns whether or
