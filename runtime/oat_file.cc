@@ -566,6 +566,10 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
                                                                 //    times).
                     ANDROID_DLEXT_FORCE_FIXED_VADDR;            // Take a non-zero vaddr as absolute
                                                                 //   (non-pic boot image).
+    if (oat_file_begin != nullptr) {                            //
+      extinfo.flags |= ANDROID_DLEXT_LOAD_AT_FIXED_ADDRESS;     // Use the requested addr if
+      extinfo.reserved_addr = oat_file_begin;                   // vaddr = 0.
+    }                                                           //   (pic boot image).
     dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
 #else
     dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
