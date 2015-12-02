@@ -393,9 +393,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
     VisitInvoke(invoke);
-    StartAttributeStream("recursive") << std::boolalpha
-                                      << invoke->IsRecursive()
-                                      << std::noboolalpha;
+    StartAttributeStream("method_load_kind") << invoke->GetMethodLoadKind();
     StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
     if (invoke->IsStatic()) {
       StartAttributeStream("clinit_check") << invoke->GetClinitCheckRequirement();
