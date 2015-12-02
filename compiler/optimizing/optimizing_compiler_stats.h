@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_OPTIMIZING_COMPILER_STATS_H_
 #define ART_COMPILER_OPTIMIZING_OPTIMIZING_COMPILER_STATS_H_
 
-#include <sstream>
+#include <iomanip>
 #include <string>
 #include <type_traits>
 
@@ -27,18 +27,18 @@ namespace art {
 
 enum MethodCompilationStat {
   kAttemptCompilation = 0,
-  kCompiledBaseline,
-  kCompiledOptimized,
+  kCompiled,
   kInlinedInvoke,
   kInstructionSimplifications,
   kInstructionSimplificationsArch,
   kUnresolvedMethod,
   kUnresolvedField,
   kUnresolvedFieldNotAFastAccess,
+  kRemovedCheckedCast,
+  kRemovedDeadInstruction,
+  kRemovedNullCheck,
   kNotCompiledBranchOutsideMethodCode,
   kNotCompiledCannotBuildSSA,
-  kNotCompiledCantAccesType,
-  kNotCompiledClassNotVerified,
   kNotCompiledHugeMethod,
   kNotCompiledLargeMethodNoBranches,
   kNotCompiledMalformedOpcode,
@@ -47,13 +47,8 @@ enum MethodCompilationStat {
   kNotCompiledSpaceFilter,
   kNotCompiledUnhandledInstruction,
   kNotCompiledUnsupportedIsa,
+  kNotCompiledVerificationError,
   kNotCompiledVerifyAtRuntime,
-  kNotOptimizedDisabled,
-  kNotOptimizedRegisterAllocator,
-  kNotOptimizedTryCatch,
-  kRemovedCheckedCast,
-  kRemovedDeadInstruction,
-  kRemovedNullCheck,
   kLastStat
 };
 
@@ -66,20 +61,19 @@ class OptimizingCompilerStats {
   }
 
   void Log() const {
+    if (!kIsDebugBuild && !VLOG_IS_ON(compiler)) {
+      // Log only in debug builds or if the compiler is verbose.
+      return;
+    }
+
     if (compile_stats_[kAttemptCompilation] == 0) {
       LOG(INFO) << "Did not compile any method.";
     } else {
-      size_t unoptimized_percent =
-          compile_stats_[kCompiledBaseline] * 100 / compile_stats_[kAttemptCompilation];
-      size_t optimized_percent =
-          compile_stats_[kCompiledOptimized] * 100 / compile_stats_[kAttemptCompilation];
-      std::ostringstream oss;
-      oss << "Attempted compilation of " << compile_stats_[kAttemptCompilation] << " methods: ";
-
-      oss << unoptimized_percent << "% (" << compile_stats_[kCompiledBaseline] << ") unoptimized, ";
-      oss << optimized_percent << "% (" << compile_stats_[kCompiledOptimized] << ") optimized, ";
-
-      LOG(INFO) << oss.str();
+      float compiled_percent =
+          compile_stats_[kCompiled] * 100.0f / compile_stats_[kAttemptCompilation];
+      LOG(INFO) << "Attempted compilation of " << compile_stats_[kAttemptCompilation]
+          << " methods: " << std::fixed << std::setprecision(2)
+          << compiled_percent << "% (" << compile_stats_[kCompiled] << ") compiled.";
 
       for (int i = 0; i < kLastStat; i++) {
         if (compile_stats_[i] != 0) {
@@ -92,41 +86,38 @@ class OptimizingCompilerStats {
 
  private:
   std::string PrintMethodCompilationStat(MethodCompilationStat stat) const {
+    std::string name;
     switch (stat) {
-      case kAttemptCompilation : return "kAttemptCompilation";
-      case kCompiledBaseline : return "kCompiledBaseline";
-      case kCompiledOptimized : return "kCompiledOptimized";
-      case kInlinedInvoke : return "kInlinedInvoke";
-      case kInstructionSimplifications: return "kInstructionSimplifications";
-      case kInstructionSimplificationsArch: return "kInstructionSimplificationsArch";
-      case kUnresolvedMethod : return "kUnresolvedMethod";
-      case kUnresolvedField : return "kUnresolvedField";
-      case kUnresolvedFieldNotAFastAccess : return "kUnresolvedFieldNotAFastAccess";
-      case kNotCompiledBranchOutsideMethodCode: return "kNotCompiledBranchOutsideMethodCode";
-      case kNotCompiledCannotBuildSSA : return "kNotCompiledCannotBuildSSA";
-      case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
-      case kNotCompiledClassNotVerified : return "kNotCompiledClassNotVerified";
-      case kNotCompiledHugeMethod : return "kNotCompiledHugeMethod";
-      case kNotCompiledLargeMethodNoBranches : return "kNotCompiledLargeMethodNoBranches";
-      case kNotCompiledMalformedOpcode : return "kNotCompiledMalformedOpcode";
-      case kNotCompiledNoCodegen : return "kNotCompiledNoCodegen";
-      case kNotCompiledPathological : return "kNotCompiledPathological";
-      case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
-      case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
-      case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
-      case kNotCompiledVerifyAtRuntime : return "kNotCompiledVerifyAtRuntime";
-      case kNotOptimizedDisabled : return "kNotOptimizedDisabled";
-      case kNotOptimizedRegisterAllocator : return "kNotOptimizedRegisterAllocator";
-      case kNotOptimizedTryCatch : return "kNotOptimizedTryCatch";
-      case kRemovedCheckedCast: return "kRemovedCheckedCast";
-      case kRemovedDeadInstruction: return "kRemovedDeadInstruction";
-      case kRemovedNullCheck: return "kRemovedNullCheck";
+      case kAttemptCompilation : name = "AttemptCompilation"; break;
+      case kCompiled : name = "Compiled"; break;
+      case kInlinedInvoke : name = "InlinedInvoke"; break;
+      case kInstructionSimplifications: name = "InstructionSimplifications"; break;
+      case kInstructionSimplificationsArch: name = "InstructionSimplificationsArch"; break;
+      case kUnresolvedMethod : name = "UnresolvedMethod"; break;
+      case kUnresolvedField : name = "UnresolvedField"; break;
+      case kUnresolvedFieldNotAFastAccess : name = "UnresolvedFieldNotAFastAccess"; break;
+      case kRemovedCheckedCast: name = "RemovedCheckedCast"; break;
+      case kRemovedDeadInstruction: name = "RemovedDeadInstruction"; break;
+      case kRemovedNullCheck: name = "RemovedNullCheck"; break;
+      case kNotCompiledBranchOutsideMethodCode: name = "NotCompiledBranchOutsideMethodCode"; break;
+      case kNotCompiledCannotBuildSSA : name = "NotCompiledCannotBuildSSA"; break;
+      case kNotCompiledHugeMethod : name = "NotCompiledHugeMethod"; break;
+      case kNotCompiledLargeMethodNoBranches : name = "NotCompiledLargeMethodNoBranches"; break;
+      case kNotCompiledMalformedOpcode : name = "NotCompiledMalformedOpcode"; break;
+      case kNotCompiledNoCodegen : name = "NotCompiledNoCodegen"; break;
+      case kNotCompiledPathological : name = "NotCompiledPathological"; break;
+      case kNotCompiledSpaceFilter : name = "NotCompiledSpaceFilter"; break;
+      case kNotCompiledUnhandledInstruction : name = "NotCompiledUnhandledInstruction"; break;
+      case kNotCompiledUnsupportedIsa : name = "NotCompiledUnsupportedIsa"; break;
+      case kNotCompiledVerificationError : name = "NotCompiledVerificationError"; break;
+      case kNotCompiledVerifyAtRuntime : name = "NotCompiledVerifyAtRuntime"; break;
 
-      case kLastStat: break;  // Invalid to print out.
+      case kLastStat:
+        LOG(FATAL) << "invalid stat "
+            << static_cast<std::underlying_type<MethodCompilationStat>::type>(stat);
+        UNREACHABLE();
     }
-    LOG(FATAL) << "invalid stat "
-        << static_cast<std::underlying_type<MethodCompilationStat>::type>(stat);
-    UNREACHABLE();
+    return "OptStat#" + name;
   }
 
   AtomicInteger compile_stats_[kLastStat];
