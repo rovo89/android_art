@@ -2986,8 +2986,13 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
 }
 
 void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_location) {
-  LocationSummary* locations = invoke->GetLocations();
-  Location receiver = locations->InAt(0);
+  // Use the calling convention instead of the location of the receiver, as
+  // intrinsics may have put the receiver in a different register. In the intrinsics
+  // slow path, the arguments have been moved to the right place, so here we are
+  // guaranteed that the receiver is the first register of the calling convention.
+  InvokeDexCallingConvention calling_convention;
+  GpuRegister receiver = calling_convention.GetRegisterAt(0);
+
   GpuRegister temp = temp_location.AsRegister<GpuRegister>();
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kMips64PointerSize).SizeValue();
@@ -2995,8 +3000,7 @@ void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64WordSize);
 
   // temp = object->GetClass();
-  DCHECK(receiver.IsRegister());
-  __ LoadFromOffset(kLoadUnsignedWord, temp, receiver.AsRegister<GpuRegister>(), class_offset);
+  __ LoadFromOffset(kLoadUnsignedWord, temp, receiver, class_offset);
   MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   __ LoadFromOffset(kLoadDoubleword, temp, temp, method_offset);
