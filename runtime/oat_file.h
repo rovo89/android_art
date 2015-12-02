@@ -40,7 +40,7 @@ class OatMethodOffsets;
 class OatHeader;
 class OatDexFile;
 
-class OatFile FINAL {
+class OatFile {
  public:
   typedef art::OatDexFile OatDexFile;
 
@@ -74,7 +74,7 @@ class OatFile FINAL {
                                const char* abs_dex_location,
                                std::string* error_msg);
 
-  ~OatFile();
+  virtual ~OatFile();
 
   bool IsExecutable() const {
     return is_executable_;
@@ -84,12 +84,6 @@ class OatFile FINAL {
 
   // Indicates whether the oat file was compiled with full debugging capability.
   bool IsDebuggable() const;
-
-  ElfFile* GetElfFile() const {
-    CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
-        << "Cannot get an elf file from " << GetLocation();
-    return elf_file_.get();
-  }
 
   const std::string& GetLocation() const {
     return location_;
@@ -260,35 +254,10 @@ class OatFile FINAL {
   static bool GetDexLocationsFromDependencies(const char* dex_dependencies,
                                               std::vector<std::string>* locations);
 
+ protected:
+  OatFile(const std::string& filename, bool executable);
+
  private:
-  static void CheckLocation(const std::string& location);
-
-  static OatFile* OpenDlopen(const std::string& elf_filename,
-                             const std::string& location,
-                             uint8_t* requested_base,
-                             const char* abs_dex_location,
-                             std::string* error_msg);
-
-  static OatFile* OpenElfFile(File* file,
-                              const std::string& location,
-                              uint8_t* requested_base,
-                              uint8_t* oat_file_begin,  // Override base if not null
-                              bool writable,
-                              bool executable,
-                              const char* abs_dex_location,
-                              std::string* error_msg);
-
-  explicit OatFile(const std::string& filename, bool executable);
-  bool Dlopen(const std::string& elf_filename, uint8_t* requested_base,
-              const char* abs_dex_location, std::string* error_msg);
-  bool ElfFileOpen(File* file, uint8_t* requested_base,
-                   uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
-                   bool writable, bool executable,
-                   const char* abs_dex_location,
-                   std::string* error_msg);
-
-  bool Setup(const char* abs_dex_location, std::string* error_msg);
-
   // The oat file name.
   //
   // The image will embed this to link its associated oat file.
@@ -308,18 +277,6 @@ class OatFile FINAL {
 
   // Was this oat_file loaded executable?
   const bool is_executable_;
-
-  // Backing memory map for oat file during when opened by ElfWriter during initial compilation.
-  std::unique_ptr<MemMap> mem_map_;
-
-  // Backing memory map for oat file during cross compilation.
-  std::unique_ptr<ElfFile> elf_file_;
-
-  // dlopen handle during runtime.
-  void* dlopen_handle_;
-
-  // Dummy memory map objects corresponding to the regions mapped by dlopen.
-  std::vector<std::unique_ptr<MemMap>> dlopen_mmaps_;
 
   // Owning storage for the OatDexFile objects.
   std::vector<const OatDexFile*> oat_dex_files_storage_;
@@ -356,6 +313,7 @@ class OatFile FINAL {
   friend class OatClass;
   friend class art::OatDexFile;
   friend class OatDumper;  // For GetBase and GetLimit
+  friend class OatFileBase;
   DISALLOW_COPY_AND_ASSIGN(OatFile);
 };
 
@@ -426,6 +384,7 @@ class OatDexFile FINAL {
   uint8_t* const dex_cache_arrays_;
 
   friend class OatFile;
+  friend class OatFileBase;
   DISALLOW_COPY_AND_ASSIGN(OatDexFile);
 };
 
