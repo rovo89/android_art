@@ -618,6 +618,57 @@ public class Main {
     getSuper();
   }
 
+  /// CHECK-START: void Main.testLoopPhiWithNullFirstInput(boolean) reference_type_propagation (after)
+  /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
+  /// CHECK-DAG:  <<Main:l\d+>>      NewInstance klass:Main exact:true
+  /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<LoopPhi>>,<<Main>>] klass:Main exact:true
+  private void testLoopPhiWithNullFirstInput(boolean cond) {
+    Main a = null;
+    while (a == null) {
+      if (cond) {
+        a = new Main();
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.testLoopPhisWithNullAndCrossUses(boolean) reference_type_propagation (after)
+  /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
+  /// CHECK-DAG:  <<PhiA:l\d+>>      Phi [<<Null>>,<<PhiB:l\d+>>,<<PhiA>>] klass:java.lang.Object exact:false
+  /// CHECK-DAG:  <<PhiB>>           Phi [<<Null>>,<<PhiB>>,<<PhiA>>] klass:java.lang.Object exact:false
+  private void testLoopPhisWithNullAndCrossUses(boolean cond) {
+    Main a = null;
+    Main b = null;
+    while (a == null) {
+      if (cond) {
+        a = b;
+      } else {
+        b = a;
+      }
+    }
+  }
+
+  /// CHECK-START: java.lang.Object[] Main.testInstructionsWithUntypedParent() reference_type_propagation (after)
+  /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
+  /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<Phi:l\d+>>] klass:java.lang.Object[] exact:true
+  /// CHECK-DAG:  <<Array:l\d+>>     NewArray klass:java.lang.Object[] exact:true
+  /// CHECK-DAG:  <<Phi>>            Phi [<<Array>>,<<LoopPhi>>] klass:java.lang.Object[] exact:true
+  /// CHECK-DAG:  <<NC:l\d+>>        NullCheck [<<LoopPhi>>] klass:java.lang.Object[] exact:true
+  /// CHECK-DAG:                     ArrayGet [<<NC>>,{{i\d+}}] klass:java.lang.Object exact:false
+  private Object[] testInstructionsWithUntypedParent() {
+    Object[] array = null;
+    boolean cond = true;
+    for (int i = 0; i < 10; ++i) {
+      if (cond) {
+        array = new Object[10];
+        array[0] = new Object();
+        cond = false;
+      } else {
+        array[i] = array[0];
+      }
+    }
+    return array;
+  }
+
   public static void main(String[] args) {
   }
 }
