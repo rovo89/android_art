@@ -2132,6 +2132,26 @@ void HInvokeStaticOrDirect::RemoveInputAt(size_t index) {
   }
 }
 
+std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind rhs) {
+  switch (rhs) {
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+      return os << "string_init";
+    case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
+      return os << "recursive";
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
+      return os << "direct";
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
+      return os << "direct_fixup";
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
+      return os << "dex_cache_pc_relative";
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
+      return os << "dex_cache_via_method";
+    default:
+      LOG(FATAL) << "Unknown MethodLoadKind: " << static_cast<int>(rhs);
+      UNREACHABLE();
+  }
+}
+
 std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckRequirement rhs) {
   switch (rhs) {
     case HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit:
@@ -2141,7 +2161,8 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
     case HInvokeStaticOrDirect::ClinitCheckRequirement::kNone:
       return os << "none";
     default:
-      return os << "unknown:" << static_cast<int>(rhs);
+      LOG(FATAL) << "Unknown ClinitCheckRequirement: " << static_cast<int>(rhs);
+      UNREACHABLE();
   }
 }
 

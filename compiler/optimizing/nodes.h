@@ -3622,6 +3622,7 @@ class HInvokeStaticOrDirect : public HInvoke {
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
+std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind rhs);
 std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckRequirement rhs);
 
 class HInvokeVirtual : public HInvoke {
