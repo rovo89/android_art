@@ -1969,6 +1969,11 @@ void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
 }
 
 void LocationsBuilderX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  IntrinsicLocationsBuilderX86 intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
@@ -4150,12 +4155,16 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   Register temp = temp_in.AsRegister<Register>();
   uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kX86PointerSize).Uint32Value();
-  LocationSummary* locations = invoke->GetLocations();
-  Location receiver = locations->InAt(0);
+
+  // Use the calling convention instead of the location of the receiver, as
+  // intrinsics may have put the receiver in a different register. In the intrinsics
+  // slow path, the arguments have been moved to the right place, so here we are
+  // guaranteed that the receiver is the first register of the calling convention.
+  InvokeDexCallingConvention calling_convention;
+  Register receiver = calling_convention.GetRegisterAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  DCHECK(receiver.IsRegister());
   // /* HeapReference<Class> */ temp = receiver->klass_
-  __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
+  __ movl(temp, Address(receiver, class_offset));
   MaybeRecordImplicitNullCheck(invoke);
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
