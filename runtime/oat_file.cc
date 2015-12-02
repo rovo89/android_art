@@ -585,6 +585,11 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
 }
 
 void DlOpenOatFile::PreSetup(const std::string& elf_filename) {
+#ifdef __APPLE__
+  UNUSED(elf_filename);
+  LOG(FATAL) << "Should not reach here.";
+  UNREACHABLE();
+#else
   struct dl_iterate_context {
     static int callback(struct dl_phdr_info *info, size_t /* size */, void *data) {
       auto* context = reinterpret_cast<dl_iterate_context*>(data);
@@ -624,6 +629,7 @@ void DlOpenOatFile::PreSetup(const std::string& elf_filename) {
     PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
   }
+#endif
 }
 
 ////////////////////////////////////////////////
