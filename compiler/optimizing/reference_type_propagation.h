@@ -57,7 +57,6 @@ class ReferenceTypePropagation : public HOptimization {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void ValidateTypes();
-  void SetUntypedInstructionsToObject();
 
   StackHandleScopeCollection* handles_;
 
