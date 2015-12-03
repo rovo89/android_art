@@ -25,6 +25,9 @@ class Circle {
 }
 
 class TestClass {
+  static {
+    sTestClassObj = new TestClass(-1, -2);
+  }
   TestClass() {
   }
   TestClass(int i, int j) {
@@ -37,6 +40,7 @@ class TestClass {
   TestClass next;
   String str;
   static int si;
+  static TestClass sTestClassObj;
 }
 
 class SubTestClass extends TestClass {
@@ -115,10 +119,11 @@ public class Main {
   }
 
   /// CHECK-START: int Main.test3(TestClass) load_store_elimination (before)
-  /// CHECK: InstanceFieldSet
-  /// CHECK: InstanceFieldGet
-  /// CHECK: InstanceFieldSet
   /// CHECK: NewInstance
+  /// CHECK: StaticFieldGet
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
   /// CHECK: InstanceFieldSet
   /// CHECK: InstanceFieldSet
   /// CHECK: InstanceFieldGet
@@ -127,24 +132,31 @@ public class Main {
   /// CHECK: InstanceFieldGet
 
   /// CHECK-START: int Main.test3(TestClass) load_store_elimination (after)
-  /// CHECK: InstanceFieldSet
-  /// CHECK: InstanceFieldGet
-  /// CHECK: InstanceFieldSet
   /// CHECK: NewInstance
-  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK: StaticFieldGet
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
+  /// CHECK-NOT: StaticFieldGet
 
-  // A new allocation shouldn't alias with pre-existing values.
+  // A new allocation (even non-singleton) shouldn't alias with pre-existing values.
   static int test3(TestClass obj) {
     // Do an allocation here to avoid the HLoadClass and HClinitCheck
     // at the second allocation.
     new TestClass();
+    TestClass obj1 = TestClass.sTestClassObj;
+    TestClass obj2 = new TestClass();  // Cannot alias with obj or obj1 which pre-exist.
+    obj.next = obj2;  // Make obj2 a non-singleton.
+    // All stores below need to stay since obj/obj1/obj2 are not singletons.
     obj.i = 1;
-    obj.next.j = 2;
-    TestClass obj2 = new TestClass();
+    obj1.j = 2;
+    // Following stores won't kill values of obj.i and obj1.j.
     obj2.i = 3;
     obj2.j = 4;
-    return obj.i + obj.next.j + obj2.i + obj2.j;
+    return obj.i + obj1.j + obj2.i + obj2.j;
   }
 
   /// CHECK-START: int Main.test4(TestClass, boolean) load_store_elimination (before)
