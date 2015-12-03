@@ -34,7 +34,6 @@
 #include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
 #include "utils.h"
-#include "vector_output_stream.h"
 
 namespace art {
 
