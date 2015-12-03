@@ -36,6 +36,11 @@ static const char* kImgDiagDiffPid = "--image-diff-pid";
 static const char* kImgDiagBootImage = "--boot-image";
 static const char* kImgDiagBinaryName = "imgdiag";
 
+// from kernel <include/linux/threads.h>
+#define PID_MAX_LIMIT (4*1024*1024)  // Upper bound. Most kernel configs will have smaller max pid.
+
+static const pid_t kImgDiagGuaranteedBadPid = (PID_MAX_LIMIT + 1);
+
 class ImgDiagTest : public CommonRuntimeTest {
  protected:
   virtual void SetUp() {
@@ -132,7 +137,8 @@ TEST_F(ImgDiagTest, ImageDiffBadPid) {
 
   // Run imgdiag --image-diff-pid=some_bad_pid and wait until it's done with a 0 exit code.
   std::string error_msg;
-  ASSERT_FALSE(ExecDefaultBootImage(-12345, &error_msg)) << "Incorrectly executed";
+  ASSERT_FALSE(ExecDefaultBootImage(kImgDiagGuaranteedBadPid,
+                                    &error_msg)) << "Incorrectly executed";
   UNUSED(error_msg);
 }
 
