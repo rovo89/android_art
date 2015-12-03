@@ -174,8 +174,6 @@ void NanoSleep(uint64_t ns) {
 }
 
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts) {
-  int64_t endSec;
-
   if (absolute) {
 #if !defined(__APPLE__)
     clock_gettime(clock, ts);
@@ -190,13 +188,13 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
     ts->tv_sec = 0;
     ts->tv_nsec = 0;
   }
-  endSec = ts->tv_sec + ms / 1000;
-  if (UNLIKELY(endSec >= 0x7fffffff)) {
-    std::ostringstream ss;
-    LOG(INFO) << "Note: end time exceeds epoch: " << ss.str();
-    endSec = 0x7ffffffe;
+
+  int64_t end_sec = ts->tv_sec + ms / 1000;
+  if (UNLIKELY(end_sec >= 0x7fffffff)) {
+    LOG(INFO) << "Note: end time exceeds INT32_MAX: " << end_sec;
+    end_sec = 0x7ffffffe;
   }
-  ts->tv_sec = endSec;
+  ts->tv_sec = end_sec;
   ts->tv_nsec = (ts->tv_nsec + (ms % 1000) * 1000000) + ns;
 
   // Catch rollover.
