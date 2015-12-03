@@ -1526,10 +1526,9 @@ void RosAlloc::SetFootprintLimit(size_t new_capacity) {
   }
 }
 
+// Below may be called by mutator itself just before thread termination.
 size_t RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
   Thread* self = Thread::Current();
-  // Avoid race conditions on the bulk free bit maps with BulkFree() (GC).
-  ReaderMutexLock wmu(self, bulk_free_lock_);
   size_t free_bytes = 0U;
   for (size_t idx = 0; idx < kNumThreadLocalSizeBrackets; idx++) {
     MutexLock mu(self, *size_bracket_locks_[idx]);
@@ -1544,10 +1543,17 @@ size_t RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
       // Count the number of free slots left.
       size_t num_free_slots = thread_local_run->NumberOfFreeSlots();
       free_bytes += num_free_slots * bracketSizes[idx];
+      // The above bracket index lock guards thread local free list to avoid race condition
+      // with unioning bulk free list to thread local free list by GC thread in BulkFree.
+      // If thread local run is true, GC thread will help update thread local free list
+      // in BulkFree. And the latest thread local free list will be merged to free list
+      // either when this thread local run is full or when revoking this run here. In this
+      // case the free list wll be updated. If thread local run is false, GC thread will help
+      // merge bulk free list in next BulkFree.
+      // Thus no need to merge bulk free list to free list again here.
       bool dont_care;
       thread_local_run->MergeThreadLocalFreeListToFreeList(&dont_care);
       thread_local_run->SetIsThreadLocal(false);
-      thread_local_run->MergeBulkFreeListToFreeList();
       DCHECK(non_full_runs_[idx].find(thread_local_run) == non_full_runs_[idx].end());
       DCHECK(full_runs_[idx].find(thread_local_run) == full_runs_[idx].end());
       RevokeRun(self, idx, thread_local_run);
