@@ -2209,4 +2209,55 @@ TEST_F(JniInternalTest, MonitorExitNotAllUnlocked) {
   check_jni_abort_catcher.Check("Still holding a locked object on JNI end");
 }
 
+static bool IsLocked(JNIEnv* env, jobject jobj) {
+  ScopedObjectAccess soa(env);
+  LockWord lock_word = soa.Decode<mirror::Object*>(jobj)->GetLockWord(true);
+  switch (lock_word.GetState()) {
+    case LockWord::kHashCode:
+    case LockWord::kUnlocked:
+      return false;
+    case LockWord::kThinLocked:
+      return true;
+    case LockWord::kFatLocked:
+      return lock_word.FatLockMonitor()->IsLocked();
+    default: {
+      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+      UNREACHABLE();
+    }
+  }
+}
+
+TEST_F(JniInternalTest, DetachThreadUnlockJNIMonitors) {
+  // We need to lock an object, detach, reattach, and check the locks.
+  //
+  // As re-attaching will create a different thread, we need to use a global
+  // ref to keep the object around.
+
+  // Create an object to torture.
+  jobject global_ref;
+  {
+    jclass object_class = env_->FindClass("java/lang/Object");
+    ASSERT_NE(object_class, nullptr);
+    jobject object = env_->AllocObject(object_class);
+    ASSERT_NE(object, nullptr);
+    global_ref = env_->NewGlobalRef(object);
+  }
+
+  // Lock it.
+  env_->MonitorEnter(global_ref);
+  ASSERT_TRUE(IsLocked(env_, global_ref));
+
+  // Detach and re-attach.
+  jint detach_result = vm_->DetachCurrentThread();
+  ASSERT_EQ(detach_result, JNI_OK);
+  jint attach_result = vm_->AttachCurrentThread(&env_, nullptr);
+  ASSERT_EQ(attach_result, JNI_OK);
+
+  // Look at the global ref, check whether it's still locked.
+  ASSERT_FALSE(IsLocked(env_, global_ref));
+
+  // Delete the global ref.
+  env_->DeleteGlobalRef(global_ref);
+}
+
 }  // namespace art
