@@ -1012,7 +1012,8 @@ extern "C" const void* artQuickResolutionTrampoline(
     HandleWrapper<mirror::Object> h_receiver(
         hs.NewHandleWrapper(virtual_or_interface ? &receiver : &dummy));
     DCHECK_EQ(caller->GetDexFile(), called_method.dex_file);
-    called = linker->ResolveMethod(self, called_method.dex_method_index, caller, invoke_type);
+    called = linker->ResolveMethod<ClassLinker::kForceICCECheck>(
+        self, called_method.dex_method_index, caller, invoke_type);
   }
   const void* code = nullptr;
   if (LIKELY(!self->IsExceptionPending())) {
