@@ -298,7 +298,9 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         ShadowFrame* shadow_frame =
             self->PopStackedShadowFrame(StackedShadowFrameType::kDeoptimizationShadowFrame);
         mirror::Throwable* pending_exception = nullptr;
-        self->PopDeoptimizationContext(result, &pending_exception);
+        bool from_code = false;
+        self->PopDeoptimizationContext(result, &pending_exception, &from_code);
+        CHECK(!from_code);
         self->SetTopOfStack(nullptr);
         self->SetTopOfShadowStack(shadow_frame);
 
@@ -307,7 +309,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         if (pending_exception != nullptr) {
           self->SetException(pending_exception);
         }
-        interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
+        interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, from_code, result);
       }
       if (kLogInvocationStartAndReturn) {
         LOG(INFO) << StringPrintf("Returned '%s' quick code=%p", PrettyMethod(this).c_str(),

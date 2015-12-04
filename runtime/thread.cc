@@ -164,14 +164,20 @@ void Thread::ResetQuickAllocEntryPointsForThread() {
 
 class DeoptimizationContextRecord {
  public:
-  DeoptimizationContextRecord(const JValue& ret_val, bool is_reference,
+  DeoptimizationContextRecord(const JValue& ret_val,
+                              bool is_reference,
+                              bool from_code,
                               mirror::Throwable* pending_exception,
                               DeoptimizationContextRecord* link)
-      : ret_val_(ret_val), is_reference_(is_reference), pending_exception_(pending_exception),
+      : ret_val_(ret_val),
+        is_reference_(is_reference),
+        from_code_(from_code),
+        pending_exception_(pending_exception),
         link_(link) {}
 
   JValue GetReturnValue() const { return ret_val_; }
   bool IsReference() const { return is_reference_; }
+  bool GetFromCode() const { return from_code_; }
   mirror::Throwable* GetPendingException() const { return pending_exception_; }
   DeoptimizationContextRecord* GetLink() const { return link_; }
   mirror::Object** GetReturnValueAsGCRoot() {
@@ -188,6 +194,9 @@ class DeoptimizationContextRecord {
 
   // Indicates whether the returned value is a reference. If so, the GC will visit it.
   const bool is_reference_;
+
+  // Whether the context was created from an explicit deoptimization in the code.
+  const bool from_code_;
 
   // The exception that was pending before deoptimization (or null if there was no pending
   // exception).
@@ -220,22 +229,28 @@ class StackedShadowFrameRecord {
   DISALLOW_COPY_AND_ASSIGN(StackedShadowFrameRecord);
 };
 
-void Thread::PushDeoptimizationContext(const JValue& return_value, bool is_reference,
+void Thread::PushDeoptimizationContext(const JValue& return_value,
+                                       bool is_reference,
+                                       bool from_code,
                                        mirror::Throwable* exception) {
   DeoptimizationContextRecord* record = new DeoptimizationContextRecord(
       return_value,
       is_reference,
+      from_code,
       exception,
       tlsPtr_.deoptimization_context_stack);
   tlsPtr_.deoptimization_context_stack = record;
 }
 
-void Thread::PopDeoptimizationContext(JValue* result, mirror::Throwable** exception) {
+void Thread::PopDeoptimizationContext(JValue* result,
+                                      mirror::Throwable** exception,
+                                      bool* from_code) {
   AssertHasDeoptimizationContext();
   DeoptimizationContextRecord* record = tlsPtr_.deoptimization_context_stack;
   tlsPtr_.deoptimization_context_stack = record->GetLink();
   result->SetJ(record->GetReturnValue().GetJ());
   *exception = record->GetPendingException();
+  *from_code = record->GetFromCode();
   delete record;
 }
 
@@ -2546,7 +2561,8 @@ void Thread::QuickDeliverException() {
     if (is_deoptimization) {
       // Save the exception into the deoptimization context so it can be restored
       // before entering the interpreter.
-      PushDeoptimizationContext(JValue(), false, exception);
+      PushDeoptimizationContext(
+          JValue(), /*is_reference */ false, /* from_code */ false, exception);
     }
   }
   // Don't leave exception visible while we try to find the handler, which may cause class

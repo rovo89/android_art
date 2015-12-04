@@ -25,6 +25,7 @@
 namespace art {
 
 class ArtMethod;
+class ProfilingInfo;
 
 namespace jit {
 class JitCodeCache;
@@ -33,6 +34,49 @@ class JitCodeCache;
 namespace mirror {
 class Class;
 }
+
+// Structure to store the classes seen at runtime for a specific instruction.
+// Once the classes_ array is full, we consider the INVOKE to be megamorphic.
+class InlineCache {
+ public:
+  bool IsMonomorphic() const {
+    DCHECK_GE(kIndividualCacheSize, 2);
+    return !classes_[0].IsNull() && classes_[1].IsNull();
+  }
+
+  bool IsMegamorphic() const {
+    for (size_t i = 0; i < kIndividualCacheSize; ++i) {
+      if (classes_[i].IsNull()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  mirror::Class* GetMonomorphicType() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    // Note that we cannot ensure the inline cache is actually monomorphic
+    // at this point, as other threads may have updated it.
+    return classes_[0].Read();
+  }
+
+  bool IsUnitialized() const {
+    return classes_[0].IsNull();
+  }
+
+  bool IsPolymorphic() const {
+    DCHECK_GE(kIndividualCacheSize, 3);
+    return !classes_[1].IsNull() && classes_[kIndividualCacheSize - 1].IsNull();
+  }
+
+ private:
+  static constexpr uint16_t kIndividualCacheSize = 5;
+  uint32_t dex_pc_;
+  GcRoot<mirror::Class> classes_[kIndividualCacheSize];
+
+  friend class ProfilingInfo;
+
+  DISALLOW_COPY_AND_ASSIGN(InlineCache);
+};
 
 /**
  * Profiling info for a method, created and filled by the interpreter once the
@@ -67,44 +111,24 @@ class ProfilingInfo {
     return method_;
   }
 
+  InlineCache* GetInlineCache(uint32_t dex_pc);
+
+  bool IsMethodBeingCompiled() const {
+    return is_method_being_compiled_;
+  }
+
+  void SetIsMethodBeingCompiled(bool value) {
+    is_method_being_compiled_ = value;
+  }
+
  private:
-  // Structure to store the classes seen at runtime for a specific instruction.
-  // Once the classes_ array is full, we consider the INVOKE to be megamorphic.
-  struct InlineCache {
-    bool IsMonomorphic() const {
-      DCHECK_GE(kIndividualCacheSize, 2);
-      return !classes_[0].IsNull() && classes_[1].IsNull();
-    }
-
-    bool IsMegamorphic() const {
-      for (size_t i = 0; i < kIndividualCacheSize; ++i) {
-        if (classes_[i].IsNull()) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    bool IsUnitialized() const {
-      return classes_[0].IsNull();
-    }
-
-    bool IsPolymorphic() const {
-      DCHECK_GE(kIndividualCacheSize, 3);
-      return !classes_[1].IsNull() && classes_[kIndividualCacheSize - 1].IsNull();
-    }
-
-    static constexpr uint16_t kIndividualCacheSize = 5;
-    uint32_t dex_pc;
-    GcRoot<mirror::Class> classes_[kIndividualCacheSize];
-  };
-
   ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
       : number_of_inline_caches_(entries.size()),
-        method_(method) {
+        method_(method),
+        is_method_being_compiled_(false) {
     memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
     for (size_t i = 0; i < number_of_inline_caches_; ++i) {
-      cache_[i].dex_pc = entries[i];
+      cache_[i].dex_pc_ = entries[i];
     }
   }
 
@@ -113,6 +137,11 @@ class ProfilingInfo {
 
   // Method this profiling info is for.
   ArtMethod* const method_;
+
+  // Whether the ArtMethod is currently being compiled. This flag
+  // is implicitly guarded by the JIT code cache lock.
+  // TODO: Make the JIT code cache lock global.
+  bool is_method_being_compiled_;
 
   // Dynamically allocated array of size `number_of_inline_caches_`.
   InlineCache cache_[0];

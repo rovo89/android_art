@@ -52,7 +52,7 @@ extern "C" NO_RETURN void artDeoptimizeFromCompiledCode(Thread* self)
   // Before deoptimizing to interpreter, we must push the deoptimization context.
   JValue return_value;
   return_value.SetJ(0);  // we never deoptimize from compiled code with an invoke result.
-  self->PushDeoptimizationContext(return_value, false, self->GetException());
+  self->PushDeoptimizationContext(return_value, false, /* from_code */ true, self->GetException());
 
   QuickExceptionHandler exception_handler(self, true);
   exception_handler.DeoptimizeSingleFrame();

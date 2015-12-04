@@ -121,6 +121,8 @@ void LICM::Run() {
           // phi in it.
           if (instruction->NeedsEnvironment()) {
             UpdateLoopPhisIn(instruction->GetEnvironment(), loop_info);
+          } else {
+            DCHECK(!instruction->HasEnvironment());
           }
           instruction->MoveBefore(pre_header->GetLastInstruction());
         } else if (instruction->CanThrow()) {
