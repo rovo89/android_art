@@ -236,7 +236,7 @@ class HashSet {
 
   // Returns how large the table is after being written. If target is null, then no writing happens
   // but the size is still returned. Target must be 8 byte aligned.
-  size_t WriteToMemory(uint8_t* ptr) {
+  size_t WriteToMemory(uint8_t* ptr) const {
     size_t offset = 0;
     offset = WriteToBytes(ptr, offset, static_cast<uint64_t>(num_elements_));
     offset = WriteToBytes(ptr, offset, static_cast<uint64_t>(num_buckets_));
@@ -457,7 +457,7 @@ class HashSet {
   }
 
   // Make sure that everything reinserts in the right spot. Returns the number of errors.
-  size_t Verify() {
+  size_t Verify() NO_THREAD_SAFETY_ANALYSIS {
     size_t errors = 0;
     for (size_t i = 0; i < num_buckets_; ++i) {
       T& element = data_[i];

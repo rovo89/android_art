@@ -1664,6 +1664,8 @@ class ImageDumper {
         ImageHeader::kSectionDexCacheArrays);
     const auto& intern_section = image_header_.GetImageSection(
         ImageHeader::kSectionInternedStrings);
+    const auto& class_table_section = image_header_.GetImageSection(
+        ImageHeader::kSectionClassTable);
     stats_.header_bytes = header_bytes;
     stats_.alignment_bytes += RoundUp(header_bytes, kObjectAlignment) - header_bytes;
     // Add padding between the field and method section.
@@ -1680,6 +1682,7 @@ class ImageDumper {
     stats_.art_method_bytes += method_section.Size();
     stats_.dex_cache_arrays_bytes += dex_cache_arrays_section.Size();
     stats_.interned_strings_bytes += intern_section.Size();
+    stats_.class_table_bytes += class_table_section.Size();
     stats_.Dump(os, indent_os);
     os << "\n";
 
@@ -2070,6 +2073,7 @@ class ImageDumper {
     size_t art_method_bytes;
     size_t dex_cache_arrays_bytes;
     size_t interned_strings_bytes;
+    size_t class_table_bytes;
     size_t bitmap_bytes;
     size_t alignment_bytes;
 
@@ -2101,6 +2105,7 @@ class ImageDumper {
           art_method_bytes(0),
           dex_cache_arrays_bytes(0),
           interned_strings_bytes(0),
+          class_table_bytes(0),
           bitmap_bytes(0),
           alignment_bytes(0),
           managed_code_bytes(0),
@@ -2263,6 +2268,7 @@ class ImageDumper {
                                   "art_method_bytes       =  %8zd (%2.0f%% of art file bytes)\n"
                                   "dex_cache_arrays_bytes =  %8zd (%2.0f%% of art file bytes)\n"
                                   "interned_string_bytes  =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "class_table_bytes      =  %8zd (%2.0f%% of art file bytes)\n"
                                   "bitmap_bytes           =  %8zd (%2.0f%% of art file bytes)\n"
                                   "alignment_bytes        =  %8zd (%2.0f%% of art file bytes)\n\n",
                                   header_bytes, PercentOfFileBytes(header_bytes),
@@ -2273,11 +2279,14 @@ class ImageDumper {
                                   PercentOfFileBytes(dex_cache_arrays_bytes),
                                   interned_strings_bytes,
                                   PercentOfFileBytes(interned_strings_bytes),
+                                  class_table_bytes, PercentOfFileBytes(class_table_bytes),
                                   bitmap_bytes, PercentOfFileBytes(bitmap_bytes),
                                   alignment_bytes, PercentOfFileBytes(alignment_bytes))
             << std::flush;
-        CHECK_EQ(file_bytes, header_bytes + object_bytes + art_field_bytes + art_method_bytes +
-                 dex_cache_arrays_bytes + interned_strings_bytes + bitmap_bytes + alignment_bytes);
+        CHECK_EQ(file_bytes,
+                 header_bytes + object_bytes + art_field_bytes + art_method_bytes +
+                 dex_cache_arrays_bytes + interned_strings_bytes + class_table_bytes +
+                 bitmap_bytes + alignment_bytes);
       }
 
       os << "object_bytes breakdown:\n";

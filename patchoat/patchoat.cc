@@ -526,6 +526,21 @@ void PatchOat::PatchInternedStrings(const ImageHeader* image_header) {
   temp_table.VisitRoots(&visitor, kVisitRootFlagAllRoots);
 }
 
+void PatchOat::PatchClassTable(const ImageHeader* image_header) {
+  const auto& section = image_header->GetImageSection(ImageHeader::kSectionClassTable);
+  // ClassTable temp_table;
+  // Note that we require that ReadFromMemory does not make an internal copy of the elements.
+  // This also relies on visit roots not doing any verification which could fail after we update
+  // the roots to be the image addresses.
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ClassTable temp_table;
+  temp_table.ReadFromMemory(image_->Begin() + section.Offset());
+  FixupRootVisitor visitor(this);
+  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&visitor, RootInfo(kRootUnknown));
+  temp_table.VisitRoots(buffered_visitor);
+}
+
+
 class RelocatedPointerVisitor {
  public:
   explicit RelocatedPointerVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
@@ -606,6 +621,7 @@ bool PatchOat::PatchImage() {
   PatchArtFields(image_header);
   PatchArtMethods(image_header);
   PatchInternedStrings(image_header);
+  PatchClassTable(image_header);
   // Patch dex file int/long arrays which point to ArtFields.
   PatchDexFileArrays(img_roots);
 
