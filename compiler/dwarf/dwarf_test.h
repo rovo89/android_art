@@ -29,6 +29,7 @@
 #include "common_runtime_test.h"
 #include "elf_builder.h"
 #include "gtest/gtest.h"
+#include "linker/file_output_stream.h"
 #include "os.h"
 
 namespace art {

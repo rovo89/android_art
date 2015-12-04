@@ -20,10 +20,10 @@
 #include "art_method.h"
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
-#include "utils/arm64/assembler_arm64.h"
+#include "linker/output_stream.h"
 #include "oat.h"
 #include "oat_quick_method_header.h"
-#include "output_stream.h"
+#include "utils/arm64/assembler_arm64.h"
 
 namespace art {
 namespace linker {

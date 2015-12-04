@@ -62,6 +62,11 @@ class ElfWriter {
   virtual void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) = 0;
   virtual bool End() = 0;
 
+  // Get the ELF writer's stream. This stream can be used for writing data directly
+  // to a section after the section has been finished. When that's done, the user
+  // should Seek() back to the position where the stream was before this operation.
+  virtual OutputStream* GetStream() = 0;
+
  protected:
   ElfWriter() = default;
 };
