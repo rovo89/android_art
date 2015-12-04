@@ -49,6 +49,10 @@ enum MethodCompilationStat {
   kNotCompiledUnsupportedIsa,
   kNotCompiledVerificationError,
   kNotCompiledVerifyAtRuntime,
+  kInlinedMonomorphicCall,
+  kMonomorphicCall,
+  kPolymorphicCall,
+  kMegamorphicCall,
   kLastStat
 };
 
@@ -111,6 +115,10 @@ class OptimizingCompilerStats {
       case kNotCompiledUnsupportedIsa : name = "NotCompiledUnsupportedIsa"; break;
       case kNotCompiledVerificationError : name = "NotCompiledVerificationError"; break;
       case kNotCompiledVerifyAtRuntime : name = "NotCompiledVerifyAtRuntime"; break;
+      case kInlinedMonomorphicCall: name = "InlinedMonomorphicCall"; break;
+      case kMonomorphicCall: name = "MonomorphicCall"; break;
+      case kPolymorphicCall: name = "PolymorphicCall"; break;
+      case kMegamorphicCall: name = "kMegamorphicCall"; break;
 
       case kLastStat:
         LOG(FATAL) << "invalid stat "

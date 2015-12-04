@@ -685,7 +685,9 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     }
 
     mirror::Throwable* pending_exception = nullptr;
-    self->PopDeoptimizationContext(&result, &pending_exception);
+    bool from_code = false;
+    self->PopDeoptimizationContext(&result, &pending_exception, /* out */ &from_code);
+    CHECK(from_code);
 
     // Push a transition back into managed code onto the linked list in thread.
     self->PushManagedStackFragment(&fragment);
@@ -712,7 +714,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     if (pending_exception != nullptr) {
       self->SetException(pending_exception);
     }
-    interpreter::EnterInterpreterFromDeoptimize(self, deopt_frame, &result);
+    interpreter::EnterInterpreterFromDeoptimize(self, deopt_frame, from_code, &result);
   } else {
     const char* old_cause = self->StartAssertNoThreadSuspension(
         "Building interpreter shadow frame");
@@ -754,7 +756,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
     // Push the context of the deoptimization stack so we can restore the return value and the
     // exception before executing the deoptimized frames.
-    self->PushDeoptimizationContext(result, shorty[0] == 'L', self->GetException());
+    self->PushDeoptimizationContext(
+        result, shorty[0] == 'L', /* from_code */ false, self->GetException());
 
     // Set special exception to cause deoptimization.
     self->SetException(Thread::GetDeoptimizationException());

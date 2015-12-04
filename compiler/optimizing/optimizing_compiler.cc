@@ -427,7 +427,7 @@ static void MaybeRunInliner(HGraph* graph,
     return;
   }
   HInliner* inliner = new (graph->GetArena()) HInliner(
-    graph, codegen, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
+      graph, graph, codegen, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
   HOptimization* optimizations[] = { inliner };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
@@ -763,8 +763,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     ArtMethod* art_method = compiler_driver->ResolveMethod(
         soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
     // We may not get a method, for example if its class is erroneous.
-    // TODO: Clean this up, the compiler driver should just pass the ArtMethod to compile.
     if (art_method != nullptr) {
+      graph->SetArtMethod(art_method);
       interpreter_metadata = art_method->GetQuickenedInfo();
     }
   }
@@ -948,6 +948,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   if (stack_map_data == nullptr) {
     return false;
   }
+  MaybeRecordStat(MethodCompilationStat::kCompiled);
   codegen->BuildStackMaps(MemoryRegion(stack_map_data, stack_map_size));
   const void* code = code_cache->CommitCode(
       self,

@@ -397,7 +397,10 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   self->PopShadowFrame();
 }
 
-void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JValue* ret_val)
+void EnterInterpreterFromDeoptimize(Thread* self,
+                                    ShadowFrame* shadow_frame,
+                                    bool from_code,
+                                    JValue* ret_val)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   JValue value;
   // Set value to last known result in case the shadow frame chain is empty.
@@ -408,7 +411,7 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
     self->SetTopOfShadowStack(shadow_frame);
     const DexFile::CodeItem* code_item = shadow_frame->GetMethod()->GetCodeItem();
     const uint32_t dex_pc = shadow_frame->GetDexPC();
-    uint32_t new_dex_pc;
+    uint32_t new_dex_pc = dex_pc;
     if (UNLIKELY(self->IsExceptionPending())) {
       // If we deoptimize from the QuickExceptionHandler, we already reported the exception to
       // the instrumentation. To prevent from reporting it a second time, we simply pass a
@@ -419,11 +422,16 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
                                                                     instrumentation);
       new_dex_pc = found_dex_pc;  // the dex pc of a matching catch handler
                                   // or DexFile::kDexNoIndex if there is none.
-    } else {
-      const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
-      // For an invoke, use the dex pc of the next instruction.
+    } else if (!from_code) {
+      // For the debugger and full deoptimization stack, we must go past the invoke
+      // instruction, as it already executed.
       // TODO: should be tested more once b/17586779 is fixed.
-      new_dex_pc = dex_pc + (instr->IsInvoke() ? instr->SizeInCodeUnits() : 0);
+      const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
+      DCHECK(instr->IsInvoke());
+      new_dex_pc = dex_pc + instr->SizeInCodeUnits();
+    } else {
+      // Nothing to do, the dex_pc is the one at which the code requested
+      // the deoptimization.
     }
     if (new_dex_pc != DexFile::kDexNoIndex) {
       shadow_frame->SetDexPC(new_dex_pc);
@@ -432,6 +440,8 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
     ShadowFrame::DeleteDeoptimizedFrame(old_frame);
+    // Following deoptimizations of shadow frames must pass the invoke instruction.
+    from_code = false;
     first = false;
   }
   ret_val->SetJ(value.GetJ());
