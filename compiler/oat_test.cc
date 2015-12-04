@@ -31,13 +31,13 @@
 #include "elf_writer.h"
 #include "elf_writer_quick.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "linker/vector_output_stream.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "oat_file-inl.h"
 #include "oat_writer.h"
 #include "scoped_thread_state_change.h"
-#include "vector_output_stream.h"
 
 namespace art {
 

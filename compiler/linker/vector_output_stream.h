@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_VECTOR_OUTPUT_STREAM_H_
-#define ART_COMPILER_VECTOR_OUTPUT_STREAM_H_
+#ifndef ART_COMPILER_LINKER_VECTOR_OUTPUT_STREAM_H_
+#define ART_COMPILER_LINKER_VECTOR_OUTPUT_STREAM_H_
 
 #include "output_stream.h"
 
@@ -66,4 +66,4 @@ class VectorOutputStream FINAL : public OutputStream {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_VECTOR_OUTPUT_STREAM_H_
+#endif  // ART_COMPILER_LINKER_VECTOR_OUTPUT_STREAM_H_
