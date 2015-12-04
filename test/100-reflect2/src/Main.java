@@ -157,10 +157,28 @@ class Main {
     System.out.println(o + " (" + (o != null ? o.getClass() : "null") + ")");
   }
 
+  /**
+   * Sorts the input array using the comparator and returns the sorted array.
+   */
+  private static Object[] sort(Object[] objects, Comparator<Object> comp) {
+    Arrays.sort(objects, comp);
+    return objects;
+  }
+
   public static void testMethodReflection() throws Exception {
-    System.out.println(Arrays.toString(String.class.getDeclaredConstructors()));
-    System.out.println(Arrays.toString(String.class.getDeclaredFields()));
-    System.out.println(Arrays.toString(String.class.getDeclaredMethods()));
+    Comparator<Object> comp = new Comparator<Object>() {
+      public int compare(Object a, Object b) {
+        return a.toString().compareTo(b.toString());
+      }
+      public boolean equals(Object b) {
+        return this == b;
+      }
+    };
+
+    // Sort the return values by their string values since the order is undefined by the spec.
+    System.out.println(Arrays.toString(sort(String.class.getDeclaredConstructors(), comp)));
+    System.out.println(Arrays.toString(sort(String.class.getDeclaredFields(), comp)));
+    System.out.println(Arrays.toString(sort(String.class.getDeclaredMethods(), comp)));
 
     System.out.println(Arrays.toString(Main.class.getInterfaces()));
     System.out.println(Arrays.toString(String.class.getInterfaces()));
