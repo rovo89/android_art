@@ -983,6 +983,7 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
     LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_location
                  << " ( canonical path " << dex_canonical_location << ")"
                  << " with checksum " << checksum << " in OatFile " << GetLocation();
+    /* TODO: Modify for multi-image support and reenable. b/26317072
     if (kIsDebugBuild) {
       for (const OatDexFile* odf : oat_dex_files_storage_) {
         LOG(WARNING) << "OatFile " << GetLocation()
@@ -991,6 +992,7 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
                      << " with checksum 0x" << std::hex << odf->GetDexFileLocationChecksum();
       }
     }
+    */
   }
 
   return nullptr;

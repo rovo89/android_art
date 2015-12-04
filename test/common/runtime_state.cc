@@ -56,7 +56,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isDex2OatEnabled(JNIEnv* env ATT
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasImage(JNIEnv* env ATTRIBUTE_UNUSED,
                                                          jclass cls ATTRIBUTE_UNUSED) {
-  return Runtime::Current()->GetHeap()->HasImageSpace();
+  return Runtime::Current()->GetHeap()->HasBootImageSpace();
 }
 
 // public static native boolean isImageDex2OatEnabled();

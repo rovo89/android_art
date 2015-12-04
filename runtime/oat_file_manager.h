@@ -73,15 +73,15 @@ class OatFileManager {
     return have_non_pic_oat_file_;
   }
 
-  // Returns the boot image oat file.
-  const OatFile* GetBootOatFile() const;
+  // Returns the boot image oat files.
+  std::vector<const OatFile*> GetBootOatFiles() const;
 
   // Returns the first non-image oat file in the class path.
   const OatFile* GetPrimaryOatFile() const REQUIRES(!Locks::oat_file_manager_lock_);
 
-  // Return the oat file for an image, registers the oat file. Takes ownership of the imagespace's
-  // underlying oat file.
-  const OatFile* RegisterImageOatFile(gc::space::ImageSpace* space)
+  // Returns the oat files for the images, registers the oat files.
+  // Takes ownership of the imagespace's underlying oat files.
+  std::vector<const OatFile*> RegisterImageOatFiles(std::vector<gc::space::ImageSpace*> spaces)
       REQUIRES(!Locks::oat_file_manager_lock_);
 
   // Finds or creates the oat file holding dex_location. Then loads and returns

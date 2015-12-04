@@ -505,7 +505,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Add image classes to the class table.
-  void AddImageClassesToClassTable(gc::space::ImageSpace* image_space,
+  void AddImageClassesToClassTable(std::vector<gc::space::ImageSpace*> image_spaces,
                                    mirror::ClassLoader* class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

@@ -233,8 +233,7 @@ Heap::Heap(size_t initial_size,
       backtrace_lock_(nullptr),
       seen_backtrace_count_(0u),
       unique_backtrace_count_(0u),
-      gc_disabled_for_shutdown_(false),
-      boot_image_space_(nullptr) {
+      gc_disabled_for_shutdown_(false) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -260,23 +259,107 @@ Heap::Heap(size_t initial_size,
     CHECK_GE(300 * MB, non_moving_space_capacity);
     requested_alloc_space_begin = reinterpret_cast<uint8_t*>(300 * MB) - non_moving_space_capacity;
   }
+
+  // Load image space(s).
   if (!image_file_name.empty()) {
-    ATRACE_BEGIN("ImageSpace::Create");
-    std::string error_msg;
-    boot_image_space_ = space::ImageSpace::Create(image_file_name.c_str(),
-                                                  image_instruction_set,
-                                                  &error_msg);
-    ATRACE_END();
-    if (boot_image_space_ != nullptr) {
-      AddSpace(boot_image_space_);
-      // Oat files referenced by image files immediately follow them in memory, ensure alloc space
-      // isn't going to get in the middle
-      uint8_t* oat_file_end_addr = boot_image_space_->GetImageHeader().GetOatFileEnd();
-      CHECK_GT(oat_file_end_addr, boot_image_space_->End());
-      requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
-    } else {
-      LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
-                   << "Attempting to fall back to imageless running. Error was: " << error_msg;
+    // For code reuse, handle this like a work queue.
+    std::vector<std::string> image_file_names;
+    image_file_names.push_back(image_file_name);
+
+    for (size_t index = 0; index < image_file_names.size(); ++index) {
+      std::string& image_name = image_file_names[index];
+      ATRACE_BEGIN("ImageSpace::Create");
+      std::string error_msg;
+      space::ImageSpace* boot_image_space = space::ImageSpace::Create(image_name.c_str(),
+                                                                      image_instruction_set,
+                                                                      index > 0,
+                                                                      &error_msg);
+      ATRACE_END();
+      if (boot_image_space != nullptr) {
+        AddSpace(boot_image_space);
+        // Oat files referenced by image files immediately follow them in memory, ensure alloc space
+        // isn't going to get in the middle
+        uint8_t* oat_file_end_addr = boot_image_space->GetImageHeader().GetOatFileEnd();
+        CHECK_GT(oat_file_end_addr, boot_image_space->End());
+        requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
+        boot_image_spaces_.push_back(boot_image_space);
+
+        if (index == 0) {
+          // If this was the first space, check whether there are more images to load.
+          const OatFile* boot_oat_file = boot_image_space->GetOatFile();
+          if (boot_oat_file == nullptr) {
+            continue;
+          }
+
+          const OatHeader& boot_oat_header = boot_oat_file->GetOatHeader();
+          const char* boot_classpath =
+              boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPath);
+          if (boot_classpath == nullptr) {
+            continue;
+          }
+
+          std::vector<std::string> images;
+          Split(boot_classpath, ':', &images);
+
+          // Add the rest into the list. We have to adjust locations, possibly:
+          //
+          // For example, image_file_name is /a/b/c/d/e.art
+          //              images[0] is          f/c/d/e.art
+          // ----------------------------------------------
+          //              images[1] is          g/h/i/j.art  -> /a/b/h/i/j.art
+
+          // Derive pattern.
+          std::vector<std::string> left;
+          Split(image_file_name, '/', &left);
+          std::vector<std::string> right;
+          Split(images[0], '/', &right);
+
+          size_t common = 1;
+          while (common < left.size() && common < right.size()) {
+            if (left[left.size() - common - 1] != right[right.size() - common - 1]) {
+              break;
+            }
+            common++;
+          }
+
+          std::vector<std::string> prefix_vector(left.begin(), left.end() - common);
+          std::string common_prefix = Join(prefix_vector, '/');
+          if (!common_prefix.empty() && common_prefix[0] != '/' && image_file_name[0] == '/') {
+            common_prefix = "/" + common_prefix;
+          }
+
+          // Apply pattern to images[1] .. images[n].
+          for (size_t i = 1; i < images.size(); ++i) {
+            std::string image = images[i];
+
+            size_t rslash = std::string::npos;
+            for (size_t j = 0; j < common; ++j) {
+              if (rslash != std::string::npos) {
+                rslash--;
+              }
+
+              rslash = image.rfind('/', rslash);
+              if (rslash == std::string::npos) {
+                rslash = 0;
+              }
+              if (rslash == 0) {
+                break;
+              }
+            }
+            std::string image_part = image.substr(rslash);
+
+            std::string new_image = common_prefix + (StartsWith(image_part, "/") ? "" : "/") +
+                image_part;
+            image_file_names.push_back(new_image);
+          }
+        }
+      } else {
+        LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
+            << "Attempting to fall back to imageless running. Error was: " << error_msg
+            << "\nAttempted image: " << image_name;
+        // TODO: Remove already loaded spaces.
+        break;
+      }
     }
   }
   /*
@@ -456,13 +539,15 @@ Heap::Heap(size_t initial_size,
     rb_table_.reset(new accounting::ReadBarrierTable());
     DCHECK(rb_table_->IsAllCleared());
   }
-  if (GetBootImageSpace() != nullptr) {
+  if (HasBootImageSpace()) {
     // Don't add the image mod union table if we are running without an image, this can crash if
     // we use the CardCache implementation.
-    accounting::ModUnionTable* mod_union_table = new accounting::ModUnionTableToZygoteAllocspace(
-        "Image mod-union table", this, GetBootImageSpace());
-    CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
-    AddModUnionTable(mod_union_table);
+    for (space::ImageSpace* image_space : GetBootImageSpaces()) {
+      accounting::ModUnionTable* mod_union_table = new accounting::ModUnionTableToZygoteAllocspace(
+          "Image mod-union table", this, image_space);
+      CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
+      AddModUnionTable(mod_union_table);
+    }
   }
   if (collector::SemiSpace::kUseRememberedSet && non_moving_space_ != main_space_) {
     accounting::RememberedSet* non_moving_space_rem_set =
@@ -525,11 +610,12 @@ Heap::Heap(size_t initial_size,
       garbage_collectors_.push_back(mark_compact_collector_);
     }
   }
-  if (GetBootImageSpace() != nullptr && non_moving_space_ != nullptr &&
+  if (!GetBootImageSpaces().empty() && non_moving_space_ != nullptr &&
       (is_zygote || separate_non_moving_space || foreground_collector_type_ == kCollectorTypeGSS)) {
     // Check that there's no gap between the image space and the non moving space so that the
     // immune region won't break (eg. due to a large object allocated in the gap). This is only
     // required when we're the zygote or using GSS.
+    /* TODO: Modify this check to support multi-images. b/26317072
     bool no_gap = MemMap::CheckNoGaps(GetBootImageSpace()->GetMemMap(),
                                       non_moving_space_->GetMemMap());
     if (!no_gap) {
@@ -537,6 +623,7 @@ Heap::Heap(size_t initial_size,
       MemMap::DumpMaps(LOG(ERROR), true);
       LOG(FATAL) << "There's a gap between the image space and the non-moving space";
     }
+    */
   }
   instrumentation::Instrumentation* const instrumentation = runtime->GetInstrumentation();
   if (gc_stress_mode_) {
@@ -1202,8 +1289,8 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
   return FindDiscontinuousSpaceFromObject(obj, fail_ok);
 }
 
-space::ImageSpace* Heap::GetBootImageSpace() const {
-  return boot_image_space_;
+std::vector<space::ImageSpace*> Heap::GetBootImageSpaces() const {
+  return boot_image_spaces_;
 }
 
 void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type) {

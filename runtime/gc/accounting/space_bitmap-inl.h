@@ -167,7 +167,10 @@ inline bool SpaceBitmap<kAlignment>::Modify(const mirror::Object* obj) {
   uintptr_t* address = &bitmap_begin_[index];
   uintptr_t old_word = *address;
   if (kSetBit) {
-    *address = old_word | mask;
+    if ((old_word & mask) == 0) {
+      // Avoid dirtying the page if possible.
+      *address = old_word | mask;
+    }
   } else {
     *address = old_word & ~mask;
   }

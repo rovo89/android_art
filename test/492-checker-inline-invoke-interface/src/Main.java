@@ -32,14 +32,14 @@ public class Main implements Itf {
   }
 
   /// CHECK-START: void Main.main(java.lang.String[]) ssa_builder (after)
-  /// CHECK:           InvokeStaticOrDirect
+  /// CHECK:           InvokeStaticOrDirect {{.*Main.<init>.*}}
   /// CHECK:           InvokeInterface
 
   /// CHECK-START: void Main.main(java.lang.String[]) inliner (before)
   /// CHECK-NOT:       ClinitCheck
 
   /// CHECK-START: void Main.main(java.lang.String[]) inliner (after)
-  /// CHECK-NOT:       InvokeStaticOrDirect
+  /// CHECK-NOT:       InvokeStaticOrDirect {{.*Main.<init>.*}}
   /// CHECK-NOT:       InvokeVirtual
   /// CHECK-NOT:       InvokeInterface
 

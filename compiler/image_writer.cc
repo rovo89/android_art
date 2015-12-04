@@ -154,147 +154,174 @@ bool ImageWriter::PrepareImageAddressSpace() {
 }
 
 bool ImageWriter::Write(int image_fd,
-                        const std::string& image_filename,
-                        const std::string& oat_filename,
-                        const std::string& oat_location) {
-  CHECK(!image_filename.empty());
+                        const std::vector<const char*>& image_filenames,
+                        const std::vector<const char*>& oat_filenames) {
+  CHECK(!image_filenames.empty());
+  CHECK(!oat_filenames.empty());
+  CHECK_EQ(image_filenames.size(), oat_filenames.size());
 
-  std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
-  if (oat_file.get() == nullptr) {
-    PLOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
-    return false;
-  }
-  std::string error_msg;
-  oat_file_ = OatFile::OpenReadable(oat_file.get(), oat_location, nullptr, &error_msg);
-  if (oat_file_ == nullptr) {
-    PLOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location
-        << ": " << error_msg;
-    oat_file->Erase();
-    return false;
-  }
-  Runtime::Current()->GetOatFileManager().RegisterOatFile(
+  size_t oat_file_offset = 0;
+
+  for (size_t i = 0; i < oat_filenames.size(); ++i) {
+    const char* oat_filename = oat_filenames[i];
+    std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename));
+    if (oat_file.get() == nullptr) {
+      PLOG(ERROR) << "Failed to open oat file " << oat_filename;
+      return false;
+    }
+    std::string error_msg;
+    oat_file_ = OatFile::OpenReadable(oat_file.get(), oat_filename, nullptr, &error_msg);
+    if (oat_file_ == nullptr) {
+      PLOG(ERROR) << "Failed to open writable oat file " << oat_filename;
+      oat_file->Erase();
+      return false;
+    }
+    Runtime::Current()->GetOatFileManager().RegisterOatFile(
       std::unique_ptr<const OatFile>(oat_file_));
 
-  const OatHeader& oat_header = oat_file_->GetOatHeader();
-  oat_address_offsets_[kOatAddressInterpreterToInterpreterBridge] =
-      oat_header.GetInterpreterToInterpreterBridgeOffset();
-  oat_address_offsets_[kOatAddressInterpreterToCompiledCodeBridge] =
-      oat_header.GetInterpreterToCompiledCodeBridgeOffset();
-  oat_address_offsets_[kOatAddressJNIDlsymLookup] =
-      oat_header.GetJniDlsymLookupOffset();
-  oat_address_offsets_[kOatAddressQuickGenericJNITrampoline] =
-      oat_header.GetQuickGenericJniTrampolineOffset();
-  oat_address_offsets_[kOatAddressQuickIMTConflictTrampoline] =
-      oat_header.GetQuickImtConflictTrampolineOffset();
-  oat_address_offsets_[kOatAddressQuickResolutionTrampoline] =
-      oat_header.GetQuickResolutionTrampolineOffset();
-  oat_address_offsets_[kOatAddressQuickToInterpreterBridge] =
-      oat_header.GetQuickToInterpreterBridgeOffset();
+    const OatHeader& oat_header = oat_file_->GetOatHeader();
+    ImageInfo& image_info = GetImageInfo(oat_filename);
 
-  size_t oat_loaded_size = 0;
-  size_t oat_data_offset = 0;
-  ElfWriter::GetOatElfInformation(oat_file.get(), &oat_loaded_size, &oat_data_offset);
+    size_t oat_loaded_size = 0;
+    size_t oat_data_offset = 0;
+    ElfWriter::GetOatElfInformation(oat_file.get(), &oat_loaded_size, &oat_data_offset);
+
+    DCHECK_EQ(image_info.oat_offset_, oat_file_offset);
+    oat_file_offset += oat_loaded_size;
+
+    if (i == 0) {
+      // Primary oat file, read the trampolines.
+      image_info.oat_address_offsets_[kOatAddressInterpreterToInterpreterBridge] =
+          oat_header.GetInterpreterToInterpreterBridgeOffset();
+      image_info.oat_address_offsets_[kOatAddressInterpreterToCompiledCodeBridge] =
+          oat_header.GetInterpreterToCompiledCodeBridgeOffset();
+      image_info.oat_address_offsets_[kOatAddressJNIDlsymLookup] =
+          oat_header.GetJniDlsymLookupOffset();
+      image_info.oat_address_offsets_[kOatAddressQuickGenericJNITrampoline] =
+          oat_header.GetQuickGenericJniTrampolineOffset();
+      image_info.oat_address_offsets_[kOatAddressQuickIMTConflictTrampoline] =
+          oat_header.GetQuickImtConflictTrampolineOffset();
+      image_info.oat_address_offsets_[kOatAddressQuickResolutionTrampoline] =
+          oat_header.GetQuickResolutionTrampolineOffset();
+      image_info.oat_address_offsets_[kOatAddressQuickToInterpreterBridge] =
+          oat_header.GetQuickToInterpreterBridgeOffset();
+    } else {
+      // Other oat files use the primary trampolines.
+      // TODO: Dummy values to protect usage? b/26317072
+    }
+
+
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      CreateHeader(oat_loaded_size, oat_data_offset);
+      CopyAndFixupNativeData();
+    }
+
+    SetOatChecksumFromElfFile(oat_file.get());
+
+    if (oat_file->FlushCloseOrErase() != 0) {
+      LOG(ERROR) << "Failed to flush and close oat file " << oat_filename;
+      return false;
+    }
+  }
 
   {
-    ScopedObjectAccess soa(Thread::Current());
-    CreateHeader(oat_loaded_size, oat_data_offset);
-    CopyAndFixupNativeData();
     // TODO: heap validation can't handle these fix up passes.
+    ScopedObjectAccess soa(Thread::Current());
     Runtime::Current()->GetHeap()->DisableObjectValidation();
     CopyAndFixupObjects();
   }
 
-  SetOatChecksumFromElfFile(oat_file.get());
-
-  if (oat_file->FlushCloseOrErase() != 0) {
-    LOG(ERROR) << "Failed to flush and close oat file " << oat_filename << " for " << oat_location;
-    return false;
-  }
-  std::unique_ptr<File> image_file;
-  if (image_fd != kInvalidImageFd) {
-    image_file.reset(new File(image_fd, image_filename, unix_file::kCheckSafeUsage));
-  } else {
-    image_file.reset(OS::CreateEmptyFile(image_filename.c_str()));
-  }
-  if (image_file == nullptr) {
-    LOG(ERROR) << "Failed to open image file " << image_filename;
-    return false;
-  }
-  if (fchmod(image_file->Fd(), 0644) != 0) {
-    PLOG(ERROR) << "Failed to make image file world readable: " << image_filename;
-    image_file->Erase();
-    return EXIT_FAILURE;
-  }
-
-  std::unique_ptr<char[]> compressed_data;
-  // Image data size excludes the bitmap and the header.
-  ImageHeader* const image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
-  const size_t image_data_size = image_header->GetImageSize() - sizeof(ImageHeader);
-  char* image_data = reinterpret_cast<char*>(image_->Begin()) + sizeof(ImageHeader);
-  size_t data_size;
-  const char* image_data_to_write;
-
-  CHECK_EQ(image_header->storage_mode_, image_storage_mode_);
-  switch (image_storage_mode_) {
-    case ImageHeader::kStorageModeLZ4: {
-      size_t compressed_max_size = LZ4_compressBound(image_data_size);
-      compressed_data.reset(new char[compressed_max_size]);
-      data_size = LZ4_compress(
-          reinterpret_cast<char*>(image_->Begin()) + sizeof(ImageHeader),
-          &compressed_data[0],
-          image_data_size);
-      image_data_to_write = &compressed_data[0];
-      VLOG(compiler) << "Compressed from " << image_data_size << " to " << data_size;
-      break;
+  for (size_t i = 0; i < image_filenames.size(); ++i) {
+    const char* image_filename = image_filenames[i];
+    const char* oat_filename = oat_filenames[i];
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    std::unique_ptr<File> image_file;
+    if (image_fd != kInvalidImageFd) {
+      image_file.reset(new File(image_fd, image_filename, unix_file::kCheckSafeUsage));
+    } else {
+      image_file.reset(OS::CreateEmptyFile(image_filename));
     }
-    case ImageHeader::kStorageModeUncompressed: {
-      data_size = image_data_size;
-      image_data_to_write = image_data;
-      break;
+    if (image_file == nullptr) {
+      LOG(ERROR) << "Failed to open image file " << image_filename;
+      return false;
     }
-    default: {
-      LOG(FATAL) << "Unsupported";
-      UNREACHABLE();
+    if (fchmod(image_file->Fd(), 0644) != 0) {
+      PLOG(ERROR) << "Failed to make image file world readable: " << image_filename;
+      image_file->Erase();
+      return EXIT_FAILURE;
     }
-  }
 
-  // Write header first, as uncompressed.
-  image_header->data_size_ = data_size;
-  if (!image_file->WriteFully(image_->Begin(), sizeof(ImageHeader))) {
-    PLOG(ERROR) << "Failed to write image file header " << image_filename;
-    image_file->Erase();
-    return false;
-  }
+    std::unique_ptr<char[]> compressed_data;
+    // Image data size excludes the bitmap and the header.
+    ImageHeader* const image_header = reinterpret_cast<ImageHeader*>(image_info.image_->Begin());
+    const size_t image_data_size = image_header->GetImageSize() - sizeof(ImageHeader);
+    char* image_data = reinterpret_cast<char*>(image_info.image_->Begin()) + sizeof(ImageHeader);
+    size_t data_size;
+    const char* image_data_to_write;
 
-  // Write out the image + fields + methods.
-  const bool is_compressed = compressed_data != nullptr;
-  if (!image_file->WriteFully(image_data_to_write, data_size)) {
-    PLOG(ERROR) << "Failed to write image file data " << image_filename;
-    image_file->Erase();
-    return false;
-  }
+    CHECK_EQ(image_header->storage_mode_, image_storage_mode_);
+    switch (image_storage_mode_) {
+      case ImageHeader::kStorageModeLZ4: {
+        size_t compressed_max_size = LZ4_compressBound(image_data_size);
+        compressed_data.reset(new char[compressed_max_size]);
+        data_size = LZ4_compress(
+            reinterpret_cast<char*>(image_info.image_->Begin()) + sizeof(ImageHeader),
+            &compressed_data[0],
+            image_data_size);
+        image_data_to_write = &compressed_data[0];
+        VLOG(compiler) << "Compressed from " << image_data_size << " to " << data_size;
+        break;
+      }
+      case ImageHeader::kStorageModeUncompressed: {
+        data_size = image_data_size;
+        image_data_to_write = image_data;
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unsupported";
+        UNREACHABLE();
+      }
+    }
 
-  // Write out the image bitmap at the page aligned start of the image end, also uncompressed for
-  // convenience.
-  const ImageSection& bitmap_section = image_header->GetImageSection(
-      ImageHeader::kSectionImageBitmap);
-  // Align up since data size may be unaligned if the image is compressed.
-  size_t bitmap_position_in_file = RoundUp(sizeof(ImageHeader) + data_size, kPageSize);
-  if (!is_compressed) {
-    CHECK_EQ(bitmap_position_in_file, bitmap_section.Offset());
-  }
-  if (!image_file->Write(reinterpret_cast<char*>(image_bitmap_->Begin()),
-                         bitmap_section.Size(),
-                         bitmap_position_in_file)) {
-    PLOG(ERROR) << "Failed to write image file " << image_filename;
-    image_file->Erase();
-    return false;
-  }
-  CHECK_EQ(bitmap_position_in_file + bitmap_section.Size(),
-           static_cast<size_t>(image_file->GetLength()));
-  if (image_file->FlushCloseOrErase() != 0) {
-    PLOG(ERROR) << "Failed to flush and close image file " << image_filename;
-    return false;
+    // Write header first, as uncompressed.
+    image_header->data_size_ = data_size;
+    if (!image_file->WriteFully(image_info.image_->Begin(), sizeof(ImageHeader))) {
+      PLOG(ERROR) << "Failed to write image file header " << image_filename;
+      image_file->Erase();
+      return false;
+    }
+
+    // Write out the image + fields + methods.
+    const bool is_compressed = compressed_data != nullptr;
+    if (!image_file->WriteFully(image_data_to_write, data_size)) {
+      PLOG(ERROR) << "Failed to write image file data " << image_filename;
+      image_file->Erase();
+      return false;
+    }
+
+    // Write out the image bitmap at the page aligned start of the image end, also uncompressed for
+    // convenience.
+    const ImageSection& bitmap_section = image_header->GetImageSection(
+        ImageHeader::kSectionImageBitmap);
+    // Align up since data size may be unaligned if the image is compressed.
+    size_t bitmap_position_in_file = RoundUp(sizeof(ImageHeader) + data_size, kPageSize);
+    if (!is_compressed) {
+      CHECK_EQ(bitmap_position_in_file, bitmap_section.Offset());
+    }
+    if (!image_file->Write(reinterpret_cast<char*>(image_info.image_bitmap_->Begin()),
+                           bitmap_section.Size(),
+                           bitmap_position_in_file)) {
+      PLOG(ERROR) << "Failed to write image file " << image_filename;
+      image_file->Erase();
+      return false;
+    }
+    CHECK_EQ(bitmap_position_in_file + bitmap_section.Size(),
+             static_cast<size_t>(image_file->GetLength()));
+    if (image_file->FlushCloseOrErase() != 0) {
+      PLOG(ERROR) << "Failed to flush and close image file " << image_filename;
+      return false;
+    }
   }
   return true;
 }
@@ -319,12 +346,14 @@ void ImageWriter::AssignImageOffset(mirror::Object* object, ImageWriter::BinSlot
   DCHECK(object != nullptr);
   DCHECK_NE(image_objects_offset_begin_, 0u);
 
-  size_t bin_slot_offset = bin_slot_offsets_[bin_slot.GetBin()];
+  const char* oat_filename = GetOatFilename(object);
+  ImageInfo& image_info = GetImageInfo(oat_filename);
+  size_t bin_slot_offset = image_info.bin_slot_offsets_[bin_slot.GetBin()];
   size_t new_offset = bin_slot_offset + bin_slot.GetIndex();
   DCHECK_ALIGNED(new_offset, kObjectAlignment);
 
   SetImageOffset(object, new_offset);
-  DCHECK_LT(new_offset, image_end_);
+  DCHECK_LT(new_offset, image_info.image_end_);
 }
 
 bool ImageWriter::IsImageOffsetAssigned(mirror::Object* object) const {
@@ -338,7 +367,9 @@ size_t ImageWriter::GetImageOffset(mirror::Object* object) const {
   DCHECK(IsImageOffsetAssigned(object));
   LockWord lock_word = object->GetLockWord(false);
   size_t offset = lock_word.ForwardingAddress();
-  DCHECK_LT(offset, image_end_);
+  const char* oat_filename = GetOatFilename(object);
+  const ImageInfo& image_info = GetConstImageInfo(oat_filename);
+  DCHECK_LT(offset, image_info.image_end_);
   return offset;
 }
 
@@ -377,15 +408,16 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
 
 void ImageWriter::PrepareDexCacheArraySlots() {
   // Prepare dex cache array starts based on the ordering specified in the CompilerDriver.
-  uint32_t size = 0u;
-  for (const DexFile* dex_file : compiler_driver_.GetDexFilesForOatFile()) {
-    dex_cache_array_starts_.Put(dex_file, size);
-    DexCacheArraysLayout layout(target_ptr_size_, dex_file);
-    size += layout.Size();
-  }
   // Set the slot size early to avoid DCHECK() failures in IsImageBinSlotAssigned()
   // when AssignImageBinSlot() assigns their indexes out or order.
-  bin_slot_sizes_[kBinDexCacheArray] = size;
+  for (const DexFile* dex_file : compiler_driver_.GetDexFilesForOatFile()) {
+    auto it = dex_file_oat_filename_map_.find(dex_file);
+    DCHECK(it != dex_file_oat_filename_map_.end()) << dex_file->GetLocation();
+    ImageInfo& image_info = GetImageInfo(it->second);
+    image_info.dex_cache_array_starts_.Put(dex_file, image_info.bin_slot_sizes_[kBinDexCacheArray]);
+    DexCacheArraysLayout layout(target_ptr_size_, dex_file);
+    image_info.bin_slot_sizes_[kBinDexCacheArray] += layout.Size();
+  }
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* const self = Thread::Current();
@@ -399,24 +431,32 @@ void ImageWriter::PrepareDexCacheArraySlots() {
     const DexFile* dex_file = dex_cache->GetDexFile();
     DexCacheArraysLayout layout(target_ptr_size_, dex_file);
     DCHECK(layout.Valid());
-    uint32_t start = dex_cache_array_starts_.Get(dex_file);
+    const char* oat_filename = GetOatFilenameForDexCache(dex_cache);
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    uint32_t start = image_info.dex_cache_array_starts_.Get(dex_file);
     DCHECK_EQ(dex_file->NumTypeIds() != 0u, dex_cache->GetResolvedTypes() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetResolvedTypes(), start + layout.TypesOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetResolvedTypes(),
+                               start + layout.TypesOffset(),
+                               dex_cache);
     DCHECK_EQ(dex_file->NumMethodIds() != 0u, dex_cache->GetResolvedMethods() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetResolvedMethods(), start + layout.MethodsOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetResolvedMethods(),
+                               start + layout.MethodsOffset(),
+                               dex_cache);
     DCHECK_EQ(dex_file->NumFieldIds() != 0u, dex_cache->GetResolvedFields() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetResolvedFields(), start + layout.FieldsOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetResolvedFields(),
+                               start + layout.FieldsOffset(),
+                               dex_cache);
     DCHECK_EQ(dex_file->NumStringIds() != 0u, dex_cache->GetStrings() != nullptr);
-    AddDexCacheArrayRelocation(dex_cache->GetStrings(), start + layout.StringsOffset());
+    AddDexCacheArrayRelocation(dex_cache->GetStrings(), start + layout.StringsOffset(), dex_cache);
   }
 }
 
-void ImageWriter::AddDexCacheArrayRelocation(void* array, size_t offset) {
+void ImageWriter::AddDexCacheArrayRelocation(void* array, size_t offset, DexCache* dex_cache) {
   if (array != nullptr) {
     DCHECK(!IsInBootImage(array));
-    native_object_relocations_.emplace(
-        array,
-        NativeObjectRelocation { offset, kNativeObjectRelocationTypeDexCacheArray });
+    const char* oat_filename = GetOatFilenameForDexCache(dex_cache);
+    native_object_relocations_.emplace(array,
+        NativeObjectRelocation { oat_filename, offset, kNativeObjectRelocationTypeDexCacheArray });
   }
 }
 
@@ -531,18 +571,21 @@ void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
     }  // else bin = kBinRegular
   }
 
+  const char* oat_filename = GetOatFilename(object);
+  ImageInfo& image_info = GetImageInfo(oat_filename);
+
   size_t offset_delta = RoundUp(object_size, kObjectAlignment);  // 64-bit alignment
-  current_offset = bin_slot_sizes_[bin];  // How many bytes the current bin is at (aligned).
-  // Move the current bin size up to accomodate the object we just assigned a bin slot.
-  bin_slot_sizes_[bin] += offset_delta;
+  current_offset = image_info.bin_slot_sizes_[bin];  // How many bytes the current bin is at (aligned).
+  // Move the current bin size up to accommodate the object we just assigned a bin slot.
+  image_info.bin_slot_sizes_[bin] += offset_delta;
 
   BinSlot new_bin_slot(bin, current_offset);
   SetImageBinSlot(object, new_bin_slot);
 
-  ++bin_slot_count_[bin];
+  ++image_info.bin_slot_count_[bin];
 
   // Grow the image closer to the end by the object we just assigned.
-  image_end_ += offset_delta;
+  image_info.image_end_ += offset_delta;
 }
 
 bool ImageWriter::WillMethodBeDirty(ArtMethod* m) const {
@@ -565,7 +608,9 @@ bool ImageWriter::IsImageBinSlotAssigned(mirror::Object* object) const {
     LockWord lock_word = object->GetLockWord(false);
     size_t offset = lock_word.ForwardingAddress();
     BinSlot bin_slot(offset);
-    DCHECK_LT(bin_slot.GetIndex(), bin_slot_sizes_[bin_slot.GetBin()])
+    const char* oat_filename = GetOatFilename(object);
+    const ImageInfo& image_info = GetConstImageInfo(oat_filename);
+    DCHECK_LT(bin_slot.GetIndex(), image_info.bin_slot_sizes_[bin_slot.GetBin()])
         << "bin slot offset should not exceed the size of that bin";
   }
   return true;
@@ -580,39 +625,42 @@ ImageWriter::BinSlot ImageWriter::GetImageBinSlot(mirror::Object* object) const 
   DCHECK_LE(offset, std::numeric_limits<uint32_t>::max());
 
   BinSlot bin_slot(static_cast<uint32_t>(offset));
-  DCHECK_LT(bin_slot.GetIndex(), bin_slot_sizes_[bin_slot.GetBin()]);
+  const char* oat_filename = GetOatFilename(object);
+  const ImageInfo& image_info = GetConstImageInfo(oat_filename);
+  DCHECK_LT(bin_slot.GetIndex(), image_info.bin_slot_sizes_[bin_slot.GetBin()]);
 
   return bin_slot;
 }
 
 bool ImageWriter::AllocMemory() {
-  const size_t length = RoundUp(image_objects_offset_begin_ +
-                                    GetBinSizeSum() +
-                                    intern_table_bytes_ +
-                                    class_table_bytes_,
-                                kPageSize);
-  std::string error_msg;
-  image_.reset(MemMap::MapAnonymous("image writer image",
-                                    nullptr,
-                                    length,
-                                    PROT_READ | PROT_WRITE,
-                                    false,
-                                    false,
-                                    &error_msg));
-  if (UNLIKELY(image_.get() == nullptr)) {
-    LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
-    return false;
-  }
+  for (const char* oat_filename : oat_filenames_) {
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    const size_t length = RoundUp(image_objects_offset_begin_ +
+                                  GetBinSizeSum(image_info) +
+                                  intern_table_bytes_ +
+                                  class_table_bytes_,
+                                  kPageSize);
+    std::string error_msg;
+    image_info.image_.reset(MemMap::MapAnonymous("image writer image",
+                                                 nullptr,
+                                                 length,
+                                                 PROT_READ | PROT_WRITE,
+                                                 false,
+                                                 false,
+                                                 &error_msg));
+    if (UNLIKELY(image_info.image_.get() == nullptr)) {
+      LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
+      return false;
+    }
 
-  // Create the image bitmap, only needs to cover mirror object section which is up to image_end_.
-  CHECK_LE(image_end_, length);
-  image_bitmap_.reset(gc::accounting::ContinuousSpaceBitmap::Create(
-      "image bitmap",
-      image_->Begin(),
-      RoundUp(image_end_, kPageSize)));
-  if (image_bitmap_.get() == nullptr) {
-    LOG(ERROR) << "Failed to allocate memory for image bitmap";
-    return false;
+    // Create the image bitmap, only needs to cover mirror object section which is up to image_end_.
+    CHECK_LE(image_info.image_end_, length);
+    image_info.image_bitmap_.reset(gc::accounting::ContinuousSpaceBitmap::Create(
+        "image bitmap", image_info.image_->Begin(), RoundUp(image_info.image_end_, kPageSize)));
+    if (image_info.image_bitmap_.get() == nullptr) {
+      LOG(ERROR) << "Failed to allocate memory for image bitmap";
+      return false;
+    }
   }
   return true;
 }
@@ -885,13 +933,22 @@ void ImageWriter::CalculateObjectBinSlots(Object* obj) {
   AssignImageBinSlot(obj);
 }
 
-ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
+ObjectArray<Object>* ImageWriter::CreateImageRoots(const char* oat_filename) const {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   Thread* self = Thread::Current();
   StackHandleScope<3> hs(self);
   Handle<Class> object_array_class(hs.NewHandle(
       class_linker->FindSystemClass(self, "[Ljava/lang/Object;")));
+
+  std::unordered_set<const DexFile*> image_dex_files;
+  for (auto& pair : dex_file_oat_filename_map_) {
+    const DexFile* image_dex_file = pair.first;
+    const char* image_oat_filename = pair.second;
+    if (strcmp(oat_filename, image_oat_filename) == 0) {
+      image_dex_files.insert(image_dex_file);
+    }
+  }
 
   // build an Object[] of all the DexCaches used in the source_space_.
   // Since we can't hold the dex lock when allocating the dex_caches
@@ -905,7 +962,10 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       mirror::DexCache* dex_cache =
           down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
-      dex_cache_count += IsInBootImage(dex_cache) ? 0u : 1u;
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      if (!IsInBootImage(dex_cache)) {
+        dex_cache_count += image_dex_files.find(dex_file) != image_dex_files.end() ? 1u : 0u;
+      }
     }
   }
   Handle<ObjectArray<Object>> dex_caches(
@@ -918,7 +978,10 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       mirror::DexCache* dex_cache =
           down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
-      non_image_dex_caches += IsInBootImage(dex_cache) ? 0u : 1u;
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      if (!IsInBootImage(dex_cache)) {
+        non_image_dex_caches += image_dex_files.find(dex_file) != image_dex_files.end() ? 1u : 0u;
+      }
     }
     CHECK_EQ(dex_cache_count, non_image_dex_caches)
         << "The number of non-image dex caches changed.";
@@ -926,7 +989,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       mirror::DexCache* dex_cache =
           down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
-      if (!IsInBootImage(dex_cache)) {
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      if (!IsInBootImage(dex_cache) && image_dex_files.find(dex_file) != image_dex_files.end()) {
         dex_caches->Set<false>(i, dex_cache);
         ++i;
       }
@@ -997,9 +1061,12 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
       }
       // Visit and assign offsets for fields and field arrays.
       auto* as_klass = h_obj->AsClass();
+      mirror::DexCache* dex_cache = as_klass->GetDexCache();
       LengthPrefixedArray<ArtField>* fields[] = {
           as_klass->GetSFieldsPtr(), as_klass->GetIFieldsPtr(),
       };
+      const char* oat_file = GetOatFilenameForDexCache(dex_cache);
+      ImageInfo& image_info = GetImageInfo(oat_file);
       for (LengthPrefixedArray<ArtField>* cur_fields : fields) {
         // Total array length including header.
         if (cur_fields != nullptr) {
@@ -1008,11 +1075,10 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
           auto it = native_object_relocations_.find(cur_fields);
           CHECK(it == native_object_relocations_.end()) << "Field array " << cur_fields
                                                   << " already forwarded";
-          size_t& offset = bin_slot_sizes_[kBinArtField];
+          size_t& offset = image_info.bin_slot_sizes_[kBinArtField];
           DCHECK(!IsInBootImage(cur_fields));
-          native_object_relocations_.emplace(
-              cur_fields,
-              NativeObjectRelocation {offset, kNativeObjectRelocationTypeArtFieldArray });
+          native_object_relocations_.emplace(cur_fields,
+              NativeObjectRelocation {oat_file, offset, kNativeObjectRelocationTypeArtFieldArray });
           offset += header_size;
           // Forward individual fields so that we can quickly find where they belong.
           for (size_t i = 0, count = cur_fields->size(); i < count; ++i) {
@@ -1022,9 +1088,8 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
             CHECK(it2 == native_object_relocations_.end()) << "Field at index=" << i
                 << " already assigned " << PrettyField(field) << " static=" << field->IsStatic();
             DCHECK(!IsInBootImage(field));
-            native_object_relocations_.emplace(
-                field,
-                NativeObjectRelocation {offset, kNativeObjectRelocationTypeArtField });
+            native_object_relocations_.emplace(field,
+                NativeObjectRelocation {oat_file, offset, kNativeObjectRelocationTypeArtField });
             offset += sizeof(ArtField);
           }
         }
@@ -1053,17 +1118,17 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
         auto it = native_object_relocations_.find(array);
         CHECK(it == native_object_relocations_.end())
             << "Method array " << array << " already forwarded";
-        size_t& offset = bin_slot_sizes_[bin_type];
+        size_t& offset = image_info.bin_slot_sizes_[bin_type];
         DCHECK(!IsInBootImage(array));
-        native_object_relocations_.emplace(
-            array, NativeObjectRelocation {
-              offset,
-              any_dirty ? kNativeObjectRelocationTypeArtMethodArrayDirty
-                        : kNativeObjectRelocationTypeArtMethodArrayClean
-            });
+        native_object_relocations_.emplace(array,
+            NativeObjectRelocation {
+                oat_file,
+                offset,
+                any_dirty ? kNativeObjectRelocationTypeArtMethodArrayDirty
+                          : kNativeObjectRelocationTypeArtMethodArrayClean });
         offset += header_size;
         for (auto& m : as_klass->GetMethods(target_ptr_size_)) {
-          AssignMethodOffset(&m, type);
+          AssignMethodOffset(&m, type, oat_file);
         }
         (any_dirty ? dirty_methods_ : clean_methods_) += num_methods;
       }
@@ -1089,13 +1154,16 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
   }
 }
 
-void ImageWriter::AssignMethodOffset(ArtMethod* method, NativeObjectRelocationType type) {
+void ImageWriter::AssignMethodOffset(ArtMethod* method,
+                                     NativeObjectRelocationType type,
+                                     const char* oat_filename) {
   DCHECK(!IsInBootImage(method));
   auto it = native_object_relocations_.find(method);
   CHECK(it == native_object_relocations_.end()) << "Method " << method << " already assigned "
       << PrettyMethod(method);
-  size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(type)];
-  native_object_relocations_.emplace(method, NativeObjectRelocation { offset, type });
+  ImageInfo& image_info = GetImageInfo(oat_filename);
+  size_t& offset = image_info.bin_slot_sizes_[BinTypeForNativeRelocationType(type)];
+  native_object_relocations_.emplace(method, NativeObjectRelocation { oat_filename, offset, type });
   offset += ArtMethod::Size(target_ptr_size_);
 }
 
@@ -1128,18 +1196,20 @@ void ImageWriter::UnbinObjectsIntoOffset(mirror::Object* obj) {
 
 void ImageWriter::CalculateNewObjectOffsets() {
   Thread* const self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  Handle<ObjectArray<Object>> image_roots(hs.NewHandle(CreateImageRoots()));
+  StackHandleScopeCollection handles(self);
+  std::vector<Handle<ObjectArray<Object>>> image_roots;
+  for (const char* oat_filename : oat_filenames_) {
+    std::string image_filename = oat_filename;
+    image_roots.push_back(handles.NewHandle(CreateImageRoots(image_filename.c_str())));
+  }
 
   auto* runtime = Runtime::Current();
   auto* heap = runtime->GetHeap();
-  DCHECK_EQ(0U, image_end_);
 
   // Leave space for the header, but do not write it yet, we need to
   // know where image_roots is going to end up
-  image_end_ += RoundUp(sizeof(ImageHeader), kObjectAlignment);  // 64-bit-alignment
+  image_objects_offset_begin_ = RoundUp(sizeof(ImageHeader), kObjectAlignment);  // 64-bit-alignment
 
-  image_objects_offset_begin_ = image_end_;
   // Clear any pre-existing monitors which may have been in the monitor words, assign bin slots.
   heap->VisitObjects(WalkFieldsCallback, this);
   // Write the image runtime methods.
@@ -1156,10 +1226,12 @@ void ImageWriter::CalculateNewObjectOffsets() {
   const auto image_method_type = kNativeObjectRelocationTypeArtMethodArrayClean;
   auto it = native_object_relocations_.find(&image_method_array_);
   CHECK(it == native_object_relocations_.end());
-  size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(image_method_type)];
+  ImageInfo& default_image_info = GetImageInfo(default_oat_filename_);
+  size_t& offset =
+      default_image_info.bin_slot_sizes_[BinTypeForNativeRelocationType(image_method_type)];
   if (!compile_app_image_) {
     native_object_relocations_.emplace(&image_method_array_,
-                                       NativeObjectRelocation { offset, image_method_type });
+        NativeObjectRelocation { default_oat_filename_, offset, image_method_type });
   }
   size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
   const size_t array_size = LengthPrefixedArray<ArtMethod>::ComputeSize(
@@ -1171,43 +1243,74 @@ void ImageWriter::CalculateNewObjectOffsets() {
     CHECK(m->IsRuntimeMethod());
     DCHECK_EQ(compile_app_image_, IsInBootImage(m)) << "Trampolines should be in boot image";
     if (!IsInBootImage(m)) {
-      AssignMethodOffset(m, kNativeObjectRelocationTypeArtMethodClean);
+      AssignMethodOffset(m, kNativeObjectRelocationTypeArtMethodClean, default_oat_filename_);
     }
   }
   // Calculate size of the dex cache arrays slot and prepare offsets.
   PrepareDexCacheArraySlots();
 
   // Calculate bin slot offsets.
-  size_t bin_offset = image_objects_offset_begin_;
-  for (size_t i = 0; i != kBinSize; ++i) {
-    bin_slot_offsets_[i] = bin_offset;
-    bin_offset += bin_slot_sizes_[i];
-    if (i == kBinArtField) {
-      static_assert(kBinArtField + 1 == kBinArtMethodClean, "Methods follow fields.");
-      static_assert(alignof(ArtField) == 4u, "ArtField alignment is 4.");
-      DCHECK_ALIGNED(bin_offset, 4u);
-      DCHECK(method_alignment == 4u || method_alignment == 8u);
-      bin_offset = RoundUp(bin_offset, method_alignment);
+  for (const char* oat_filename : oat_filenames_) {
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    size_t bin_offset = image_objects_offset_begin_;
+    for (size_t i = 0; i != kBinSize; ++i) {
+      image_info.bin_slot_offsets_[i] = bin_offset;
+      bin_offset += image_info.bin_slot_sizes_[i];
+      if (i == kBinArtField) {
+        static_assert(kBinArtField + 1 == kBinArtMethodClean, "Methods follow fields.");
+        static_assert(alignof(ArtField) == 4u, "ArtField alignment is 4.");
+        DCHECK_ALIGNED(bin_offset, 4u);
+        DCHECK(method_alignment == 4u || method_alignment == 8u);
+        bin_offset = RoundUp(bin_offset, method_alignment);
+      }
     }
+    // NOTE: There may be additional padding between the bin slots and the intern table.
+    DCHECK_EQ(image_info.image_end_,
+              GetBinSizeSum(image_info, kBinMirrorCount) + image_objects_offset_begin_);
   }
-  // NOTE: There may be additional padding between the bin slots and the intern table.
 
-  DCHECK_EQ(image_end_, GetBinSizeSum(kBinMirrorCount) + image_objects_offset_begin_);
+  // Calculate image offsets.
+  size_t image_offset = 0;
+  for (const char* oat_filename : oat_filenames_) {
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    image_info.image_begin_ = global_image_begin_ + image_offset;
+    image_info.image_offset_ = image_offset;
+    size_t native_sections_size = image_info.bin_slot_sizes_[kBinArtField] +
+                                  image_info.bin_slot_sizes_[kBinArtMethodDirty] +
+                                  image_info.bin_slot_sizes_[kBinArtMethodClean] +
+                                  image_info.bin_slot_sizes_[kBinDexCacheArray] +
+                                  intern_table_bytes_ +
+                                  class_table_bytes_;
+    size_t image_objects = RoundUp(image_info.image_end_, kPageSize);
+    size_t bitmap_size =
+        RoundUp(gc::accounting::ContinuousSpaceBitmap::ComputeBitmapSize(image_objects), kPageSize);
+    size_t heap_size = gc::accounting::ContinuousSpaceBitmap::ComputeHeapSize(bitmap_size);
+    size_t max = std::max(heap_size, image_info.image_end_ + native_sections_size + bitmap_size);
+    image_info.image_size_ = RoundUp(max, kPageSize);
+    image_offset += image_info.image_size_;
+  }
 
   // Transform each object's bin slot into an offset which will be used to do the final copy.
   heap->VisitObjects(UnbinObjectsIntoOffsetCallback, this);
 
-  DCHECK_EQ(image_end_, GetBinSizeSum(kBinMirrorCount) + image_objects_offset_begin_);
+  // DCHECK_EQ(image_end_, GetBinSizeSum(kBinMirrorCount) + image_objects_offset_begin_);
 
-  image_roots_address_ = PointerToLowMemUInt32(GetImageAddress(image_roots.Get()));
+  size_t i = 0;
+  for (const char* oat_filename : oat_filenames_) {
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    image_info.image_roots_address_ = PointerToLowMemUInt32(GetImageAddress(image_roots[i].Get()));
+    i++;
+  }
 
   // Update the native relocations by adding their bin sums.
   for (auto& pair : native_object_relocations_) {
     NativeObjectRelocation& relocation = pair.second;
     Bin bin_type = BinTypeForNativeRelocationType(relocation.type);
-    relocation.offset += bin_slot_offsets_[bin_type];
+    ImageInfo& image_info = GetImageInfo(relocation.oat_filename);
+    relocation.offset += image_info.bin_slot_offsets_[bin_type];
   }
 
+  /* TODO: Reenable the intern table and class table. b/26317072
   // Calculate how big the intern table will be after being serialized.
   InternTable* const intern_table = runtime->GetInternTable();
   CHECK_EQ(intern_table->WeakSize(), 0u) << " should have strong interned all the strings";
@@ -1231,41 +1334,45 @@ void ImageWriter::CalculateNewObjectOffsets() {
       class_table_bytes_ += table->WriteToMemory(nullptr);
     }
   }
+  */
 
-  // Note that image_end_ is left at end of used mirror object section.
+  // Note that image_info.image_end_ is left at end of used mirror object section.
 }
 
 void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_NE(0U, oat_loaded_size);
-  const uint8_t* oat_file_begin = GetOatFileBegin();
+  const char* oat_filename = oat_file_->GetLocation().c_str();
+  ImageInfo& image_info = GetImageInfo(oat_filename);
+  const uint8_t* oat_file_begin = GetOatFileBegin(oat_filename);
   const uint8_t* oat_file_end = oat_file_begin + oat_loaded_size;
-  oat_data_begin_ = oat_file_begin + oat_data_offset;
-  const uint8_t* oat_data_end = oat_data_begin_ + oat_file_->Size();
+  image_info.oat_data_begin_ = const_cast<uint8_t*>(oat_file_begin) + oat_data_offset;
+  const uint8_t* oat_data_end = image_info.oat_data_begin_ + oat_file_->Size();
+  image_info.oat_size_ = oat_file_->Size();
 
   // Create the image sections.
   ImageSection sections[ImageHeader::kSectionCount];
   // Objects section
   auto* objects_section = &sections[ImageHeader::kSectionObjects];
-  *objects_section = ImageSection(0u, image_end_);
+  *objects_section = ImageSection(0u, image_info.image_end_);
   size_t cur_pos = objects_section->End();
   // Add field section.
   auto* field_section = &sections[ImageHeader::kSectionArtFields];
-  *field_section = ImageSection(cur_pos, bin_slot_sizes_[kBinArtField]);
-  CHECK_EQ(bin_slot_offsets_[kBinArtField], field_section->Offset());
+  *field_section = ImageSection(cur_pos, image_info.bin_slot_sizes_[kBinArtField]);
+  CHECK_EQ(image_info.bin_slot_offsets_[kBinArtField], field_section->Offset());
   cur_pos = field_section->End();
   // Round up to the alignment the required by the method section.
   cur_pos = RoundUp(cur_pos, ArtMethod::Alignment(target_ptr_size_));
   // Add method section.
   auto* methods_section = &sections[ImageHeader::kSectionArtMethods];
   *methods_section = ImageSection(cur_pos,
-                                  bin_slot_sizes_[kBinArtMethodClean] +
-                                      bin_slot_sizes_[kBinArtMethodDirty]);
-  CHECK_EQ(bin_slot_offsets_[kBinArtMethodClean], methods_section->Offset());
+                                  image_info.bin_slot_sizes_[kBinArtMethodClean] +
+                                      image_info.bin_slot_sizes_[kBinArtMethodDirty]);
+  CHECK_EQ(image_info.bin_slot_offsets_[kBinArtMethodClean], methods_section->Offset());
   cur_pos = methods_section->End();
   // Add dex cache arrays section.
   auto* dex_cache_arrays_section = &sections[ImageHeader::kSectionDexCacheArrays];
-  *dex_cache_arrays_section = ImageSection(cur_pos, bin_slot_sizes_[kBinDexCacheArray]);
-  CHECK_EQ(bin_slot_offsets_[kBinDexCacheArray], dex_cache_arrays_section->Offset());
+  *dex_cache_arrays_section = ImageSection(cur_pos, image_info.bin_slot_sizes_[kBinDexCacheArray]);
+  CHECK_EQ(image_info.bin_slot_offsets_[kBinDexCacheArray], dex_cache_arrays_section->Offset());
   cur_pos = dex_cache_arrays_section->End();
   // Round up to the alignment the string table expects. See HashSet::WriteToMemory.
   cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
@@ -1282,42 +1389,51 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   // Image end goes right before the start of the image bitmap.
   const size_t image_end = static_cast<uint32_t>(cur_pos);
   // Finally bitmap section.
-  const size_t bitmap_bytes = image_bitmap_->Size();
+  const size_t bitmap_bytes = image_info.image_bitmap_->Size();
   auto* bitmap_section = &sections[ImageHeader::kSectionImageBitmap];
   *bitmap_section = ImageSection(RoundUp(cur_pos, kPageSize), RoundUp(bitmap_bytes, kPageSize));
   cur_pos = bitmap_section->End();
-  if (kIsDebugBuild) {
+  if (VLOG_IS_ON(compiler)) {
+    LOG(INFO) << "Creating header for " << oat_filename;
     size_t idx = 0;
     for (const ImageSection& section : sections) {
       LOG(INFO) << static_cast<ImageHeader::ImageSections>(idx) << " " << section;
       ++idx;
     }
     LOG(INFO) << "Methods: clean=" << clean_methods_ << " dirty=" << dirty_methods_;
+    LOG(INFO) << "Image roots address=" << std::hex << image_info.image_roots_address_ << std::dec;
+    LOG(INFO) << "Image begin=" << std::hex << reinterpret_cast<uintptr_t>(global_image_begin_)
+              << " Image offset=" << image_info.image_offset_ << std::dec;
+    LOG(INFO) << "Oat file begin=" << std::hex << reinterpret_cast<uintptr_t>(oat_file_begin)
+              << " Oat data begin=" << reinterpret_cast<uintptr_t>(image_info.oat_data_begin_)
+              << " Oat data end=" << reinterpret_cast<uintptr_t>(oat_data_end)
+              << " Oat file end=" << reinterpret_cast<uintptr_t>(oat_file_end);
   }
-  CHECK_EQ(AlignUp(image_begin_ + image_end, kPageSize), oat_file_begin) <<
-      "Oat file should be right after the image.";
+
   // Create the header, leave 0 for data size since we will fill this in as we are writing the
   // image.
-  new (image_->Begin()) ImageHeader(PointerToLowMemUInt32(image_begin_),
-                                                          image_end,
-                                                          sections,
-                                                          image_roots_address_,
-                                                          oat_file_->GetOatHeader().GetChecksum(),
-                                                          PointerToLowMemUInt32(oat_file_begin),
-                                                          PointerToLowMemUInt32(oat_data_begin_),
-                                                          PointerToLowMemUInt32(oat_data_end),
-                                                          PointerToLowMemUInt32(oat_file_end),
-                                                          target_ptr_size_,
-                                                          compile_pic_,
-                                                          image_storage_mode_,
-                                                          /*data_size*/0u);
+  new (image_info.image_->Begin()) ImageHeader(PointerToLowMemUInt32(image_info.image_begin_),
+                                               image_end,
+                                               sections,
+                                               image_info.image_roots_address_,
+                                               oat_file_->GetOatHeader().GetChecksum(),
+                                               PointerToLowMemUInt32(oat_file_begin),
+                                               PointerToLowMemUInt32(image_info.oat_data_begin_),
+                                               PointerToLowMemUInt32(oat_data_end),
+                                               PointerToLowMemUInt32(oat_file_end),
+                                               target_ptr_size_,
+                                               compile_pic_,
+                                               image_storage_mode_,
+                                               /*data_size*/0u);
 }
 
 ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
   auto it = native_object_relocations_.find(method);
   CHECK(it != native_object_relocations_.end()) << PrettyMethod(method) << " @ " << method;
-  CHECK_GE(it->second.offset, image_end_) << "ArtMethods should be after Objects";
-  return reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset);
+  const char* oat_filename = GetOatFilename(method->GetDexCache());
+  ImageInfo& image_info = GetImageInfo(oat_filename);
+  CHECK_GE(it->second.offset, image_info.image_end_) << "ArtMethods should be after Objects";
+  return reinterpret_cast<ArtMethod*>(image_info.image_begin_ + it->second.offset);
 }
 
 class FixupRootVisitor : public RootVisitor {
@@ -1345,18 +1461,24 @@ class FixupRootVisitor : public RootVisitor {
 
   mirror::Object* ImageAddress(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
     const size_t offset = image_writer_->GetImageOffset(obj);
-    auto* const dest = reinterpret_cast<Object*>(image_writer_->image_begin_ + offset);
+    auto* const dest = reinterpret_cast<Object*>(image_writer_->global_image_begin_ + offset);
     VLOG(compiler) << "Update root from " << obj << " to " << dest;
     return dest;
   }
 };
 
 void ImageWriter::CopyAndFixupNativeData() {
+  const char* oat_filename = oat_file_->GetLocation().c_str();
+  ImageInfo& image_info = GetImageInfo(oat_filename);
   // Copy ArtFields and methods to their locations and update the array for convenience.
   for (auto& pair : native_object_relocations_) {
     NativeObjectRelocation& relocation = pair.second;
-    auto* dest = image_->Begin() + relocation.offset;
-    DCHECK_GE(dest, image_->Begin() + image_end_);
+    // Only work with fields and methods that are in the current oat file.
+    if (strcmp(relocation.oat_filename, oat_filename) != 0) {
+      continue;
+    }
+    auto* dest = image_info.image_->Begin() + relocation.offset;
+    DCHECK_GE(dest, image_info.image_->Begin() + image_info.image_end_);
     DCHECK(!IsInBootImage(pair.first));
     switch (relocation.type) {
       case kNativeObjectRelocationTypeArtField: {
@@ -1368,7 +1490,8 @@ void ImageWriter::CopyAndFixupNativeData() {
       case kNativeObjectRelocationTypeArtMethodClean:
       case kNativeObjectRelocationTypeArtMethodDirty: {
         CopyAndFixupMethod(reinterpret_cast<ArtMethod*>(pair.first),
-                           reinterpret_cast<ArtMethod*>(dest));
+                           reinterpret_cast<ArtMethod*>(dest),
+                           image_info);
         break;
       }
       // For arrays, copy just the header since the elements will get copied by their corresponding
@@ -1391,30 +1514,36 @@ void ImageWriter::CopyAndFixupNativeData() {
     }
   }
   // Fixup the image method roots.
-  auto* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
+  auto* image_header = reinterpret_cast<ImageHeader*>(image_info.image_->Begin());
   const ImageSection& methods_section = image_header->GetMethodsSection();
   for (size_t i = 0; i < ImageHeader::kImageMethodsCount; ++i) {
     ArtMethod* method = image_methods_[i];
     CHECK(method != nullptr);
+    // Only place runtime methods in the image of the default oat file.
+    if (method->IsRuntimeMethod() && strcmp(default_oat_filename_, oat_filename) != 0) {
+      continue;
+    }
     if (!IsInBootImage(method)) {
       auto it = native_object_relocations_.find(method);
-      CHECK(it != native_object_relocations_.end()) << "No fowarding for " << PrettyMethod(method);
+      CHECK(it != native_object_relocations_.end()) << "No forwarding for " << PrettyMethod(method);
       NativeObjectRelocation& relocation = it->second;
       CHECK(methods_section.Contains(relocation.offset)) << relocation.offset << " not in "
           << methods_section;
       CHECK(relocation.IsArtMethodRelocation()) << relocation.type;
-      method = reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset);
+      method = reinterpret_cast<ArtMethod*>(global_image_begin_ + it->second.offset);
     }
     image_header->SetImageMethod(static_cast<ImageHeader::ImageMethod>(i), method);
   }
   FixupRootVisitor root_visitor(this);
 
+  /* TODO: Reenable the intern table and class table
   // Write the intern table into the image.
   const ImageSection& intern_table_section = image_header->GetImageSection(
       ImageHeader::kSectionInternedStrings);
   Runtime* const runtime = Runtime::Current();
   InternTable* const intern_table = runtime->GetInternTable();
-  uint8_t* const intern_table_memory_ptr = image_->Begin() + intern_table_section.Offset();
+  uint8_t* const intern_table_memory_ptr =
+      image_info.image_->Begin() + intern_table_section.Offset();
   const size_t intern_table_bytes = intern_table->WriteToMemory(intern_table_memory_ptr);
   CHECK_EQ(intern_table_bytes, intern_table_bytes_);
   // Fixup the pointers in the newly written intern table to contain image addresses.
@@ -1430,10 +1559,11 @@ void ImageWriter::CopyAndFixupNativeData() {
   // Write the class table(s) into the image. class_table_bytes_ may be 0 if there are multiple
   // class loaders. Writing multiple class tables into the image is currently unsupported.
   if (class_table_bytes_ > 0u) {
-    ClassLinker* const class_linker = runtime->GetClassLinker();
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     const ImageSection& class_table_section = image_header->GetImageSection(
         ImageHeader::kSectionClassTable);
-    uint8_t* const class_table_memory_ptr = image_->Begin() + class_table_section.Offset();
+    uint8_t* const class_table_memory_ptr =
+        image_info.image_->Begin() + class_table_section.Offset();
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
     size_t class_table_bytes = 0;
     for (mirror::ClassLoader* loader : class_loaders_) {
@@ -1453,6 +1583,7 @@ void ImageWriter::CopyAndFixupNativeData() {
     }
     CHECK_EQ(class_table_bytes, class_table_bytes_);
   }
+  */
 }
 
 void ImageWriter::CopyAndFixupObjects() {
@@ -1500,7 +1631,8 @@ void ImageWriter::FixupPointerArray(mirror::Object* dst, mirror::PointerArray* a
         }
         UNREACHABLE();
       } else {
-        elem = image_begin_ + it->second.offset;
+        ImageInfo& image_info = GetImageInfo(it->second.oat_filename);
+        elem = image_info.image_begin_ + it->second.offset;
       }
     }
     dest_array->SetElementPtrSize<false, true>(i, elem, target_ptr_size_);
@@ -1512,14 +1644,16 @@ void ImageWriter::CopyAndFixupObject(Object* obj) {
     return;
   }
   size_t offset = GetImageOffset(obj);
-  auto* dst = reinterpret_cast<Object*>(image_->Begin() + offset);
-  DCHECK_LT(offset, image_end_);
+  const char* oat_filename = GetOatFilename(obj);
+  ImageInfo& image_info = GetImageInfo(oat_filename);
+  auto* dst = reinterpret_cast<Object*>(image_info.image_->Begin() + offset);
+  DCHECK_LT(offset, image_info.image_end_);
   const auto* src = reinterpret_cast<const uint8_t*>(obj);
 
-  image_bitmap_->Set(dst);  // Mark the obj as live.
+  image_info.image_bitmap_->Set(dst);  // Mark the obj as live.
 
   const size_t n = obj->SizeOf();
-  DCHECK_LE(offset + n, image_->Size());
+  DCHECK_LE(offset + n, image_info.image_->Size());
   memcpy(dst, src, n);
 
   // Write in a hash code of objects which have inflated monitors or a hash code in their monitor
@@ -1595,34 +1729,55 @@ uintptr_t ImageWriter::NativeOffsetInImage(void* obj) {
 }
 
 template <typename T>
-T* ImageWriter::NativeLocationInImage(T* obj) {
-  return (obj == nullptr || IsInBootImage(obj))
-      ? obj
-      : reinterpret_cast<T*>(image_begin_ + NativeOffsetInImage(obj));
+T* ImageWriter::NativeLocationInImage(T* obj, const char* oat_filename) {
+  if (obj == nullptr || IsInBootImage(obj)) {
+    return obj;
+  } else {
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    return reinterpret_cast<T*>(image_info.image_begin_ + NativeOffsetInImage(obj));
+  }
 }
 
 template <typename T>
-T* ImageWriter::NativeCopyLocation(T* obj) {
-  return (obj == nullptr || IsInBootImage(obj))
-      ? obj
-      : reinterpret_cast<T*>(image_->Begin() + NativeOffsetInImage(obj));
+T* ImageWriter::NativeCopyLocation(T* obj, mirror::DexCache* dex_cache) {
+  if (obj == nullptr || IsInBootImage(obj)) {
+    return obj;
+  } else {
+    const char* oat_filename = GetOatFilenameForDexCache(dex_cache);
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    return reinterpret_cast<T*>(image_info.image_->Begin() + NativeOffsetInImage(obj));
+  }
 }
 
 class NativeLocationVisitor {
  public:
-  explicit NativeLocationVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
+  explicit NativeLocationVisitor(ImageWriter* image_writer, const char* oat_filename)
+      : image_writer_(image_writer), oat_filename_(oat_filename) {}
 
   template <typename T>
-  T* operator()(T* ptr) const {
-    return image_writer_->NativeLocationInImage(ptr);
+  T* operator()(T* ptr) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return image_writer_->NativeLocationInImage(ptr, oat_filename_);
+  }
+
+  ArtMethod* operator()(ArtMethod* method) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    const char* oat_filename = method->IsRuntimeMethod() ? image_writer_->GetDefaultOatFilename() :
+        image_writer_->GetOatFilenameForDexCache(method->GetDexCache());
+    return image_writer_->NativeLocationInImage(method, oat_filename);
+  }
+
+  ArtField* operator()(ArtField* field) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    const char* oat_filename = image_writer_->GetOatFilenameForDexCache(field->GetDexCache());
+    return image_writer_->NativeLocationInImage(field, oat_filename);
   }
 
  private:
   ImageWriter* const image_writer_;
+  const char* oat_filename_;
 };
 
 void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
-  orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this));
+  const char* oat_filename = GetOatFilename(orig);
+  orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this, oat_filename));
   FixupClassVisitor visitor(this, copy);
   static_cast<mirror::Object*>(orig)->VisitReferences(visitor, visitor);
 }
@@ -1661,7 +1816,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
       CHECK(it != native_object_relocations_.end())
           << "Missing relocation for AbstractMethod.artMethod " << PrettyMethod(src_method);
       dest->SetArtMethod(
-          reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset));
+          reinterpret_cast<ArtMethod*>(global_image_begin_ + it->second.offset));
     } else if (!klass->IsArrayClass()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       if (klass == class_linker->GetClassRoot(ClassLinker::kJavaLangDexCache)) {
@@ -1702,41 +1857,52 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   // 64-bit values here, clearing the top 32 bits for 32-bit targets. The zero-extension is
   // done by casting to the unsigned type uintptr_t before casting to int64_t, i.e.
   //     static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + offset))).
+  const char* oat_filename = GetOatFilenameForDexCache(orig_dex_cache);
   GcRoot<mirror::String>* orig_strings = orig_dex_cache->GetStrings();
   if (orig_strings != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::StringsOffset(),
-                                               NativeLocationInImage(orig_strings),
+                                               NativeLocationInImage(orig_strings, oat_filename),
                                                /*pointer size*/8u);
-    orig_dex_cache->FixupStrings(NativeCopyLocation(orig_strings), ImageAddressVisitor(this));
+    orig_dex_cache->FixupStrings(NativeCopyLocation(orig_strings, orig_dex_cache),
+                                 ImageAddressVisitor(this));
   }
   GcRoot<mirror::Class>* orig_types = orig_dex_cache->GetResolvedTypes();
   if (orig_types != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedTypesOffset(),
-                                               NativeLocationInImage(orig_types),
+                                               NativeLocationInImage(orig_types, oat_filename),
                                                /*pointer size*/8u);
-    orig_dex_cache->FixupResolvedTypes(NativeCopyLocation(orig_types), ImageAddressVisitor(this));
+    orig_dex_cache->FixupResolvedTypes(NativeCopyLocation(orig_types, orig_dex_cache),
+                                       ImageAddressVisitor(this));
   }
   ArtMethod** orig_methods = orig_dex_cache->GetResolvedMethods();
   if (orig_methods != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedMethodsOffset(),
-                                               NativeLocationInImage(orig_methods),
+                                               NativeLocationInImage(orig_methods, oat_filename),
                                                /*pointer size*/8u);
-    ArtMethod** copy_methods = NativeCopyLocation(orig_methods);
+    ArtMethod** copy_methods = NativeCopyLocation(orig_methods, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedMethods(); i != num; ++i) {
       ArtMethod* orig = mirror::DexCache::GetElementPtrSize(orig_methods, i, target_ptr_size_);
-      ArtMethod* copy = NativeLocationInImage(orig);
+      const char* method_oat_filename;
+      if (orig == nullptr || orig->IsRuntimeMethod()) {
+        method_oat_filename = default_oat_filename_;
+      } else {
+        method_oat_filename = GetOatFilenameForDexCache(orig->GetDexCache());
+      }
+      ArtMethod* copy = NativeLocationInImage(orig, method_oat_filename);
       mirror::DexCache::SetElementPtrSize(copy_methods, i, copy, target_ptr_size_);
     }
   }
   ArtField** orig_fields = orig_dex_cache->GetResolvedFields();
   if (orig_fields != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedFieldsOffset(),
-                                               NativeLocationInImage(orig_fields),
+                                               NativeLocationInImage(orig_fields, oat_filename),
                                                /*pointer size*/8u);
-    ArtField** copy_fields = NativeCopyLocation(orig_fields);
+    ArtField** copy_fields = NativeCopyLocation(orig_fields, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedFields(); i != num; ++i) {
       ArtField* orig = mirror::DexCache::GetElementPtrSize(orig_fields, i, target_ptr_size_);
-      ArtField* copy = NativeLocationInImage(orig);
+      const char* field_oat_filename =
+          orig == nullptr ? default_oat_filename_ : GetOatFilenameForDexCache(orig->GetDexCache());
+      ArtField* copy = NativeLocationInImage(orig, field_oat_filename);
       mirror::DexCache::SetElementPtrSize(copy_fields, i, copy, target_ptr_size_);
     }
   }
@@ -1747,9 +1913,10 @@ const uint8_t* ImageWriter::GetOatAddress(OatAddress type) const {
   // If we are compiling an app image, we need to use the stubs of the boot image.
   if (compile_app_image_) {
     // Use the current image pointers.
-    gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
-    DCHECK(image_space != nullptr);
-    const OatFile* oat_file = image_space->GetOatFile();
+    std::vector<gc::space::ImageSpace*> image_spaces =
+        Runtime::Current()->GetHeap()->GetBootImageSpaces();
+    DCHECK(!image_spaces.empty());
+    const OatFile* oat_file = image_spaces[0]->GetOatFile();
     CHECK(oat_file != nullptr);
     const OatHeader& header = oat_file->GetOatHeader();
     switch (type) {
@@ -1772,10 +1939,13 @@ const uint8_t* ImageWriter::GetOatAddress(OatAddress type) const {
         UNREACHABLE();
     }
   }
-  return GetOatAddressForOffset(oat_address_offsets_[type]);
+  const ImageInfo& primary_image_info = GetImageInfo(0);
+  return GetOatAddressForOffset(primary_image_info.oat_address_offsets_[type], primary_image_info);
 }
 
-const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method, bool* quick_is_interpreted) {
+const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method,
+                                         const ImageInfo& image_info,
+                                         bool* quick_is_interpreted) {
   DCHECK(!method->IsResolutionMethod()) << PrettyMethod(method);
   DCHECK(!method->IsImtConflictMethod()) << PrettyMethod(method);
   DCHECK(!method->IsImtUnimplementedMethod()) << PrettyMethod(method);
@@ -1788,7 +1958,7 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method, bool* quick_is_inter
   // Quick entrypoint:
   uint32_t quick_oat_code_offset = PointerToLowMemUInt32(
       method->GetEntryPointFromQuickCompiledCodePtrSize(target_ptr_size_));
-  const uint8_t* quick_code = GetOatAddressForOffset(quick_oat_code_offset);
+  const uint8_t* quick_code = GetOatAddressForOffset(quick_oat_code_offset, image_info);
   *quick_is_interpreted = false;
   if (quick_code != nullptr && (!method->IsStatic() || method->IsConstructor() ||
       method->GetDeclaringClass()->IsInitialized())) {
@@ -1808,42 +1978,32 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method, bool* quick_is_inter
     quick_code = GetOatAddress(kOatAddressQuickResolutionTrampoline);
   }
   if (!IsInBootOatFile(quick_code)) {
-    DCHECK_GE(quick_code, oat_data_begin_);
+    // DCHECK_GE(quick_code, oat_data_begin_);
   }
   return quick_code;
 }
 
-const uint8_t* ImageWriter::GetQuickEntryPoint(ArtMethod* method) {
-  // Calculate the quick entry point following the same logic as FixupMethod() below.
-  // The resolution method has a special trampoline to call.
-  Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(method == runtime->GetResolutionMethod())) {
-    return GetOatAddress(kOatAddressQuickResolutionTrampoline);
-  } else if (UNLIKELY(method == runtime->GetImtConflictMethod() ||
-                      method == runtime->GetImtUnimplementedMethod())) {
-    return GetOatAddress(kOatAddressQuickIMTConflictTrampoline);
-  } else {
-    // We assume all methods have code. If they don't currently then we set them to the use the
-    // resolution trampoline. Abstract methods never have code and so we need to make sure their
-    // use results in an AbstractMethodError. We use the interpreter to achieve this.
-    if (UNLIKELY(!method->IsInvokable())) {
-      return GetOatAddress(kOatAddressQuickToInterpreterBridge);
-    } else {
-      bool quick_is_interpreted;
-      return GetQuickCode(method, &quick_is_interpreted);
-    }
-  }
-}
-
-void ImageWriter::CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy) {
+void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
+                                     ArtMethod* copy,
+                                     const ImageInfo& image_info) {
   memcpy(copy, orig, ArtMethod::Size(target_ptr_size_));
 
   copy->SetDeclaringClass(GetImageAddress(orig->GetDeclaringClassUnchecked()));
 
+  const char* oat_filename;
+  if (orig->IsRuntimeMethod()) {
+    oat_filename = default_oat_filename_;
+  } else {
+    auto it = dex_file_oat_filename_map_.find(orig->GetDexFile());
+    DCHECK(it != dex_file_oat_filename_map_.end()) << orig->GetDexFile()->GetLocation();
+    oat_filename = it->second;
+  }
   ArtMethod** orig_resolved_methods = orig->GetDexCacheResolvedMethods(target_ptr_size_);
-  copy->SetDexCacheResolvedMethods(NativeLocationInImage(orig_resolved_methods), target_ptr_size_);
+  copy->SetDexCacheResolvedMethods(NativeLocationInImage(orig_resolved_methods, oat_filename),
+                                   target_ptr_size_);
   GcRoot<mirror::Class>* orig_resolved_types = orig->GetDexCacheResolvedTypes(target_ptr_size_);
-  copy->SetDexCacheResolvedTypes(NativeLocationInImage(orig_resolved_types), target_ptr_size_);
+  copy->SetDexCacheResolvedTypes(NativeLocationInImage(orig_resolved_types, oat_filename),
+                                 target_ptr_size_);
 
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
   // oat_begin_
@@ -1877,7 +2037,7 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy) {
           GetOatAddress(kOatAddressQuickToInterpreterBridge), target_ptr_size_);
     } else {
       bool quick_is_interpreted;
-      const uint8_t* quick_code = GetQuickCode(orig, &quick_is_interpreted);
+      const uint8_t* quick_code = GetQuickCode(orig, image_info, &quick_is_interpreted);
       copy->SetEntryPointFromQuickCompiledCodePtrSize(quick_code, target_ptr_size_);
 
       // JNI entrypoint:
@@ -1914,13 +2074,16 @@ void ImageWriter::SetOatChecksumFromElfFile(File* elf_file) {
   CHECK(oat_header != nullptr);
   CHECK(oat_header->IsValid());
 
-  ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
+  ImageInfo& image_info = GetImageInfo(oat_file_->GetLocation().c_str());
+  ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_info.image_->Begin());
   image_header->SetOatChecksum(oat_header->GetChecksum());
 }
 
-size_t ImageWriter::GetBinSizeSum(ImageWriter::Bin up_to) const {
+size_t ImageWriter::GetBinSizeSum(ImageWriter::ImageInfo& image_info, ImageWriter::Bin up_to) const {
   DCHECK_LE(up_to, kBinSize);
-  return std::accumulate(&bin_slot_sizes_[0], &bin_slot_sizes_[up_to], /*init*/0);
+  return std::accumulate(&image_info.bin_slot_sizes_[0],
+                         &image_info.bin_slot_sizes_[up_to],
+                         /*init*/0);
 }
 
 ImageWriter::BinSlot::BinSlot(uint32_t lockword) : lockword_(lockword) {
@@ -1946,15 +2109,18 @@ uint32_t ImageWriter::BinSlot::GetIndex() const {
   return lockword_ & ~kBinMask;
 }
 
-uint8_t* ImageWriter::GetOatFileBegin() const {
-  DCHECK_GT(intern_table_bytes_, 0u);
-  size_t native_sections_size = bin_slot_sizes_[kBinArtField] +
-                                bin_slot_sizes_[kBinArtMethodDirty] +
-                                bin_slot_sizes_[kBinArtMethodClean] +
-                                bin_slot_sizes_[kBinDexCacheArray] +
-                                intern_table_bytes_ +
-                                class_table_bytes_;
-  return image_begin_ + RoundUp(image_end_ + native_sections_size, kPageSize);
+uint8_t* ImageWriter::GetOatFileBegin(const char* oat_filename) const {
+  // DCHECK_GT(intern_table_bytes_, 0u);  TODO: Reenable intern table and class table.
+  uintptr_t last_image_end = 0;
+  for (const char* oat_fn : oat_filenames_) {
+    const ImageInfo& image_info = GetConstImageInfo(oat_fn);
+    DCHECK(image_info.image_begin_ != nullptr);
+    uintptr_t this_end = reinterpret_cast<uintptr_t>(image_info.image_begin_) +
+        image_info.image_size_;
+    last_image_end = std::max(this_end, last_image_end);
+  }
+  const ImageInfo& image_info = GetConstImageInfo(oat_filename);
+  return reinterpret_cast<uint8_t*>(last_image_end) + image_info.oat_offset_;
 }
 
 ImageWriter::Bin ImageWriter::BinTypeForNativeRelocationType(NativeObjectRelocationType type) {
@@ -1972,6 +2138,63 @@ ImageWriter::Bin ImageWriter::BinTypeForNativeRelocationType(NativeObjectRelocat
       return kBinDexCacheArray;
   }
   UNREACHABLE();
+}
+
+const char* ImageWriter::GetOatFilename(mirror::Object* obj) const {
+  if (compile_app_image_) {
+    return default_oat_filename_;
+  } else {
+    return GetOatFilenameForDexCache(obj->IsDexCache() ? obj->AsDexCache() :
+        obj->IsClass() ? obj->AsClass()->GetDexCache() : obj->GetClass()->GetDexCache());
+  }
+}
+
+const char* ImageWriter::GetOatFilenameForDexCache(mirror::DexCache* dex_cache) const {
+  if (compile_app_image_ || dex_cache == nullptr) {
+    return default_oat_filename_;
+  } else {
+    auto it = dex_file_oat_filename_map_.find(dex_cache->GetDexFile());
+    DCHECK(it != dex_file_oat_filename_map_.end()) << dex_cache->GetDexFile()->GetLocation();
+    return it->second;
+  }
+}
+
+ImageWriter::ImageInfo& ImageWriter::GetImageInfo(const char* oat_filename) {
+  auto it = image_info_map_.find(oat_filename);
+  DCHECK(it != image_info_map_.end());
+  return it->second;
+}
+
+const ImageWriter::ImageInfo& ImageWriter::GetConstImageInfo(const char* oat_filename) const {
+  auto it = image_info_map_.find(oat_filename);
+  DCHECK(it != image_info_map_.end());
+  return it->second;
+}
+
+const ImageWriter::ImageInfo& ImageWriter::GetImageInfo(size_t index) const {
+  DCHECK_LT(index, oat_filenames_.size());
+  return GetConstImageInfo(oat_filenames_[index]);
+}
+
+void ImageWriter::UpdateOatFile(const char* oat_filename) {
+  std::unique_ptr<File> oat_file(OS::OpenFileForReading(oat_filename));
+  DCHECK(oat_file != nullptr);
+  size_t oat_loaded_size = 0;
+  size_t oat_data_offset = 0;
+  ElfWriter::GetOatElfInformation(oat_file.get(), &oat_loaded_size, &oat_data_offset);
+
+  ImageInfo& cur_image_info = GetImageInfo(oat_filename);
+
+  // Update the oat_offset of the next image info.
+  auto it = std::find(oat_filenames_.begin(), oat_filenames_.end(), oat_filename);
+  DCHECK(it != oat_filenames_.end());
+
+  it++;
+  if (it != oat_filenames_.end()) {
+    // There is a following one.
+    ImageInfo& next_image_info = GetImageInfo(*it);
+    next_image_info.oat_offset_ = cur_image_info.oat_offset_ + oat_loaded_size;
+  }
 }
 
 }  // namespace art

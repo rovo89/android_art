@@ -334,19 +334,21 @@ class CompilerDriver::AOTCompilationStats {
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
 
-CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
-                               VerificationResults* verification_results,
-                               DexFileToMethodInlinerMap* method_inliner_map,
-                               Compiler::Kind compiler_kind,
-                               InstructionSet instruction_set,
-                               const InstructionSetFeatures* instruction_set_features,
-                               bool boot_image, std::unordered_set<std::string>* image_classes,
-                               std::unordered_set<std::string>* compiled_classes,
-                               std::unordered_set<std::string>* compiled_methods,
-                               size_t thread_count, bool dump_stats, bool dump_passes,
-                               const std::string& dump_cfg_file_name, bool dump_cfg_append,
-                               CumulativeLogger* timer, int swap_fd,
-                               const std::string& profile_file)
+CompilerDriver::CompilerDriver(
+    const CompilerOptions* compiler_options,
+    VerificationResults* verification_results,
+    DexFileToMethodInlinerMap* method_inliner_map,
+    Compiler::Kind compiler_kind,
+    InstructionSet instruction_set,
+    const InstructionSetFeatures* instruction_set_features,
+    bool boot_image, std::unordered_set<std::string>* image_classes,
+    std::unordered_set<std::string>* compiled_classes,
+    std::unordered_set<std::string>* compiled_methods,
+    size_t thread_count, bool dump_stats, bool dump_passes,
+    const std::string& dump_cfg_file_name, bool dump_cfg_append,
+    CumulativeLogger* timer, int swap_fd,
+    const std::string& profile_file,
+    const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map)
     : compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
@@ -374,6 +376,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       compiler_context_(nullptr),
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
       dex_files_for_oat_file_(nullptr),
+      dex_file_oat_filename_map_(dex_to_oat_map),
       compiled_method_storage_(swap_fd) {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(verification_results_ != nullptr);
@@ -1538,6 +1541,12 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       use_dex_cache = true;
     }
   }
+  if (!use_dex_cache && IsBootImage()) {
+    if (!AreInSameOatFile(&(const_cast<mirror::Class*>(referrer_class)->GetDexFile()),
+                          &declaring_class->GetDexFile())) {
+      use_dex_cache = true;
+    }
+  }
   // The method is defined not within this dex file. We need a dex cache slot within the current
   // dex file or direct pointers.
   bool must_use_direct_pointers = false;
@@ -1571,12 +1580,14 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       *type = sharp_type;
     }
   } else {
-    auto* image_space = heap->GetBootImageSpace();
     bool method_in_image = false;
-    if (image_space != nullptr) {
+    const std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
+    for (gc::space::ImageSpace* image_space : image_spaces) {
       const auto& method_section = image_space->GetImageHeader().GetMethodsSection();
-      method_in_image = method_section.Contains(
-          reinterpret_cast<uint8_t*>(method) - image_space->Begin());
+      if (method_section.Contains(reinterpret_cast<uint8_t*>(method) - image_space->Begin())) {
+        method_in_image = true;
+        break;
+      }
     }
     if (method_in_image || compiling_boot || runtime->UseJit()) {
       // We know we must be able to get to the method in the image, so use that pointer.
@@ -2570,6 +2581,17 @@ bool CompilerDriver::IsStringInit(uint32_t method_index, const DexFile* dex_file
   size_t pointer_size = InstructionSetPointerSize(GetInstructionSet());
   *offset = inliner->GetOffsetForStringInit(method_index, pointer_size);
   return inliner->IsStringInitMethodIndex(method_index);
+}
+
+bool CompilerDriver::MayInlineInternal(const DexFile* inlined_from,
+                                       const DexFile* inlined_into) const {
+  // We're not allowed to inline across dex files if we're the no-inline-from dex file.
+  if (inlined_from != inlined_into &&
+      compiler_options_->GetNoInlineFromDexFile() == inlined_from) {
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace art

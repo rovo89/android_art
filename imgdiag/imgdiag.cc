@@ -814,9 +814,9 @@ class ImgDiagDumper {
 
   static const ImageHeader& GetBootImageHeader() {
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
-    CHECK(image_space != nullptr);
-    const ImageHeader& image_header = image_space->GetImageHeader();
+    std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
+    CHECK(!image_spaces.empty());
+    const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
     return image_header;
   }
 
@@ -834,22 +834,25 @@ class ImgDiagDumper {
   DISALLOW_COPY_AND_ASSIGN(ImgDiagDumper);
 };
 
-static int DumpImage(Runtime* runtime, const char* image_location,
-                     std::ostream* os, pid_t image_diff_pid) {
+static int DumpImage(Runtime* runtime, std::ostream* os, pid_t image_diff_pid) {
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = runtime->GetHeap();
-  gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
-  CHECK(image_space != nullptr);
-  const ImageHeader& image_header = image_space->GetImageHeader();
-  if (!image_header.IsValid()) {
-    fprintf(stderr, "Invalid image header %s\n", image_location);
-    return EXIT_FAILURE;
+  std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
+  CHECK(!image_spaces.empty());
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    if (!image_header.IsValid()) {
+      fprintf(stderr, "Invalid image header %s\n", image_space->GetImageLocation().c_str());
+      return EXIT_FAILURE;
+    }
+
+    ImgDiagDumper img_diag_dumper(
+        os, image_header, image_space->GetImageLocation().c_str(), image_diff_pid);
+    if (!img_diag_dumper.Dump()) {
+      return EXIT_FAILURE;
+    }
   }
-
-  ImgDiagDumper img_diag_dumper(os, image_header, image_location, image_diff_pid);
-
-  bool success = img_diag_dumper.Dump();
-  return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
+  return EXIT_SUCCESS;
 }
 
 struct ImgDiagArgs : public CmdlineArgs {
@@ -935,7 +938,6 @@ struct ImgDiagMain : public CmdlineMain<ImgDiagArgs> {
     CHECK(args_ != nullptr);
 
     return DumpImage(runtime,
-                     args_->boot_image_location_,
                      args_->os_,
                      args_->image_diff_pid_) == EXIT_SUCCESS;
   }

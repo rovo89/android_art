@@ -880,7 +880,11 @@ Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
 
 bool IsCompilingWithCoreImage() {
   const std::string& image = Runtime::Current()->GetImageLocation();
-  return EndsWith(image, "core.art") || EndsWith(image, "core-optimizing.art");
+  // TODO: This is under-approximating...
+  if (EndsWith(image, "core.art") || EndsWith(image, "core-optimizing.art")) {
+    return true;
+  }
+  return false;
 }
 
 bool OptimizingCompiler::JitCompile(Thread* self,

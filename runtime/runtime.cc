@@ -547,15 +547,15 @@ bool Runtime::Start() {
   // Use !IsAotCompiler so that we get test coverage, tests are never the zygote.
   if (!IsAotCompiler()) {
     ScopedObjectAccess soa(self);
-    gc::space::ImageSpace* image_space = heap_->GetBootImageSpace();
-    if (image_space != nullptr) {
+    std::vector<gc::space::ImageSpace*> image_spaces = heap_->GetBootImageSpaces();
+    for (gc::space::ImageSpace* image_space : image_spaces) {
       ATRACE_BEGIN("AddImageStringsToTable");
       GetInternTable()->AddImageStringsToTable(image_space);
       ATRACE_END();
-      ATRACE_BEGIN("MoveImageClassesToClassTable");
-      GetClassLinker()->AddBootImageClassesToClassTable();
-      ATRACE_END();
     }
+    ATRACE_BEGIN("MoveImageClassesToClassTable");
+    GetClassLinker()->AddBootImageClassesToClassTable();
+    ATRACE_END();
   }
 
   // If we are the zygote then we need to wait until after forking to create the code cache
@@ -564,7 +564,7 @@ bool Runtime::Start() {
     CreateJit();
   }
 
-  if (!IsImageDex2OatEnabled() || !GetHeap()->HasImageSpace()) {
+  if (!IsImageDex2OatEnabled() || !GetHeap()->HasBootImageSpace()) {
     ScopedObjectAccess soa(self);
     StackHandleScope<1> hs(soa.Self());
     auto klass(hs.NewHandle<mirror::Class>(mirror::Class::GetJavaLangClass()));
@@ -754,61 +754,96 @@ void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
+// Attempts to open dex files from image(s). Given the image location, try to find the oat file
+// and open it to get the stored dex file. If the image is the first for a multi-image boot
+// classpath, go on and also open the other images.
 static bool OpenDexFilesFromImage(const std::string& image_location,
                                   std::vector<std::unique_ptr<const DexFile>>* dex_files,
                                   size_t* failures) {
   DCHECK(dex_files != nullptr) << "OpenDexFilesFromImage: out-param is nullptr";
-  std::string system_filename;
-  bool has_system = false;
-  std::string cache_filename_unused;
-  bool dalvik_cache_exists_unused;
-  bool has_cache_unused;
-  bool is_global_cache_unused;
-  bool found_image = gc::space::ImageSpace::FindImageFilename(image_location.c_str(),
-                                                              kRuntimeISA,
-                                                              &system_filename,
-                                                              &has_system,
-                                                              &cache_filename_unused,
-                                                              &dalvik_cache_exists_unused,
-                                                              &has_cache_unused,
-                                                              &is_global_cache_unused);
-  *failures = 0;
-  if (!found_image || !has_system) {
-    return false;
-  }
-  std::string error_msg;
-  // We are falling back to non-executable use of the oat file because patching failed, presumably
-  // due to lack of space.
-  std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(system_filename.c_str());
-  std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(image_location.c_str());
-  std::unique_ptr<File> file(OS::OpenFileForReading(oat_filename.c_str()));
-  if (file.get() == nullptr) {
-    return false;
-  }
-  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), false, false, &error_msg));
-  if (elf_file.get() == nullptr) {
-    return false;
-  }
-  std::unique_ptr<const OatFile> oat_file(
-      OatFile::OpenWithElfFile(elf_file.release(), oat_location, nullptr, &error_msg));
-  if (oat_file == nullptr) {
-    LOG(WARNING) << "Unable to use '" << oat_filename << "' because " << error_msg;
-    return false;
-  }
 
-  for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
-    if (oat_dex_file == nullptr) {
-      *failures += 1;
-      continue;
+  // Use a work-list approach, so that we can easily reuse the opening code.
+  std::vector<std::string> image_locations;
+  image_locations.push_back(image_location);
+
+  for (size_t index = 0; index < image_locations.size(); ++index) {
+    std::string system_filename;
+    bool has_system = false;
+    std::string cache_filename_unused;
+    bool dalvik_cache_exists_unused;
+    bool has_cache_unused;
+    bool is_global_cache_unused;
+    bool found_image = gc::space::ImageSpace::FindImageFilename(image_locations[index].c_str(),
+                                                                kRuntimeISA,
+                                                                &system_filename,
+                                                                &has_system,
+                                                                &cache_filename_unused,
+                                                                &dalvik_cache_exists_unused,
+                                                                &has_cache_unused,
+                                                                &is_global_cache_unused);
+
+    if (!found_image || !has_system) {
+      return false;
     }
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
-    if (dex_file.get() == nullptr) {
-      *failures += 1;
-    } else {
-      dex_files->push_back(std::move(dex_file));
+
+    // We are falling back to non-executable use of the oat file because patching failed, presumably
+    // due to lack of space.
+    std::string oat_filename =
+        ImageHeader::GetOatLocationFromImageLocation(system_filename.c_str());
+    std::string oat_location =
+        ImageHeader::GetOatLocationFromImageLocation(image_locations[index].c_str());
+    // Note: in the multi-image case, the image location may end in ".jar," and not ".art." Handle
+    //       that here.
+    if (EndsWith(oat_location, ".jar")) {
+      oat_location.replace(oat_location.length() - 3, 3, "oat");
     }
+
+    std::unique_ptr<File> file(OS::OpenFileForReading(oat_filename.c_str()));
+    if (file.get() == nullptr) {
+      return false;
+    }
+    std::string error_msg;
+    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), false, false, &error_msg));
+    if (elf_file.get() == nullptr) {
+      return false;
+    }
+    std::unique_ptr<const OatFile> oat_file(
+        OatFile::OpenWithElfFile(elf_file.release(), oat_location, nullptr, &error_msg));
+    if (oat_file == nullptr) {
+      LOG(WARNING) << "Unable to use '" << oat_filename << "' because " << error_msg;
+      return false;
+    }
+
+    for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
+      if (oat_dex_file == nullptr) {
+        *failures += 1;
+        continue;
+      }
+      std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+      if (dex_file.get() == nullptr) {
+        *failures += 1;
+      } else {
+        dex_files->push_back(std::move(dex_file));
+      }
+    }
+
+    if (index == 0) {
+      // First file. See if this is a multi-image environment, and if so, enqueue the other images.
+      const OatHeader& boot_oat_header = oat_file->GetOatHeader();
+      const char* boot_cp = boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPath);
+      if (boot_cp != nullptr) {
+        std::vector<std::string> cp;
+        Split(boot_cp, ':', &cp);
+
+        if (cp.size() > 1) {
+          // More images, enqueue (skipping the first).
+          image_locations.insert(image_locations.end(), cp.begin() + 1, cp.end());
+        }
+      }
+    }
+
+    Runtime::Current()->GetOatFileManager().RegisterOatFile(std::move(oat_file));
   }
-  Runtime::Current()->GetOatFileManager().RegisterOatFile(std::move(oat_file));
   return true;
 }
 
@@ -946,7 +981,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
   ATRACE_END();
 
-  if (heap_->GetBootImageSpace() == nullptr && !allow_dex_file_fallback_) {
+  if (!heap_->HasBootImageSpace() && !allow_dex_file_fallback_) {
     LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
     ATRACE_END();
     return false;
@@ -1054,7 +1089,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
-  if (GetHeap()->HasImageSpace()) {
+  if (GetHeap()->HasBootImageSpace()) {
     ATRACE_BEGIN("InitFromImage");
     std::string error_msg;
     bool result = class_linker_->InitFromImage(&error_msg);
@@ -1063,9 +1098,13 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
       LOG(ERROR) << "Could not initialize from image: " << error_msg;
       return false;
     }
+    /* TODO: Modify check to support multiple image spaces and reenable. b/26317072
     if (kIsDebugBuild) {
-      GetHeap()->GetBootImageSpace()->VerifyImageAllocations();
+      for (auto image_space : GetHeap()->GetBootImageSpaces()) {
+        image_space->VerifyImageAllocations();
+      }
     }
+    */
     if (boot_class_path_string_.empty()) {
       // The bootclasspath is not explicitly specified: construct it from the loaded dex files.
       const std::vector<const DexFile*>& boot_class_path = GetClassLinker()->GetBootClassPath();
