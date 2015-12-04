@@ -1956,11 +1956,8 @@ void InstructionCodeGeneratorMIPS::VisitClinitCheck(HClinitCheck* check) {
 void LocationsBuilderMIPS::VisitCompare(HCompare* compare) {
   Primitive::Type in_type = compare->InputAt(0)->GetType();
 
-  LocationSummary::CallKind call_kind = Primitive::IsFloatingPointType(in_type)
-      ? LocationSummary::kCall
-      : LocationSummary::kNoCall;
-
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare, call_kind);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
 
   switch (in_type) {
     case Primitive::kPrimLong:
@@ -1971,13 +1968,11 @@ void LocationsBuilderMIPS::VisitCompare(HCompare* compare) {
       break;
 
     case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      InvokeRuntimeCallingConvention calling_convention;
-      locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
-      locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
-      locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
-    }
 
     default:
       LOG(FATAL) << "Unexpected type for compare operation " << in_type;
@@ -1986,7 +1981,10 @@ void LocationsBuilderMIPS::VisitCompare(HCompare* compare) {
 
 void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
   LocationSummary* locations = instruction->GetLocations();
+  Register res = locations->Out().AsRegister<Register>();
   Primitive::Type in_type = instruction->InputAt(0)->GetType();
+  bool gt_bias = instruction->IsGtBias();
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
 
   //  0 if: left == right
   //  1 if: left  > right
@@ -1994,7 +1992,6 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
   switch (in_type) {
     case Primitive::kPrimLong: {
       MipsLabel done;
-      Register res = locations->Out().AsRegister<Register>();
       Register lhs_high = locations->InAt(0).AsRegisterPairHigh<Register>();
       Register lhs_low  = locations->InAt(0).AsRegisterPairLow<Register>();
       Register rhs_high = locations->InAt(1).AsRegisterPairHigh<Register>();
@@ -2011,45 +2008,82 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
       break;
     }
 
-    case Primitive::kPrimFloat:
+    case Primitive::kPrimFloat: {
+      FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
+      FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
+      MipsLabel done;
+      if (isR6) {
+        __ CmpEqS(FTMP, lhs, rhs);
+        __ LoadConst32(res, 0);
+        __ Bc1nez(FTMP, &done);
+        if (gt_bias) {
+          __ CmpLtS(FTMP, lhs, rhs);
+          __ LoadConst32(res, -1);
+          __ Bc1nez(FTMP, &done);
+          __ LoadConst32(res, 1);
+        } else {
+          __ CmpLtS(FTMP, rhs, lhs);
+          __ LoadConst32(res, 1);
+          __ Bc1nez(FTMP, &done);
+          __ LoadConst32(res, -1);
+        }
+      } else {
+        if (gt_bias) {
+          __ ColtS(0, lhs, rhs);
+          __ LoadConst32(res, -1);
+          __ Bc1t(0, &done);
+          __ CeqS(0, lhs, rhs);
+          __ LoadConst32(res, 1);
+          __ Movt(res, ZERO, 0);
+        } else {
+          __ ColtS(0, rhs, lhs);
+          __ LoadConst32(res, 1);
+          __ Bc1t(0, &done);
+          __ CeqS(0, lhs, rhs);
+          __ LoadConst32(res, -1);
+          __ Movt(res, ZERO, 0);
+        }
+      }
+      __ Bind(&done);
+      break;
+    }
     case Primitive::kPrimDouble: {
-      int32_t entry_point_offset;
-      bool direct;
-      if (in_type == Primitive::kPrimFloat) {
-        if (instruction->IsGtBias()) {
-          entry_point_offset = QUICK_ENTRY_POINT(pCmpgFloat);
-          direct = IsDirectEntrypoint(kQuickCmpgFloat);
+      FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
+      FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
+      MipsLabel done;
+      if (isR6) {
+        __ CmpEqD(FTMP, lhs, rhs);
+        __ LoadConst32(res, 0);
+        __ Bc1nez(FTMP, &done);
+        if (gt_bias) {
+          __ CmpLtD(FTMP, lhs, rhs);
+          __ LoadConst32(res, -1);
+          __ Bc1nez(FTMP, &done);
+          __ LoadConst32(res, 1);
         } else {
-          entry_point_offset = QUICK_ENTRY_POINT(pCmplFloat);
-          direct = IsDirectEntrypoint(kQuickCmplFloat);
+          __ CmpLtD(FTMP, rhs, lhs);
+          __ LoadConst32(res, 1);
+          __ Bc1nez(FTMP, &done);
+          __ LoadConst32(res, -1);
         }
       } else {
-        if (instruction->IsGtBias()) {
-          entry_point_offset = QUICK_ENTRY_POINT(pCmpgDouble);
-          direct = IsDirectEntrypoint(kQuickCmpgDouble);
+        if (gt_bias) {
+          __ ColtD(0, lhs, rhs);
+          __ LoadConst32(res, -1);
+          __ Bc1t(0, &done);
+          __ CeqD(0, lhs, rhs);
+          __ LoadConst32(res, 1);
+          __ Movt(res, ZERO, 0);
         } else {
-          entry_point_offset = QUICK_ENTRY_POINT(pCmplDouble);
-          direct = IsDirectEntrypoint(kQuickCmplDouble);
+          __ ColtD(0, rhs, lhs);
+          __ LoadConst32(res, 1);
+          __ Bc1t(0, &done);
+          __ CeqD(0, lhs, rhs);
+          __ LoadConst32(res, -1);
+          __ Movt(res, ZERO, 0);
         }
       }
-      codegen_->InvokeRuntime(entry_point_offset,
-                              instruction,
-                              instruction->GetDexPc(),
-                              nullptr,
-                              direct);
-      if (in_type == Primitive::kPrimFloat) {
-        if (instruction->IsGtBias()) {
-          CheckEntrypointTypes<kQuickCmpgFloat, int32_t, float, float>();
-        } else {
-          CheckEntrypointTypes<kQuickCmplFloat, int32_t, float, float>();
-        }
-      } else {
-        if (instruction->IsGtBias()) {
-          CheckEntrypointTypes<kQuickCmpgDouble, int32_t, double, double>();
-        } else {
-          CheckEntrypointTypes<kQuickCmplDouble, int32_t, double, double>();
-        }
-      }
+      __ Bind(&done);
       break;
     }
 
@@ -2060,8 +2094,19 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
 
 void LocationsBuilderMIPS::VisitCondition(HCondition* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  switch (instruction->InputAt(0)->GetType()) {
+    default:
+    case Primitive::kPrimLong:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+      break;
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      break;
+  }
   if (instruction->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
@@ -2071,151 +2116,45 @@ void InstructionCodeGeneratorMIPS::VisitCondition(HCondition* instruction) {
   if (!instruction->NeedsMaterialization()) {
     return;
   }
-  // TODO: generalize to long
-  DCHECK_NE(instruction->InputAt(0)->GetType(), Primitive::kPrimLong);
 
+  Primitive::Type type = instruction->InputAt(0)->GetType();
   LocationSummary* locations = instruction->GetLocations();
   Register dst = locations->Out().AsRegister<Register>();
+  MipsLabel true_label;
 
-  Register lhs = locations->InAt(0).AsRegister<Register>();
-  Location rhs_location = locations->InAt(1);
+  switch (type) {
+    default:
+      // Integer case.
+      GenerateIntCompare(instruction->GetCondition(), locations);
+      return;
 
-  Register rhs_reg = ZERO;
-  int64_t rhs_imm = 0;
-  bool use_imm = rhs_location.IsConstant();
-  if (use_imm) {
-    rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
-  } else {
-    rhs_reg = rhs_location.AsRegister<Register>();
-  }
-
-  IfCondition if_cond = instruction->GetCondition();
-
-  switch (if_cond) {
-    case kCondEQ:
-    case kCondNE:
-      if (use_imm && IsUint<16>(rhs_imm)) {
-        __ Xori(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Xor(dst, lhs, rhs_reg);
-      }
-      if (if_cond == kCondEQ) {
-        __ Sltiu(dst, dst, 1);
-      } else {
-        __ Sltu(dst, ZERO, dst);
-      }
+    case Primitive::kPrimLong:
+      // TODO: don't use branches.
+      GenerateLongCompareAndBranch(instruction->GetCondition(), locations, &true_label);
       break;
 
-    case kCondLT:
-    case kCondGE:
-      if (use_imm && IsInt<16>(rhs_imm)) {
-        __ Slti(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Slt(dst, lhs, rhs_reg);
-      }
-      if (if_cond == kCondGE) {
-        // Simulate lhs >= rhs via !(lhs < rhs) since there's
-        // only the slt instruction but no sge.
-        __ Xori(dst, dst, 1);
-      }
-      break;
-
-    case kCondLE:
-    case kCondGT:
-      if (use_imm && IsInt<16>(rhs_imm + 1)) {
-        // Simulate lhs <= rhs via lhs < rhs + 1.
-        __ Slti(dst, lhs, rhs_imm + 1);
-        if (if_cond == kCondGT) {
-          // Simulate lhs > rhs via !(lhs <= rhs) since there's
-          // only the slti instruction but no sgti.
-          __ Xori(dst, dst, 1);
-        }
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Slt(dst, rhs_reg, lhs);
-        if (if_cond == kCondLE) {
-          // Simulate lhs <= rhs via !(rhs < lhs) since there's
-          // only the slt instruction but no sle.
-          __ Xori(dst, dst, 1);
-        }
-      }
-      break;
-
-    case kCondB:
-    case kCondAE:
-      // Use sltiu instruction if rhs_imm is in range [0, 32767] or in
-      // [max_unsigned - 32767 = 0xffff8000, max_unsigned = 0xffffffff].
-      if (use_imm &&
-          (IsUint<15>(rhs_imm) ||
-              IsUint<15>(rhs_imm - (MaxInt<uint64_t>(32) - MaxInt<uint64_t>(15))))) {
-        if (IsUint<15>(rhs_imm)) {
-          __ Sltiu(dst, lhs, rhs_imm);
-        } else {
-          // 16-bit value (in range [0x8000, 0xffff]) passed to sltiu is sign-extended
-          // and then used as unsigned integer (range [0xffff8000, 0xffffffff]).
-          __ Sltiu(dst, lhs, rhs_imm - (MaxInt<uint64_t>(32) - MaxInt<uint64_t>(16)));
-        }
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Sltu(dst, lhs, rhs_reg);
-      }
-      if (if_cond == kCondAE) {
-        // Simulate lhs >= rhs via !(lhs < rhs) since there's
-        // only the sltu instruction but no sgeu.
-        __ Xori(dst, dst, 1);
-      }
-      break;
-
-    case kCondBE:
-    case kCondA:
-      // Use sltiu instruction if rhs_imm is in range [0, 32766] or in
-      // [max_unsigned - 32767 - 1 = 0xffff7fff, max_unsigned - 1 = 0xfffffffe].
-      // lhs <= rhs is simulated via lhs < rhs + 1.
-      if (use_imm && (rhs_imm != -1) &&
-          (IsUint<15>(rhs_imm + 1) ||
-              IsUint<15>(rhs_imm + 1 - (MaxInt<uint64_t>(32) - MaxInt<uint64_t>(15))))) {
-        if (IsUint<15>(rhs_imm + 1)) {
-          // Simulate lhs <= rhs via lhs < rhs + 1.
-          __ Sltiu(dst, lhs, rhs_imm + 1);
-        } else {
-          // 16-bit value (in range [0x8000, 0xffff]) passed to sltiu is sign-extended
-          // and then used as unsigned integer (range [0xffff8000, 0xffffffff] where rhs_imm
-          // is in range [0xffff7fff, 0xfffffffe] since lhs <= rhs is simulated via lhs < rhs + 1).
-          __ Sltiu(dst, lhs, rhs_imm + 1 - (MaxInt<uint64_t>(32) - MaxInt<uint64_t>(16)));
-        }
-        if (if_cond == kCondA) {
-          // Simulate lhs > rhs via !(lhs <= rhs) since there's
-          // only the sltiu instruction but no sgtiu.
-          __ Xori(dst, dst, 1);
-        }
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Sltu(dst, rhs_reg, lhs);
-        if (if_cond == kCondBE) {
-          // Simulate lhs <= rhs via !(rhs < lhs) since there's
-          // only the sltu instruction but no sleu.
-          __ Xori(dst, dst, 1);
-        }
-      }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      // TODO: don't use branches.
+      GenerateFpCompareAndBranch(instruction->GetCondition(),
+                                 instruction->IsGtBias(),
+                                 type,
+                                 locations,
+                                 &true_label);
       break;
   }
+
+  // Convert the branches into the result.
+  MipsLabel done;
+
+  // False case: result = 0.
+  __ LoadConst32(dst, 0);
+  __ B(&done);
+
+  // True case: result = 1.
+  __ Bind(&true_label);
+  __ LoadConst32(dst, 1);
+  __ Bind(&done);
 }
 
 void InstructionCodeGeneratorMIPS::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
@@ -2574,6 +2513,627 @@ void InstructionCodeGeneratorMIPS::VisitTryBoundary(HTryBoundary* try_boundary) 
   }
 }
 
+void InstructionCodeGeneratorMIPS::GenerateIntCompare(IfCondition cond,
+                                                      LocationSummary* locations) {
+  Register dst = locations->Out().AsRegister<Register>();
+  Register lhs = locations->InAt(0).AsRegister<Register>();
+  Location rhs_location = locations->InAt(1);
+  Register rhs_reg = ZERO;
+  int64_t rhs_imm = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
+  } else {
+    rhs_reg = rhs_location.AsRegister<Register>();
+  }
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+      if (use_imm && IsUint<16>(rhs_imm)) {
+        __ Xori(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Xor(dst, lhs, rhs_reg);
+      }
+      if (cond == kCondEQ) {
+        __ Sltiu(dst, dst, 1);
+      } else {
+        __ Sltu(dst, ZERO, dst);
+      }
+      break;
+
+    case kCondLT:
+    case kCondGE:
+      if (use_imm && IsInt<16>(rhs_imm)) {
+        __ Slti(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Slt(dst, lhs, rhs_reg);
+      }
+      if (cond == kCondGE) {
+        // Simulate lhs >= rhs via !(lhs < rhs) since there's
+        // only the slt instruction but no sge.
+        __ Xori(dst, dst, 1);
+      }
+      break;
+
+    case kCondLE:
+    case kCondGT:
+      if (use_imm && IsInt<16>(rhs_imm + 1)) {
+        // Simulate lhs <= rhs via lhs < rhs + 1.
+        __ Slti(dst, lhs, rhs_imm + 1);
+        if (cond == kCondGT) {
+          // Simulate lhs > rhs via !(lhs <= rhs) since there's
+          // only the slti instruction but no sgti.
+          __ Xori(dst, dst, 1);
+        }
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Slt(dst, rhs_reg, lhs);
+        if (cond == kCondLE) {
+          // Simulate lhs <= rhs via !(rhs < lhs) since there's
+          // only the slt instruction but no sle.
+          __ Xori(dst, dst, 1);
+        }
+      }
+      break;
+
+    case kCondB:
+    case kCondAE:
+      if (use_imm && IsInt<16>(rhs_imm)) {
+        // Sltiu sign-extends its 16-bit immediate operand before
+        // the comparison and thus lets us compare directly with
+        // unsigned values in the ranges [0, 0x7fff] and
+        // [0xffff8000, 0xffffffff].
+        __ Sltiu(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Sltu(dst, lhs, rhs_reg);
+      }
+      if (cond == kCondAE) {
+        // Simulate lhs >= rhs via !(lhs < rhs) since there's
+        // only the sltu instruction but no sgeu.
+        __ Xori(dst, dst, 1);
+      }
+      break;
+
+    case kCondBE:
+    case kCondA:
+      if (use_imm && (rhs_imm != -1) && IsInt<16>(rhs_imm + 1)) {
+        // Simulate lhs <= rhs via lhs < rhs + 1.
+        // Note that this only works if rhs + 1 does not overflow
+        // to 0, hence the check above.
+        // Sltiu sign-extends its 16-bit immediate operand before
+        // the comparison and thus lets us compare directly with
+        // unsigned values in the ranges [0, 0x7fff] and
+        // [0xffff8000, 0xffffffff].
+        __ Sltiu(dst, lhs, rhs_imm + 1);
+        if (cond == kCondA) {
+          // Simulate lhs > rhs via !(lhs <= rhs) since there's
+          // only the sltiu instruction but no sgtiu.
+          __ Xori(dst, dst, 1);
+        }
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Sltu(dst, rhs_reg, lhs);
+        if (cond == kCondBE) {
+          // Simulate lhs <= rhs via !(rhs < lhs) since there's
+          // only the sltu instruction but no sleu.
+          __ Xori(dst, dst, 1);
+        }
+      }
+      break;
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateIntCompareAndBranch(IfCondition cond,
+                                                               LocationSummary* locations,
+                                                               MipsLabel* label) {
+  Register lhs = locations->InAt(0).AsRegister<Register>();
+  Location rhs_location = locations->InAt(1);
+  Register rhs_reg = ZERO;
+  int32_t rhs_imm = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
+  } else {
+    rhs_reg = rhs_location.AsRegister<Register>();
+  }
+
+  if (use_imm && rhs_imm == 0) {
+    switch (cond) {
+      case kCondEQ:
+      case kCondBE:  // <= 0 if zero
+        __ Beqz(lhs, label);
+        break;
+      case kCondNE:
+      case kCondA:  // > 0 if non-zero
+        __ Bnez(lhs, label);
+        break;
+      case kCondLT:
+        __ Bltz(lhs, label);
+        break;
+      case kCondGE:
+        __ Bgez(lhs, label);
+        break;
+      case kCondLE:
+        __ Blez(lhs, label);
+        break;
+      case kCondGT:
+        __ Bgtz(lhs, label);
+        break;
+      case kCondB:  // always false
+        break;
+      case kCondAE:  // always true
+        __ B(label);
+        break;
+    }
+  } else {
+    if (use_imm) {
+      // TODO: more efficient comparison with 16-bit constants without loading them into TMP.
+      rhs_reg = TMP;
+      __ LoadConst32(rhs_reg, rhs_imm);
+    }
+    switch (cond) {
+      case kCondEQ:
+        __ Beq(lhs, rhs_reg, label);
+        break;
+      case kCondNE:
+        __ Bne(lhs, rhs_reg, label);
+        break;
+      case kCondLT:
+        __ Blt(lhs, rhs_reg, label);
+        break;
+      case kCondGE:
+        __ Bge(lhs, rhs_reg, label);
+        break;
+      case kCondLE:
+        __ Bge(rhs_reg, lhs, label);
+        break;
+      case kCondGT:
+        __ Blt(rhs_reg, lhs, label);
+        break;
+      case kCondB:
+        __ Bltu(lhs, rhs_reg, label);
+        break;
+      case kCondAE:
+        __ Bgeu(lhs, rhs_reg, label);
+        break;
+      case kCondBE:
+        __ Bgeu(rhs_reg, lhs, label);
+        break;
+      case kCondA:
+        __ Bltu(rhs_reg, lhs, label);
+        break;
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateLongCompareAndBranch(IfCondition cond,
+                                                                LocationSummary* locations,
+                                                                MipsLabel* label) {
+  Register lhs_high = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Register lhs_low = locations->InAt(0).AsRegisterPairLow<Register>();
+  Location rhs_location = locations->InAt(1);
+  Register rhs_high = ZERO;
+  Register rhs_low = ZERO;
+  int64_t imm = 0;
+  uint32_t imm_high = 0;
+  uint32_t imm_low = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    imm = rhs_location.GetConstant()->AsLongConstant()->GetValue();
+    imm_high = High32Bits(imm);
+    imm_low = Low32Bits(imm);
+  } else {
+    rhs_high = rhs_location.AsRegisterPairHigh<Register>();
+    rhs_low = rhs_location.AsRegisterPairLow<Register>();
+  }
+
+  if (use_imm && imm == 0) {
+    switch (cond) {
+      case kCondEQ:
+      case kCondBE:  // <= 0 if zero
+        __ Or(TMP, lhs_high, lhs_low);
+        __ Beqz(TMP, label);
+        break;
+      case kCondNE:
+      case kCondA:  // > 0 if non-zero
+        __ Or(TMP, lhs_high, lhs_low);
+        __ Bnez(TMP, label);
+        break;
+      case kCondLT:
+        __ Bltz(lhs_high, label);
+        break;
+      case kCondGE:
+        __ Bgez(lhs_high, label);
+        break;
+      case kCondLE:
+        __ Or(TMP, lhs_high, lhs_low);
+        __ Sra(AT, lhs_high, 31);
+        __ Bgeu(AT, TMP, label);
+        break;
+      case kCondGT:
+        __ Or(TMP, lhs_high, lhs_low);
+        __ Sra(AT, lhs_high, 31);
+        __ Bltu(AT, TMP, label);
+        break;
+      case kCondB:  // always false
+        break;
+      case kCondAE:  // always true
+        __ B(label);
+        break;
+    }
+  } else if (use_imm) {
+    // TODO: more efficient comparison with constants without loading them into TMP/AT.
+    switch (cond) {
+      case kCondEQ:
+        __ LoadConst32(TMP, imm_high);
+        __ Xor(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Xor(AT, AT, lhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondNE:
+        __ LoadConst32(TMP, imm_high);
+        __ Xor(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Xor(AT, AT, lhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Bnez(TMP, label);
+        break;
+      case kCondLT:
+        __ LoadConst32(TMP, imm_high);
+        __ Blt(lhs_high, TMP, label);
+        __ Slt(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, lhs_low, AT);
+        __ Blt(TMP, AT, label);
+        break;
+      case kCondGE:
+        __ LoadConst32(TMP, imm_high);
+        __ Blt(TMP, lhs_high, label);
+        __ Slt(TMP, lhs_high, TMP);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, lhs_low, AT);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondLE:
+        __ LoadConst32(TMP, imm_high);
+        __ Blt(lhs_high, TMP, label);
+        __ Slt(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, AT, lhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondGT:
+        __ LoadConst32(TMP, imm_high);
+        __ Blt(TMP, lhs_high, label);
+        __ Slt(TMP, lhs_high, TMP);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, AT, lhs_low);
+        __ Blt(TMP, AT, label);
+        break;
+      case kCondB:
+        __ LoadConst32(TMP, imm_high);
+        __ Bltu(lhs_high, TMP, label);
+        __ Sltu(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, lhs_low, AT);
+        __ Blt(TMP, AT, label);
+        break;
+      case kCondAE:
+        __ LoadConst32(TMP, imm_high);
+        __ Bltu(TMP, lhs_high, label);
+        __ Sltu(TMP, lhs_high, TMP);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, lhs_low, AT);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondBE:
+        __ LoadConst32(TMP, imm_high);
+        __ Bltu(lhs_high, TMP, label);
+        __ Sltu(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, AT, lhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondA:
+        __ LoadConst32(TMP, imm_high);
+        __ Bltu(TMP, lhs_high, label);
+        __ Sltu(TMP, lhs_high, TMP);
+        __ LoadConst32(AT, imm_low);
+        __ Sltu(AT, AT, lhs_low);
+        __ Blt(TMP, AT, label);
+        break;
+    }
+  } else {
+    switch (cond) {
+      case kCondEQ:
+        __ Xor(TMP, lhs_high, rhs_high);
+        __ Xor(AT, lhs_low, rhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondNE:
+        __ Xor(TMP, lhs_high, rhs_high);
+        __ Xor(AT, lhs_low, rhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Bnez(TMP, label);
+        break;
+      case kCondLT:
+        __ Blt(lhs_high, rhs_high, label);
+        __ Slt(TMP, rhs_high, lhs_high);
+        __ Sltu(AT, lhs_low, rhs_low);
+        __ Blt(TMP, AT, label);
+        break;
+      case kCondGE:
+        __ Blt(rhs_high, lhs_high, label);
+        __ Slt(TMP, lhs_high, rhs_high);
+        __ Sltu(AT, lhs_low, rhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondLE:
+        __ Blt(lhs_high, rhs_high, label);
+        __ Slt(TMP, rhs_high, lhs_high);
+        __ Sltu(AT, rhs_low, lhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondGT:
+        __ Blt(rhs_high, lhs_high, label);
+        __ Slt(TMP, lhs_high, rhs_high);
+        __ Sltu(AT, rhs_low, lhs_low);
+        __ Blt(TMP, AT, label);
+        break;
+      case kCondB:
+        __ Bltu(lhs_high, rhs_high, label);
+        __ Sltu(TMP, rhs_high, lhs_high);
+        __ Sltu(AT, lhs_low, rhs_low);
+        __ Blt(TMP, AT, label);
+        break;
+      case kCondAE:
+        __ Bltu(rhs_high, lhs_high, label);
+        __ Sltu(TMP, lhs_high, rhs_high);
+        __ Sltu(AT, lhs_low, rhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondBE:
+        __ Bltu(lhs_high, rhs_high, label);
+        __ Sltu(TMP, rhs_high, lhs_high);
+        __ Sltu(AT, rhs_low, lhs_low);
+        __ Or(TMP, TMP, AT);
+        __ Beqz(TMP, label);
+        break;
+      case kCondA:
+        __ Bltu(rhs_high, lhs_high, label);
+        __ Sltu(TMP, lhs_high, rhs_high);
+        __ Sltu(AT, rhs_low, lhs_low);
+        __ Blt(TMP, AT, label);
+        break;
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateFpCompareAndBranch(IfCondition cond,
+                                                              bool gt_bias,
+                                                              Primitive::Type type,
+                                                              LocationSummary* locations,
+                                                              MipsLabel* label) {
+  FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+  if (type == Primitive::kPrimFloat) {
+    if (isR6) {
+      switch (cond) {
+        case kCondEQ:
+          __ CmpEqS(FTMP, lhs, rhs);
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondNE:
+          __ CmpEqS(FTMP, lhs, rhs);
+          __ Bc1eqz(FTMP, label);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ CmpLtS(FTMP, lhs, rhs);
+          } else {
+            __ CmpUltS(FTMP, lhs, rhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ CmpLeS(FTMP, lhs, rhs);
+          } else {
+            __ CmpUleS(FTMP, lhs, rhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CmpUltS(FTMP, rhs, lhs);
+          } else {
+            __ CmpLtS(FTMP, rhs, lhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CmpUleS(FTMP, rhs, lhs);
+          } else {
+            __ CmpLeS(FTMP, rhs, lhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition";
+      }
+    } else {
+      switch (cond) {
+        case kCondEQ:
+          __ CeqS(0, lhs, rhs);
+          __ Bc1t(0, label);
+          break;
+        case kCondNE:
+          __ CeqS(0, lhs, rhs);
+          __ Bc1f(0, label);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ ColtS(0, lhs, rhs);
+          } else {
+            __ CultS(0, lhs, rhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ ColeS(0, lhs, rhs);
+          } else {
+            __ CuleS(0, lhs, rhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CultS(0, rhs, lhs);
+          } else {
+            __ ColtS(0, rhs, lhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CuleS(0, rhs, lhs);
+          } else {
+            __ ColeS(0, rhs, lhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition";
+      }
+    }
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    if (isR6) {
+      switch (cond) {
+        case kCondEQ:
+          __ CmpEqD(FTMP, lhs, rhs);
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondNE:
+          __ CmpEqD(FTMP, lhs, rhs);
+          __ Bc1eqz(FTMP, label);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ CmpLtD(FTMP, lhs, rhs);
+          } else {
+            __ CmpUltD(FTMP, lhs, rhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ CmpLeD(FTMP, lhs, rhs);
+          } else {
+            __ CmpUleD(FTMP, lhs, rhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CmpUltD(FTMP, rhs, lhs);
+          } else {
+            __ CmpLtD(FTMP, rhs, lhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CmpUleD(FTMP, rhs, lhs);
+          } else {
+            __ CmpLeD(FTMP, rhs, lhs);
+          }
+          __ Bc1nez(FTMP, label);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition";
+      }
+    } else {
+      switch (cond) {
+        case kCondEQ:
+          __ CeqD(0, lhs, rhs);
+          __ Bc1t(0, label);
+          break;
+        case kCondNE:
+          __ CeqD(0, lhs, rhs);
+          __ Bc1f(0, label);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ ColtD(0, lhs, rhs);
+          } else {
+            __ CultD(0, lhs, rhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ ColeD(0, lhs, rhs);
+          } else {
+            __ CuleD(0, lhs, rhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CultD(0, rhs, lhs);
+          } else {
+            __ ColtD(0, rhs, lhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CuleD(0, rhs, lhs);
+          } else {
+            __ ColeD(0, rhs, lhs);
+          }
+          __ Bc1t(0, label);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition";
+      }
+    }
+  }
+}
+
 void InstructionCodeGeneratorMIPS::GenerateTestAndBranch(HInstruction* instruction,
                                                          size_t condition_input_index,
                                                          MipsLabel* true_target,
@@ -2610,7 +3170,7 @@ void InstructionCodeGeneratorMIPS::GenerateTestAndBranch(HInstruction* instructi
     // The condition instruction has been materialized, compare the output to 0.
     Location cond_val = instruction->GetLocations()->InAt(condition_input_index);
     DCHECK(cond_val.IsRegister());
-      if (true_target == nullptr) {
+    if (true_target == nullptr) {
       __ Beqz(cond_val.AsRegister<Register>(), false_target);
     } else {
       __ Bnez(cond_val.AsRegister<Register>(), true_target);
@@ -2619,98 +3179,27 @@ void InstructionCodeGeneratorMIPS::GenerateTestAndBranch(HInstruction* instructi
     // The condition instruction has not been materialized, use its inputs as
     // the comparison and its condition as the branch condition.
     HCondition* condition = cond->AsCondition();
+    Primitive::Type type = condition->InputAt(0)->GetType();
+    LocationSummary* locations = cond->GetLocations();
+    IfCondition if_cond = condition->GetCondition();
+    MipsLabel* branch_target = true_target;
 
-    Register lhs = condition->GetLocations()->InAt(0).AsRegister<Register>();
-    Location rhs_location = condition->GetLocations()->InAt(1);
-    Register rhs_reg = ZERO;
-    int32_t rhs_imm = 0;
-    bool use_imm = rhs_location.IsConstant();
-    if (use_imm) {
-      rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
-    } else {
-      rhs_reg = rhs_location.AsRegister<Register>();
-    }
-
-    IfCondition if_cond;
-    MipsLabel* non_fallthrough_target;
     if (true_target == nullptr) {
       if_cond = condition->GetOppositeCondition();
-      non_fallthrough_target = false_target;
-    } else {
-      if_cond = condition->GetCondition();
-      non_fallthrough_target = true_target;
+      branch_target = false_target;
     }
 
-    if (use_imm && rhs_imm == 0) {
-      switch (if_cond) {
-        case kCondEQ:
-          __ Beqz(lhs, non_fallthrough_target);
-          break;
-        case kCondNE:
-          __ Bnez(lhs, non_fallthrough_target);
-          break;
-        case kCondLT:
-          __ Bltz(lhs, non_fallthrough_target);
-          break;
-        case kCondGE:
-          __ Bgez(lhs, non_fallthrough_target);
-          break;
-        case kCondLE:
-          __ Blez(lhs, non_fallthrough_target);
-          break;
-        case kCondGT:
-          __ Bgtz(lhs, non_fallthrough_target);
-          break;
-        case kCondB:
-          break;  // always false
-        case kCondBE:
-          __ Beqz(lhs, non_fallthrough_target);  // <= 0 if zero
-          break;
-        case kCondA:
-          __ Bnez(lhs, non_fallthrough_target);  // > 0 if non-zero
-          break;
-        case kCondAE:
-          __ B(non_fallthrough_target);  // always true
-          break;
-      }
-    } else {
-      if (use_imm) {
-        // TODO: more efficient comparison with 16-bit constants without loading them into TMP.
-        rhs_reg = TMP;
-        __ LoadConst32(rhs_reg, rhs_imm);
-      }
-      switch (if_cond) {
-        case kCondEQ:
-          __ Beq(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondNE:
-          __ Bne(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondLT:
-          __ Blt(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondGE:
-          __ Bge(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondLE:
-          __ Bge(rhs_reg, lhs, non_fallthrough_target);
-          break;
-        case kCondGT:
-          __ Blt(rhs_reg, lhs, non_fallthrough_target);
-          break;
-        case kCondB:
-          __ Bltu(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondAE:
-          __ Bgeu(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondBE:
-          __ Bgeu(rhs_reg, lhs, non_fallthrough_target);
-          break;
-        case kCondA:
-          __ Bltu(rhs_reg, lhs, non_fallthrough_target);
-          break;
-      }
+    switch (type) {
+      default:
+        GenerateIntCompareAndBranch(if_cond, locations, branch_target);
+        break;
+      case Primitive::kPrimLong:
+        GenerateLongCompareAndBranch(if_cond, locations, branch_target);
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
+        GenerateFpCompareAndBranch(if_cond, condition->IsGtBias(), type, locations, branch_target);
+        break;
     }
   }
 

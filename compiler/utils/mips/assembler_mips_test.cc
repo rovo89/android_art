@@ -21,6 +21,8 @@
 #include "base/stl_util.h"
 #include "utils/assembler_test.h"
 
+#define __ GetAssembler()->
+
 namespace art {
 
 struct MIPSCpuRegisterCompare {
@@ -184,6 +186,63 @@ class AssemblerMIPSTest : public AssemblerTest<mips::MipsAssembler,
     return result;
   }
 
+  void BranchCondOneRegHelper(void (mips::MipsAssembler::*f)(mips::Register,
+                                                             mips::MipsLabel*),
+                              std::string instr_name) {
+    mips::MipsLabel label;
+    (Base::GetAssembler()->*f)(mips::A0, &label);
+    constexpr size_t kAdduCount1 = 63;
+    for (size_t i = 0; i != kAdduCount1; ++i) {
+      __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+    }
+    __ Bind(&label);
+    constexpr size_t kAdduCount2 = 64;
+    for (size_t i = 0; i != kAdduCount2; ++i) {
+      __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+    }
+    (Base::GetAssembler()->*f)(mips::A1, &label);
+
+    std::string expected =
+        ".set noreorder\n" +
+        instr_name + " $a0, 1f\n"
+        "nop\n" +
+        RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
+        "1:\n" +
+        RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
+        instr_name + " $a1, 1b\n"
+        "nop\n";
+    DriverStr(expected, instr_name);
+  }
+
+  void BranchCondTwoRegsHelper(void (mips::MipsAssembler::*f)(mips::Register,
+                                                              mips::Register,
+                                                              mips::MipsLabel*),
+                               std::string instr_name) {
+    mips::MipsLabel label;
+    (Base::GetAssembler()->*f)(mips::A0, mips::A1, &label);
+    constexpr size_t kAdduCount1 = 63;
+    for (size_t i = 0; i != kAdduCount1; ++i) {
+      __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+    }
+    __ Bind(&label);
+    constexpr size_t kAdduCount2 = 64;
+    for (size_t i = 0; i != kAdduCount2; ++i) {
+      __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+    }
+    (Base::GetAssembler()->*f)(mips::A2, mips::A3, &label);
+
+    std::string expected =
+        ".set noreorder\n" +
+        instr_name + " $a0, $a1, 1f\n"
+        "nop\n" +
+        RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
+        "1:\n" +
+        RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
+        instr_name + " $a2, $a3, 1b\n"
+        "nop\n";
+    DriverStr(expected, instr_name);
+  }
+
  private:
   std::vector<mips::Register*> registers_;
   std::map<mips::Register, std::string, MIPSCpuRegisterCompare> secondary_register_names_;
@@ -195,8 +254,6 @@ class AssemblerMIPSTest : public AssemblerTest<mips::MipsAssembler,
 TEST_F(AssemblerMIPSTest, Toolchain) {
   EXPECT_TRUE(CheckTools());
 }
-
-#define __ GetAssembler()->
 
 TEST_F(AssemblerMIPSTest, Addu) {
   DriverStr(RepeatRRR(&mips::MipsAssembler::Addu, "addu ${reg1}, ${reg2}, ${reg3}"), "Addu");
@@ -416,6 +473,84 @@ TEST_F(AssemblerMIPSTest, NegS) {
 
 TEST_F(AssemblerMIPSTest, NegD) {
   DriverStr(RepeatFF(&mips::MipsAssembler::NegD, "neg.d ${reg1}, ${reg2}"), "NegD");
+}
+
+TEST_F(AssemblerMIPSTest, CunS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CunS, 3, "c.un.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "CunS");
+}
+
+TEST_F(AssemblerMIPSTest, CeqS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CeqS, 3, "c.eq.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "CeqS");
+}
+
+TEST_F(AssemblerMIPSTest, CueqS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CueqS, 3, "c.ueq.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "CueqS");
+}
+
+TEST_F(AssemblerMIPSTest, ColtS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::ColtS, 3, "c.olt.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "ColtS");
+}
+
+TEST_F(AssemblerMIPSTest, CultS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CultS, 3, "c.ult.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "CultS");
+}
+
+TEST_F(AssemblerMIPSTest, ColeS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::ColeS, 3, "c.ole.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "ColeS");
+}
+
+TEST_F(AssemblerMIPSTest, CuleS) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CuleS, 3, "c.ule.s $fcc{imm}, ${reg1}, ${reg2}"),
+            "CuleS");
+}
+
+TEST_F(AssemblerMIPSTest, CunD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CunD, 3, "c.un.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "CunD");
+}
+
+TEST_F(AssemblerMIPSTest, CeqD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CeqD, 3, "c.eq.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "CeqD");
+}
+
+TEST_F(AssemblerMIPSTest, CueqD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CueqD, 3, "c.ueq.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "CueqD");
+}
+
+TEST_F(AssemblerMIPSTest, ColtD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::ColtD, 3, "c.olt.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "ColtD");
+}
+
+TEST_F(AssemblerMIPSTest, CultD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CultD, 3, "c.ult.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "CultD");
+}
+
+TEST_F(AssemblerMIPSTest, ColeD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::ColeD, 3, "c.ole.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "ColeD");
+}
+
+TEST_F(AssemblerMIPSTest, CuleD) {
+  DriverStr(RepeatIbFF(&mips::MipsAssembler::CuleD, 3, "c.ule.d $fcc{imm}, ${reg1}, ${reg2}"),
+            "CuleD");
+}
+
+TEST_F(AssemblerMIPSTest, Movf) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::Movf, 3, "movf ${reg1}, ${reg2}, $fcc{imm}"), "Movf");
+}
+
+TEST_F(AssemblerMIPSTest, Movt) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::Movt, 3, "movt ${reg1}, ${reg2}, $fcc{imm}"), "Movt");
 }
 
 TEST_F(AssemblerMIPSTest, CvtSW) {
@@ -1000,55 +1135,11 @@ TEST_F(AssemblerMIPSTest, B) {
 }
 
 TEST_F(AssemblerMIPSTest, Beq) {
-  mips::MipsLabel label;
-  __ Beq(mips::A0, mips::A1, &label);
-  constexpr size_t kAdduCount1 = 63;
-  for (size_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bind(&label);
-  constexpr size_t kAdduCount2 = 64;
-  for (size_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Beq(mips::A2, mips::A3, &label);
-
-  std::string expected =
-      ".set noreorder\n"
-      "beq $a0, $a1, 1f\n"
-      "nop\n" +
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
-      "1:\n" +
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
-      "beq $a2, $a3, 1b\n"
-      "nop\n";
-  DriverStr(expected, "Beq");
+  BranchCondTwoRegsHelper(&mips::MipsAssembler::Beq, "Beq");
 }
 
 TEST_F(AssemblerMIPSTest, Bne) {
-  mips::MipsLabel label;
-  __ Bne(mips::A0, mips::A1, &label);
-  constexpr size_t kAdduCount1 = 63;
-  for (size_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bind(&label);
-  constexpr size_t kAdduCount2 = 64;
-  for (size_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bne(mips::A2, mips::A3, &label);
-
-  std::string expected =
-      ".set noreorder\n"
-      "bne $a0, $a1, 1f\n"
-      "nop\n" +
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
-      "1:\n" +
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
-      "bne $a2, $a3, 1b\n"
-      "nop\n";
-  DriverStr(expected, "Bne");
+  BranchCondTwoRegsHelper(&mips::MipsAssembler::Bne, "Bne");
 }
 
 TEST_F(AssemblerMIPSTest, Beqz) {
@@ -1104,107 +1195,19 @@ TEST_F(AssemblerMIPSTest, Bnez) {
 }
 
 TEST_F(AssemblerMIPSTest, Bltz) {
-  mips::MipsLabel label;
-  __ Bltz(mips::A0, &label);
-  constexpr size_t kAdduCount1 = 63;
-  for (size_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bind(&label);
-  constexpr size_t kAdduCount2 = 64;
-  for (size_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bltz(mips::A1, &label);
-
-  std::string expected =
-      ".set noreorder\n"
-      "bltz $a0, 1f\n"
-      "nop\n" +
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
-      "1:\n" +
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
-      "bltz $a1, 1b\n"
-      "nop\n";
-  DriverStr(expected, "Bltz");
+  BranchCondOneRegHelper(&mips::MipsAssembler::Bltz, "Bltz");
 }
 
 TEST_F(AssemblerMIPSTest, Bgez) {
-  mips::MipsLabel label;
-  __ Bgez(mips::A0, &label);
-  constexpr size_t kAdduCount1 = 63;
-  for (size_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bind(&label);
-  constexpr size_t kAdduCount2 = 64;
-  for (size_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bgez(mips::A1, &label);
-
-  std::string expected =
-      ".set noreorder\n"
-      "bgez $a0, 1f\n"
-      "nop\n" +
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
-      "1:\n" +
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
-      "bgez $a1, 1b\n"
-      "nop\n";
-  DriverStr(expected, "Bgez");
+  BranchCondOneRegHelper(&mips::MipsAssembler::Bgez, "Bgez");
 }
 
 TEST_F(AssemblerMIPSTest, Blez) {
-  mips::MipsLabel label;
-  __ Blez(mips::A0, &label);
-  constexpr size_t kAdduCount1 = 63;
-  for (size_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bind(&label);
-  constexpr size_t kAdduCount2 = 64;
-  for (size_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Blez(mips::A1, &label);
-
-  std::string expected =
-      ".set noreorder\n"
-      "blez $a0, 1f\n"
-      "nop\n" +
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
-      "1:\n" +
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
-      "blez $a1, 1b\n"
-      "nop\n";
-  DriverStr(expected, "Blez");
+  BranchCondOneRegHelper(&mips::MipsAssembler::Blez, "Blez");
 }
 
 TEST_F(AssemblerMIPSTest, Bgtz) {
-  mips::MipsLabel label;
-  __ Bgtz(mips::A0, &label);
-  constexpr size_t kAdduCount1 = 63;
-  for (size_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bind(&label);
-  constexpr size_t kAdduCount2 = 64;
-  for (size_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
-  }
-  __ Bgtz(mips::A1, &label);
-
-  std::string expected =
-      ".set noreorder\n"
-      "bgtz $a0, 1f\n"
-      "nop\n" +
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
-      "1:\n" +
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
-      "bgtz $a1, 1b\n"
-      "nop\n";
-  DriverStr(expected, "Bgtz");
+  BranchCondOneRegHelper(&mips::MipsAssembler::Bgtz, "Bgtz");
 }
 
 TEST_F(AssemblerMIPSTest, Blt) {
@@ -1317,6 +1320,58 @@ TEST_F(AssemblerMIPSTest, Bgeu) {
       "beq $zero, $at, 1b\n"
       "nop\n";
   DriverStr(expected, "Bgeu");
+}
+
+TEST_F(AssemblerMIPSTest, Bc1f) {
+  mips::MipsLabel label;
+  __ Bc1f(0, &label);
+  constexpr size_t kAdduCount1 = 63;
+  for (size_t i = 0; i != kAdduCount1; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bind(&label);
+  constexpr size_t kAdduCount2 = 64;
+  for (size_t i = 0; i != kAdduCount2; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bc1f(7, &label);
+
+  std::string expected =
+      ".set noreorder\n"
+      "bc1f $fcc0, 1f\n"
+      "nop\n" +
+      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
+      "1:\n" +
+      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
+      "bc1f $fcc7, 1b\n"
+      "nop\n";
+  DriverStr(expected, "Bc1f");
+}
+
+TEST_F(AssemblerMIPSTest, Bc1t) {
+  mips::MipsLabel label;
+  __ Bc1t(0, &label);
+  constexpr size_t kAdduCount1 = 63;
+  for (size_t i = 0; i != kAdduCount1; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bind(&label);
+  constexpr size_t kAdduCount2 = 64;
+  for (size_t i = 0; i != kAdduCount2; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bc1t(7, &label);
+
+  std::string expected =
+      ".set noreorder\n"
+      "bc1t $fcc0, 1f\n"
+      "nop\n" +
+      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
+      "1:\n" +
+      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
+      "bc1t $fcc7, 1b\n"
+      "nop\n";
+  DriverStr(expected, "Bc1t");
 }
 
 #undef __

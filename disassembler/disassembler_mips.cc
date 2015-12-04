@@ -111,6 +111,8 @@ static const MipsInstruction gMipsInstructions[] = {
   { kRTypeMask | (0x1f << 21), 63, "dsra32", "DTA", },
 
   // SPECIAL0
+  { kSpecial0Mask | 0x307ff, 1, "movf", "DSc" },
+  { kSpecial0Mask | 0x307ff, 0x10001, "movt", "DSc" },
   { kSpecial0Mask | 0x7ff, (2 << 6) | 24, "mul", "DST" },
   { kSpecial0Mask | 0x7ff, (3 << 6) | 24, "muh", "DST" },
   { kSpecial0Mask | 0x7ff, (2 << 6) | 25, "mulu", "DST" },
@@ -215,6 +217,11 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 14 << kOpcodeShift, "xori", "TSi", },
   { kITypeMask | (0x1f << 21), 15 << kOpcodeShift, "lui", "TI", },
   { kITypeMask, 15 << kOpcodeShift, "aui", "TSI", },
+
+  { kITypeMask | (0x3e3 << 16), (17 << kOpcodeShift) | (8 << 21), "bc1f", "cB" },
+  { kITypeMask | (0x3e3 << 16), (17 << kOpcodeShift) | (8 << 21) | (1 << 16), "bc1t", "cB" },
+  { kITypeMask | (0x1f << 21), (17 << kOpcodeShift) | (9 << 21), "bc1eqz", "tB" },
+  { kITypeMask | (0x1f << 21), (17 << kOpcodeShift) | (13 << 21), "bc1nez", "tB" },
 
   { kITypeMask | (0x1f << 21), 22 << kOpcodeShift, "blezc", "TB" },
 
@@ -333,6 +340,26 @@ static const MipsInstruction gMipsInstructions[] = {
   { kFpMask | (0x1f << 21), kCop1 | (0x04 << 21), "mtc1", "Td" },
   { kFpMask | (0x1f << 21), kCop1 | (0x05 << 21), "dmtc1", "Td" },
   { kFpMask | (0x1f << 21), kCop1 | (0x07 << 21), "mthc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 1, "cmp.un.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 2, "cmp.eq.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 3, "cmp.ueq.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 4, "cmp.lt.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 5, "cmp.ult.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 6, "cmp.le.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 7, "cmp.ule.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 17, "cmp.or.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 18, "cmp.une.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x14 << 21) | 19, "cmp.ne.s", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 1, "cmp.un.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 2, "cmp.eq.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 3, "cmp.ueq.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 4, "cmp.lt.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 5, "cmp.ult.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 6, "cmp.le.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 7, "cmp.ule.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 17, "cmp.or.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 18, "cmp.une.d", "adt" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x15 << 21) | 19, "cmp.ne.d", "adt" },
   { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 0, "add", "fadt" },
   { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 1, "sub", "fadt" },
   { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 2, "mul", "fadt" },
@@ -356,6 +383,13 @@ static const MipsInstruction gMipsInstructions[] = {
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 36, "cvt.w", "fad" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 37, "cvt.l", "fad" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 38, "cvt.ps", "fad" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 49, "c.un", "fCdt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 50, "c.eq", "fCdt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 51, "c.ueq", "fCdt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 52, "c.olt", "fCdt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 53, "c.ult", "fCdt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 54, "c.ole", "fCdt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 55, "c.ule", "fCdt" },
   { kFpMask, kCop1 | 0x10, "sel", "fadt" },
   { kFpMask, kCop1 | 0x1e, "max", "fadt" },
   { kFpMask, kCop1 | 0x1c, "min", "fadt" },
@@ -407,6 +441,12 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
               args << FormatInstructionPointer(instr_ptr + offset)
                    << StringPrintf("  ; %+d", offset);
             }
+            break;
+          case 'C':  // Floating-point condition code flag in c.<cond>.fmt.
+            args << "cc" << (sa >> 2);
+            break;
+          case 'c':  // Floating-point condition code flag in bc1f/bc1t and movf/movt.
+            args << "cc" << (rt >> 2);
             break;
           case 'D': args << 'r' << rd; break;
           case 'd': args << 'f' << rd; break;

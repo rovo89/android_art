@@ -778,9 +778,9 @@ void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   // Try to fold an HCompare into this HCondition.
 
   // This simplification is currently supported on x86, x86_64, ARM and ARM64.
-  // TODO: Implement it for MIPS and MIPS64.
+  // TODO: Implement it for MIPS64.
   InstructionSet instruction_set = GetGraph()->GetInstructionSet();
-  if (instruction_set == kMips || instruction_set == kMips64) {
+  if (instruction_set == kMips64) {
     return;
   }
 
