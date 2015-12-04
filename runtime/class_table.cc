@@ -115,7 +115,7 @@ bool ClassTable::Remove(const char* descriptor) {
   return false;
 }
 
-std::size_t ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& root)
+uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& root)
     const {
   std::string temp;
   return ComputeModifiedUtf8Hash(root.Read()->GetDescriptor(&temp));
@@ -133,7 +133,7 @@ bool ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Clas
   return a.Read()->DescriptorEquals(descriptor);
 }
 
-std::size_t ClassTable::ClassDescriptorHashEquals::operator()(const char* descriptor) const {
+uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const char* descriptor) const {
   return ComputeModifiedUtf8Hash(descriptor);
 }
 
@@ -146,6 +146,27 @@ bool ClassTable::InsertDexFile(mirror::Object* dex_file) {
   }
   dex_files_.push_back(GcRoot<mirror::Object>(dex_file));
   return true;
+}
+
+size_t ClassTable::WriteToMemory(uint8_t* ptr) const {
+  size_t ret = 0;
+  for (const ClassSet& set : classes_) {
+    uint8_t* address = (ptr != nullptr) ? ptr + ret : nullptr;
+    ret += set.WriteToMemory(address);
+    // Sanity check 2.
+    if (kIsDebugBuild && ptr != nullptr) {
+      size_t read_count;
+      ClassSet class_set(ptr, /*make copy*/false, &read_count);
+      class_set.Verify();
+    }
+  }
+  return ret;
+}
+
+size_t ClassTable::ReadFromMemory(uint8_t* ptr) {
+  size_t read_count = 0;
+  classes_.insert(classes_.begin(), ClassSet(ptr, /*make copy*/false, &read_count));
+  return read_count;
 }
 
 }  // namespace art

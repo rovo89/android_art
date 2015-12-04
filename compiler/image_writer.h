@@ -72,7 +72,8 @@ class ImageWriter FINAL {
         intern_table_bytes_(0u),
         image_method_array_(ImageHeader::kImageMethodsCount),
         dirty_methods_(0u),
-        clean_methods_(0u) {
+        clean_methods_(0u),
+        class_table_bytes_(0u) {
     CHECK_NE(image_begin, 0U);
     std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
     std::fill_n(oat_address_offsets_, arraysize(oat_address_offsets_), 0);
@@ -452,6 +453,12 @@ class ImageWriter FINAL {
 
   // Prune class memoization table to speed up ContainsBootClassLoaderNonImageClass.
   std::unordered_map<mirror::Class*, bool> prune_class_memo_;
+
+  // Class loaders with a class table to write out. Should only be one currently.
+  std::unordered_set<mirror::ClassLoader*> class_loaders_;
+
+  // Number of image class table bytes.
+  size_t class_table_bytes_;
 
   friend class ContainsBootClassLoaderNonImageClassVisitor;
   friend class FixupClassVisitor;
