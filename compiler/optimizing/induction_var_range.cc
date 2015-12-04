@@ -119,6 +119,17 @@ void InductionVarRange::GetInductionRange(HInstruction* context,
   }
 }
 
+bool InductionVarRange::RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) {
+  Value v1 = RefineOuter(*min_val, /* is_min */ true);
+  Value v2 = RefineOuter(*max_val, /* is_min */ false);
+  if (v1.instruction != min_val->instruction || v2.instruction != max_val->instruction) {
+    *min_val = v1;
+    *max_val = v2;
+    return true;
+  }
+  return false;
+}
+
 bool InductionVarRange::CanGenerateCode(HInstruction* context,
                                         HInstruction* instruction,
                                         /*out*/bool* needs_finite_test,
@@ -202,6 +213,8 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     } else if (IsIntAndGet(instruction->InputAt(1), &value)) {
       return AddValue(GetFetch(instruction->InputAt(0), trip, in_body, is_min), Value(value));
     }
+  } else if (instruction->IsArrayLength() && instruction->InputAt(0)->IsNewArray()) {
+    return GetFetch(instruction->InputAt(0)->InputAt(0), trip, in_body, is_min);
   } else if (is_min) {
     // Special case for finding minimum: minimum of trip-count in loop-body is 1.
     if (trip != nullptr && in_body && instruction == trip->op_a->fetch) {
@@ -402,6 +415,25 @@ InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is
     }
   }
   return Value();
+}
+
+InductionVarRange::Value InductionVarRange::RefineOuter(Value v, bool is_min) {
+  if (v.instruction != nullptr) {
+    HLoopInformation* loop =
+        v.instruction->GetBlock()->GetLoopInformation();  // closest enveloping loop
+    if (loop != nullptr) {
+      // Set up loop information.
+      bool in_body = true;  // use is always in body of outer loop
+      HInductionVarAnalysis::InductionInfo* info =
+          induction_analysis_->LookupInfo(loop, v.instruction);
+      HInductionVarAnalysis::InductionInfo* trip =
+          induction_analysis_->LookupInfo(loop, loop->GetHeader()->GetLastInstruction());
+      // Try to refine "a x instruction + b" with outer loop range information on instruction.
+      return AddValue(MulValue(Value(v.a_constant), GetVal(info, trip, in_body, is_min)),
+                      Value(v.b_constant));
+    }
+  }
+  return v;
 }
 
 bool InductionVarRange::GenerateCode(HInstruction* context,
