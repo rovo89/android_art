@@ -176,7 +176,7 @@ void IntrinsicLocationsBuilderMIPS::VisitDoubleDoubleToRawLongBits(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
-  MoveFPToInt(invoke->GetLocations(), true, GetAssembler());
+  MoveFPToInt(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 // int java.lang.Float.floatToRawIntBits(float)
@@ -185,7 +185,7 @@ void IntrinsicLocationsBuilderMIPS::VisitFloatFloatToRawIntBits(HInvoke* invoke)
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitFloatFloatToRawIntBits(HInvoke* invoke) {
-  MoveFPToInt(invoke->GetLocations(), false, GetAssembler());
+  MoveFPToInt(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateIntToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -218,7 +218,7 @@ void IntrinsicLocationsBuilderMIPS::VisitDoubleLongBitsToDouble(HInvoke* invoke)
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitDoubleLongBitsToDouble(HInvoke* invoke) {
-  MoveIntToFP(invoke->GetLocations(), true, GetAssembler());
+  MoveIntToFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 // float java.lang.Float.intBitsToFloat(int)
@@ -227,7 +227,7 @@ void IntrinsicLocationsBuilderMIPS::VisitFloatIntBitsToFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitFloatIntBitsToFloat(HInvoke* invoke) {
-  MoveIntToFP(invoke->GetLocations(), false, GetAssembler());
+  MoveIntToFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateIntToIntLocations(ArenaAllocator* arena,
