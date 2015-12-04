@@ -1228,19 +1228,26 @@ class BCEVisitor : public HGraphVisitor {
     InductionVarRange::Value v2;
     bool needs_finite_test = false;
     induction_range_.GetInductionRange(context, index, &v1, &v2, &needs_finite_test);
-    if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
-        v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
-      DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
-      DCHECK(v2.a_constant == 1 || v2.instruction == nullptr);
-      ValueRange index_range(GetGraph()->GetArena(),
-                             ValueBound(v1.instruction, v1.b_constant),
-                             ValueBound(v2.instruction, v2.b_constant));
-      // If analysis reveals a certain OOB, disable dynamic BCE.
-      *try_dynamic_bce = !index_range.GetLower().LessThan(array_range->GetLower()) &&
-                         !index_range.GetUpper().GreaterThan(array_range->GetUpper());
-      // Use analysis for static bce only if loop is finite.
-      return !needs_finite_test && index_range.FitsIn(array_range);
-    }
+    do {
+      if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
+          v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
+        DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
+        DCHECK(v2.a_constant == 1 || v2.instruction == nullptr);
+        ValueRange index_range(GetGraph()->GetArena(),
+                               ValueBound(v1.instruction, v1.b_constant),
+                               ValueBound(v2.instruction, v2.b_constant));
+        // If analysis reveals a certain OOB, disable dynamic BCE.
+        if (index_range.GetLower().LessThan(array_range->GetLower()) ||
+            index_range.GetUpper().GreaterThan(array_range->GetUpper())) {
+          *try_dynamic_bce = false;
+          return false;
+        }
+        // Use analysis for static bce only if loop is finite.
+        if (!needs_finite_test && index_range.FitsIn(array_range)) {
+          return true;
+        }
+      }
+    } while (induction_range_.RefineOuter(&v1, &v2));
     return false;
   }
 
