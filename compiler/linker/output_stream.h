@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OUTPUT_STREAM_H_
-#define ART_COMPILER_OUTPUT_STREAM_H_
+#ifndef ART_COMPILER_LINKER_OUTPUT_STREAM_H_
+#define ART_COMPILER_LINKER_OUTPUT_STREAM_H_
 
 #include <ostream>
 #include <string>
@@ -61,4 +61,4 @@ class OutputStream {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_OUTPUT_STREAM_H_
+#endif  // ART_COMPILER_LINKER_OUTPUT_STREAM_H_

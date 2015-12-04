@@ -31,6 +31,8 @@
 #include "elf_writer_debug.h"
 #include "globals.h"
 #include "leb128.h"
+#include "linker/buffered_output_stream.h"
+#include "linker/file_output_stream.h"
 #include "utils.h"
 
 namespace art {
@@ -71,6 +73,8 @@ class ElfWriterQuick FINAL : public ElfWriter {
   void WriteDebugInfo(const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) OVERRIDE;
   void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) OVERRIDE;
   bool End() OVERRIDE;
+
+  virtual OutputStream* GetStream() OVERRIDE;
 
   static void EncodeOatPatches(const std::vector<uintptr_t>& locations,
                                std::vector<uint8_t>* buffer);
@@ -188,6 +192,11 @@ bool ElfWriterQuick<ElfTypes>::End() {
   builder_->End();
 
   return builder_->Good();
+}
+
+template <typename ElfTypes>
+OutputStream* ElfWriterQuick<ElfTypes>::GetStream() {
+  return builder_->GetStream();
 }
 
 template <typename ElfTypes>

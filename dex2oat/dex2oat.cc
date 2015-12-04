@@ -74,7 +74,6 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "utils.h"
-#include "vector_output_stream.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
 
