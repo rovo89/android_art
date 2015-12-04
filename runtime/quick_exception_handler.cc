@@ -283,7 +283,12 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         prev_shadow_frame_(nullptr),
         stacked_shadow_frame_pushed_(false),
         single_frame_deopt_(single_frame),
-        single_frame_done_(false) {
+        single_frame_done_(false),
+        single_frame_deopt_method_(nullptr) {
+  }
+
+  ArtMethod* GetSingleFrameDeoptMethod() const {
+    return single_frame_deopt_method_;
   }
 
   bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -356,6 +361,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         // Single-frame deopt ends at the first non-inlined frame and needs to store that method.
         exception_handler_->SetHandlerQuickArg0(reinterpret_cast<uintptr_t>(method));
         single_frame_done_ = true;
+        single_frame_deopt_method_ = method;
       }
       return true;
     }
@@ -586,6 +592,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   bool stacked_shadow_frame_pushed_;
   const bool single_frame_deopt_;
   bool single_frame_done_;
+  ArtMethod* single_frame_deopt_method_;
 
   DISALLOW_COPY_AND_ASSIGN(DeoptimizeStackVisitor);
 };
@@ -613,6 +620,14 @@ void QuickExceptionHandler::DeoptimizeSingleFrame() {
 
   DeoptimizeStackVisitor visitor(self_, context_, this, true);
   visitor.WalkStack(true);
+
+  // Compiled code made an explicit deoptimization. Transfer the code
+  // to interpreter and clear the counter to JIT the method again.
+  ArtMethod* deopt_method = visitor.GetSingleFrameDeoptMethod();
+  DCHECK(deopt_method != nullptr);
+  deopt_method->ClearCounter();
+  Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+      deopt_method, GetQuickToInterpreterBridge());
 
   // PC needs to be of the quick-to-interpreter bridge.
   int32_t offset;

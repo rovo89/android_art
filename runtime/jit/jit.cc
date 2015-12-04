@@ -142,11 +142,24 @@ bool Jit::LoadCompiler(std::string* error_msg) {
 
 bool Jit::CompileMethod(ArtMethod* method, Thread* self) {
   DCHECK(!method->IsRuntimeMethod());
+  // Don't compile the method if it has breakpoints.
   if (Dbg::IsDebuggerActive() && Dbg::MethodHasAnyBreakpoints(method)) {
     VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to breakpoint";
     return false;
   }
-  return jit_compile_method_(jit_compiler_handle_, method, self);
+
+  // Don't compile the method if we are supposed to be deoptimized.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (instrumentation->AreAllMethodsDeoptimized() || instrumentation->IsDeoptimized(method)) {
+    return false;
+  }
+
+  if (!code_cache_->NotifyCompilationOf(method, self)) {
+    return false;
+  }
+  bool success = jit_compile_method_(jit_compiler_handle_, method, self);
+  code_cache_->DoneCompiling(method, self);
+  return success;
 }
 
 void Jit::CreateThreadPool() {

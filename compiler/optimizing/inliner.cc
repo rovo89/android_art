@@ -171,10 +171,34 @@ static uint32_t FindMethodIndexIn(ArtMethod* method,
                                   const DexFile& dex_file,
                                   uint32_t referrer_index)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (method->GetDexFile()->GetLocation().compare(dex_file.GetLocation()) == 0) {
+  if (IsSameDexFile(*method->GetDexFile(), dex_file)) {
     return method->GetDexMethodIndex();
   } else {
     return method->FindDexMethodIndexInOtherDexFile(dex_file, referrer_index);
+  }
+}
+
+static uint32_t FindClassIndexIn(mirror::Class* cls, const DexFile& dex_file)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (cls->GetDexCache() == nullptr) {
+    DCHECK(cls->IsArrayClass());
+    // TODO: find the class in `dex_file`.
+    return DexFile::kDexNoIndex;
+  } else if (cls->GetDexTypeIndex() == DexFile::kDexNoIndex16) {
+    // TODO: deal with proxy classes.
+    return DexFile::kDexNoIndex;
+  } else if (IsSameDexFile(cls->GetDexFile(), dex_file)) {
+    // Update the dex cache to ensure the class is in. The generated code will
+    // consider it is. We make it safe by updating the dex cache, as other
+    // dex files might also load the class, and there is no guarantee the dex
+    // cache of the dex file of the class will be updated.
+    if (cls->GetDexCache()->GetResolvedType(cls->GetDexTypeIndex()) == nullptr) {
+      cls->GetDexCache()->SetResolvedType(cls->GetDexTypeIndex(), cls);
+    }
+    return cls->GetDexTypeIndex();
+  } else {
+    // TODO: find the class in `dex_file`.
+    return DexFile::kDexNoIndex;
   }
 }
 
@@ -214,53 +238,176 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     return false;
   }
 
-  if (!invoke_instruction->IsInvokeStaticOrDirect()) {
-    resolved_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
-    if (resolved_method == nullptr) {
+  if (invoke_instruction->IsInvokeStaticOrDirect()) {
+    return TryInline(invoke_instruction, resolved_method);
+  }
+
+  // Check if we can statically find the method.
+  ArtMethod* actual_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
+  if (actual_method != nullptr) {
+    return TryInline(invoke_instruction, actual_method);
+  }
+
+  // Check if we can use an inline cache.
+  ArtMethod* caller = graph_->GetArtMethod();
+  size_t pointer_size = class_linker->GetImagePointerSize();
+  // Under JIT, we should always know the caller.
+  DCHECK(!Runtime::Current()->UseJit() || (caller != nullptr));
+  if (caller != nullptr && caller->GetProfilingInfo(pointer_size) != nullptr) {
+    ProfilingInfo* profiling_info = caller->GetProfilingInfo(pointer_size);
+    const InlineCache& ic = *profiling_info->GetInlineCache(invoke_instruction->GetDexPc());
+    if (ic.IsUnitialized()) {
       VLOG(compiler) << "Interface or virtual call to "
                      << PrettyMethod(method_index, caller_dex_file)
-                     << " could not be statically determined";
+                     << " is not hit and not inlined";
       return false;
-    }
-    // We have found a method, but we need to find where that method is for the caller's
-    // dex file.
-    method_index = FindMethodIndexIn(resolved_method, caller_dex_file, method_index);
-    if (method_index == DexFile::kDexNoIndex) {
+    } else if (ic.IsMonomorphic()) {
+      MaybeRecordStat(kMonomorphicCall);
+      return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
+    } else if (ic.IsPolymorphic()) {
+      MaybeRecordStat(kPolymorphicCall);
+      return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
+    } else {
+      DCHECK(ic.IsMegamorphic());
       VLOG(compiler) << "Interface or virtual call to "
-                     << PrettyMethod(resolved_method)
-                     << " cannot be inlined because unaccessible to caller";
+                     << PrettyMethod(method_index, caller_dex_file)
+                     << " is megamorphic and not inlined";
+      MaybeRecordStat(kMegamorphicCall);
       return false;
     }
   }
 
-  bool same_dex_file =
-      IsSameDexFile(*outer_compilation_unit_.GetDexFile(), *resolved_method->GetDexFile());
+  VLOG(compiler) << "Interface or virtual call to "
+                 << PrettyMethod(method_index, caller_dex_file)
+                 << " could not be statically determined";
+  return false;
+}
 
-  const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
+bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
+                                        ArtMethod* resolved_method,
+                                        const InlineCache& ic) {
+  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
+  uint32_t class_index = FindClassIndexIn(ic.GetMonomorphicType(), caller_dex_file);
+  if (class_index == DexFile::kDexNoIndex) {
+    VLOG(compiler) << "Call to " << PrettyMethod(resolved_method)
+                   << " from inline cache is not inlined because its class is not"
+                   << " accessible to the caller";
+    return false;
+  }
+
+  ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
+  size_t pointer_size = class_linker->GetImagePointerSize();
+  if (invoke_instruction->IsInvokeInterface()) {
+    resolved_method = ic.GetMonomorphicType()->FindVirtualMethodForInterface(
+        resolved_method, pointer_size);
+  } else {
+    DCHECK(invoke_instruction->IsInvokeVirtual());
+    resolved_method = ic.GetMonomorphicType()->FindVirtualMethodForVirtual(
+        resolved_method, pointer_size);
+  }
+  DCHECK(resolved_method != nullptr);
+  HInstruction* receiver = invoke_instruction->InputAt(0);
+  HInstruction* cursor = invoke_instruction->GetPrevious();
+  HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
+
+  if (!TryInline(invoke_instruction, resolved_method, /* do_rtp */ false)) {
+    return false;
+  }
+
+  // We successfully inlined, now add a guard.
+  ArtField* field = class_linker->GetClassRoot(ClassLinker::kJavaLangObject)->GetInstanceField(0);
+  DCHECK_EQ(std::string(field->GetName()), "shadow$_klass_");
+  HInstanceFieldGet* field_get = new (graph_->GetArena()) HInstanceFieldGet(
+      receiver,
+      Primitive::kPrimNot,
+      field->GetOffset(),
+      field->IsVolatile(),
+      field->GetDexFieldIndex(),
+      field->GetDeclaringClass()->GetDexClassDefIndex(),
+      *field->GetDexFile(),
+      handles_->NewHandle(field->GetDexCache()),
+      invoke_instruction->GetDexPc());
+
+  bool is_referrer =
+      (ic.GetMonomorphicType() == outermost_graph_->GetArtMethod()->GetDeclaringClass());
+  HLoadClass* load_class = new (graph_->GetArena()) HLoadClass(graph_->GetCurrentMethod(),
+                                                               class_index,
+                                                               caller_dex_file,
+                                                               is_referrer,
+                                                               invoke_instruction->GetDexPc(),
+                                                               /* needs_access_check */ false,
+                                                               /* is_in_dex_cache */ true);
+
+  HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, field_get);
+  HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
+      compare, invoke_instruction->GetDexPc());
+  // TODO: Extend reference type propagation to understand the guard.
+  if (cursor != nullptr) {
+    bb_cursor->InsertInstructionAfter(load_class, cursor);
+  } else {
+    bb_cursor->InsertInstructionBefore(load_class, bb_cursor->GetFirstInstruction());
+  }
+  bb_cursor->InsertInstructionAfter(field_get, load_class);
+  bb_cursor->InsertInstructionAfter(compare, field_get);
+  bb_cursor->InsertInstructionAfter(deoptimize, compare);
+  deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+
+  // Run type propagation to get the guard typed, and eventually propagate the
+  // type of the receiver.
+  ReferenceTypePropagation rtp_fixup(graph_, handles_);
+  rtp_fixup.Run();
+
+  MaybeRecordStat(kInlinedMonomorphicCall);
+  return true;
+}
+
+bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction ATTRIBUTE_UNUSED,
+                                        ArtMethod* resolved_method,
+                                        const InlineCache& ic ATTRIBUTE_UNUSED) {
+  // TODO
+  VLOG(compiler) << "Unimplemented polymorphic inlining for "
+                 << PrettyMethod(resolved_method);
+  return false;
+}
+
+bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {
+  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
+  uint32_t method_index = FindMethodIndexIn(
+      method, caller_dex_file, invoke_instruction->GetDexMethodIndex());
+  if (method_index == DexFile::kDexNoIndex) {
+    VLOG(compiler) << "Call to "
+                   << PrettyMethod(method)
+                   << " cannot be inlined because unaccessible to caller";
+    return false;
+  }
+
+  bool same_dex_file = IsSameDexFile(*outer_compilation_unit_.GetDexFile(), *method->GetDexFile());
+
+  const DexFile::CodeItem* code_item = method->GetCodeItem();
 
   if (code_item == nullptr) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+    VLOG(compiler) << "Method " << PrettyMethod(method)
                    << " is not inlined because it is native";
     return false;
   }
 
   size_t inline_max_code_units = compiler_driver_->GetCompilerOptions().GetInlineMaxCodeUnits();
   if (code_item->insns_size_in_code_units_ > inline_max_code_units) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+    VLOG(compiler) << "Method " << PrettyMethod(method)
                    << " is too big to inline";
     return false;
   }
 
   if (code_item->tries_size_ != 0) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+    VLOG(compiler) << "Method " << PrettyMethod(method)
                    << " is not inlined because of try block";
     return false;
   }
 
-  if (!resolved_method->GetDeclaringClass()->IsVerified()) {
-    uint16_t class_def_idx = resolved_method->GetDeclaringClass()->GetDexClassDefIndex();
+  if (!method->GetDeclaringClass()->IsVerified()) {
+    uint16_t class_def_idx = method->GetDeclaringClass()->GetDexClassDefIndex();
     if (!compiler_driver_->IsMethodVerifiedWithoutFailures(
-          resolved_method->GetDexMethodIndex(), class_def_idx, *resolved_method->GetDexFile())) {
+          method->GetDexMethodIndex(), class_def_idx, *method->GetDexFile())) {
       VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                      << " couldn't be verified, so it cannot be inlined";
       return false;
@@ -277,7 +424,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     return false;
   }
 
-  if (!TryBuildAndInline(resolved_method, invoke_instruction, same_dex_file)) {
+  if (!TryBuildAndInline(method, invoke_instruction, same_dex_file, do_rtp)) {
     return false;
   }
 
@@ -288,7 +435,8 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
 
 bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                                  HInvoke* invoke_instruction,
-                                 bool same_dex_file) {
+                                 bool same_dex_file,
+                                 bool do_rtp) {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
   const DexFile& callee_dex_file = *resolved_method->GetDexFile();
@@ -341,6 +489,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       invoke_type,
       graph_->IsDebuggable(),
       graph_->GetCurrentInstructionId());
+  callee_graph->SetArtMethod(resolved_method);
 
   OptimizingCompilerStats inline_stats;
   HGraphBuilder builder(callee_graph,
@@ -422,6 +571,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   size_t number_of_instructions_budget = kMaximumNumberOfHInstructions;
   if (depth_ + 1 < compiler_driver_->GetCompilerOptions().GetInlineDepthLimit()) {
     HInliner inliner(callee_graph,
+                     outermost_graph_,
                      codegen_,
                      outer_compilation_unit_,
                      dex_compilation_unit,
@@ -533,9 +683,9 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   HNullConstant* null_constant = graph_->GetNullConstant();
   if (!null_constant->GetReferenceTypeInfo().IsValid()) {
     ReferenceTypeInfo::TypeHandle obj_handle =
-            handles_->NewHandle(class_linker->GetClassRoot(ClassLinker::kJavaLangObject));
+        handles_->NewHandle(class_linker->GetClassRoot(ClassLinker::kJavaLangObject));
     null_constant->SetReferenceTypeInfo(
-            ReferenceTypeInfo::Create(obj_handle, false /* is_exact */));
+        ReferenceTypeInfo::Create(obj_handle, false /* is_exact */));
   }
 
   // Check the integrity of reference types and run another type propagation if needed.
@@ -554,14 +704,16 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
          return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
     }
 
-    // If the return type is a refinement of the declared type run the type propagation again.
-    ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
-    ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
-    if (invoke_rti.IsStrictSupertypeOf(return_rti)
-        || (return_rti.IsExact() && !invoke_rti.IsExact())
-        || !return_replacement->CanBeNull()) {
-      ReferenceTypePropagation rtp_fixup(graph_, handles_);
-      rtp_fixup.Run();
+    if (do_rtp) {
+      // If the return type is a refinement of the declared type run the type propagation again.
+      ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
+      ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
+      if (invoke_rti.IsStrictSupertypeOf(return_rti)
+          || (return_rti.IsExact() && !invoke_rti.IsExact())
+          || !return_replacement->CanBeNull()) {
+        ReferenceTypePropagation rtp_fixup(graph_, handles_);
+        rtp_fixup.Run();
+      }
     }
   }
 

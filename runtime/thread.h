@@ -849,10 +849,14 @@ class Thread {
   // and execute Java code, so there might be nested deoptimizations happening.
   // We need to save the ongoing deoptimization shadow frames and return
   // values on stacks.
-  void PushDeoptimizationContext(const JValue& return_value, bool is_reference,
+  // 'from_code' denotes whether the deoptimization was explicitly made from
+  // compiled code.
+  void PushDeoptimizationContext(const JValue& return_value,
+                                 bool is_reference,
+                                 bool from_code,
                                  mirror::Throwable* exception)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void PopDeoptimizationContext(JValue* result, mirror::Throwable** exception)
+  void PopDeoptimizationContext(JValue* result, mirror::Throwable** exception, bool* from_code)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void AssertHasDeoptimizationContext()
       SHARED_REQUIRES(Locks::mutator_lock_);

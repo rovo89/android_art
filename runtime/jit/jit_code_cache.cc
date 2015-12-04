@@ -536,7 +536,9 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       instrumentation->UpdateMethodsCode(it.second, GetQuickToInterpreterBridge());
     }
     for (ProfilingInfo* info : profiling_infos_) {
-      info->GetMethod()->SetProfilingInfo(nullptr);
+      if (!info->IsMethodBeingCompiled()) {
+        info->GetMethod()->SetProfilingInfo(nullptr);
+      }
     }
   }
 
@@ -577,12 +579,17 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       }
     }
 
-    // Free all profiling info.
-    for (ProfilingInfo* info : profiling_infos_) {
-      DCHECK(info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr);
-      mspace_free(data_mspace_, reinterpret_cast<uint8_t*>(info));
-    }
-    profiling_infos_.clear();
+    void* data_mspace = data_mspace_;
+    // Free all profiling infos of methods that were not being compiled.
+    auto profiling_kept_end = std::remove_if(profiling_infos_.begin(), profiling_infos_.end(),
+      [data_mspace] (ProfilingInfo* info) {
+        if (info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
+          mspace_free(data_mspace, reinterpret_cast<uint8_t*>(info));
+          return true;
+        }
+        return false;
+      });
+    profiling_infos_.erase(profiling_kept_end, profiling_infos_.end());
 
     live_bitmap_.reset(nullptr);
     has_done_one_collection_ = true;
@@ -643,7 +650,7 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
                                                       ArtMethod* method,
                                                       const std::vector<uint32_t>& entries) {
   size_t profile_info_size = RoundUp(
-      sizeof(ProfilingInfo) + sizeof(ProfilingInfo::InlineCache) * entries.size(),
+      sizeof(ProfilingInfo) + sizeof(InlineCache) * entries.size(),
       sizeof(void*));
   ScopedThreadSuspension sts(self, kSuspended);
   MutexLock mu(self, lock_);
@@ -694,5 +701,25 @@ uint64_t JitCodeCache::GetLastUpdateTimeNs() {
   MutexLock mu(Thread::Current(), lock_);
   return last_update_time_ns_;
 }
+
+bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self) {
+  if (ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
+    return false;
+  }
+  MutexLock mu(self, lock_);
+  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  if (info == nullptr || info->IsMethodBeingCompiled()) {
+    return false;
+  }
+  info->SetIsMethodBeingCompiled(true);
+  return true;
+}
+
+void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED) {
+  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  DCHECK(info->IsMethodBeingCompiled());
+  info->SetIsMethodBeingCompiled(false);
+}
+
 }  // namespace jit
 }  // namespace art
