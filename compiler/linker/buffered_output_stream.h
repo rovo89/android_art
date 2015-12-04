@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_BUFFERED_OUTPUT_STREAM_H_
-#define ART_COMPILER_BUFFERED_OUTPUT_STREAM_H_
+#ifndef ART_COMPILER_LINKER_BUFFERED_OUTPUT_STREAM_H_
+#define ART_COMPILER_LINKER_BUFFERED_OUTPUT_STREAM_H_
 
 #include <memory>
 
@@ -51,4 +51,4 @@ class BufferedOutputStream FINAL : public OutputStream {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_BUFFERED_OUTPUT_STREAM_H_
+#endif  // ART_COMPILER_LINKER_BUFFERED_OUTPUT_STREAM_H_

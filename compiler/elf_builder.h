@@ -23,10 +23,9 @@
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/unix_file/fd_file.h"
-#include "buffered_output_stream.h"
 #include "elf_utils.h"
-#include "file_output_stream.h"
 #include "leb128.h"
+#include "linker/error_delaying_output_stream.h"
 #include "utils/array_ref.h"
 
 namespace art {
@@ -121,8 +120,8 @@ class ElfBuilder FINAL {
       sections.push_back(this);
       // Align file position.
       if (header_.sh_type != SHT_NOBITS) {
-        header_.sh_offset = RoundUp(owner_->Seek(0, kSeekCurrent), header_.sh_addralign);
-        owner_->Seek(header_.sh_offset, kSeekSet);
+        header_.sh_offset = RoundUp(owner_->stream_.Seek(0, kSeekCurrent), header_.sh_addralign);
+        owner_->stream_.Seek(header_.sh_offset, kSeekSet);
       }
       // Align virtual memory address.
       if ((header_.sh_flags & SHF_ALLOC) != 0) {
@@ -140,7 +139,7 @@ class ElfBuilder FINAL {
         CHECK_GT(header_.sh_size, 0u);
       } else {
         // Use the current file position to determine section size.
-        off_t file_offset = owner_->Seek(0, kSeekCurrent);
+        off_t file_offset = owner_->stream_.Seek(0, kSeekCurrent);
         CHECK_GE(file_offset, (off_t)header_.sh_offset);
         header_.sh_size = file_offset - header_.sh_offset;
       }
@@ -162,7 +161,7 @@ class ElfBuilder FINAL {
       } else {
         CHECK(started_);
         CHECK_NE(header_.sh_type, (Elf_Word)SHT_NOBITS);
-        return owner_->Seek(0, kSeekCurrent) - header_.sh_offset;
+        return owner_->stream_.Seek(0, kSeekCurrent) - header_.sh_offset;
       }
     }
 
@@ -177,21 +176,20 @@ class ElfBuilder FINAL {
     bool WriteFully(const void* buffer, size_t byte_count) OVERRIDE {
       CHECK(started_);
       CHECK(!finished_);
-      owner_->WriteFully(buffer, byte_count);
-      return true;
+      return owner_->stream_.WriteFully(buffer, byte_count);
     }
 
     // This function always succeeds to simplify code.
     // Use builder's Good() to check the actual status.
     off_t Seek(off_t offset, Whence whence) OVERRIDE {
       // Forward the seek as-is and trust the caller to use it reasonably.
-      return owner_->Seek(offset, whence);
+      return owner_->stream_.Seek(offset, whence);
     }
 
     // This function flushes the output and returns whether it succeeded.
     // If there was a previous failure, this does nothing and returns false, i.e. failed.
     bool Flush() OVERRIDE {
-      return owner_->Flush();
+      return owner_->stream_.Flush();
     }
 
     Elf_Word GetSectionIndex() const {
@@ -277,26 +275,24 @@ class ElfBuilder FINAL {
   };
 
   ElfBuilder(InstructionSet isa, OutputStream* output)
-    : isa_(isa),
-      output_(output),
-      output_good_(true),
-      output_offset_(0),
-      rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-      text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0, kPageSize, 0),
-      bss_(this, ".bss", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-      dynstr_(this, ".dynstr", SHF_ALLOC, kPageSize),
-      dynsym_(this, ".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
-      hash_(this, ".hash", SHT_HASH, SHF_ALLOC, &dynsym_, 0, sizeof(Elf_Word), sizeof(Elf_Word)),
-      dynamic_(this, ".dynamic", SHT_DYNAMIC, SHF_ALLOC, &dynstr_, 0, kPageSize, sizeof(Elf_Dyn)),
-      eh_frame_(this, ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-      eh_frame_hdr_(this, ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0),
-      strtab_(this, ".strtab", 0, kPageSize),
-      symtab_(this, ".symtab", SHT_SYMTAB, 0, &strtab_),
-      debug_frame_(this, ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, sizeof(Elf_Addr), 0),
-      debug_info_(this, ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
-      debug_line_(this, ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
-      shstrtab_(this, ".shstrtab", 0, 1),
-      virtual_address_(0) {
+      : isa_(isa),
+        stream_(output),
+        rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
+        text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0, kPageSize, 0),
+        bss_(this, ".bss", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
+        dynstr_(this, ".dynstr", SHF_ALLOC, kPageSize),
+        dynsym_(this, ".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
+        hash_(this, ".hash", SHT_HASH, SHF_ALLOC, &dynsym_, 0, sizeof(Elf_Word), sizeof(Elf_Word)),
+        dynamic_(this, ".dynamic", SHT_DYNAMIC, SHF_ALLOC, &dynstr_, 0, kPageSize, sizeof(Elf_Dyn)),
+        eh_frame_(this, ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
+        eh_frame_hdr_(this, ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0),
+        strtab_(this, ".strtab", 0, kPageSize),
+        symtab_(this, ".symtab", SHT_SYMTAB, 0, &strtab_),
+        debug_frame_(this, ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, sizeof(Elf_Addr), 0),
+        debug_info_(this, ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
+        debug_line_(this, ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
+        shstrtab_(this, ".shstrtab", 0, 1),
+        virtual_address_(0) {
     text_.phdr_flags_ = PF_R | PF_X;
     bss_.phdr_flags_ = PF_R | PF_W;
     dynamic_.phdr_flags_ = PF_R | PF_W;
@@ -353,7 +349,7 @@ class ElfBuilder FINAL {
     // We do not know the number of headers until later, so
     // it is easiest to just reserve a fixed amount of space.
     int size = sizeof(Elf_Ehdr) + sizeof(Elf_Phdr) * kMaxProgramHeaders;
-    Seek(size, kSeekSet);
+    stream_.Seek(size, kSeekSet);
     virtual_address_ += size;
   }
 
@@ -377,9 +373,14 @@ class ElfBuilder FINAL {
       shdrs.push_back(section->header_);
     }
     Elf_Off section_headers_offset;
-    section_headers_offset = RoundUp(Seek(0, kSeekCurrent), sizeof(Elf_Off));
-    Seek(section_headers_offset, kSeekSet);
-    WriteFully(shdrs.data(), shdrs.size() * sizeof(shdrs[0]));
+    section_headers_offset = RoundUp(stream_.Seek(0, kSeekCurrent), sizeof(Elf_Off));
+    stream_.Seek(section_headers_offset, kSeekSet);
+    stream_.WriteFully(shdrs.data(), shdrs.size() * sizeof(shdrs[0]));
+
+    // Flush everything else before writing the program headers. This should prevent
+    // the OS from reordering writes, so that we don't end up with valid headers
+    // and partially written data if we suddenly lose power, for example.
+    stream_.Flush();
 
     // Write the initial file headers.
     std::vector<Elf_Phdr> phdrs = MakeProgramHeaders();
@@ -389,10 +390,10 @@ class ElfBuilder FINAL {
     elf_header.e_phnum = phdrs.size();
     elf_header.e_shnum = shdrs.size();
     elf_header.e_shstrndx = shstrtab_.GetSectionIndex();
-    Seek(0, kSeekSet);
-    WriteFully(&elf_header, sizeof(elf_header));
-    WriteFully(phdrs.data(), phdrs.size() * sizeof(phdrs[0]));
-    Flush();
+    stream_.Seek(0, kSeekSet);
+    stream_.WriteFully(&elf_header, sizeof(elf_header));
+    stream_.WriteFully(phdrs.data(), phdrs.size() * sizeof(phdrs[0]));
+    stream_.Flush();
   }
 
   // The running program does not have access to section headers
@@ -470,60 +471,15 @@ class ElfBuilder FINAL {
 
   // Returns true if all writes and seeks on the output stream succeeded.
   bool Good() {
-    return output_good_;
+    return stream_.Good();
+  }
+
+  // Returns the builder's internal stream.
+  OutputStream* GetStream() {
+    return &stream_;
   }
 
  private:
-  // This function always succeeds to simplify code.
-  // Use Good() to check the actual status of the output stream.
-  void WriteFully(const void* buffer, size_t byte_count) {
-    if (output_good_) {
-      if (!output_->WriteFully(buffer, byte_count)) {
-        PLOG(ERROR) << "Failed to write " << byte_count
-                    << " bytes to ELF file at offset " << output_offset_;
-        output_good_ = false;
-      }
-    }
-    output_offset_ += byte_count;
-  }
-
-  // This function always succeeds to simplify code.
-  // Use Good() to check the actual status of the output stream.
-  off_t Seek(off_t offset, Whence whence) {
-    // We keep shadow copy of the offset so that we return
-    // the expected value even if the output stream failed.
-    off_t new_offset;
-    switch (whence) {
-      case kSeekSet:
-        new_offset = offset;
-        break;
-      case kSeekCurrent:
-        new_offset = output_offset_ + offset;
-        break;
-      default:
-        LOG(FATAL) << "Unsupported seek type: " << whence;
-        UNREACHABLE();
-    }
-    if (output_good_) {
-      off_t actual_offset = output_->Seek(offset, whence);
-      if (actual_offset == (off_t)-1) {
-        PLOG(ERROR) << "Failed to seek in ELF file. Offset=" << offset
-                    << " whence=" << whence << " new_offset=" << new_offset;
-        output_good_ = false;
-      }
-      DCHECK_EQ(actual_offset, new_offset);
-    }
-    output_offset_ = new_offset;
-    return new_offset;
-  }
-
-  bool Flush() {
-    if (output_good_) {
-      output_good_ = output_->Flush();
-    }
-    return output_good_;
-  }
-
   static Elf_Ehdr MakeElfHeader(InstructionSet isa) {
     Elf_Ehdr elf_header = Elf_Ehdr();
     switch (isa) {
@@ -675,9 +631,7 @@ class ElfBuilder FINAL {
 
   InstructionSet isa_;
 
-  OutputStream* output_;
-  bool output_good_;  // True if all writes to output succeeded.
-  off_t output_offset_;  // Keep track of the current position in the stream.
+  ErrorDelayingOutputStream stream_;
 
   Section rodata_;
   Section text_;

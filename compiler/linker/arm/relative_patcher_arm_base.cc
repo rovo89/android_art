@@ -17,9 +17,9 @@
 #include "linker/arm/relative_patcher_arm_base.h"
 
 #include "compiled_method.h"
+#include "linker/output_stream.h"
 #include "oat.h"
 #include "oat_quick_method_header.h"
-#include "output_stream.h"
 
 namespace art {
 namespace linker {

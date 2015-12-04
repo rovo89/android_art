@@ -58,6 +58,10 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/compiler_driver.cc \
 	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
+	linker/buffered_output_stream.cc \
+	linker/file_output_stream.cc \
+	linker/output_stream.cc \
+	linker/vector_output_stream.cc \
 	linker/relative_patcher.cc \
 	jit/jit_compiler.cc \
 	jni/quick/calling_convention.cc \
@@ -100,16 +104,12 @@ LIBART_COMPILER_SRC_FILES := \
 	trampolines/trampoline_compiler.cc \
 	utils/assembler.cc \
 	utils/swap_space.cc \
-	buffered_output_stream.cc \
 	compiler.cc \
 	elf_writer.cc \
 	elf_writer_debug.cc \
 	elf_writer_quick.cc \
-	file_output_stream.cc \
 	image_writer.cc \
-	oat_writer.cc \
-	output_stream.cc \
-	vector_output_stream.cc
+	oat_writer.cc
 
 LIBART_COMPILER_SRC_FILES_arm := \
 	dex/quick/arm/assemble_arm.cc \
