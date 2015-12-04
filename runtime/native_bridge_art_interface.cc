@@ -45,10 +45,7 @@ static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
   uint32_t native_method_count = 0;
-  for (auto& m : c->GetDirectMethods(sizeof(void*))) {
-    native_method_count += m.IsNative() ? 1u : 0u;
-  }
-  for (auto& m : c->GetVirtualMethods(sizeof(void*))) {
+  for (auto& m : c->GetMethods(sizeof(void*))) {
     native_method_count += m.IsNative() ? 1u : 0u;
   }
   return native_method_count;
@@ -63,19 +60,7 @@ static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* met
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
   uint32_t count = 0;
-  for (auto& m : c->GetDirectMethods(sizeof(void*))) {
-    if (m.IsNative()) {
-      if (count < method_count) {
-        methods[count].name = m.GetName();
-        methods[count].signature = m.GetShorty();
-        methods[count].fnPtr = m.GetEntryPointFromJni();
-        count++;
-      } else {
-        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(&m);
-      }
-    }
-  }
-  for (auto& m : c->GetVirtualMethods(sizeof(void*))) {
+  for (auto& m : c->GetMethods(sizeof(void*))) {
     if (m.IsNative()) {
       if (count < method_count) {
         methods[count].name = m.GetName();

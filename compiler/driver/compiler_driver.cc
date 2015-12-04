@@ -790,10 +790,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
 
   virtual bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-    for (auto& m : c->GetVirtualMethods(pointer_size)) {
-      ResolveExceptionsForMethod(&m, pointer_size);
-    }
-    for (auto& m : c->GetDirectMethods(pointer_size)) {
+    for (auto& m : c->GetMethods(pointer_size)) {
       ResolveExceptionsForMethod(&m, pointer_size);
     }
     return true;

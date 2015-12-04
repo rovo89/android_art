@@ -86,10 +86,7 @@ class CompilerDriverTest : public CommonCompilerTest {
       mirror::Class* c = class_linker->FindClass(soa.Self(), descriptor, loader);
       CHECK(c != nullptr);
       const auto pointer_size = class_linker->GetImagePointerSize();
-      for (auto& m : c->GetDirectMethods(pointer_size)) {
-        MakeExecutable(&m);
-      }
-      for (auto& m : c->GetVirtualMethods(pointer_size)) {
+      for (auto& m : c->GetMethods(pointer_size)) {
         MakeExecutable(&m);
       }
     }
