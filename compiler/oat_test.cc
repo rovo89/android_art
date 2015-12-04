@@ -238,12 +238,12 @@ TEST_F(OatTest, WriteRead) {
       ++method_index;
     }
     size_t visited_virtuals = 0;
-    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
-      if (!m.IsMiranda()) {
-        CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
-        ++method_index;
-        ++visited_virtuals;
-      }
+    // TODO We should also check copied methods in this test.
+    for (auto& m : klass->GetDeclaredVirtualMethods(pointer_size)) {
+      EXPECT_FALSE(m.IsMiranda());
+      CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
+      ++method_index;
+      ++visited_virtuals;
     }
     EXPECT_EQ(visited_virtuals, num_virtual_methods);
   }
