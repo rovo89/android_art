@@ -371,6 +371,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
+  ArtMethod* GetArtMethod() const { return art_method_; }
+  void SetArtMethod(ArtMethod* method) { art_method_ = method; }
+
   // Returns an instruction with the opposite boolean value from 'cond'.
   // The instruction has been inserted into the graph, either as a constant, or
   // before cursor.
@@ -478,6 +481,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   ArenaSafeMap<int64_t, HDoubleConstant*> cached_double_constants_;
 
   HCurrentMethod* cached_current_method_;
+
+  // The ArtMethod this graph is for. Note that for AOT, it may be null,
+  // for example for methods whose declaring class could not be resolved
+  // (such as when the superclass could not be found).
+  ArtMethod* art_method_;
 
   friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
@@ -2462,11 +2470,15 @@ class HTryBoundary : public HTemplateInstruction<0> {
 // Deoptimize to interpreter, upon checking a condition.
 class HDeoptimize : public HTemplateInstruction<1> {
  public:
-  explicit HDeoptimize(HInstruction* cond, uint32_t dex_pc)
+  HDeoptimize(HInstruction* cond, uint32_t dex_pc)
       : HTemplateInstruction(SideEffects::None(), dex_pc) {
     SetRawInputAt(0, cond);
   }
 
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
   bool NeedsEnvironment() const OVERRIDE { return true; }
   bool CanThrow() const OVERRIDE { return true; }
 

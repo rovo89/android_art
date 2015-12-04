@@ -1062,7 +1062,9 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
                                 PrettyMethod(method).c_str(),
                                 return_value.GetJ()) << *self;
     }
-    self->PushDeoptimizationContext(return_value, return_shorty == 'L',
+    self->PushDeoptimizationContext(return_value,
+                                    return_shorty == 'L',
+                                    false /* from_code */,
                                     nullptr /* no pending exception */);
     return GetTwoWordSuccessValue(*return_pc,
                                   reinterpret_cast<uintptr_t>(GetQuickDeoptimizationEntryPoint()));

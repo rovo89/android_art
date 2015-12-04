@@ -170,18 +170,6 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
 
-  // Check if the method is already compiled.
-  if (runtime->GetJit()->GetCodeCache()->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
-    VLOG(jit) << "Already compiled " << PrettyMethod(method);
-    return true;
-  }
-
-  // Don't compile the method if we are supposed to be deoptimized.
-  instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-  if (instrumentation->AreAllMethodsDeoptimized() || instrumentation->IsDeoptimized(method)) {
-    return false;
-  }
-
   // Ensure the class is initialized.
   Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
   if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
@@ -190,13 +178,13 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   }
 
   // Do the compilation.
-  JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
   bool success = false;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
     // If we get a request to compile a proxy method, we pass the actual Java method
     // of that proxy method, as the compiler does not expect a proxy method.
     ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
+    JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
     success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile);
   }
 
