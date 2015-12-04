@@ -136,6 +136,7 @@ class MipsAssembler FINAL : public Assembler {
   void Seb(Register rd, Register rt);  // R2+
   void Seh(Register rd, Register rt);  // R2+
   void Wsbh(Register rd, Register rt);  // R2+
+  void Bitswap(Register rd, Register rt);  // R6
 
   void Sll(Register rd, Register rt, int shamt);
   void Srl(Register rd, Register rt, int shamt);
