@@ -67,6 +67,9 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
 
+  bool IsR2OrNewer(void);
+  bool IsR6(void);
+
  private:
   MipsAssembler* GetAssembler();
 

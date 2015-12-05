@@ -153,6 +153,7 @@ class MipsAssembler FINAL : public Assembler {
   void Sra(Register rd, Register rt, int shamt);
   void Sllv(Register rd, Register rt, Register rs);
   void Srlv(Register rd, Register rt, Register rs);
+  void Rotrv(Register rd, Register rt, Register rs);  // R2+
   void Srav(Register rd, Register rt, Register rs);
 
   void Lb(Register rt, Register rs, uint16_t imm16);
