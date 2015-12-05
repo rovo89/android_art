@@ -387,6 +387,10 @@ void MipsAssembler::Srlv(Register rd, Register rt, Register rs) {
   EmitR(0, rs, rt, rd, 0, 0x06);
 }
 
+void MipsAssembler::Rotrv(Register rd, Register rt, Register rs) {
+  EmitR(0, rs, rt, rd, 1, 0x06);
+}
+
 void MipsAssembler::Srav(Register rd, Register rt, Register rs) {
   EmitR(0, rs, rt, rd, 0, 0x07);
 }
