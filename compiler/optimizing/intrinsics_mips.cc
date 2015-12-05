@@ -43,6 +43,14 @@ ArenaAllocator* IntrinsicCodeGeneratorMIPS::GetAllocator() {
   return codegen_->GetGraph()->GetArena();
 }
 
+inline bool IntrinsicCodeGeneratorMIPS::IsR2OrNewer() {
+  return codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
+}
+
+inline bool IntrinsicCodeGeneratorMIPS::IsR6() {
+  return codegen_->GetInstructionSetFeatures().IsR6();
+}
+
 #define __ codegen->GetAssembler()->
 
 static void MoveFromReturnRegister(Location trg,
@@ -394,8 +402,8 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerReverseBytes(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS::VisitIntegerReverseBytes(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(),
              Primitive::kPrimInt,
-             codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-             codegen_->GetInstructionSetFeatures().IsR6(),
+             IsR2OrNewer(),
+             IsR6(),
              false,
              GetAssembler());
 }
@@ -408,8 +416,8 @@ void IntrinsicLocationsBuilderMIPS::VisitLongReverseBytes(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS::VisitLongReverseBytes(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(),
              Primitive::kPrimLong,
-             codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-             codegen_->GetInstructionSetFeatures().IsR6(),
+             IsR2OrNewer(),
+             IsR6(),
              false,
              GetAssembler());
 }
@@ -422,8 +430,8 @@ void IntrinsicLocationsBuilderMIPS::VisitShortReverseBytes(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS::VisitShortReverseBytes(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(),
              Primitive::kPrimShort,
-             codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-             codegen_->GetInstructionSetFeatures().IsR6(),
+             IsR2OrNewer(),
+             IsR6(),
              false,
              GetAssembler());
 }
@@ -464,10 +472,7 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerNumberOfLeadingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeroes(invoke->GetLocations(),
-                           false,
-                           codegen_->GetInstructionSetFeatures().IsR6(),
-                           GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), false, IsR6(), GetAssembler());
 }
 
 // int java.lang.Long.numberOfLeadingZeros(long i)
@@ -476,10 +481,7 @@ void IntrinsicLocationsBuilderMIPS::VisitLongNumberOfLeadingZeros(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeroes(invoke->GetLocations(),
-                           true,
-                           codegen_->GetInstructionSetFeatures().IsR6(),
-                           GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), true, IsR6(), GetAssembler());
 }
 
 static void GenNumberOfTrailingZeroes(LocationSummary* locations,
@@ -583,11 +585,7 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* i
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(),
-                            false,
-                            codegen_->GetInstructionSetFeatures().IsR6(),
-                            codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-                            GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), false, IsR6(), IsR2OrNewer(), GetAssembler());
 }
 
 // int java.lang.Long.numberOfTrailingZeros(long i)
@@ -596,11 +594,203 @@ void IntrinsicLocationsBuilderMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(),
-                            true,
-                            codegen_->GetInstructionSetFeatures().IsR6(),
-                            codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-                            GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), true, IsR6(), IsR2OrNewer(), GetAssembler());
+}
+
+enum RotationDirection {
+  kRotateRight,
+  kRotateLeft,
+};
+
+static void GenRotate(HInvoke* invoke,
+                      Primitive::Type type,
+                      bool isR2OrNewer,
+                      RotationDirection direction,
+                      MipsAssembler* assembler) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  LocationSummary* locations = invoke->GetLocations();
+  if (invoke->InputAt(1)->IsIntConstant()) {
+    int32_t shift = static_cast<int32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue());
+    if (type == Primitive::kPrimInt) {
+      Register in = locations->InAt(0).AsRegister<Register>();
+      Register out = locations->Out().AsRegister<Register>();
+
+      shift &= 0x1f;
+      if (direction == kRotateLeft) {
+        shift = (32 - shift) & 0x1F;
+      }
+
+      if (isR2OrNewer) {
+        if ((shift != 0) || (out != in)) {
+          __ Rotr(out, in, shift);
+        }
+      } else {
+        if (shift == 0) {
+          if (out != in) {
+            __ Move(out, in);
+          }
+        } else {
+          __ Srl(AT, in, shift);
+          __ Sll(out, in, 32 - shift);
+          __ Or(out, out, AT);
+        }
+      }
+    } else {    // Primitive::kPrimLong
+      Register in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+      Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+      Register out_lo = locations->Out().AsRegisterPairLow<Register>();
+      Register out_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+      shift &= 0x3f;
+      if (direction == kRotateLeft) {
+        shift = (64 - shift) & 0x3F;
+      }
+
+      if (shift == 0) {
+        __ Move(out_lo, in_lo);
+        __ Move(out_hi, in_hi);
+      } else if (shift == 32) {
+        __ Move(out_lo, in_hi);
+        __ Move(out_hi, in_lo);
+      } else if (shift < 32) {
+        __ Srl(AT, in_lo, shift);
+        __ Sll(out_lo, in_hi, 32 - shift);
+        __ Or(out_lo, out_lo, AT);
+        __ Srl(AT, in_hi, shift);
+        __ Sll(out_hi, in_lo, 32 - shift);
+        __ Or(out_hi, out_hi, AT);
+      } else {
+        __ Sll(AT, in_lo, 64 - shift);
+        __ Srl(out_lo, in_hi, shift - 32);
+        __ Or(out_lo, out_lo, AT);
+        __ Sll(AT, in_hi, 64 - shift);
+        __ Srl(out_hi, in_lo, shift - 32);
+        __ Or(out_hi, out_hi, AT);
+      }
+    }
+  } else {      // !invoke->InputAt(1)->IsIntConstant()
+    Register shamt = locations->InAt(1).AsRegister<Register>();
+    if (type == Primitive::kPrimInt) {
+      Register in = locations->InAt(0).AsRegister<Register>();
+      Register out = locations->Out().AsRegister<Register>();
+
+      if (isR2OrNewer) {
+        if (direction == kRotateRight) {
+          __ Rotrv(out, in, shamt);
+        } else {
+          // negu tmp, shamt
+          __ Subu(TMP, ZERO, shamt);
+          __ Rotrv(out, in, TMP);
+        }
+      } else {
+        if (direction == kRotateRight) {
+          __ Srlv(AT, in, shamt);
+          __ Subu(TMP, ZERO, shamt);
+          __ Sllv(out, in, TMP);
+          __ Or(out, out, AT);
+        } else {
+          __ Sllv(AT, in, shamt);
+          __ Subu(TMP, ZERO, shamt);
+          __ Srlv(out, in, TMP);
+          __ Or(out, out, AT);
+        }
+      }
+    } else {    // Primitive::kPrimLong
+      Register in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+      Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+      Register out_lo = locations->Out().AsRegisterPairLow<Register>();
+      Register out_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+      MipsLabel done;
+
+      if (direction == kRotateRight) {
+        __ Nor(TMP, ZERO, shamt);
+        __ Srlv(AT, in_lo, shamt);
+        __ Sll(out_lo, in_hi, 1);
+        __ Sllv(out_lo, out_lo, TMP);
+        __ Or(out_lo, out_lo, AT);
+        __ Srlv(AT, in_hi, shamt);
+        __ Sll(out_hi, in_lo, 1);
+        __ Sllv(out_hi, out_hi, TMP);
+        __ Or(out_hi, out_hi, AT);
+      } else {
+        __ Nor(TMP, ZERO, shamt);
+        __ Sllv(AT, in_lo, shamt);
+        __ Srl(out_lo, in_hi, 1);
+        __ Srlv(out_lo, out_lo, TMP);
+        __ Or(out_lo, out_lo, AT);
+        __ Sllv(AT, in_hi, shamt);
+        __ Srl(out_hi, in_lo, 1);
+        __ Srlv(out_hi, out_hi, TMP);
+        __ Or(out_hi, out_hi, AT);
+      }
+
+      __ Andi(TMP, shamt, 32);
+      __ Beqz(TMP, &done);
+      __ Move(TMP, out_hi);
+      __ Move(out_hi, out_lo);
+      __ Move(out_lo, TMP);
+
+      __ Bind(&done);
+    }
+  }
+}
+
+// int java.lang.Integer.rotateRight(int i, int distance)
+void IntrinsicLocationsBuilderMIPS::VisitIntegerRotateRight(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitIntegerRotateRight(HInvoke* invoke) {
+  GenRotate(invoke, Primitive::kPrimInt, IsR2OrNewer(), kRotateRight, GetAssembler());
+}
+
+// long java.lang.Long.rotateRight(long i, int distance)
+void IntrinsicLocationsBuilderMIPS::VisitLongRotateRight(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitLongRotateRight(HInvoke* invoke) {
+  GenRotate(invoke, Primitive::kPrimLong, IsR2OrNewer(), kRotateRight, GetAssembler());
+}
+
+// int java.lang.Integer.rotateLeft(int i, int distance)
+void IntrinsicLocationsBuilderMIPS::VisitIntegerRotateLeft(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitIntegerRotateLeft(HInvoke* invoke) {
+  GenRotate(invoke, Primitive::kPrimInt, IsR2OrNewer(), kRotateLeft, GetAssembler());
+}
+
+// long java.lang.Long.rotateLeft(long i, int distance)
+void IntrinsicLocationsBuilderMIPS::VisitLongRotateLeft(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitLongRotateLeft(HInvoke* invoke) {
+  GenRotate(invoke, Primitive::kPrimLong, IsR2OrNewer(), kRotateLeft, GetAssembler());
 }
 
 // int java.lang.Integer.reverse(int)
@@ -611,8 +801,8 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerReverse(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS::VisitIntegerReverse(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(),
              Primitive::kPrimInt,
-             codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-             codegen_->GetInstructionSetFeatures().IsR6(),
+             IsR2OrNewer(),
+             IsR6(),
              true,
              GetAssembler());
 }
@@ -625,8 +815,8 @@ void IntrinsicLocationsBuilderMIPS::VisitLongReverse(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS::VisitLongReverse(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(),
              Primitive::kPrimLong,
-             codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
-             codegen_->GetInstructionSetFeatures().IsR6(),
+             IsR2OrNewer(),
+             IsR6(),
              true,
              GetAssembler());
 }
@@ -793,10 +983,6 @@ UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(StringNewStringFromBytes)
 UNIMPLEMENTED_INTRINSIC(StringNewStringFromChars)
 UNIMPLEMENTED_INTRINSIC(StringNewStringFromString)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
