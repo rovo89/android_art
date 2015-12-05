@@ -222,12 +222,14 @@ void IntrinsicCodeGeneratorMIPS::VisitFloatIntBitsToFloat(HInvoke* invoke) {
   MoveIntToFP(invoke->GetLocations(), false, GetAssembler());
 }
 
-static void CreateIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateIntToIntLocations(ArenaAllocator* arena,
+                                    HInvoke* invoke,
+                                    Location::OutputOverlap overlaps = Location::kNoOutputOverlap) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  locations->SetOut(Location::RequiresRegister(), overlaps);
 }
 
 static void GenReverse(LocationSummary* locations,
@@ -480,6 +482,127 @@ void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfLeadingZeros(HInvoke* invoke) 
                            GetAssembler());
 }
 
+static void GenNumberOfTrailingZeroes(LocationSummary* locations,
+                                      bool is64bit,
+                                      bool isR6,
+                                      bool isR2OrNewer,
+                                      MipsAssembler* assembler) {
+  Register out = locations->Out().AsRegister<Register>();
+  Register in_lo;
+  Register in;
+
+  if (is64bit) {
+    MipsLabel done;
+    Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+
+    in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+
+    // If in_lo is zero then count the number of trailing zeroes in in_hi;
+    // otherwise count the number of trailing zeroes in in_lo.
+    // AT = in_lo ? in_lo : in_hi;
+    if (isR6) {
+      __ Seleqz(out, in_hi, in_lo);
+      __ Selnez(TMP, in_lo, in_lo);
+      __ Or(out, out, TMP);
+    } else {
+      __ Movz(out, in_hi, in_lo);
+      __ Movn(out, in_lo, in_lo);
+    }
+
+    in = out;
+  } else {
+    in = locations->InAt(0).AsRegister<Register>();
+    // Give in_lo a dummy value to keep the compiler from complaining.
+    // Since we only get here in the 32-bit case, this value will never
+    // be used.
+    in_lo = in;
+  }
+
+  // We don't have an instruction to count the number of trailing zeroes.
+  // Start by flipping the bits end-for-end so we can count the number of
+  // leading zeroes instead.
+  if (isR2OrNewer) {
+    __ Rotr(out, in, 16);
+    __ Wsbh(out, out);
+  } else {
+    // MIPS32r1
+    // __ Rotr(out, in, 16);
+    __ Sll(TMP, in, 16);
+    __ Srl(out, in, 16);
+    __ Or(out, out, TMP);
+    // __ Wsbh(out, out);
+    __ LoadConst32(AT, 0x00FF00FF);
+    __ And(TMP, out, AT);
+    __ Sll(TMP, TMP, 8);
+    __ Srl(out, out, 8);
+    __ And(out, out, AT);
+    __ Or(out, out, TMP);
+  }
+
+  if (isR6) {
+    __ Bitswap(out, out);
+    __ ClzR6(out, out);
+  } else {
+    __ LoadConst32(AT, 0x0F0F0F0F);
+    __ And(TMP, out, AT);
+    __ Sll(TMP, TMP, 4);
+    __ Srl(out, out, 4);
+    __ And(out, out, AT);
+    __ Or(out, TMP, out);
+    __ LoadConst32(AT, 0x33333333);
+    __ And(TMP, out, AT);
+    __ Sll(TMP, TMP, 2);
+    __ Srl(out, out, 2);
+    __ And(out, out, AT);
+    __ Or(out, TMP, out);
+    __ LoadConst32(AT, 0x55555555);
+    __ And(TMP, out, AT);
+    __ Sll(TMP, TMP, 1);
+    __ Srl(out, out, 1);
+    __ And(out, out, AT);
+    __ Or(out, TMP, out);
+    __ ClzR2(out, out);
+  }
+
+  if (is64bit) {
+    // If in_lo is zero, then we counted the number of trailing zeroes in in_hi so we must add the
+    // number of trailing zeroes in in_lo (32) to get the correct final count
+    __ LoadConst32(TMP, 32);
+    if (isR6) {
+      __ Seleqz(TMP, TMP, in_lo);
+    } else {
+      __ Movn(TMP, ZERO, in_lo);
+    }
+    __ Addu(out, out, TMP);
+  }
+}
+
+// int java.lang.Integer.numberOfTrailingZeros(int i)
+void IntrinsicLocationsBuilderMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke, Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  GenNumberOfTrailingZeroes(invoke->GetLocations(),
+                            false,
+                            codegen_->GetInstructionSetFeatures().IsR6(),
+                            codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
+                            GetAssembler());
+}
+
+// int java.lang.Long.numberOfTrailingZeros(long i)
+void IntrinsicLocationsBuilderMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke, Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  GenNumberOfTrailingZeroes(invoke->GetLocations(),
+                            true,
+                            codegen_->GetInstructionSetFeatures().IsR6(),
+                            codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2(),
+                            GetAssembler());
+}
+
 // int java.lang.Integer.reverse(int)
 void IntrinsicLocationsBuilderMIPS::VisitIntegerReverse(HInvoke* invoke) {
   CreateIntToIntLocations(arena_, invoke);
@@ -672,10 +795,8 @@ UNIMPLEMENTED_INTRINSIC(StringNewStringFromChars)
 UNIMPLEMENTED_INTRINSIC(StringNewStringFromString)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongNumberOfTrailingZeros)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerNumberOfTrailingZeros)
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
