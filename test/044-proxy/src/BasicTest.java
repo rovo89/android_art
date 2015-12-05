@@ -84,7 +84,8 @@ public class BasicTest {
         });
         System.out.println("Proxy interfaces: " +
             Arrays.deepToString(proxy.getClass().getInterfaces()));
-        System.out.println("Proxy methods: " + Arrays.deepToString(methods));
+        System.out.println("Proxy methods: " +
+            Main.replaceProxyClassNamesForOutput(Arrays.deepToString(methods)));
         Method meth = methods[methods.length -1];
         System.out.println("Decl annos: " + Arrays.deepToString(meth.getDeclaredAnnotations()));
         Annotation[][] paramAnnos = meth.getParameterAnnotations();
@@ -100,6 +101,7 @@ public class BasicTest {
         /* create the proxy class */
         Class proxyClass = Proxy.getProxyClass(Shapes.class.getClassLoader(),
                             new Class[] { Quads.class, Colors.class, Trace.class });
+        Main.registerProxyClassName(proxyClass.getCanonicalName());
 
         /* create a proxy object, passing the handler object in */
         Object proxy = null;
@@ -262,7 +264,8 @@ class MyInvocationHandler implements InvocationHandler {
             for (int i = 0; i < stackTrace.length; i++) {
                 StackTraceElement ste = stackTrace[i];
                 if (ste.getMethodName().equals("getTrace")) {
-                  System.out.println(ste.getClassName() + "." + ste.getMethodName() + " " +
+                  String outputClassName = Main.replaceProxyClassNamesForOutput(ste.getClassName());
+                  System.out.println(outputClassName + "." + ste.getMethodName() + " " +
                                      ste.getFileName() + ":" + ste.getLineNumber());
                 }
             }
@@ -276,7 +279,8 @@ class MyInvocationHandler implements InvocationHandler {
             for (int i = 0; i < stackTrace.length; i++) {
                 StackTraceElement ste = stackTrace[i];
                 if (ste.getMethodName().equals("getTrace")) {
-                  System.out.println(ste.getClassName() + "." + ste.getMethodName() + " " +
+                  String outputClassName = Main.replaceProxyClassNamesForOutput(ste.getClassName());
+                  System.out.println(outputClassName + "." + ste.getMethodName() + " " +
                                      ste.getFileName() + ":" + ste.getLineNumber());
                 }
             }
