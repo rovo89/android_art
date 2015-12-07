@@ -20,6 +20,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.TreeMap;
 
 public class TestAnnotations {
@@ -81,7 +82,7 @@ public class TestAnnotations {
             AnnoFancyField aff;
             aff = (AnnoFancyField) f.getAnnotation(AnnoFancyField.class);
             if (aff != null) {
-                System.out.println("    aff: " + aff + " / " + aff.getClass());
+                System.out.println("    aff: " + aff + " / " + Proxy.isProxyClass(aff.getClass()));
                 System.out.println("    --> nombre is '" + aff.nombre() + "'");
             }
         }
