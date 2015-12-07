@@ -1228,7 +1228,7 @@ class Thread {
     RuntimeStats stats;
   } tls64_;
 
-  struct PACKED(4) tls_ptr_sized_values {
+  struct PACKED(sizeof(void*)) tls_ptr_sized_values {
       tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
       managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), tmp_jni_env(nullptr),
       self(nullptr), opeer(nullptr), jpeer(nullptr), stack_begin(nullptr), stack_size(0),
