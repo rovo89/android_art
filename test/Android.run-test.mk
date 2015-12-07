@@ -491,15 +491,11 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration.
-# 005: Flakiness due to Enso's java.lang.reflect.Proxy using weak references (b/25838574).
-# 044: Flakiness due to Enso's java.lang.reflect.Proxy using weak references (b/25838574).
 # 055: Exceeds run time limits due to read barrier instrumentation.
 # 137: Read barrier forces interpreter. Cannot run this with the interpreter.
 # 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
 #      handled in the read barrier configuration.
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
-  005-annotations                         \
-  044-proxy                               \
   055-enum-performance                    \
   137-cfi                                 \
   537-checker-arraycopy
