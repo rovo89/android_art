@@ -45,14 +45,6 @@ while true; do
   fi
 done
 
-# Workaround for b/26051370.
-#
-# system/core/base/include/base has been renamed to
-# system/core/base/include/android-base, but the master-art manifest
-# is pinned to an older revision for system/core; create this symlink
-# by hand to fix include paths.
-test -e system/core/base/include/android-base || ln -s base system/core/base/include/android-base
-
 if [[ $mode == "host" ]]; then
   make_command="make $j_arg $showcommands build-art-host-tests $common_targets ${out_dir}/host/linux-x86/lib/libjavacoretests.so ${out_dir}/host/linux-x86/lib64/libjavacoretests.so"
 elif [[ $mode == "target" ]]; then
