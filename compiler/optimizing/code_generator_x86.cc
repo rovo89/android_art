@@ -42,7 +42,6 @@ namespace x86 {
 
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = EAX;
-
 static constexpr Register kCoreCalleeSaves[] = { EBP, ESI, EDI };
 
 static constexpr int kC2ConditionMask = 0x400;
@@ -6426,29 +6425,65 @@ void LocationsBuilderX86::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   locations->SetInAt(0, Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorX86::VisitPackedSwitch(HPackedSwitch* switch_instr) {
-  int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
-  LocationSummary* locations = switch_instr->GetLocations();
-  Register value_reg = locations->InAt(0).AsRegister<Register>();
-  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+void InstructionCodeGeneratorX86::GenPackedSwitchWithCompares(Register value_reg,
+                                                              int32_t lower_bound,
+                                                              uint32_t num_entries,
+                                                              HBasicBlock* switch_block,
+                                                              HBasicBlock* default_block) {
+  // Figure out the correct compare values and jump conditions.
+  // Handle the first compare/branch as a special case because it might
+  // jump to the default case.
+  DCHECK_GT(num_entries, 2u);
+  Condition first_condition;
+  uint32_t index;
+  const ArenaVector<HBasicBlock*>& successors = switch_block->GetSuccessors();
+  if (lower_bound != 0) {
+    first_condition = kLess;
+    __ cmpl(value_reg, Immediate(lower_bound));
+    __ j(first_condition, codegen_->GetLabelOf(default_block));
+    __ j(kEqual, codegen_->GetLabelOf(successors[0]));
 
-  // Create a series of compare/jumps.
-  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-  for (int i = 0; i < num_entries; i++) {
-    int32_t case_value = lower_bound + i;
-    if (case_value == 0) {
-      __ testl(value_reg, value_reg);
-    } else {
-      __ cmpl(value_reg, Immediate(case_value));
-    }
-    __ j(kEqual, codegen_->GetLabelOf(successors[i]));
+    index = 1;
+  } else {
+    // Handle all the compare/jumps below.
+    first_condition = kBelow;
+    index = 0;
+  }
+
+  // Handle the rest of the compare/jumps.
+  for (; index + 1 < num_entries; index += 2) {
+    int32_t compare_to_value = lower_bound + index + 1;
+    __ cmpl(value_reg, Immediate(compare_to_value));
+    // Jump to successors[index] if value < case_value[index].
+    __ j(first_condition, codegen_->GetLabelOf(successors[index]));
+    // Jump to successors[index + 1] if value == case_value[index + 1].
+    __ j(kEqual, codegen_->GetLabelOf(successors[index + 1]));
+  }
+
+  if (index != num_entries) {
+    // There are an odd number of entries. Handle the last one.
+    DCHECK_EQ(index + 1, num_entries);
+    __ cmpl(value_reg, Immediate(lower_bound + index));
+    __ j(kEqual, codegen_->GetLabelOf(successors[index]));
   }
 
   // And the default for any other value.
-  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
-      __ jmp(codegen_->GetLabelOf(default_block));
+  if (!codegen_->GoesToNextBlock(switch_block, default_block)) {
+    __ jmp(codegen_->GetLabelOf(default_block));
   }
+}
+
+void InstructionCodeGeneratorX86::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  uint32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  Register value_reg = locations->InAt(0).AsRegister<Register>();
+
+  GenPackedSwitchWithCompares(value_reg,
+                              lower_bound,
+                              num_entries,
+                              switch_instr->GetBlock(),
+                              switch_instr->GetDefaultBlock());
 }
 
 void LocationsBuilderX86::VisitX86PackedSwitch(HX86PackedSwitch* switch_instr) {
@@ -6465,10 +6500,19 @@ void LocationsBuilderX86::VisitX86PackedSwitch(HX86PackedSwitch* switch_instr) {
 
 void InstructionCodeGeneratorX86::VisitX86PackedSwitch(HX86PackedSwitch* switch_instr) {
   int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
+  uint32_t num_entries = switch_instr->GetNumEntries();
   LocationSummary* locations = switch_instr->GetLocations();
   Register value_reg = locations->InAt(0).AsRegister<Register>();
   HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  if (num_entries <= kPackedSwitchJumpTableThreshold) {
+    GenPackedSwitchWithCompares(value_reg,
+                                lower_bound,
+                                num_entries,
+                                switch_instr->GetBlock(),
+                                default_block);
+    return;
+  }
 
   // Optimizing has a jump area.
   Register temp_reg = locations->GetTemp(0).AsRegister<Register>();
@@ -6481,7 +6525,7 @@ void InstructionCodeGeneratorX86::VisitX86PackedSwitch(HX86PackedSwitch* switch_
   }
 
   // Is the value in range?
-  DCHECK_GE(num_entries, 1);
+  DCHECK_GE(num_entries, 1u);
   __ cmpl(value_reg, Immediate(num_entries - 1));
   __ j(kAbove, codegen_->GetLabelOf(default_block));
 
