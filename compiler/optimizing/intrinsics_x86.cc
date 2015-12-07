@@ -1666,7 +1666,7 @@ void IntrinsicLocationsBuilderX86::VisitUnsafeGetVolatile(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(arena_, invoke, false, true);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetLong(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, false, false);
+  CreateIntIntIntToIntLocations(arena_, invoke, true, false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(arena_, invoke, true, true);
