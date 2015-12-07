@@ -60,7 +60,7 @@ class ObjectsHandler implements AhatHandler {
       doc.row(
           DocString.format("%,d", inst.getSize()),
           DocString.text(inst.getHeap().getName()),
-          Value.render(inst));
+          Value.render(mSnapshot, inst));
     }
     doc.end();
     selector.render(doc);

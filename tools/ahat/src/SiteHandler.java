@@ -101,7 +101,7 @@ class SiteHandler implements AhatHandler {
                 site.getStackId(), site.getStackDepth(), info.heap.getName(), className),
             DocString.format("%,14d", info.numInstances)),
           DocString.text(info.heap.getName()),
-          Value.render(info.classObj));
+          Value.render(mSnapshot, info.classObj));
     }
     doc.end();
     selector.render(doc);
