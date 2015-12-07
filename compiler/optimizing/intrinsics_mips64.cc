@@ -162,7 +162,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitDoubleDoubleToRawLongBits(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
-  MoveFPToInt(invoke->GetLocations(), true, GetAssembler());
+  MoveFPToInt(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 // int java.lang.Float.floatToRawIntBits(float)
@@ -171,7 +171,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitFloatFloatToRawIntBits(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitFloatFloatToRawIntBits(HInvoke* invoke) {
-  MoveFPToInt(invoke->GetLocations(), false, GetAssembler());
+  MoveFPToInt(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateIntToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -199,7 +199,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitDoubleLongBitsToDouble(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitDoubleLongBitsToDouble(HInvoke* invoke) {
-  MoveIntToFP(invoke->GetLocations(), true, GetAssembler());
+  MoveIntToFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 // float java.lang.Float.intBitsToFloat(int)
@@ -208,7 +208,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitFloatIntBitsToFloat(HInvoke* invoke) 
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitFloatIntBitsToFloat(HInvoke* invoke) {
-  MoveIntToFP(invoke->GetLocations(), false, GetAssembler());
+  MoveIntToFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -290,7 +290,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitIntegerNumberOfLeadingZeros(HInvoke* 
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeroes(invoke->GetLocations(), false, GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 // int java.lang.Long.numberOfLeadingZeros(long i)
@@ -299,7 +299,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitLongNumberOfLeadingZeros(HInvoke* inv
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeroes(invoke->GetLocations(), true, GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 static void GenNumberOfTrailingZeroes(LocationSummary* locations,
@@ -327,7 +327,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitIntegerNumberOfTrailingZeros(HInvoke*
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(), false, GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 // int java.lang.Long.numberOfTrailingZeros(long i)
@@ -336,7 +336,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitLongNumberOfTrailingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(), true, GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 static void GenRotateRight(HInvoke* invoke,
@@ -525,7 +525,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathAbsDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathAbsDouble(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), true, GetAssembler());
+  MathAbsFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 // float java.lang.Math.abs(float)
@@ -534,7 +534,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathAbsFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathAbsFloat(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), false, GetAssembler());
+  MathAbsFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
@@ -566,7 +566,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathAbsInt(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathAbsInt(HInvoke* invoke) {
-  GenAbsInteger(invoke->GetLocations(), false, GetAssembler());
+  GenAbsInteger(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 // long java.lang.Math.abs(long)
@@ -575,7 +575,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathAbsLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathAbsLong(HInvoke* invoke) {
-  GenAbsInteger(invoke->GetLocations(), true, GetAssembler());
+  GenAbsInteger(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 static void GenMinMaxFP(LocationSummary* locations,
@@ -616,7 +616,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMinDoubleDouble(HInvoke* invoke) 
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMinDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), true, true, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ true, /* is_double */ true, GetAssembler());
 }
 
 // float java.lang.Math.min(float, float)
@@ -625,7 +625,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMinFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMinFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), true, false, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ true, /* is_double */ false, GetAssembler());
 }
 
 // double java.lang.Math.max(double, double)
@@ -634,7 +634,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMaxDoubleDouble(HInvoke* invoke) 
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMaxDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), false, true, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ false, /* is_double */ true, GetAssembler());
 }
 
 // float java.lang.Math.max(float, float)
@@ -643,7 +643,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMaxFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMaxFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), false, false, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ false, /* is_double */ false, GetAssembler());
 }
 
 static void GenMinMax(LocationSummary* locations,
@@ -713,7 +713,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMinIntInt(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMinIntInt(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), true, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ true, GetAssembler());
 }
 
 // long java.lang.Math.min(long, long)
@@ -722,7 +722,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMinLongLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMinLongLong(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), true, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ true, GetAssembler());
 }
 
 // int java.lang.Math.max(int, int)
@@ -731,7 +731,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMaxIntInt(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMaxIntInt(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), false, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ false, GetAssembler());
 }
 
 // long java.lang.Math.max(long, long)
@@ -740,7 +740,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathMaxLongLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathMaxLongLong(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), false, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ false, GetAssembler());
 }
 
 // double java.lang.Math.sqrt(double)
@@ -1045,7 +1045,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGet(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGet(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimInt, false, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimInt, /* is_volatile */ false, codegen_);
 }
 
 // int sun.misc.Unsafe.getIntVolatile(Object o, long offset)
@@ -1054,7 +1054,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimInt, true, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimInt, /* is_volatile */ true, codegen_);
 }
 
 // long sun.misc.Unsafe.getLong(Object o, long offset)
@@ -1063,7 +1063,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimLong, false, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ false, codegen_);
 }
 
 // long sun.misc.Unsafe.getLongVolatile(Object o, long offset)
@@ -1072,7 +1072,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimLong, true, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ true, codegen_);
 }
 
 // Object sun.misc.Unsafe.getObject(Object o, long offset)
@@ -1081,7 +1081,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimNot, false, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimNot, /* is_volatile */ false, codegen_);
 }
 
 // Object sun.misc.Unsafe.getObjectVolatile(Object o, long offset)
@@ -1090,7 +1090,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetObjectVolatile(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimNot, true, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimNot, /* is_volatile */ true, codegen_);
 }
 
 static void CreateIntIntIntIntToVoid(ArenaAllocator* arena, HInvoke* invoke) {
@@ -1151,7 +1151,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePut(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePut(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, false, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimInt,
+               /* is_volatile */ false,
+               /* is_ordered */ false,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putOrderedInt(Object o, long offset, int x)
@@ -1160,7 +1164,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutOrdered(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, false, true, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimInt,
+               /* is_volatile */ false,
+               /* is_ordered */ true,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putIntVolatile(Object o, long offset, int x)
@@ -1169,7 +1177,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutVolatile(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, true, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimInt,
+               /* is_volatile */ true,
+               /* is_ordered */ false,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putObject(Object o, long offset, Object x)
@@ -1178,7 +1190,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutObject(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutObject(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, false, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimNot,
+               /* is_volatile */ false,
+               /* is_ordered */ false,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putOrderedObject(Object o, long offset, Object x)
@@ -1187,7 +1203,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutObjectOrdered(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, false, true, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimNot,
+               /* is_volatile */ false,
+               /* is_ordered */ true,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putObjectVolatile(Object o, long offset, Object x)
@@ -1196,7 +1216,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutObjectVolatile(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, true, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimNot,
+               /* is_volatile */ true,
+               /* is_ordered */ false,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putLong(Object o, long offset, long x)
@@ -1205,7 +1229,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLong(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, false, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimLong,
+               /* is_volatile */ false,
+               /* is_ordered */ false,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putOrderedLong(Object o, long offset, long x)
@@ -1214,7 +1242,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutLongOrdered(HInvoke* invoke)
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, false, true, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimLong,
+               /* is_volatile */ false,
+               /* is_ordered */ true,
+               codegen_);
 }
 
 // void sun.misc.Unsafe.putLongVolatile(Object o, long offset, long x)
@@ -1223,7 +1255,11 @@ void IntrinsicLocationsBuilderMIPS64::VisitUnsafePutLongVolatile(HInvoke* invoke
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, true, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimLong,
+               /* is_volatile */ true,
+               /* is_ordered */ false,
+               codegen_);
 }
 
 static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
@@ -1565,7 +1601,7 @@ void IntrinsicLocationsBuilderMIPS64::VisitStringIndexOf(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOf(HInvoke* invoke) {
-  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), true);
+  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), /* start_at_zero */ true);
 }
 
 // int java.lang.String.indexOf(int ch, int fromIndex)
@@ -1584,7 +1620,8 @@ void IntrinsicLocationsBuilderMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
-  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), false);
+  GenerateStringIndexOf(
+      invoke, GetAssembler(), codegen_, GetAllocator(), /* start_at_zero */ false);
 }
 
 // java.lang.String.String(byte[] bytes)
