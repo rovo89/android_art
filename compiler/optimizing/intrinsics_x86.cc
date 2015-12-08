@@ -138,31 +138,31 @@ static void MoveIntToFP(LocationSummary* locations, bool is64bit, X86Assembler* 
 }
 
 void IntrinsicLocationsBuilderX86::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
-  CreateFPToIntLocations(arena_, invoke, true);
+  CreateFPToIntLocations(arena_, invoke, /* is64bit */ true);
 }
 void IntrinsicLocationsBuilderX86::VisitDoubleLongBitsToDouble(HInvoke* invoke) {
-  CreateIntToFPLocations(arena_, invoke, true);
+  CreateIntToFPLocations(arena_, invoke, /* is64bit */ true);
 }
 
 void IntrinsicCodeGeneratorX86::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
-  MoveFPToInt(invoke->GetLocations(), true, GetAssembler());
+  MoveFPToInt(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 void IntrinsicCodeGeneratorX86::VisitDoubleLongBitsToDouble(HInvoke* invoke) {
-  MoveIntToFP(invoke->GetLocations(), true, GetAssembler());
+  MoveIntToFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitFloatFloatToRawIntBits(HInvoke* invoke) {
-  CreateFPToIntLocations(arena_, invoke, false);
+  CreateFPToIntLocations(arena_, invoke, /* is64bit */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitFloatIntBitsToFloat(HInvoke* invoke) {
-  CreateIntToFPLocations(arena_, invoke, false);
+  CreateIntToFPLocations(arena_, invoke, /* is64bit */ false);
 }
 
 void IntrinsicCodeGeneratorX86::VisitFloatFloatToRawIntBits(HInvoke* invoke) {
-  MoveFPToInt(invoke->GetLocations(), false, GetAssembler());
+  MoveFPToInt(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 void IntrinsicCodeGeneratorX86::VisitFloatIntBitsToFloat(HInvoke* invoke) {
-  MoveIntToFP(invoke->GetLocations(), false, GetAssembler());
+  MoveIntToFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -298,7 +298,7 @@ void IntrinsicLocationsBuilderX86::VisitMathAbsDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathAbsDouble(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), true, GetAssembler());
+  MathAbsFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathAbsFloat(HInvoke* invoke) {
@@ -306,7 +306,7 @@ void IntrinsicLocationsBuilderX86::VisitMathAbsFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathAbsFloat(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), false, GetAssembler());
+  MathAbsFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
 }
 
 static void CreateAbsIntLocation(ArenaAllocator* arena, HInvoke* invoke) {
@@ -490,7 +490,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMinDoubleDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMinDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), true, true, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ true, /* is_double */ true, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathMinFloatFloat(HInvoke* invoke) {
@@ -498,7 +498,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMinFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMinFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), true, false, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ true, /* is_double */ false, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathMaxDoubleDouble(HInvoke* invoke) {
@@ -506,7 +506,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMaxDoubleDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMaxDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), false, true, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ false, /* is_double */ true, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathMaxFloatFloat(HInvoke* invoke) {
@@ -514,7 +514,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMaxFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMaxFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), false, false, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), /* is_min */ false, /* is_double */ false, GetAssembler());
 }
 
 static void GenMinMax(LocationSummary* locations, bool is_min, bool is_long,
@@ -597,7 +597,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMinIntInt(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMinIntInt(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), true, false, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ true, /* is_long */ false, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathMinLongLong(HInvoke* invoke) {
@@ -605,7 +605,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMinLongLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMinLongLong(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), true, true, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ true, /* is_long */ true, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathMaxIntInt(HInvoke* invoke) {
@@ -613,7 +613,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMaxIntInt(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMaxIntInt(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), false, false, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ false, /* is_long */ false, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathMaxLongLong(HInvoke* invoke) {
@@ -621,7 +621,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMaxLongLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMaxLongLong(HInvoke* invoke) {
-  GenMinMax(invoke->GetLocations(), false, true, GetAssembler());
+  GenMinMax(invoke->GetLocations(), /* is_min */ false, /* is_long */ true, GetAssembler());
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -1265,19 +1265,20 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 }
 
 void IntrinsicLocationsBuilderX86::VisitStringIndexOf(HInvoke* invoke) {
-  CreateStringIndexOfLocations(invoke, arena_, true);
+  CreateStringIndexOfLocations(invoke, arena_, /* start_at_zero */ true);
 }
 
 void IntrinsicCodeGeneratorX86::VisitStringIndexOf(HInvoke* invoke) {
-  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), true);
+  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), /* start_at_zero */ true);
 }
 
 void IntrinsicLocationsBuilderX86::VisitStringIndexOfAfter(HInvoke* invoke) {
-  CreateStringIndexOfLocations(invoke, arena_, false);
+  CreateStringIndexOfLocations(invoke, arena_, /* start_at_zero */ false);
 }
 
 void IntrinsicCodeGeneratorX86::VisitStringIndexOfAfter(HInvoke* invoke) {
-  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), false);
+  GenerateStringIndexOf(
+      invoke, GetAssembler(), codegen_, GetAllocator(), /* start_at_zero */ false);
 }
 
 void IntrinsicLocationsBuilderX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
@@ -1660,42 +1661,42 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke
 }
 
 void IntrinsicLocationsBuilderX86::VisitUnsafeGet(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, false, false);
+  CreateIntIntIntToIntLocations(arena_, invoke, /* is_long */ false, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, false, true);
+  CreateIntIntIntToIntLocations(arena_, invoke, /* is_long */ false, /* is_volatile */ true);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetLong(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, true, false);
+  CreateIntIntIntToIntLocations(arena_, invoke, /* is_long */ true, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, true, true);
+  CreateIntIntIntToIntLocations(arena_, invoke, /* is_long */ true, /* is_volatile */ true);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetObject(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, false, false);
+  CreateIntIntIntToIntLocations(arena_, invoke, /* is_long */ false, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke, false, true);
+  CreateIntIntIntToIntLocations(arena_, invoke, /* is_long */ false, /* is_volatile */ true);
 }
 
 
 void IntrinsicCodeGeneratorX86::VisitUnsafeGet(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimInt, false, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimInt, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimInt, true, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimInt, /* is_volatile */ true, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetLong(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimLong, false, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimLong, true, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ true, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetObject(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimNot, false, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimNot, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimNot, true, codegen_);
+  GenUnsafeGet(invoke, Primitive::kPrimNot, /* is_volatile */ true, codegen_);
 }
 
 
@@ -1722,31 +1723,40 @@ static void CreateIntIntIntIntToVoidPlusTempsLocations(ArenaAllocator* arena,
 }
 
 void IntrinsicLocationsBuilderX86::VisitUnsafePut(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimInt, invoke, false);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimInt, invoke, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutOrdered(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimInt, invoke, false);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimInt, invoke, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimInt, invoke, true);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimInt, invoke, /* is_volatile */ true);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutObject(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimNot, invoke, false);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimNot, invoke, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimNot, invoke, false);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimNot, invoke, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimNot, invoke, true);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimNot, invoke, /* is_volatile */ true);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutLong(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimLong, invoke, false);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimLong, invoke, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutLongOrdered(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimLong, invoke, false);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimLong, invoke, /* is_volatile */ false);
 }
 void IntrinsicLocationsBuilderX86::VisitUnsafePutLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidPlusTempsLocations(arena_, Primitive::kPrimLong, invoke, true);
+  CreateIntIntIntIntToVoidPlusTempsLocations(
+      arena_, Primitive::kPrimLong, invoke, /* is_volatile */ true);
 }
 
 // We don't care for ordered: it requires an AnyStore barrier, which is already given by the x86
@@ -1798,31 +1808,31 @@ static void GenUnsafePut(LocationSummary* locations,
 }
 
 void IntrinsicCodeGeneratorX86::VisitUnsafePut(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, true, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimInt, /* is_volatile */ true, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutObject(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, true, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimNot, /* is_volatile */ true, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutLong(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutLongOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, false, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, /* is_volatile */ false, codegen_);
 }
 void IntrinsicCodeGeneratorX86::VisitUnsafePutLongVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, true, codegen_);
+  GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, /* is_volatile */ true, codegen_);
 }
 
 static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, Primitive::Type type,
