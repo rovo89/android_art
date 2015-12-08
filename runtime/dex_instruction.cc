@@ -189,8 +189,17 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case CONST_STRING:
           if (file != nullptr) {
             uint32_t string_idx = VRegB_21c();
-            os << StringPrintf("const-string v%d, %s // string@%d", VRegA_21c(),
-                               PrintableString(file->StringDataByIdx(string_idx)).c_str(), string_idx);
+            if (string_idx < file->NumStringIds()) {
+              os << StringPrintf("const-string v%d, %s // string@%d",
+                                 VRegA_21c(),
+                                 PrintableString(file->StringDataByIdx(string_idx)).c_str(),
+                                 string_idx);
+            } else {
+              os << StringPrintf("const-string v%d, <<invalid-string-idx-%d>> // string@%d",
+                                 VRegA_21c(),
+                                 string_idx,
+                                 string_idx);
+            }
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -348,9 +357,19 @@ std::string Instruction::DumpString(const DexFile* file) const {
       if (Opcode() == CONST_STRING_JUMBO) {
         uint32_t string_idx = VRegB_31c();
         if (file != nullptr) {
-          os << StringPrintf("%s v%d, %s // string@%d", opcode, VRegA_31c(),
-                             PrintableString(file->StringDataByIdx(string_idx)).c_str(),
-                             string_idx);
+          if (string_idx < file->NumStringIds()) {
+            os << StringPrintf("%s v%d, %s // string@%d",
+                               opcode,
+                               VRegA_31c(),
+                               PrintableString(file->StringDataByIdx(string_idx)).c_str(),
+                               string_idx);
+          } else {
+            os << StringPrintf("%s v%d, <<invalid-string-idx-%d>> // string@%d",
+                               opcode,
+                               VRegA_31c(),
+                               string_idx,
+                               string_idx);
+          }
         } else {
           os << StringPrintf("%s v%d, string@%d", opcode, VRegA_31c(), string_idx);
         }
