@@ -264,18 +264,16 @@ inline ArtMethod* CompilerDriver::ResolveMethod(
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change) {
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-  ArtMethod* resolved_method = mUnit->GetClassLinker()->ResolveMethod(
-      *dex_cache->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type);
-  DCHECK_EQ(resolved_method == nullptr, soa.Self()->IsExceptionPending());
+  ArtMethod* resolved_method =
+      check_incompatible_class_change
+          ? mUnit->GetClassLinker()->ResolveMethod<ClassLinker::kForceICCECheck>(
+              *dex_cache->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type)
+          : mUnit->GetClassLinker()->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+              *dex_cache->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type);
   if (UNLIKELY(resolved_method == nullptr)) {
+    DCHECK(soa.Self()->IsExceptionPending());
     // Clean up any exception left by type resolution.
     soa.Self()->ClearException();
-    return nullptr;
-  }
-  if (check_incompatible_class_change &&
-      UNLIKELY(resolved_method->CheckIncompatibleClassChange(invoke_type))) {
-    // Silently return null on incompatible class change.
-    return nullptr;
   }
   return resolved_method;
 }
@@ -361,7 +359,7 @@ inline int CompilerDriver::IsFastInvoke(
     ArtMethod* called_method;
     ClassLinker* class_linker = mUnit->GetClassLinker();
     if (LIKELY(devirt_target->dex_file == mUnit->GetDexFile())) {
-      called_method = class_linker->ResolveMethod(
+      called_method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
           *devirt_target->dex_file, devirt_target->dex_method_index, dex_cache, class_loader,
           nullptr, kVirtual);
     } else {
@@ -369,7 +367,7 @@ inline int CompilerDriver::IsFastInvoke(
       auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
           *devirt_target->dex_file,
           class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()))));
-      called_method = class_linker->ResolveMethod(
+      called_method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
           *devirt_target->dex_file, devirt_target->dex_method_index, target_dex_cache,
           class_loader, nullptr, kVirtual);
     }
