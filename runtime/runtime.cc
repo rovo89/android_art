@@ -434,14 +434,25 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
   GetLambdaBoxTable()->SweepWeakBoxedLambdas(visitor);
 }
 
-bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
+bool Runtime::ParseOptions(const RuntimeOptions& raw_options,
+                           bool ignore_unrecognized,
+                           RuntimeArgumentMap* runtime_options) {
+  InitLogging(/* argv */ nullptr);  // Calls Locks::Init() as a side effect.
+  bool parsed = ParsedOptions::Parse(raw_options, ignore_unrecognized, runtime_options);
+  if (!parsed) {
+    LOG(ERROR) << "Failed to parse options";
+    return false;
+  }
+  return true;
+}
+
+bool Runtime::Create(RuntimeArgumentMap&& runtime_options) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   if (Runtime::instance_ != nullptr) {
     return false;
   }
-  InitLogging(nullptr);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
-  if (!instance_->Init(options, ignore_unrecognized)) {
+  if (!instance_->Init(std::move(runtime_options))) {
     // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
     // leak memory, instead. Fix the destructor. b/19100793.
     // delete instance_;
@@ -449,6 +460,12 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
     return false;
   }
   return true;
+}
+
+bool Runtime::Create(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
+  RuntimeArgumentMap runtime_options;
+  return ParseOptions(raw_options, ignore_unrecognized, &runtime_options) &&
+      Create(std::move(runtime_options));
 }
 
 static jobject CreateSystemClassLoader(Runtime* runtime) {
@@ -829,21 +846,14 @@ void Runtime::SetSentinel(mirror::Object* sentinel) {
   sentinel_ = GcRoot<mirror::Object>(sentinel);
 }
 
-bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
+bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
+  RuntimeArgumentMap runtime_options(std::move(runtime_options_in));
   ATRACE_BEGIN("Runtime::Init");
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   MemMap::Init();
 
   using Opt = RuntimeArgumentMap;
-  RuntimeArgumentMap runtime_options;
-  std::unique_ptr<ParsedOptions> parsed_options(
-      ParsedOptions::Create(raw_options, ignore_unrecognized, &runtime_options));
-  if (parsed_options.get() == nullptr) {
-    LOG(ERROR) << "Failed to parse options";
-    ATRACE_END();
-    return false;
-  }
   VLOG(startup) << "Runtime::Init -verbose:startup enabled";
 
   QuasiAtomic::Startup();

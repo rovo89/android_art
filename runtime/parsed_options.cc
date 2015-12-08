@@ -41,15 +41,13 @@ ParsedOptions::ParsedOptions()
                                                     // Runtime::Abort
 }
 
-ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options, bool ignore_unrecognized,
-                                     RuntimeArgumentMap* runtime_options) {
+bool ParsedOptions::Parse(const RuntimeOptions& options,
+                          bool ignore_unrecognized,
+                          RuntimeArgumentMap* runtime_options) {
   CHECK(runtime_options != nullptr);
 
-  std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());
-  if (parsed->Parse(options, ignore_unrecognized, runtime_options)) {
-    return parsed.release();
-  }
-  return nullptr;
+  ParsedOptions parser;
+  return parser.DoParse(options, ignore_unrecognized, runtime_options);
 }
 
 using RuntimeParser = CmdlineParser<RuntimeArgumentMap, RuntimeArgumentMap::Key>;
@@ -407,8 +405,9 @@ static void MaybeOverrideVerbosity() {
   //  gLogVerbosity.verifier = true;  // TODO: don't check this in!
 }
 
-bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognized,
-                          RuntimeArgumentMap* runtime_options) {
+bool ParsedOptions::DoParse(const RuntimeOptions& options,
+                            bool ignore_unrecognized,
+                            RuntimeArgumentMap* runtime_options) {
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
       LOG(INFO) << "option[" << i << "]=" << options[i].first;
