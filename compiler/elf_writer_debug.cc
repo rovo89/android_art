@@ -416,6 +416,13 @@ namespace {
 
     return variable_locations;
   }
+
+  bool IsFromOptimizingCompiler(const MethodDebugInfo* method_info) {
+    return method_info->compiled_method_->GetQuickCode().size() > 0 &&
+           method_info->compiled_method_->GetVmapTable().size() > 0 &&
+           method_info->compiled_method_->GetGcMap().size() == 0 &&
+           method_info->code_item_ != nullptr;
+  }
 }  // namespace
 
 // Helper class to write .debug_info and its supporting sections.
@@ -558,11 +565,7 @@ class DebugInfoWriter {
                           uint32_t dex_pc_low = 0,
                           uint32_t dex_pc_high = 0xFFFFFFFF) {
       using Kind = DexRegisterLocation::Kind;
-      bool is_optimizing = method_info->compiled_method_->GetQuickCode().size() > 0 &&
-                           method_info->compiled_method_->GetVmapTable().size() > 0 &&
-                           method_info->compiled_method_->GetGcMap().size() == 0 &&
-                           method_info->code_item_ != nullptr;
-      if (!is_optimizing) {
+      if (!IsFromOptimizingCompiler(method_info)) {
         return;
       }
 
@@ -940,10 +943,6 @@ class DebugLineWriter {
         break;
     }
     DebugLineOpCodeWriter<> opcodes(is64bit, code_factor_bits_);
-    opcodes.SetAddress(text_address + compilation_unit.low_pc_);
-    if (dwarf_isa != -1) {
-      opcodes.SetISA(dwarf_isa);
-    }
     for (const MethodDebugInfo* mi : compilation_unit.methods_) {
       // Ignore function if we have already generated line table for the same address.
       // It would confuse the debugger and the DWARF specification forbids it.
@@ -951,6 +950,32 @@ class DebugLineWriter {
         continue;
       }
 
+      ArrayRef<const SrcMapElem> src_mapping_table;
+      std::vector<SrcMapElem> src_mapping_table_from_stack_maps;
+      if (IsFromOptimizingCompiler(mi)) {
+        // Use stack maps to create mapping table from pc to dex.
+        const CodeInfo code_info(mi->compiled_method_->GetVmapTable().data());
+        const StackMapEncoding encoding = code_info.ExtractEncoding();
+        for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
+          StackMap stack_map = code_info.GetStackMapAt(s, encoding);
+          DCHECK(stack_map.IsValid());
+          const uint32_t pc = stack_map.GetNativePcOffset(encoding);
+          const int32_t dex = stack_map.GetDexPc(encoding);
+          src_mapping_table_from_stack_maps.push_back({pc, dex});
+        }
+        std::sort(src_mapping_table_from_stack_maps.begin(),
+                  src_mapping_table_from_stack_maps.end());
+        src_mapping_table = ArrayRef<const SrcMapElem>(src_mapping_table_from_stack_maps);
+      } else {
+        // Use the mapping table provided by the quick compiler.
+        src_mapping_table = mi->compiled_method_->GetSrcMappingTable();
+      }
+
+      if (src_mapping_table.empty()) {
+        continue;
+      }
+
+      // Create mapping table from dex to source line.
       struct DebugInfoCallbacks {
         static bool NewPosition(void* ctx, uint32_t address, uint32_t line) {
           auto* context = static_cast<DebugInfoCallbacks*>(ctx);
@@ -970,6 +995,15 @@ class DebugLineWriter {
                              DebugInfoCallbacks::NewPosition,
                              nullptr,
                              &debug_info_callbacks);
+      }
+
+      if (debug_info_callbacks.dex2line_.empty()) {
+        continue;
+      }
+
+      opcodes.SetAddress(method_address);
+      if (dwarf_isa != -1) {
+        opcodes.SetISA(dwarf_isa);
       }
 
       // Get and deduplicate directory and filename.
@@ -1021,7 +1055,7 @@ class DebugLineWriter {
       const DefaultSrcMap& dex2line_map = debug_info_callbacks.dex2line_;
       if (file_index != 0 && !dex2line_map.empty()) {
         bool first = true;
-        for (SrcMapElem pc2dex : mi->compiled_method_->GetSrcMappingTable()) {
+        for (SrcMapElem pc2dex : src_mapping_table) {
           uint32_t pc = pc2dex.from_;
           int dex_pc = pc2dex.to_;
           auto dex2line = dex2line_map.Find(static_cast<uint32_t>(dex_pc));
@@ -1048,9 +1082,10 @@ class DebugLineWriter {
         // line 0 - instruction cannot be attributed to any source line.
         opcodes.AddRow(method_address, 0);
       }
+
+      opcodes.AdvancePC(text_address + mi->high_pc_);
+      opcodes.EndSequence();
     }
-    opcodes.AdvancePC(text_address + compilation_unit.high_pc_);
-    opcodes.EndSequence();
     std::vector<uint8_t> buffer;
     buffer.reserve(opcodes.data()->size() + KB);
     size_t offset = builder_->GetDebugLine()->GetSize();
