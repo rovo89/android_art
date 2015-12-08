@@ -23,9 +23,11 @@ import com.android.tools.perflib.heap.Field;
 import com.android.tools.perflib.heap.Heap;
 import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.RootObj;
+import com.android.tools.perflib.heap.RootType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +59,7 @@ class ObjectHandler implements AhatHandler {
     }
 
     doc.title("Object %08x", inst.getUniqueId());
-    doc.big(Value.render(inst));
+    doc.big(Value.render(mSnapshot, inst));
 
     printAllocationSite(doc, query, inst);
     printDominatorPath(doc, query, inst);
@@ -65,27 +67,41 @@ class ObjectHandler implements AhatHandler {
     doc.section("Object Info");
     ClassObj cls = inst.getClassObj();
     doc.descriptions();
-    doc.description(DocString.text("Class"), Value.render(cls));
+    doc.description(DocString.text("Class"), Value.render(mSnapshot, cls));
     doc.description(DocString.text("Size"), DocString.format("%d", inst.getSize()));
     doc.description(
         DocString.text("Retained Size"),
         DocString.format("%d", inst.getTotalRetainedSize()));
     doc.description(DocString.text("Heap"), DocString.text(inst.getHeap().getName()));
+
+    Collection<RootType> rootTypes = mSnapshot.getRootTypes(inst);
+    if (rootTypes != null) {
+      DocString types = new DocString();
+      String comma = "";
+      for (RootType type : rootTypes) {
+        types.append(comma);
+        types.append(type.getName());
+        comma = ", ";
+      }
+      doc.description(DocString.text("Root Types"), types);
+    }
+
     doc.end();
 
     printBitmap(doc, inst);
     if (inst instanceof ClassInstance) {
-      printClassInstanceFields(doc, query, (ClassInstance)inst);
+      printClassInstanceFields(doc, query, mSnapshot, (ClassInstance)inst);
     } else if (inst instanceof ArrayInstance) {
-      printArrayElements(doc, query, (ArrayInstance)inst);
+      printArrayElements(doc, query, mSnapshot, (ArrayInstance)inst);
     } else if (inst instanceof ClassObj) {
-      printClassInfo(doc, query, (ClassObj)inst);
+      printClassInfo(doc, query, mSnapshot, (ClassObj)inst);
     }
-    printReferences(doc, query, inst);
+    printReferences(doc, query, mSnapshot, inst);
     printDominatedObjects(doc, query, inst);
   }
 
-  private static void printClassInstanceFields(Doc doc, Query query, ClassInstance inst) {
+  private static void printClassInstanceFields(
+      Doc doc, Query query, AhatSnapshot snapshot, ClassInstance inst) {
     doc.section("Fields");
     doc.table(new Column("Type"), new Column("Name"), new Column("Value"));
     SubsetSelector<ClassInstance.FieldValue> selector
@@ -94,31 +110,35 @@ class ObjectHandler implements AhatHandler {
       doc.row(
           DocString.text(field.getField().getType().toString()),
           DocString.text(field.getField().getName()),
-          Value.render(field.getValue()));
+          Value.render(snapshot, field.getValue()));
     }
     doc.end();
     selector.render(doc);
   }
 
-  private static void printArrayElements(Doc doc, Query query, ArrayInstance array) {
+  private static void printArrayElements(
+      Doc doc, Query query, AhatSnapshot snapshot, ArrayInstance array) {
     doc.section("Array Elements");
     doc.table(new Column("Index", Column.Align.RIGHT), new Column("Value"));
     List<Object> elements = Arrays.asList(array.getValues());
     SubsetSelector<Object> selector = new SubsetSelector(query, ARRAY_ELEMENTS_ID, elements);
     int i = 0;
     for (Object elem : selector.selected()) {
-      doc.row(DocString.format("%d", i), Value.render(elem));
+      doc.row(DocString.format("%d", i), Value.render(snapshot, elem));
       i++;
     }
     doc.end();
     selector.render(doc);
   }
 
-  private static void printClassInfo(Doc doc, Query query, ClassObj clsobj) {
+  private static void printClassInfo(
+      Doc doc, Query query, AhatSnapshot snapshot, ClassObj clsobj) {
     doc.section("Class Info");
     doc.descriptions();
-    doc.description(DocString.text("Super Class"), Value.render(clsobj.getSuperClassObj()));
-    doc.description(DocString.text("Class Loader"), Value.render(clsobj.getClassLoader()));
+    doc.description(DocString.text("Super Class"),
+        Value.render(snapshot, clsobj.getSuperClassObj()));
+    doc.description(DocString.text("Class Loader"),
+        Value.render(snapshot, clsobj.getClassLoader()));
     doc.end();
 
     doc.section("Static Fields");
@@ -131,13 +151,14 @@ class ObjectHandler implements AhatHandler {
       doc.row(
           DocString.text(field.getKey().getType().toString()),
           DocString.text(field.getKey().getName()),
-          Value.render(field.getValue()));
+          Value.render(snapshot, field.getValue()));
     }
     doc.end();
     selector.render(doc);
   }
 
-  private static void printReferences(Doc doc, Query query, Instance inst) {
+  private static void printReferences(
+      Doc doc, Query query, AhatSnapshot snapshot, Instance inst) {
     doc.section("Objects with References to this Object");
     if (inst.getHardReferences().isEmpty()) {
       doc.println(DocString.text("(none)"));
@@ -146,7 +167,7 @@ class ObjectHandler implements AhatHandler {
       List<Instance> references = inst.getHardReferences();
       SubsetSelector<Instance> selector = new SubsetSelector(query, HARD_REFS_ID, references);
       for (Instance ref : selector.selected()) {
-        doc.row(Value.render(ref));
+        doc.row(Value.render(snapshot, ref));
       }
       doc.end();
       selector.render(doc);
@@ -158,7 +179,7 @@ class ObjectHandler implements AhatHandler {
       List<Instance> references = inst.getSoftReferences();
       SubsetSelector<Instance> selector = new SubsetSelector(query, SOFT_REFS_ID, references);
       for (Instance ref : selector.selected()) {
-        doc.row(Value.render(ref));
+        doc.row(Value.render(snapshot, ref));
       }
       doc.end();
       selector.render(doc);
@@ -217,7 +238,7 @@ class ObjectHandler implements AhatHandler {
             if (element == null) {
               return DocString.link(DocString.uri("rooted"), DocString.text("ROOT"));
             } else {
-              return DocString.text("→ ").append(Value.render(element));
+              return DocString.text("→ ").append(Value.render(mSnapshot, element));
             }
           }
         };

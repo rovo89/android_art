@@ -19,7 +19,6 @@ TODO:
  * Show site context and heap and class filter in "Objects" view?
  * Have a menu at the top of an object view with links to the sections?
  * Include ahat version and hprof file in the menu at the top of the page?
- * Show root types.
  * Heaped Table
    - Make sortable by clicking on headers.
  * For HeapTable with single heap shown, the heap name isn't centered?
@@ -77,6 +76,7 @@ Things to move to perflib:
  * Extracting bitmap data from bitmap instances.
  * Adding up allocations by stack frame.
  * Computing, for each instance, the other instances it dominates.
+ * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
  0.2 Oct 20, 2015
