@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "art_method-inl.h"
+#include "base/stl_util.h"
 #include "base/time_utils.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
@@ -687,11 +688,11 @@ void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_S
   }
 }
 
-void JitCodeCache::GetCompiledArtMethods(const OatFile* oat_file,
+void JitCodeCache::GetCompiledArtMethods(const std::set<const std::string>& dex_base_locations,
                                          std::set<ArtMethod*>& methods) {
   MutexLock mu(Thread::Current(), lock_);
   for (auto it : method_code_map_) {
-    if (it.second->GetDexFile()->GetOatDexFile()->GetOatFile() == oat_file) {
+    if (ContainsElement(dex_base_locations, it.second->GetDexFile()->GetBaseLocation())) {
       methods.insert(it.second);
     }
   }

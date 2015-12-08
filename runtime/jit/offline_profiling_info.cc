@@ -24,9 +24,9 @@
 
 #include "art_method-inl.h"
 #include "base/mutex.h"
+#include "base/stl_util.h"
 #include "jit/profiling_info.h"
 #include "safe_map.h"
-#include "utils.h"
 
 namespace art {
 
@@ -34,8 +34,20 @@ namespace art {
 static constexpr const uint64_t kMilisecondsToNano = 1000000;
 static constexpr const uint64_t kMinimumTimeBetweenSavesNs = 500 * kMilisecondsToNano;
 
+void OfflineProfilingInfo::SetTrackedDexLocations(
+      const std::vector<std::string>& dex_base_locations) {
+  tracked_dex_base_locations_.clear();
+  tracked_dex_base_locations_.insert(dex_base_locations.begin(), dex_base_locations.end());
+  VLOG(profiler) << "Tracking dex locations: " << Join(dex_base_locations, ':');
+}
+
+const std::set<const std::string>& OfflineProfilingInfo::GetTrackedDexLocations() const {
+  return tracked_dex_base_locations_;
+}
+
 bool OfflineProfilingInfo::NeedsSaving(uint64_t last_update_time_ns) const {
-  return last_update_time_ns - last_update_time_ns_.LoadRelaxed() > kMinimumTimeBetweenSavesNs;
+  return !tracked_dex_base_locations_.empty() &&
+      (last_update_time_ns - last_update_time_ns_.LoadRelaxed() > kMinimumTimeBetweenSavesNs);
 }
 
 void OfflineProfilingInfo::SaveProfilingInfo(const std::string& filename,
@@ -55,6 +67,7 @@ void OfflineProfilingInfo::SaveProfilingInfo(const std::string& filename,
   {
     ScopedObjectAccess soa(Thread::Current());
     for (auto it = methods.begin(); it != methods.end(); it++) {
+      DCHECK(ContainsElement(tracked_dex_base_locations_, (*it)->GetDexFile()->GetBaseLocation()));
       AddMethodInfo(*it, &info);
     }
   }
@@ -146,11 +159,11 @@ static constexpr const char kLineSeparator = '\n';
 
 /**
  * Serialization format:
- *    multidex_suffix1,dex_location_checksum1,method_id11,method_id12...
- *    multidex_suffix2,dex_location_checksum2,method_id21,method_id22...
+ *    dex_location1,dex_location_checksum1,method_id11,method_id12...
+ *    dex_location2,dex_location_checksum2,method_id21,method_id22...
  * e.g.
- *    ,131232145,11,23,454,54               -> this is the first dex file, it has no multidex suffix
- *    :classes5.dex,218490184,39,13,49,1    -> this is the fifth dex file.
+ *    /system/priv-app/app/app.apk,131232145,11,23,454,54
+ *    /system/priv-app/app/app.apk:classes5.dex,218490184,39,13,49,1
  **/
 bool OfflineProfilingInfo::Serialize(const std::string& filename,
                                      const DexFileToMethodsMap& info) const {
@@ -167,7 +180,7 @@ bool OfflineProfilingInfo::Serialize(const std::string& filename,
     const DexFile* dex_file = it.first;
     const std::set<uint32_t>& method_dex_ids = it.second;
 
-    os << DexFile::GetMultiDexSuffix(dex_file->GetLocation())
+    os << dex_file->GetLocation()
         << kFieldSeparator
         << dex_file->GetLocationChecksum();
     for (auto method_it : method_dex_ids) {
@@ -214,7 +227,7 @@ bool ProfileCompilationInfo::ProcessLine(const std::string& line,
     return false;
   }
 
-  const std::string& multidex_suffix = parts[0];
+  const std::string& dex_location = parts[0];
   uint32_t checksum;
   if (!ParseInt(parts[1].c_str(), &checksum)) {
     return false;
@@ -222,7 +235,7 @@ bool ProfileCompilationInfo::ProcessLine(const std::string& line,
 
   const DexFile* current_dex_file = nullptr;
   for (auto dex_file : dex_files) {
-    if (DexFile::GetMultiDexSuffix(dex_file->GetLocation()) == multidex_suffix) {
+    if (dex_file->GetLocation() == dex_location) {
       if (checksum != dex_file->GetLocationChecksum()) {
         LOG(WARNING) << "Checksum mismatch for "
             << dex_file->GetLocation() << " when parsing " << filename_;
@@ -284,15 +297,15 @@ bool ProfileCompilationInfo::Load(const std::vector<const DexFile*>& dex_files) 
     return true;
   }
   if (kIsDebugBuild) {
-    // In debug builds verify that the multidex suffixes are unique.
-    std::set<std::string> suffixes;
+    // In debug builds verify that the locations are unique.
+    std::set<std::string> locations;
     for (auto dex_file : dex_files) {
-      std::string multidex_suffix = DexFile::GetMultiDexSuffix(dex_file->GetLocation());
-      DCHECK(suffixes.find(multidex_suffix) == suffixes.end())
+      const std::string& location = dex_file->GetLocation();
+      DCHECK(locations.find(location) == locations.end())
           << "DexFiles appear to belong to different apks."
-          << " There are multiple dex files with the same multidex suffix: "
-          << multidex_suffix;
-      suffixes.insert(multidex_suffix);
+          << " There are multiple dex files with the same location: "
+          << location;
+      locations.insert(location);
     }
   }
   info_.clear();

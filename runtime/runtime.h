@@ -467,7 +467,8 @@ class Runtime {
     return &instrumentation_;
   }
 
-  void SetJitProfilingFilename(const char* profile_output_filename);
+  void RegisterAppInfo(const std::vector<std::string>& code_paths,
+                       const std::string& profile_output_filename);
   void UpdateProfilerState(int state);
 
   // Transaction support.
