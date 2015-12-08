@@ -149,16 +149,20 @@ bool ClassTable::InsertDexFile(mirror::Object* dex_file) {
 }
 
 size_t ClassTable::WriteToMemory(uint8_t* ptr) const {
-  size_t ret = 0;
-  for (const ClassSet& set : classes_) {
-    uint8_t* address = (ptr != nullptr) ? ptr + ret : nullptr;
-    ret += set.WriteToMemory(address);
-    // Sanity check 2.
-    if (kIsDebugBuild && ptr != nullptr) {
-      size_t read_count;
-      ClassSet class_set(ptr, /*make copy*/false, &read_count);
-      class_set.Verify();
+  ClassSet combined;
+  // Combine all the class sets in case there are multiple, also adjusts load factor back to
+  // default in case classes were pruned.
+  for (const ClassSet& class_set : classes_) {
+    for (const GcRoot<mirror::Class>& root : class_set) {
+      combined.Insert(root);
     }
+  }
+  const size_t ret = combined.WriteToMemory(ptr);
+  // Sanity check.
+  if (kIsDebugBuild && ptr != nullptr) {
+    size_t read_count;
+    ClassSet class_set(ptr, /*make copy*/false, &read_count);
+    class_set.Verify();
   }
   return ret;
 }
