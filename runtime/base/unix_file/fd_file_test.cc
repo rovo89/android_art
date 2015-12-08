@@ -110,4 +110,34 @@ TEST_F(FdFileTest, ReadFullyWithOffset) {
   ASSERT_EQ(file.Close(), 0);
 }
 
+TEST_F(FdFileTest, Copy) {
+  art::ScratchFile src_tmp;
+  FdFile src;
+  ASSERT_TRUE(src.Open(src_tmp.GetFilename(), O_RDWR));
+  ASSERT_GE(src.Fd(), 0);
+  ASSERT_TRUE(src.IsOpened());
+
+  char src_data[] = "Some test data.";
+  ASSERT_TRUE(src.WriteFully(src_data, sizeof(src_data)));  // Including the zero terminator.
+  ASSERT_EQ(0, src.Flush());
+  ASSERT_EQ(static_cast<int64_t>(sizeof(src_data)), src.GetLength());
+
+  art::ScratchFile dest_tmp;
+  FdFile dest;
+  ASSERT_TRUE(dest.Open(src_tmp.GetFilename(), O_RDWR));
+  ASSERT_GE(dest.Fd(), 0);
+  ASSERT_TRUE(dest.IsOpened());
+
+  ASSERT_TRUE(dest.Copy(&src, 0, sizeof(src_data)));
+  ASSERT_EQ(0, dest.Flush());
+  ASSERT_EQ(static_cast<int64_t>(sizeof(src_data)), dest.GetLength());
+
+  char check_data[sizeof(src_data)];
+  ASSERT_TRUE(dest.PreadFully(check_data, sizeof(src_data), 0u));
+  CHECK_EQ(0, memcmp(check_data, src_data, sizeof(src_data)));
+
+  ASSERT_EQ(0, dest.Close());
+  ASSERT_EQ(0, src.Close());
+}
+
 }  // namespace unix_file

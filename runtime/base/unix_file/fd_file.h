@@ -50,12 +50,12 @@ class FdFile : public RandomAccessFile {
   bool Open(const std::string& file_path, int flags, mode_t mode);
 
   // RandomAccessFile API.
-  virtual int Close() WARN_UNUSED;
-  virtual int64_t Read(char* buf, int64_t byte_count, int64_t offset) const WARN_UNUSED;
-  virtual int SetLength(int64_t new_length) WARN_UNUSED;
-  virtual int64_t GetLength() const;
-  virtual int64_t Write(const char* buf, int64_t byte_count, int64_t offset) WARN_UNUSED;
-  virtual int Flush() WARN_UNUSED;
+  int Close() OVERRIDE WARN_UNUSED;
+  int64_t Read(char* buf, int64_t byte_count, int64_t offset) const OVERRIDE WARN_UNUSED;
+  int SetLength(int64_t new_length) OVERRIDE WARN_UNUSED;
+  int64_t GetLength() const OVERRIDE;
+  int64_t Write(const char* buf, int64_t byte_count, int64_t offset) OVERRIDE WARN_UNUSED;
+  int Flush() OVERRIDE WARN_UNUSED;
 
   // Short for SetLength(0); Flush(); Close();
   void Erase();
@@ -76,6 +76,9 @@ class FdFile : public RandomAccessFile {
   bool ReadFully(void* buffer, size_t byte_count) WARN_UNUSED;
   bool PreadFully(void* buffer, size_t byte_count, size_t offset) WARN_UNUSED;
   bool WriteFully(const void* buffer, size_t byte_count) WARN_UNUSED;
+
+  // Copy data from another file.
+  bool Copy(FdFile* input_file, int64_t offset, int64_t size);
 
   // This enum is public so that we can define the << operator over it.
   enum class GuardState {

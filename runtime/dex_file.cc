@@ -29,6 +29,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/file_magic.h"
 #include "base/hash_map.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
@@ -61,26 +62,6 @@ namespace art {
 
 const uint8_t DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const uint8_t DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
-
-static int OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
-  CHECK(magic != nullptr);
-  ScopedFd fd(open(filename, O_RDONLY, 0));
-  if (fd.get() == -1) {
-    *error_msg = StringPrintf("Unable to open '%s' : %s", filename, strerror(errno));
-    return -1;
-  }
-  int n = TEMP_FAILURE_RETRY(read(fd.get(), magic, sizeof(*magic)));
-  if (n != sizeof(*magic)) {
-    *error_msg = StringPrintf("Failed to find magic in '%s'", filename);
-    return -1;
-  }
-  if (lseek(fd.get(), 0, SEEK_SET) != 0) {
-    *error_msg = StringPrintf("Failed to seek to beginning of file '%s' : %s", filename,
-                              strerror(errno));
-    return -1;
-  }
-  return fd.release();
-}
 
 bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {
   CHECK(checksum != nullptr);
