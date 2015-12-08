@@ -139,6 +139,8 @@ public class Main {
                 new Object[] { "abc" }, null, null));
         testCases.add(new TestCase("b/25494456", "B25494456", "run", null, new VerifyError(),
                 null));
+        testCases.add(new TestCase("b/21869691", "B21869691A", "run", null,
+                new IncompatibleClassChangeError(), null));
     }
 
     public void runTests() {
@@ -208,7 +210,7 @@ public class Main {
                                                         tc.expectedException.getClass().getName() +
                                                         ", but got " + exc.getClass(), exc);
             } else {
-              // Expected exception, do nothing.
+                // Expected exception, do nothing.
             }
         } finally {
             if (errorReturn != null) {
