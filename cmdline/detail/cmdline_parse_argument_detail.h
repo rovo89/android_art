@@ -25,10 +25,10 @@
 #include <numeric>
 #include <memory>
 
-#include "cmdline/cmdline_parse_result.h"
-#include "cmdline/token_range.h"
-#include "cmdline/unit.h"
-#include "cmdline/cmdline_types.h"
+#include "cmdline_parse_result.h"
+#include "cmdline_types.h"
+#include "token_range.h"
+#include "unit.h"
 
 namespace art {
   // Implementation details for the parser. Do not look inside if you hate templates.

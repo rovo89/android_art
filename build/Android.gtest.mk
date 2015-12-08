@@ -382,7 +382,7 @@ LOCAL_MODULE := libart-gtest
 LOCAL_MODULE_TAGS := optional
 LOCAL_CPP_EXTENSION := cc
 LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
-LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
+LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/cmdline art/compiler
 LOCAL_SHARED_LIBRARIES := libartd libartd-compiler libdl
 LOCAL_STATIC_LIBRARIES += libgtest
 LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
@@ -399,7 +399,7 @@ LOCAL_CPP_EXTENSION := cc
 LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
 LOCAL_ASFLAGS := $(ART_HOST_ASFLAGS)
 LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
-LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
+LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/cmdline art/compiler
 LOCAL_SHARED_LIBRARIES := libartd libartd-compiler
 LOCAL_STATIC_LIBRARIES := libgtest_host
 LOCAL_LDLIBS += -ldl -lpthread
@@ -542,7 +542,7 @@ define define-art-gtest
   endif
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
   LOCAL_SRC_FILES := $$(art_gtest_filename)
-  LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime $$(art_gtest_extra_c_includes)
+  LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime art/cmdline $$(art_gtest_extra_c_includes)
   LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest libartd-disassembler
   LOCAL_WHOLE_STATIC_LIBRARIES += libsigchain
 

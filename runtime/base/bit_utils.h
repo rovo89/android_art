@@ -23,6 +23,7 @@
 
 #include "base/logging.h"
 #include "base/iteration_range.h"
+#include "base/stl_util.h"
 
 namespace art {
 
@@ -108,12 +109,12 @@ static inline int WhichPowerOf2(T x) {
 }
 
 // For rounding integers.
-// NOTE: In the absence of std::omit_from_type_deduction<T> or std::identity<T>, use std::decay<T>.
+// Note: Omit the `n` from T type deduction, deduce only from the `x` argument.
 template<typename T>
-static constexpr T RoundDown(T x, typename std::decay<T>::type n) WARN_UNUSED;
+static constexpr T RoundDown(T x, typename Identity<T>::type n) WARN_UNUSED;
 
 template<typename T>
-static constexpr T RoundDown(T x, typename std::decay<T>::type n) {
+static constexpr T RoundDown(T x, typename Identity<T>::type n) {
   return
       DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))
       (x & -n);

@@ -84,6 +84,7 @@ class MonitorList;
 class MonitorPool;
 class NullPointerHandler;
 class OatFileManager;
+struct RuntimeArgumentMap;
 class SignalCatcher;
 class StackOverflowHandler;
 class SuspensionHandler;
@@ -112,8 +113,17 @@ enum VisitRootFlags : uint8_t {
 
 class Runtime {
  public:
+  // Parse raw runtime options.
+  static bool ParseOptions(const RuntimeOptions& raw_options,
+                           bool ignore_unrecognized,
+                           RuntimeArgumentMap* runtime_options);
+
   // Creates and initializes a new runtime.
-  static bool Create(const RuntimeOptions& options, bool ignore_unrecognized)
+  static bool Create(RuntimeArgumentMap&& runtime_options)
+      SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
+
+  // Creates and initializes a new runtime.
+  static bool Create(const RuntimeOptions& raw_options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
   // IsAotCompiler for compilers that don't have a running runtime. Only dex2oat currently.
@@ -599,7 +609,7 @@ class Runtime {
 
   void BlockSignals();
 
-  bool Init(const RuntimeOptions& options, bool ignore_unrecognized)
+  bool Init(RuntimeArgumentMap&& runtime_options)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
   void InitNativeMethods() REQUIRES(!Locks::mutator_lock_);
   void InitThreadGroups(Thread* self);

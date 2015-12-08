@@ -22,6 +22,7 @@
 
 #include "base/bit_utils.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/value_object.h"
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
@@ -697,10 +698,9 @@ class ArmAssembler : public Assembler {
   // Most of these are pure virtual as they need to be implemented per instruction set.
 
   // Create a new literal with a given value.
-  // NOTE: Force the template parameter to be explicitly specified. In the absence of
-  // std::omit_from_type_deduction<T> or std::identity<T>, use std::decay<T>.
+  // NOTE: Force the template parameter to be explicitly specified.
   template <typename T>
-  Literal* NewLiteral(typename std::decay<T>::type value) {
+  Literal* NewLiteral(typename Identity<T>::type value) {
     static_assert(std::is_integral<T>::value, "T must be an integral type.");
     return NewLiteral(sizeof(value), reinterpret_cast<const uint8_t*>(&value));
   }
