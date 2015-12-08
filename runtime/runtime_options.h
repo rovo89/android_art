@@ -17,14 +17,13 @@
 #ifndef ART_RUNTIME_RUNTIME_OPTIONS_H_
 #define ART_RUNTIME_RUNTIME_OPTIONS_H_
 
-#include "runtime/base/variant_map.h"
-#include "cmdline/cmdline_types.h"  // TODO: don't need to include this file here
+#include "base/variant_map.h"
+#include "cmdline_types.h"  // TODO: don't need to include this file here
 
 // Map keys
 #include <vector>
 #include <string>
-#include "runtime/base/logging.h"
-#include "cmdline/unit.h"
+#include "base/logging.h"
 #include "jdwp/jdwp.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"

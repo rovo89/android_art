@@ -60,8 +60,8 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   options.push_back(std::make_pair("exit", test_exit));
 
   RuntimeArgumentMap map;
-  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
-  ASSERT_TRUE(parsed.get() != nullptr);
+  bool parsed = ParsedOptions::Parse(options, false, &map);
+  ASSERT_TRUE(parsed);
   ASSERT_NE(0u, map.Size());
 
   using Opt = RuntimeArgumentMap;
@@ -102,8 +102,8 @@ TEST_F(ParsedOptionsTest, ParsedOptionsGc) {
   options.push_back(std::make_pair("-Xgc:MC", nullptr));
 
   RuntimeArgumentMap map;
-  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
-  ASSERT_TRUE(parsed.get() != nullptr);
+  bool parsed = ParsedOptions::Parse(options, false, &map);
+  ASSERT_TRUE(parsed);
   ASSERT_NE(0u, map.Size());
 
   using Opt = RuntimeArgumentMap;
