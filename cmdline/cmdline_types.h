@@ -18,17 +18,17 @@
 
 #define CMDLINE_NDEBUG 1  // Do not output any debugging information for parsing.
 
-#include "cmdline/memory_representation.h"
-#include "cmdline/detail/cmdline_debug_detail.h"
+#include "memory_representation.h"
+#include "detail/cmdline_debug_detail.h"
 #include "cmdline_type_parser.h"
 
 // Includes for the types that are being specialized
 #include <string>
 #include "unit.h"
 #include "jdwp/jdwp.h"
-#include "runtime/base/logging.h"
-#include "runtime/base/time_utils.h"
-#include "runtime/experimental_flags.h"
+#include "base/logging.h"
+#include "base/time_utils.h"
+#include "experimental_flags.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "profiler_options.h"

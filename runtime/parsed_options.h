@@ -50,8 +50,9 @@ class ParsedOptions {
   static std::unique_ptr<RuntimeParser> MakeParser(bool ignore_unrecognized);
 
   // returns true if parsing succeeds, and stores the resulting options into runtime_options
-  static ParsedOptions* Create(const RuntimeOptions& options, bool ignore_unrecognized,
-                               RuntimeArgumentMap* runtime_options);
+  static bool Parse(const RuntimeOptions& options,
+                    bool ignore_unrecognized,
+                    RuntimeArgumentMap* runtime_options);
 
   bool (*hook_is_sensitive_thread_)();
   jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
@@ -72,8 +73,9 @@ class ParsedOptions {
   void Exit(int status);
   void Abort();
 
-  bool Parse(const RuntimeOptions& options,  bool ignore_unrecognized,
-             RuntimeArgumentMap* runtime_options);
+  bool DoParse(const RuntimeOptions& options,
+               bool ignore_unrecognized,
+               RuntimeArgumentMap* runtime_options);
 };
 
 }  // namespace art
