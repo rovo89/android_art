@@ -152,7 +152,10 @@ else
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	$(TEST_ART_ADB_ROOT_AND_REMOUNT)
 	adb wait-for-device push $(ANDROID_PRODUCT_OUT)/system $(ART_TEST_ANDROID_ROOT)
-	adb push $(ANDROID_PRODUCT_OUT)/data /data
+# Push the contents of the `data` dir into `/data` on the device.  If
+# `/data` already exists on the device, it is not overwritten, but its
+# contents are updated.
+	adb push $(ANDROID_PRODUCT_OUT)/data /
 endif
 endif
 
