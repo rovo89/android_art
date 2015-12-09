@@ -41,6 +41,10 @@ namespace x86_64 {
 
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = RDI;
+// The compare/jump sequence will generate about (1.5 * num_entries) instructions. A jump
+// table version generates 7 instructions and num_entries literals. Compare/jump sequence will
+// generates less code/data with a small num_entries.
+static constexpr uint32_t kPackedSwitchJumpTableThreshold = 5;
 
 static constexpr Register kCoreCalleeSaves[] = { RBX, RBP, R12, R13, R14, R15 };
 static constexpr FloatRegister kFpuCalleeSaves[] = { XMM12, XMM13, XMM14, XMM15 };
@@ -6021,11 +6025,58 @@ void LocationsBuilderX86_64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
 
 void InstructionCodeGeneratorX86_64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
+  uint32_t num_entries = switch_instr->GetNumEntries();
   LocationSummary* locations = switch_instr->GetLocations();
   CpuRegister value_reg_in = locations->InAt(0).AsRegister<CpuRegister>();
   CpuRegister temp_reg = locations->GetTemp(0).AsRegister<CpuRegister>();
   CpuRegister base_reg = locations->GetTemp(1).AsRegister<CpuRegister>();
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  // Should we generate smaller inline compare/jumps?
+  if (num_entries <= kPackedSwitchJumpTableThreshold) {
+    // Figure out the correct compare values and jump conditions.
+    // Handle the first compare/branch as a special case because it might
+    // jump to the default case.
+    DCHECK_GT(num_entries, 2u);
+    Condition first_condition;
+    uint32_t index;
+    const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+    if (lower_bound != 0) {
+      first_condition = kLess;
+      __ cmpl(value_reg_in, Immediate(lower_bound));
+      __ j(first_condition, codegen_->GetLabelOf(default_block));
+      __ j(kEqual, codegen_->GetLabelOf(successors[0]));
+
+      index = 1;
+    } else {
+      // Handle all the compare/jumps below.
+      first_condition = kBelow;
+      index = 0;
+    }
+
+    // Handle the rest of the compare/jumps.
+    for (; index + 1 < num_entries; index += 2) {
+      int32_t compare_to_value = lower_bound + index + 1;
+      __ cmpl(value_reg_in, Immediate(compare_to_value));
+      // Jump to successors[index] if value < case_value[index].
+      __ j(first_condition, codegen_->GetLabelOf(successors[index]));
+      // Jump to successors[index + 1] if value == case_value[index + 1].
+      __ j(kEqual, codegen_->GetLabelOf(successors[index + 1]));
+    }
+
+    if (index != num_entries) {
+      // There are an odd number of entries. Handle the last one.
+      DCHECK_EQ(index + 1, num_entries);
+      __ cmpl(value_reg_in, Immediate(lower_bound + index));
+      __ j(kEqual, codegen_->GetLabelOf(successors[index]));
+    }
+
+    // And the default for any other value.
+    if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+      __ jmp(codegen_->GetLabelOf(default_block));
+    }
+    return;
+  }
 
   // Remove the bias, if needed.
   Register value_reg_out = value_reg_in.AsRegister();
@@ -6036,7 +6087,6 @@ void InstructionCodeGeneratorX86_64::VisitPackedSwitch(HPackedSwitch* switch_ins
   CpuRegister value_reg(value_reg_out);
 
   // Is the value in range?
-  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
   __ cmpl(value_reg, Immediate(num_entries - 1));
   __ j(kAbove, codegen_->GetLabelOf(default_block));
 
