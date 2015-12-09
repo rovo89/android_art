@@ -189,19 +189,31 @@ void CommonCompilerTest::SetUp() {
     }
 
     timer_.reset(new CumulativeLogger("Compilation times"));
-    compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
-                                              verification_results_.get(),
-                                              method_inliner_map_.get(),
-                                              compiler_kind_, instruction_set,
-                                              instruction_set_features_.get(),
-                                              true,
-                                              GetImageClasses(),
-                                              GetCompiledClasses(),
-                                              GetCompiledMethods(),
-                                              2, true, true, "", false, timer_.get(), -1, ""));
+    CreateCompilerDriver(compiler_kind_, instruction_set);
   }
   // We typically don't generate an image in unit tests, disable this optimization by default.
   compiler_driver_->SetSupportBootImageFixup(false);
+}
+
+void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind, InstructionSet isa) {
+  compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
+                                            verification_results_.get(),
+                                            method_inliner_map_.get(),
+                                            kind,
+                                            isa,
+                                            instruction_set_features_.get(),
+                                            true,
+                                            GetImageClasses(),
+                                            GetCompiledClasses(),
+                                            GetCompiledMethods(),
+                                            2,
+                                            true,
+                                            true,
+                                            "",
+                                            false,
+                                            timer_.get(),
+                                            -1,
+                                            ""));
 }
 
 void CommonCompilerTest::SetUpRuntimeOptions(RuntimeOptions* options) {

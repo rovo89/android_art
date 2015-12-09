@@ -78,10 +78,27 @@ class PACKED(4) ImageSection {
 // header of image files written by ImageWriter, read and validated by Space.
 class PACKED(4) ImageHeader {
  public:
+  enum StorageMode : uint32_t {
+    kStorageModeUncompressed,
+    kStorageModeLZ4,
+    kStorageModeCount,  // Number of elements in enum.
+  };
+  static constexpr StorageMode kDefaultStorageMode = kStorageModeUncompressed;
+
   ImageHeader()
-      : image_begin_(0U), image_size_(0U), oat_checksum_(0U), oat_file_begin_(0U),
-        oat_data_begin_(0U), oat_data_end_(0U), oat_file_end_(0U), patch_delta_(0),
-        image_roots_(0U), pointer_size_(0U), compile_pic_(0) {}
+      : image_begin_(0U),
+        image_size_(0U),
+        oat_checksum_(0U),
+        oat_file_begin_(0U),
+        oat_data_begin_(0U),
+        oat_data_end_(0U),
+        oat_file_end_(0U),
+        patch_delta_(0),
+        image_roots_(0U),
+        pointer_size_(0U),
+        compile_pic_(0),
+        storage_mode_(kDefaultStorageMode),
+        data_size_(0) {}
 
   ImageHeader(uint32_t image_begin,
               uint32_t image_size,
@@ -93,7 +110,9 @@ class PACKED(4) ImageHeader {
               uint32_t oat_data_end,
               uint32_t oat_file_end,
               uint32_t pointer_size,
-              bool compile_pic);
+              bool compile_pic,
+              StorageMode storage_mode,
+              size_t data_size);
 
   bool IsValid() const;
   const char* GetMagic() const;
@@ -194,6 +213,14 @@ class PACKED(4) ImageHeader {
     return compile_pic_ != 0;
   }
 
+  StorageMode GetStorageMode() const {
+    return storage_mode_;
+  }
+
+  uint64_t GetDataSize() const {
+    return data_size_;
+  }
+
  private:
   static const uint8_t kImageMagic[4];
   static const uint8_t kImageVersion[4];
@@ -241,6 +268,13 @@ class PACKED(4) ImageHeader {
   // Image methods.
   uint64_t image_methods_[kImageMethodsCount];
 
+  // Storage method for the image, the image may be compressed.
+  StorageMode storage_mode_;
+
+  // Data size for the image data excluding the bitmap and the header. For compressed images, this
+  // is the compressed size in the file.
+  uint32_t data_size_;
+
   friend class ImageWriter;
 };
 
@@ -248,6 +282,7 @@ std::ostream& operator<<(std::ostream& os, const ImageHeader::ImageMethod& polic
 std::ostream& operator<<(std::ostream& os, const ImageHeader::ImageRoot& policy);
 std::ostream& operator<<(std::ostream& os, const ImageHeader::ImageSections& section);
 std::ostream& operator<<(std::ostream& os, const ImageSection& section);
+std::ostream& operator<<(std::ostream& os, const ImageHeader::StorageMode& mode);
 
 }  // namespace art
 
