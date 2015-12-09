@@ -393,10 +393,10 @@ build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TAR
 # Rules for building all dependencies for tests.
 
 .PHONY: build-art-host-tests
-build-art-host-tests:   build-art-host $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_GTEST_DEPENDENCIES)
+build-art-host-tests:   build-art-host $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_GTEST_DEPENDENCIES) | $(TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES)
 
 .PHONY: build-art-target-tests
-build-art-target-tests:   build-art-target $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TEST_ART_TARGET_SYNC_DEPS)
+build-art-target-tests:   build-art-target $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TEST_ART_TARGET_SYNC_DEPS) | $(TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES)
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart
