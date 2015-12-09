@@ -242,6 +242,7 @@ const DexFile* DexFile::OpenMemory(const std::string& location,
                     location,
                     location_checksum,
                     mem_map,
+                    nullptr,
                     error_msg);
 }
 
@@ -327,7 +328,9 @@ const DexFile* DexFile::OpenMemory(const byte* base,
                                    size_t size,
                                    const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map, std::string* error_msg) {
+                                   MemMap* mem_map,
+                                   const OatDexFile* oat_dex_file,
+                                   std::string* error_msg) {
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
 
   if (UNLIKELY(LGAlmond::IsEncryptedDex(base, size))) {
@@ -342,7 +345,7 @@ const DexFile* DexFile::OpenMemory(const byte* base,
     }
   }
 
-  std::unique_ptr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
+  std::unique_ptr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map, oat_dex_file));
   if (!dex_file->Init(error_msg)) {
     return nullptr;
   } else {
@@ -353,7 +356,8 @@ const DexFile* DexFile::OpenMemory(const byte* base,
 DexFile::DexFile(const byte* base, size_t size,
                  const std::string& location,
                  uint32_t location_checksum,
-                 MemMap* mem_map)
+                 MemMap* mem_map,
+                 const OatDexFile* oat_dex_file)
     : begin_(base),
       size_(size),
       location_(location),
@@ -368,7 +372,8 @@ DexFile::DexFile(const byte* base, size_t size,
       class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
       find_class_def_misses_(0),
       class_def_index_(nullptr),
-      build_class_def_index_mutex_("DexFile index creation mutex") {
+      build_class_def_index_mutex_("DexFile index creation mutex"),
+      oat_dex_file_(oat_dex_file) {
   CHECK(begin_ != NULL) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
 }

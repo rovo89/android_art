@@ -460,7 +460,7 @@ size_t OatFile::OatDexFile::FileSize() const {
 
 const DexFile* OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
   return DexFile::Open(dex_file_pointer_, FileSize(), dex_file_location_,
-                       dex_file_location_checksum_, error_msg);
+                       dex_file_location_checksum_, this, error_msg);
 }
 
 uint32_t OatFile::OatDexFile::GetOatClassOffset(uint16_t class_def_index) const {
@@ -500,12 +500,12 @@ OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint16_t class_def_index) con
   }
   CHECK_LE(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
-  return OatClass(oat_file_,
-                  status,
-                  type,
-                  bitmap_size,
-                  reinterpret_cast<const uint32_t*>(bitmap_pointer),
-                  reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
+  return OatFile::OatClass(oat_file_,
+                           status,
+                           type,
+                           bitmap_size,
+                           reinterpret_cast<const uint32_t*>(bitmap_pointer),
+                           reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
 }
 
 OatFile::OatClass::OatClass(const OatFile* oat_file,
