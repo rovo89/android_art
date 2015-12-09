@@ -59,7 +59,7 @@ static constexpr SRegister kFpuCalleeSaves[] =
 // S registers. Therefore there is no need to block it.
 static constexpr DRegister DTMP = D31;
 
-static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
+static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 #define __ down_cast<ArmAssembler*>(codegen->GetAssembler())->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmWordSize, x).Int32Value()
@@ -6106,7 +6106,7 @@ void LocationsBuilderARM::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  if (switch_instr->GetNumEntries() >= kPackedSwitchJumpTableThreshold &&
+  if (switch_instr->GetNumEntries() > kPackedSwitchCompareJumpThreshold &&
       codegen_->GetAssembler()->IsThumb()) {
     locations->AddTemp(Location::RequiresRegister());  // We need a temp for the table base.
     if (switch_instr->GetStartValue() != 0) {
@@ -6122,12 +6122,30 @@ void InstructionCodeGeneratorARM::VisitPackedSwitch(HPackedSwitch* switch_instr)
   Register value_reg = locations->InAt(0).AsRegister<Register>();
   HBasicBlock* default_block = switch_instr->GetDefaultBlock();
 
-  if (num_entries < kPackedSwitchJumpTableThreshold || !codegen_->GetAssembler()->IsThumb()) {
+  if (num_entries <= kPackedSwitchCompareJumpThreshold || !codegen_->GetAssembler()->IsThumb()) {
     // Create a series of compare/jumps.
+    Register temp_reg = IP;
+    // Note: It is fine for the below AddConstantSetFlags() using IP register to temporarily store
+    // the immediate, because IP is used as the destination register. For the other
+    // AddConstantSetFlags() and GenerateCompareWithImmediate(), the immediate values are constant,
+    // and they can be encoded in the instruction without making use of IP register.
+    __ AddConstantSetFlags(temp_reg, value_reg, -lower_bound);
+
     const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-    for (uint32_t i = 0; i < num_entries; i++) {
-      GenerateCompareWithImmediate(value_reg, lower_bound + i);
-      __ b(codegen_->GetLabelOf(successors[i]), EQ);
+    // Jump to successors[0] if value == lower_bound.
+    __ b(codegen_->GetLabelOf(successors[0]), EQ);
+    int32_t last_index = 0;
+    for (; num_entries - last_index > 2; last_index += 2) {
+      __ AddConstantSetFlags(temp_reg, temp_reg, -2);
+      // Jump to successors[last_index + 1] if value < case_value[last_index + 2].
+      __ b(codegen_->GetLabelOf(successors[last_index + 1]), LO);
+      // Jump to successors[last_index + 2] if value == case_value[last_index + 2].
+      __ b(codegen_->GetLabelOf(successors[last_index + 2]), EQ);
+    }
+    if (num_entries - last_index == 2) {
+      // The last missing case_value.
+      GenerateCompareWithImmediate(temp_reg, 1);
+      __ b(codegen_->GetLabelOf(successors[last_index + 1]), EQ);
     }
 
     // And the default for any other value.
