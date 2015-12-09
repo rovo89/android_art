@@ -9,3 +9,4 @@ Cons StaticInnerClass succeeded
 Cons got expected PackageAccess complaint
 Cons got expected InstantationException
 Cons got expected PackageAccess2 complaint
+Cons ConstructorAccess succeeded
