@@ -30,6 +30,7 @@
 #include "mirror/array.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
+#include "oat_file.h"
 #include "os.h"
 #include "output_stream.h"
 #include "safe_map.h"
@@ -308,6 +309,16 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
       status = compiled_class->GetStatus();
     } else if (writer_->compiler_driver_->GetVerificationResults()->IsClassRejected(class_ref)) {
       status = mirror::Class::kStatusError;
+
+      // If this file has been compiled before, skip verification errors.
+      auto* orig_oat_dex_file = dex_file_->GetOatDexFile();
+      if (orig_oat_dex_file != nullptr) {
+        auto& class_def = dex_file_->GetClassDef(class_def_index_);
+        const char* descriptor = dex_file_->GetClassDescriptor(class_def);
+        status = orig_oat_dex_file->GetOatClass(class_def_index_).GetStatus();
+        LOG(WARNING) << "Ignoring verification errors for " << PrettyDescriptor(descriptor)
+                     << " during recompilation, setting status to " << status;
+      }
     } else {
       status = mirror::Class::kStatusNotReady;
     }
