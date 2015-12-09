@@ -1392,21 +1392,6 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
   return filename;
 }
 
-bool IsZipMagic(uint32_t magic) {
-  return (('P' == ((magic >> 0) & 0xff)) &&
-          ('K' == ((magic >> 8) & 0xff)));
-}
-
-bool IsDexMagic(uint32_t magic) {
-  return DexFile::IsMagicValid(reinterpret_cast<const uint8_t*>(&magic));
-}
-
-bool IsOatMagic(uint32_t magic) {
-  return (memcmp(reinterpret_cast<const uint8_t*>(magic),
-                 OatHeader::kOatMagic,
-                 sizeof(OatHeader::kOatMagic)) == 0);
-}
-
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   const std::string command_line(Join(arg_vector, ' '));
 

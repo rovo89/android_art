@@ -273,11 +273,6 @@ std::string GetDalvikCacheFilenameOrDie(const char* file_location,
 // Returns the system location for an image
 std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
-// Check whether the given magic matches a known file type.
-bool IsZipMagic(uint32_t magic);
-bool IsDexMagic(uint32_t magic);
-bool IsOatMagic(uint32_t magic);
-
 // Wrapper on fork/execv to run a command in a subprocess.
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
 

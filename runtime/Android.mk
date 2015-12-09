@@ -27,6 +27,7 @@ LIBART_COMMON_SRC_FILES := \
   base/arena_allocator.cc \
   base/arena_bit_vector.cc \
   base/bit_vector.cc \
+  base/file_magic.cc \
   base/hex_dump.cc \
   base/logging.cc \
   base/mutex.cc \
