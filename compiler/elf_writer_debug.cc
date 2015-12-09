@@ -293,12 +293,130 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   }
 }
 
-struct CompilationUnit {
-  std::vector<const MethodDebugInfo*> methods_;
-  size_t debug_line_offset_ = 0;
-  uint32_t low_pc_ = 0xFFFFFFFFU;
-  uint32_t high_pc_ = 0;
-};
+namespace {
+  struct CompilationUnit {
+    std::vector<const MethodDebugInfo*> methods_;
+    size_t debug_line_offset_ = 0;
+    uint32_t low_pc_ = 0xFFFFFFFFU;
+    uint32_t high_pc_ = 0;
+  };
+
+  struct LocalVariable {
+    uint16_t vreg;
+    uint32_t dex_pc_low;
+    uint32_t dex_pc_high;
+    const char* name;
+    const char* type;
+    const char* sig;
+  };
+
+  struct DebugInfoCallback {
+    static void NewLocal(void* ctx,
+                         uint16_t vreg,
+                         uint32_t start,
+                         uint32_t end,
+                         const char* name,
+                         const char* type,
+                         const char* sig) {
+      auto* context = static_cast<DebugInfoCallback*>(ctx);
+      if (name != nullptr && type != nullptr) {
+        context->local_variables_.push_back({vreg, start, end, name, type, sig});
+      }
+    }
+    std::vector<LocalVariable> local_variables_;
+  };
+
+  std::vector<const char*> GetParamNames(const MethodDebugInfo* mi) {
+    std::vector<const char*> names;
+    const uint8_t* stream = mi->dex_file_->GetDebugInfoStream(mi->code_item_);
+    if (stream != nullptr) {
+      DecodeUnsignedLeb128(&stream);  // line.
+      uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
+      for (uint32_t i = 0; i < parameters_size; ++i) {
+        uint32_t id = DecodeUnsignedLeb128P1(&stream);
+        names.push_back(mi->dex_file_->StringDataByIdx(id));
+      }
+    }
+    return names;
+  }
+
+  struct VariableLocation {
+    uint32_t low_pc;
+    uint32_t high_pc;
+    DexRegisterLocation reg_lo;  // May be None if the location is unknown.
+    DexRegisterLocation reg_hi;  // Most significant bits of 64-bit value.
+  };
+
+  // Get the location of given dex register (e.g. stack or machine register).
+  // Note that the location might be different based on the current pc.
+  // The result will cover all ranges where the variable is in scope.
+  std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method_info,
+                                                     uint16_t vreg,
+                                                     bool is64bitValue,
+                                                     uint32_t dex_pc_low,
+                                                     uint32_t dex_pc_high) {
+    std::vector<VariableLocation> variable_locations;
+
+    // Get stack maps sorted by pc (they might not be sorted internally).
+    const CodeInfo code_info(method_info->compiled_method_->GetVmapTable().data());
+    const StackMapEncoding encoding = code_info.ExtractEncoding();
+    std::map<uint32_t, StackMap> stack_maps;
+    for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
+      StackMap stack_map = code_info.GetStackMapAt(s, encoding);
+      DCHECK(stack_map.IsValid());
+      const uint32_t low_pc = method_info->low_pc_ + stack_map.GetNativePcOffset(encoding);
+      DCHECK_LE(low_pc, method_info->high_pc_);
+      stack_maps.emplace(low_pc, stack_map);
+    }
+
+    // Create entries for the requested register based on stack map data.
+    for (auto it = stack_maps.begin(); it != stack_maps.end(); it++) {
+      const StackMap& stack_map = it->second;
+      const uint32_t low_pc = it->first;
+      auto next_it = it;
+      next_it++;
+      const uint32_t high_pc = next_it != stack_maps.end() ? next_it->first
+                                                           : method_info->high_pc_;
+      DCHECK_LE(low_pc, high_pc);
+      if (low_pc == high_pc) {
+        continue;  // Ignore if the address range is empty.
+      }
+
+      // Check that the stack map is in the requested range.
+      uint32_t dex_pc = stack_map.GetDexPc(encoding);
+      if (!(dex_pc_low <= dex_pc && dex_pc < dex_pc_high)) {
+        continue;
+      }
+
+      // Find the location of the dex register.
+      DexRegisterLocation reg_lo = DexRegisterLocation::None();
+      DexRegisterLocation reg_hi = DexRegisterLocation::None();
+      if (stack_map.HasDexRegisterMap(encoding)) {
+        DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(
+            stack_map, encoding, method_info->code_item_->registers_size_);
+        reg_lo = dex_register_map.GetDexRegisterLocation(
+            vreg, method_info->code_item_->registers_size_, code_info, encoding);
+        if (is64bitValue) {
+          reg_hi = dex_register_map.GetDexRegisterLocation(
+              vreg + 1, method_info->code_item_->registers_size_, code_info, encoding);
+        }
+      }
+
+      // Add location entry for this address range.
+      if (!variable_locations.empty() &&
+          variable_locations.back().reg_lo == reg_lo &&
+          variable_locations.back().reg_hi == reg_hi &&
+          variable_locations.back().high_pc == low_pc) {
+        // Merge with the previous entry (extend its range).
+        variable_locations.back().high_pc = high_pc;
+      } else {
+        variable_locations.push_back({low_pc, high_pc, reg_lo, reg_hi});
+      }
+    }
+
+    return variable_locations;
+  }
+}  // namespace
 
 // Helper class to write .debug_info and its supporting sections.
 template<typename ElfTypes>
@@ -332,6 +450,7 @@ class DebugInfoWriter {
         const DexFile::ProtoId& dex_proto = dex->GetMethodPrototype(dex_method);
         const DexFile::TypeList* dex_params = dex->GetProtoParameters(dex_proto);
         const char* dex_class_desc = dex->GetMethodDeclaringClassDescriptor(dex_method);
+        const bool is_static = (mi->access_flags_ & kAccStatic) != 0;
 
         // Enclose the method in correct class definition.
         if (last_dex_class_desc != dex_class_desc) {
@@ -346,17 +465,17 @@ class DebugInfoWriter {
           last_dex_class_desc = dex_class_desc;
         }
 
+        // Collect information about local variables and parameters.
+        DebugInfoCallback debug_info_callback;
         std::vector<const char*> param_names;
         if (mi->code_item_ != nullptr) {
-          const uint8_t* stream = dex->GetDebugInfoStream(mi->code_item_);
-          if (stream != nullptr) {
-            DecodeUnsignedLeb128(&stream);  // line.
-            uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
-            for (uint32_t i = 0; i < parameters_size; ++i) {
-              uint32_t id = DecodeUnsignedLeb128P1(&stream);
-              param_names.push_back(mi->dex_file_->StringDataByIdx(id));
-            }
-          }
+          dex->DecodeDebugInfo(mi->code_item_,
+                               is_static,
+                               mi->dex_method_index_,
+                               nullptr,
+                               DebugInfoCallback::NewLocal,
+                               &debug_info_callback);
+          param_names = GetParamNames(mi);
         }
 
         int start_depth = info_.Depth();
@@ -367,19 +486,19 @@ class DebugInfoWriter {
         uint8_t frame_base[] = { DW_OP_call_frame_cfa };
         info_.WriteExprLoc(DW_AT_frame_base, &frame_base, sizeof(frame_base));
         WriteLazyType(dex->GetReturnTypeDescriptor(dex_proto));
+        uint32_t vreg = mi->code_item_ == nullptr ? 0 :
+            mi->code_item_->registers_size_ - mi->code_item_->ins_size_;
+        if (!is_static) {
+          info_.StartTag(DW_TAG_formal_parameter);
+          WriteName("this");
+          info_.WriteFlag(DW_AT_artificial, true);
+          WriteLazyType(dex_class_desc);
+          const bool is64bitValue = false;
+          WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc_);
+          vreg++;
+          info_.EndTag();
+        }
         if (dex_params != nullptr) {
-          uint32_t vreg = mi->code_item_ == nullptr ? 0 :
-              mi->code_item_->registers_size_ - mi->code_item_->ins_size_;
-          if ((mi->access_flags_ & kAccStatic) == 0) {
-            info_.StartTag(DW_TAG_formal_parameter);
-            WriteName("this");
-            info_.WriteFlag(DW_AT_artificial, true);
-            WriteLazyType(dex_class_desc);
-            const bool is64bitValue = false;
-            WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc_);
-            vreg++;
-            info_.EndTag();
-          }
           for (uint32_t i = 0; i < dex_params->Size(); ++i) {
             info_.StartTag(DW_TAG_formal_parameter);
             // Parameter names may not be always available.
@@ -397,6 +516,18 @@ class DebugInfoWriter {
           }
           if (mi->code_item_ != nullptr) {
             CHECK_EQ(vreg, mi->code_item_->registers_size_);
+          }
+        }
+        for (const LocalVariable& var : debug_info_callback.local_variables_) {
+          const uint32_t first_arg = mi->code_item_->registers_size_ - mi->code_item_->ins_size_;
+          if (var.vreg < first_arg) {
+            info_.StartTag(DW_TAG_variable);
+            WriteName(var.name);
+            WriteLazyType(var.type);
+            bool is64bitValue = var.type[0] == 'D' || var.type[0] == 'J';
+            WriteRegLocation(mi, var.vreg, is64bitValue, compilation_unit.low_pc_,
+                             var.dex_pc_low, var.dex_pc_high);
+            info_.EndTag();
           }
         }
         info_.EndTag();
@@ -420,8 +551,12 @@ class DebugInfoWriter {
     // Write table into .debug_loc which describes location of dex register.
     // The dex register might be valid only at some points and it might
     // move between machine registers and stack.
-    void WriteRegLocation(const MethodDebugInfo* method_info, uint16_t vreg,
-                          bool is64bitValue, uint32_t compilation_unit_low_pc) {
+    void WriteRegLocation(const MethodDebugInfo* method_info,
+                          uint16_t vreg,
+                          bool is64bitValue,
+                          uint32_t compilation_unit_low_pc,
+                          uint32_t dex_pc_low = 0,
+                          uint32_t dex_pc_high = 0xFFFFFFFF) {
       using Kind = DexRegisterLocation::Kind;
       bool is_optimizing = method_info->compiled_method_->GetQuickCode().size() > 0 &&
                            method_info->compiled_method_->GetVmapTable().size() > 0 &&
@@ -431,46 +566,29 @@ class DebugInfoWriter {
         return;
       }
 
-      Writer<> writer(&owner_->debug_loc_);
-      info_.WriteSecOffset(DW_AT_location, writer.size());
+      Writer<> debug_loc(&owner_->debug_loc_);
+      Writer<> debug_ranges(&owner_->debug_ranges_);
+      info_.WriteSecOffset(DW_AT_location, debug_loc.size());
+      info_.WriteSecOffset(DW_AT_start_scope, debug_ranges.size());
 
+      std::vector<VariableLocation> variable_locations = GetVariableLocations(
+          method_info,
+          vreg,
+          is64bitValue,
+          dex_pc_low,
+          dex_pc_high);
+
+      // Write .debug_loc entries.
       const InstructionSet isa = owner_->builder_->GetIsa();
       const bool is64bit = Is64BitInstructionSet(isa);
-      const CodeInfo code_info(method_info->compiled_method_->GetVmapTable().data());
-      const StackMapEncoding encoding = code_info.ExtractEncoding();
-      DexRegisterLocation last_reg_lo = DexRegisterLocation::None();
-      DexRegisterLocation last_reg_hi = DexRegisterLocation::None();
-      size_t offset_of_last_end_address = 0;
-      for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
-        StackMap stack_map = code_info.GetStackMapAt(s, encoding);
-        DCHECK(stack_map.IsValid());
-
-        // Find the location of the dex register.
-        DexRegisterLocation reg_lo = DexRegisterLocation::None();
-        DexRegisterLocation reg_hi = DexRegisterLocation::None();
-        if (stack_map.HasDexRegisterMap(encoding)) {
-          DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(
-              stack_map, encoding, method_info->code_item_->registers_size_);
-          reg_lo = dex_register_map.GetDexRegisterLocation(
-              vreg, method_info->code_item_->registers_size_, code_info, encoding);
-          if (is64bitValue) {
-            reg_hi = dex_register_map.GetDexRegisterLocation(
-                vreg + 1, method_info->code_item_->registers_size_, code_info, encoding);
-          }
-        }
-        if ((reg_lo == last_reg_lo && reg_hi == last_reg_hi) ||
-            reg_lo.GetKind() == Kind::kNone) {
-          // Skip identical or undefined locations.
-          continue;
-        }
-        last_reg_lo = reg_lo;
-        last_reg_hi = reg_hi;
-
+      for (const VariableLocation& variable_location : variable_locations) {
         // Translate dex register location to DWARF expression.
         // Note that 64-bit value might be split to two distinct locations.
         // (for example, two 32-bit machine registers, or even stack and register)
         uint8_t buffer[64];
         uint8_t* pos = buffer;
+        DexRegisterLocation reg_lo = variable_location.reg_lo;
+        DexRegisterLocation reg_hi = variable_location.reg_hi;
         for (int piece = 0; piece < (is64bitValue ? 2 : 1); piece++) {
           DexRegisterLocation reg_loc = (piece == 0 ? reg_lo : reg_hi);
           const Kind kind = reg_loc.GetKind();
@@ -529,43 +647,56 @@ class DebugInfoWriter {
           }
         }
 
-        // Write end address for previous entry.
-        const uint32_t pc = method_info->low_pc_ + stack_map.GetNativePcOffset(encoding);
-        if (offset_of_last_end_address != 0) {
-          if (is64bit) {
-            writer.UpdateUint64(offset_of_last_end_address, pc - compilation_unit_low_pc);
-          } else {
-            writer.UpdateUint32(offset_of_last_end_address, pc - compilation_unit_low_pc);
-          }
-        }
-        offset_of_last_end_address = 0;
-
-        DCHECK_LE(static_cast<size_t>(pos - buffer), sizeof(buffer));
+        // Check that the buffer is large enough; keep half of it empty for safety.
+        DCHECK_LE(static_cast<size_t>(pos - buffer), sizeof(buffer) / 2);
         if (pos > buffer) {
-          // Write start/end address.
           if (is64bit) {
-            writer.PushUint64(pc - compilation_unit_low_pc);
-            offset_of_last_end_address = writer.size();
-            writer.PushUint64(method_info->high_pc_ - compilation_unit_low_pc);
+            debug_loc.PushUint64(variable_location.low_pc - compilation_unit_low_pc);
+            debug_loc.PushUint64(variable_location.high_pc - compilation_unit_low_pc);
           } else {
-            writer.PushUint32(pc - compilation_unit_low_pc);
-            offset_of_last_end_address = writer.size();
-            writer.PushUint32(method_info->high_pc_ - compilation_unit_low_pc);
+            debug_loc.PushUint32(variable_location.low_pc - compilation_unit_low_pc);
+            debug_loc.PushUint32(variable_location.high_pc - compilation_unit_low_pc);
           }
           // Write the expression.
-          writer.PushUint16(pos - buffer);
-          writer.PushData(buffer, pos - buffer);
+          debug_loc.PushUint16(pos - buffer);
+          debug_loc.PushData(buffer, pos - buffer);
         } else {
-          // Otherwise leave the address range undefined.
+          // Do not generate .debug_loc if the location is not known.
         }
       }
       // Write end-of-list entry.
       if (is64bit) {
-        writer.PushUint64(0);
-        writer.PushUint64(0);
+        debug_loc.PushUint64(0);
+        debug_loc.PushUint64(0);
       } else {
-        writer.PushUint32(0);
-        writer.PushUint32(0);
+        debug_loc.PushUint32(0);
+        debug_loc.PushUint32(0);
+      }
+
+      // Write .debug_ranges entries.
+      // This includes ranges where the variable is in scope but the location is not known.
+      for (size_t i = 0; i < variable_locations.size(); i++) {
+        uint32_t low_pc = variable_locations[i].low_pc;
+        uint32_t high_pc = variable_locations[i].high_pc;
+        while (i + 1 < variable_locations.size() && variable_locations[i+1].low_pc == high_pc) {
+          // Merge address range with the next entry.
+          high_pc = variable_locations[++i].high_pc;
+        }
+        if (is64bit) {
+          debug_ranges.PushUint64(low_pc - compilation_unit_low_pc);
+          debug_ranges.PushUint64(high_pc - compilation_unit_low_pc);
+        } else {
+          debug_ranges.PushUint32(low_pc - compilation_unit_low_pc);
+          debug_ranges.PushUint32(high_pc - compilation_unit_low_pc);
+        }
+      }
+      // Write end-of-list entry.
+      if (is64bit) {
+        debug_ranges.PushUint64(0);
+        debug_ranges.PushUint64(0);
+      } else {
+        debug_ranges.PushUint32(0);
+        debug_ranges.PushUint32(0);
       }
     }
 
@@ -748,6 +879,7 @@ class DebugInfoWriter {
     builder_->WriteSection(".debug_abbrev", &debug_abbrev_.Data());
     builder_->WriteSection(".debug_str", &debug_str_.Data());
     builder_->WriteSection(".debug_loc", &debug_loc_);
+    builder_->WriteSection(".debug_ranges", &debug_ranges_);
   }
 
  private:
@@ -760,6 +892,7 @@ class DebugInfoWriter {
   DedupVector debug_abbrev_;
   DedupVector debug_str_;
   std::vector<uint8_t> debug_loc_;
+  std::vector<uint8_t> debug_ranges_;
 
   std::unordered_set<const char*> defined_dex_classes_;  // For CHECKs only.
 };
@@ -820,7 +953,7 @@ class DebugLineWriter {
 
       struct DebugInfoCallbacks {
         static bool NewPosition(void* ctx, uint32_t address, uint32_t line) {
-          auto* context = reinterpret_cast<DebugInfoCallbacks*>(ctx);
+          auto* context = static_cast<DebugInfoCallbacks*>(ctx);
           context->dex2line_.push_back({address, static_cast<int32_t>(line)});
           return false;
         }
