@@ -17,11 +17,21 @@
 #include "base/unix_file/fd_file.h"
 
 #include <errno.h>
+#include <limits>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include "base/logging.h"
+
+// Includes needed for FdFile::Copy().
+#ifdef __linux__
+#include <sys/sendfile.h>
+#else
+#include <algorithm>
+#include "base/stl_util.h"
+#include "globals.h"
+#endif
 
 namespace unix_file {
 
@@ -219,6 +229,52 @@ bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
     byte_count -= bytes_written;  // Reduce the number of remaining bytes.
     ptr += bytes_written;  // Move the buffer forward.
   }
+  return true;
+}
+
+bool FdFile::Copy(FdFile* input_file, int64_t offset, int64_t size) {
+  off_t off = static_cast<off_t>(offset);
+  off_t sz = static_cast<off_t>(size);
+  if (offset < 0 || static_cast<int64_t>(off) != offset ||
+      size < 0 || static_cast<int64_t>(sz) != size ||
+      sz > std::numeric_limits<off_t>::max() - off) {
+    errno = EINVAL;
+    return false;
+  }
+  if (size == 0) {
+    return true;
+  }
+#ifdef __linux__
+  // Use sendfile(), available for files since linux kernel 2.6.33.
+  off_t end = off + sz;
+  while (off != end) {
+    int result = TEMP_FAILURE_RETRY(
+        sendfile(Fd(), input_file->Fd(), &off, end - off));
+    if (result == -1) {
+      return false;
+    }
+    // Ignore the number of bytes in `result`, sendfile() already updated `off`.
+  }
+#else
+  if (lseek(input_file->Fd(), off, SEEK_SET) != off) {
+    return false;
+  }
+  constexpr size_t kMaxBufferSize = 4 * ::art::kPageSize;
+  const size_t buffer_size = std::min<uint64_t>(size, kMaxBufferSize);
+  art::UniqueCPtr<void> buffer(malloc(buffer_size));
+  if (buffer == nullptr) {
+    errno = ENOMEM;
+    return false;
+  }
+  while (size != 0) {
+    size_t chunk_size = std::min<uint64_t>(buffer_size, size);
+    if (!input_file->ReadFully(buffer.get(), chunk_size) ||
+        !WriteFully(buffer.get(), chunk_size)) {
+      return false;
+    }
+    size -= chunk_size;
+  }
+#endif
   return true;
 }
 
