@@ -725,7 +725,7 @@ class LSEVisitor : public HGraphVisitor {
           // instruction is a store in the loop so the loop must does write.
           DCHECK(side_effects_.GetLoopEffects(loop_info->GetHeader()).DoesAnyWrite());
 
-          if (loop_info->IsLoopInvariant(original_ref, false)) {
+          if (loop_info->IsDefinedOutOfTheLoop(original_ref)) {
             DCHECK(original_ref->GetBlock()->Dominates(loop_info->GetPreHeader()));
             // Keep the store since its value may be needed at the loop header.
             possibly_redundant = false;
