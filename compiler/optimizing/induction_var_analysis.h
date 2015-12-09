@@ -188,9 +188,11 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* CreateConstant(int64_t value, Primitive::Type type);
   InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
 
+  // Constants.
+  bool IsIntAndGet(InductionInfo* info, int64_t* value);
+
   // Helpers.
   static bool InductionEqual(InductionInfo* info1, InductionInfo* info2);
-  static bool IsIntAndGet(InductionInfo* info, int64_t* value);
   static std::string InductionToString(InductionInfo* info);
 
   // TODO: fine tune the following data structures, only keep relevant data.
