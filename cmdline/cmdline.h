@@ -196,6 +196,7 @@ struct CmdlineArgs {
         "  --boot-image=<file.art>: provide the image location for the boot class path.\n"
         "      Do not include the arch as part of the name, it is added automatically.\n"
         "      Example: --boot-image=/system/framework/boot.art\n"
+        "               (specifies /system/framework/<arch>/boot.art as the image file)\n"
         "\n";
     usage += StringPrintf(  // Optional.
         "  --instruction-set=(arm|arm64|mips|mips64|x86|x86_64): for locating the image\n"
