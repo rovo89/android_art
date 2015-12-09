@@ -57,7 +57,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadWord, PC, R0, offset.Int32Value());
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (R0).
-      __ LoadFromOffset(kLoadWord, IP, R0, JNIEnvExt::SelfOffset().Int32Value());
+      __ LoadFromOffset(kLoadWord, IP, R0, JNIEnvExt::SelfOffset(4).Int32Value());
       __ LoadFromOffset(kLoadWord, PC, IP, offset.Int32Value());
       break;
     case kQuickAbi:  // R9 holds Thread*.
@@ -91,7 +91,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (X0).
       __ LoadRawPtr(Arm64ManagedRegister::FromXRegister(IP1),
                       Arm64ManagedRegister::FromXRegister(X0),
-                      Offset(JNIEnvExt::SelfOffset().Int32Value()));
+                      Offset(JNIEnvExt::SelfOffset(8).Int32Value()));
 
       __ JumpTo(Arm64ManagedRegister::FromXRegister(IP1), Offset(offset.Int32Value()),
                 Arm64ManagedRegister::FromXRegister(IP0));
@@ -126,7 +126,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadWord, T9, A0, offset.Int32Value());
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (A0).
-      __ LoadFromOffset(kLoadWord, T9, A0, JNIEnvExt::SelfOffset().Int32Value());
+      __ LoadFromOffset(kLoadWord, T9, A0, JNIEnvExt::SelfOffset(4).Int32Value());
       __ LoadFromOffset(kLoadWord, T9, T9, offset.Int32Value());
       break;
     case kQuickAbi:  // S1 holds Thread*.
@@ -158,7 +158,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadDoubleword, T9, A0, offset.Int32Value());
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (A0).
-      __ LoadFromOffset(kLoadDoubleword, T9, A0, JNIEnvExt::SelfOffset().Int32Value());
+      __ LoadFromOffset(kLoadDoubleword, T9, A0, JNIEnvExt::SelfOffset(8).Int32Value());
       __ LoadFromOffset(kLoadDoubleword, T9, T9, offset.Int32Value());
       break;
     case kQuickAbi:  // Fall-through.

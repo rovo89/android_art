@@ -18,7 +18,9 @@
 
 #include "art_method-inl.h"
 #include "common_compiler_test.h"
+#include "indirect_reference_table.h"
 #include "java_vm_ext.h"
+#include "jni_env_ext.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -2258,6 +2260,43 @@ TEST_F(JniInternalTest, DetachThreadUnlockJNIMonitors) {
 
   // Delete the global ref.
   env_->DeleteGlobalRef(global_ref);
+}
+
+// Test the offset computation of IndirectReferenceTable offsets. b/26071368.
+TEST_F(JniInternalTest, IndirectReferenceTableOffsets) {
+  // The segment_state_ field is private, and we want to avoid friend declaration. So we'll check
+  // by modifying memory.
+  // The parameters don't really matter here.
+  IndirectReferenceTable irt(5, 5, IndirectRefKind::kGlobal, true);
+  uint32_t old_state = irt.GetSegmentState();
+
+  // Write some new state directly. We invert parts of old_state to ensure a new value.
+  uint32_t new_state = old_state ^ 0x07705005;
+  ASSERT_NE(old_state, new_state);
+
+  uint8_t* base = reinterpret_cast<uint8_t*>(&irt);
+  int32_t segment_state_offset =
+      IndirectReferenceTable::SegmentStateOffset(sizeof(void*)).Int32Value();
+  *reinterpret_cast<uint32_t*>(base + segment_state_offset) = new_state;
+
+  // Read and compare.
+  EXPECT_EQ(new_state, irt.GetSegmentState());
+}
+
+// Test the offset computation of JNIEnvExt offsets. b/26071368.
+TEST_F(JniInternalTest, JNIEnvExtOffsets) {
+  EXPECT_EQ(OFFSETOF_MEMBER(JNIEnvExt, local_ref_cookie),
+            JNIEnvExt::LocalRefCookieOffset(sizeof(void*)).Int32Value());
+
+  EXPECT_EQ(OFFSETOF_MEMBER(JNIEnvExt, self), JNIEnvExt::SelfOffset(sizeof(void*)).Int32Value());
+
+  // segment_state_ is private in the IndirectReferenceTable. So this test isn't as good as we'd
+  // hope it to be.
+  int32_t segment_state_now =
+      OFFSETOF_MEMBER(JNIEnvExt, locals) +
+      IndirectReferenceTable::SegmentStateOffset(sizeof(void*)).Int32Value();
+  int32_t segment_state_computed = JNIEnvExt::SegmentStateOffset(sizeof(void*)).Int32Value();
+  EXPECT_EQ(segment_state_now, segment_state_computed);
 }
 
 }  // namespace art
