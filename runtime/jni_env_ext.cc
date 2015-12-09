@@ -105,9 +105,32 @@ void JNIEnvExt::PopFrame() {
   stacked_local_ref_cookies.pop_back();
 }
 
-Offset JNIEnvExt::SegmentStateOffset() {
-  return Offset(OFFSETOF_MEMBER(JNIEnvExt, locals) +
-                IndirectReferenceTable::SegmentStateOffset().Int32Value());
+// Note: the offset code is brittle, as we can't use OFFSETOF_MEMBER or offsetof easily. Thus, there
+//       are tests in jni_internal_test to match the results against the actual values.
+
+// This is encoding the knowledge of the structure and layout of JNIEnv fields.
+static size_t JNIEnvSize(size_t pointer_size) {
+  // A single pointer.
+  return pointer_size;
+}
+
+Offset JNIEnvExt::SegmentStateOffset(size_t pointer_size) {
+  size_t locals_offset = JNIEnvSize(pointer_size) +
+                         2 * pointer_size +          // Thread* self + JavaVMExt* vm.
+                         4 +                         // local_ref_cookie.
+                         (pointer_size - 4);         // Padding.
+  size_t irt_segment_state_offset =
+      IndirectReferenceTable::SegmentStateOffset(pointer_size).Int32Value();
+  return Offset(locals_offset + irt_segment_state_offset);
+}
+
+Offset JNIEnvExt::LocalRefCookieOffset(size_t pointer_size) {
+  return Offset(JNIEnvSize(pointer_size) +
+                2 * pointer_size);          // Thread* self + JavaVMExt* vm
+}
+
+Offset JNIEnvExt::SelfOffset(size_t pointer_size) {
+  return Offset(JNIEnvSize(pointer_size));
 }
 
 // Use some defining part of the caller's frame as the identifying mark for the JNI segment.
