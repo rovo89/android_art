@@ -457,7 +457,9 @@ class ImageWriter FINAL {
   // Prune class memoization table to speed up ContainsBootClassLoaderNonImageClass.
   std::unordered_map<mirror::Class*, bool> prune_class_memo_;
 
-  // Class loaders with a class table to write out. Should only be one currently.
+  // Class loaders with a class table to write out. There should only be one class loader because
+  // dex2oat loads the dex files to be compiled into a single class loader. For the boot image,
+  // null is a valid entry.
   std::unordered_set<mirror::ClassLoader*> class_loaders_;
 
   // Number of image class table bytes.

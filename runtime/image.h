@@ -262,7 +262,7 @@ class PACKED(4) ImageHeader {
   // Boolean (0 or 1) to denote if the image was compiled with --compile-pic option
   const uint32_t compile_pic_;
 
-  // Image sections
+  // Image section sizes/offsets correspond to the uncompressed form.
   ImageSection sections_[kSectionCount];
 
   // Image methods.
