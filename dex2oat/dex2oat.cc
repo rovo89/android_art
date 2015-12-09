@@ -215,7 +215,9 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Example: --base=0x50000000");
   UsageError("");
   UsageError("  --boot-image=<file.art>: provide the image file for the boot class path.");
+  UsageError("      Do not include the arch as part of the name, it is added automatically.");
   UsageError("      Example: --boot-image=/system/framework/boot.art");
+  UsageError("               (specifies /system/framework/<arch>/boot.art as the image file)");
   UsageError("      Default: $ANDROID_ROOT/system/framework/boot.art");
   UsageError("");
   UsageError("  --android-root=<path>: used to locate libraries for portable linking.");
