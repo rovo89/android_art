@@ -68,7 +68,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
     class_loader.Assign(caller->GetClassLoader());
   }
 
-  return class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+  return class_linker->ResolveMethod(
       *outer_method->GetDexFile(), method_index, dex_cache, class_loader, nullptr, invoke_type);
 }
 
@@ -401,10 +401,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
     mirror::Object* null_this = nullptr;
     HandleWrapper<mirror::Object> h_this(
         hs.NewHandleWrapper(type == kStatic ? &null_this : this_object));
-    constexpr ClassLinker::ResolveMode resolve_mode =
-        access_check ? ClassLinker::kForceICCECheck
-                     : ClassLinker::kNoICCECheckForCache;
-    resolved_method = class_linker->ResolveMethod<resolve_mode>(self, method_idx, referrer, type);
+    resolved_method = class_linker->ResolveMethod(self, method_idx, referrer, type);
   }
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
