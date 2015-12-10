@@ -90,8 +90,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
                             const char* method_name, const char* signature)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CreateCompilerDriver(Compiler::Kind kind, InstructionSet isa);
-
   void ReserveImageSpace();
 
   void UnreserveImageSpace();

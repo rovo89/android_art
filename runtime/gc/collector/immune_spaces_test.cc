@@ -113,9 +113,7 @@ class DummyImageSpace : public space::ImageSpace {
         /*oat_data_end*/PointerToLowMemUInt32(map->End() + oat_size),
         /*oat_file_end*/PointerToLowMemUInt32(map->End() + oat_size),
         /*pointer_size*/sizeof(void*),
-        /*compile_pic*/false,
-        ImageHeader::kStorageModeUncompressed,
-        /*storage_size*/0u);
+        /*compile_pic*/false);
     return new DummyImageSpace(map.release(), live_bitmap.release());
   }
 };
