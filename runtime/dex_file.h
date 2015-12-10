@@ -1510,6 +1510,12 @@ class ClassDataItemIterator {
 
 class EncodedStaticFieldValueIterator {
  public:
+  // A constructor for static tools. You cannot call
+  // ReadValueToField() for an object created by this.
+  EncodedStaticFieldValueIterator(const DexFile& dex_file,
+                                  const DexFile::ClassDef& class_def);
+
+  // A constructor meant to be called from runtime code.
   EncodedStaticFieldValueIterator(const DexFile& dex_file, Handle<mirror::DexCache>* dex_cache,
                                   Handle<mirror::ClassLoader>* class_loader,
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
@@ -1540,6 +1546,9 @@ class EncodedStaticFieldValueIterator {
     kNull = 0x1e,
     kBoolean = 0x1f
   };
+
+  ValueType GetValueType() const { return type_; }
+  const jvalue& GetJavaValue() const { return jval_; }
 
  private:
   static constexpr uint8_t kEncodedValueTypeMask = 0x1f;  // 0b11111
