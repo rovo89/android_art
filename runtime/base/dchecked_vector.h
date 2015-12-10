@@ -33,7 +33,7 @@ namespace art {
 // but we do not use exceptions, so this accessor is deliberately hidden.
 // Note: The common pattern &v[0] used to retrieve pointer to the data is not
 // valid for an empty dchecked_vector<>. Use data() to avoid checking empty().
-template <typename T, typename Alloc>
+template <typename T, typename Alloc = std::allocator<T>>
 class dchecked_vector : private std::vector<T, Alloc> {
  private:
   // std::vector<> has a slightly different specialization for bool. We don't provide that.
