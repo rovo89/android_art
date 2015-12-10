@@ -469,7 +469,7 @@ void RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
       // but then we would need to pass it to RTPVisitor just for this debug check. Since
       // the method is from the String class, the null loader is good enough.
       Handle<mirror::ClassLoader> loader;
-      ArtMethod* method = cl->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+      ArtMethod* method = cl->ResolveMethod(
           invoke->GetDexFile(), invoke->GetDexMethodIndex(), dex_cache, loader, nullptr, kDirect);
       DCHECK(method != nullptr);
       mirror::Class* declaring_class = method->GetDeclaringClass();

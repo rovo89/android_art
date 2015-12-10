@@ -116,7 +116,6 @@ inline ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx, ArtMethod*
   return resolved_method;
 }
 
-template <ClassLinker::ResolveMode kResolveMode>
 inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
                                              uint32_t method_idx,
                                              ArtMethod* referrer,
@@ -128,12 +127,12 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile* dex_file = h_dex_cache->GetDexFile();
-    resolved_method = ResolveMethod<kResolveMode>(*dex_file,
-                                                  method_idx,
-                                                  h_dex_cache,
-                                                  h_class_loader,
-                                                  referrer,
-                                                  type);
+    resolved_method = ResolveMethod(*dex_file,
+                                    method_idx,
+                                    h_dex_cache,
+                                    h_class_loader,
+                                    referrer,
+                                    type);
   }
   // Note: We cannot check here to see whether we added the method to the cache. It
   //       might be an erroneous class, which results in it being hidden from us.

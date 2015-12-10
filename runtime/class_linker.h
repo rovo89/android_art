@@ -246,19 +246,11 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
-  // Determine whether a dex cache result should be trusted, or an IncompatibleClassChangeError
-  // check should be performed even after a hit.
-  enum ResolveMode {  // private.
-    kNoICCECheckForCache,
-    kForceICCECheck
-  };
-
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
   // in ResolveType. What is unique is the method type argument which
   // is used to determine if this method is a direct, static, or
   // virtual method.
-  template <ResolveMode kResolveMode>
   ArtMethod* ResolveMethod(const DexFile& dex_file,
                            uint32_t method_idx,
                            Handle<mirror::DexCache> dex_cache,
@@ -270,7 +262,6 @@ class ClassLinker {
 
   ArtMethod* GetResolvedMethod(uint32_t method_idx, ArtMethod* referrer)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  template <ResolveMode kResolveMode>
   ArtMethod* ResolveMethod(Thread* self, uint32_t method_idx, ArtMethod* referrer, InvokeType type)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);

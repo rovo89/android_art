@@ -744,7 +744,7 @@ ArtMethod* HGraphBuilder::ResolveMethod(uint16_t method_idx, InvokeType invoke_t
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
   Handle<mirror::Class> compiling_class(hs.NewHandle(GetCompilingClass()));
 
-  ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(
+  ArtMethod* resolved_method = class_linker->ResolveMethod(
       *dex_compilation_unit_->GetDexFile(),
       method_idx,
       dex_compilation_unit_->GetDexCache(),
