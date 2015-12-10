@@ -25,4 +25,8 @@ IMGDIAG_SRC_FILES := \
 # that the image it's analyzing be the same ISA as the runtime ISA.
 
 # Build variants {target,host} x {debug,ndebug} x {32,64}
-$(eval $(call build-art-multi-executable,imgdiag,$(IMGDIAG_SRC_FILES),libart-compiler libbacktrace,libcutils,libziparchive-host,art/compiler,both))
+#
+# Honor HOST_PREFER_32_BIT, as building a 64-bit imgdiag executable
+# when HOST_PREFER_32_BIT is true would require an unmet dependency on
+# 64-bit libbacktrace.
+$(eval $(call build-art-multi-executable,imgdiag,$(IMGDIAG_SRC_FILES),libart-compiler libbacktrace,libcutils,libziparchive-host,art/compiler,both,$(HOST_PREFER_32_BIT)))
