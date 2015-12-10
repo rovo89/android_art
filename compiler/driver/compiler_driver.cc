@@ -1902,7 +1902,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
       }
       if (resolve_fields_and_methods) {
         while (it.HasNextDirectMethod()) {
-          ArtMethod* method = class_linker->ResolveMethod(
+          ArtMethod* method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
               dex_file, it.GetMemberIndex(), dex_cache, class_loader, nullptr,
               it.GetMethodInvokeType(class_def));
           if (method == nullptr) {
@@ -1911,7 +1911,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
           it.Next();
         }
         while (it.HasNextVirtualMethod()) {
-          ArtMethod* method = class_linker->ResolveMethod(
+          ArtMethod* method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
               dex_file, it.GetMemberIndex(), dex_cache, class_loader, nullptr,
               it.GetMethodInvokeType(class_def));
           if (method == nullptr) {
