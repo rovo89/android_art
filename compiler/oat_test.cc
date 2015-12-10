@@ -157,14 +157,9 @@ class OatTest : public CommonCompilerTest {
     elf_writer->EndText(text);
 
     elf_writer->SetBssSize(oat_writer.GetBssSize());
-
     elf_writer->WriteDynamicSection();
-
-    ArrayRef<const dwarf::MethodDebugInfo> method_infos(oat_writer.GetMethodDebugInfo());
-    elf_writer->WriteDebugInfo(method_infos);
-
-    ArrayRef<const uintptr_t> patch_locations(oat_writer.GetAbsolutePatchLocations());
-    elf_writer->WritePatchLocations(patch_locations);
+    elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
+    elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
 
     return elf_writer->End();
   }
@@ -269,14 +264,9 @@ TEST_F(OatTest, OatHeaderIsValid) {
     std::unique_ptr<const InstructionSetFeatures> insn_features(
         InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
     ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
-    std::vector<const DexFile*> dex_files;
-    uint32_t image_file_location_oat_checksum = 0;
-    uint32_t image_file_location_oat_begin = 0;
     std::unique_ptr<OatHeader> oat_header(OatHeader::Create(insn_set,
                                                             insn_features.get(),
-                                                            &dex_files,
-                                                            image_file_location_oat_checksum,
-                                                            image_file_location_oat_begin,
+                                                            0u,
                                                             nullptr));
     ASSERT_NE(oat_header.get(), nullptr);
     ASSERT_TRUE(oat_header->IsValid());

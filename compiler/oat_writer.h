@@ -21,12 +21,14 @@
 #include <cstddef>
 #include <memory>
 
+#include "base/dchecked_vector.h"
 #include "linker/relative_patcher.h"  // For linker::RelativePatcherTargetProvider.
 #include "mem_map.h"
 #include "method_reference.h"
 #include "mirror/class.h"
 #include "oat.h"
 #include "safe_map.h"
+#include "utils/array_ref.h"
 
 namespace art {
 
@@ -124,8 +126,8 @@ class OatWriter {
     return bss_size_;
   }
 
-  const std::vector<uintptr_t>& GetAbsolutePatchLocations() const {
-    return absolute_patch_locations_;
+  ArrayRef<const uintptr_t> GetAbsolutePatchLocations() const {
+    return ArrayRef<const uintptr_t>(absolute_patch_locations_);
   }
 
   bool WriteRodata(OutputStream* out);
@@ -133,8 +135,8 @@ class OatWriter {
 
   ~OatWriter();
 
-  const std::vector<dwarf::MethodDebugInfo>& GetMethodDebugInfo() const {
-    return method_info_;
+  ArrayRef<const dwarf::MethodDebugInfo> GetMethodDebugInfo() const {
+    return ArrayRef<const dwarf::MethodDebugInfo>(method_info_);
   }
 
   const CompilerDriver* GetCompilerDriver() {
@@ -142,6 +144,9 @@ class OatWriter {
   }
 
  private:
+  class OatClass;
+  class OatDexFile;
+
   // The DataAccess classes are helper classes that provide access to members related to
   // a given map, i.e. GC map, mapping table or vmap table. By abstracting these away
   // we can share a lot of code for processing the maps with template classes below.
@@ -175,10 +180,8 @@ class OatWriter {
   size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
   size_t InitOatMaps(size_t offset);
-  size_t InitOatCode(size_t offset)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  size_t InitOatCodeDexFiles(size_t offset)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  size_t InitOatCode(size_t offset);
+  size_t InitOatCodeDexFiles(size_t offset);
 
   bool WriteTables(OutputStream* out, const size_t file_offset);
   bool WriteLookupTables(OutputStream* out, const size_t file_offset);
@@ -186,93 +189,11 @@ class OatWriter {
   size_t WriteCode(OutputStream* out, const size_t file_offset, size_t relative_offset);
   size_t WriteCodeDexFiles(OutputStream* out, const size_t file_offset, size_t relative_offset);
 
+  bool GetOatDataOffset(OutputStream* out);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
+  bool WriteData(OutputStream* out, const void* data, size_t size);
 
-  class OatDexFile {
-   public:
-    OatDexFile(size_t offset, const DexFile& dex_file);
-    size_t SizeOf() const;
-    void UpdateChecksum(OatHeader* oat_header) const;
-    bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
-
-    // Offset of start of OatDexFile from beginning of OatHeader. It is
-    // used to validate file position when writing.
-    size_t offset_;
-
-    // data to write
-    uint32_t dex_file_location_size_;
-    const uint8_t* dex_file_location_data_;
-    uint32_t dex_file_location_checksum_;
-    uint32_t dex_file_offset_;
-    uint32_t lookup_table_offset_;
-    TypeLookupTable* lookup_table_;  // Owned by the dex file.
-    std::vector<uint32_t> methods_offsets_;
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(OatDexFile);
-  };
-
-  class OatClass {
-   public:
-    OatClass(size_t offset,
-             const std::vector<CompiledMethod*>& compiled_methods,
-             uint32_t num_non_null_compiled_methods,
-             mirror::Class::Status status);
-    ~OatClass();
-    size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
-    size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
-    size_t SizeOf() const;
-    void UpdateChecksum(OatHeader* oat_header) const;
-    bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
-
-    CompiledMethod* GetCompiledMethod(size_t class_def_method_index) const {
-      DCHECK_LT(class_def_method_index, compiled_methods_.size());
-      return compiled_methods_[class_def_method_index];
-    }
-
-    // Offset of start of OatClass from beginning of OatHeader. It is
-    // used to validate file position when writing.
-    size_t offset_;
-
-    // CompiledMethods for each class_def_method_index, or null if no method is available.
-    std::vector<CompiledMethod*> compiled_methods_;
-
-    // Offset from OatClass::offset_ to the OatMethodOffsets for the
-    // class_def_method_index. If 0, it means the corresponding
-    // CompiledMethod entry in OatClass::compiled_methods_ should be
-    // null and that the OatClass::type_ should be kOatClassBitmap.
-    std::vector<uint32_t> oat_method_offsets_offsets_from_oat_class_;
-
-    // data to write
-
-    static_assert(mirror::Class::Status::kStatusMax < (2 ^ 16), "class status won't fit in 16bits");
-    int16_t status_;
-
-    static_assert(OatClassType::kOatClassMax < (2 ^ 16), "oat_class type won't fit in 16bits");
-    uint16_t type_;
-
-    uint32_t method_bitmap_size_;
-
-    // bit vector indexed by ClassDef method index. When
-    // OatClassType::type_ is kOatClassBitmap, a set bit indicates the
-    // method has an OatMethodOffsets in methods_offsets_, otherwise
-    // the entry was ommited to save space. If OatClassType::type_ is
-    // not is kOatClassBitmap, the bitmap will be null.
-    BitVector* method_bitmap_;
-
-    // OatMethodOffsets and OatMethodHeaders for each CompiledMethod
-    // present in the OatClass. Note that some may be missing if
-    // OatClass::compiled_methods_ contains null values (and
-    // oat_method_offsets_offsets_from_oat_class_ should contain 0
-    // values in this case).
-    std::vector<OatMethodOffsets> method_offsets_;
-    std::vector<OatQuickMethodHeader> method_headers_;
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(OatClass);
-  };
-
-  std::vector<dwarf::MethodDebugInfo> method_info_;
+  dchecked_vector<dwarf::MethodDebugInfo> method_info_;
 
   const CompilerDriver* const compiler_driver_;
   ImageWriter* const image_writer_;
@@ -301,9 +222,9 @@ class OatWriter {
 
   // data to write
   SafeMap<std::string, std::string>* key_value_store_;
-  OatHeader* oat_header_;
-  std::vector<OatDexFile*> oat_dex_files_;
-  std::vector<OatClass*> oat_classes_;
+  std::unique_ptr<OatHeader> oat_header_;
+  dchecked_vector<OatDexFile> oat_dex_files_;
+  dchecked_vector<OatClass> oat_classes_;
   std::unique_ptr<const std::vector<uint8_t>> jni_dlsym_lookup_;
   std::unique_ptr<const std::vector<uint8_t>> quick_generic_jni_trampoline_;
   std::unique_ptr<const std::vector<uint8_t>> quick_imt_conflict_trampoline_;
@@ -336,14 +257,14 @@ class OatWriter {
   uint32_t size_oat_dex_file_location_data_;
   uint32_t size_oat_dex_file_location_checksum_;
   uint32_t size_oat_dex_file_offset_;
-  uint32_t size_oat_dex_file_methods_offsets_;
+  uint32_t size_oat_dex_file_lookup_table_offset_;
+  uint32_t size_oat_dex_file_class_offsets_;
+  uint32_t size_oat_lookup_table_alignment_;
+  uint32_t size_oat_lookup_table_;
   uint32_t size_oat_class_type_;
   uint32_t size_oat_class_status_;
   uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
-  uint32_t size_oat_lookup_table_alignment_;
-  uint32_t size_oat_lookup_table_offset_;
-  uint32_t size_oat_lookup_table_;
 
   std::unique_ptr<linker::RelativePatcher> relative_patcher_;
 

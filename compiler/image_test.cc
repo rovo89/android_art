@@ -117,14 +117,9 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       elf_writer->EndText(text);
 
       elf_writer->SetBssSize(oat_writer.GetBssSize());
-
       elf_writer->WriteDynamicSection();
-
-      ArrayRef<const dwarf::MethodDebugInfo> method_infos(oat_writer.GetMethodDebugInfo());
-      elf_writer->WriteDebugInfo(method_infos);
-
-      ArrayRef<const uintptr_t> patch_locations(oat_writer.GetAbsolutePatchLocations());
-      elf_writer->WritePatchLocations(patch_locations);
+      elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
+      elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
 
       success = elf_writer->End();
 
