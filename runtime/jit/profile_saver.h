@@ -74,6 +74,7 @@ class ProfileSaver {
       GUARDED_BY(Locks::profiler_lock_);
   uint64_t code_cache_last_update_time_ns_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
+  bool first_profile_ = true;
 
   // Save period condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

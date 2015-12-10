@@ -37,8 +37,8 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     std::string dex_location2 = "location2" + id;
     uint32_t dex_location_checksum2 = 10 * checksum;
     for (uint16_t i = start_method_index; i < start_method_index + number_of_methods; i++) {
-      ASSERT_TRUE(info->AddData(dex_location1, dex_location_checksum1, i));
-      ASSERT_TRUE(info->AddData(dex_location2, dex_location_checksum2, i));
+      ASSERT_TRUE(info->AddMethodIndex(dex_location1, dex_location_checksum1, i));
+      ASSERT_TRUE(info->AddMethodIndex(dex_location2, dex_location_checksum2, i));
     }
     ASSERT_TRUE(info->Save(GetFd(profile)));
     ASSERT_EQ(0, profile.GetFile()->Flush());

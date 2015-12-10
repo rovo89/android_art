@@ -53,7 +53,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
                uint32_t checksum,
                uint16_t method_index,
                ProfileCompilationInfo* info) {
-    return info->AddData(dex_location, checksum, method_index);
+    return info->AddMethodIndex(dex_location, checksum, method_index);
   }
 
   uint32_t GetFd(const ScratchFile& file) {
@@ -73,8 +73,11 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
   ASSERT_NE(class_loader, nullptr);
 
   // Save virtual methods from Main.
+  std::set<DexCacheResolvedClasses> resolved_classes;
   std::vector<ArtMethod*> main_methods = GetVirtualMethods(class_loader, "LMain;");
-  ASSERT_TRUE(ProfileCompilationInfo::SaveProfilingInfo(profile.GetFilename(), main_methods));
+  ASSERT_TRUE(ProfileCompilationInfo::SaveProfilingInfo(profile.GetFilename(),
+                                                        main_methods,
+                                                        resolved_classes));
 
   // Check that what we saved is in the profile.
   ProfileCompilationInfo info1;
@@ -89,7 +92,9 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
 
   // Save virtual methods from Second.
   std::vector<ArtMethod*> second_methods = GetVirtualMethods(class_loader, "LSecond;");
-  ASSERT_TRUE(ProfileCompilationInfo::SaveProfilingInfo(profile.GetFilename(), second_methods));
+  ASSERT_TRUE(ProfileCompilationInfo::SaveProfilingInfo(profile.GetFilename(),
+                                                        second_methods,
+                                                        resolved_classes));
 
   // Check that what we saved is in the profile (methods form Main and Second).
   ProfileCompilationInfo info2;

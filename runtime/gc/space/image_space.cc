@@ -1202,7 +1202,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
                                      PROT_READ | PROT_WRITE,
                                      /*low_4gb*/true,
                                      /*reuse*/false,
-                                     out_error_msg));
+                                     /*out*/out_error_msg));
       if (map != nullptr) {
         const size_t stored_size = image_header->GetDataSize();
         const size_t write_offset = sizeof(ImageHeader);  // Skip the header.
