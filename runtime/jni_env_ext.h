@@ -50,15 +50,9 @@ struct JNIEnvExt : public JNIEnv {
   T AddLocalReference(mirror::Object* obj)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static Offset SegmentStateOffset();
-
-  static Offset LocalRefCookieOffset() {
-    return Offset(OFFSETOF_MEMBER(JNIEnvExt, local_ref_cookie));
-  }
-
-  static Offset SelfOffset() {
-    return Offset(OFFSETOF_MEMBER(JNIEnvExt, self));
-  }
+  static Offset SegmentStateOffset(size_t pointer_size);
+  static Offset LocalRefCookieOffset(size_t pointer_size);
+  static Offset SelfOffset(size_t pointer_size);
 
   jobject NewLocalRef(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
   void DeleteLocalRef(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_);

@@ -344,8 +344,11 @@ class IndirectReferenceTable {
     segment_state_.all = new_state;
   }
 
-  static Offset SegmentStateOffset() {
-    return Offset(OFFSETOF_MEMBER(IndirectReferenceTable, segment_state_));
+  static Offset SegmentStateOffset(size_t pointer_size ATTRIBUTE_UNUSED) {
+    // Note: Currently segment_state_ is at offset 0. We're testing the expected value in
+    //       jni_internal_test to make sure it stays correct. It is not OFFSETOF_MEMBER, as that
+    //       is not pointer-size-safe.
+    return Offset(0);
   }
 
   // Release pages past the end of the table that may have previously held references.
