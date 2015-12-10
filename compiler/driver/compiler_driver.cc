@@ -2037,6 +2037,7 @@ class VerifyClassVisitor : public CompilationVisitor {
                                                 dex_cache,
                                                 class_loader,
                                                 &class_def,
+                                                Runtime::Current()->GetCompilerCallbacks(),
                                                 true /* allow soft failures */,
                                                 true /* log hard failures */,
                                                 &error_msg) ==
