@@ -246,10 +246,7 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
         InitLocationsBaseline(current);
       }
       DCHECK(CheckTypeConsistency(current));
-      uintptr_t native_pc_begin = GetAssembler()->CodeSize();
       current->Accept(instruction_visitor);
-      uintptr_t native_pc_end = GetAssembler()->CodeSize();
-      RecordNativeDebugInfo(current->GetDexPc(), native_pc_begin, native_pc_end);
     }
   }
 
@@ -924,17 +921,6 @@ size_t CodeGenerator::ComputeStackMapsSize() {
 
 void CodeGenerator::BuildStackMaps(MemoryRegion region) {
   stack_map_stream_.FillIn(region);
-}
-
-void CodeGenerator::RecordNativeDebugInfo(uint32_t dex_pc,
-                                          uintptr_t native_pc_begin,
-                                          uintptr_t native_pc_end) {
-  if (compiler_options_.GetGenerateDebugInfo() &&
-      dex_pc != kNoDexPc &&
-      native_pc_begin != native_pc_end) {
-    src_map_.push_back(SrcMapElem({static_cast<uint32_t>(native_pc_begin),
-                                   static_cast<int32_t>(dex_pc)}));
-  }
 }
 
 void CodeGenerator::RecordPcInfo(HInstruction* instruction,
