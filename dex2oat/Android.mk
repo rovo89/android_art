@@ -38,9 +38,10 @@ else
   dex2oat_target_arch := 32
 endif
 
-# We need to explcitly give the arch, as giving 'both' will make the
-# build-art-executable rule compile dex2oat for 64bits.
 ifeq ($(HOST_PREFER_32_BIT),true)
+  # We need to explicitly restrict the host arch to 32-bit only, as
+  # giving 'both' would make build-art-executable generate a build
+  # rule for a 64-bit dex2oat executable too.
   dex2oat_host_arch := 32
 else
   dex2oat_host_arch := both
@@ -70,5 +71,9 @@ ifeq ($(ART_BUILD_HOST_DEBUG),true)
         libbacktrace libLLVMObject libLLVMBitReader libLLVMMC libLLVMMCParser libLLVMCore libLLVMSupport libcutils libunwindbacktrace libutils libbase,art/compiler,host,debug,$(dex2oat_host_arch),static))
   endif
 endif
+
+# Clear locals now they've served their purpose.
+dex2oat_target_arch :=
+dex2oat_host_arch :=
 
 endif
