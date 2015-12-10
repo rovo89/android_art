@@ -228,8 +228,8 @@ define build-art-multi-executable
       art-multi-env-guard := $$(call art-string-to-uppercase,ART_BUILD_$(target_flavor)_$(debug_flavor))
 
       ifeq ($(target_flavor),host)
-        ifeq ($$($$(art-multi-host-prefer-32-bit)),true)
-          ifneq ($$($$(art-multi-multilib)),64)
+        ifeq ($$(art-multi-host-prefer-32-bit),true)
+          ifneq ($$(art-multi-multilib),64)
             art-multi-multilib := 32
           endif
         endif
