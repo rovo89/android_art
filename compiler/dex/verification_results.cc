@@ -44,14 +44,14 @@ VerificationResults::~VerificationResults() {
   }
 }
 
-bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier) {
+void VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier) {
   DCHECK(method_verifier != nullptr);
   MethodReference ref = method_verifier->GetMethodReference();
   bool compile = IsCandidateForCompilation(ref, method_verifier->GetAccessFlags());
   const VerifiedMethod* verified_method = VerifiedMethod::Create(method_verifier, compile);
   if (verified_method == nullptr) {
-    // Do not report an error to the verifier. We'll just punt this later.
-    return true;
+    // We'll punt this later.
+    return;
   }
 
   WriterMutexLock mu(Thread::Current(), verified_methods_lock_);
@@ -69,11 +69,10 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
     // is unsafe to replace the existing one since the JIT may be using it to generate a
     // native GC map.
     delete verified_method;
-    return true;
+    return;
   }
   verified_methods_.Put(ref, verified_method);
   DCHECK(verified_methods_.find(ref) != verified_methods_.end());
-  return true;
 }
 
 const VerifiedMethod* VerificationResults::GetVerifiedMethod(MethodReference ref) {

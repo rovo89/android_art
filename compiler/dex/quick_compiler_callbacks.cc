@@ -22,14 +22,10 @@
 
 namespace art {
 
-bool QuickCompilerCallbacks::MethodVerified(verifier::MethodVerifier* verifier) {
-  bool result = verification_results_->ProcessVerifiedMethod(verifier);
-  if (result) {
-    MethodReference ref = verifier->GetMethodReference();
-    method_inliner_map_->GetMethodInliner(ref.dex_file)
-        ->AnalyseMethodCode(verifier);
-  }
-  return result;
+void QuickCompilerCallbacks::MethodVerified(verifier::MethodVerifier* verifier) {
+  verification_results_->ProcessVerifiedMethod(verifier);
+  MethodReference ref = verifier->GetMethodReference();
+  method_inliner_map_->GetMethodInliner(ref.dex_file)->AnalyseMethodCode(verifier);
 }
 
 void QuickCompilerCallbacks::ClassRejected(ClassReference ref) {

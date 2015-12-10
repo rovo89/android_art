@@ -3056,10 +3056,12 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
   std::string error_msg;
   if (!preverified) {
+    Runtime* runtime = Runtime::Current();
     verifier_failure = verifier::MethodVerifier::VerifyClass(self,
                                                              klass.Get(),
-                                                             Runtime::Current()->IsAotCompiler(),
-                                                             Runtime::Current()->IsAotCompiler(),
+                                                             runtime->GetCompilerCallbacks(),
+                                                             runtime->IsAotCompiler(),
+                                                             runtime->IsAotCompiler(),
                                                              &error_msg);
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
