@@ -491,9 +491,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += art
 
   ifeq ($$(art_static_or_shared),static)
-    LOCAL_STATIC_LIBRARIES := libnativehelper libnativebridge libsigchain_dummy libbacktrace liblz4
+    LOCAL_STATIC_LIBRARIES := libnativehelper libnativebridge libsigchain_dummy libbacktrace
   else
-    LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain libbacktrace liblz4
+    LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain libbacktrace
   endif
 
   ifeq ($$(art_target_or_host),target)

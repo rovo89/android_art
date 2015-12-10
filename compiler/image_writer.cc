@@ -17,7 +17,6 @@
 #include "image_writer.h"
 
 #include <sys/stat.h>
-#include <lz4.h>
 
 #include <memory>
 #include <numeric>
@@ -226,72 +225,27 @@ bool ImageWriter::Write(int image_fd,
     return EXIT_FAILURE;
   }
 
-  std::unique_ptr<char[]> compressed_data;
-  // Image data size excludes the bitmap and the header.
-  ImageHeader* const image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
-  const size_t image_data_size = image_header->GetImageSize() - sizeof(ImageHeader);
-  char* image_data = reinterpret_cast<char*>(image_->Begin()) + sizeof(ImageHeader);
-  size_t data_size;
-  const char* image_data_to_write;
-
-  CHECK_EQ(image_header->storage_mode_, image_storage_mode_);
-  switch (image_storage_mode_) {
-    case ImageHeader::kStorageModeLZ4: {
-      size_t compressed_max_size = LZ4_compressBound(image_data_size);
-      compressed_data.reset(new char[compressed_max_size]);
-      data_size = LZ4_compress(
-          reinterpret_cast<char*>(image_->Begin()) + sizeof(ImageHeader),
-          &compressed_data[0],
-          image_data_size);
-      image_data_to_write = &compressed_data[0];
-      VLOG(compiler) << "Compressed from " << image_data_size << " to " << data_size;
-      break;
-    }
-    case ImageHeader::kStorageModeUncompressed: {
-      data_size = image_data_size;
-      image_data_to_write = image_data;
-      break;
-    }
-    default: {
-      LOG(FATAL) << "Unsupported";
-      UNREACHABLE();
-    }
-  }
-
-  // Write header first, as uncompressed.
-  image_header->data_size_ = data_size;
-  if (!image_file->WriteFully(image_->Begin(), sizeof(ImageHeader))) {
-    PLOG(ERROR) << "Failed to write image file header " << image_filename;
-    image_file->Erase();
-    return false;
-  }
-
   // Write out the image + fields + methods.
-  const bool is_compressed = compressed_data != nullptr;
-  if (!image_file->WriteFully(image_data_to_write, data_size)) {
-    PLOG(ERROR) << "Failed to write image file data " << image_filename;
-    image_file->Erase();
-    return false;
-  }
-
-  // Write out the image bitmap at the page aligned start of the image end, also uncompressed for
-  // convenience.
-  const ImageSection& bitmap_section = image_header->GetImageSection(
-      ImageHeader::kSectionImageBitmap);
-  // Align up since data size may be unaligned if the image is compressed.
-  size_t bitmap_position_in_file = RoundUp(sizeof(ImageHeader) + data_size, kPageSize);
-  if (!is_compressed) {
-    CHECK_EQ(bitmap_position_in_file, bitmap_section.Offset());
-  }
-  if (!image_file->Write(reinterpret_cast<char*>(image_bitmap_->Begin()),
-                         bitmap_section.Size(),
-                         bitmap_position_in_file)) {
+  ImageHeader* const image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
+  const auto write_count = image_header->GetImageSize();
+  if (!image_file->WriteFully(image_->Begin(), write_count)) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
     image_file->Erase();
     return false;
   }
-  CHECK_EQ(bitmap_position_in_file + bitmap_section.Size(),
-           static_cast<size_t>(image_file->GetLength()));
+
+  // Write out the image bitmap at the page aligned start of the image end.
+  const ImageSection& bitmap_section = image_header->GetImageSection(
+      ImageHeader::kSectionImageBitmap);
+  CHECK_ALIGNED(bitmap_section.Offset(), kPageSize);
+  if (!image_file->Write(reinterpret_cast<char*>(image_bitmap_->Begin()),
+                         bitmap_section.Size(), bitmap_section.Offset())) {
+    PLOG(ERROR) << "Failed to write image file " << image_filename;
+    image_file->Erase();
+    return false;
+  }
+
+  CHECK_EQ(bitmap_section.End(), static_cast<size_t>(image_file->GetLength()));
   if (image_file->FlushCloseOrErase() != 0) {
     PLOG(ERROR) << "Failed to flush and close image file " << image_filename;
     return false;
@@ -1293,8 +1247,7 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   }
   CHECK_EQ(AlignUp(image_begin_ + image_end, kPageSize), oat_file_begin) <<
       "Oat file should be right after the image.";
-  // Create the header, leave 0 for data size since we will fill this in as we are writing the
-  // image.
+  // Create the header.
   new (image_->Begin()) ImageHeader(PointerToLowMemUInt32(image_begin_),
                                                           image_end,
                                                           sections,
@@ -1305,9 +1258,7 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
                                                           PointerToLowMemUInt32(oat_data_end),
                                                           PointerToLowMemUInt32(oat_file_end),
                                                           target_ptr_size_,
-                                                          compile_pic_,
-                                                          image_storage_mode_,
-                                                          /*data_size*/0u);
+                                                          compile_pic_);
 }
 
 ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
