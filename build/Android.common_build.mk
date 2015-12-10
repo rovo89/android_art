@@ -206,6 +206,7 @@ ART_CPP_EXTENSION := .cc
 ART_C_INCLUDES := \
   external/gtest/include \
   external/icu/icu4c/source/common \
+  external/lz4/lib \
   external/valgrind/include \
   external/valgrind \
   external/vixl/src \

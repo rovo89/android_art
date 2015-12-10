@@ -30,6 +30,7 @@
 #include "base/macros.h"
 #include "driver/compiler_driver.h"
 #include "gc/space/space.h"
+#include "image.h"
 #include "length_prefixed_array.h"
 #include "lock_word.h"
 #include "mem_map.h"
@@ -54,7 +55,8 @@ class ImageWriter FINAL {
   ImageWriter(const CompilerDriver& compiler_driver,
               uintptr_t image_begin,
               bool compile_pic,
-              bool compile_app_image)
+              bool compile_app_image,
+              ImageHeader::StorageMode image_storage_mode)
       : compiler_driver_(compiler_driver),
         image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
         image_end_(0),
@@ -73,7 +75,8 @@ class ImageWriter FINAL {
         image_method_array_(ImageHeader::kImageMethodsCount),
         dirty_methods_(0u),
         clean_methods_(0u),
-        class_table_bytes_(0u) {
+        class_table_bytes_(0u),
+        image_storage_mode_(image_storage_mode) {
     CHECK_NE(image_begin, 0U);
     std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
     std::fill_n(oat_address_offsets_, arraysize(oat_address_offsets_), 0);
@@ -459,6 +462,9 @@ class ImageWriter FINAL {
 
   // Number of image class table bytes.
   size_t class_table_bytes_;
+
+  // Which mode the image is stored as, see image.h
+  const ImageHeader::StorageMode image_storage_mode_;
 
   friend class ContainsBootClassLoaderNonImageClassVisitor;
   friend class FixupClassVisitor;
