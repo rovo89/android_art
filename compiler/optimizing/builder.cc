@@ -785,7 +785,7 @@ ArtMethod* HGraphBuilder::ResolveMethod(uint16_t method_idx, InvokeType invoke_t
     ArtMethod* actual_method = compiling_class->GetSuperClass()->GetVTableEntry(
         vtable_index, class_linker->GetImagePointerSize());
     if (actual_method != resolved_method &&
-        !IsSameDexFile(*resolved_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
+        !IsSameDexFile(*actual_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
       // TODO: The actual method could still be referenced in the current dex file, so we
       // could try locating it.
       // TODO: Remove the dex_file restriction.
