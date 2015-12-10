@@ -202,27 +202,35 @@
 # Test that DCE removes catch phi uses of instructions defined in dead try blocks.
 
 ## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination_final (before)
-## CHECK-DAG:     <<Arg0:i\d+>>     ParameterValue
-## CHECK-DAG:     <<Arg1:i\d+>>     ParameterValue
-## CHECK-DAG:     <<Const0xa:i\d+>> IntConstant 10
-## CHECK-DAG:     <<Const0xb:i\d+>> IntConstant 11
-## CHECK-DAG:     <<Const0xc:i\d+>> IntConstant 12
-## CHECK-DAG:     <<Const0xd:i\d+>> IntConstant 13
-## CHECK-DAG:     <<Const0xe:i\d+>> IntConstant 14
-## CHECK-DAG:     <<Add:i\d+>>      Add [<<Arg0>>,<<Arg1>>]
-## CHECK-DAG:                       Phi [<<Const0xa>>,<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
-## CHECK-DAG:                       Phi [<<Add>>,<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
+## CHECK-DAG:     <<Arg0:i\d+>>      ParameterValue
+## CHECK-DAG:     <<Arg1:i\d+>>      ParameterValue
+## CHECK-DAG:     <<Const0xa:i\d+>>  IntConstant 10
+## CHECK-DAG:     <<Const0xb:i\d+>>  IntConstant 11
+## CHECK-DAG:     <<Const0xc:i\d+>>  IntConstant 12
+## CHECK-DAG:     <<Const0xd:i\d+>>  IntConstant 13
+## CHECK-DAG:     <<Const0xe:i\d+>>  IntConstant 14
+## CHECK-DAG:     <<Const0xf:i\d+>>  IntConstant 15
+## CHECK-DAG:     <<Const0x10:i\d+>> IntConstant 16
+## CHECK-DAG:     <<Const0x11:i\d+>> IntConstant 17
+## CHECK-DAG:     <<Add:i\d+>>       Add [<<Arg0>>,<<Arg1>>]
+## CHECK-DAG:     <<Phi:i\d+>>       Phi [<<Add>>,<<Const0xf>>] reg:3 is_catch_phi:false
+## CHECK-DAG:                        Phi [<<Const0xa>>,<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
+## CHECK-DAG:                        Phi [<<Add>>,<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
+## CHECK-DAG:                        Phi [<<Phi>>,<<Const0x10>>,<<Const0x11>>] reg:3 is_catch_phi:true
 
 ## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination_final (after)
-## CHECK-DAG:     <<Const0xb:i\d+>> IntConstant 11
-## CHECK-DAG:     <<Const0xc:i\d+>> IntConstant 12
-## CHECK-DAG:     <<Const0xd:i\d+>> IntConstant 13
-## CHECK-DAG:     <<Const0xe:i\d+>> IntConstant 14
-## CHECK-DAG:                       Phi [<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
-## CHECK-DAG:                       Phi [<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
+## CHECK-DAG:     <<Const0xb:i\d+>>  IntConstant 11
+## CHECK-DAG:     <<Const0xc:i\d+>>  IntConstant 12
+## CHECK-DAG:     <<Const0xd:i\d+>>  IntConstant 13
+## CHECK-DAG:     <<Const0xe:i\d+>>  IntConstant 14
+## CHECK-DAG:     <<Const0x10:i\d+>> IntConstant 16
+## CHECK-DAG:     <<Const0x11:i\d+>> IntConstant 17
+## CHECK-DAG:                        Phi [<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
+## CHECK-DAG:                        Phi [<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
+## CHECK-DAG:                        Phi [<<Const0x10>>,<<Const0x11>>] reg:3 is_catch_phi:true
 
 .method public static testCatchPhiInputs_DefinedInTryBlock(IIII)I
-    .registers 7
+    .registers 8
 
     invoke-static {}, LTestCase;->$inline$False()Z
     move-result v0
@@ -232,17 +240,24 @@
     shr-int/2addr p2, p3
 
     :try_start
-    const v1, 0xa           # dead catch phi input, defined in entry block
-    add-int v2, p0, p1      # dead catch phi input, defined in the dead block
+    const v1, 0xa           # dead catch phi input, defined in entry block (HInstruction)
+    add-int v2, p0, p1      # dead catch phi input, defined in the dead block (HInstruction)
+    move v3, v2
+    if-eqz v3, :define_phi
+    const v3, 0xf
+    :define_phi
+    # v3 = Phi [Add, 0xf]   # dead catch phi input, defined in the dead block (HPhi)
     div-int/2addr p0, v2
 
     :else
     const v1, 0xb           # live catch phi input
     const v2, 0xc           # live catch phi input
+    const v3, 0x10          # live catch phi input
     div-int/2addr p0, p3
 
     const v1, 0xd           # live catch phi input
     const v2, 0xe           # live catch phi input
+    const v3, 0x11          # live catch phi input
     div-int/2addr p0, p1
     :try_end
     .catchall {:try_start .. :try_end} :catch_all
@@ -252,6 +267,7 @@
 
     :catch_all
     sub-int p0, v1, v2      # use catch phi values
+    sub-int p0, p0, v3      # use catch phi values
     goto :return
 
 .end method
@@ -260,8 +276,6 @@
 # dead try blocks.
 
 ## CHECK-START: int TestCase.testCatchPhiInputs_DefinedOutsideTryBlock(int, int, int, int) dead_code_elimination_final (before)
-## CHECK-DAG:     <<Arg0:i\d+>>     ParameterValue
-## CHECK-DAG:     <<Arg1:i\d+>>     ParameterValue
 ## CHECK-DAG:     <<Const0xa:i\d+>> IntConstant 10
 ## CHECK-DAG:     <<Const0xb:i\d+>> IntConstant 11
 ## CHECK-DAG:     <<Const0xc:i\d+>> IntConstant 12
