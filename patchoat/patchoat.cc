@@ -153,12 +153,6 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
     return false;
   }
 
-  if (image_header.GetStorageMode() != ImageHeader::kStorageModeUncompressed) {
-    LOG(ERROR) << "Patchoat is not supported with compressed image files "
-               << input_image->GetPath();
-    return false;
-  }
-
   /*bool is_image_pic = */IsImagePic(image_header, input_image->GetPath());
   // Nothing special to do right now since the image always needs to get patched.
   // Perhaps in some far-off future we may have images with relative addresses that are true-PIC.
