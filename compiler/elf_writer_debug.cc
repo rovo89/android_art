@@ -321,6 +321,7 @@ class DebugInfoWriter {
       info_.StartTag(DW_TAG_compile_unit);
       info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
+      info_.WriteStrp(DW_AT_comp_dir, owner_->WriteString("$JAVA_SRC_ROOT"));
       info_.WriteAddr(DW_AT_low_pc, text_address + compilation_unit.low_pc_);
       info_.WriteUdata(DW_AT_high_pc, compilation_unit.high_pc_ - compilation_unit.low_pc_);
       info_.WriteSecOffset(DW_AT_stmt_list, compilation_unit.debug_line_offset_);
