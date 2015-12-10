@@ -195,7 +195,7 @@ void MethodVerifier::VerifyMethods(Thread* self,
     }
     previous_method_idx = method_idx;
     InvokeType type = it->GetMethodInvokeType(*class_def);
-    ArtMethod* method = linker->ResolveMethod(
+    ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
         *dex_file, method_idx, dex_cache, class_loader, nullptr, type);
     if (method == nullptr) {
       DCHECK(self->IsExceptionPending());
@@ -3656,7 +3656,9 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   const RegType& referrer = GetDeclaringClass();
   auto* cl = Runtime::Current()->GetClassLinker();
   auto pointer_size = cl->GetImagePointerSize();
+
   ArtMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx, pointer_size);
+  bool stash_method = false;
   if (res_method == nullptr) {
     const char* name = dex_file_->GetMethodName(method_id);
     const Signature signature = dex_file_->GetMethodSignature(method_id);
@@ -3669,7 +3671,7 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
       res_method = klass->FindVirtualMethod(name, signature, pointer_size);
     }
     if (res_method != nullptr) {
-      dex_cache_->SetResolvedMethod(dex_method_idx, res_method, pointer_size);
+      stash_method = true;
     } else {
       // If a virtual or interface method wasn't found with the expected type, look in
       // the direct methods. This can happen when the wrong invoke type is used or when
@@ -3698,6 +3700,38 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
                                       << PrettyMethod(res_method);
     return nullptr;
   }
+
+  // Check that interface methods are static or match interface classes.
+  // We only allow statics if we don't have default methods enabled.
+  //
+  // Note: this check must be after the initializer check, as those are required to fail a class,
+  //       while this check implies an IncompatibleClassChangeError.
+  if (klass->IsInterface()) {
+    Runtime* runtime = Runtime::Current();
+    const bool default_methods_supported =
+        runtime == nullptr ||
+        runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods);
+    if (method_type != METHOD_INTERFACE &&
+        (!default_methods_supported || method_type != METHOD_STATIC)) {
+      Fail(VERIFY_ERROR_CLASS_CHANGE)
+          << "non-interface method " << PrettyMethod(dex_method_idx, *dex_file_)
+          << " is in an interface class " << PrettyClass(klass);
+      return nullptr;
+    }
+  } else {
+    if (method_type == METHOD_INTERFACE) {
+      Fail(VERIFY_ERROR_CLASS_CHANGE)
+          << "interface method " << PrettyMethod(dex_method_idx, *dex_file_)
+          << " is in a non-interface class " << PrettyClass(klass);
+      return nullptr;
+    }
+  }
+
+  // Only stash after the above passed. Otherwise the method wasn't guaranteed to be correct.
+  if (stash_method) {
+    dex_cache_->SetResolvedMethod(dex_method_idx, res_method, pointer_size);
+  }
+
   // Check if access is allowed.
   if (!referrer.CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
@@ -3708,23 +3742,6 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-super/virtual can't be used on private method "
                                       << PrettyMethod(res_method);
-    return nullptr;
-  }
-  // Check that interface methods are static or match interface classes.
-  // We only allow statics if we don't have default methods enabled.
-  Runtime* runtime = Runtime::Current();
-  const bool default_methods_supported =
-      runtime == nullptr ||
-      runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods);
-  if (klass->IsInterface() &&
-      method_type != METHOD_INTERFACE &&
-      (!default_methods_supported || method_type != METHOD_STATIC)) {
-    Fail(VERIFY_ERROR_CLASS_CHANGE) << "non-interface method " << PrettyMethod(res_method)
-                                    << " is in an interface class " << PrettyClass(klass);
-    return nullptr;
-  } else if (!klass->IsInterface() && method_type == METHOD_INTERFACE) {
-    Fail(VERIFY_ERROR_CLASS_CHANGE) << "interface method " << PrettyMethod(res_method)
-                                    << " is in a non-interface class " << PrettyClass(klass);
     return nullptr;
   }
   // See if the method type implied by the invoke instruction matches the access flags for the

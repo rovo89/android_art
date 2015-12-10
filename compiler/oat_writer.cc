@@ -733,8 +733,12 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(
         Thread::Current(), *dex_file_)));
-    ArtMethod* method = linker->ResolveMethod(
-        *dex_file_, it.GetMemberIndex(), dex_cache, NullHandle<mirror::ClassLoader>(), nullptr,
+    ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+        *dex_file_,
+        it.GetMemberIndex(),
+        dex_cache,
+        NullHandle<mirror::ClassLoader>(),
+        nullptr,
         invoke_type);
     if (method == nullptr) {
       LOG(INTERNAL_FATAL) << "Unexpected failure to resolve a method: "
