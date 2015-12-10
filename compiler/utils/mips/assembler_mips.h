@@ -119,6 +119,7 @@ class MipsAssembler FINAL : public Assembler {
   void DivuR2(Register rd, Register rs, Register rt);  // R2
   void ModuR2(Register rd, Register rs, Register rt);  // R2
   void MulR6(Register rd, Register rs, Register rt);  // R6
+  void MuhR6(Register rd, Register rs, Register rt);  // R6
   void MuhuR6(Register rd, Register rs, Register rt);  // R6
   void DivR6(Register rd, Register rs, Register rt);  // R6
   void ModR6(Register rd, Register rs, Register rt);  // R6
