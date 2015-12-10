@@ -269,8 +269,6 @@ class CodeGenerator {
 
   // Record native to dex mapping for a suspend point.  Required by runtime.
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path = nullptr);
-  // Record additional native to dex mappings for native debugging/profiling tools.
-  void RecordNativeDebugInfo(uint32_t dex_pc, uintptr_t native_pc_begin, uintptr_t native_pc_end);
 
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
@@ -452,10 +450,6 @@ class CodeGenerator {
   // Copy the result of a call into the given target.
   virtual void MoveFromReturnRegister(Location trg, Primitive::Type type) = 0;
 
-  const ArenaVector<SrcMapElem>& GetSrcMappingTable() const {
-    return src_map_;
-  }
-
  protected:
   // Method patch info used for recording locations of required linker patches and
   // target methods. The target method can be used for various purposes, whether for
@@ -498,7 +492,6 @@ class CodeGenerator {
         stats_(stats),
         graph_(graph),
         compiler_options_(compiler_options),
-        src_map_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         slow_paths_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         current_slow_path_(nullptr),
         current_block_index_(0),
@@ -616,8 +609,6 @@ class CodeGenerator {
   HGraph* const graph_;
   const CompilerOptions& compiler_options_;
 
-  // Native to dex_pc map used for native debugging/profiling tools.
-  ArenaVector<SrcMapElem> src_map_;
   ArenaVector<SlowPathCode*> slow_paths_;
 
   // The current slow path that we're generating code for.

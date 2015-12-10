@@ -614,7 +614,7 @@ CompiledMethod* OptimizingCompiler::EmitOptimized(ArenaAllocator* arena,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      ArrayRef<const SrcMapElem>(codegen->GetSrcMappingTable()),
+      ArrayRef<const SrcMapElem>(),
       ArrayRef<const uint8_t>(),  // mapping_table.
       ArrayRef<const uint8_t>(stack_map),
       ArrayRef<const uint8_t>(),  // native_gc_map.
@@ -648,7 +648,7 @@ CompiledMethod* OptimizingCompiler::EmitBaseline(
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      ArrayRef<const SrcMapElem>(codegen->GetSrcMappingTable()),
+      ArrayRef<const SrcMapElem>(),
       AlignVectorSize(mapping_table),
       AlignVectorSize(vmap_table),
       AlignVectorSize(gc_map),
