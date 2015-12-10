@@ -43,10 +43,17 @@ class ImageTest : public CommonCompilerTest {
     ReserveImageSpace();
     CommonCompilerTest::SetUp();
   }
+  void TestWriteRead(ImageHeader::StorageMode storage_mode);
 };
 
-TEST_F(ImageTest, WriteRead) {
-  TEST_DISABLED_FOR_NON_PIC_COMPILING_WITH_OPTIMIZING();
+void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
+  // TODO: Test does not currently work with optimizing.
+  CreateCompilerDriver(Compiler::kQuick, kRuntimeISA);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  // Enable write for dex2dex.
+  for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
+    dex_file->EnableWrite();
+  }
   // Create a generic location tmp file, to be the base of the .art and .oat temporary files.
   ScratchFile location;
   ScratchFile image_location(location, ".art");
@@ -68,17 +75,14 @@ TEST_F(ImageTest, WriteRead) {
   std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_,
                                                       requested_image_base,
                                                       /*compile_pic*/false,
-                                                      /*compile_app_image*/false));
+                                                      /*compile_app_image*/false,
+                                                      storage_mode));
   // TODO: compile_pic should be a test argument.
   {
     {
       jobject class_loader = nullptr;
-      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       TimingLogger timings("ImageTest::WriteRead", false, false);
       TimingLogger::ScopedTiming t("CompileAll", &timings);
-      for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
-        dex_file->EnableWrite();
-      }
       compiler_driver_->SetDexFilesForOatFile(class_linker->GetBootClassPath());
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
 
@@ -209,7 +213,13 @@ TEST_F(ImageTest, WriteRead) {
 
   gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
   ASSERT_TRUE(image_space != nullptr);
-  ASSERT_LE(image_space->Size(), image_file_size);
+  if (storage_mode == ImageHeader::kStorageModeUncompressed) {
+    // Uncompressed, image should be smaller than file.
+    ASSERT_LE(image_space->Size(), image_file_size);
+  } else {
+    // Compressed, file should be smaller than image.
+    ASSERT_LE(image_file_size, image_space->Size());
+  }
 
   image_space->VerifyImageAllocations();
   uint8_t* image_begin = image_space->Begin();
@@ -237,6 +247,14 @@ TEST_F(ImageTest, WriteRead) {
   CHECK_EQ(0, rmdir_result);
 }
 
+TEST_F(ImageTest, WriteReadUncompressed) {
+  TestWriteRead(ImageHeader::kStorageModeUncompressed);
+}
+
+TEST_F(ImageTest, WriteReadLZ4) {
+  TestWriteRead(ImageHeader::kStorageModeLZ4);
+}
+
 TEST_F(ImageTest, ImageHeaderIsValid) {
     uint32_t image_begin = ART_BASE_ADDRESS;
     uint32_t image_size_ = 16 * KB;
@@ -257,7 +275,9 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
                              oat_data_end,
                              oat_file_end,
                              sizeof(void*),
-                             /*compile_pic*/false);
+                             /*compile_pic*/false,
+                             ImageHeader::kDefaultStorageMode,
+                             /*data_size*/0u);
     ASSERT_TRUE(image_header.IsValid());
 
     char* magic = const_cast<char*>(image_header.GetMagic());
