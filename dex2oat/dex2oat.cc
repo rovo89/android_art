@@ -71,6 +71,7 @@
 #include "oat_writer.h"
 #include "os.h"
 #include "runtime.h"
+#include "runtime_options.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "utils.h"
@@ -686,15 +687,14 @@ class Dex2Oat FINAL {
       parser_options->boot_image_filename += "/framework/boot.art";
     }
     if (!parser_options->boot_image_filename.empty()) {
-      boot_image_option_ += "-Ximage:";
-      boot_image_option_ += parser_options->boot_image_filename;
+      boot_image_filename_ = parser_options->boot_image_filename;
     }
 
     if (image_classes_filename_ != nullptr && !IsBootImage()) {
       Usage("--image-classes should only be used with --image");
     }
 
-    if (image_classes_filename_ != nullptr && !boot_image_option_.empty()) {
+    if (image_classes_filename_ != nullptr && !boot_image_filename_.empty()) {
       Usage("--image-classes should not be used with --boot-image");
     }
 
@@ -706,7 +706,7 @@ class Dex2Oat FINAL {
       Usage("--compiled-classes should only be used with --image");
     }
 
-    if (compiled_classes_filename_ != nullptr && !boot_image_option_.empty()) {
+    if (compiled_classes_filename_ != nullptr && !boot_image_filename_.empty()) {
       Usage("--compiled-classes should not be used with --boot-image");
     }
 
@@ -738,7 +738,7 @@ class Dex2Oat FINAL {
       Usage("--zip-location should be supplied with --zip-fd");
     }
 
-    if (boot_image_option_.empty()) {
+    if (boot_image_filename_.empty()) {
       if (image_base_ == 0) {
         Usage("Non-zero --base not specified");
       }
@@ -1035,20 +1035,10 @@ class Dex2Oat FINAL {
   // boot class path.
   bool Setup() {
     TimingLogger::ScopedTiming t("dex2oat Setup", timings_);
-    RuntimeOptions runtime_options;
     art::MemMap::Init();  // For ZipEntry::ExtractToMemMap.
-    if (boot_image_option_.empty()) {
-      std::string boot_class_path = "-Xbootclasspath:";
-      boot_class_path += Join(dex_filenames_, ':');
-      runtime_options.push_back(std::make_pair(boot_class_path, nullptr));
-      std::string boot_class_path_locations = "-Xbootclasspath-locations:";
-      boot_class_path_locations += Join(dex_locations_, ':');
-      runtime_options.push_back(std::make_pair(boot_class_path_locations, nullptr));
-    } else {
-      runtime_options.push_back(std::make_pair(boot_image_option_, nullptr));
-    }
-    for (size_t i = 0; i < runtime_args_.size(); i++) {
-      runtime_options.push_back(std::make_pair(runtime_args_[i], nullptr));
+
+    if (!PrepareImageClasses() || !PrepareCompiledClasses() || !PrepareCompiledMethods()) {
+      return false;
     }
 
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
@@ -1058,23 +1048,15 @@ class Dex2Oat FINAL {
         IsBootImage() ?
             CompilerCallbacks::CallbackMode::kCompileBootImage :
             CompilerCallbacks::CallbackMode::kCompileApp));
-    runtime_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
-    runtime_options.push_back(
-        std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
 
-    // Only allow no boot image for the runtime if we're compiling one. When we compile an app,
-    // we don't want fallback mode, it will abort as we do not push a boot classpath (it might
-    // have been stripped in preopting, anyways).
-    if (!IsBootImage()) {
-      runtime_options.push_back(std::make_pair("-Xno-dex-file-fallback", nullptr));
+    RuntimeArgumentMap runtime_options;
+    if (!PrepareRuntimeOptions(&runtime_options)) {
+      return false;
     }
-    // Disable libsigchain. We don't don't need it during compilation and it prevents us
-    // from getting a statically linked version of dex2oat (because of dlsym and RTLD_NEXT).
-    runtime_options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
 
     {
       TimingLogger::ScopedTiming t_runtime("Create runtime", timings_);
-      if (!CreateRuntime(runtime_options)) {
+      if (!CreateRuntime(std::move(runtime_options))) {
         return false;
       }
     }
@@ -1089,66 +1071,8 @@ class Dex2Oat FINAL {
     // Whilst we're in native take the opportunity to initialize well known classes.
     WellKnownClasses::Init(self->GetJniEnv());
 
-    // If --image-classes was specified, calculate the full list of classes to include in the image
-    if (image_classes_filename_ != nullptr) {
-      std::string error_msg;
-      if (image_classes_zip_filename_ != nullptr) {
-        image_classes_.reset(ReadImageClassesFromZip(image_classes_zip_filename_,
-                                                     image_classes_filename_,
-                                                     &error_msg));
-      } else {
-        image_classes_.reset(ReadImageClassesFromFile(image_classes_filename_));
-      }
-      if (image_classes_.get() == nullptr) {
-        LOG(ERROR) << "Failed to create list of image classes from '" << image_classes_filename_ <<
-            "': " << error_msg;
-        return false;
-      }
-    } else if (IsBootImage()) {
-      image_classes_.reset(new std::unordered_set<std::string>);
-    }
-    // If --compiled-classes was specified, calculate the full list of classes to compile in the
-    // image.
-    if (compiled_classes_filename_ != nullptr) {
-      std::string error_msg;
-      if (compiled_classes_zip_filename_ != nullptr) {
-        compiled_classes_.reset(ReadImageClassesFromZip(compiled_classes_zip_filename_,
-                                                        compiled_classes_filename_,
-                                                        &error_msg));
-      } else {
-        compiled_classes_.reset(ReadImageClassesFromFile(compiled_classes_filename_));
-      }
-      if (compiled_classes_.get() == nullptr) {
-        LOG(ERROR) << "Failed to create list of compiled classes from '"
-                   << compiled_classes_filename_ << "': " << error_msg;
-        return false;
-      }
-    } else {
-      compiled_classes_.reset(nullptr);  // By default compile everything.
-    }
-    // If --compiled-methods was specified, read the methods to compile from the given file(s).
-    if (compiled_methods_filename_ != nullptr) {
-      std::string error_msg;
-      if (compiled_methods_zip_filename_ != nullptr) {
-        compiled_methods_.reset(ReadCommentedInputFromZip(compiled_methods_zip_filename_,
-                                                          compiled_methods_filename_,
-                                                          nullptr,            // No post-processing.
-                                                          &error_msg));
-      } else {
-        compiled_methods_.reset(ReadCommentedInputFromFile(compiled_methods_filename_,
-                                                           nullptr));         // No post-processing.
-      }
-      if (compiled_methods_.get() == nullptr) {
-        LOG(ERROR) << "Failed to create list of compiled methods from '"
-            << compiled_methods_filename_ << "': " << error_msg;
-        return false;
-      }
-    } else {
-      compiled_methods_.reset(nullptr);  // By default compile everything.
-    }
-
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-    if (boot_image_option_.empty()) {
+    if (boot_image_filename_.empty()) {
       dex_files_ = class_linker->GetBootClassPath();
     } else {
       TimingLogger::ScopedTiming t_dex("Opening dex files", timings_);
@@ -1185,22 +1109,7 @@ class Dex2Oat FINAL {
 
       constexpr bool kSaveDexInput = false;
       if (kSaveDexInput) {
-        for (size_t i = 0; i < dex_files_.size(); ++i) {
-          const DexFile* dex_file = dex_files_[i];
-          std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%zd.dex",
-                                                 getpid(), i));
-          std::unique_ptr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
-          if (tmp_file.get() == nullptr) {
-            PLOG(ERROR) << "Failed to open file " << tmp_file_name
-                << ". Try: adb shell chmod 777 /data/local/tmp";
-            continue;
-          }
-          // This is just dumping files for debugging. Ignore errors, and leave remnants.
-          UNUSED(tmp_file->WriteFully(dex_file->Begin(), dex_file->Size()));
-          UNUSED(tmp_file->Flush());
-          UNUSED(tmp_file->Close());
-          LOG(INFO) << "Wrote input to " << tmp_file_name;
-        }
+        SaveDexInput();
       }
     }
     // Ensure opened dex files are writable for dex-to-dex transformations. Also ensure that
@@ -1259,16 +1168,13 @@ class Dex2Oat FINAL {
     jobject class_path_class_loader = nullptr;
     Thread* self = Thread::Current();
 
-    if (!boot_image_option_.empty()) {
+    if (!boot_image_filename_.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       OpenClassPathFiles(runtime_->GetClassPathString(), dex_files_, &class_path_files_);
       ScopedObjectAccess soa(self);
 
       // Classpath: first the class-path given.
-      std::vector<const DexFile*> class_path_files;
-      for (auto& class_path_file : class_path_files_) {
-        class_path_files.push_back(class_path_file.get());
-      }
+      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
 
       // Store the classpath we have right now.
       key_value_store_->Put(OatHeader::kClassPathKey,
@@ -1453,14 +1359,9 @@ class Dex2Oat FINAL {
       elf_writer->EndText(text);
 
       elf_writer->SetBssSize(oat_writer->GetBssSize());
-
       elf_writer->WriteDynamicSection();
-
-      ArrayRef<const dwarf::MethodDebugInfo> method_infos(oat_writer->GetMethodDebugInfo());
-      elf_writer->WriteDebugInfo(method_infos);
-
-      ArrayRef<const uintptr_t> patch_locations(oat_writer->GetAbsolutePatchLocations());
-      elf_writer->WritePatchLocations(patch_locations);
+      elf_writer->WriteDebugInfo(oat_writer->GetMethodDebugInfo());
+      elf_writer->WritePatchLocations(oat_writer->GetAbsolutePatchLocations());
 
       if (!elf_writer->End()) {
         LOG(ERROR) << "Failed to write ELF file " << oat_file_->GetPath();
@@ -1573,6 +1474,16 @@ class Dex2Oat FINAL {
   }
 
  private:
+  template <typename T>
+  static std::vector<T*> MakeNonOwningPointerVector(const std::vector<std::unique_ptr<T>>& src) {
+    std::vector<T*> result;
+    result.reserve(src.size());
+    for (const std::unique_ptr<T>& t : src) {
+      result.push_back(t.get());
+    }
+    return result;
+  }
+
   static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
                              const std::vector<const char*>& dex_locations,
                              std::vector<std::unique_ptr<const DexFile>>* dex_files) {
@@ -1633,10 +1544,138 @@ class Dex2Oat FINAL {
     }
   }
 
+  bool PrepareImageClasses() {
+    // If --image-classes was specified, calculate the full list of classes to include in the image.
+    if (image_classes_filename_ != nullptr) {
+      image_classes_ =
+          ReadClasses(image_classes_zip_filename_, image_classes_filename_, "image");
+      if (image_classes_ == nullptr) {
+        return false;
+      }
+    } else if (IsBootImage()) {
+      image_classes_.reset(new std::unordered_set<std::string>);
+    }
+    return true;
+  }
+
+  bool PrepareCompiledClasses() {
+    // If --compiled-classes was specified, calculate the full list of classes to compile in the
+    // image.
+    if (compiled_classes_filename_ != nullptr) {
+      compiled_classes_ =
+          ReadClasses(compiled_classes_zip_filename_, compiled_classes_filename_, "compiled");
+      if (compiled_classes_ == nullptr) {
+        return false;
+      }
+    } else {
+      compiled_classes_.reset(nullptr);  // By default compile everything.
+    }
+    return true;
+  }
+
+  static std::unique_ptr<std::unordered_set<std::string>> ReadClasses(const char* zip_filename,
+                                                                      const char* classes_filename,
+                                                                      const char* tag) {
+    std::unique_ptr<std::unordered_set<std::string>> classes;
+    std::string error_msg;
+    if (zip_filename != nullptr) {
+      classes.reset(ReadImageClassesFromZip(zip_filename, classes_filename, &error_msg));
+    } else {
+      classes.reset(ReadImageClassesFromFile(classes_filename));
+    }
+    if (classes == nullptr) {
+      LOG(ERROR) << "Failed to create list of " << tag << " classes from '"
+                 << classes_filename << "': " << error_msg;
+    }
+    return classes;
+  }
+
+  bool PrepareCompiledMethods() {
+    // If --compiled-methods was specified, read the methods to compile from the given file(s).
+    if (compiled_methods_filename_ != nullptr) {
+      std::string error_msg;
+      if (compiled_methods_zip_filename_ != nullptr) {
+        compiled_methods_.reset(ReadCommentedInputFromZip(compiled_methods_zip_filename_,
+                                                          compiled_methods_filename_,
+                                                          nullptr,            // No post-processing.
+                                                          &error_msg));
+      } else {
+        compiled_methods_.reset(ReadCommentedInputFromFile(compiled_methods_filename_,
+                                                           nullptr));         // No post-processing.
+      }
+      if (compiled_methods_.get() == nullptr) {
+        LOG(ERROR) << "Failed to create list of compiled methods from '"
+            << compiled_methods_filename_ << "': " << error_msg;
+        return false;
+      }
+    } else {
+      compiled_methods_.reset(nullptr);  // By default compile everything.
+    }
+    return true;
+  }
+
+  void SaveDexInput() {
+    for (size_t i = 0; i < dex_files_.size(); ++i) {
+      const DexFile* dex_file = dex_files_[i];
+      std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%zd.dex",
+                                             getpid(), i));
+      std::unique_ptr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
+      if (tmp_file.get() == nullptr) {
+        PLOG(ERROR) << "Failed to open file " << tmp_file_name
+            << ". Try: adb shell chmod 777 /data/local/tmp";
+        continue;
+      }
+      // This is just dumping files for debugging. Ignore errors, and leave remnants.
+      UNUSED(tmp_file->WriteFully(dex_file->Begin(), dex_file->Size()));
+      UNUSED(tmp_file->Flush());
+      UNUSED(tmp_file->Close());
+      LOG(INFO) << "Wrote input to " << tmp_file_name;
+    }
+  }
+
+  bool PrepareRuntimeOptions(RuntimeArgumentMap* runtime_options) {
+    RuntimeOptions raw_options;
+    if (boot_image_filename_.empty()) {
+      std::string boot_class_path = "-Xbootclasspath:";
+      boot_class_path += Join(dex_filenames_, ':');
+      raw_options.push_back(std::make_pair(boot_class_path, nullptr));
+      std::string boot_class_path_locations = "-Xbootclasspath-locations:";
+      boot_class_path_locations += Join(dex_locations_, ':');
+      raw_options.push_back(std::make_pair(boot_class_path_locations, nullptr));
+    } else {
+      std::string boot_image_option = "-Ximage:";
+      boot_image_option += boot_image_filename_;
+      raw_options.push_back(std::make_pair(boot_image_option, nullptr));
+    }
+    for (size_t i = 0; i < runtime_args_.size(); i++) {
+      raw_options.push_back(std::make_pair(runtime_args_[i], nullptr));
+    }
+
+    raw_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
+    raw_options.push_back(
+        std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
+
+    // Only allow no boot image for the runtime if we're compiling one. When we compile an app,
+    // we don't want fallback mode, it will abort as we do not push a boot classpath (it might
+    // have been stripped in preopting, anyways).
+    if (!IsBootImage()) {
+      raw_options.push_back(std::make_pair("-Xno-dex-file-fallback", nullptr));
+    }
+    // Disable libsigchain. We don't don't need it during compilation and it prevents us
+    // from getting a statically linked version of dex2oat (because of dlsym and RTLD_NEXT).
+    raw_options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
+
+    if (!Runtime::ParseOptions(raw_options, false, runtime_options)) {
+      LOG(ERROR) << "Failed to parse runtime options";
+      return false;
+    }
+    return true;
+  }
+
   // Create a runtime necessary for compilation.
-  bool CreateRuntime(const RuntimeOptions& runtime_options)
+  bool CreateRuntime(RuntimeArgumentMap&& runtime_options)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
-    if (!Runtime::Create(runtime_options, false)) {
+    if (!Runtime::Create(std::move(runtime_options))) {
       LOG(ERROR) << "Failed to create runtime";
       return false;
     }
@@ -1834,7 +1873,7 @@ class Dex2Oat FINAL {
   std::vector<const char*> dex_locations_;
   int zip_fd_;
   std::string zip_location_;
-  std::string boot_image_option_;
+  std::string boot_image_filename_;
   std::vector<const char*> runtime_args_;
   std::string image_filename_;
   uintptr_t image_base_;

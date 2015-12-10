@@ -161,16 +161,11 @@ class CompilerDriver {
   }
 
   // Generate the trampolines that are invoked by unresolved direct methods.
-  const std::vector<uint8_t>* CreateJniDlsymLookup() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateQuickGenericJniTrampoline() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateQuickImtConflictTrampoline() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateQuickResolutionTrampoline() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateQuickToInterpreterBridge() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateJniDlsymLookup() const;
+  const std::vector<uint8_t>* CreateQuickGenericJniTrampoline() const;
+  const std::vector<uint8_t>* CreateQuickImtConflictTrampoline() const;
+  const std::vector<uint8_t>* CreateQuickResolutionTrampoline() const;
+  const std::vector<uint8_t>* CreateQuickToInterpreterBridge() const;
 
   CompiledClass* GetCompiledClass(ClassReference ref) const
       REQUIRES(!compiled_classes_lock_);
