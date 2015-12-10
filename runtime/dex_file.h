@@ -819,20 +819,50 @@ class DexFile {
     }
   }
 
+  struct PositionInfo {
+    PositionInfo()
+        : address_(0),
+          line_(0),
+          source_file_(nullptr),
+          prologue_end_(false),
+          epilogue_begin_(false) {
+    }
+
+    uint32_t address_;  // In 16-bit code units.
+    uint32_t line_;  // Source code line number starting at 1.
+    const char* source_file_;  // nullptr if the file from ClassDef still applies.
+    bool prologue_end_;
+    bool epilogue_begin_;
+  };
+
   // Callback for "new position table entry".
   // Returning true causes the decoder to stop early.
-  typedef bool (*DexDebugNewPositionCb)(void* context, uint32_t address, uint32_t line_num);
+  typedef bool (*DexDebugNewPositionCb)(void* context, const PositionInfo& entry);
 
-  // Callback for "new locals table entry". "signature" is an empty string
-  // if no signature is available for an entry.
-  typedef void (*DexDebugNewLocalCb)(void* context, uint16_t reg,
-                                     uint32_t start_address,
-                                     uint32_t end_address,
-                                     const char* name,
-                                     const char* descriptor,
-                                     const char* signature);
+  struct LocalInfo {
+    LocalInfo()
+        : name_(nullptr),
+          descriptor_(nullptr),
+          signature_(nullptr),
+          start_address_(0),
+          end_address_(0),
+          reg_(0),
+          is_live_(false) {
+    }
 
-  static bool LineNumForPcCb(void* context, uint32_t address, uint32_t line_num);
+    const char* name_;  // E.g., list.  It can be nullptr if unknown.
+    const char* descriptor_;  // E.g., Ljava/util/LinkedList;
+    const char* signature_;  // E.g., java.util.LinkedList<java.lang.Integer>
+    uint32_t start_address_;  // PC location where the local is first defined.
+    uint32_t end_address_;  // PC location where the local is no longer defined.
+    uint16_t reg_;  // Dex register which stores the values.
+    bool is_live_;  // Is the local defined and live.
+  };
+
+  // Callback for "new locals table entry".
+  typedef void (*DexDebugNewLocalCb)(void* context, const LocalInfo& entry);
+
+  static bool LineNumForPcCb(void* context, const PositionInfo& entry);
 
   const AnnotationsDirectoryItem* GetAnnotationsDirectory(const ClassDef& class_def) const {
     if (class_def.annotations_off_ == 0) {
@@ -1044,21 +1074,6 @@ class DexFile {
     DBG_LINE_RANGE           = 15,
   };
 
-  struct LocalInfo {
-    LocalInfo()
-        : name_(nullptr), descriptor_(nullptr), signature_(nullptr), start_address_(0),
-          is_live_(false) {}
-
-    const char* name_;  // E.g., list
-    const char* descriptor_;  // E.g., Ljava/util/LinkedList;
-    const char* signature_;  // E.g., java.util.LinkedList<java.lang.Integer>
-    uint16_t start_address_;  // PC location where the local is first defined.
-    bool is_live_;  // Is the local defined and live.
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(LocalInfo);
-  };
-
   struct LineNumFromPcContext {
     LineNumFromPcContext(uint32_t address, uint32_t line_num)
         : address_(address), line_num_(line_num) {}
@@ -1067,15 +1082,6 @@ class DexFile {
    private:
     DISALLOW_COPY_AND_ASSIGN(LineNumFromPcContext);
   };
-
-  void InvokeLocalCbIfLive(void* context, int reg, uint32_t end_address,
-                           LocalInfo* local_in_reg, DexDebugNewLocalCb local_cb) const {
-    if (local_cb != nullptr && local_in_reg[reg].is_live_) {
-      local_cb(context, reg, local_in_reg[reg].start_address_, end_address,
-          local_in_reg[reg].name_, local_in_reg[reg].descriptor_,
-          local_in_reg[reg].signature_ != nullptr ? local_in_reg[reg].signature_ : "");
-    }
-  }
 
   // Determine the source file line number based on the program counter.
   // "pc" is an offset, in 16-bit units, from the start of the method's code.
@@ -1088,9 +1094,13 @@ class DexFile {
   int32_t GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-                       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
-                       void* context) const;
+  // Returns false if there is no debugging information or if it can not be decoded.
+  bool DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
+                            DexDebugNewLocalCb local_cb, void* context) const;
+
+  // Returns false if there is no debugging information or if it can not be decoded.
+  bool DecodeDebugPositionInfo(const CodeItem* code_item, DexDebugNewPositionCb position_cb,
+                               void* context) const;
 
   const char* GetSourceFile(const ClassDef& class_def) const {
     if (class_def.source_file_idx_ == 0xffffffff) {
@@ -1200,10 +1210,6 @@ class DexFile {
   // Returns true if the header magic and version numbers are of the expected values.
   bool CheckMagicAndVersion(std::string* error_msg) const;
 
-  void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-      DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
-      void* context, const uint8_t* stream, LocalInfo* local_in_reg) const;
-
   // Check whether a location denotes a multidex dex file. This is a very simple check: returns
   // whether the string contains the separator character.
   static bool IsMultiDexLocation(const char* location);
@@ -1275,6 +1281,7 @@ class DexFileParameterIterator {
     }
   }
   bool HasNext() const { return pos_ < size_; }
+  size_t Size() const { return size_; }
   void Next() { ++pos_; }
   uint16_t GetTypeIdx() {
     return type_list_->GetTypeItem(pos_).type_idx_;
