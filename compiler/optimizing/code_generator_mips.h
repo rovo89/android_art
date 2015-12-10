@@ -229,6 +229,10 @@ class InstructionCodeGeneratorMIPS : public HGraphVisitor {
                              size_t condition_input_index,
                              MipsLabel* true_target,
                              MipsLabel* false_target);
+  void DivRemOneOrMinusOne(HBinaryOperation* instruction);
+  void DivRemByPowerOfTwo(HBinaryOperation* instruction);
+  void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
+  void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   MipsAssembler* const assembler_;

@@ -2218,6 +2218,171 @@ void InstructionCodeGeneratorMIPS::VisitCondition(HCondition* instruction) {
   }
 }
 
+void InstructionCodeGeneratorMIPS::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register dividend = locations->InAt(0).AsRegister<Register>();
+  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  DCHECK(imm == 1 || imm == -1);
+
+  if (instruction->IsRem()) {
+    __ Move(out, ZERO);
+  } else {
+    if (imm == -1) {
+      __ Subu(out, ZERO, dividend);
+    } else if (out != dividend) {
+      __ Move(out, dividend);
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS::DivRemByPowerOfTwo(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register dividend = locations->InAt(0).AsRegister<Register>();
+  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  uint32_t abs_imm = static_cast<uint32_t>(std::abs(imm));
+  DCHECK(IsPowerOfTwo(abs_imm));
+  int ctz_imm = CTZ(abs_imm);
+
+  if (instruction->IsDiv()) {
+    if (ctz_imm == 1) {
+      // Fast path for division by +/-2, which is very common.
+      __ Srl(TMP, dividend, 31);
+    } else {
+      __ Sra(TMP, dividend, 31);
+      __ Srl(TMP, TMP, 32 - ctz_imm);
+    }
+    __ Addu(out, dividend, TMP);
+    __ Sra(out, out, ctz_imm);
+    if (imm < 0) {
+      __ Subu(out, ZERO, out);
+    }
+  } else {
+    if (ctz_imm == 1) {
+      // Fast path for modulo +/-2, which is very common.
+      __ Sra(TMP, dividend, 31);
+      __ Subu(out, dividend, TMP);
+      __ Andi(out, out, 1);
+      __ Addu(out, out, TMP);
+    } else {
+      __ Sra(TMP, dividend, 31);
+      __ Srl(TMP, TMP, 32 - ctz_imm);
+      __ Addu(out, dividend, TMP);
+      if (IsUint<16>(abs_imm - 1)) {
+        __ Andi(out, out, abs_imm - 1);
+      } else {
+        __ Sll(out, out, 32 - ctz_imm);
+        __ Srl(out, out, 32 - ctz_imm);
+      }
+      __ Subu(out, out, TMP);
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateDivRemWithAnyConstant(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register dividend = locations->InAt(0).AsRegister<Register>();
+  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+
+  int64_t magic;
+  int shift;
+  CalculateMagicAndShiftForDivRem(imm, false /* is_long */, &magic, &shift);
+
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+
+  __ LoadConst32(TMP, magic);
+  if (isR6) {
+    __ MuhR6(TMP, dividend, TMP);
+  } else {
+    __ MultR2(dividend, TMP);
+    __ Mfhi(TMP);
+  }
+  if (imm > 0 && magic < 0) {
+    __ Addu(TMP, TMP, dividend);
+  } else if (imm < 0 && magic > 0) {
+    __ Subu(TMP, TMP, dividend);
+  }
+
+  if (shift != 0) {
+    __ Sra(TMP, TMP, shift);
+  }
+
+  if (instruction->IsDiv()) {
+    __ Sra(out, TMP, 31);
+    __ Subu(out, TMP, out);
+  } else {
+    __ Sra(AT, TMP, 31);
+    __ Subu(AT, TMP, AT);
+    __ LoadConst32(TMP, imm);
+    if (isR6) {
+      __ MulR6(TMP, AT, TMP);
+    } else {
+      __ MulR2(TMP, AT, TMP);
+    }
+    __ Subu(out, dividend, TMP);
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateDivRemIntegral(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Register out = locations->Out().AsRegister<Register>();
+  Location second = locations->InAt(1);
+
+  if (second.IsConstant()) {
+    int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+    if (imm == 0) {
+      // Do not generate anything. DivZeroCheck would prevent any code to be executed.
+    } else if (imm == 1 || imm == -1) {
+      DivRemOneOrMinusOne(instruction);
+    } else if (IsPowerOfTwo(std::abs(imm))) {
+      DivRemByPowerOfTwo(instruction);
+    } else {
+      DCHECK(imm <= -2 || imm >= 2);
+      GenerateDivRemWithAnyConstant(instruction);
+    }
+  } else {
+    Register dividend = locations->InAt(0).AsRegister<Register>();
+    Register divisor = second.AsRegister<Register>();
+    bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+    if (instruction->IsDiv()) {
+      if (isR6) {
+        __ DivR6(out, dividend, divisor);
+      } else {
+        __ DivR2(out, dividend, divisor);
+      }
+    } else {
+      if (isR6) {
+        __ ModR6(out, dividend, divisor);
+      } else {
+        __ ModR2(out, dividend, divisor);
+      }
+    }
+  }
+}
+
 void LocationsBuilderMIPS::VisitDiv(HDiv* div) {
   Primitive::Type type = div->GetResultType();
   LocationSummary::CallKind call_kind = (type == Primitive::kPrimLong)
@@ -2229,7 +2394,7 @@ void LocationsBuilderMIPS::VisitDiv(HDiv* div) {
   switch (type) {
     case Primitive::kPrimInt:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(div->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -2258,20 +2423,11 @@ void LocationsBuilderMIPS::VisitDiv(HDiv* div) {
 void InstructionCodeGeneratorMIPS::VisitDiv(HDiv* instruction) {
   Primitive::Type type = instruction->GetType();
   LocationSummary* locations = instruction->GetLocations();
-  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
 
   switch (type) {
-    case Primitive::kPrimInt: {
-      Register dst = locations->Out().AsRegister<Register>();
-      Register lhs = locations->InAt(0).AsRegister<Register>();
-      Register rhs = locations->InAt(1).AsRegister<Register>();
-      if (isR6) {
-        __ DivR6(dst, lhs, rhs);
-      } else {
-        __ DivR2(dst, lhs, rhs);
-      }
+    case Primitive::kPrimInt:
+      GenerateDivRemIntegral(instruction);
       break;
-    }
     case Primitive::kPrimLong: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLdiv),
                               instruction,
@@ -3666,7 +3822,7 @@ void LocationsBuilderMIPS::VisitRem(HRem* rem) {
   switch (type) {
     case Primitive::kPrimInt:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(rem->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -3696,21 +3852,11 @@ void LocationsBuilderMIPS::VisitRem(HRem* rem) {
 
 void InstructionCodeGeneratorMIPS::VisitRem(HRem* instruction) {
   Primitive::Type type = instruction->GetType();
-  LocationSummary* locations = instruction->GetLocations();
-  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
 
   switch (type) {
-    case Primitive::kPrimInt: {
-      Register dst = locations->Out().AsRegister<Register>();
-      Register lhs = locations->InAt(0).AsRegister<Register>();
-      Register rhs = locations->InAt(1).AsRegister<Register>();
-      if (isR6) {
-        __ ModR6(dst, lhs, rhs);
-      } else {
-        __ ModR2(dst, lhs, rhs);
-      }
+    case Primitive::kPrimInt:
+      GenerateDivRemIntegral(instruction);
       break;
-    }
     case Primitive::kPrimLong: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod),
                               instruction,
