@@ -42,7 +42,7 @@ class VerificationResults {
     explicit VerificationResults(const CompilerOptions* compiler_options);
     ~VerificationResults();
 
-    bool ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier)
+    void ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier)
         SHARED_REQUIRES(Locks::mutator_lock_)
         REQUIRES(!verified_methods_lock_);
 

@@ -116,6 +116,7 @@ static void SafelyMarkAllRegistersAsConflicts(MethodVerifier* verifier, Register
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         mirror::Class* klass,
+                                                        CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
                                                         bool log_hard_failures,
                                                         std::string* error) {
@@ -140,9 +141,9 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
   }
   if (early_failure) {
     *error = "Verifier rejected class " + PrettyDescriptor(klass) + failure_message;
-    if (Runtime::Current()->IsAotCompiler()) {
+    if (callbacks != nullptr) {
       ClassReference ref(&dex_file, klass->GetDexClassDefIndex());
-      Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
+      callbacks->ClassRejected(ref);
     }
     return kHardFailure;
   }
@@ -154,6 +155,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                      dex_cache,
                      class_loader,
                      class_def,
+                     callbacks,
                      allow_soft_failures,
                      log_hard_failures,
                      error);
@@ -172,6 +174,7 @@ void MethodVerifier::VerifyMethods(Thread* self,
                                    ClassDataItemIterator* it,
                                    Handle<mirror::DexCache> dex_cache,
                                    Handle<mirror::ClassLoader> class_loader,
+                                   CompilerCallbacks* callbacks,
                                    bool allow_soft_failures,
                                    bool log_hard_failures,
                                    bool need_precise_constants,
@@ -212,6 +215,7 @@ void MethodVerifier::VerifyMethods(Thread* self,
                                                       it->GetMethodCodeItem(),
                                                       method,
                                                       it->GetMethodAccessFlags(),
+                                                      callbacks,
                                                       allow_soft_failures,
                                                       log_hard_failures,
                                                       need_precise_constants,
@@ -241,6 +245,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         Handle<mirror::DexCache> dex_cache,
                                                         Handle<mirror::ClassLoader> class_loader,
                                                         const DexFile::ClassDef* class_def,
+                                                        CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
                                                         bool log_hard_failures,
                                                         std::string* error) {
@@ -274,6 +279,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                       &it,
                       dex_cache,
                       class_loader,
+                      callbacks,
                       allow_soft_failures,
                       log_hard_failures,
                       false /* need precise constants */,
@@ -288,6 +294,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                       &it,
                       dex_cache,
                       class_loader,
+                      callbacks,
                       allow_soft_failures,
                       log_hard_failures,
                       false /* need precise constants */,
@@ -322,6 +329,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
                                                          const DexFile::CodeItem* code_item,
                                                          ArtMethod* method,
                                                          uint32_t method_access_flags,
+                                                         CompilerCallbacks* callbacks,
                                                          bool allow_soft_failures,
                                                          bool log_hard_failures,
                                                          bool need_precise_constants,
@@ -336,6 +344,12 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
     CHECK(!verifier.have_pending_hard_failure_);
+
+    if (code_item != nullptr && callbacks != nullptr) {
+      // Let the interested party know that the method was verified.
+      callbacks->MethodVerified(&verifier);
+    }
+
     if (verifier.failures_.size() != 0) {
       if (VLOG_IS_ON(verifier)) {
         verifier.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
@@ -363,8 +377,14 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
             verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
       }
       result = kHardFailure;
+
+      if (callbacks != nullptr) {
+        // Let the interested party know that we failed the class.
+        ClassReference ref(dex_file, dex_file->GetIndexForClassDef(*class_def));
+        callbacks->ClassRejected(ref);
+      }
     }
-    if (kDebugVerify) {
+    if (VLOG_IS_ON(verifier)) {
       std::cout << "\n" << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
@@ -408,13 +428,18 @@ MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self,
 }
 
 MethodVerifier::MethodVerifier(Thread* self,
-                               const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
+                               const DexFile* dex_file,
+                               Handle<mirror::DexCache> dex_cache,
                                Handle<mirror::ClassLoader> class_loader,
                                const DexFile::ClassDef* class_def,
-                               const DexFile::CodeItem* code_item, uint32_t dex_method_idx,
-                               ArtMethod* method, uint32_t method_access_flags,
-                               bool can_load_classes, bool allow_soft_failures,
-                               bool need_precise_constants, bool verify_to_dump,
+                               const DexFile::CodeItem* code_item,
+                               uint32_t dex_method_idx,
+                               ArtMethod* method,
+                               uint32_t method_access_flags,
+                               bool can_load_classes,
+                               bool allow_soft_failures,
+                               bool need_precise_constants,
+                               bool verify_to_dump,
                                bool allow_thread_suspension)
     : self_(self),
       arena_stack_(Runtime::Current()->GetArenaPool()),
@@ -739,10 +764,7 @@ bool MethodVerifier::Verify() {
   result = result && VerifyInstructions();
   // Perform code-flow analysis and return.
   result = result && VerifyCodeFlow();
-  // Compute information for compiler.
-  if (result && runtime->IsCompiler()) {
-    result = runtime->GetCompilerCallbacks()->MethodVerified(this);
-  }
+
   return result;
 }
 
@@ -802,10 +824,6 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
       // Hard verification failures at compile time will still fail at runtime, so the class is
       // marked as rejected to prevent it from being compiled.
     case VERIFY_ERROR_BAD_CLASS_HARD: {
-      if (Runtime::Current()->IsAotCompiler()) {
-        ClassReference ref(dex_file_, dex_file_->GetIndexForClassDef(*class_def_));
-        Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
-      }
       have_pending_hard_failure_ = true;
       if (VLOG_IS_ON(verifier) && kDumpRegLinesOnHardFailureIfVLOG) {
         ScopedObjectAccess soa(Thread::Current());
