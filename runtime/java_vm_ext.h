@@ -82,11 +82,11 @@ class JavaVMExt : public JavaVM {
   /**
    * Loads the given shared library. 'path' is an absolute pathname.
    *
-   * Returns 'true' on success. On failure, sets 'detail' to a
+   * Returns 'true' on success. On failure, sets 'error_msg' to a
    * human-readable description of the error.
    */
   bool LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject javaLoader,
-                         std::string* error_msg);
+                         jstring library_path, jstring permitted_path, std::string* error_msg);
 
   // Unload native libraries with cleared class loaders.
   void UnloadNativeLibraries()
