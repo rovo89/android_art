@@ -1319,6 +1319,8 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
       fprintf(gOutFile, " extends=\"%s\"\n", tmp);
       free(tmp);
     }
+    fprintf(gOutFile, " interface=%s\n",
+            quotedBool((pClassDef.access_flags_ & kAccInterface) != 0));
     fprintf(gOutFile, " abstract=%s\n", quotedBool((pClassDef.access_flags_ & kAccAbstract) != 0));
     fprintf(gOutFile, " static=%s\n", quotedBool((pClassDef.access_flags_ & kAccStatic) != 0));
     fprintf(gOutFile, " final=%s\n", quotedBool((pClassDef.access_flags_ & kAccFinal) != 0));
