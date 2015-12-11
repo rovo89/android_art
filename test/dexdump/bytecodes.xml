@@ -3,6 +3,7 @@
 >
 <class name="SuppressLint"
  extends="java.lang.Object"
+ interface="true"
  abstract="true"
  static="false"
  final="false"
@@ -23,6 +24,7 @@
 </class>
 <class name="TargetApi"
  extends="java.lang.Object"
+ interface="true"
  abstract="true"
  static="false"
  final="false"
@@ -46,6 +48,7 @@
 >
 <class name="BuildConfig"
  extends="java.lang.Object"
+ interface="false"
  abstract="false"
  static="false"
  final="true"
@@ -70,6 +73,7 @@
 </class>
 <class name="R.attr"
  extends="java.lang.Object"
+ interface="false"
  abstract="false"
  static="false"
  final="true"
@@ -85,6 +89,7 @@
 </class>
 <class name="R.drawable"
  extends="java.lang.Object"
+ interface="false"
  abstract="false"
  static="false"
  final="true"
@@ -110,6 +115,7 @@
 </class>
 <class name="R"
  extends="java.lang.Object"
+ interface="false"
  abstract="false"
  static="false"
  final="true"
@@ -125,6 +131,7 @@
 </class>
 <class name="Test"
  extends="android.app.Activity"
+ interface="false"
  abstract="false"
  static="false"
  final="false"

@@ -3,6 +3,7 @@
 >
 <class name="StaticFields"
  extends="java.lang.Object"
+ interface="false"
  abstract="false"
  static="false"
  final="false"
