@@ -51,6 +51,23 @@
   V(MathMaxFloatFloat, kStatic, kNeedsEnvironmentOrCache) \
   V(MathMaxLongLong, kStatic, kNeedsEnvironmentOrCache) \
   V(MathMaxIntInt, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathCos, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathSin, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathAcos, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathAsin, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathAtan, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathAtan2, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathCbrt, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathCosh, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathExp, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathExpm1, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathHypot, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathLog, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathLog10, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathNextAfter, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathSinh, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathTan, kStatic, kNeedsEnvironmentOrCache) \
+  V(MathTanh, kStatic, kNeedsEnvironmentOrCache) \
   V(MathSqrt, kStatic, kNeedsEnvironmentOrCache) \
   V(MathCeil, kStatic, kNeedsEnvironmentOrCache) \
   V(MathFloor, kStatic, kNeedsEnvironmentOrCache) \

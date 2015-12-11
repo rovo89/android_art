@@ -788,6 +788,195 @@ void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   __ Bind(&done);
 }
 
+static void CreateFPToFPCallLocations(ArenaAllocator* arena,
+                                      HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kCall,
+                                                           kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetOut(Location::FpuRegisterLocation(XMM0));
+}
+
+static void GenFPToFPCall(HInvoke* invoke, CodeGeneratorX86* codegen, QuickEntrypointEnum entry) {
+  LocationSummary* locations = invoke->GetLocations();
+  DCHECK(locations->WillCall());
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  X86Assembler* assembler = codegen->GetAssembler();
+
+  // We need some place to pass the parameters.
+  __ subl(ESP, Immediate(16));
+  __ cfi().AdjustCFAOffset(16);
+
+  // Pass the parameters at the bottom of the stack.
+  __ movsd(Address(ESP, 0), XMM0);
+
+  // If we have a second parameter, pass it next.
+  if (invoke->GetNumberOfArguments() == 2) {
+    __ movsd(Address(ESP, 8), XMM1);
+  }
+
+  // Now do the actual call.
+  __ fs()->call(Address::Absolute(GetThreadOffset<kX86WordSize>(entry)));
+
+  // Extract the return value from the FP stack.
+  __ fstpl(Address(ESP, 0));
+  __ movsd(XMM0, Address(ESP, 0));
+
+  // And clean up the stack.
+  __ addl(ESP, Immediate(16));
+  __ cfi().AdjustCFAOffset(-16);
+
+  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathCos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathCos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCos);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathSin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathSin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickSin);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathAcos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathAcos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAcos);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathAsin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathAsin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAsin);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathAtan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathAtan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAtan);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathCbrt(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathCbrt(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCbrt);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathCosh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathCosh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCosh);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathExp(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathExp(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickExp);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathExpm1(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathExpm1(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickExpm1);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathLog(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathLog(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickLog);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathLog10(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathLog10(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickLog10);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathSinh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathSinh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickSinh);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathTan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathTan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickTan);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathTanh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathTanh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickTanh);
+}
+
+static void CreateFPFPToFPCallLocations(ArenaAllocator* arena,
+                                        HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kCall,
+                                                           kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+  locations->SetOut(Location::FpuRegisterLocation(XMM0));
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathAtan2(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathAtan2(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAtan2);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathHypot(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathHypot(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickHypot);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathNextAfter(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathNextAfter(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickNextAfter);
+}
+
 void IntrinsicLocationsBuilderX86::VisitStringCharAt(HInvoke* invoke) {
   // The inputs plus one temp.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
