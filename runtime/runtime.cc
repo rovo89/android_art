@@ -219,6 +219,8 @@ Runtime::~Runtime() {
     UnloadNativeBridge();
   }
 
+  MaybeSaveJitProfilingInfo();
+
   if (dump_gc_performance_on_shutdown_) {
     // This can't be called from the Heap destructor below because it
     // could call RosAlloc::InspectAll() which needs the thread_list

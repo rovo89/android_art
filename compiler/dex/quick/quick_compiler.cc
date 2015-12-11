@@ -780,6 +780,14 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
   PassDriverMEOpts pass_driver(GetPreOptPassManager(), GetPostOptPassManager(), &cu);
   pass_driver.Launch();
 
+  /* For non-leaf methods check if we should skip compilation when the profiler is enabled. */
+  if (cu.compiler_driver->ProfilePresent()
+      && !cu.mir_graph->MethodIsLeaf()
+      && cu.mir_graph->SkipCompilationByName(PrettyMethod(method_idx, dex_file))) {
+    cu.EndTiming();
+    return nullptr;
+  }
+
   if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
     cu.mir_graph->DumpCheckStats();
   }
