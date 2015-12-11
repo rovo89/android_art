@@ -17,6 +17,7 @@
 #include "jni_internal.h"
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
+
 #include <cutils/trace.h>
 #include <dlfcn.h>
 
@@ -31,6 +32,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "nativebridge/native_bridge.h"
+#include "nativeloader/native_loader.h"
 #include "java_vm_ext.h"
 #include "parsed_options.h"
 #include "runtime-inl.h"
@@ -715,6 +717,7 @@ void JavaVMExt::UnloadNativeLibraries() {
 }
 
 bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject class_loader,
+                                  jstring library_path, jstring permitted_path,
                                   std::string* error_msg) {
   error_msg->clear();
 
@@ -774,7 +777,8 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
 
   Locks::mutator_lock_->AssertNotHeld(self);
   const char* path_str = path.empty() ? nullptr : path.c_str();
-  void* handle = dlopen(path_str, RTLD_NOW);
+  void* handle = android::OpenNativeLibrary(env, runtime_->GetTargetSdkVersion(),
+                                            path_str, class_loader, library_path, permitted_path);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
     if (android::NativeBridgeIsSupported(path_str)) {

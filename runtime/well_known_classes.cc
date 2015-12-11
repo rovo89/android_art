@@ -381,7 +381,10 @@ void WellKnownClasses::Init(JNIEnv* env) {
 
 void WellKnownClasses::LateInit(JNIEnv* env) {
   ScopedLocalRef<jclass> java_lang_Runtime(env, env->FindClass("java/lang/Runtime"));
-  java_lang_Runtime_nativeLoad = CacheMethod(env, java_lang_Runtime.get(), true, "nativeLoad", "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;");
+  java_lang_Runtime_nativeLoad =
+      CacheMethod(env, java_lang_Runtime.get(), true, "nativeLoad",
+                  "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;)"
+                      "Ljava/lang/String;");
 }
 
 mirror::Class* WellKnownClasses::ToClass(jclass global_jclass) {
