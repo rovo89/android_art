@@ -2508,11 +2508,12 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
                                   method_access_flags);
         return false;
       }
-      // Abstract methods must be in an abstract class or interface.
+      // Abstract methods should be in an abstract class or interface.
       if ((class_access_flags & (kAccInterface | kAccAbstract)) == 0) {
-        *error_msg = StringPrintf("Method %" PRIu32 " is abstract, but the declaring class "
-                                  "is neither abstract nor an interface", method_index);
-        return false;
+        LOG(WARNING) << "Method " << PrettyMethod(method_index, *dex_file_)
+                     << " is abstract, but the declaring class is neither abstract nor an "
+                     << "interface in dex file "
+                     << dex_file_->GetLocation();
       }
     }
     // Interfaces are special.

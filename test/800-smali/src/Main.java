@@ -141,6 +141,8 @@ public class Main {
                 null));
         testCases.add(new TestCase("b/21869691", "B21869691A", "run", null,
                 new IncompatibleClassChangeError(), null));
+        testCases.add(new TestCase("b/26143249", "B26143249", "run", null,
+                new AbstractMethodError(), null));
     }
 
     public void runTests() {
