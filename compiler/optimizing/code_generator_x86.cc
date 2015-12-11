@@ -5611,16 +5611,15 @@ void InstructionCodeGeneratorX86::GenerateClassInitializationCheck(
 }
 
 void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86(load);
-  codegen_->AddSlowPath(slow_path);
-
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   Register out = out_loc.AsRegister<Register>();
@@ -5651,9 +5650,13 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
     __ movl(out, Address(out, cache_offset));
   }
 
-  __ testl(out, out);
-  __ j(kEqual, slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
+  if (!load->IsInDexCache()) {
+    SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86(load);
+    codegen_->AddSlowPath(slow_path);
+    __ testl(out, out);
+    __ j(kEqual, slow_path->GetEntryLabel());
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 static Address GetExceptionTlsAddress() {
