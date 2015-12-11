@@ -2841,15 +2841,21 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::CONST_STRING: {
+      uint32_t string_index = instruction.VRegB_21c();
+      bool in_dex_cache = compiler_driver_->CanAssumeStringIsPresentInDexCache(
+          *dex_file_, string_index);
       current_block_->AddInstruction(
-          new (arena_) HLoadString(graph_->GetCurrentMethod(), instruction.VRegB_21c(), dex_pc));
+          new (arena_) HLoadString(graph_->GetCurrentMethod(), string_index, dex_pc, in_dex_cache));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction(), dex_pc);
       break;
     }
 
     case Instruction::CONST_STRING_JUMBO: {
+      uint32_t string_index = instruction.VRegB_31c();
+      bool in_dex_cache = compiler_driver_->CanAssumeStringIsPresentInDexCache(
+          *dex_file_, string_index);
       current_block_->AddInstruction(
-          new (arena_) HLoadString(graph_->GetCurrentMethod(), instruction.VRegB_31c(), dex_pc));
+          new (arena_) HLoadString(graph_->GetCurrentMethod(), string_index, dex_pc, in_dex_cache));
       UpdateLocal(instruction.VRegA_31c(), current_block_->GetLastInstruction(), dex_pc);
       break;
     }
