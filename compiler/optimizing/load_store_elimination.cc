@@ -335,14 +335,22 @@ class HeapLocationCollector : public HGraphVisitor {
     return true;
   }
 
-  ReferenceInfo* GetOrCreateReferenceInfo(HInstruction* ref) {
-    ReferenceInfo* ref_info = FindReferenceInfoOf(ref);
+  ReferenceInfo* GetOrCreateReferenceInfo(HInstruction* instruction) {
+    ReferenceInfo* ref_info = FindReferenceInfoOf(instruction);
     if (ref_info == nullptr) {
       size_t pos = ref_info_array_.size();
-      ref_info = new (GetGraph()->GetArena()) ReferenceInfo(ref, pos);
+      ref_info = new (GetGraph()->GetArena()) ReferenceInfo(instruction, pos);
       ref_info_array_.push_back(ref_info);
     }
     return ref_info;
+  }
+
+  void CreateReferenceInfoForReferenceType(HInstruction* instruction) {
+    if (instruction->GetType() != Primitive::kPrimNot) {
+      return;
+    }
+    DCHECK(FindReferenceInfoOf(instruction) == nullptr);
+    GetOrCreateReferenceInfo(instruction);
   }
 
   HeapLocation* GetOrCreateHeapLocation(HInstruction* ref,
@@ -378,6 +386,7 @@ class HeapLocationCollector : public HGraphVisitor {
 
   void VisitInstanceFieldGet(HInstanceFieldGet* instruction) OVERRIDE {
     VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
+    CreateReferenceInfoForReferenceType(instruction);
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* instruction) OVERRIDE {
@@ -387,6 +396,7 @@ class HeapLocationCollector : public HGraphVisitor {
 
   void VisitStaticFieldGet(HStaticFieldGet* instruction) OVERRIDE {
     VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
+    CreateReferenceInfoForReferenceType(instruction);
   }
 
   void VisitStaticFieldSet(HStaticFieldSet* instruction) OVERRIDE {
@@ -399,6 +409,7 @@ class HeapLocationCollector : public HGraphVisitor {
 
   void VisitArrayGet(HArrayGet* instruction) OVERRIDE {
     VisitArrayAccess(instruction->InputAt(0), instruction->InputAt(1));
+    CreateReferenceInfoForReferenceType(instruction);
   }
 
   void VisitArraySet(HArraySet* instruction) OVERRIDE {
@@ -408,7 +419,23 @@ class HeapLocationCollector : public HGraphVisitor {
 
   void VisitNewInstance(HNewInstance* new_instance) OVERRIDE {
     // Any references appearing in the ref_info_array_ so far cannot alias with new_instance.
-    GetOrCreateReferenceInfo(new_instance);
+    CreateReferenceInfoForReferenceType(new_instance);
+  }
+
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitInvokeVirtual(HInvokeVirtual* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitInvokeInterface(HInvokeInterface* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitParameterValue(HParameterValue* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
   }
 
   void VisitDeoptimize(HDeoptimize* instruction ATTRIBUTE_UNUSED) OVERRIDE {
