@@ -2477,92 +2477,6 @@ void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfTrailingZeros(HInvoke* invok
   GenTrailingZeros(assembler, invoke, /* is_long */ true);
 }
 
-static void CreateRotateLocations(ArenaAllocator* arena, HInvoke* invoke) {
-  LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  // The shift count needs to be in CL or a constant.
-  locations->SetInAt(1, Location::ByteRegisterOrConstant(RCX, invoke->InputAt(1)));
-  locations->SetOut(Location::SameAsFirstInput());
-}
-
-static void GenRotate(X86_64Assembler* assembler, HInvoke* invoke, bool is_long, bool is_left) {
-  LocationSummary* locations = invoke->GetLocations();
-  CpuRegister first_reg = locations->InAt(0).AsRegister<CpuRegister>();
-  Location second = locations->InAt(1);
-
-  if (is_long) {
-    if (second.IsRegister()) {
-      CpuRegister second_reg = second.AsRegister<CpuRegister>();
-      if (is_left) {
-        __ rolq(first_reg, second_reg);
-      } else {
-        __ rorq(first_reg, second_reg);
-      }
-    } else {
-      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue);
-      if (is_left) {
-        __ rolq(first_reg, imm);
-      } else {
-        __ rorq(first_reg, imm);
-      }
-    }
-  } else {
-    if (second.IsRegister()) {
-      CpuRegister second_reg = second.AsRegister<CpuRegister>();
-      if (is_left) {
-        __ roll(first_reg, second_reg);
-      } else {
-        __ rorl(first_reg, second_reg);
-      }
-    } else {
-      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
-      if (is_left) {
-        __ roll(first_reg, imm);
-      } else {
-        __ rorl(first_reg, imm);
-      }
-    }
-  }
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitIntegerRotateLeft(HInvoke* invoke) {
-  CreateRotateLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitIntegerRotateLeft(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenRotate(assembler, invoke, /* is_long */ false, /* is_left */ true);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitIntegerRotateRight(HInvoke* invoke) {
-  CreateRotateLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitIntegerRotateRight(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenRotate(assembler, invoke, /* is_long */ false, /* is_left */ false);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitLongRotateLeft(HInvoke* invoke) {
-  CreateRotateLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitLongRotateLeft(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenRotate(assembler, invoke, /* is_long */ true, /* is_left */ true);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitLongRotateRight(HInvoke* invoke) {
-  CreateRotateLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitLongRotateRight(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenRotate(assembler, invoke, /* is_long */ true, /* is_left */ false);
-}
-
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
@@ -2572,6 +2486,10 @@ void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 }
 
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
+UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
+UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 
 #undef UNIMPLEMENTED_INTRINSIC
 
