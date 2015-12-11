@@ -1430,8 +1430,4 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
                                  method_lowering_infos_.data(), count);
 }
 
-bool MIRGraph::SkipCompilationByName(const std::string& methodname) {
-  return cu_->compiler_driver->SkipCompilation(methodname);
-}
-
 }  // namespace art
