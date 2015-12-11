@@ -189,6 +189,42 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       return ((method.d.data & kIntrinsicFlagMin) == 0) ?
           Intrinsics::kMathMaxLongLong : Intrinsics::kMathMinLongLong;
 
+    // More math builtins.
+    case kIntrinsicCos:
+      return Intrinsics::kMathCos;
+    case kIntrinsicSin:
+      return Intrinsics::kMathSin;
+    case kIntrinsicAcos:
+      return Intrinsics::kMathAcos;
+    case kIntrinsicAsin:
+      return Intrinsics::kMathAsin;
+    case kIntrinsicAtan:
+      return Intrinsics::kMathAtan;
+    case kIntrinsicAtan2:
+      return Intrinsics::kMathAtan2;
+    case kIntrinsicCbrt:
+      return Intrinsics::kMathCbrt;
+    case kIntrinsicCosh:
+      return Intrinsics::kMathCosh;
+    case kIntrinsicExp:
+      return Intrinsics::kMathExp;
+    case kIntrinsicExpm1:
+      return Intrinsics::kMathExpm1;
+    case kIntrinsicHypot:
+      return Intrinsics::kMathHypot;
+    case kIntrinsicLog:
+      return Intrinsics::kMathLog;
+    case kIntrinsicLog10:
+      return Intrinsics::kMathLog10;
+    case kIntrinsicNextAfter:
+      return Intrinsics::kMathNextAfter;
+    case kIntrinsicSinh:
+      return Intrinsics::kMathSinh;
+    case kIntrinsicTan:
+      return Intrinsics::kMathTan;
+    case kIntrinsicTanh:
+      return Intrinsics::kMathTanh;
+
     // Misc math.
     case kIntrinsicSqrt:
       return Intrinsics::kMathSqrt;

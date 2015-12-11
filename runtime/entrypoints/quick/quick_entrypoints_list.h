@@ -86,6 +86,23 @@
   V(CmpgFloat, int32_t, float, float) \
   V(CmplDouble, int32_t, double, double) \
   V(CmplFloat, int32_t, float, float) \
+  V(Cos, double, double) \
+  V(Sin, double, double) \
+  V(Acos, double, double) \
+  V(Asin, double, double) \
+  V(Atan, double, double) \
+  V(Atan2, double, double, double) \
+  V(Cbrt, double, double) \
+  V(Cosh, double, double) \
+  V(Exp, double, double) \
+  V(Expm1, double, double) \
+  V(Hypot, double, double, double) \
+  V(Log, double, double) \
+  V(Log10, double, double) \
+  V(NextAfter, double, double, double) \
+  V(Sinh, double, double) \
+  V(Tan, double, double) \
+  V(Tanh, double, double) \
   V(Fmod, double, double, double) \
   V(L2d, double, int64_t) \
   V(Fmodf, float, float, float) \
