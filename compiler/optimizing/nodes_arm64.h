@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_ARM64_H_
 #define ART_COMPILER_OPTIMIZING_NODES_ARM64_H_
 
+#include "nodes.h"
+
 namespace art {
 
 class HArm64DataProcWithShifterOp : public HExpression<2> {

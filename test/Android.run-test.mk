@@ -454,6 +454,7 @@ TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
     441-checker-inliner \
     510-checker-try-catch \
     536-checker-intrinsic-optimization \
+    541-checker-instruction-simplifier-rotate \
 
 ifeq (mips,$(TARGET_ARCH))
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
@@ -465,6 +466,21 @@ ifeq (mips,$(TARGET_ARCH))
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS :=
+
+# Known broken tests for the mips64 optimizing compiler backend.
+TEST_ART_BROKEN_OPTIMIZING_MIPS64_RUN_TESTS := \
+    541-checker-instruction-simplifier-rotate \
+
+ifeq (mips64,$(TARGET_ARCH))
+  ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
+        optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_OPTIMIZING_MIPS64_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
+endif
+
+TEST_ART_BROKEN_OPTIMIZING_MIPS64_RUN_TESTS :=
 
 # Tests that should fail when the optimizing compiler compiles them non-debuggable.
 TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS := \

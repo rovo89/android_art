@@ -202,6 +202,11 @@ static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
     return true;
   }
 
+  // Our code generator ensures shift distances are within an encodable range.
+  if (instr->IsRor()) {
+    return true;
+  }
+
   int64_t value = CodeGenerator::GetInt64ValueOf(constant);
 
   if (instr->IsAnd() || instr->IsOr() || instr->IsXor()) {

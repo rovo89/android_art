@@ -850,7 +850,7 @@ void SSAChecker::VisitCondition(HCondition* op) {
 
 void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
   VisitInstruction(op);
-  if (op->IsUShr() || op->IsShr() || op->IsShl()) {
+  if (op->IsUShr() || op->IsShr() || op->IsShl() || op->IsRor()) {
     if (PrimitiveKind(op->InputAt(1)->GetType()) != Primitive::kPrimInt) {
       AddError(StringPrintf(
           "Shift operation %s %d has a non-int kind second input: "
