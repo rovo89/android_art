@@ -3,6 +3,7 @@
 >
 <class name="Checkers"
  extends="android.app.Activity"
+ interface="false"
  abstract="false"
  static="false"
  final="false"
@@ -112,6 +113,7 @@
 </class>
 <class name="CheckersView"
  extends="android.view.View"
+ interface="false"
  abstract="false"
  static="false"
  final="false"
@@ -331,6 +333,7 @@
 </class>
 <class name="a"
  extends="java.lang.Thread"
+ interface="false"
  abstract="false"
  static="false"
  final="true"
@@ -500,6 +503,7 @@
 </class>
 <class name="g"
  extends="java.lang.Object"
+ interface="false"
  abstract="false"
  static="false"
  final="true"
