@@ -595,6 +595,7 @@ bool Runtime::Start() {
       PreInitializeNativeBridge(".");
     }
     InitNonZygoteOrPostFork(self->GetJniEnv(),
+                            /* is_system_server */ false,
                             NativeBridgeAction::kInitialize,
                             GetInstructionSetString(kRuntimeISA));
   }
@@ -684,7 +685,8 @@ bool Runtime::InitZygote() {
 #endif
 }
 
-void Runtime::InitNonZygoteOrPostFork(JNIEnv* env, NativeBridgeAction action, const char* isa) {
+void Runtime::InitNonZygoteOrPostFork(
+    JNIEnv* env, bool is_system_server, NativeBridgeAction action, const char* isa) {
   is_zygote_ = false;
 
   if (is_native_bridge_loaded_) {
@@ -706,7 +708,7 @@ void Runtime::InitNonZygoteOrPostFork(JNIEnv* env, NativeBridgeAction action, co
   // before fork aren't attributed to an app.
   heap_->ResetGcPerformanceInfo();
 
-  if (!safe_mode_ && jit_options_->UseJIT() && jit_.get() == nullptr) {
+  if (!is_system_server && !safe_mode_ && jit_options_->UseJIT() && jit_.get() == nullptr) {
     // Note that when running ART standalone (not zygote, nor zygote fork),
     // the jit may have already been created.
     CreateJit();

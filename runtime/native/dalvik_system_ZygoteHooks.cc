@@ -129,7 +129,11 @@ static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
   return reinterpret_cast<jlong>(ThreadForEnv(env));
 }
 
-static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, jint debug_flags,
+static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
+                                            jclass,
+                                            jlong token,
+                                            jint debug_flags,
+                                            jboolean is_system_server,
                                             jstring instruction_set) {
   Thread* thread = reinterpret_cast<Thread*>(token);
   // Our system thread ID, etc, has changed so reset Thread state.
@@ -174,22 +178,24 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
     }
   }
 
-  if (instruction_set != nullptr) {
+  if (instruction_set != nullptr && !is_system_server) {
     ScopedUtfChars isa_string(env, instruction_set);
     InstructionSet isa = GetInstructionSetFromString(isa_string.c_str());
     Runtime::NativeBridgeAction action = Runtime::NativeBridgeAction::kUnload;
     if (isa != kNone && isa != kRuntimeISA) {
       action = Runtime::NativeBridgeAction::kInitialize;
     }
-    Runtime::Current()->InitNonZygoteOrPostFork(env, action, isa_string.c_str());
+    Runtime::Current()->InitNonZygoteOrPostFork(
+        env, is_system_server, action, isa_string.c_str());
   } else {
-    Runtime::Current()->InitNonZygoteOrPostFork(env, Runtime::NativeBridgeAction::kUnload, nullptr);
+    Runtime::Current()->InitNonZygoteOrPostFork(
+        env, is_system_server, Runtime::NativeBridgeAction::kUnload, nullptr);
   }
 }
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(ZygoteHooks, nativePreFork, "()J"),
-  NATIVE_METHOD(ZygoteHooks, nativePostForkChild, "(JILjava/lang/String;)V"),
+  NATIVE_METHOD(ZygoteHooks, nativePostForkChild, "(JIZLjava/lang/String;)V"),
 };
 
 void register_dalvik_system_ZygoteHooks(JNIEnv* env) {
