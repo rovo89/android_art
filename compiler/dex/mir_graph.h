@@ -564,6 +564,11 @@ class MIRGraph {
   bool SkipCompilation(std::string* skip_message);
 
   /*
+   * Should we skip the compilation of this method based on its name?
+   */
+  bool SkipCompilationByName(const std::string& methodname);
+
+  /*
    * Parse dex method and add MIR at current insert point.  Returns id (which is
    * actually the index of the method in the m_units_ array).
    */
