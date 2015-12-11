@@ -170,6 +170,9 @@ class LocationsBuilderARM : public HGraphVisitor {
  private:
   void HandleInvoke(HInvoke* invoke);
   void HandleBitwiseOperation(HBinaryOperation* operation, Opcode opcode);
+  void HandleIntegerRotate(LocationSummary* locations);
+  void HandleLongRotate(LocationSummary* locations);
+  void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
@@ -213,6 +216,9 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void GenerateOrrConst(Register out, Register first, uint32_t value);
   void GenerateEorConst(Register out, Register first, uint32_t value);
   void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleIntegerRotate(LocationSummary* locations);
+  void HandleLongRotate(LocationSummary* locations);
+  void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateWideAtomicStore(Register addr, uint32_t offset,

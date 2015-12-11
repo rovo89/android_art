@@ -39,6 +39,12 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
     }
   }
 
+  bool ReplaceRotateWithRor(HBinaryOperation* op, HUShr* ushr, HShl* shl);
+  bool TryReplaceWithRotate(HBinaryOperation* instruction);
+  bool TryReplaceWithRotateConstantPattern(HBinaryOperation* op, HUShr* ushr, HShl* shl);
+  bool TryReplaceWithRotateRegisterNegPattern(HBinaryOperation* op, HUShr* ushr, HShl* shl);
+  bool TryReplaceWithRotateRegisterSubPattern(HBinaryOperation* op, HUShr* ushr, HShl* shl);
+
   bool TryMoveNegOnInputsAfterBinop(HBinaryOperation* binop);
   void VisitShift(HBinaryOperation* shift);
 
@@ -77,6 +83,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
 
   bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
+  void SimplifyRotate(HInvoke* invoke, bool is_left);
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
 
@@ -171,6 +178,161 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
       instruction->GetBlock()->RemoveInstruction(instruction);
     }
   }
+}
+
+static bool IsSubRegBitsMinusOther(HSub* sub, size_t reg_bits, HInstruction* other) {
+  return (sub->GetRight() == other &&
+          sub->GetLeft()->IsConstant() &&
+          (Int64FromConstant(sub->GetLeft()->AsConstant()) & (reg_bits - 1)) == 0);
+}
+
+bool InstructionSimplifierVisitor::ReplaceRotateWithRor(HBinaryOperation* op,
+                                                        HUShr* ushr,
+                                                        HShl* shl) {
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
+  HRor* ror = new (GetGraph()->GetArena()) HRor(ushr->GetType(),
+                                                ushr->GetLeft(),
+                                                ushr->GetRight());
+  op->GetBlock()->ReplaceAndRemoveInstructionWith(op, ror);
+  if (!ushr->HasUses()) {
+    ushr->GetBlock()->RemoveInstruction(ushr);
+  }
+  if (!ushr->GetRight()->HasUses()) {
+    ushr->GetRight()->GetBlock()->RemoveInstruction(ushr->GetRight());
+  }
+  if (!shl->HasUses()) {
+    shl->GetBlock()->RemoveInstruction(shl);
+  }
+  if (!shl->GetRight()->HasUses()) {
+    shl->GetRight()->GetBlock()->RemoveInstruction(shl->GetRight());
+  }
+  return true;
+}
+
+// Try to replace a binary operation flanked by one UShr and one Shl with a bitfield rotation.
+bool InstructionSimplifierVisitor::TryReplaceWithRotate(HBinaryOperation* op) {
+  // This simplification is currently supported on ARM and ARM64.
+  // TODO: Implement it for MIPS/64.
+  const InstructionSet instruction_set = GetGraph()->GetInstructionSet();
+  switch (instruction_set) {
+    case kArm:
+    case kArm64:
+    case kThumb2:
+    case kX86:
+    case kX86_64:
+      break;
+    default:
+      return false;
+  }
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
+  HInstruction* left = op->GetLeft();
+  HInstruction* right = op->GetRight();
+  // If we have an UShr and a Shl (in either order).
+  if ((left->IsUShr() && right->IsShl()) || (left->IsShl() && right->IsUShr())) {
+    HUShr* ushr = left->IsUShr() ? left->AsUShr() : right->AsUShr();
+    HShl* shl = left->IsShl() ? left->AsShl() : right->AsShl();
+    DCHECK(Primitive::IsIntOrLongType(ushr->GetType()));
+    if (ushr->GetType() == shl->GetType() &&
+        ushr->GetLeft() == shl->GetLeft()) {
+      if (ushr->GetRight()->IsConstant() && shl->GetRight()->IsConstant()) {
+        // Shift distances are both constant, try replacing with Ror if they
+        // add up to the register size.
+        return TryReplaceWithRotateConstantPattern(op, ushr, shl);
+      } else if (ushr->GetRight()->IsSub() || shl->GetRight()->IsSub()) {
+        // Shift distances are potentially of the form x and (reg_size - x).
+        return TryReplaceWithRotateRegisterSubPattern(op, ushr, shl);
+      } else if (ushr->GetRight()->IsNeg() || shl->GetRight()->IsNeg()) {
+        // Shift distances are potentially of the form d and -d.
+        return TryReplaceWithRotateRegisterNegPattern(op, ushr, shl);
+      }
+    }
+  }
+  return false;
+}
+
+// Try replacing code looking like (x >>> #rdist OP x << #ldist):
+//    UShr dst, x,   #rdist
+//    Shl  tmp, x,   #ldist
+//    OP   dst, dst, tmp
+// or like (x >>> #rdist OP x << #-ldist):
+//    UShr dst, x,   #rdist
+//    Shl  tmp, x,   #-ldist
+//    OP   dst, dst, tmp
+// with
+//    Ror  dst, x,   #rdist
+bool InstructionSimplifierVisitor::TryReplaceWithRotateConstantPattern(HBinaryOperation* op,
+                                                                       HUShr* ushr,
+                                                                       HShl* shl) {
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
+  size_t reg_bits = Primitive::ComponentSize(ushr->GetType()) * kBitsPerByte;
+  size_t rdist = Int64FromConstant(ushr->GetRight()->AsConstant());
+  size_t ldist = Int64FromConstant(shl->GetRight()->AsConstant());
+  if (((ldist + rdist) & (reg_bits - 1)) == 0) {
+    ReplaceRotateWithRor(op, ushr, shl);
+    return true;
+  }
+  return false;
+}
+
+// Replace code looking like (x >>> -d OP x << d):
+//    Neg  neg, d
+//    UShr dst, x,   neg
+//    Shl  tmp, x,   d
+//    OP   dst, dst, tmp
+// with
+//    Neg  neg, d
+//    Ror  dst, x,   neg
+// *** OR ***
+// Replace code looking like (x >>> d OP x << -d):
+//    UShr dst, x,   d
+//    Neg  neg, d
+//    Shl  tmp, x,   neg
+//    OP   dst, dst, tmp
+// with
+//    Ror  dst, x,   d
+bool InstructionSimplifierVisitor::TryReplaceWithRotateRegisterNegPattern(HBinaryOperation* op,
+                                                                          HUShr* ushr,
+                                                                          HShl* shl) {
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
+  DCHECK(ushr->GetRight()->IsNeg() || shl->GetRight()->IsNeg());
+  bool neg_is_left = shl->GetRight()->IsNeg();
+  HNeg* neg = neg_is_left ? shl->GetRight()->AsNeg() : ushr->GetRight()->AsNeg();
+  // And the shift distance being negated is the distance being shifted the other way.
+  if (neg->InputAt(0) == (neg_is_left ? ushr->GetRight() : shl->GetRight())) {
+    ReplaceRotateWithRor(op, ushr, shl);
+  }
+  return false;
+}
+
+// Try replacing code looking like (x >>> d OP x << (#bits - d)):
+//    UShr dst, x,     d
+//    Sub  ld,  #bits, d
+//    Shl  tmp, x,     ld
+//    OP   dst, dst,   tmp
+// with
+//    Ror  dst, x,     d
+// *** OR ***
+// Replace code looking like (x >>> (#bits - d) OP x << d):
+//    Sub  rd,  #bits, d
+//    UShr dst, x,     rd
+//    Shl  tmp, x,     d
+//    OP   dst, dst,   tmp
+// with
+//    Neg  neg, d
+//    Ror  dst, x,     neg
+bool InstructionSimplifierVisitor::TryReplaceWithRotateRegisterSubPattern(HBinaryOperation* op,
+                                                                          HUShr* ushr,
+                                                                          HShl* shl) {
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
+  DCHECK(ushr->GetRight()->IsSub() || shl->GetRight()->IsSub());
+  size_t reg_bits = Primitive::ComponentSize(ushr->GetType()) * kBitsPerByte;
+  HInstruction* shl_shift = shl->GetRight();
+  HInstruction* ushr_shift = ushr->GetRight();
+  if ((shl_shift->IsSub() && IsSubRegBitsMinusOther(shl_shift->AsSub(), reg_bits, ushr_shift)) ||
+      (ushr_shift->IsSub() && IsSubRegBitsMinusOther(ushr_shift->AsSub(), reg_bits, shl_shift))) {
+    return ReplaceRotateWithRor(op, ushr, shl);
+  }
+  return false;
 }
 
 void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
@@ -530,7 +692,10 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, sub);
     RecordSimplification();
     neg->GetBlock()->RemoveInstruction(neg);
+    return;
   }
+
+  TryReplaceWithRotate(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
@@ -906,7 +1071,10 @@ void InstructionSimplifierVisitor::VisitOr(HOr* instruction) {
     //    src
     instruction->ReplaceWith(instruction->GetLeft());
     instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
   }
+
+  TryReplaceWithRotate(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitShl(HShl* instruction) {
@@ -1027,6 +1195,8 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
     RecordSimplification();
     return;
   }
+
+  TryReplaceWithRotate(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitFakeString(HFakeString* instruction) {
@@ -1091,6 +1261,42 @@ void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
     ReferenceTypeInfo argument_rti = argument->GetReferenceTypeInfo();
     if (argument_rti.IsValid() && argument_rti.IsStringClass()) {
       optimizations.SetArgumentIsString();
+    }
+  }
+}
+
+void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke, bool is_left) {
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  DCHECK_EQ(invoke->GetOriginalInvokeType(), InvokeType::kStatic);
+  // This simplification is currently supported on ARM and ARM64.
+  // TODO: Implement it for MIPS/64.
+  const InstructionSet instruction_set = GetGraph()->GetInstructionSet();
+  switch (instruction_set) {
+    case kArm:
+    case kArm64:
+    case kThumb2:
+    case kX86:
+    case kX86_64:
+      break;
+    default:
+      return;
+  }
+  HInstruction* value = invoke->InputAt(0);
+  HInstruction* distance = invoke->InputAt(1);
+  // Replace the invoke with an HRor.
+  if (is_left) {
+    distance = new (GetGraph()->GetArena()) HNeg(distance->GetType(), distance);
+    invoke->GetBlock()->InsertInstructionBefore(distance, invoke);
+  }
+  HRor* ror = new (GetGraph()->GetArena()) HRor(value->GetType(), value, distance);
+  invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, ror);
+  // Remove ClinitCheck and LoadClass, if possible.
+  HInstruction* clinit = invoke->InputAt(invoke->InputCount() - 1);
+  if (clinit->IsClinitCheck() && !clinit->HasUses()) {
+    clinit->GetBlock()->RemoveInstruction(clinit);
+    HInstruction* ldclass = clinit->InputAt(0);
+    if (ldclass->IsLoadClass() && !ldclass->HasUses()) {
+      ldclass->GetBlock()->RemoveInstruction(ldclass);
     }
   }
 }
@@ -1165,6 +1371,12 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     SimplifyStringEquals(instruction);
   } else if (instruction->GetIntrinsic() == Intrinsics::kSystemArrayCopy) {
     SimplifySystemArrayCopy(instruction);
+  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateRight ||
+             instruction->GetIntrinsic() == Intrinsics::kLongRotateRight) {
+    SimplifyRotate(instruction, false);
+  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateLeft ||
+             instruction->GetIntrinsic() == Intrinsics::kLongRotateLeft) {
+    SimplifyRotate(instruction, true);
   }
 }
 
