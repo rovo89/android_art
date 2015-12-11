@@ -3105,16 +3105,15 @@ void InstructionCodeGeneratorMIPS64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_U
 }
 
 void LocationsBuilderMIPS64::VisitLoadString(HLoadString* load) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) {
-  SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS64(load);
-  codegen_->AddSlowPath(slow_path);
-
   LocationSummary* locations = load->GetLocations();
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
   GpuRegister current_method = locations->InAt(0).AsRegister<GpuRegister>();
@@ -3123,8 +3122,13 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) {
   __ LoadFromOffset(kLoadDoubleword, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
   __ LoadFromOffset(kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
   // TODO: We will need a read barrier here.
-  __ Beqzc(out, slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
+
+  if (!load->IsInDexCache()) {
+    SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS64(load);
+    codegen_->AddSlowPath(slow_path);
+    __ Beqzc(out, slow_path->GetEntryLabel());
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void LocationsBuilderMIPS64::VisitLocal(HLocal* local) {

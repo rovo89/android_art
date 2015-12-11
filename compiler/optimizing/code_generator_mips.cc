@@ -3413,24 +3413,28 @@ void InstructionCodeGeneratorMIPS::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNU
 }
 
 void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
-  SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
-  codegen_->AddSlowPath(slow_path);
-
   LocationSummary* locations = load->GetLocations();
   Register out = locations->Out().AsRegister<Register>();
   Register current_method = locations->InAt(0).AsRegister<Register>();
   __ LoadFromOffset(kLoadWord, out, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
   __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
   __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
-  __ Beqz(out, slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
+
+  if (!load->IsInDexCache()) {
+    SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
+    codegen_->AddSlowPath(slow_path);
+    __ Beqz(out, slow_path->GetEntryLabel());
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void LocationsBuilderMIPS::VisitLocal(HLocal* local) {

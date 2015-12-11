@@ -4925,9 +4925,13 @@ class HLoadClass : public HExpression<1> {
 
 class HLoadString : public HExpression<1> {
  public:
-  HLoadString(HCurrentMethod* current_method, uint32_t string_index, uint32_t dex_pc)
+  HLoadString(HCurrentMethod* current_method,
+              uint32_t string_index,
+              uint32_t dex_pc,
+              bool is_in_dex_cache)
       : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls(), dex_pc),
-        string_index_(string_index) {
+        string_index_(string_index),
+        is_in_dex_cache_(is_in_dex_cache) {
     SetRawInputAt(0, current_method);
   }
 
@@ -4945,6 +4949,7 @@ class HLoadString : public HExpression<1> {
   bool NeedsEnvironment() const OVERRIDE { return false; }
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE { return true; }
   bool CanBeNull() const OVERRIDE { return false; }
+  bool IsInDexCache() const { return is_in_dex_cache_; }
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
     return SideEffects::CanTriggerGC();
@@ -4954,6 +4959,7 @@ class HLoadString : public HExpression<1> {
 
  private:
   const uint32_t string_index_;
+  const bool is_in_dex_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoadString);
 };
