@@ -1324,8 +1324,8 @@ class Thread {
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
       stacked_shadow_frame_record(nullptr), deoptimization_context_stack(nullptr),
       frame_id_to_shadow_frame(nullptr), name(nullptr), pthread_self(0),
-      last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
-      thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
+      last_no_thread_suspension_cause(nullptr), thread_local_objects(0),
+      thread_local_start(nullptr), thread_local_pos(nullptr), thread_local_end(nullptr),
       mterp_current_ibase(nullptr), mterp_default_ibase(nullptr), mterp_alt_ibase(nullptr),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
       nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr),
@@ -1440,10 +1440,12 @@ class Thread {
     QuickEntryPoints quick_entrypoints;
 
     // Thread-local allocation pointer.
+    size_t thread_local_objects;
     uint8_t* thread_local_start;
+    // thread_local_pos and thread_local_end must be consecutive for ldrd and are 8 byte aligned for
+    // potentially better performance.
     uint8_t* thread_local_pos;
     uint8_t* thread_local_end;
-    size_t thread_local_objects;
 
     // Mterp jump table bases.
     void* mterp_current_ibase;
