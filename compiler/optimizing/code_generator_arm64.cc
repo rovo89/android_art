@@ -1791,6 +1791,17 @@ void InstructionCodeGeneratorARM64::HandleBinaryOp(HBinaryOperation* instr) {
         __ Orr(dst, lhs, rhs);
       } else if (instr->IsSub()) {
         __ Sub(dst, lhs, rhs);
+      } else if (instr->IsRor()) {
+        if (rhs.IsImmediate()) {
+          uint32_t shift = rhs.immediate() & (lhs.SizeInBits() - 1);
+          __ Ror(dst, lhs, shift);
+        } else {
+          // Ensure shift distance is in the same size register as the result. If
+          // we are rotating a long and the shift comes in a w register originally,
+          // we don't need to sxtw for use as an x since the shift distances are
+          // all & reg_bits - 1.
+          __ Ror(dst, lhs, RegisterFrom(instr->GetLocations()->InAt(1), type));
+        }
       } else {
         DCHECK(instr->IsXor());
         __ Eor(dst, lhs, rhs);
@@ -4256,6 +4267,14 @@ void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitReturnVoid(HReturnVoid* instruction ATTRIBUTE_UNUSED) {
   codegen_->GenerateFrameExit();
+}
+
+void LocationsBuilderARM64::VisitRor(HRor* ror) {
+  HandleBinaryOp(ror);
+}
+
+void InstructionCodeGeneratorARM64::VisitRor(HRor* ror) {
+  HandleBinaryOp(ror);
 }
 
 void LocationsBuilderARM64::VisitShl(HShl* shl) {

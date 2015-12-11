@@ -3234,6 +3234,146 @@ void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) 
   }
 }
 
+void InstructionCodeGeneratorARM::HandleIntegerRotate(LocationSummary* locations) {
+  Register in = locations->InAt(0).AsRegister<Register>();
+  Location rhs = locations->InAt(1);
+  Register out = locations->Out().AsRegister<Register>();
+
+  if (rhs.IsConstant()) {
+    // Arm32 and Thumb2 assemblers require a rotation on the interval [1,31],
+    // so map all rotations to a +ve. equivalent in that range.
+    // (e.g. left *or* right by -2 bits == 30 bits in the same direction.)
+    uint32_t rot = CodeGenerator::GetInt32ValueOf(rhs.GetConstant()) & 0x1F;
+    if (rot) {
+      // Rotate, mapping left rotations to right equivalents if necessary.
+      // (e.g. left by 2 bits == right by 30.)
+      __ Ror(out, in, rot);
+    } else if (out != in) {
+      __ Mov(out, in);
+    }
+  } else {
+    __ Ror(out, in, rhs.AsRegister<Register>());
+  }
+}
+
+// Gain some speed by mapping all Long rotates onto equivalent pairs of Integer
+// rotates by swapping input regs (effectively rotating by the first 32-bits of
+// a larger rotation) or flipping direction (thus treating larger right/left
+// rotations as sub-word sized rotations in the other direction) as appropriate.
+void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
+  Register in_reg_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+  Register in_reg_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Location rhs = locations->InAt(1);
+  Register out_reg_lo = locations->Out().AsRegisterPairLow<Register>();
+  Register out_reg_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+  if (rhs.IsConstant()) {
+    uint64_t rot = CodeGenerator::GetInt64ValueOf(rhs.GetConstant());
+    // Map all rotations to +ve. equivalents on the interval [0,63].
+    rot &= kMaxLongShiftValue;
+    // For rotates over a word in size, 'pre-rotate' by 32-bits to keep rotate
+    // logic below to a simple pair of binary orr.
+    // (e.g. 34 bits == in_reg swap + 2 bits right.)
+    if (rot >= kArmBitsPerWord) {
+      rot -= kArmBitsPerWord;
+      std::swap(in_reg_hi, in_reg_lo);
+    }
+    // Rotate, or mov to out for zero or word size rotations.
+    if (rot != 0u) {
+      __ Lsr(out_reg_hi, in_reg_hi, rot);
+      __ orr(out_reg_hi, out_reg_hi, ShifterOperand(in_reg_lo, arm::LSL, kArmBitsPerWord - rot));
+      __ Lsr(out_reg_lo, in_reg_lo, rot);
+      __ orr(out_reg_lo, out_reg_lo, ShifterOperand(in_reg_hi, arm::LSL, kArmBitsPerWord - rot));
+    } else {
+      __ Mov(out_reg_lo, in_reg_lo);
+      __ Mov(out_reg_hi, in_reg_hi);
+    }
+  } else {
+    Register shift_right = locations->GetTemp(0).AsRegister<Register>();
+    Register shift_left = locations->GetTemp(1).AsRegister<Register>();
+    Label end;
+    Label shift_by_32_plus_shift_right;
+
+    __ and_(shift_right, rhs.AsRegister<Register>(), ShifterOperand(0x1F));
+    __ Lsrs(shift_left, rhs.AsRegister<Register>(), 6);
+    __ rsb(shift_left, shift_right, ShifterOperand(kArmBitsPerWord), AL, kCcKeep);
+    __ b(&shift_by_32_plus_shift_right, CC);
+
+    // out_reg_hi = (reg_hi << shift_left) | (reg_lo >> shift_right).
+    // out_reg_lo = (reg_lo << shift_left) | (reg_hi >> shift_right).
+    __ Lsl(out_reg_hi, in_reg_hi, shift_left);
+    __ Lsr(out_reg_lo, in_reg_lo, shift_right);
+    __ add(out_reg_hi, out_reg_hi, ShifterOperand(out_reg_lo));
+    __ Lsl(out_reg_lo, in_reg_lo, shift_left);
+    __ Lsr(shift_left, in_reg_hi, shift_right);
+    __ add(out_reg_lo, out_reg_lo, ShifterOperand(shift_left));
+    __ b(&end);
+
+    __ Bind(&shift_by_32_plus_shift_right);  // Shift by 32+shift_right.
+    // out_reg_hi = (reg_hi >> shift_right) | (reg_lo << shift_left).
+    // out_reg_lo = (reg_lo >> shift_right) | (reg_hi << shift_left).
+    __ Lsr(out_reg_hi, in_reg_hi, shift_right);
+    __ Lsl(out_reg_lo, in_reg_lo, shift_left);
+    __ add(out_reg_hi, out_reg_hi, ShifterOperand(out_reg_lo));
+    __ Lsr(out_reg_lo, in_reg_lo, shift_right);
+    __ Lsl(shift_right, in_reg_hi, shift_left);
+    __ add(out_reg_lo, out_reg_lo, ShifterOperand(shift_right));
+
+    __ Bind(&end);
+  }
+}
+void LocationsBuilderARM::HandleRotate(HRor* ror) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(ror, LocationSummary::kNoCall);
+  switch (ror->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(ror->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      if (ror->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::ConstantLocation(ror->InputAt(1)->AsConstant()));
+      } else {
+        locations->SetInAt(1, Location::RequiresRegister());
+        locations->AddTemp(Location::RequiresRegister());
+        locations->AddTemp(Location::RequiresRegister());
+      }
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << ror->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARM::HandleRotate(HRor* ror) {
+  LocationSummary* locations = ror->GetLocations();
+  Primitive::Type type = ror->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt: {
+      HandleIntegerRotate(locations);
+      break;
+    }
+    case Primitive::kPrimLong: {
+      HandleLongRotate(locations);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << type;
+  }
+}
+
+void LocationsBuilderARM::VisitRor(HRor* op) {
+    HandleRotate(op);
+}
+
+void InstructionCodeGeneratorARM::VisitRor(HRor* op) {
+    HandleRotate(op);
+}
+
 void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
   DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
 

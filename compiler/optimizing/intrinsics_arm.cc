@@ -240,178 +240,6 @@ void IntrinsicCodeGeneratorARM::VisitLongNumberOfTrailingZeros(HInvoke* invoke) 
   GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
 }
 
-static void GenIntegerRotate(LocationSummary* locations,
-                             ArmAssembler* assembler,
-                             bool is_left) {
-  Register in = locations->InAt(0).AsRegister<Register>();
-  Location rhs = locations->InAt(1);
-  Register out = locations->Out().AsRegister<Register>();
-
-  if (rhs.IsConstant()) {
-    // Arm32 and Thumb2 assemblers require a rotation on the interval [1,31],
-    // so map all rotations to a +ve. equivalent in that range.
-    // (e.g. left *or* right by -2 bits == 30 bits in the same direction.)
-    uint32_t rot = rhs.GetConstant()->AsIntConstant()->GetValue() & 0x1F;
-    if (rot) {
-      // Rotate, mapping left rotations to right equivalents if necessary.
-      // (e.g. left by 2 bits == right by 30.)
-      __ Ror(out, in, is_left ? (0x20 - rot) : rot);
-    } else if (out != in) {
-      __ Mov(out, in);
-    }
-  } else {
-    if (is_left) {
-      __ rsb(out, rhs.AsRegister<Register>(), ShifterOperand(0));
-      __ Ror(out, in, out);
-    } else {
-      __ Ror(out, in, rhs.AsRegister<Register>());
-    }
-  }
-}
-
-// Gain some speed by mapping all Long rotates onto equivalent pairs of Integer
-// rotates by swapping input regs (effectively rotating by the first 32-bits of
-// a larger rotation) or flipping direction (thus treating larger right/left
-// rotations as sub-word sized rotations in the other direction) as appropriate.
-static void GenLongRotate(LocationSummary* locations,
-                          ArmAssembler* assembler,
-                          bool is_left) {
-  Register in_reg_lo = locations->InAt(0).AsRegisterPairLow<Register>();
-  Register in_reg_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
-  Location rhs = locations->InAt(1);
-  Register out_reg_lo = locations->Out().AsRegisterPairLow<Register>();
-  Register out_reg_hi = locations->Out().AsRegisterPairHigh<Register>();
-
-  if (rhs.IsConstant()) {
-    uint32_t rot = rhs.GetConstant()->AsIntConstant()->GetValue();
-    // Map all left rotations to right equivalents.
-    if (is_left) {
-      rot = 0x40 - rot;
-    }
-    // Map all rotations to +ve. equivalents on the interval [0,63].
-    rot &= 0x3F;
-    // For rotates over a word in size, 'pre-rotate' by 32-bits to keep rotate
-    // logic below to a simple pair of binary orr.
-    // (e.g. 34 bits == in_reg swap + 2 bits right.)
-    if (rot >= 0x20) {
-      rot -= 0x20;
-      std::swap(in_reg_hi, in_reg_lo);
-    }
-    // Rotate, or mov to out for zero or word size rotations.
-    if (rot) {
-      __ Lsr(out_reg_hi, in_reg_hi, rot);
-      __ orr(out_reg_hi, out_reg_hi, ShifterOperand(in_reg_lo, arm::LSL, 0x20 - rot));
-      __ Lsr(out_reg_lo, in_reg_lo, rot);
-      __ orr(out_reg_lo, out_reg_lo, ShifterOperand(in_reg_hi, arm::LSL, 0x20 - rot));
-    } else {
-      __ Mov(out_reg_lo, in_reg_lo);
-      __ Mov(out_reg_hi, in_reg_hi);
-    }
-  } else {
-    Register shift_left = locations->GetTemp(0).AsRegister<Register>();
-    Register shift_right = locations->GetTemp(1).AsRegister<Register>();
-    Label end;
-    Label right;
-
-    __ and_(shift_left, rhs.AsRegister<Register>(), ShifterOperand(0x1F));
-    __ Lsrs(shift_right, rhs.AsRegister<Register>(), 6);
-    __ rsb(shift_right, shift_left, ShifterOperand(0x20), AL, kCcKeep);
-
-    if (is_left) {
-      __ b(&right, CS);
-    } else {
-      __ b(&right, CC);
-      std::swap(shift_left, shift_right);
-    }
-
-    // out_reg_hi = (reg_hi << shift_left) | (reg_lo >> shift_right).
-    // out_reg_lo = (reg_lo << shift_left) | (reg_hi >> shift_right).
-    __ Lsl(out_reg_hi, in_reg_hi, shift_left);
-    __ Lsr(out_reg_lo, in_reg_lo, shift_right);
-    __ add(out_reg_hi, out_reg_hi, ShifterOperand(out_reg_lo));
-    __ Lsl(out_reg_lo, in_reg_lo, shift_left);
-    __ Lsr(shift_left, in_reg_hi, shift_right);
-    __ add(out_reg_lo, out_reg_lo, ShifterOperand(shift_left));
-    __ b(&end);
-
-    // out_reg_hi = (reg_hi >> shift_right) | (reg_lo << shift_left).
-    // out_reg_lo = (reg_lo >> shift_right) | (reg_hi << shift_left).
-    __ Bind(&right);
-    __ Lsr(out_reg_hi, in_reg_hi, shift_right);
-    __ Lsl(out_reg_lo, in_reg_lo, shift_left);
-    __ add(out_reg_hi, out_reg_hi, ShifterOperand(out_reg_lo));
-    __ Lsr(out_reg_lo, in_reg_lo, shift_right);
-    __ Lsl(shift_right, in_reg_hi, shift_left);
-    __ add(out_reg_lo, out_reg_lo, ShifterOperand(shift_right));
-
-    __ Bind(&end);
-  }
-}
-
-void IntrinsicLocationsBuilderARM::VisitIntegerRotateRight(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kNoCall,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM::VisitIntegerRotateRight(HInvoke* invoke) {
-  GenIntegerRotate(invoke->GetLocations(), GetAssembler(), /* is_left */ false);
-}
-
-void IntrinsicLocationsBuilderARM::VisitLongRotateRight(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kNoCall,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (invoke->InputAt(1)->IsConstant()) {
-    locations->SetInAt(1, Location::ConstantLocation(invoke->InputAt(1)->AsConstant()));
-  } else {
-    locations->SetInAt(1, Location::RequiresRegister());
-    locations->AddTemp(Location::RequiresRegister());
-    locations->AddTemp(Location::RequiresRegister());
-  }
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM::VisitLongRotateRight(HInvoke* invoke) {
-  GenLongRotate(invoke->GetLocations(), GetAssembler(), /* is_left */ false);
-}
-
-void IntrinsicLocationsBuilderARM::VisitIntegerRotateLeft(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kNoCall,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM::VisitIntegerRotateLeft(HInvoke* invoke) {
-  GenIntegerRotate(invoke->GetLocations(), GetAssembler(), /* is_left */ true);
-}
-
-void IntrinsicLocationsBuilderARM::VisitLongRotateLeft(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kNoCall,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (invoke->InputAt(1)->IsConstant()) {
-    locations->SetInAt(1, Location::ConstantLocation(invoke->InputAt(1)->AsConstant()));
-  } else {
-    locations->SetInAt(1, Location::RequiresRegister());
-    locations->AddTemp(Location::RequiresRegister());
-    locations->AddTemp(Location::RequiresRegister());
-  }
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM::VisitLongRotateLeft(HInvoke* invoke) {
-  GenLongRotate(invoke->GetLocations(), GetAssembler(), /* is_left */ true);
-}
-
 static void MathAbsFP(LocationSummary* locations, bool is64bit, ArmAssembler* assembler) {
   Location in = locations->InAt(0);
   Location out = locations->Out();
@@ -1700,8 +1528,12 @@ void IntrinsicCodeGeneratorARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 
 UNIMPLEMENTED_INTRINSIC(IntegerReverse)
 UNIMPLEMENTED_INTRINSIC(IntegerReverseBytes)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongReverse)
 UNIMPLEMENTED_INTRINSIC(LongReverseBytes)
+UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
+UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(ShortReverseBytes)
 UNIMPLEMENTED_INTRINSIC(MathMinDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(MathMinFloatFloat)

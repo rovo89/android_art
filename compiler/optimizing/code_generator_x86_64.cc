@@ -3754,6 +3754,55 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
   }
 }
 
+void LocationsBuilderX86_64::VisitRor(HRor* ror) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(ror, LocationSummary::kNoCall);
+
+  switch (ror->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      // The shift count needs to be in CL (unless it is a constant).
+      locations->SetInAt(1, Location::ByteRegisterOrConstant(RCX, ror->InputAt(1)));
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << ror->GetResultType();
+      UNREACHABLE();
+  }
+}
+
+void InstructionCodeGeneratorX86_64::VisitRor(HRor* ror) {
+  LocationSummary* locations = ror->GetLocations();
+  CpuRegister first_reg = locations->InAt(0).AsRegister<CpuRegister>();
+  Location second = locations->InAt(1);
+
+  switch (ror->GetResultType()) {
+    case Primitive::kPrimInt:
+      if (second.IsRegister()) {
+        CpuRegister second_reg = second.AsRegister<CpuRegister>();
+        __ rorl(first_reg, second_reg);
+      } else {
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+        __ rorl(first_reg, imm);
+      }
+      break;
+    case Primitive::kPrimLong:
+      if (second.IsRegister()) {
+        CpuRegister second_reg = second.AsRegister<CpuRegister>();
+        __ rorq(first_reg, second_reg);
+      } else {
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue);
+        __ rorq(first_reg, imm);
+      }
+      break;
+    default:
+      LOG(FATAL) << "Unexpected operation type " << ror->GetResultType();
+      UNREACHABLE();
+  }
+}
+
 void LocationsBuilderX86_64::VisitShl(HShl* shl) {
   HandleShift(shl);
 }

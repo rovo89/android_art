@@ -330,103 +330,6 @@ void IntrinsicCodeGeneratorARM64::VisitLongNumberOfTrailingZeros(HInvoke* invoke
   GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
 }
 
-static void GenRotateRight(LocationSummary* locations,
-                           Primitive::Type type,
-                           vixl::MacroAssembler* masm) {
-  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
-
-  Location in = locations->InAt(0);
-  Location out = locations->Out();
-  Operand rhs = OperandFrom(locations->InAt(1), type);
-
-  if (rhs.IsImmediate()) {
-    uint32_t shift = rhs.immediate() & (RegisterFrom(in, type).SizeInBits() - 1);
-    __ Ror(RegisterFrom(out, type),
-           RegisterFrom(in, type),
-           shift);
-  } else {
-    DCHECK(rhs.shift() == vixl::LSL && rhs.shift_amount() == 0);
-    __ Ror(RegisterFrom(out, type),
-           RegisterFrom(in, type),
-           rhs.reg());
-  }
-}
-
-void IntrinsicLocationsBuilderARM64::VisitIntegerRotateRight(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitIntegerRotateRight(HInvoke* invoke) {
-  GenRotateRight(invoke->GetLocations(), Primitive::kPrimInt, GetVIXLAssembler());
-}
-
-void IntrinsicLocationsBuilderARM64::VisitLongRotateRight(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitLongRotateRight(HInvoke* invoke) {
-  GenRotateRight(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
-}
-
-static void GenRotateLeft(LocationSummary* locations,
-                           Primitive::Type type,
-                           vixl::MacroAssembler* masm) {
-  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
-
-  Location in = locations->InAt(0);
-  Location out = locations->Out();
-  Operand rhs = OperandFrom(locations->InAt(1), type);
-
-  if (rhs.IsImmediate()) {
-    uint32_t regsize = RegisterFrom(in, type).SizeInBits();
-    uint32_t shift = (regsize - rhs.immediate()) & (regsize - 1);
-    __ Ror(RegisterFrom(out, type), RegisterFrom(in, type), shift);
-  } else {
-    DCHECK(rhs.shift() == vixl::LSL && rhs.shift_amount() == 0);
-    __ Neg(RegisterFrom(out, type),
-           Operand(RegisterFrom(locations->InAt(1), type)));
-    __ Ror(RegisterFrom(out, type),
-           RegisterFrom(in, type),
-           RegisterFrom(out, type));
-  }
-}
-
-void IntrinsicLocationsBuilderARM64::VisitIntegerRotateLeft(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitIntegerRotateLeft(HInvoke* invoke) {
-  GenRotateLeft(invoke->GetLocations(), Primitive::kPrimInt, GetVIXLAssembler());
-}
-
-void IntrinsicLocationsBuilderARM64::VisitLongRotateLeft(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitLongRotateLeft(HInvoke* invoke) {
-  GenRotateLeft(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
-}
-
 static void GenReverse(LocationSummary* locations,
                        Primitive::Type type,
                        vixl::MacroAssembler* masm) {
@@ -1527,6 +1430,10 @@ void IntrinsicLocationsBuilderARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNU
 void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
+UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
+UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
+UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)

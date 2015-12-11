@@ -3760,6 +3760,92 @@ void InstructionCodeGeneratorX86::GenerateUShrLong(const Location& loc, Register
   __ Bind(&done);
 }
 
+void LocationsBuilderX86::VisitRor(HRor* ror) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(ror, LocationSummary::kNoCall);
+
+  switch (ror->GetResultType()) {
+    case Primitive::kPrimLong:
+      // Add the temporary needed.
+      locations->AddTemp(Location::RequiresRegister());
+      FALLTHROUGH_INTENDED;
+    case Primitive::kPrimInt:
+      locations->SetInAt(0, Location::RequiresRegister());
+      // The shift count needs to be in CL (unless it is a constant).
+      locations->SetInAt(1, Location::ByteRegisterOrConstant(ECX, ror->InputAt(1)));
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    default:
+      LOG(FATAL) << "Unexpected operation type " << ror->GetResultType();
+      UNREACHABLE();
+  }
+}
+
+void InstructionCodeGeneratorX86::VisitRor(HRor* ror) {
+  LocationSummary* locations = ror->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+
+  if (ror->GetResultType() == Primitive::kPrimInt) {
+    Register first_reg = first.AsRegister<Register>();
+    if (second.IsRegister()) {
+      Register second_reg = second.AsRegister<Register>();
+      __ rorl(first_reg, second_reg);
+    } else {
+      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+      __ rorl(first_reg, imm);
+    }
+    return;
+  }
+
+  DCHECK_EQ(ror->GetResultType(), Primitive::kPrimLong);
+  Register first_reg_lo = first.AsRegisterPairLow<Register>();
+  Register first_reg_hi = first.AsRegisterPairHigh<Register>();
+  Register temp_reg = locations->GetTemp(0).AsRegister<Register>();
+  if (second.IsRegister()) {
+    Register second_reg = second.AsRegister<Register>();
+    DCHECK_EQ(second_reg, ECX);
+    __ movl(temp_reg, first_reg_hi);
+    __ shrd(first_reg_hi, first_reg_lo, second_reg);
+    __ shrd(first_reg_lo, temp_reg, second_reg);
+    __ movl(temp_reg, first_reg_hi);
+    __ testl(second_reg, Immediate(32));
+    __ cmovl(kNotEqual, first_reg_hi, first_reg_lo);
+    __ cmovl(kNotEqual, first_reg_lo, temp_reg);
+  } else {
+    int32_t shift_amt =
+      CodeGenerator::GetInt64ValueOf(second.GetConstant()) & kMaxLongShiftValue;
+    if (shift_amt == 0) {
+      // Already fine.
+      return;
+    }
+    if (shift_amt == 32) {
+      // Just swap.
+      __ movl(temp_reg, first_reg_lo);
+      __ movl(first_reg_lo, first_reg_hi);
+      __ movl(first_reg_hi, temp_reg);
+      return;
+    }
+
+    Immediate imm(shift_amt);
+    // Save the constents of the low value.
+    __ movl(temp_reg, first_reg_lo);
+
+    // Shift right into low, feeding bits from high.
+    __ shrd(first_reg_lo, first_reg_hi, imm);
+
+    // Shift right into high, feeding bits from the original low.
+    __ shrd(first_reg_hi, temp_reg, imm);
+
+    // Swap if needed.
+    if (shift_amt > 32) {
+      __ movl(temp_reg, first_reg_lo);
+      __ movl(first_reg_lo, first_reg_hi);
+      __ movl(first_reg_hi, temp_reg);
+    }
+  }
+}
+
 void LocationsBuilderX86::VisitShl(HShl* shl) {
   HandleShift(shl);
 }

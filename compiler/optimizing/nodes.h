@@ -1085,6 +1085,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(Rem, BinaryOperation)                                               \
   M(Return, Instruction)                                                \
   M(ReturnVoid, Instruction)                                            \
+  M(Ror, BinaryOperation)                                               \
   M(Shl, BinaryOperation)                                               \
   M(Shr, BinaryOperation)                                               \
   M(StaticFieldGet, Instruction)                                        \
@@ -4199,6 +4200,44 @@ class HXor : public HBinaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HXor);
+};
+
+class HRor : public HBinaryOperation {
+ public:
+  HRor(Primitive::Type result_type, HInstruction* value, HInstruction* distance)
+    : HBinaryOperation(result_type, value, distance) {}
+
+  template <typename T, typename U, typename V>
+  T Compute(T x, U y, V max_shift_value) const {
+    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
+                  "V is not the unsigned integer type corresponding to T");
+    V ux = static_cast<V>(x);
+    if ((y & max_shift_value) == 0) {
+      return static_cast<T>(ux);
+    } else {
+      const V reg_bits = sizeof(T) * 8;
+      return static_cast<T>(ux >> (y & max_shift_value)) |
+                           (x << (reg_bits - (y & max_shift_value)));
+    }
+  }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
+  }
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+  }
+
+  DECLARE_INSTRUCTION(Ror);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HRor);
 };
 
 // The value of a parameter in this method. Its location depends on

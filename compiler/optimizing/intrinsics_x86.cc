@@ -2277,56 +2277,6 @@ void IntrinsicCodeGeneratorX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) 
   GenTrailingZeros(assembler, invoke, /* is_long */ true);
 }
 
-static void CreateRotateLocations(ArenaAllocator* arena, HInvoke* invoke) {
-  LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  // The shift count needs to be in CL or a constant.
-  locations->SetInAt(1, Location::ByteRegisterOrConstant(ECX, invoke->InputAt(1)));
-  locations->SetOut(Location::SameAsFirstInput());
-}
-
-static void GenRotate(X86Assembler* assembler, HInvoke* invoke, bool is_left) {
-  LocationSummary* locations = invoke->GetLocations();
-  Register first_reg = locations->InAt(0).AsRegister<Register>();
-  Location second = locations->InAt(1);
-
-  if (second.IsRegister()) {
-    Register second_reg = second.AsRegister<Register>();
-    if (is_left) {
-      __ roll(first_reg, second_reg);
-    } else {
-      __ rorl(first_reg, second_reg);
-    }
-  } else {
-    Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
-    if (is_left) {
-      __ roll(first_reg, imm);
-    } else {
-      __ rorl(first_reg, imm);
-    }
-  }
-}
-
-void IntrinsicLocationsBuilderX86::VisitIntegerRotateLeft(HInvoke* invoke) {
-  CreateRotateLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorX86::VisitIntegerRotateLeft(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
-  GenRotate(assembler, invoke, /* is_left */ true);
-}
-
-void IntrinsicLocationsBuilderX86::VisitIntegerRotateRight(HInvoke* invoke) {
-  CreateRotateLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorX86::VisitIntegerRotateRight(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
-  GenRotate(assembler, invoke, /* is_left */ false);
-}
-
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
@@ -2337,6 +2287,8 @@ void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
