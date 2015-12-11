@@ -31,11 +31,11 @@
 #include "compiler.h"
 #include "dex_file.h"
 #include "driver/compiled_method_storage.h"
+#include "jit/offline_profiling_info.h"
 #include "invoke_type.h"
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
 #include "os.h"
-#include "profiler.h"
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
@@ -145,10 +145,6 @@ class CompilerDriver {
 
   Compiler* GetCompiler() const {
     return compiler_.get();
-  }
-
-  bool ProfilePresent() const {
-    return profile_present_;
   }
 
   // Are we compiling and creating an image file?
@@ -440,6 +436,10 @@ class CompilerDriver {
   // Checks whether the provided method should be compiled, i.e., is in method_to_compile_.
   bool IsMethodToCompile(const MethodReference& method_ref) const;
 
+  // Checks whether profile guided compilation is enabled and if the method should be compiled
+  // according to the profile file.
+  bool ShouldCompileBasedOnProfile(const MethodReference& method_ref) const;
+
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       REQUIRES(!compiled_classes_lock_);
 
@@ -448,9 +448,6 @@ class CompilerDriver {
   bool IsMethodVerifiedWithoutFailures(uint32_t method_idx,
                                        uint16_t class_def_idx,
                                        const DexFile& dex_file) const;
-
-  // Should the compiler run on this method given profile information?
-  bool SkipCompilation(const std::string& method_name);
 
   // Get memory usage during compilation.
   std::string GetMemoryUsageString(bool extended) const;
@@ -590,9 +587,6 @@ class CompilerDriver {
                       ThreadPool* thread_pool, TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
-  ProfileFile profile_file_;
-  bool profile_present_;
-
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -641,6 +635,9 @@ class CompilerDriver {
   // all methods are eligible for compilation (compilation filters etc. will still apply).
   // This option may be restricted to the boot image, depending on a flag in the implementation.
   std::unique_ptr<std::unordered_set<std::string>> methods_to_compile_;
+
+  // Info for profile guided compilation.
+  std::unique_ptr<ProfileCompilationInfo> profile_compilation_info_;
 
   bool had_hard_verifier_failure_;
 
