@@ -571,9 +571,9 @@ extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUS
   constexpr ReadBarrierOption kReadBarrierOption =
       kUseReadBarrier ? kWithReadBarrier : kWithoutReadBarrier;
   mirror::Object* result =
-      ReadBarrier::Barrier<mirror::Object, kReadBarrierOption, true>(obj,
-                                                                     MemberOffset(offset),
-                                                                     ref_addr);
+      ReadBarrier::Barrier<mirror::Object, kReadBarrierOption>(obj,
+                                                               MemberOffset(offset),
+                                                               ref_addr);
   return result;
 }
 

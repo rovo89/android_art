@@ -28,7 +28,7 @@
 
 namespace art {
 
-template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
+template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kAlwaysUpdateField>
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
@@ -42,9 +42,16 @@ inline MirrorType* ReadBarrier::Barrier(
     ref_addr = reinterpret_cast<mirror::HeapReference<MirrorType>*>(
         rb_ptr_high_bits | reinterpret_cast<uintptr_t>(ref_addr));
     MirrorType* ref = ref_addr->AsMirrorPtr();
+    MirrorType* old_ref = ref;
     if (is_gray) {
       // Slow-path.
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
+      // If kAlwaysUpdateField is true, update the field atomically. This may fail if mutator
+      // updates before us, but it's ok.
+      if (kAlwaysUpdateField && ref != old_ref) {
+        obj->CasFieldStrongRelaxedObjectWithoutWriteBarrier<false, false>(
+            offset, old_ref, ref);
+      }
     }
     if (kEnableReadBarrierInvariantChecks) {
       CHECK_EQ(rb_ptr_high_bits, 0U) << obj << " rb_ptr=" << obj->GetReadBarrierPointer();
@@ -75,7 +82,7 @@ inline MirrorType* ReadBarrier::Barrier(
   }
 }
 
-template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
+template <typename MirrorType, ReadBarrierOption kReadBarrierOption>
 inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
                                                GcRootSource* gc_root_source) {
   MirrorType* ref = *root;
@@ -112,7 +119,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
 }
 
 // TODO: Reduce copy paste
-template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
+template <typename MirrorType, ReadBarrierOption kReadBarrierOption>
 inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<MirrorType>* root,
                                                GcRootSource* gc_root_source) {
   MirrorType* ref = root->AsMirrorPtr();
