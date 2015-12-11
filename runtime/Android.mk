@@ -229,6 +229,16 @@ LIBART_COMMON_SRC_FILES += \
 LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
 
+# Keep the __jit_debug_register_code symbol as a unique symbol during ICF for architectures where
+# we use gold as the linker (arm, x86, x86_64). The symbol is used by the debuggers to detect when
+# new jit code is generated. We don't want it to be called when a different function with the same
+# (empty) body is called.
+JIT_DEBUG_REGISTER_CODE_LDFLAGS := -Wl,--keep-unique,__jit_debug_register_code
+LIBART_TARGET_LDFLAGS_arm    := $(JIT_DEBUG_REGISTER_CODE_LDFLAGS)
+LIBART_TARGET_LDFLAGS_x86    := $(JIT_DEBUG_REGISTER_CODE_LDFLAGS)
+LIBART_TARGET_LDFLAGS_x86_64 := $(JIT_DEBUG_REGISTER_CODE_LDFLAGS)
+JIT_DEBUG_REGISTER_CODE_LDFLAGS :=
+
 LIBART_TARGET_SRC_FILES := \
   $(LIBART_COMMON_SRC_FILES) \
   jdwp/jdwp_adb.cc \
@@ -450,6 +460,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS += $$(LIBART_TARGET_CFLAGS)
     LOCAL_LDFLAGS += $$(LIBART_TARGET_LDFLAGS)
+    $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
+      $$(eval LOCAL_LDFLAGS_$$(arch) := $$(LIBART_TARGET_LDFLAGS_$$(arch))))
   else #host
     LOCAL_CFLAGS += $$(LIBART_HOST_CFLAGS)
     LOCAL_LDFLAGS += $$(LIBART_HOST_LDFLAGS)
@@ -457,8 +469,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       LOCAL_LDFLAGS += -static
     endif
   endif
-  $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
-    $$(eval LOCAL_LDFLAGS_$$(arch) := $$(LIBART_TARGET_LDFLAGS_$$(arch))))
 
   # Clang usage
   ifeq ($$(art_target_or_host),target)
@@ -577,8 +587,14 @@ LIBART_COMMON_SRC_FILES :=
 LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES :=
 LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
 2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
-LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
+LIBART_TARGET_LDFLAGS :=
+LIBART_TARGET_LDFLAGS_arm :=
+LIBART_TARGET_LDFLAGS_arm64 :=
+LIBART_TARGET_LDFLAGS_x86 :=
+LIBART_TARGET_LDFLAGS_x86_64 :=
+LIBART_TARGET_LDFLAGS_mips :=
+LIBART_TARGET_LDFLAGS_mips64 :=
 LIBART_TARGET_SRC_FILES :=
 LIBART_TARGET_SRC_FILES_arm :=
 LIBART_TARGET_SRC_FILES_arm64 :=
