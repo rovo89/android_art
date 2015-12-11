@@ -93,6 +93,25 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pLockObject = art_quick_lock_object;
   qpoints->pUnlockObject = art_quick_unlock_object;
 
+  // More math.
+  qpoints->pCos = cos;
+  qpoints->pSin = sin;
+  qpoints->pAcos = acos;
+  qpoints->pAsin = asin;
+  qpoints->pAtan = atan;
+  qpoints->pAtan2 = atan2;
+  qpoints->pCbrt = cbrt;
+  qpoints->pCosh = cosh;
+  qpoints->pExp = exp;
+  qpoints->pExpm1 = expm1;
+  qpoints->pHypot = hypot;
+  qpoints->pLog = log;
+  qpoints->pLog10 = log10;
+  qpoints->pNextAfter = nextafter;
+  qpoints->pSinh = sinh;
+  qpoints->pTan = tan;
+  qpoints->pTanh = tanh;
+
   // Math
   qpoints->pD2l = art_quick_d2l;
   qpoints->pF2l = art_quick_f2l;

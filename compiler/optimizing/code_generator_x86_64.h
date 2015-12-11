@@ -47,6 +47,12 @@ static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
+// These XMM registers are non-volatile in ART ABI, but volatile in native ABI.
+// If the ART ABI changes, this list must be updated.  It is used to ensure that
+// these are not clobbered by any direct call to native code (such as math intrinsics).
+static constexpr FloatRegister non_volatile_xmm_regs[] = { XMM12, XMM13, XMM14, XMM15 };
+
+
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
   InvokeRuntimeCallingConvention()
