@@ -276,8 +276,7 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
 TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
   117-nopatchoat \
   118-noimage-dex2oat \
-  119-noimage-patchoat \
-  554-jit-profile-file
+  119-noimage-patchoat
 
 ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -299,7 +298,6 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
   412-new-array \
   471-uninitialized-locals \
   506-verify-aput \
-  554-jit-profile-file \
   800-smali
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
@@ -358,15 +356,13 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREB
 # All these tests check that we have sane behavior if we don't have a patchoat or dex2oat.
 # Therefore we shouldn't run them in situations where we actually don't have these since they
 # explicitly test for them. These all also assume we have an image.
-# 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   116-nodex2oat \
   117-nopatchoat \
   118-noimage-dex2oat \
   119-noimage-patchoat \
   137-cfi \
-  138-duplicate-classes-check2 \
-  554-jit-profile-file
+  138-duplicate-classes-check2
 
 # This test fails without an image.
 TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
@@ -417,8 +413,7 @@ endif
 # Known broken tests for the interpreter.
 # CFI unwinding expects managed frames.
 TEST_ART_BROKEN_INTERPRETER_RUN_TESTS := \
-  137-cfi \
-  554-jit-profile-file
+  137-cfi
 
 ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -525,8 +520,7 @@ TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS := \
 # Tests that should fail in the heap poisoning configuration with the interpreter.
 # 137: Cannot run this with the interpreter.
 TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS := \
-  137-cfi \
-  554-jit-profile-file
+  137-cfi
 
 ifeq ($(ART_HEAP_POISONING),true)
   ifneq (,$(filter default,$(COMPILER_TYPES)))

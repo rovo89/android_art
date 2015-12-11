@@ -188,7 +188,7 @@ void Jit::SaveProfilingInfo(const std::string& filename) {
 
   uint64_t last_update_ns = code_cache_->GetLastUpdateTimeNs();
   if (offline_profile_info_->NeedsSaving(last_update_ns)) {
-    VLOG(profiler) << "Initiate save profiling information to: " << filename;
+    VLOG(profiler) << "Iniate save profiling information to: " << filename;
     std::set<ArtMethod*> methods;
     {
       ScopedObjectAccess soa(Thread::Current());

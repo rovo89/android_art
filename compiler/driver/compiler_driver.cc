@@ -80,9 +80,6 @@ static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
 // given, too all compilations.
 static constexpr bool kRestrictCompilationFiltersToImage = true;
 
-// Print additional info during profile guided compilation.
-static constexpr bool kDebugProfileGuidedCompilation = false;
-
 static double Percentage(size_t x, size_t y) {
   return 100.0 * (static_cast<double>(x)) / (static_cast<double>(x + y));
 }
@@ -347,7 +344,8 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                const std::string& dump_cfg_file_name, bool dump_cfg_append,
                                CumulativeLogger* timer, int swap_fd,
                                const std::string& profile_file)
-    : compiler_options_(compiler_options),
+    : profile_present_(false),
+      compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
       compiler_(Compiler::Create(this, compiler_kind)),
@@ -385,8 +383,12 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   // Read the profile file if one is provided.
   if (!profile_file.empty()) {
-    profile_compilation_info_.reset(new ProfileCompilationInfo(profile_file));
-    LOG(INFO) << "Using profile data from file " << profile_file;
+    profile_present_ = profile_file_.LoadFile(profile_file);
+    if (profile_present_) {
+      LOG(INFO) << "Using profile data form file " << profile_file;
+    } else {
+      LOG(INFO) << "Failed to load profile file " << profile_file;
+    }
   }
 }
 
@@ -567,9 +569,7 @@ static void CompileMethod(Thread* self,
         (verified_method->GetEncounteredVerificationFailures() &
             (verifier::VERIFY_ERROR_FORCE_INTERPRETER | verifier::VERIFY_ERROR_LOCKING)) == 0 &&
         // Is eligable for compilation by methods-to-compile filter.
-        driver->IsMethodToCompile(method_ref) &&
-        driver->ShouldCompileBasedOnProfile(method_ref);
-
+        driver->IsMethodToCompile(method_ref);
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return null.
       compiled_method = driver->GetCompiler()->Compile(code_item, access_flags, invoke_type,
@@ -764,22 +764,6 @@ bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const 
 
   std::string tmp = PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file, true);
   return methods_to_compile_->find(tmp.c_str()) != methods_to_compile_->end();
-}
-
-bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_ref) const {
-  if (profile_compilation_info_ == nullptr) {
-    // If we miss profile information it means that we don't do a profile guided compilation.
-    // Return true, and let the other filters decide if the method should be compiled.
-    return true;
-  }
-  bool result = profile_compilation_info_->ContainsMethod(method_ref);
-
-  if (kDebugProfileGuidedCompilation) {
-    LOG(INFO) << "[ProfileGuidedCompilation] "
-        << (result ? "Compiled" : "Skipped") << " method:"
-        << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file, true);
-  }
-  return result;
 }
 
 class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
@@ -2296,16 +2280,6 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
 
 void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                              ThreadPool* thread_pool, TimingLogger* timings) {
-  if (profile_compilation_info_ != nullptr) {
-    if (!profile_compilation_info_->Load(dex_files)) {
-      LOG(WARNING) << "Failed to load offline profile info from "
-          << profile_compilation_info_->GetFilename()
-          << ". No methods will be compiled";
-    } else if (kDebugProfileGuidedCompilation) {
-      LOG(INFO) << "[ProfileGuidedCompilation] "
-          << profile_compilation_info_->DumpInfo();
-    }
-  }
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != nullptr);
@@ -2541,6 +2515,39 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
                                                 uint16_t class_def_index) const {
   ReaderMutexLock mu(self, freezing_constructor_lock_);
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
+}
+
+bool CompilerDriver::SkipCompilation(const std::string& method_name) {
+  if (!profile_present_) {
+    return false;
+  }
+  // First find the method in the profile file.
+  ProfileFile::ProfileData data;
+  if (!profile_file_.GetProfileData(&data, method_name)) {
+    // Not in profile, no information can be determined.
+    if (kIsDebugBuild) {
+      VLOG(compiler) << "not compiling " << method_name << " because it's not in the profile";
+    }
+    return true;
+  }
+
+  // Methods that comprise top_k_threshold % of the total samples will be compiled.
+  // Compare against the start of the topK percentage bucket just in case the threshold
+  // falls inside a bucket.
+  bool compile = data.GetTopKUsedPercentage() - data.GetUsedPercent()
+                 <= compiler_options_->GetTopKProfileThreshold();
+  if (kIsDebugBuild) {
+    if (compile) {
+      LOG(INFO) << "compiling method " << method_name << " because its usage is part of top "
+          << data.GetTopKUsedPercentage() << "% with a percent of " << data.GetUsedPercent() << "%"
+          << " (topKThreshold=" << compiler_options_->GetTopKProfileThreshold() << ")";
+    } else {
+      VLOG(compiler) << "not compiling method " << method_name
+          << " because it's not part of leading " << compiler_options_->GetTopKProfileThreshold()
+          << "% samples)";
+    }
+  }
+  return !compile;
 }
 
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
