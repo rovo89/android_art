@@ -1221,8 +1221,11 @@ void ImageWriter::CalculateNewObjectOffsets() {
     // Compiling the boot image, add null class loader.
     class_loaders_.insert(nullptr);
   }
-  if (!class_loaders_.empty()) {
-    CHECK_EQ(class_loaders_.size(), 1u) << "Should only have one real class loader in the image";
+  // class_loaders_ usually will not be empty, but may be empty if we attempt to create an image
+  // with no classes.
+  if (class_loaders_.size() == 1u) {
+    // Only write the class table if we have exactly one class loader. There may be cases where
+    // there are multiple class loaders if a class path is passed to dex2oat.
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
     for (mirror::ClassLoader* loader : class_loaders_) {
       ClassTable* table = class_linker->ClassTableForClassLoader(loader);
@@ -1424,28 +1427,32 @@ void ImageWriter::CopyAndFixupNativeData() {
   CHECK_EQ(temp_intern_table.Size(), intern_table->Size());
   temp_intern_table.VisitRoots(&root_visitor, kVisitRootFlagAllRoots);
 
-  // Write the class table(s) into the image.
-  ClassLinker* const class_linker = runtime->GetClassLinker();
-  const ImageSection& class_table_section = image_header->GetImageSection(
-      ImageHeader::kSectionClassTable);
-  uint8_t* const class_table_memory_ptr = image_->Begin() + class_table_section.Offset();
-  ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  size_t class_table_bytes = 0;
-  for (mirror::ClassLoader* loader : class_loaders_) {
-    ClassTable* table = class_linker->ClassTableForClassLoader(loader);
-    CHECK(table != nullptr);
-    uint8_t* memory_ptr = class_table_memory_ptr + class_table_bytes;
-    class_table_bytes += table->WriteToMemory(memory_ptr);
-    // Fixup the pointers in the newly written class table to contain image addresses. See
-    // above comment for intern tables.
-    ClassTable temp_class_table;
-    temp_class_table.ReadFromMemory(memory_ptr);
-    // CHECK_EQ(temp_class_table.NumNonZygoteClasses(), table->NumNonZygoteClasses());
-    BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&root_visitor,
-                                                                    RootInfo(kRootUnknown));
-    temp_class_table.VisitRoots(buffered_visitor);
+  // Write the class table(s) into the image. class_table_bytes_ may be 0 if there are multiple
+  // class loaders. Writing multiple class tables into the image is currently unsupported.
+  if (class_table_bytes_ > 0u) {
+    ClassLinker* const class_linker = runtime->GetClassLinker();
+    const ImageSection& class_table_section = image_header->GetImageSection(
+        ImageHeader::kSectionClassTable);
+    uint8_t* const class_table_memory_ptr = image_->Begin() + class_table_section.Offset();
+    ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+    size_t class_table_bytes = 0;
+    for (mirror::ClassLoader* loader : class_loaders_) {
+      ClassTable* table = class_linker->ClassTableForClassLoader(loader);
+      CHECK(table != nullptr);
+      uint8_t* memory_ptr = class_table_memory_ptr + class_table_bytes;
+      class_table_bytes += table->WriteToMemory(memory_ptr);
+      // Fixup the pointers in the newly written class table to contain image addresses. See
+      // above comment for intern tables.
+      ClassTable temp_class_table;
+      temp_class_table.ReadFromMemory(memory_ptr);
+      CHECK_EQ(temp_class_table.NumZygoteClasses(), table->NumNonZygoteClasses() +
+               table->NumZygoteClasses());
+      BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&root_visitor,
+                                                                      RootInfo(kRootUnknown));
+      temp_class_table.VisitRoots(buffered_visitor);
+    }
+    CHECK_EQ(class_table_bytes, class_table_bytes_);
   }
-  CHECK_EQ(class_table_bytes, class_table_bytes_);
 }
 
 void ImageWriter::CopyAndFixupObjects() {
