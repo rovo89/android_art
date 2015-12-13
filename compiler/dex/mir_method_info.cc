@@ -65,7 +65,6 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
   // definition) we still want to resolve methods and record all available info.
   Runtime* const runtime = Runtime::Current();
   const DexFile* const dex_file = mUnit->GetDexFile();
-  const bool use_jit = runtime->UseJit();
   const VerifiedMethod* const verified_method = mUnit->GetVerifiedMethod();
   DexFileToMethodInlinerMap* inliner_map = compiler_driver->GetMethodInlinerMap();
   DexFileMethodInliner* default_inliner =
@@ -100,7 +99,6 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     } else {
       // The method index is actually the dex PC in this case.
       // Calculate the proper dex file and target method idx.
-      CHECK(use_jit);
       CHECK_EQ(invoke_type, kVirtual);
       // Don't devirt if we are in a different dex file since we can't have direct invokes in
       // another dex file unless we always put a direct / patch pointer.

@@ -1933,12 +1933,6 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 
     CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
         << PrettyDescriptor(klass.Get()) << ": state=" << klass->GetStatus();
-
-    // It is *very* problematic if there are verification errors in the boot classpath. For example,
-    // we rely on things working OK without verification when the decryption dialog is brought up.
-    // So abort in a debug build if we find this violated.
-    DCHECK(!manager->GetCompiler()->IsImage() || klass->IsVerified()) << "Boot classpath class " <<
-        PrettyClass(klass.Get()) << " failed to fully verify.";
   }
   soa.Self()->AssertNoPendingException();
 }
