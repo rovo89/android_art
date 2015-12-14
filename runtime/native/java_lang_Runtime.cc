@@ -79,7 +79,7 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
   // Starting with N nativeLoad uses classloader local
   // linker namespace instead of global LD_LIBRARY_PATH
   // (23 is Marshmallow)
-  if (target_sdk_version == 0) {
+  if (target_sdk_version <= INT_MAX) {
     SetLdLibraryPath(env, javaLdLibraryPath);
   }
 
