@@ -36,8 +36,8 @@ static inline InvokeType GetIntrinsicInvokeType(Intrinsics i) {
   switch (i) {
     case Intrinsics::kNone:
       return kInterface;  // Non-sensical for intrinsic.
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) \
-    case Intrinsics::k ## Name:               \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
+    case Intrinsics::k ## Name: \
       return IsStatic;
 #include "intrinsics_list.h"
 INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
@@ -52,8 +52,8 @@ static inline IntrinsicNeedsEnvironmentOrCache NeedsEnvironmentOrCache(Intrinsic
   switch (i) {
     case Intrinsics::kNone:
       return kNeedsEnvironmentOrCache;  // Non-sensical for intrinsic.
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) \
-    case Intrinsics::k ## Name:               \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
+    case Intrinsics::k ## Name: \
       return NeedsEnvironmentOrCache;
 #include "intrinsics_list.h"
 INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
@@ -61,6 +61,38 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
   }
   return kNeedsEnvironmentOrCache;
+}
+
+// Function that returns whether an intrinsic has side effects.
+static inline IntrinsicSideEffects GetSideEffects(Intrinsics i) {
+  switch (i) {
+    case Intrinsics::kNone:
+      return kAllSideEffects;
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
+    case Intrinsics::k ## Name: \
+      return SideEffects;
+#include "intrinsics_list.h"
+INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+#undef INTRINSICS_LIST
+#undef OPTIMIZING_INTRINSICS
+  }
+  return kAllSideEffects;
+}
+
+// Function that returns whether an intrinsic can throw exceptions.
+static inline IntrinsicExceptions GetExceptions(Intrinsics i) {
+  switch (i) {
+    case Intrinsics::kNone:
+      return kCanThrow;
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
+    case Intrinsics::k ## Name: \
+      return Exceptions;
+#include "intrinsics_list.h"
+INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+#undef INTRINSICS_LIST
+#undef OPTIMIZING_INTRINSICS
+  }
+  return kCanThrow;
 }
 
 static Primitive::Type GetType(uint64_t data, bool is_op_size) {
@@ -248,7 +280,7 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
 
     // Thread.currentThread.
     case kIntrinsicCurrentThread:
-      return  Intrinsics::kThreadCurrentThread;
+      return Intrinsics::kThreadCurrentThread;
 
     // Memory.peek.
     case kIntrinsicPeek:
@@ -473,7 +505,10 @@ void IntrinsicsRecognizer::Run() {
                   << PrettyMethod(invoke->GetDexMethodIndex(), invoke->GetDexFile())
                   << invoke->DebugName();
             } else {
-              invoke->SetIntrinsic(intrinsic, NeedsEnvironmentOrCache(intrinsic));
+              invoke->SetIntrinsic(intrinsic,
+                                   NeedsEnvironmentOrCache(intrinsic),
+                                   GetSideEffects(intrinsic),
+                                   GetExceptions(intrinsic));
             }
           }
         }
@@ -487,7 +522,7 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic) {
     case Intrinsics::kNone:
       os << "None";
       break;
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
     case Intrinsics::k ## Name: \
       os << # Name; \
       break;

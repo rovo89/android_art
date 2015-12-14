@@ -2064,6 +2064,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
  protected:
   virtual const HUserRecord<HInstruction*> InputRecordAt(size_t i) const = 0;
   virtual void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) = 0;
+  void SetSideEffects(SideEffects other) { side_effects_ = other; }
 
  private:
   void RemoveEnvironmentUser(HUseListNode<HEnvironment*>* use_node) { env_uses_.Remove(use_node); }
@@ -3247,7 +3248,8 @@ class HDoubleConstant : public HConstant {
 };
 
 enum class Intrinsics {
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) k ## Name,
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
+  k ## Name,
 #include "intrinsics_list.h"
   kNone,
   INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
@@ -3259,6 +3261,18 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic);
 enum IntrinsicNeedsEnvironmentOrCache {
   kNoEnvironmentOrCache,        // Intrinsic does not require an environment or dex cache.
   kNeedsEnvironmentOrCache      // Intrinsic requires an environment or requires a dex cache.
+};
+
+enum IntrinsicSideEffects {
+  kNoSideEffects,     // Intrinsic does not have any heap memory side effects.
+  kReadSideEffects,   // Intrinsic may read heap memory.
+  kWriteSideEffects,  // Intrinsic may write heap memory.
+  kAllSideEffects     // Intrinsic may read or write heap memory, or trigger GC.
+};
+
+enum IntrinsicExceptions {
+  kNoThrow,  // Intrinsic does not throw any exceptions.
+  kCanThrow  // Intrinsic may throw exceptions.
 };
 
 class HInvoke : public HInstruction {
@@ -3279,7 +3293,6 @@ class HInvoke : public HInstruction {
 
   Primitive::Type GetType() const OVERRIDE { return return_type_; }
 
-
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
   const DexFile& GetDexFile() const { return GetEnvironment()->GetDexFile(); }
 
@@ -3289,13 +3302,22 @@ class HInvoke : public HInstruction {
     return intrinsic_;
   }
 
-  void SetIntrinsic(Intrinsics intrinsic, IntrinsicNeedsEnvironmentOrCache needs_env_or_cache);
+  void SetIntrinsic(Intrinsics intrinsic,
+                    IntrinsicNeedsEnvironmentOrCache needs_env_or_cache,
+                    IntrinsicSideEffects side_effects,
+                    IntrinsicExceptions exceptions);
 
   bool IsFromInlinedInvoke() const {
     return GetEnvironment()->IsFromInlinedInvoke();
   }
 
-  bool CanThrow() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return can_throw_; }
+
+  bool CanBeMoved() const OVERRIDE { return IsIntrinsic(); }
+
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    return intrinsic_ != Intrinsics::kNone && intrinsic_ == other->AsInvoke()->intrinsic_;
+  }
 
   uint32_t* GetIntrinsicOptimizations() {
     return &intrinsic_optimizations_;
@@ -3325,6 +3347,7 @@ class HInvoke : public HInstruction {
       return_type_(return_type),
       dex_method_index_(dex_method_index),
       original_invoke_type_(original_invoke_type),
+      can_throw_(true),
       intrinsic_(Intrinsics::kNone),
       intrinsic_optimizations_(0) {
   }
@@ -3337,11 +3360,14 @@ class HInvoke : public HInstruction {
     inputs_[index] = input;
   }
 
+  void SetCanThrow(bool can_throw) { can_throw_ = can_throw; }
+
   uint32_t number_of_arguments_;
   ArenaVector<HUserRecord<HInstruction*>> inputs_;
   const Primitive::Type return_type_;
   const uint32_t dex_method_index_;
   const InvokeType original_invoke_type_;
+  bool can_throw_;
   Intrinsics intrinsic_;
 
   // A magic word holding optimizations for intrinsics. See intrinsics.h.

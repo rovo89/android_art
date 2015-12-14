@@ -2091,12 +2091,26 @@ bool HInstruction::HasAnyEnvironmentUseBefore(HInstruction* other) {
 }
 
 void HInvoke::SetIntrinsic(Intrinsics intrinsic,
-                           IntrinsicNeedsEnvironmentOrCache needs_env_or_cache) {
+                           IntrinsicNeedsEnvironmentOrCache needs_env_or_cache,
+                           IntrinsicSideEffects side_effects,
+                           IntrinsicExceptions exceptions) {
   intrinsic_ = intrinsic;
   IntrinsicOptimizations opt(this);
   if (needs_env_or_cache == kNoEnvironmentOrCache) {
     opt.SetDoesNotNeedDexCache();
     opt.SetDoesNotNeedEnvironment();
+  }
+  // Adjust method's side effects from intrinsic table.
+  switch (side_effects) {
+    case kNoSideEffects: SetSideEffects(SideEffects::None()); break;
+    case kReadSideEffects: SetSideEffects(SideEffects::AllReads()); break;
+    case kWriteSideEffects: SetSideEffects(SideEffects::AllWrites()); break;
+    case kAllSideEffects: SetSideEffects(SideEffects::AllExceptGCDependency()); break;
+  }
+  // Adjust method's exception status from intrinsic table.
+  switch (exceptions) {
+    case kNoThrow: SetCanThrow(false); break;
+    case kCanThrow: SetCanThrow(true); break;
   }
 }
 
