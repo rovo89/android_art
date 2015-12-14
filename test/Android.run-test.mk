@@ -516,10 +516,12 @@ TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 # 137: Read barrier forces interpreter. Cannot run this with the interpreter.
 # 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
 #      handled in the read barrier configuration.
+# 554: Cannot run in interpreter mode and this rule cover both: the compiler and the interpreter.
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
   055-enum-performance                    \
   137-cfi                                 \
-  537-checker-arraycopy
+  537-checker-arraycopy                   \
+  554-jit-profile-file
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
