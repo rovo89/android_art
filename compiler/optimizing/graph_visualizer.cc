@@ -30,6 +30,7 @@
 #include "optimization.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
+#include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
 
@@ -505,7 +506,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       } else {
         StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
       }
-    } else if ((IsPass(ReferenceTypePropagation::kReferenceTypePropagationPassName)
+    } else if ((IsPass(SsaBuilder::kSsaBuilderPassName)
         || IsPass(HInliner::kInlinerPassName))
         && (instruction->GetType() == Primitive::kPrimNot)) {
       ReferenceTypeInfo info = instruction->IsLoadClass()
@@ -519,21 +520,15 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
       } else if (instruction->IsLoadClass()) {
         StartAttributeStream("klass") << "unresolved";
-      } else if (instruction->IsNullConstant()) {
+      } else {
         // The NullConstant may be added to the graph during other passes that happen between
         // ReferenceTypePropagation and Inliner (e.g. InstructionSimplifier). If the inliner
         // doesn't run or doesn't inline anything, the NullConstant remains untyped.
         // So we should check NullConstants for validity only after reference type propagation.
-        //
-        // Note: The infrastructure to properly type NullConstants everywhere is to complex to add
-        // for the benefits.
-        StartAttributeStream("klass") << "not_set";
-        DCHECK(!is_after_pass_
-            || !IsPass(ReferenceTypePropagation::kReferenceTypePropagationPassName))
-            << " Expected a valid rti after reference type propagation";
-      } else {
-        DCHECK(!is_after_pass_)
-            << "Expected a valid rti after reference type propagation";
+        DCHECK(graph_in_bad_state_ ||
+               (!is_after_pass_ && IsPass(SsaBuilder::kSsaBuilderPassName)))
+            << instruction->DebugName() << instruction->GetId() << " has invalid rti "
+            << (is_after_pass_ ? "after" : "before") << " pass " << pass_name_;
       }
     }
     if (disasm_info_ != nullptr) {

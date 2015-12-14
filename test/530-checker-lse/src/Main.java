@@ -453,16 +453,14 @@ public class Main {
   }
 
   /// CHECK-START: float Main.test19(float[], float[]) load_store_elimination (before)
-  /// CHECK: <<IntTypeValue:i\d+>> ArrayGet
-  /// CHECK: ArraySet
-  /// CHECK: <<FloatTypeValue:f\d+>> ArrayGet
+  /// CHECK:     {{f\d+}} ArrayGet
+  /// CHECK:     {{f\d+}} ArrayGet
 
   /// CHECK-START: float Main.test19(float[], float[]) load_store_elimination (after)
-  /// CHECK: <<IntTypeValue:i\d+>> ArrayGet
-  /// CHECK: ArraySet
-  /// CHECK: <<FloatTypeValue:f\d+>> ArrayGet
+  /// CHECK:     {{f\d+}} ArrayGet
+  /// CHECK-NOT: {{f\d+}} ArrayGet
 
-  // I/F, J/D aliasing should keep the load/store.
+  // I/F, J/D aliasing should not happen any more and LSE should eliminate the load.
   static float test19(float[] fa1, float[] fa2) {
     fa1[0] = fa2[0];
     return fa1[0];
