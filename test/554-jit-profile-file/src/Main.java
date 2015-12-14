@@ -39,7 +39,7 @@ public class Main {
   private static final String PROFILE_FILE = PKG_NAME + ".prof";
   private static final String TEMP_FILE_NAME_PREFIX = "dummy";
   private static final String TEMP_FILE_NAME_SUFFIX = "-file";
-  private static final int JIT_INVOCATION_COUNT = 101;
+  private static final int JIT_INVOCATION_COUNT = 200;
 
   /* needs to match Runtime:: kProfileBackground */
   private static final int PROFILE_BACKGROUND = 1;
@@ -72,8 +72,8 @@ public class Main {
         o.hotMethod();
       }
 
-      // Sleep for 1 second to make sure that the methods had a chance to get compiled.
-      Thread.sleep(1000);
+      // Sleep for 2 second to make sure that the methods had a chance to get compiled.
+      Thread.sleep(2000);
       // Updating the process state to BACKGROUND will trigger profile saving.
       VMRuntime.updateProcessState(PROFILE_BACKGROUND);
 
