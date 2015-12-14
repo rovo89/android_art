@@ -722,6 +722,22 @@ void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
   RemoveInstruction(initial);
 }
 
+void HBasicBlock::MoveInstructionBefore(HInstruction* insn, HInstruction* cursor) {
+  DCHECK(!cursor->IsPhi());
+  DCHECK(!insn->IsPhi());
+  DCHECK(!insn->IsControlFlow());
+  DCHECK(insn->CanBeMoved());
+  DCHECK(!insn->HasSideEffects());
+
+  HBasicBlock* from_block = insn->GetBlock();
+  HBasicBlock* to_block = cursor->GetBlock();
+  DCHECK(from_block != to_block);
+
+  from_block->RemoveInstruction(insn, /* ensure_safety */ false);
+  insn->SetBlock(to_block);
+  to_block->instructions_.InsertInstructionBefore(insn, cursor);
+}
+
 static void Add(HInstructionList* instruction_list,
                 HBasicBlock* block,
                 HInstruction* instruction) {

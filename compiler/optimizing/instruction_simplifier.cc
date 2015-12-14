@@ -76,6 +76,8 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void VisitSub(HSub* instruction) OVERRIDE;
   void VisitUShr(HUShr* instruction) OVERRIDE;
   void VisitXor(HXor* instruction) OVERRIDE;
+  void VisitSelect(HSelect* select) OVERRIDE;
+  void VisitIf(HIf* instruction) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
   void VisitInvoke(HInvoke* invoke) OVERRIDE;
   void VisitDeoptimize(HDeoptimize* deoptimize) OVERRIDE;
@@ -559,14 +561,86 @@ void InstructionSimplifierVisitor::VisitNotEqual(HNotEqual* not_equal) {
 }
 
 void InstructionSimplifierVisitor::VisitBooleanNot(HBooleanNot* bool_not) {
-  HInstruction* parent = bool_not->InputAt(0);
-  if (parent->IsBooleanNot()) {
-    HInstruction* value = parent->InputAt(0);
-    // Replace (!(!bool_value)) with bool_value
-    bool_not->ReplaceWith(value);
+  HInstruction* input = bool_not->InputAt(0);
+  HInstruction* replace_with = nullptr;
+
+  if (input->IsIntConstant()) {
+    // Replace !(true/false) with false/true.
+    if (input->AsIntConstant()->IsOne()) {
+      replace_with = GetGraph()->GetIntConstant(0);
+    } else {
+      DCHECK(input->AsIntConstant()->IsZero());
+      replace_with = GetGraph()->GetIntConstant(1);
+    }
+  } else if (input->IsBooleanNot()) {
+    // Replace (!(!bool_value)) with bool_value.
+    replace_with = input->InputAt(0);
+  } else if (input->IsCondition() &&
+             // Don't change FP compares. The definition of compares involving
+             // NaNs forces the compares to be done as written by the user.
+             !Primitive::IsFloatingPointType(input->InputAt(0)->GetType())) {
+    // Replace condition with its opposite.
+    replace_with = GetGraph()->InsertOppositeCondition(input->AsCondition(), bool_not);
+  }
+
+  if (replace_with != nullptr) {
+    bool_not->ReplaceWith(replace_with);
     bool_not->GetBlock()->RemoveInstruction(bool_not);
-    // It is possible that `parent` is dead at this point but we leave
-    // its removal to DCE for simplicity.
+    RecordSimplification();
+  }
+}
+
+void InstructionSimplifierVisitor::VisitSelect(HSelect* select) {
+  HInstruction* replace_with = nullptr;
+  HInstruction* condition = select->GetCondition();
+  HInstruction* true_value = select->GetTrueValue();
+  HInstruction* false_value = select->GetFalseValue();
+
+  if (condition->IsBooleanNot()) {
+    // Change ((!cond) ? x : y) to (cond ? y : x).
+    condition = condition->InputAt(0);
+    std::swap(true_value, false_value);
+    select->ReplaceInput(false_value, 0);
+    select->ReplaceInput(true_value, 1);
+    select->ReplaceInput(condition, 2);
+    RecordSimplification();
+  }
+
+  if (true_value == false_value) {
+    // Replace (cond ? x : x) with (x).
+    replace_with = true_value;
+  } else if (condition->IsIntConstant()) {
+    if (condition->AsIntConstant()->IsOne()) {
+      // Replace (true ? x : y) with (x).
+      replace_with = true_value;
+    } else {
+      // Replace (false ? x : y) with (y).
+      DCHECK(condition->AsIntConstant()->IsZero());
+      replace_with = false_value;
+    }
+  } else if (true_value->IsIntConstant() && false_value->IsIntConstant()) {
+    if (true_value->AsIntConstant()->IsOne() && false_value->AsIntConstant()->IsZero()) {
+      // Replace (cond ? true : false) with (cond).
+      replace_with = condition;
+    } else if (true_value->AsIntConstant()->IsZero() && false_value->AsIntConstant()->IsOne()) {
+      // Replace (cond ? false : true) with (!cond).
+      replace_with = GetGraph()->InsertOppositeCondition(condition, select);
+    }
+  }
+
+  if (replace_with != nullptr) {
+    select->ReplaceWith(replace_with);
+    select->GetBlock()->RemoveInstruction(select);
+    RecordSimplification();
+  }
+}
+
+void InstructionSimplifierVisitor::VisitIf(HIf* instruction) {
+  HInstruction* condition = instruction->InputAt(0);
+  if (condition->IsBooleanNot()) {
+    // Swap successors if input is negated.
+    instruction->ReplaceInput(condition->InputAt(0), 0);
+    instruction->GetBlock()->SwapSuccessors();
     RecordSimplification();
   }
 }

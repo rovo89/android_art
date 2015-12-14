@@ -595,19 +595,16 @@ public class Main {
   /// CHECK-DAG:                       InstanceFieldSet [<<Obj>>,<<True>>]
   /// CHECK-DAG:                       InstanceFieldSet [<<Obj>>,<<Float8>>]
   /// CHECK-DAG:     <<GetTest:z\d+>>  InstanceFieldGet [<<Obj>>]
-  /// CHECK-DAG:                       If [<<GetTest>>]
   /// CHECK-DAG:     <<GetField:f\d+>> InstanceFieldGet [<<Obj>>]
-  /// CHECK-DAG:     <<Phi:f\d+>>      Phi [<<Float42>>,<<GetField>>]
-  /// CHECK-DAG:                       Return [<<Phi>>]
+  /// CHECK-DAG:     <<Select:f\d+>>   Select [<<Float42>>,<<GetField>>,<<GetTest>>]
+  /// CHECK-DAG:                       Return [<<Select>>]
 
   /// CHECK-START: float Main.test24() load_store_elimination (after)
   /// CHECK-DAG:     <<True:i\d+>>     IntConstant 1
   /// CHECK-DAG:     <<Float8:f\d+>>   FloatConstant 8
   /// CHECK-DAG:     <<Float42:f\d+>>  FloatConstant 42
-  /// CHECK-DAG:     <<Obj:l\d+>>      NewInstance
-  /// CHECK-DAG:                       If [<<True>>]
-  /// CHECK-DAG:     <<Phi:f\d+>>      Phi [<<Float42>>,<<Float8>>]
-  /// CHECK-DAG:                       Return [<<Phi>>]
+  /// CHECK-DAG:     <<Select:f\d+>>   Select [<<Float42>>,<<Float8>>,<<True>>]
+  /// CHECK-DAG:                       Return [<<Select>>]
 
   static float test24() {
     float a = 42.0f;
