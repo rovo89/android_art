@@ -18,7 +18,6 @@
 
 #include "base/arena_allocator.h"
 #include "builder.h"
-#include "gtest/gtest.h"
 #include "induction_var_analysis.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
@@ -28,7 +27,7 @@ namespace art {
 /**
  * Fixture class for the InductionVarAnalysis tests.
  */
-class InductionVarAnalysisTest : public testing::Test {
+class InductionVarAnalysisTest : public CommonCompilerTest {
  public:
   InductionVarAnalysisTest() : pool_(), allocator_(&pool_) {
     graph_ = CreateGraph(&allocator_);
@@ -102,6 +101,7 @@ class InductionVarAnalysisTest : public testing::Test {
       basic_[d] = new (&allocator_) HLocal(d);
       entry_->AddInstruction(basic_[d]);
       loop_preheader_[d]->AddInstruction(new (&allocator_) HStoreLocal(basic_[d], constant0_));
+      loop_preheader_[d]->AddInstruction(new (&allocator_) HGoto());
       HInstruction* load = new (&allocator_) HLoadLocal(basic_[d], Primitive::kPrimInt);
       loop_header_[d]->AddInstruction(load);
       HInstruction* compare = new (&allocator_) HLessThan(load, constant100_);
@@ -168,7 +168,7 @@ class InductionVarAnalysisTest : public testing::Test {
 
   // Performs InductionVarAnalysis (after proper set up).
   void PerformInductionVarAnalysis() {
-    ASSERT_TRUE(graph_->TryBuildingSsa());
+    TransformToSsa(graph_);
     iva_ = new (&allocator_) HInductionVarAnalysis(graph_);
     iva_->Run();
   }
@@ -212,7 +212,7 @@ TEST_F(InductionVarAnalysisTest, ProperLoopSetup) {
   //   ..
   // }
   BuildLoopNest(10);
-  ASSERT_TRUE(graph_->TryBuildingSsa());
+  TransformToSsa(graph_);
   ASSERT_EQ(entry_->GetLoopInformation(), nullptr);
   for (int d = 0; d < 1; d++) {
     ASSERT_EQ(loop_preheader_[d]->GetLoopInformation(),

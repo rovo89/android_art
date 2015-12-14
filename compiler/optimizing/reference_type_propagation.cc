@@ -40,7 +40,6 @@ class RTPVisitor : public HGraphDelegateVisitor {
       throwable_class_handle_(throwable_class_handle),
       worklist_(worklist) {}
 
-  void VisitNullConstant(HNullConstant* null_constant) OVERRIDE;
   void VisitNewInstance(HNewInstance* new_instance) OVERRIDE;
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE;
   void VisitClinitCheck(HClinitCheck* clinit_check) OVERRIDE;
@@ -71,8 +70,6 @@ class RTPVisitor : public HGraphDelegateVisitor {
   ReferenceTypeInfo::TypeHandle string_class_handle_;
   ReferenceTypeInfo::TypeHandle throwable_class_handle_;
   ArenaVector<HInstruction*>* worklist_;
-
-  static constexpr size_t kDefaultWorklistSize = 8;
 };
 
 ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
@@ -171,9 +168,13 @@ static void ForEachUntypedInstruction(HGraph* graph, Functor fn) {
   ScopedObjectAccess soa(Thread::Current());
   for (HReversePostOrderIterator block_it(*graph); !block_it.Done(); block_it.Advance()) {
     for (HInstructionIterator it(block_it.Current()->GetPhis()); !it.Done(); it.Advance()) {
-      HInstruction* instr = it.Current();
-      if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
-        fn(instr);
+      HPhi* phi = it.Current()->AsPhi();
+      // Note that the graph may contain dead phis when run from the SsaBuilder.
+      // Skip those as they might have a type conflict and will be removed anyway.
+      if (phi->IsLive() &&
+          phi->GetType() == Primitive::kPrimNot &&
+          !phi->GetReferenceTypeInfo().IsValid()) {
+        fn(phi);
       }
     }
     for (HInstructionIterator it(block_it.Current()->GetInstructions()); !it.Done(); it.Advance()) {
@@ -376,6 +377,75 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
   }
 }
 
+// Returns true if one of the patterns below has been recognized. If so, the
+// InstanceOf instruction together with the true branch of `ifInstruction` will
+// be returned using the out parameters.
+// Recognized patterns:
+//   (1) patterns equivalent to `if (obj instanceof X)`
+//     (a) InstanceOf -> Equal to 1 -> If
+//     (b) InstanceOf -> NotEqual to 0 -> If
+//     (c) InstanceOf -> If
+//   (2) patterns equivalent to `if (!(obj instanceof X))`
+//     (a) InstanceOf -> Equal to 0 -> If
+//     (b) InstanceOf -> NotEqual to 1 -> If
+//     (c) InstanceOf -> BooleanNot -> If
+static bool MatchIfInstanceOf(HIf* ifInstruction,
+                              /* out */ HInstanceOf** instanceOf,
+                              /* out */ HBasicBlock** trueBranch) {
+  HInstruction* input = ifInstruction->InputAt(0);
+
+  if (input->IsEqual()) {
+    HInstruction* rhs = input->AsEqual()->GetConstantRight();
+    if (rhs != nullptr) {
+      HInstruction* lhs = input->AsEqual()->GetLeastConstantLeft();
+      if (lhs->IsInstanceOf() && rhs->IsIntConstant()) {
+        if (rhs->AsIntConstant()->IsOne()) {
+          // Case (1a)
+          *trueBranch = ifInstruction->IfTrueSuccessor();
+        } else {
+          // Case (2a)
+          DCHECK(rhs->AsIntConstant()->IsZero());
+          *trueBranch = ifInstruction->IfFalseSuccessor();
+        }
+        *instanceOf = lhs->AsInstanceOf();
+        return true;
+      }
+    }
+  } else if (input->IsNotEqual()) {
+    HInstruction* rhs = input->AsNotEqual()->GetConstantRight();
+    if (rhs != nullptr) {
+      HInstruction* lhs = input->AsNotEqual()->GetLeastConstantLeft();
+      if (lhs->IsInstanceOf() && rhs->IsIntConstant()) {
+        if (rhs->AsIntConstant()->IsZero()) {
+          // Case (1b)
+          *trueBranch = ifInstruction->IfTrueSuccessor();
+        } else {
+          // Case (2b)
+          DCHECK(rhs->AsIntConstant()->IsOne());
+          *trueBranch = ifInstruction->IfFalseSuccessor();
+        }
+        *instanceOf = lhs->AsInstanceOf();
+        return true;
+      }
+    }
+  } else if (input->IsInstanceOf()) {
+    // Case (1c)
+    *instanceOf = input->AsInstanceOf();
+    *trueBranch = ifInstruction->IfTrueSuccessor();
+    return true;
+  } else if (input->IsBooleanNot()) {
+    HInstruction* not_input = input->InputAt(0);
+    if (not_input->IsInstanceOf()) {
+      // Case (2c)
+      *instanceOf = not_input->AsInstanceOf();
+      *trueBranch = ifInstruction->IfFalseSuccessor();
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // Detects if `block` is the True block for the pattern
 // `if (x instanceof ClassX) { }`
 // If that's the case insert an HBoundType instruction to bound the type of `x`
@@ -385,22 +455,11 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
   if (ifInstruction == nullptr) {
     return;
   }
-  HInstruction* ifInput = ifInstruction->InputAt(0);
-  HInstruction* instanceOf = nullptr;
-  HBasicBlock* instanceOfTrueBlock = nullptr;
 
-  // The instruction simplifier has transformed:
-  //   - `if (a instanceof A)` into an HIf with an HInstanceOf input
-  //   - `if (!(a instanceof A)` into an HIf with an HBooleanNot input (which in turn
-  //     has an HInstanceOf input)
-  // So we should not see the usual HEqual here.
-  if (ifInput->IsInstanceOf()) {
-    instanceOf = ifInput;
-    instanceOfTrueBlock = ifInstruction->IfTrueSuccessor();
-  } else if (ifInput->IsBooleanNot() && ifInput->InputAt(0)->IsInstanceOf()) {
-    instanceOf = ifInput->InputAt(0);
-    instanceOfTrueBlock = ifInstruction->IfFalseSuccessor();
-  } else {
+  // Try to recognize common `if (instanceof)` and `if (!instanceof)` patterns.
+  HInstanceOf* instanceOf = nullptr;
+  HBasicBlock* instanceOfTrueBlock = nullptr;
+  if (!MatchIfInstanceOf(ifInstruction, &instanceOf, &instanceOfTrueBlock)) {
     return;
   }
 
@@ -505,13 +564,6 @@ void RTPVisitor::UpdateReferenceTypeInfo(HInstruction* instr,
   SetClassAsTypeInfo(instr, dex_cache->GetResolvedType(type_idx), is_exact);
 }
 
-void RTPVisitor::VisitNullConstant(HNullConstant* instr) {
-  // TODO: The null constant could be bound contextually (e.g. based on return statements)
-  // to a more precise type.
-  instr->SetReferenceTypeInfo(
-      ReferenceTypeInfo::Create(object_class_handle_, /* is_exact */ false));
-}
-
 void RTPVisitor::VisitNewInstance(HNewInstance* instr) {
   UpdateReferenceTypeInfo(instr, instr->GetTypeIndex(), instr->GetDexFile(), /* is_exact */ true);
 }
@@ -523,7 +575,11 @@ void RTPVisitor::VisitNewArray(HNewArray* instr) {
 static mirror::Class* GetClassFromDexCache(Thread* self, const DexFile& dex_file, uint16_t type_idx)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::DexCache* dex_cache =
-      Runtime::Current()->GetClassLinker()->FindDexCache(self, dex_file, false);
+      Runtime::Current()->GetClassLinker()->FindDexCache(self, dex_file, /* allow_failure */ true);
+  if (dex_cache == nullptr) {
+    // Dex cache could not be found. This should only happen during gtests.
+    return nullptr;
+  }
   // Get type from dex cache assuming it was populated by the verifier.
   return dex_cache->GetResolvedType(type_idx);
 }
@@ -540,17 +596,24 @@ void RTPVisitor::VisitParameterValue(HParameterValue* instr) {
 
 void RTPVisitor::UpdateFieldAccessTypeInfo(HInstruction* instr,
                                            const FieldInfo& info) {
-  // The field index is unknown only during tests.
-  if (instr->GetType() != Primitive::kPrimNot || info.GetFieldIndex() == kUnknownFieldIndex) {
+  if (instr->GetType() != Primitive::kPrimNot) {
     return;
   }
 
   ScopedObjectAccess soa(Thread::Current());
-  ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  ArtField* field = cl->GetResolvedField(info.GetFieldIndex(), info.GetDexCache().Get());
-  // TODO: There are certain cases where we can't resolve the field.
-  // b/21914925 is open to keep track of a repro case for this issue.
-  mirror::Class* klass = (field == nullptr) ? nullptr : field->GetType<false>();
+  mirror::Class* klass = nullptr;
+
+  // The field index is unknown only during tests.
+  if (info.GetFieldIndex() != kUnknownFieldIndex) {
+    ClassLinker* cl = Runtime::Current()->GetClassLinker();
+    ArtField* field = cl->GetResolvedField(info.GetFieldIndex(), info.GetDexCache().Get());
+    // TODO: There are certain cases where we can't resolve the field.
+    // b/21914925 is open to keep track of a repro case for this issue.
+    if (field != nullptr) {
+      klass = field->GetType<false>();
+    }
+  }
+
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
 }
 
@@ -666,7 +729,7 @@ void RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
 }
 
 void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
-  if (phi->GetType() != Primitive::kPrimNot) {
+  if (phi->IsDead() || phi->GetType() != Primitive::kPrimNot) {
     return;
   }
 
@@ -824,6 +887,8 @@ void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
 // NullConstant inputs are ignored during merging as they do not provide any useful information.
 // If all the inputs are NullConstants then the type of the phi will be set to Object.
 void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
+  DCHECK(instr->IsLive());
+
   size_t input_count = instr->InputCount();
   size_t first_input_index_not_null = 0;
   while (first_input_index_not_null < input_count &&
@@ -868,7 +933,7 @@ void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
 // Re-computes and updates the nullability of the instruction. Returns whether or
 // not the nullability was changed.
 bool ReferenceTypePropagation::UpdateNullability(HInstruction* instr) {
-  DCHECK(instr->IsPhi()
+  DCHECK((instr->IsPhi() && instr->AsPhi()->IsLive())
       || instr->IsBoundType()
       || instr->IsNullCheck()
       || instr->IsArrayGet());
@@ -916,7 +981,7 @@ void ReferenceTypePropagation::AddToWorklist(HInstruction* instruction) {
 void ReferenceTypePropagation::AddDependentInstructionsToWorklist(HInstruction* instruction) {
   for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
     HInstruction* user = it.Current()->GetUser();
-    if (user->IsPhi()
+    if ((user->IsPhi() && user->AsPhi()->IsLive())
        || user->IsBoundType()
        || user->IsNullCheck()
        || (user->IsArrayGet() && (user->GetType() == Primitive::kPrimNot))) {
