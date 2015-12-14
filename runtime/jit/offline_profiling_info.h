@@ -21,6 +21,7 @@
 
 #include "atomic.h"
 #include "dex_file.h"
+#include "method_reference.h"
 #include "safe_map.h"
 
 namespace art {
@@ -50,8 +51,45 @@ class OfflineProfilingInfo {
   bool Serialize(const std::string& filename, const DexFileToMethodsMap& info) const;
 
   // TODO(calin): Verify if Atomic is really needed (are we sure to be called from a
-  // singe thread?)
+  // single thread?)
   Atomic<uint64_t> last_update_time_ns_;
+};
+
+/**
+ * Profile information in a format suitable to be queried by the compiler and performing
+ * profile guided compilation.
+ */
+class ProfileCompilationInfo {
+ public:
+  // Constructs a ProfileCompilationInfo backed by the provided file.
+  explicit ProfileCompilationInfo(const std::string& filename) : filename_(filename) {}
+
+  // Loads profile information corresponding to the provided dex files.
+  // The dex files' multidex suffixes must be unique.
+  // This resets the state of the profiling information
+  // (i.e. all previously loaded info are cleared).
+  bool Load(const std::vector<const DexFile*>& dex_files);
+
+  // Returns true if the method reference is present in the profiling info.
+  bool ContainsMethod(const MethodReference& method_ref) const;
+
+  const std::string& GetFilename() const { return filename_; }
+
+  // Dumps all the loaded profile info into a string and returns it.
+  // This is intended for testing and debugging.
+  std::string DumpInfo(bool print_full_dex_location = true) const;
+
+ private:
+  bool ProcessLine(const std::string& line,
+                   const std::vector<const DexFile*>& dex_files);
+
+  using ClassToMethodsMap = SafeMap<uint32_t, std::set<uint32_t>>;
+  // Map identifying the location of the profiled methods.
+  // dex_file -> class_index -> [dex_method_index]+
+  using DexFileToProfileInfoMap = SafeMap<const DexFile*, ClassToMethodsMap>;
+
+  const std::string filename_;
+  DexFileToProfileInfoMap info_;
 };
 
 }  // namespace art
