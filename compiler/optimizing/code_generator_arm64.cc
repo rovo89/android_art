@@ -4243,6 +4243,7 @@ void InstructionCodeGeneratorARM64::VisitRem(HRem* rem) {
 
     default:
       LOG(FATAL) << "Unexpected rem type " << type;
+      UNREACHABLE();
   }
 }
 
@@ -4317,6 +4318,7 @@ void LocationsBuilderARM64::VisitStoreLocal(HStoreLocal* store) {
 
     default:
       LOG(FATAL) << "Unimplemented local type " << field_type;
+      UNREACHABLE();
   }
 }
 

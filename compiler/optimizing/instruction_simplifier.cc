@@ -211,7 +211,7 @@ bool InstructionSimplifierVisitor::ReplaceRotateWithRor(HBinaryOperation* op,
 
 // Try to replace a binary operation flanked by one UShr and one Shl with a bitfield rotation.
 bool InstructionSimplifierVisitor::TryReplaceWithRotate(HBinaryOperation* op) {
-  // This simplification is currently supported on ARM and ARM64.
+  // This simplification is currently supported on x86, x86_64, ARM and ARM64.
   // TODO: Implement it for MIPS/64.
   const InstructionSet instruction_set = GetGraph()->GetInstructionSet();
   switch (instruction_set) {
@@ -1268,7 +1268,7 @@ void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
 void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke, bool is_left) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
   DCHECK_EQ(invoke->GetOriginalInvokeType(), InvokeType::kStatic);
-  // This simplification is currently supported on ARM and ARM64.
+  // This simplification is currently supported on x86, x86_64, ARM and ARM64.
   // TODO: Implement it for MIPS/64.
   const InstructionSet instruction_set = GetGraph()->GetInstructionSet();
   switch (instruction_set) {

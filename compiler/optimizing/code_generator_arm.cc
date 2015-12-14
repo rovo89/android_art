@@ -3363,15 +3363,16 @@ void InstructionCodeGeneratorARM::HandleRotate(HRor* ror) {
     }
     default:
       LOG(FATAL) << "Unexpected operation type " << type;
+      UNREACHABLE();
   }
 }
 
 void LocationsBuilderARM::VisitRor(HRor* op) {
-    HandleRotate(op);
+  HandleRotate(op);
 }
 
 void InstructionCodeGeneratorARM::VisitRor(HRor* op) {
-    HandleRotate(op);
+  HandleRotate(op);
 }
 
 void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
