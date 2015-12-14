@@ -3755,6 +3755,7 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
     }
     default:
       LOG(FATAL) << "Unexpected operation type " << op->GetResultType();
+      UNREACHABLE();
   }
 }
 
