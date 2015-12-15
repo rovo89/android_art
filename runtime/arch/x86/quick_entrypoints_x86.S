@@ -1686,6 +1686,14 @@ DEFINE_FUNCTION art_nested_signal_return
     UNREACHABLE
 END_FUNCTION art_nested_signal_return
 
+DEFINE_FUNCTION art_quick_read_barrier_mark
+    PUSH eax                         // pass arg1 - obj
+    call SYMBOL(artReadBarrierMark)  // artReadBarrierMark(obj)
+    addl LITERAL(4), %esp            // pop argument
+    CFI_ADJUST_CFA_OFFSET(-4)
+    ret
+END_FUNCTION art_quick_read_barrier_mark
+
 DEFINE_FUNCTION art_quick_read_barrier_slow
     PUSH edx                         // pass arg3 - offset
     PUSH ecx                         // pass arg2 - obj

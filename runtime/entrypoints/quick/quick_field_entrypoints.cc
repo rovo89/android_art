@@ -559,8 +559,11 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
   return -1;  // failure
 }
 
-// TODO: Currently the read barrier does not have a fast path. Ideally the slow path should only
-// take one parameter "ref", which is given by the fast path.
+extern "C" mirror::Object* artReadBarrierMark(mirror::Object* obj) {
+  DCHECK(kEmitCompilerReadBarrier);
+  return ReadBarrier::Mark(obj);
+}
+
 extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUSED,
                                               mirror::Object* obj,
                                               uint32_t offset) {
@@ -579,7 +582,6 @@ extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUS
 
 extern "C" mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root) {
   DCHECK(kEmitCompilerReadBarrier);
-  // TODO: Pass a GcRootSource object as second argument to GcRoot::Read?
   return root->Read();
 }
 
