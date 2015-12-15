@@ -439,9 +439,16 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> klass = hs.NewHandle(DecodeClass(soa, javaThis));
   size_t num_methods = 0;
-  for (auto& m : klass->GetDeclaredMethods(sizeof(void*))) {
+  for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
     auto modifiers = m.GetAccessFlags();
-    // Add non-constructor declared methods.
+    if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
+        (modifiers & kAccMiranda) == 0) {
+      ++num_methods;
+    }
+  }
+  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    auto modifiers = m.GetAccessFlags();
+    // Add non-constructor direct/static methods.
     if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
         (modifiers & kAccConstructor) == 0) {
       ++num_methods;
@@ -450,8 +457,21 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
   auto ret = hs.NewHandle(mirror::ObjectArray<mirror::Method>::Alloc(
       soa.Self(), mirror::Method::ArrayClass(), num_methods));
   num_methods = 0;
-  for (auto& m : klass->GetDeclaredMethods(sizeof(void*))) {
+  for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
     auto modifiers = m.GetAccessFlags();
+    if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
+        (modifiers & kAccMiranda) == 0) {
+      auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), &m);
+      if (method == nullptr) {
+        soa.Self()->AssertPendingException();
+        return nullptr;
+      }
+      ret->SetWithoutChecks<false>(num_methods++, method);
+    }
+  }
+  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    auto modifiers = m.GetAccessFlags();
+    // Add non-constructor direct/static methods.
     if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
         (modifiers & kAccConstructor) == 0) {
       auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), &m);

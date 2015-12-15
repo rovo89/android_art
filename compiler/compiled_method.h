@@ -23,7 +23,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/bit_utils.h"
-#include "base/length_prefixed_array.h"
+#include "length_prefixed_array.h"
 #include "method_reference.h"
 #include "utils/array_ref.h"
 
