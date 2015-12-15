@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_BASE_LENGTH_PREFIXED_ARRAY_H_
-#define ART_RUNTIME_BASE_LENGTH_PREFIXED_ARRAY_H_
+#ifndef ART_RUNTIME_LENGTH_PREFIXED_ARRAY_H_
+#define ART_RUNTIME_LENGTH_PREFIXED_ARRAY_H_
 
 #include <stddef.h>  // for offsetof()
 
@@ -110,4 +110,4 @@ IterationRange<StrideIterator<T>> MakeIterationRangeFromLengthPrefixedArray(
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_BASE_LENGTH_PREFIXED_ARRAY_H_
+#endif  // ART_RUNTIME_LENGTH_PREFIXED_ARRAY_H_

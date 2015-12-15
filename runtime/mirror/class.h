@@ -44,7 +44,6 @@ class ArtMethod;
 struct ClassOffsets;
 template<class T> class Handle;
 template<typename T> class LengthPrefixedArray;
-template<typename T> class ArraySlice;
 class Signature;
 class StringPiece;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
@@ -703,24 +702,12 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetMethodsPtr()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtMethod>* GetDirectMethodsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetMethods(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  void SetMethodsPtr(LengthPrefixedArray<ArtMethod>* new_methods,
-                     uint32_t num_direct,
-                     uint32_t num_virtual)
+  void SetDirectMethodsPtr(LengthPrefixedArray<ArtMethod>* new_direct_methods)
       SHARED_REQUIRES(Locks::mutator_lock_);
   // Used by image writer.
-  void SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_methods,
-                              uint32_t num_direct,
-                              uint32_t num_virtual)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSlice(size_t pointer_size)
+  void SetDirectMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_direct_methods)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetDirectMethod(size_t i, size_t pointer_size)
@@ -736,49 +723,17 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE uint32_t NumDirectMethods() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetMethodsSlice(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSlice(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredMethods(
-        size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredVirtualMethods(
-        size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSlice(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetCopiedMethods(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetVirtualMethodsPtr()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetVirtualMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns the number of non-inherited virtual methods (sum of declared and copied methods).
+  void SetVirtualMethodsPtr(LengthPrefixedArray<ArtMethod>* new_virtual_methods)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Returns the number of non-inherited virtual methods.
   ALWAYS_INLINE uint32_t NumVirtualMethods() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Returns the number of copied virtual methods.
-  ALWAYS_INLINE uint32_t NumCopiedVirtualMethods() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Returns the number of declared virtual methods.
-  ALWAYS_INLINE uint32_t NumDeclaredVirtualMethods() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE uint32_t NumMethods() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ArtMethod* GetVirtualMethod(size_t i, size_t pointer_size)
@@ -1200,19 +1155,10 @@ class MANAGED Class FINAL : public Object {
     return pointer_size;
   }
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetDirectMethodsPtrUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSliceUnchecked(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSliceUnchecked(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSliceUnchecked(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetVirtualMethodsPtrUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Fix up all of the native pointers in the class by running them through the visitor. Only sets
@@ -1223,9 +1169,6 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  ALWAYS_INLINE void SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   void SetVerifyError(Object* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
@@ -1251,15 +1194,6 @@ class MANAGED Class FINAL : public Object {
   IterationRange<StrideIterator<ArtField>> GetIFieldsUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // The index in the methods_ array where the first declared virtual method is.
-  ALWAYS_INLINE uint32_t GetVirtualMethodsStartOffset() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // The index in the methods_ array where the first direct method is.
-  ALWAYS_INLINE uint32_t GetDirectMethodsStartOffset() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // The index in the methods_ array where the first copied method is.
-  ALWAYS_INLINE uint32_t GetCopiedMethodsStartOffset() SHARED_REQUIRES(Locks::mutator_lock_);
-
   bool ProxyDescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Check that the pointer size matches the one in the class linker.
@@ -1271,9 +1205,6 @@ class MANAGED Class FINAL : public Object {
   template <typename Visitor>
   void VisitReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // 'Class' Object Fields
-  // Order governed by java field ordering. See art::ClassLinker::LinkFields.
 
   HeapReference<Object> annotation_type_;
 
@@ -1328,6 +1259,9 @@ class MANAGED Class FINAL : public Object {
   // Short cuts to dex_cache_ member for fast compiled code access.
   uint64_t dex_cache_strings_;
 
+  // static, private, and <init> methods. Pointer to an ArtMethod length-prefixed array.
+  uint64_t direct_methods_;
+
   // instance fields
   //
   // These describe the layout of the contents of an Object.
@@ -1339,23 +1273,12 @@ class MANAGED Class FINAL : public Object {
   // ArtFields.
   uint64_t ifields_;
 
-  // Pointer to an ArtMethod length-prefixed array. All the methods where this class is the place
-  // where they are logically defined. This includes all private, static, final and virtual methods
-  // as well as inherited default methods and miranda methods.
-  //
-  // The slice methods_ [0, virtual_methods_offset_) are the direct (static, private, init) methods
-  // declared by this class.
-  //
-  // The slice methods_ [virtual_methods_offset_, copied_methods_offset_) are the virtual methods
-  // declared by this class.
-  //
-  // The slice methods_ [copied_methods_offset_, |methods_|) are the methods that are copied from
-  // interfaces such as miranda or default methods. These are copied for resolution purposes as this
-  // class is where they are (logically) declared as far as the virtual dispatch is concerned.
-  uint64_t methods_;
-
   // Static fields length-prefixed array.
   uint64_t sfields_;
+
+  // Virtual methods defined in this class; invoked through vtable. Pointer to an ArtMethod
+  // length-prefixed array.
+  uint64_t virtual_methods_;
 
   // Class flags to help speed up visiting object references.
   uint32_t class_flags_;
@@ -1395,14 +1318,6 @@ class MANAGED Class FINAL : public Object {
 
   // State of class initialization.
   Status status_;
-
-  // The offset of the first virtual method that is copied from an interface. This includes miranda,
-  // default, and default-conflict methods. Having a hard limit of ((2 << 16) - 1) for methods
-  // defined on a single class is well established in Java so we will use only uint16_t's here.
-  uint16_t copied_methods_offset_;
-
-  // The offset of the first declared virtual methods in the methods_ array.
-  uint16_t virtual_methods_offset_;
 
   // TODO: ?
   // initiating class loader list
