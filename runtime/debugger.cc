@@ -1536,10 +1536,10 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
     int numItems;
     JDWP::ExpandBuf* pReply;
 
-    static bool Callback(void* context, uint32_t address, uint32_t line_number) {
+    static bool Callback(void* context, const DexFile::PositionInfo& entry) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
-      expandBufAdd8BE(pContext->pReply, address);
-      expandBufAdd4BE(pContext->pReply, line_number);
+      expandBufAdd8BE(pContext->pReply, entry.address_);
+      expandBufAdd4BE(pContext->pReply, entry.line_);
       pContext->numItems++;
       return false;
     }
@@ -1569,8 +1569,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
   context.pReply = pReply;
 
   if (code_item != nullptr) {
-    m->GetDexFile()->DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
-                                     DebugCallbackContext::Callback, nullptr, &context);
+    m->GetDexFile()->DecodeDebugPositionInfo(code_item, DebugCallbackContext::Callback, &context);
   }
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
@@ -1584,25 +1583,26 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
     size_t variable_count;
     bool with_generic;
 
-    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress,
-                         const char* name, const char* descriptor, const char* signature)
+    static void Callback(void* context, const DexFile::LocalInfo& entry)
         SHARED_REQUIRES(Locks::mutator_lock_) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
+      uint16_t slot = entry.reg_;
       VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d",
-                                 pContext->variable_count, startAddress, endAddress - startAddress,
-                                 name, descriptor, signature, slot,
+                                 pContext->variable_count, entry.start_address_,
+                                 entry.end_address_ - entry.start_address_,
+                                 entry.name_, entry.descriptor_, entry.signature_, slot,
                                  MangleSlot(slot, pContext->method));
 
       slot = MangleSlot(slot, pContext->method);
 
-      expandBufAdd8BE(pContext->pReply, startAddress);
-      expandBufAddUtf8String(pContext->pReply, name);
-      expandBufAddUtf8String(pContext->pReply, descriptor);
+      expandBufAdd8BE(pContext->pReply, entry.start_address_);
+      expandBufAddUtf8String(pContext->pReply, entry.name_);
+      expandBufAddUtf8String(pContext->pReply, entry.descriptor_);
       if (pContext->with_generic) {
-        expandBufAddUtf8String(pContext->pReply, signature);
+        expandBufAddUtf8String(pContext->pReply, entry.signature_);
       }
-      expandBufAdd4BE(pContext->pReply, endAddress - startAddress);
+      expandBufAdd4BE(pContext->pReply, entry.end_address_- entry.start_address_);
       expandBufAdd4BE(pContext->pReply, slot);
 
       ++pContext->variable_count;
@@ -1627,8 +1627,8 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
 
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   if (code_item != nullptr) {
-    m->GetDexFile()->DecodeDebugInfo(
-        code_item, m->IsStatic(), m->GetDexMethodIndex(), nullptr, DebugCallbackContext::Callback,
+    m->GetDexFile()->DecodeDebugLocalInfo(
+        code_item, m->IsStatic(), m->GetDexMethodIndex(), DebugCallbackContext::Callback,
         &context);
   }
 
@@ -3715,19 +3715,19 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
           code_item_(code_item), last_pc_valid(false), last_pc(0) {
     }
 
-    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number_cb) {
+    static bool Callback(void* raw_context, const DexFile::PositionInfo& entry) {
       DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
-      if (static_cast<int32_t>(line_number_cb) == context->line_number_) {
+      if (static_cast<int32_t>(entry.line_) == context->line_number_) {
         if (!context->last_pc_valid) {
           // Everything from this address until the next line change is ours.
-          context->last_pc = address;
+          context->last_pc = entry.address_;
           context->last_pc_valid = true;
         }
         // Otherwise, if we're already in a valid range for this line,
         // just keep going (shouldn't really happen)...
       } else if (context->last_pc_valid) {  // and the line number is new
         // Add everything from the last entry up until here to the set
-        for (uint32_t dex_pc = context->last_pc; dex_pc < address; ++dex_pc) {
+        for (uint32_t dex_pc = context->last_pc; dex_pc < entry.address_; ++dex_pc) {
           context->single_step_control_->AddDexPc(dex_pc);
         }
         context->last_pc_valid = false;
@@ -3768,8 +3768,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   if (m != nullptr && !m->IsNative()) {
     const DexFile::CodeItem* const code_item = m->GetCodeItem();
     DebugCallbackContext context(single_step_control, line_number, code_item);
-    m->GetDexFile()->DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
-                                     DebugCallbackContext::Callback, nullptr, &context);
+    m->GetDexFile()->DecodeDebugPositionInfo(code_item, DebugCallbackContext::Callback, &context);
   }
 
   // Activate single-step in the thread.

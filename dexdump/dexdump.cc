@@ -471,18 +471,19 @@ static void dumpCatches(const DexFile* pDexFile, const DexFile::CodeItem* pCode)
 /*
  * Callback for dumping each positions table entry.
  */
-static bool dumpPositionsCb(void* /*context*/, u4 address, u4 lineNum) {
-  fprintf(gOutFile, "        0x%04x line=%d\n", address, lineNum);
+static bool dumpPositionsCb(void* /*context*/, const DexFile::PositionInfo& entry) {
+  fprintf(gOutFile, "        0x%04x line=%d\n", entry.address_, entry.line_);
   return false;
 }
 
 /*
  * Callback for dumping locals table entry.
  */
-static void dumpLocalsCb(void* /*context*/, u2 slot, u4 startAddress, u4 endAddress,
-                         const char* name, const char* descriptor, const char* signature) {
+static void dumpLocalsCb(void* /*context*/, const DexFile::LocalInfo& entry) {
+  const char* signature = entry.signature_ != nullptr ? entry.signature_ : "";
   fprintf(gOutFile, "        0x%04x - 0x%04x reg=%d %s %s %s\n",
-          startAddress, endAddress, slot, name, descriptor, signature);
+          entry.start_address_, entry.end_address_, entry.reg_,
+          entry.name_, entry.descriptor_, signature);
 }
 
 /*
@@ -900,11 +901,9 @@ static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
   // Positions and locals table in the debug info.
   bool is_static = (flags & kAccStatic) != 0;
   fprintf(gOutFile, "      positions     : \n");
-  pDexFile->DecodeDebugInfo(
-      pCode, is_static, idx, dumpPositionsCb, nullptr, nullptr);
+  pDexFile->DecodeDebugPositionInfo(pCode, dumpPositionsCb, nullptr);
   fprintf(gOutFile, "      locals        : \n");
-  pDexFile->DecodeDebugInfo(
-      pCode, is_static, idx, nullptr, dumpLocalsCb, nullptr);
+  pDexFile->DecodeDebugLocalInfo(pCode, is_static, idx, dumpLocalsCb, nullptr);
 }
 
 /*
