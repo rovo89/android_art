@@ -1712,6 +1712,17 @@ DEFINE_FUNCTION art_nested_signal_return
     UNREACHABLE
 END_FUNCTION art_nested_signal_return
 
+DEFINE_FUNCTION art_quick_read_barrier_mark
+    SETUP_FP_CALLEE_SAVE_FRAME
+    subq LITERAL(8), %rsp           // Alignment padding.
+    CFI_ADJUST_CFA_OFFSET(8)
+    call SYMBOL(artReadBarrierMark) // artReadBarrierMark(obj)
+    addq LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
+    RESTORE_FP_CALLEE_SAVE_FRAME
+    ret
+END_FUNCTION art_quick_read_barrier_slow
+
 DEFINE_FUNCTION art_quick_read_barrier_slow
     SETUP_FP_CALLEE_SAVE_FRAME
     subq LITERAL(8), %rsp           // Alignment padding.
