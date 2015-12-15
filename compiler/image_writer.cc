@@ -1030,42 +1030,44 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
         }
       }
       // Visit and assign offsets for methods.
-      size_t num_methods = as_klass->NumMethods();
-      if (num_methods != 0) {
+      LengthPrefixedArray<ArtMethod>* method_arrays[] = {
+          as_klass->GetDirectMethodsPtr(), as_klass->GetVirtualMethodsPtr(),
+      };
+      for (LengthPrefixedArray<ArtMethod>* array : method_arrays) {
+        if (array == nullptr) {
+          continue;
+        }
         bool any_dirty = false;
-        for (auto& m : as_klass->GetMethods(target_ptr_size_)) {
-          if (WillMethodBeDirty(&m)) {
-            any_dirty = true;
-            break;
-          }
+        size_t count = 0;
+        const size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
+        const size_t method_size = ArtMethod::Size(target_ptr_size_);
+        auto iteration_range =
+            MakeIterationRangeFromLengthPrefixedArray(array, method_size, method_alignment);
+        for (auto& m : iteration_range) {
+          any_dirty = any_dirty || WillMethodBeDirty(&m);
+          ++count;
         }
         NativeObjectRelocationType type = any_dirty
             ? kNativeObjectRelocationTypeArtMethodDirty
             : kNativeObjectRelocationTypeArtMethodClean;
         Bin bin_type = BinTypeForNativeRelocationType(type);
         // Forward the entire array at once, but header first.
-        const size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
-        const size_t method_size = ArtMethod::Size(target_ptr_size_);
         const size_t header_size = LengthPrefixedArray<ArtMethod>::ComputeSize(0,
                                                                                method_size,
                                                                                method_alignment);
-        LengthPrefixedArray<ArtMethod>* array = as_klass->GetMethodsPtr();
         auto it = native_object_relocations_.find(array);
-        CHECK(it == native_object_relocations_.end())
-            << "Method array " << array << " already forwarded";
+        CHECK(it == native_object_relocations_.end()) << "Method array " << array
+            << " already forwarded";
         size_t& offset = bin_slot_sizes_[bin_type];
         DCHECK(!IsInBootImage(array));
-        native_object_relocations_.emplace(
-            array, NativeObjectRelocation {
-              offset,
-              any_dirty ? kNativeObjectRelocationTypeArtMethodArrayDirty
-                        : kNativeObjectRelocationTypeArtMethodArrayClean
-            });
+        native_object_relocations_.emplace(array, NativeObjectRelocation { offset,
+            any_dirty ? kNativeObjectRelocationTypeArtMethodArrayDirty :
+                kNativeObjectRelocationTypeArtMethodArrayClean });
         offset += header_size;
-        for (auto& m : as_klass->GetMethods(target_ptr_size_)) {
+        for (auto& m : iteration_range) {
           AssignMethodOffset(&m, type);
         }
-        (any_dirty ? dirty_methods_ : clean_methods_) += num_methods;
+        (any_dirty ? dirty_methods_ : clean_methods_) += count;
       }
     } else if (h_obj->IsObjectArray()) {
       // Walk elements of an object array.
