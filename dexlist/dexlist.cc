@@ -80,10 +80,10 @@ static char* descriptorToDot(const char* str) {
  * first line in the method, which *should* correspond to the first
  * entry from the table.  (Could also use "min" here.)
  */
-static bool positionsCb(void* context, u4 /*address*/, u4 lineNum) {
+static bool positionsCb(void* context, const DexFile::PositionInfo& entry) {
   int* pFirstLine = reinterpret_cast<int *>(context);
   if (*pFirstLine == -1) {
-    *pFirstLine = lineNum;
+    *pFirstLine = entry.line_;
   }
   return 0;
 }
@@ -92,7 +92,7 @@ static bool positionsCb(void* context, u4 /*address*/, u4 lineNum) {
  * Dumps a method.
  */
 static void dumpMethod(const DexFile* pDexFile,
-                       const char* fileName, u4 idx, u4 flags,
+                       const char* fileName, u4 idx, u4 flags ATTRIBUTE_UNUSED,
                        const DexFile::CodeItem* pCode, u4 codeOffset) {
   // Abstract and native methods don't get listed.
   if (pCode == nullptr || codeOffset == 0) {
@@ -121,9 +121,7 @@ static void dumpMethod(const DexFile* pDexFile,
 
   // Find the first line.
   int firstLine = -1;
-  bool is_static = (flags & kAccStatic) != 0;
-  pDexFile->DecodeDebugInfo(
-     pCode, is_static, idx, positionsCb, nullptr, &firstLine);
+  pDexFile->DecodeDebugPositionInfo(pCode, positionsCb, &firstLine);
 
   // Method signature.
   const Signature signature = pDexFile->GetMethodSignature(pMethodId);

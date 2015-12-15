@@ -164,7 +164,7 @@ static void SetUtf8String(uint8_t* buf, const char* str, size_t strLen) {
  * have stored null bytes in a multi-byte encoding).
  */
 void expandBufAddUtf8String(ExpandBuf* pBuf, const char* s) {
-  int strLen = strlen(s);
+  int strLen = (s != nullptr ? strlen(s) : 0);
   ensureSpace(pBuf, sizeof(uint32_t) + strLen);
   SetUtf8String(pBuf->storage + pBuf->curLen, s, strLen);
   pBuf->curLen += sizeof(uint32_t) + strLen;

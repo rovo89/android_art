@@ -301,40 +301,30 @@ namespace {
     uint32_t high_pc_ = 0;
   };
 
-  struct LocalVariable {
-    uint16_t vreg;
-    uint32_t dex_pc_low;
-    uint32_t dex_pc_high;
-    const char* name;
-    const char* type;
-    const char* sig;
-  };
+  typedef std::vector<DexFile::LocalInfo> LocalInfos;
 
-  struct DebugInfoCallback {
-    static void NewLocal(void* ctx,
-                         uint16_t vreg,
-                         uint32_t start,
-                         uint32_t end,
-                         const char* name,
-                         const char* type,
-                         const char* sig) {
-      auto* context = static_cast<DebugInfoCallback*>(ctx);
-      if (name != nullptr && type != nullptr) {
-        context->local_variables_.push_back({vreg, start, end, name, type, sig});
-      }
-    }
-    std::vector<LocalVariable> local_variables_;
-  };
+  void LocalInfoCallback(void* ctx, const DexFile::LocalInfo& entry) {
+    static_cast<LocalInfos*>(ctx)->push_back(entry);
+  }
+
+  typedef std::vector<DexFile::PositionInfo> PositionInfos;
+
+  bool PositionInfoCallback(void* ctx, const DexFile::PositionInfo& entry) {
+    static_cast<PositionInfos*>(ctx)->push_back(entry);
+    return false;
+  }
 
   std::vector<const char*> GetParamNames(const MethodDebugInfo* mi) {
     std::vector<const char*> names;
-    const uint8_t* stream = mi->dex_file_->GetDebugInfoStream(mi->code_item_);
-    if (stream != nullptr) {
-      DecodeUnsignedLeb128(&stream);  // line.
-      uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
-      for (uint32_t i = 0; i < parameters_size; ++i) {
-        uint32_t id = DecodeUnsignedLeb128P1(&stream);
-        names.push_back(mi->dex_file_->StringDataByIdx(id));
+    if (mi->code_item_ != nullptr) {
+      const uint8_t* stream = mi->dex_file_->GetDebugInfoStream(mi->code_item_);
+      if (stream != nullptr) {
+        DecodeUnsignedLeb128(&stream);  // line.
+        uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
+        for (uint32_t i = 0; i < parameters_size; ++i) {
+          uint32_t id = DecodeUnsignedLeb128P1(&stream);
+          names.push_back(mi->dex_file_->StringDataByIdx(id));
+        }
       }
     }
     return names;
@@ -454,6 +444,7 @@ class DebugInfoWriter {
       const char* last_dex_class_desc = nullptr;
       for (auto mi : compilation_unit.methods_) {
         const DexFile* dex = mi->dex_file_;
+        const DexFile::CodeItem* dex_code = mi->code_item_;
         const DexFile::MethodId& dex_method = dex->GetMethodId(mi->dex_method_index_);
         const DexFile::ProtoId& dex_proto = dex->GetMethodPrototype(dex_method);
         const DexFile::TypeList* dex_params = dex->GetProtoParameters(dex_proto);
@@ -473,19 +464,6 @@ class DebugInfoWriter {
           last_dex_class_desc = dex_class_desc;
         }
 
-        // Collect information about local variables and parameters.
-        DebugInfoCallback debug_info_callback;
-        std::vector<const char*> param_names;
-        if (mi->code_item_ != nullptr) {
-          dex->DecodeDebugInfo(mi->code_item_,
-                               is_static,
-                               mi->dex_method_index_,
-                               nullptr,
-                               DebugInfoCallback::NewLocal,
-                               &debug_info_callback);
-          param_names = GetParamNames(mi);
-        }
-
         int start_depth = info_.Depth();
         info_.StartTag(DW_TAG_subprogram);
         WriteName(dex->GetMethodName(dex_method));
@@ -494,50 +472,70 @@ class DebugInfoWriter {
         uint8_t frame_base[] = { DW_OP_call_frame_cfa };
         info_.WriteExprLoc(DW_AT_frame_base, &frame_base, sizeof(frame_base));
         WriteLazyType(dex->GetReturnTypeDescriptor(dex_proto));
-        uint32_t vreg = mi->code_item_ == nullptr ? 0 :
-            mi->code_item_->registers_size_ - mi->code_item_->ins_size_;
+
+        // Write parameters. DecodeDebugLocalInfo returns them as well, but it does not
+        // guarantee order or uniqueness so it is safer to iterate over them manually.
+        // DecodeDebugLocalInfo might not also be available if there is no debug info.
+        std::vector<const char*> param_names = GetParamNames(mi);
+        uint32_t arg_reg = 0;
         if (!is_static) {
           info_.StartTag(DW_TAG_formal_parameter);
           WriteName("this");
           info_.WriteFlag(DW_AT_artificial, true);
           WriteLazyType(dex_class_desc);
-          const bool is64bitValue = false;
-          WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc_);
-          vreg++;
+          if (dex_code != nullptr) {
+            // Write the stack location of the parameter.
+            const uint32_t vreg = dex_code->registers_size_ - dex_code->ins_size_ + arg_reg;
+            const bool is64bitValue = false;
+            WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc_);
+          }
+          arg_reg++;
           info_.EndTag();
         }
         if (dex_params != nullptr) {
           for (uint32_t i = 0; i < dex_params->Size(); ++i) {
             info_.StartTag(DW_TAG_formal_parameter);
             // Parameter names may not be always available.
-            if (i < param_names.size() && param_names[i] != nullptr) {
+            if (i < param_names.size()) {
               WriteName(param_names[i]);
             }
             // Write the type.
             const char* type_desc = dex->StringByTypeIdx(dex_params->GetTypeItem(i).type_idx_);
             WriteLazyType(type_desc);
-            // Write the stack location of the parameter.
             const bool is64bitValue = type_desc[0] == 'D' || type_desc[0] == 'J';
-            WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc_);
-            vreg += is64bitValue ? 2 : 1;
+            if (dex_code != nullptr) {
+              // Write the stack location of the parameter.
+              const uint32_t vreg = dex_code->registers_size_ - dex_code->ins_size_ + arg_reg;
+              WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc_);
+            }
+            arg_reg += is64bitValue ? 2 : 1;
             info_.EndTag();
           }
-          if (mi->code_item_ != nullptr) {
-            CHECK_EQ(vreg, mi->code_item_->registers_size_);
+          if (dex_code != nullptr) {
+            DCHECK_EQ(arg_reg, dex_code->ins_size_);
           }
         }
-        for (const LocalVariable& var : debug_info_callback.local_variables_) {
-          const uint32_t first_arg = mi->code_item_->registers_size_ - mi->code_item_->ins_size_;
-          if (var.vreg < first_arg) {
-            info_.StartTag(DW_TAG_variable);
-            WriteName(var.name);
-            WriteLazyType(var.type);
-            bool is64bitValue = var.type[0] == 'D' || var.type[0] == 'J';
-            WriteRegLocation(mi, var.vreg, is64bitValue, compilation_unit.low_pc_,
-                             var.dex_pc_low, var.dex_pc_high);
-            info_.EndTag();
+
+        // Write local variables.
+        LocalInfos local_infos;
+        if (dex->DecodeDebugLocalInfo(dex_code,
+                                      is_static,
+                                      mi->dex_method_index_,
+                                      LocalInfoCallback,
+                                      &local_infos)) {
+          for (const DexFile::LocalInfo& var : local_infos) {
+            if (var.reg_ < dex_code->registers_size_ - dex_code->ins_size_) {
+              info_.StartTag(DW_TAG_variable);
+              WriteName(var.name_);
+              WriteLazyType(var.descriptor_);
+              bool is64bitValue = var.descriptor_[0] == 'D' || var.descriptor_[0] == 'J';
+              WriteRegLocation(mi, var.reg_, is64bitValue, compilation_unit.low_pc_,
+                               var.start_address_, var.end_address_);
+              info_.EndTag();
+            }
           }
         }
+
         info_.EndTag();
         CHECK_EQ(info_.Depth(), start_depth);  // Balanced start/end.
       }
@@ -708,8 +706,7 @@ class DebugInfoWriter {
     // to be enclosed in the right set of namespaces. Therefore we
     // just define all types lazily at the end of compilation unit.
     void WriteLazyType(const char* type_descriptor) {
-      DCHECK(type_descriptor != nullptr);
-      if (type_descriptor[0] != 'V') {
+      if (type_descriptor != nullptr && type_descriptor[0] != 'V') {
         lazy_types_.emplace(type_descriptor, info_.size());
         info_.WriteRef4(DW_AT_type, 0);
       }
@@ -724,7 +721,9 @@ class DebugInfoWriter {
 
    private:
     void WriteName(const char* name) {
-      info_.WriteStrp(DW_AT_name, owner_->WriteString(name));
+      if (name != nullptr) {
+        info_.WriteStrp(DW_AT_name, owner_->WriteString(name));
+      }
     }
 
     // Helper which writes DWARF expression referencing a register.
@@ -976,29 +975,15 @@ class DebugLineWriter {
         continue;
       }
 
-      // Create mapping table from dex to source line.
-      struct DebugInfoCallbacks {
-        static bool NewPosition(void* ctx, uint32_t address, uint32_t line) {
-          auto* context = static_cast<DebugInfoCallbacks*>(ctx);
-          context->dex2line_.push_back({address, static_cast<int32_t>(line)});
-          return false;
-        }
-        DefaultSrcMap dex2line_;
-      } debug_info_callbacks;
-
       Elf_Addr method_address = text_address + mi->low_pc_;
 
+      PositionInfos position_infos;
       const DexFile* dex = mi->dex_file_;
-      if (mi->code_item_ != nullptr) {
-        dex->DecodeDebugInfo(mi->code_item_,
-                             (mi->access_flags_ & kAccStatic) != 0,
-                             mi->dex_method_index_,
-                             DebugInfoCallbacks::NewPosition,
-                             nullptr,
-                             &debug_info_callbacks);
+      if (!dex->DecodeDebugPositionInfo(mi->code_item_, PositionInfoCallback, &position_infos)) {
+        continue;
       }
 
-      if (debug_info_callbacks.dex2line_.empty()) {
+      if (position_infos.empty()) {
         continue;
       }
 
@@ -1053,20 +1038,23 @@ class DebugLineWriter {
       opcodes.SetFile(file_index);
 
       // Generate mapping opcodes from PC to Java lines.
-      const DefaultSrcMap& dex2line_map = debug_info_callbacks.dex2line_;
-      if (file_index != 0 && !dex2line_map.empty()) {
+      if (file_index != 0) {
         bool first = true;
         for (SrcMapElem pc2dex : src_mapping_table) {
           uint32_t pc = pc2dex.from_;
           int dex_pc = pc2dex.to_;
-          auto dex2line = dex2line_map.Find(static_cast<uint32_t>(dex_pc));
-          if (dex2line.first) {
-            int line = dex2line.second;
+          // Find mapping with address with is greater than our dex pc; then go back one step.
+          auto ub = std::upper_bound(position_infos.begin(), position_infos.end(), dex_pc,
+              [](uint32_t address, const DexFile::PositionInfo& entry) {
+                  return address < entry.address_;
+              });
+          if (ub != position_infos.begin()) {
+            int line = (--ub)->line_;
             if (first) {
               first = false;
               if (pc > 0) {
                 // Assume that any preceding code is prologue.
-                int first_line = dex2line_map.front().to_;
+                int first_line = position_infos.front().line_;
                 // Prologue is not a sensible place for a breakpoint.
                 opcodes.NegateStmt();
                 opcodes.AddRow(method_address, first_line);
