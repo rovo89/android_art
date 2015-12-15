@@ -1516,9 +1516,11 @@ class EncodedStaticFieldValueIterator {
                                   const DexFile::ClassDef& class_def);
 
   // A constructor meant to be called from runtime code.
-  EncodedStaticFieldValueIterator(const DexFile& dex_file, Handle<mirror::DexCache>* dex_cache,
+  EncodedStaticFieldValueIterator(const DexFile& dex_file,
+                                  Handle<mirror::DexCache>* dex_cache,
                                   Handle<mirror::ClassLoader>* class_loader,
-                                  ClassLinker* linker, const DexFile::ClassDef& class_def)
+                                  ClassLinker* linker,
+                                  const DexFile::ClassDef& class_def)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
@@ -1551,6 +1553,14 @@ class EncodedStaticFieldValueIterator {
   const jvalue& GetJavaValue() const { return jval_; }
 
  private:
+  EncodedStaticFieldValueIterator(const DexFile& dex_file,
+                                  Handle<mirror::DexCache>* dex_cache,
+                                  Handle<mirror::ClassLoader>* class_loader,
+                                  ClassLinker* linker,
+                                  const DexFile::ClassDef& class_def,
+                                  size_t pos,
+                                  ValueType type);
+
   static constexpr uint8_t kEncodedValueTypeMask = 0x1f;  // 0b11111
   static constexpr uint8_t kEncodedValueArgShift = 5;
 
