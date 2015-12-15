@@ -18,6 +18,6 @@ exec ${RUN} \
   -Xcompiler-option --compiler-filter=interpret-only \
   --runtime-option -Xjitsaveprofilinginfo \
   --runtime-option -Xusejit:true \
-  --runtime-option -Xjitwarmupthreshold:10 \
-  --runtime-option -Xjitthreshold:100 \
+  --runtime-option -Xjitwarmupthreshold:2 \
+  --runtime-option -Xjitthreshold:4 \
   "${@}"
