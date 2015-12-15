@@ -767,8 +767,7 @@ int32_t DexFile::GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const {
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);
-  DecodeDebugInfo(code_item, method->IsStatic(), method->GetDexMethodIndex(), LineNumForPcCb,
-                  nullptr, &context);
+  DecodeDebugPositionInfo(code_item, LineNumForPcCb, &context);
   return context.line_num_;
 }
 
@@ -805,45 +804,48 @@ int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, uint32_t addr
   }
 }
 
-void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-                               DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
-                               void* context, const uint8_t* stream, LocalInfo* local_in_reg)
-    const {
-  uint32_t line = DecodeUnsignedLeb128(&stream);
-  uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
-  uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
-  uint32_t address = 0;
-  bool need_locals = (local_cb != nullptr);
+bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
+                                   DexDebugNewLocalCb local_cb, void* context) const {
+  DCHECK(local_cb != nullptr);
+  if (code_item == nullptr) {
+    return false;
+  }
+  const uint8_t* stream = GetDebugInfoStream(code_item);
+  if (stream == nullptr) {
+    return false;
+  }
+  std::vector<LocalInfo> local_in_reg(code_item->registers_size_);
 
+  uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
   if (!is_static) {
-    if (need_locals) {
-      const char* descriptor = GetMethodDeclaringClassDescriptor(GetMethodId(method_idx));
-      local_in_reg[arg_reg].name_ = "this";
-      local_in_reg[arg_reg].descriptor_ = descriptor;
-      local_in_reg[arg_reg].signature_ = nullptr;
-      local_in_reg[arg_reg].start_address_ = 0;
-      local_in_reg[arg_reg].is_live_ = true;
-    }
+    const char* descriptor = GetMethodDeclaringClassDescriptor(GetMethodId(method_idx));
+    local_in_reg[arg_reg].name_ = "this";
+    local_in_reg[arg_reg].descriptor_ = descriptor;
+    local_in_reg[arg_reg].signature_ = nullptr;
+    local_in_reg[arg_reg].start_address_ = 0;
+    local_in_reg[arg_reg].reg_ = arg_reg;
+    local_in_reg[arg_reg].is_live_ = true;
     arg_reg++;
   }
 
   DexFileParameterIterator it(*this, GetMethodPrototype(GetMethodId(method_idx)));
-  for (uint32_t i = 0; i < parameters_size && it.HasNext(); ++i, it.Next()) {
+  DecodeUnsignedLeb128(&stream);  // Line.
+  uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
+  uint32_t i;
+  for (i = 0; i < parameters_size && it.HasNext(); ++i, it.Next()) {
     if (arg_reg >= code_item->registers_size_) {
       LOG(ERROR) << "invalid stream - arg reg >= reg size (" << arg_reg
                  << " >= " << code_item->registers_size_ << ") in " << GetLocation();
-      return;
+      return false;
     }
-    uint32_t id = DecodeUnsignedLeb128P1(&stream);
+    uint32_t name_idx = DecodeUnsignedLeb128P1(&stream);
     const char* descriptor = it.GetDescriptor();
-    if (need_locals && id != kDexNoIndex) {
-      const char* name = StringDataByIdx(id);
-      local_in_reg[arg_reg].name_ = name;
-      local_in_reg[arg_reg].descriptor_ = descriptor;
-      local_in_reg[arg_reg].signature_ = nullptr;
-      local_in_reg[arg_reg].start_address_ = address;
-      local_in_reg[arg_reg].is_live_ = true;
-    }
+    local_in_reg[arg_reg].name_ = StringDataByIdx(name_idx);
+    local_in_reg[arg_reg].descriptor_ = descriptor;
+    local_in_reg[arg_reg].signature_ = nullptr;
+    local_in_reg[arg_reg].start_address_ = 0;
+    local_in_reg[arg_reg].reg_ = arg_reg;
+    local_in_reg[arg_reg].is_live_ = true;
     switch (*descriptor) {
       case 'D':
       case 'J':
@@ -854,152 +856,188 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
         break;
     }
   }
-
-  if (it.HasNext()) {
+  if (i != parameters_size || it.HasNext()) {
     LOG(ERROR) << "invalid stream - problem with parameter iterator in " << GetLocation()
                << " for method " << PrettyMethod(method_idx, *this);
-    return;
+    return false;
   }
 
+  uint32_t address = 0;
   for (;;)  {
     uint8_t opcode = *stream++;
-    uint16_t reg;
-    uint32_t name_idx;
-    uint32_t descriptor_idx;
-    uint32_t signature_idx = 0;
-
     switch (opcode) {
       case DBG_END_SEQUENCE:
-        return;
-
+        // Emit all variables which are still alive at the end of the method.
+        for (uint16_t reg = 0; reg < code_item->registers_size_; reg++) {
+          if (local_in_reg[reg].is_live_) {
+            local_in_reg[reg].end_address_ = code_item->insns_size_in_code_units_;
+            local_cb(context, local_in_reg[reg]);
+          }
+        }
+        return true;
       case DBG_ADVANCE_PC:
         address += DecodeUnsignedLeb128(&stream);
         break;
-
       case DBG_ADVANCE_LINE:
-        line += DecodeSignedLeb128(&stream);
+        DecodeSignedLeb128(&stream);  // Line.
         break;
-
       case DBG_START_LOCAL:
-      case DBG_START_LOCAL_EXTENDED:
-        reg = DecodeUnsignedLeb128(&stream);
-        if (reg > code_item->registers_size_) {
-          LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
+      case DBG_START_LOCAL_EXTENDED: {
+        uint16_t reg = DecodeUnsignedLeb128(&stream);
+        if (reg >= code_item->registers_size_) {
+          LOG(ERROR) << "invalid stream - reg >= reg size (" << reg << " >= "
                      << code_item->registers_size_ << ") in " << GetLocation();
-          return;
+          return false;
         }
 
-        name_idx = DecodeUnsignedLeb128P1(&stream);
-        descriptor_idx = DecodeUnsignedLeb128P1(&stream);
+        uint32_t name_idx = DecodeUnsignedLeb128P1(&stream);
+        uint32_t descriptor_idx = DecodeUnsignedLeb128P1(&stream);
+        uint32_t signature_idx = kDexNoIndex;
         if (opcode == DBG_START_LOCAL_EXTENDED) {
           signature_idx = DecodeUnsignedLeb128P1(&stream);
         }
 
         // Emit what was previously there, if anything
-        if (need_locals) {
-          InvokeLocalCbIfLive(context, reg, address, local_in_reg, local_cb);
+        if (local_in_reg[reg].is_live_) {
+          local_in_reg[reg].end_address_ = address;
+          local_cb(context, local_in_reg[reg]);
+        }
 
-          local_in_reg[reg].name_ = StringDataByIdx(name_idx);
-          local_in_reg[reg].descriptor_ = StringByTypeIdx(descriptor_idx);
-          local_in_reg[reg].signature_ =
-              (opcode == DBG_START_LOCAL_EXTENDED) ? StringDataByIdx(signature_idx)
-                                                   : nullptr;
+        local_in_reg[reg].name_ = StringDataByIdx(name_idx);
+        local_in_reg[reg].descriptor_ = StringByTypeIdx(descriptor_idx);
+        local_in_reg[reg].signature_ = StringDataByIdx(signature_idx);
+        local_in_reg[reg].start_address_ = address;
+        local_in_reg[reg].reg_ = reg;
+        local_in_reg[reg].is_live_ = true;
+        break;
+      }
+      case DBG_END_LOCAL: {
+        uint16_t reg = DecodeUnsignedLeb128(&stream);
+        if (reg >= code_item->registers_size_) {
+          LOG(ERROR) << "invalid stream - reg >= reg size (" << reg << " >= "
+                     << code_item->registers_size_ << ") in " << GetLocation();
+          return false;
+        }
+        if (!local_in_reg[reg].is_live_) {
+          LOG(ERROR) << "invalid stream - end without start in " << GetLocation();
+          return false;
+        }
+        local_in_reg[reg].end_address_ = address;
+        local_cb(context, local_in_reg[reg]);
+        local_in_reg[reg].is_live_ = false;
+        break;
+      }
+      case DBG_RESTART_LOCAL: {
+        uint16_t reg = DecodeUnsignedLeb128(&stream);
+        if (reg >= code_item->registers_size_) {
+          LOG(ERROR) << "invalid stream - reg >= reg size (" << reg << " >= "
+                     << code_item->registers_size_ << ") in " << GetLocation();
+          return false;
+        }
+        // If the register is live, the "restart" is superfluous,
+        // and we don't want to mess with the existing start address.
+        if (!local_in_reg[reg].is_live_) {
           local_in_reg[reg].start_address_ = address;
           local_in_reg[reg].is_live_ = true;
         }
         break;
-
-      case DBG_END_LOCAL:
-        reg = DecodeUnsignedLeb128(&stream);
-        if (reg > code_item->registers_size_) {
-          LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
-                     << code_item->registers_size_ << ") in " << GetLocation();
-          return;
-        }
-
-        if (need_locals) {
-          InvokeLocalCbIfLive(context, reg, address, local_in_reg, local_cb);
-          local_in_reg[reg].is_live_ = false;
-        }
-        break;
-
-      case DBG_RESTART_LOCAL:
-        reg = DecodeUnsignedLeb128(&stream);
-        if (reg > code_item->registers_size_) {
-          LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
-                     << code_item->registers_size_ << ") in " << GetLocation();
-          return;
-        }
-
-        if (need_locals) {
-          if (local_in_reg[reg].name_ == nullptr || local_in_reg[reg].descriptor_ == nullptr) {
-            LOG(ERROR) << "invalid stream - no name or descriptor in " << GetLocation();
-            return;
-          }
-
-          // If the register is live, the "restart" is superfluous,
-          // and we don't want to mess with the existing start address.
-          if (!local_in_reg[reg].is_live_) {
-            local_in_reg[reg].start_address_ = address;
-            local_in_reg[reg].is_live_ = true;
-          }
-        }
-        break;
-
+      }
       case DBG_SET_PROLOGUE_END:
       case DBG_SET_EPILOGUE_BEGIN:
-      case DBG_SET_FILE:
         break;
+      case DBG_SET_FILE:
+        DecodeUnsignedLeb128P1(&stream);  // name.
+        break;
+      default:
+        address += (opcode - DBG_FIRST_SPECIAL) / DBG_LINE_RANGE;
+        break;
+    }
+  }
+}
 
+bool DexFile::DecodeDebugPositionInfo(const CodeItem* code_item, DexDebugNewPositionCb position_cb,
+                                      void* context) const {
+  DCHECK(position_cb != nullptr);
+  if (code_item == nullptr) {
+    return false;
+  }
+  const uint8_t* stream = GetDebugInfoStream(code_item);
+  if (stream == nullptr) {
+    return false;
+  }
+
+  PositionInfo entry = PositionInfo();
+  entry.line_ = DecodeUnsignedLeb128(&stream);
+  uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
+  for (uint32_t i = 0; i < parameters_size; ++i) {
+    DecodeUnsignedLeb128P1(&stream);  // Parameter name.
+  }
+
+  for (;;)  {
+    uint8_t opcode = *stream++;
+    switch (opcode) {
+      case DBG_END_SEQUENCE:
+        return true;  // end of stream.
+      case DBG_ADVANCE_PC:
+        entry.address_ += DecodeUnsignedLeb128(&stream);
+        break;
+      case DBG_ADVANCE_LINE:
+        entry.line_ += DecodeSignedLeb128(&stream);
+        break;
+      case DBG_START_LOCAL:
+        DecodeUnsignedLeb128(&stream);  // reg.
+        DecodeUnsignedLeb128P1(&stream);  // name.
+        DecodeUnsignedLeb128P1(&stream);  // descriptor.
+        break;
+      case DBG_START_LOCAL_EXTENDED:
+        DecodeUnsignedLeb128(&stream);  // reg.
+        DecodeUnsignedLeb128P1(&stream);  // name.
+        DecodeUnsignedLeb128P1(&stream);  // descriptor.
+        DecodeUnsignedLeb128P1(&stream);  // signature.
+        break;
+      case DBG_END_LOCAL:
+      case DBG_RESTART_LOCAL:
+        DecodeUnsignedLeb128(&stream);  // reg.
+        break;
+      case DBG_SET_PROLOGUE_END:
+        entry.prologue_end_ = true;
+        break;
+      case DBG_SET_EPILOGUE_BEGIN:
+        entry.epilogue_begin_ = true;
+        break;
+      case DBG_SET_FILE: {
+        uint32_t name_idx = DecodeUnsignedLeb128P1(&stream);
+        entry.source_file_ = StringDataByIdx(name_idx);
+        break;
+      }
       default: {
         int adjopcode = opcode - DBG_FIRST_SPECIAL;
-
-        address += adjopcode / DBG_LINE_RANGE;
-        line += DBG_LINE_BASE + (adjopcode % DBG_LINE_RANGE);
-
-        if (position_cb != nullptr) {
-          if (position_cb(context, address, line)) {
-            // early exit
-            return;
-          }
+        entry.address_ += adjopcode / DBG_LINE_RANGE;
+        entry.line_ += DBG_LINE_BASE + (adjopcode % DBG_LINE_RANGE);
+        if (position_cb(context, entry)) {
+          return true;  // early exit.
         }
+        entry.prologue_end_ = false;
+        entry.epilogue_begin_ = false;
         break;
       }
     }
   }
 }
 
-void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-                              DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
-                              void* context) const {
-  DCHECK(code_item != nullptr);
-  const uint8_t* stream = GetDebugInfoStream(code_item);
-  std::unique_ptr<LocalInfo[]> local_in_reg(local_cb != nullptr ?
-                                      new LocalInfo[code_item->registers_size_] :
-                                      nullptr);
-  if (stream != nullptr) {
-    DecodeDebugInfo0(code_item, is_static, method_idx, position_cb, local_cb, context, stream,
-                     &local_in_reg[0]);
-  }
-  for (int reg = 0; reg < code_item->registers_size_; reg++) {
-    InvokeLocalCbIfLive(context, reg, code_item->insns_size_in_code_units_, &local_in_reg[0],
-                        local_cb);
-  }
-}
-
-bool DexFile::LineNumForPcCb(void* raw_context, uint32_t address, uint32_t line_num) {
+bool DexFile::LineNumForPcCb(void* raw_context, const PositionInfo& entry) {
   LineNumFromPcContext* context = reinterpret_cast<LineNumFromPcContext*>(raw_context);
 
   // We know that this callback will be called in
   // ascending address order, so keep going until we find
   // a match or we've just gone past it.
-  if (address > context->address_) {
+  if (entry.address_ > context->address_) {
     // The line number from the previous positions callback
     // wil be the final result.
     return true;
   } else {
-    context->line_num_ = line_num;
-    return address == context->address_;
+    context->line_num_ = entry.line_;
+    return entry.address_ == context->address_;
   }
 }
 
