@@ -79,7 +79,7 @@ class ProxyTest : public CommonCompilerTest {
             mirror::Method::CreateFromArtMethod(soa.Self(), method)));
     // Now adds all interfaces virtual methods.
     for (mirror::Class* interface : interfaces) {
-      for (auto& m : interface->GetVirtualMethods(sizeof(void*))) {
+      for (auto& m : interface->GetDeclaredVirtualMethods(sizeof(void*))) {
         soa.Env()->SetObjectArrayElement(
             proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
                 mirror::Method::CreateFromArtMethod(soa.Self(), &m)));
