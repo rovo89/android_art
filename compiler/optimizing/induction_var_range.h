@@ -69,7 +69,7 @@ class InductionVarRange {
                          /*out*/bool* needs_finite_test);
 
   /** Refines the values with induction of next outer loop. Returns true on change. */
-  bool RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val);
+  bool RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) const;
 
   /**
    * Returns true if range analysis is able to generate code for the lower and upper
@@ -116,46 +116,48 @@ class InductionVarRange {
                          /*out*/HInstruction** taken_test);
 
  private:
-  //
-  // Private helper methods.
-  //
+  bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) const;
+  bool IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
+  bool IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
 
-  static bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info);
-  static bool IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip);
-  static bool IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip);
+  Value GetLinear(HInductionVarAnalysis::InductionInfo* info,
+                  HInductionVarAnalysis::InductionInfo* trip,
+                  bool in_body,
+                  bool is_min) const;
+  Value GetFetch(HInstruction* instruction,
+                 HInductionVarAnalysis::InductionInfo* trip,
+                 bool in_body,
+                 bool is_min) const;
+  Value GetVal(HInductionVarAnalysis::InductionInfo* info,
+               HInductionVarAnalysis::InductionInfo* trip,
+               bool in_body,
+               bool is_min) const;
+  Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
+               HInductionVarAnalysis::InductionInfo* info2,
+               HInductionVarAnalysis::InductionInfo* trip,
+               bool in_body,
+               bool is_min) const;
+  Value GetDiv(HInductionVarAnalysis::InductionInfo* info1,
+               HInductionVarAnalysis::InductionInfo* info2,
+               HInductionVarAnalysis::InductionInfo* trip,
+               bool in_body,
+               bool is_min) const;
 
-  static Value GetFetch(HInstruction* instruction,
-                        HInductionVarAnalysis::InductionInfo* trip,
-                        bool in_body,
-                        bool is_min);
-  static Value GetVal(HInductionVarAnalysis::InductionInfo* info,
-                      HInductionVarAnalysis::InductionInfo* trip,
-                      bool in_body,
-                      bool is_min);
-  static Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
-                      HInductionVarAnalysis::InductionInfo* info2,
-                      HInductionVarAnalysis::InductionInfo* trip,
-                      bool in_body,
-                      bool is_min);
-  static Value GetDiv(HInductionVarAnalysis::InductionInfo* info1,
-                      HInductionVarAnalysis::InductionInfo* info2,
-                      HInductionVarAnalysis::InductionInfo* trip,
-                      bool in_body,
-                      bool is_min);
+  bool IsConstantRange(HInductionVarAnalysis::InductionInfo* info,
+                       int32_t *min_value,
+                       int32_t *max_value) const;
 
-  static bool GetConstant(HInductionVarAnalysis::InductionInfo* info, int32_t *value);
-
-  static Value AddValue(Value v1, Value v2);
-  static Value SubValue(Value v1, Value v2);
-  static Value MulValue(Value v1, Value v2);
-  static Value DivValue(Value v1, Value v2);
-  static Value MergeVal(Value v1, Value v2, bool is_min);
+  Value AddValue(Value v1, Value v2) const;
+  Value SubValue(Value v1, Value v2) const;
+  Value MulValue(Value v1, Value v2) const;
+  Value DivValue(Value v1, Value v2) const;
+  Value MergeVal(Value v1, Value v2, bool is_min) const;
 
   /**
    * Returns refined value using induction of next outer loop or the input value if no
    * further refinement is possible.
    */
-  Value RefineOuter(Value val, bool is_min);
+  Value RefineOuter(Value val, bool is_min) const;
 
   /**
    * Generates code for lower/upper/taken-test in the HIR. Returns true on success.
@@ -170,15 +172,15 @@ class InductionVarRange {
                     /*out*/HInstruction** upper,
                     /*out*/HInstruction** taken_test,
                     /*out*/bool* needs_finite_test,
-                    /*out*/bool* needs_taken_test);
+                    /*out*/bool* needs_taken_test) const;
 
-  static bool GenerateCode(HInductionVarAnalysis::InductionInfo* info,
-                           HInductionVarAnalysis::InductionInfo* trip,
-                           HGraph* graph,
-                           HBasicBlock* block,
-                           /*out*/HInstruction** result,
-                           bool in_body,
-                           bool is_min);
+  bool GenerateCode(HInductionVarAnalysis::InductionInfo* info,
+                    HInductionVarAnalysis::InductionInfo* trip,
+                    HGraph* graph,
+                    HBasicBlock* block,
+                    /*out*/HInstruction** result,
+                    bool in_body,
+                    bool is_min) const;
 
   /** Results of prior induction variable analysis. */
   HInductionVarAnalysis *induction_analysis_;

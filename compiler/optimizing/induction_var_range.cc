@@ -119,7 +119,7 @@ void InductionVarRange::GetInductionRange(HInstruction* context,
   }
 }
 
-bool InductionVarRange::RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) {
+bool InductionVarRange::RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) const {
   Value v1 = RefineOuter(*min_val, /* is_min */ true);
   Value v2 = RefineOuter(*max_val, /* is_min */ false);
   if (v1.instruction != min_val->instruction || v2.instruction != max_val->instruction) {
@@ -167,7 +167,7 @@ void InductionVarRange::GenerateTakenTest(HInstruction* context,
 // Private class methods.
 //
 
-bool InductionVarRange::NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) {
+bool InductionVarRange::NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) const {
   if (info != nullptr) {
     if (info->induction_class == HInductionVarAnalysis::kLinear) {
       return true;
@@ -178,7 +178,7 @@ bool InductionVarRange::NeedsTripCount(HInductionVarAnalysis::InductionInfo* inf
   return false;
 }
 
-bool InductionVarRange::IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip) {
+bool InductionVarRange::IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip) const {
   if (trip != nullptr) {
     if (trip->induction_class == HInductionVarAnalysis::kInvariant) {
       return trip->operation == HInductionVarAnalysis::kTripCountInBody ||
@@ -188,7 +188,7 @@ bool InductionVarRange::IsBodyTripCount(HInductionVarAnalysis::InductionInfo* tr
   return false;
 }
 
-bool InductionVarRange::IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip) {
+bool InductionVarRange::IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip) const {
   if (trip != nullptr) {
     if (trip->induction_class == HInductionVarAnalysis::kInvariant) {
       return trip->operation == HInductionVarAnalysis::kTripCountInBodyUnsafe ||
@@ -198,10 +198,57 @@ bool InductionVarRange::IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* 
   return false;
 }
 
+InductionVarRange::Value InductionVarRange::GetLinear(HInductionVarAnalysis::InductionInfo* info,
+                                                      HInductionVarAnalysis::InductionInfo* trip,
+                                                      bool in_body,
+                                                      bool is_min) const {
+  // Detect common situation where an offset inside the trip count cancels out during range
+  // analysis (finding max a * (TC - 1) + OFFSET for a == 1 and TC = UPPER - OFFSET or finding
+  // min a * (TC - 1) + OFFSET for a == -1 and TC = OFFSET - UPPER) to avoid losing information
+  // with intermediate results that only incorporate single instructions.
+  if (trip != nullptr) {
+    HInductionVarAnalysis::InductionInfo* trip_expr = trip->op_a;
+    if (trip_expr->operation == HInductionVarAnalysis::kSub) {
+      int32_t min_value = 0;
+      int32_t stride_value = 0;
+      if (IsConstantRange(info->op_a, &min_value, &stride_value) && min_value == stride_value) {
+        if (!is_min && stride_value == 1) {
+          // Test original trip's negative operand (trip_expr->op_b) against
+          // the offset of the linear induction.
+          if (HInductionVarAnalysis::InductionEqual(trip_expr->op_b, info->op_b)) {
+            // Analyze cancelled trip with just the positive operand (trip_expr->op_a).
+            HInductionVarAnalysis::InductionInfo cancelled_trip(
+                trip->induction_class, trip->operation, trip_expr->op_a, trip->op_b, nullptr);
+            return GetVal(&cancelled_trip, trip, in_body, is_min);
+          }
+        } else if (is_min && stride_value == -1) {
+          // Test original trip's positive operand (trip_expr->op_a) against
+          // the offset of the linear induction.
+          if (HInductionVarAnalysis::InductionEqual(trip_expr->op_a, info->op_b)) {
+            // Analyze cancelled trip with just the negative operand (trip_expr->op_b).
+            HInductionVarAnalysis::InductionInfo neg(
+                HInductionVarAnalysis::kInvariant,
+                HInductionVarAnalysis::kNeg,
+                nullptr,
+                trip_expr->op_b,
+                nullptr);
+            HInductionVarAnalysis::InductionInfo cancelled_trip(
+                trip->induction_class, trip->operation, &neg, trip->op_b, nullptr);
+            return SubValue(Value(0), GetVal(&cancelled_trip, trip, in_body, !is_min));
+          }
+        }
+      }
+    }
+  }
+  // General rule of linear induction a * i + b, for normalized 0 <= i < TC.
+  return AddValue(GetMul(info->op_a, trip, trip, in_body, is_min),
+                  GetVal(info->op_b, trip, in_body, is_min));
+}
+
 InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
                                                      HInductionVarAnalysis::InductionInfo* trip,
                                                      bool in_body,
-                                                     bool is_min) {
+                                                     bool is_min) const {
   // Detect constants and chase the fetch a bit deeper into the HIR tree, so that it becomes
   // more likely range analysis will compare the same instructions as terminal nodes.
   int32_t value;
@@ -227,7 +274,7 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
 InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::InductionInfo* info,
                                                    HInductionVarAnalysis::InductionInfo* trip,
                                                    bool in_body,
-                                                   bool is_min) {
+                                                   bool is_min) const {
   if (info != nullptr) {
     switch (info->induction_class) {
       case HInductionVarAnalysis::kInvariant:
@@ -266,13 +313,11 @@ InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::Induct
             break;
         }
         break;
-      case HInductionVarAnalysis::kLinear:
-        // Linear induction a * i + b, for normalized 0 <= i < TC.
-        return AddValue(GetMul(info->op_a, trip, trip, in_body, is_min),
-                        GetVal(info->op_b, trip, in_body, is_min));
+      case HInductionVarAnalysis::kLinear: {
+        return GetLinear(info, trip, in_body, is_min);
+      }
       case HInductionVarAnalysis::kWrapAround:
       case HInductionVarAnalysis::kPeriodic:
-        // Merge values in the wrap-around/periodic.
         return MergeVal(GetVal(info->op_a, trip, in_body, is_min),
                         GetVal(info->op_b, trip, in_body, is_min), is_min);
     }
@@ -284,11 +329,17 @@ InductionVarRange::Value InductionVarRange::GetMul(HInductionVarAnalysis::Induct
                                                    HInductionVarAnalysis::InductionInfo* info2,
                                                    HInductionVarAnalysis::InductionInfo* trip,
                                                    bool in_body,
-                                                   bool is_min) {
+                                                   bool is_min) const {
   Value v1_min = GetVal(info1, trip, in_body, /* is_min */ true);
   Value v1_max = GetVal(info1, trip, in_body, /* is_min */ false);
   Value v2_min = GetVal(info2, trip, in_body, /* is_min */ true);
   Value v2_max = GetVal(info2, trip, in_body, /* is_min */ false);
+  // Try to refine certain failure.
+  if (v1_min.a_constant && v1_max.a_constant) {
+    v1_min = RefineOuter(v1_min, /* is_min */ true);
+    v1_max = RefineOuter(v1_max, /* is_min */ false);
+  }
+  // Positive or negative range?
   if (v1_min.is_known && v1_min.a_constant == 0 && v1_min.b_constant >= 0) {
     // Positive range vs. positive or negative range.
     if (v2_min.is_known && v2_min.a_constant == 0 && v2_min.b_constant >= 0) {
@@ -298,7 +349,7 @@ InductionVarRange::Value InductionVarRange::GetMul(HInductionVarAnalysis::Induct
       return is_min ? MulValue(v1_max, v2_min)
                     : MulValue(v1_min, v2_max);
     }
-  } else if (v1_min.is_known && v1_min.a_constant == 0 && v1_min.b_constant <= 0) {
+  } else if (v1_max.is_known && v1_max.a_constant == 0 && v1_max.b_constant <= 0) {
     // Negative range vs. positive or negative range.
     if (v2_min.is_known && v2_min.a_constant == 0 && v2_min.b_constant >= 0) {
       return is_min ? MulValue(v1_min, v2_max)
@@ -315,11 +366,12 @@ InductionVarRange::Value InductionVarRange::GetDiv(HInductionVarAnalysis::Induct
                                                    HInductionVarAnalysis::InductionInfo* info2,
                                                    HInductionVarAnalysis::InductionInfo* trip,
                                                    bool in_body,
-                                                   bool is_min) {
+                                                   bool is_min) const {
   Value v1_min = GetVal(info1, trip, in_body, /* is_min */ true);
   Value v1_max = GetVal(info1, trip, in_body, /* is_min */ false);
   Value v2_min = GetVal(info2, trip, in_body, /* is_min */ true);
   Value v2_max = GetVal(info2, trip, in_body, /* is_min */ false);
+  // Positive or negative range?
   if (v1_min.is_known && v1_min.a_constant == 0 && v1_min.b_constant >= 0) {
     // Positive range vs. positive or negative range.
     if (v2_min.is_known && v2_min.a_constant == 0 && v2_min.b_constant >= 0) {
@@ -329,7 +381,7 @@ InductionVarRange::Value InductionVarRange::GetDiv(HInductionVarAnalysis::Induct
       return is_min ? DivValue(v1_max, v2_max)
                     : DivValue(v1_min, v2_min);
     }
-  } else if (v1_min.is_known && v1_min.a_constant == 0 && v1_min.b_constant <= 0) {
+  } else if (v1_max.is_known && v1_max.a_constant == 0 && v1_max.b_constant <= 0) {
     // Negative range vs. positive or negative range.
     if (v2_min.is_known && v2_min.a_constant == 0 && v2_min.b_constant >= 0) {
       return is_min ? DivValue(v1_min, v2_min)
@@ -342,19 +394,23 @@ InductionVarRange::Value InductionVarRange::GetDiv(HInductionVarAnalysis::Induct
   return Value();
 }
 
-bool InductionVarRange::GetConstant(HInductionVarAnalysis::InductionInfo* info, int32_t *value) {
-  Value v_min = GetVal(info, nullptr, false, /* is_min */ true);
-  Value v_max = GetVal(info, nullptr, false, /* is_min */ false);
-  if (v_min.is_known && v_max.is_known) {
-    if (v_min.a_constant == 0 && v_max.a_constant == 0 && v_min.b_constant == v_max.b_constant) {
-      *value = v_min.b_constant;
+bool InductionVarRange::IsConstantRange(HInductionVarAnalysis::InductionInfo* info,
+                                        int32_t *min_value,
+                                        int32_t *max_value) const {
+  bool in_body = true;  // no known trip count
+  Value v_min = GetVal(info, nullptr, in_body, /* is_min */ true);
+  Value v_max = GetVal(info, nullptr, in_body, /* is_min */ false);
+  do {
+    if (v_min.is_known && v_min.a_constant == 0 && v_max.is_known && v_max.a_constant == 0) {
+      *min_value = v_min.b_constant;
+      *max_value = v_max.b_constant;
       return true;
     }
-  }
+  } while (RefineOuter(&v_min, &v_max));
   return false;
 }
 
-InductionVarRange::Value InductionVarRange::AddValue(Value v1, Value v2) {
+InductionVarRange::Value InductionVarRange::AddValue(Value v1, Value v2) const {
   if (v1.is_known && v2.is_known && IsSafeAdd(v1.b_constant, v2.b_constant)) {
     const int32_t b = v1.b_constant + v2.b_constant;
     if (v1.a_constant == 0) {
@@ -368,7 +424,7 @@ InductionVarRange::Value InductionVarRange::AddValue(Value v1, Value v2) {
   return Value();
 }
 
-InductionVarRange::Value InductionVarRange::SubValue(Value v1, Value v2) {
+InductionVarRange::Value InductionVarRange::SubValue(Value v1, Value v2) const {
   if (v1.is_known && v2.is_known && IsSafeSub(v1.b_constant, v2.b_constant)) {
     const int32_t b = v1.b_constant - v2.b_constant;
     if (v1.a_constant == 0 && IsSafeSub(0, v2.a_constant)) {
@@ -382,7 +438,7 @@ InductionVarRange::Value InductionVarRange::SubValue(Value v1, Value v2) {
   return Value();
 }
 
-InductionVarRange::Value InductionVarRange::MulValue(Value v1, Value v2) {
+InductionVarRange::Value InductionVarRange::MulValue(Value v1, Value v2) const {
   if (v1.is_known && v2.is_known) {
     if (v1.a_constant == 0) {
       if (IsSafeMul(v1.b_constant, v2.a_constant) && IsSafeMul(v1.b_constant, v2.b_constant)) {
@@ -397,7 +453,7 @@ InductionVarRange::Value InductionVarRange::MulValue(Value v1, Value v2) {
   return Value();
 }
 
-InductionVarRange::Value InductionVarRange::DivValue(Value v1, Value v2) {
+InductionVarRange::Value InductionVarRange::DivValue(Value v1, Value v2) const {
   if (v1.is_known && v2.is_known && v1.a_constant == 0 && v2.a_constant == 0) {
     if (IsSafeDiv(v1.b_constant, v2.b_constant)) {
       return Value(v1.b_constant / v2.b_constant);
@@ -406,7 +462,7 @@ InductionVarRange::Value InductionVarRange::DivValue(Value v1, Value v2) {
   return Value();
 }
 
-InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is_min) {
+InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is_min) const {
   if (v1.is_known && v2.is_known) {
     if (v1.instruction == v2.instruction && v1.a_constant == v2.a_constant) {
       return Value(v1.instruction, v1.a_constant,
@@ -417,7 +473,7 @@ InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is
   return Value();
 }
 
-InductionVarRange::Value InductionVarRange::RefineOuter(Value v, bool is_min) {
+InductionVarRange::Value InductionVarRange::RefineOuter(Value v, bool is_min) const {
   if (v.instruction != nullptr) {
     HLoopInformation* loop =
         v.instruction->GetBlock()->GetLoopInformation();  // closest enveloping loop
@@ -444,7 +500,7 @@ bool InductionVarRange::GenerateCode(HInstruction* context,
                                      /*out*/HInstruction** upper,
                                      /*out*/HInstruction** taken_test,
                                      /*out*/bool* needs_finite_test,
-                                     /*out*/bool* needs_taken_test) {
+                                     /*out*/bool* needs_taken_test) const {
   HLoopInformation* loop = context->GetBlock()->GetLoopInformation();  // closest enveloping loop
   if (loop != nullptr) {
     // Set up loop information.
@@ -492,7 +548,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                                      HBasicBlock* block,
                                      /*out*/HInstruction** result,
                                      bool in_body,
-                                     bool is_min) {
+                                     bool is_min) const {
   if (info != nullptr) {
     // Handle current operation.
     Primitive::Type type = Primitive::kPrimInt;
@@ -586,8 +642,9 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
       case HInductionVarAnalysis::kLinear: {
         // Linear induction a * i + b, for normalized 0 <= i < TC. Restrict to unit stride only
         // to avoid arithmetic wrap-around situations that are hard to guard against.
+        int32_t min_value = 0;
         int32_t stride_value = 0;
-        if (GetConstant(info->op_a, &stride_value)) {
+        if (IsConstantRange(info->op_a, &min_value, &stride_value) && min_value == stride_value) {
           if (stride_value == 1 || stride_value == -1) {
             const bool is_min_a = stride_value == 1 ? is_min : !is_min;
             if (GenerateCode(trip,       trip, graph, block, &opa, in_body, is_min_a) &&
