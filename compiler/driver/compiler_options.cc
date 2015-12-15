@@ -117,7 +117,7 @@ void CompilerOptions::ParseInlineDepthLimit(const StringPiece& option, UsageFn U
 }
 
 void CompilerOptions::ParseInlineMaxCodeUnits(const StringPiece& option, UsageFn Usage) {
-  ParseUintOption(option, "--inline-max-code-units=", &inline_max_code_units_, Usage);
+  ParseUintOption(option, "--inline-max-code-units", &inline_max_code_units_, Usage);
 }
 
 void CompilerOptions::ParseDisablePasses(const StringPiece& option,
