@@ -577,6 +577,9 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
                  << "Do not attempt to write shipping code against these opcodes.";
   }
 
+  // If -Xdex2oat is not passed, make it dependent on whether the JIT is enabled.
+  args.SetIfMissing(M::Dex2Oat, !args.GetOrDefault(M::UseJIT));
+
   *runtime_options = std::move(args);
   return true;
 }

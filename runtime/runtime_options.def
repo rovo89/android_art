@@ -66,7 +66,7 @@ RUNTIME_OPTIONS_KEY (Unit,                IgnoreMaxFootprint)
 RUNTIME_OPTIONS_KEY (Unit,                LowMemoryMode)
 RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        (kUseTlab || kUseReadBarrier))
 RUNTIME_OPTIONS_KEY (bool,                EnableHSpaceCompactForOOM,      true)
-RUNTIME_OPTIONS_KEY (bool,                UseJIT,                         false)
+RUNTIME_OPTIONS_KEY (bool,                UseJIT,                         true)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold,            jit::Jit::kDefaultCompileThreshold)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITWarmupThreshold,             jit::Jit::kDefaultWarmupThreshold)
 RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheInitialCapacity,    jit::JitCodeCache::kInitialCapacity)
@@ -80,7 +80,7 @@ RUNTIME_OPTIONS_KEY (std::vector<std::string>, \
 RUNTIME_OPTIONS_KEY (std::string,         JniTrace)
 RUNTIME_OPTIONS_KEY (std::string,         PatchOat)
 RUNTIME_OPTIONS_KEY (bool,                Relocate,                       kDefaultMustRelocate)
-RUNTIME_OPTIONS_KEY (bool,                Dex2Oat,                        true)
+RUNTIME_OPTIONS_KEY (bool,                Dex2Oat,                        false)
 RUNTIME_OPTIONS_KEY (bool,                ImageDex2Oat,                   true)
 RUNTIME_OPTIONS_KEY (bool,                Interpret,                      false) // -Xint
                                                         // Disable the compiler for CC (for now).

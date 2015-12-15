@@ -305,7 +305,7 @@ if [ "$USE_GDB" = "y" ]; then
 fi
 
 if [ "$INTERPRETER" = "y" ]; then
-    INT_OPTS="-Xint"
+    INT_OPTS="$INT_OPTS -Xint"
     if [ "$VERIFY" = "y" ] ; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
     elif [ "$VERIFY" = "s" ]; then
@@ -318,13 +318,15 @@ if [ "$INTERPRETER" = "y" ]; then
 fi
 
 if [ "$JIT" = "y" ]; then
-    INT_OPTS="-Xusejit:true"
+    INT_OPTS="$INT_OPTS -Xusejit:true"
     if [ "$VERIFY" = "y" ] ; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-at-runtime"
     else
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
       DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
     fi
+else
+    INT_OPTS="$INT_OPTS -Xusejit:false"
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
