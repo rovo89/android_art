@@ -1917,16 +1917,30 @@ static void GenUnsafeGet(HInvoke* invoke,
   Location offset_loc = locations->InAt(2);
   CpuRegister offset = offset_loc.AsRegister<CpuRegister>();
   Location output_loc = locations->Out();
-  CpuRegister output = locations->Out().AsRegister<CpuRegister>();
+  CpuRegister output = output_loc.AsRegister<CpuRegister>();
 
   switch (type) {
     case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
       __ movl(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
-      if (type == Primitive::kPrimNot) {
-        codegen->MaybeGenerateReadBarrier(invoke, output_loc, output_loc, base_loc, 0U, offset_loc);
+      break;
+
+    case Primitive::kPrimNot: {
+      if (kEmitCompilerReadBarrier) {
+        if (kUseBakerReadBarrier) {
+          Location temp = locations->GetTemp(0);
+          codegen->GenerateArrayLoadWithBakerReadBarrier(
+              invoke, output_loc, base, 0U, offset_loc, temp, /* needs_null_check */ false);
+        } else {
+          __ movl(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
+          codegen->GenerateReadBarrierSlow(
+              invoke, output_loc, output_loc, base_loc, 0U, offset_loc);
+        }
+      } else {
+        __ movl(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
+        __ MaybeUnpoisonHeapReference(output);
       }
       break;
+    }
 
     case Primitive::kPrimLong:
       __ movq(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
@@ -1938,7 +1952,9 @@ static void GenUnsafeGet(HInvoke* invoke,
   }
 }
 
-static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
+                                          HInvoke* invoke,
+                                          Primitive::Type type) {
   bool can_call = kEmitCompilerReadBarrier &&
       (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
        invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
@@ -1951,25 +1967,30 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
+  if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // We need a temporary register for the read barrier marking slow
+    // path in InstructionCodeGeneratorX86_64::GenerateArrayLoadWithBakerReadBarrier.
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGet(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimInt);
 }
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimInt);
 }
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetLong(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimLong);
 }
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimLong);
 }
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetObject(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimNot);
 }
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimNot);
 }
 
 
