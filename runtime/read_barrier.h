@@ -82,7 +82,8 @@ class ReadBarrier {
   static void AssertToSpaceInvariant(GcRootSource* gc_root_source, mirror::Object* ref)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static mirror::Object* Mark(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE static mirror::Object* Mark(mirror::Object* obj)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static mirror::Object* WhitePtr() {
     return reinterpret_cast<mirror::Object*>(white_ptr_);

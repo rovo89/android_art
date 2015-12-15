@@ -545,6 +545,13 @@ class Thread {
         OFFSETOF_MEMBER(tls_32bit_sized_values, state_and_flags));
   }
 
+  template<size_t pointer_size>
+  static ThreadOffset<pointer_size> IsGcMarkingOffset() {
+    return ThreadOffset<pointer_size>(
+        OFFSETOF_MEMBER(Thread, tls32_) +
+        OFFSETOF_MEMBER(tls_32bit_sized_values, is_gc_marking));
+  }
+
  private:
   template<size_t pointer_size>
   static ThreadOffset<pointer_size> ThreadOffsetFromTlsPtr(size_t tls_ptr_offset) {

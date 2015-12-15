@@ -29,6 +29,7 @@ extern "C" uint32_t art_quick_assignable_from_code(const mirror::Class* klass,
                                                    const mirror::Class* ref_class);
 
 // Read barrier entrypoints.
+extern "C" mirror::Object* art_quick_read_barrier_mark(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_slow(mirror::Object*, mirror::Object*, uint32_t);
 extern "C" mirror::Object* art_quick_read_barrier_for_root_slow(GcRoot<mirror::Object>*);
 
@@ -162,6 +163,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
+  qpoints->pReadBarrierMark = art_quick_read_barrier_mark;
   qpoints->pReadBarrierSlow = art_quick_read_barrier_slow;
   qpoints->pReadBarrierForRootSlow = art_quick_read_barrier_for_root_slow;
 #endif  // __APPLE__

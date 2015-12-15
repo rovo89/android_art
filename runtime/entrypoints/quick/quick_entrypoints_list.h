@@ -163,6 +163,7 @@
   V(NewStringFromStringBuilder, void) \
 \
   V(ReadBarrierJni, void, mirror::CompressedReference<mirror::Object>*, Thread*) \
+  V(ReadBarrierMark, mirror::Object*, mirror::Object*) \
   V(ReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t) \
   V(ReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*)
 

@@ -514,12 +514,15 @@ TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 # Tests that should fail in the read barrier configuration.
 # 055: Exceeds run time limits due to read barrier instrumentation.
 # 137: Read barrier forces interpreter. Cannot run this with the interpreter.
+# 484: Baker's fast path based read barrier compiler instrumentation generates code containing
+#      more parallel moves (at least on x86), thus some Checker assertions may fail.
 # 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
 #      handled in the read barrier configuration.
 # 554: Cannot run in interpreter mode and this rule covers both: the compiler and the interpreter.
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
   055-enum-performance                    \
   137-cfi                                 \
+  484-checker-register-hints              \
   537-checker-arraycopy                   \
   554-jit-profile-file
 
