@@ -20,8 +20,8 @@
 #include <iosfwd>
 #include <memory>
 
-#include "base/length_prefixed_array.h"
 #include "base/macros.h"
+#include "length_prefixed_array.h"
 #include "utils/array_ref.h"
 #include "utils/dedupe_set.h"
 #include "utils/swap_space.h"

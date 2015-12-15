@@ -71,7 +71,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
     mirror::Class* klass = method->GetDeclaringClass();
     int throws_index = -1;
     size_t i = 0;
-    for (const auto& m : klass->GetDeclaredVirtualMethods(sizeof(void*))) {
+    for (const auto& m : klass->GetVirtualMethods(sizeof(void*))) {
       if (&m == method) {
         throws_index = i;
         break;
