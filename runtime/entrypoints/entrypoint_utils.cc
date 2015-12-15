@@ -306,11 +306,13 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
       ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
           interface_method->GetArtMethod(), sizeof(void*));
-      auto* virtual_methods = proxy_class->GetVirtualMethodsPtr();
+      auto virtual_methods = proxy_class->GetVirtualMethodsSlice(sizeof(void*));
       size_t num_virtuals = proxy_class->NumVirtualMethods();
       size_t method_size = ArtMethod::Size(sizeof(void*));
+      // Rely on the fact that the methods are contiguous to determine the index of the method in
+      // the slice.
       int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
-          reinterpret_cast<uintptr_t>(virtual_methods)) / method_size;
+          reinterpret_cast<uintptr_t>(&virtual_methods.At(0))) / method_size;
       CHECK_LT(throws_index, static_cast<int>(num_virtuals));
       mirror::ObjectArray<mirror::Class>* declared_exceptions =
           proxy_class->GetThrows()->Get(throws_index);

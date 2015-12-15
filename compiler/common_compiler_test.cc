@@ -142,10 +142,7 @@ void CommonCompilerTest::MakeExecutable(mirror::ClassLoader* class_loader, const
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
   size_t pointer_size = class_linker_->GetImagePointerSize();
-  for (auto& m : klass->GetDirectMethods(pointer_size)) {
-    MakeExecutable(&m);
-  }
-  for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+  for (auto& m : klass->GetMethods(pointer_size)) {
     MakeExecutable(&m);
   }
 }
@@ -259,10 +256,7 @@ void CommonCompilerTest::CompileClass(mirror::ClassLoader* class_loader, const c
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
   auto pointer_size = class_linker_->GetImagePointerSize();
-  for (auto& m : klass->GetDirectMethods(pointer_size)) {
-    CompileMethod(&m);
-  }
-  for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+  for (auto& m : klass->GetMethods(pointer_size)) {
     CompileMethod(&m);
   }
 }

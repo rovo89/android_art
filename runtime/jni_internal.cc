@@ -316,12 +316,7 @@ template <bool kNative>
 static ArtMethod* FindMethod(mirror::Class* c, const StringPiece& name, const StringPiece& sig)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-  for (auto& method : c->GetDirectMethods(pointer_size)) {
-    if (kNative == method.IsNative() && name == method.GetName() && method.GetSignature() == sig) {
-      return &method;
-    }
-  }
-  for (auto& method : c->GetVirtualMethods(pointer_size)) {
+  for (auto& method : c->GetMethods(pointer_size)) {
     if (kNative == method.IsNative() && name == method.GetName() && method.GetSignature() == sig) {
       return &method;
     }
@@ -2220,13 +2215,7 @@ class JNI {
 
     size_t unregistered_count = 0;
     auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-    for (auto& m : c->GetDirectMethods(pointer_size)) {
-      if (m.IsNative()) {
-        m.UnregisterNative();
-        unregistered_count++;
-      }
-    }
-    for (auto& m : c->GetVirtualMethods(pointer_size)) {
+    for (auto& m : c->GetMethods(pointer_size)) {
       if (m.IsNative()) {
         m.UnregisterNative();
         unregistered_count++;

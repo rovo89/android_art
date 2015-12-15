@@ -457,6 +457,10 @@ ArtMethod* Class::FindDirectMethod(
   return nullptr;
 }
 
+// TODO These should maybe be changed to be named FindOwnedVirtualMethod or something similar
+// because they do not only find 'declared' methods and will return copied methods. This behavior is
+// desired and correct but the naming can lead to confusion because in the java language declared
+// excludes interface methods which might be found by this.
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature,
                                             size_t pointer_size) {
   for (auto& method : GetVirtualMethods(pointer_size)) {
@@ -482,10 +486,8 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const Signa
 ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
                                             size_t pointer_size) {
   if (GetDexCache() == dex_cache) {
-    for (auto& method : GetVirtualMethods(pointer_size)) {
-      // A miranda method may have a different DexCache and is always created by linking,
-      // never *declared* in the class.
-      if (method.GetDexMethodIndex() == dex_method_idx && !method.IsMiranda()) {
+    for (auto& method : GetDeclaredVirtualMethods(pointer_size)) {
+      if (method.GetDexMethodIndex() == dex_method_idx) {
         return &method;
       }
     }
@@ -725,12 +727,7 @@ ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece&
 
 void Class::SetPreverifiedFlagOnAllMethods(size_t pointer_size) {
   DCHECK(IsVerified());
-  for (auto& m : GetDirectMethods(pointer_size)) {
-    if (!m.IsNative() && m.IsInvokable()) {
-      m.SetPreverified();
-    }
-  }
-  for (auto& m : GetVirtualMethods(pointer_size)) {
+  for (auto& m : GetMethods(pointer_size)) {
     if (!m.IsNative() && m.IsInvokable()) {
       m.SetPreverified();
     }
