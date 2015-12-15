@@ -213,11 +213,44 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleShift(HBinaryOperation* operation);
-  void GenerateMemoryBarrier(MemBarrierKind kind);
+
   void HandleFieldSet(HInstruction* instruction,
                       const FieldInfo& field_info,
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
+  // Generate a heap reference load using one register `out`:
+  //
+  //   out <- *(out + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  // Register `temp` is used when generating a read barrier.
+  void GenerateReferenceLoadOneRegister(HInstruction* instruction,
+                                        Location out,
+                                        uint32_t offset,
+                                        Location temp);
+  // Generate a heap reference load using two different registers
+  // `out` and `obj`:
+  //
+  //   out <- *(obj + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  // Register `temp` is used when generating a Baker's read barrier.
+  void GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
+                                         Location out,
+                                         Location obj,
+                                         uint32_t offset,
+                                         Location temp);
+  // Generate a GC root reference load:
+  //
+  //   root <- *(obj + offset)
+  //
+  // while honoring read barriers (if any).
+  void GenerateGcRootFieldLoad(HInstruction* instruction,
+                               Location root,
+                               CpuRegister obj,
+                               uint32_t offset);
+
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
   void PushOntoFPStack(Location source, uint32_t temp_offset,
@@ -324,6 +357,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
                   CpuRegister value,
                   bool value_can_be_null);
 
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
 
@@ -356,7 +391,26 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return isa_features_;
   }
 
-  // Generate a read barrier for a heap reference within `instruction`.
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference field load when Baker's read barriers are used.
+  void GenerateFieldLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location out,
+                                             CpuRegister obj,
+                                             uint32_t offset,
+                                             Location temp,
+                                             bool needs_null_check);
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference array load when Baker's read barriers are used.
+  void GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location out,
+                                             CpuRegister obj,
+                                             uint32_t data_offset,
+                                             Location index,
+                                             Location temp,
+                                             bool needs_null_check);
+
+  // Generate a read barrier for a heap reference within `instruction`
+  // using a slow path.
   //
   // A read barrier for an object reference read from the heap is
   // implemented as a call to the artReadBarrierSlow runtime entry
@@ -373,23 +427,25 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // When `index` provided (i.e., when it is different from
   // Location::NoLocation()), the offset value passed to
   // artReadBarrierSlow is adjusted to take `index` into account.
-  void GenerateReadBarrier(HInstruction* instruction,
-                           Location out,
-                           Location ref,
-                           Location obj,
-                           uint32_t offset,
-                           Location index = Location::NoLocation());
+  void GenerateReadBarrierSlow(HInstruction* instruction,
+                               Location out,
+                               Location ref,
+                               Location obj,
+                               uint32_t offset,
+                               Location index = Location::NoLocation());
 
-  // If read barriers are enabled, generate a read barrier for a heap reference.
-  // If heap poisoning is enabled, also unpoison the reference in `out`.
-  void MaybeGenerateReadBarrier(HInstruction* instruction,
-                                Location out,
-                                Location ref,
-                                Location obj,
-                                uint32_t offset,
-                                Location index = Location::NoLocation());
+  // If read barriers are enabled, generate a read barrier for a heap
+  // reference using a slow path. If heap poisoning is enabled, also
+  // unpoison the reference in `out`.
+  void MaybeGenerateReadBarrierSlow(HInstruction* instruction,
+                                    Location out,
+                                    Location ref,
+                                    Location obj,
+                                    uint32_t offset,
+                                    Location index = Location::NoLocation());
 
-  // Generate a read barrier for a GC root within `instruction`.
+  // Generate a read barrier for a GC root within `instruction` using
+  // a slow path.
   //
   // A read barrier for an object reference GC root is implemented as
   // a call to the artReadBarrierForRootSlow runtime entry point,
@@ -399,7 +455,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   //
   // The `out` location contains the value returned by
   // artReadBarrierForRootSlow.
-  void GenerateReadBarrierForRoot(HInstruction* instruction, Location out, Location root);
+  void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
   int ConstantAreaStart() const {
     return constant_area_start_;
@@ -424,6 +480,15 @@ class CodeGeneratorX86_64 : public CodeGenerator {
                           HInstruction* instruction);
 
  private:
+  // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
+  // and GenerateArrayLoadWithBakerReadBarrier.
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 CpuRegister obj,
+                                                 const Address& src,
+                                                 Location temp,
+                                                 bool needs_null_check);
+
   struct PcRelativeDexCacheAccessInfo {
     PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
         : target_dex_file(dex_file), element_offset(element_off), label() { }
