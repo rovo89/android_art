@@ -383,7 +383,7 @@ void WellKnownClasses::LateInit(JNIEnv* env) {
   ScopedLocalRef<jclass> java_lang_Runtime(env, env->FindClass("java/lang/Runtime"));
   java_lang_Runtime_nativeLoad =
       CacheMethod(env, java_lang_Runtime.get(), true, "nativeLoad",
-                  "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;)"
+                  "(Ljava/lang/String;Ljava/lang/ClassLoader;ZLjava/lang/String;Ljava/lang/String;)"
                       "Ljava/lang/String;");
 }
 
