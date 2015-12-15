@@ -33,7 +33,7 @@ inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
-    // The higher bits of the rb ptr, rb_ptr_high_bits (must be zero)
+    // The higher bits of the rb_ptr, rb_ptr_high_bits (must be zero)
     // is used to create artificial data dependency from the is_gray
     // load to the ref field (ptr) load to avoid needing a load-load
     // barrier between the two.
