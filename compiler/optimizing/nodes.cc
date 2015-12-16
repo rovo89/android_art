@@ -198,38 +198,10 @@ void HGraph::ComputeDominanceInformation() {
   }
 }
 
-BuildSsaResult HGraph::TryBuildingSsa(StackHandleScopeCollection* handles) {
-  BuildDominatorTree();
-
-  // The SSA builder requires loops to all be natural. Specifically, the dead phi
-  // elimination phase checks the consistency of the graph when doing a post-order
-  // visit for eliminating dead phis: a dead phi can only have loop header phi
-  // users remaining when being visited.
-  BuildSsaResult result = AnalyzeNaturalLoops();
-  if (result != kBuildSsaSuccess) {
-    return result;
-  }
-
-  // Precompute per-block try membership before entering the SSA builder,
-  // which needs the information to build catch block phis from values of
-  // locals at throwing instructions inside try blocks.
-  ComputeTryBlockInformation();
-
-  // Create the inexact Object reference type and store it in the HGraph.
-  ScopedObjectAccess soa(Thread::Current());
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  inexact_object_rti_ = ReferenceTypeInfo::Create(
-      handles->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangObject)),
-      /* is_exact */ false);
-
-  // Tranforms graph to SSA form.
-  result = SsaBuilder(this, handles).BuildSsa();
-  if (result != kBuildSsaSuccess) {
-    return result;
-  }
-
-  in_ssa_form_ = true;
-  return kBuildSsaSuccess;
+void HGraph::TransformToSsa() {
+  DCHECK(!reverse_post_order_.empty());
+  SsaBuilder ssa_builder(this);
+  ssa_builder.BuildSsa();
 }
 
 HBasicBlock* HGraph::SplitEdge(HBasicBlock* block, HBasicBlock* successor) {
@@ -438,7 +410,7 @@ void HGraph::SimplifyCFG() {
   }
 }
 
-BuildSsaResult HGraph::AnalyzeNaturalLoops() const {
+bool HGraph::AnalyzeNaturalLoops() const {
   // Order does not matter.
   for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
@@ -446,16 +418,16 @@ BuildSsaResult HGraph::AnalyzeNaturalLoops() const {
       if (block->IsCatchBlock()) {
         // TODO: Dealing with exceptional back edges could be tricky because
         //       they only approximate the real control flow. Bail out for now.
-        return kBuildSsaFailThrowCatchLoop;
+        return false;
       }
       HLoopInformation* info = block->GetLoopInformation();
       if (!info->Populate()) {
         // Abort if the loop is non natural. We currently bailout in such cases.
-        return kBuildSsaFailNonNaturalLoop;
+        return false;
       }
     }
   }
-  return kBuildSsaSuccess;
+  return true;
 }
 
 void HGraph::InsertConstant(HConstant* constant) {
@@ -474,12 +446,7 @@ HNullConstant* HGraph::GetNullConstant(uint32_t dex_pc) {
   // id and/or any invariants the graph is assuming when adding new instructions.
   if ((cached_null_constant_ == nullptr) || (cached_null_constant_->GetBlock() == nullptr)) {
     cached_null_constant_ = new (arena_) HNullConstant(dex_pc);
-    cached_null_constant_->SetReferenceTypeInfo(inexact_object_rti_);
     InsertConstant(cached_null_constant_);
-  }
-  if (kIsDebugBuild) {
-    ScopedObjectAccess soa(Thread::Current());
-    DCHECK(cached_null_constant_->GetReferenceTypeInfo().IsValid());
   }
   return cached_null_constant_;
 }

@@ -16,6 +16,7 @@
 
 #include "base/arena_allocator.h"
 #include "builder.h"
+#include "gtest/gtest.h"
 #include "licm.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
@@ -26,7 +27,7 @@ namespace art {
 /**
  * Fixture class for the LICM tests.
  */
-class LICMTest : public CommonCompilerTest {
+class LICMTest : public testing::Test {
  public:
   LICMTest() : pool_(), allocator_(&pool_) {
     graph_ = CreateGraph(&allocator_);
@@ -69,16 +70,16 @@ class LICMTest : public CommonCompilerTest {
     loop_preheader_->AddInstruction(new (&allocator_) HGoto());
     loop_header_->AddInstruction(new (&allocator_) HIf(parameter_));
     loop_body_->AddInstruction(new (&allocator_) HGoto());
-    return_->AddInstruction(new (&allocator_) HReturnVoid());
     exit_->AddInstruction(new (&allocator_) HExit());
   }
 
   // Performs LICM optimizations (after proper set up).
   void PerformLICM() {
-    TransformToSsa(graph_);
+    ASSERT_TRUE(graph_->TryBuildingSsa());
     SideEffectsAnalysis side_effects(graph_);
     side_effects.Run();
-    LICM(graph_, side_effects).Run();
+    LICM licm(graph_, side_effects);
+    licm.Run();
   }
 
   // General building fields.
@@ -168,10 +169,10 @@ TEST_F(LICMTest, ArrayHoisting) {
 
   // Populate the loop with instructions: set/get array with different types.
   HInstruction* get_array = new (&allocator_) HArrayGet(
-      parameter_, constant_, Primitive::kPrimByte, 0);
+      parameter_, constant_, Primitive::kPrimLong, 0);
   loop_body_->InsertInstructionBefore(get_array, loop_body_->GetLastInstruction());
   HInstruction* set_array = new (&allocator_) HArraySet(
-      parameter_, constant_, constant_, Primitive::kPrimShort, 0);
+      parameter_, constant_, constant_, Primitive::kPrimInt, 0);
   loop_body_->InsertInstructionBefore(set_array, loop_body_->GetLastInstruction());
 
   EXPECT_EQ(get_array->GetBlock(), loop_body_);
@@ -186,10 +187,10 @@ TEST_F(LICMTest, NoArrayHoisting) {
 
   // Populate the loop with instructions: set/get array with same types.
   HInstruction* get_array = new (&allocator_) HArrayGet(
-      parameter_, constant_, Primitive::kPrimByte, 0);
+      parameter_, constant_, Primitive::kPrimLong, 0);
   loop_body_->InsertInstructionBefore(get_array, loop_body_->GetLastInstruction());
   HInstruction* set_array = new (&allocator_) HArraySet(
-      parameter_, get_array, constant_, Primitive::kPrimByte, 0);
+      parameter_, get_array, constant_, Primitive::kPrimLong, 0);
   loop_body_->InsertInstructionBefore(set_array, loop_body_->GetLastInstruction());
 
   EXPECT_EQ(get_array->GetBlock(), loop_body_);

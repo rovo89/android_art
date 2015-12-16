@@ -92,6 +92,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/parallel_move_resolver.cc \
 	optimizing/pc_relative_fixups_x86.cc \
 	optimizing/prepare_for_register_allocation.cc \
+	optimizing/primitive_type_propagation.cc \
 	optimizing/reference_type_propagation.cc \
 	optimizing/register_allocator.cc \
 	optimizing/sharpening.cc \
