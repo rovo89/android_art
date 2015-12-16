@@ -195,11 +195,6 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
   X86Assembler* GetAssembler() const { return assembler_; }
 
-  // The compare/jump sequence will generate about (1.5 * num_entries) instructions. A jump
-  // table version generates 7 instructions and num_entries literals. Compare/jump sequence will
-  // generates less code/data with a small num_entries.
-  static constexpr uint32_t kPackedSwitchJumpTableThreshold = 5;
-
  private:
   // Generate code for the given suspend check. If not null, `successor`
   // is the block to branch to if the suspend check is not needed, and after
@@ -241,11 +236,6 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
   void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
-  void GenPackedSwitchWithCompares(Register value_reg,
-                                   int32_t lower_bound,
-                                   uint32_t num_entries,
-                                   HBasicBlock* switch_block,
-                                   HBasicBlock* default_block);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
