@@ -367,41 +367,41 @@ void SemiSpace::MarkReachableObjects() {
                                    GetTimings());
       table->UpdateAndMarkReferences(this);
       DCHECK(GetHeap()->FindRememberedSetFromSpace(space) == nullptr);
-    } else if (collect_from_space_only_ && space->GetLiveBitmap() != nullptr) {
-      // If the space has no mod union table (the non-moving space and main spaces when the bump
-      // pointer space only collection is enabled,) then we need to scan its live bitmap or dirty
-      // cards as roots (including the objects on the live stack which have just marked in the live
-      // bitmap above in MarkAllocStackAsLive().)
-      DCHECK(space == heap_->GetNonMovingSpace() || space == heap_->GetPrimaryFreeListSpace())
-          << "Space " << space->GetName() << " "
-          << "generational_=" << generational_ << " "
-          << "collect_from_space_only_=" << collect_from_space_only_;
+    } else if ((space->IsImageSpace() || collect_from_space_only_) &&
+               space->GetLiveBitmap() != nullptr) {
+      // If the space has no mod union table (the non-moving space, app image spaces, main spaces
+      // when the bump pointer space only collection is enabled,) then we need to scan its live
+      // bitmap or dirty cards as roots (including the objects on the live stack which have just
+      // marked in the live bitmap above in MarkAllocStackAsLive().)
       accounting::RememberedSet* rem_set = GetHeap()->FindRememberedSetFromSpace(space);
-      if (kUseRememberedSet) {
+      if (!space->IsImageSpace()) {
+        DCHECK(space == heap_->GetNonMovingSpace() || space == heap_->GetPrimaryFreeListSpace())
+            << "Space " << space->GetName() << " "
+            << "generational_=" << generational_ << " "
+            << "collect_from_space_only_=" << collect_from_space_only_;
         // App images currently do not have remembered sets.
-        DCHECK((space->IsImageSpace() && space != heap_->GetBootImageSpace()) ||
-               rem_set != nullptr);
+        DCHECK_EQ(kUseRememberedSet, rem_set != nullptr);
       } else {
         DCHECK(rem_set == nullptr);
       }
       if (rem_set != nullptr) {
         TimingLogger::ScopedTiming t2("UpdateAndMarkRememberedSet", GetTimings());
         rem_set->UpdateAndMarkReferences(from_space_, this);
-        if (kIsDebugBuild) {
-          // Verify that there are no from-space references that
-          // remain in the space, that is, the remembered set (and the
-          // card table) didn't miss any from-space references in the
-          // space.
-          accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
-          SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor visitor(this);
-          live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
-                                        reinterpret_cast<uintptr_t>(space->End()),
-                                        visitor);
-        }
       } else {
         TimingLogger::ScopedTiming t2("VisitLiveBits", GetTimings());
         accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
         SemiSpaceScanObjectVisitor visitor(this);
+        live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                      reinterpret_cast<uintptr_t>(space->End()),
+                                      visitor);
+      }
+      if (kIsDebugBuild) {
+        // Verify that there are no from-space references that
+        // remain in the space, that is, the remembered set (and the
+        // card table) didn't miss any from-space references in the
+        // space.
+        accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
+        SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor visitor(this);
         live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                       reinterpret_cast<uintptr_t>(space->End()),
                                       visitor);
