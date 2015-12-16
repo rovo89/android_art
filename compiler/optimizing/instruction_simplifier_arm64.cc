@@ -49,7 +49,6 @@ void InstructionSimplifierArm64Visitor::TryExtractArrayAccessAddress(HInstructio
       GetGraph()->GetIntConstant(mirror::Array::DataOffset(access_size).Uint32Value());
   HArm64IntermediateAddress* address =
       new (arena) HArm64IntermediateAddress(array, offset, kNoDexPc);
-  address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
   access->GetBlock()->InsertInstructionBefore(address, access);
   access->ReplaceInput(address, 0);
   // Both instructions must depend on GC to prevent any instruction that can
