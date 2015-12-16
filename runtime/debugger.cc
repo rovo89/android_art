@@ -4754,12 +4754,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
   // Send a series of heap segment chunks.
   HeapChunkContext context(what == HPSG_WHAT_MERGED_OBJECTS, native);
   if (native) {
-#if defined(__ANDROID__) && defined(USE_DLMALLOC)
-    dlmalloc_inspect_all(HeapChunkContext::HeapChunkNativeCallback, &context);
-    HeapChunkContext::HeapChunkNativeCallback(nullptr, nullptr, 0, &context);  // Indicate end of a space.
-#else
-    UNIMPLEMENTED(WARNING) << "Native heap inspection is only supported with dlmalloc";
-#endif
+    UNIMPLEMENTED(WARNING) << "Native heap inspection is not supported";
   } else {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     for (const auto& space : heap->GetContinuousSpaces()) {

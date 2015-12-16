@@ -23,7 +23,6 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/accounting/bitmap.h"
-#include "gc/allocator/dlmalloc.h"
 #include "gc_root.h"
 #include "jni.h"
 #include "oat_file.h"

@@ -1352,28 +1352,10 @@ void Heap::TrimSpaces(Thread* self) {
   uint64_t gc_heap_end_ns = NanoTime();
   // We never move things in the native heap, so we can finish the GC at this point.
   FinishGC(self, collector::kGcTypeNone);
-  size_t native_reclaimed = 0;
 
-#ifdef __ANDROID__
-  // Only trim the native heap if we don't care about pauses.
-  if (!CareAboutPauseTimes()) {
-#if defined(USE_DLMALLOC)
-    // Trim the native heap.
-    dlmalloc_trim(0);
-    dlmalloc_inspect_all(DlmallocMadviseCallback, &native_reclaimed);
-#elif defined(USE_JEMALLOC)
-    // Jemalloc does it's own internal trimming.
-#else
-    UNIMPLEMENTED(WARNING) << "Add trimming support";
-#endif
-  }
-#endif  // __ANDROID__
-  uint64_t end_ns = NanoTime();
   VLOG(heap) << "Heap trim of managed (duration=" << PrettyDuration(gc_heap_end_ns - start_ns)
-      << ", advised=" << PrettySize(managed_reclaimed) << ") and native (duration="
-      << PrettyDuration(end_ns - gc_heap_end_ns) << ", advised=" << PrettySize(native_reclaimed)
-      << ") heaps. Managed heap utilization of " << static_cast<int>(100 * managed_utilization)
-      << "%.";
+      << ", advised=" << PrettySize(managed_reclaimed) << ") heap. Managed heap utilization of "
+      << static_cast<int>(100 * managed_utilization) << "%.";
   ATRACE_END();
 }
 
