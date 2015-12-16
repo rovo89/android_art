@@ -29,11 +29,12 @@
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "pretty_printer.h"
+#include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"
 
-namespace art {
+#include "gtest/gtest.h"
 
-class LinearizeTest : public CommonCompilerTest {};
+namespace art {
 
 template <size_t number_of_blocks>
 static void TestCode(const uint16_t* data, const uint32_t (&expected_order)[number_of_blocks]) {
@@ -45,7 +46,7 @@ static void TestCode(const uint16_t* data, const uint32_t (&expected_order)[numb
   bool graph_built = builder.BuildGraph(*item);
   ASSERT_TRUE(graph_built);
 
-  TransformToSsa(graph);
+  graph->TryBuildingSsa();
 
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
@@ -59,7 +60,7 @@ static void TestCode(const uint16_t* data, const uint32_t (&expected_order)[numb
   }
 }
 
-TEST_F(LinearizeTest, CFG1) {
+TEST(LinearizeTest, CFG1) {
   // Structure of this graph (+ are back edges)
   //            Block0
   //              |
@@ -84,7 +85,7 @@ TEST_F(LinearizeTest, CFG1) {
   TestCode(data, blocks);
 }
 
-TEST_F(LinearizeTest, CFG2) {
+TEST(LinearizeTest, CFG2) {
   // Structure of this graph (+ are back edges)
   //            Block0
   //              |
@@ -109,7 +110,7 @@ TEST_F(LinearizeTest, CFG2) {
   TestCode(data, blocks);
 }
 
-TEST_F(LinearizeTest, CFG3) {
+TEST(LinearizeTest, CFG3) {
   // Structure of this graph (+ are back edges)
   //            Block0
   //              |
@@ -136,7 +137,7 @@ TEST_F(LinearizeTest, CFG3) {
   TestCode(data, blocks);
 }
 
-TEST_F(LinearizeTest, CFG4) {
+TEST(LinearizeTest, CFG4) {
   /* Structure of this graph (+ are back edges)
   //            Block0
   //              |
@@ -166,7 +167,7 @@ TEST_F(LinearizeTest, CFG4) {
   TestCode(data, blocks);
 }
 
-TEST_F(LinearizeTest, CFG5) {
+TEST(LinearizeTest, CFG5) {
   /* Structure of this graph (+ are back edges)
   //            Block0
   //              |
@@ -196,7 +197,7 @@ TEST_F(LinearizeTest, CFG5) {
   TestCode(data, blocks);
 }
 
-TEST_F(LinearizeTest, CFG6) {
+TEST(LinearizeTest, CFG6) {
   //            Block0
   //              |
   //            Block1
@@ -222,7 +223,7 @@ TEST_F(LinearizeTest, CFG6) {
   TestCode(data, blocks);
 }
 
-TEST_F(LinearizeTest, CFG7) {
+TEST(LinearizeTest, CFG7) {
   // Structure of this graph (+ are back edges)
   //            Block0
   //              |

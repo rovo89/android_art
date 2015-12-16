@@ -32,7 +32,7 @@ namespace art {
 /**
  * Fixture class for the constant folding and dce tests.
  */
-class ConstantFoldingTest : public CommonCompilerTest {
+class ConstantFoldingTest : public testing::Test {
  public:
   ConstantFoldingTest() : pool_(), allocator_(&pool_) {
     graph_ = CreateGraph(&allocator_);
@@ -56,7 +56,7 @@ class ConstantFoldingTest : public CommonCompilerTest {
                             const std::string& expected_after_dce,
                             std::function<void(HGraph*)> check_after_cf) {
     ASSERT_NE(graph_, nullptr);
-    TransformToSsa(graph_);
+    graph_->TryBuildingSsa();
 
     StringPrettyPrinter printer_before(graph_);
     printer_before.VisitInsertionOrder();

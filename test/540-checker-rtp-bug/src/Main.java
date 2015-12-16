@@ -21,14 +21,14 @@ final class Final {
 }
 
 public class Main {
-  /// CHECK-START: Final Main.testKeepCheckCast(java.lang.Object, boolean) ssa_builder (after)
+  /// CHECK-START: Final Main.testKeepCheckCast(java.lang.Object, boolean) reference_type_propagation (after)
   /// CHECK:    <<Phi:l\d+>>     Phi klass:java.lang.Object
   /// CHECK:    <<Class:l\d+>>   LoadClass
   /// CHECK:                     CheckCast [<<Phi>>,<<Class>>]
   /// CHECK:    <<Ret:l\d+>>     BoundType [<<Phi>>] klass:Final
   /// CHECK:                     Return [<<Ret>>]
 
-  /// CHECK-START: Final Main.testKeepCheckCast(java.lang.Object, boolean) instruction_simplifier (after)
+  /// CHECK-START: Final Main.testKeepCheckCast(java.lang.Object, boolean) instruction_simplifier_after_types (after)
   /// CHECK:    <<Phi:l\d+>>     Phi
   /// CHECK:    <<Class:l\d+>>   LoadClass
   /// CHECK:                     CheckCast [<<Phi>>,<<Class>>]
@@ -43,7 +43,7 @@ public class Main {
     return (Final) x;
   }
 
-  /// CHECK-START: void Main.testKeepInstanceOf(java.lang.Object, boolean) ssa_builder (after)
+  /// CHECK-START: void Main.testKeepInstanceOf(java.lang.Object, boolean) reference_type_propagation (after)
   /// CHECK:    <<Phi:l\d+>>     Phi klass:java.lang.Object
   /// CHECK:    <<Class:l\d+>>   LoadClass
   /// CHECK:                     InstanceOf [<<Phi>>,<<Class>>]
@@ -65,7 +65,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: java.lang.String Main.testNoInline(java.lang.Object, boolean) ssa_builder (after)
+  /// CHECK-START: java.lang.String Main.testNoInline(java.lang.Object, boolean) reference_type_propagation (after)
   /// CHECK:    <<Phi:l\d+>>     Phi klass:java.lang.Object
   /// CHECK:    <<NC:l\d+>>      NullCheck [<<Phi>>]
   /// CHECK:    <<Ret:l\d+>>     InvokeVirtual [<<NC>>] method_name:java.lang.Object.toString

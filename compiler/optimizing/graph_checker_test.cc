@@ -17,6 +17,8 @@
 #include "graph_checker.h"
 #include "optimizing_unit_test.h"
 
+#include "gtest/gtest.h"
+
 namespace art {
 
 /**
@@ -41,6 +43,7 @@ HGraph* CreateSimpleCFG(ArenaAllocator* allocator) {
   return graph;
 }
 
+
 static void TestCode(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
@@ -58,7 +61,8 @@ static void TestCodeSSA(const uint16_t* data) {
   HGraph* graph = CreateCFG(&allocator, data);
   ASSERT_NE(graph, nullptr);
 
-  TransformToSsa(graph);
+  graph->BuildDominatorTree();
+  graph->TransformToSsa();
 
   SSAChecker ssa_checker(graph);
   ssa_checker.Run();
@@ -141,9 +145,7 @@ TEST(GraphChecker, BlockEndingWithNonBranchInstruction) {
   ASSERT_FALSE(graph_checker.IsValid());
 }
 
-class SSACheckerTest : public CommonCompilerTest {};
-
-TEST_F(SSACheckerTest, SSAPhi) {
+TEST(SSAChecker, SSAPhi) {
   // This code creates one Phi function during the conversion to SSA form.
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
