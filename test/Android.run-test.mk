@@ -511,43 +511,54 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
-# Tests that should fail in the read barrier configuration.
-# 055: Exceeds run time limits due to read barrier instrumentation.
-# 137: Read barrier forces interpreter. Cannot run this with the interpreter.
-# 484: Baker's fast path based read barrier compiler instrumentation generates code containing
-#      more parallel moves (at least on x86), thus some Checker assertions may fail.
-# 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
-#      handled in the read barrier configuration.
-# 554: Cannot run in interpreter mode and this rule covers both: the compiler and the interpreter.
-TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
-  055-enum-performance                    \
-  137-cfi                                 \
-  484-checker-register-hints              \
-  537-checker-arraycopy                   \
-  554-jit-profile-file
 
-ifeq ($(ART_USE_READ_BARRIER),true)
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
-      $(PREBUILD_TYPES),$(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
-      $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
-      $(TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
-endif
-
-TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=
-
-# Tests that should fail in the heap poisoning configuration with the default (Quick) compiler.
-# 137: Quick punts to the interpreter, and this test cannot run this with the interpreter.
-TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS := \
-  137-cfi
-# Tests that should fail in the heap poisoning configuration with the Optimizing compiler.
-# 055-enum-performance: Exceeds run time limits due to heap poisoning instrumentation.
-TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS := \
-  055-enum-performance
-# Tests that should fail in the heap poisoning configuration with the interpreter.
-# 137: Cannot run this with the interpreter.
-TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS := \
+# Tests that should fail in the read barrier configuration with the default (Quick) compiler.
+# 137: Quick has no support for read barriers and punts to the
+#      interpreter, but CFI unwinding expects managed frames.
+# 554: Quick does not support JIT profiling.
+TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS := \
   137-cfi \
   554-jit-profile-file
+
+# Tests that should fail in the read barrier configuration with the Optimizing compiler.
+# 484: Baker's fast path based read barrier compiler instrumentation generates code containing
+#      more parallel moves on x86, thus some Checker assertions may fail.
+# 537: Expects an array copy to be intrinsified on x86-64, but calling-on-slowpath intrinsics are
+#      not yet handled in the read barrier configuration.
+TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
+  484-checker-register-hints \
+  537-checker-arraycopy
+
+ifeq ($(ART_USE_READ_BARRIER),true)
+  ifneq (,$(filter default,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
+        $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
+
+  ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
+        $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
+endif
+
+TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS :=
+TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS :=
+
+# Tests that should fail in the heap poisoning configuration with the default (Quick) compiler.
+# 137: Quick has no support for read barriers and punts to the
+#      interpreter, but CFI unwinding expects managed frames.
+# 554: Quick does not support JIT profiling.
+TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS := \
+  137-cfi \
+  554-jit-profile-file
+# Tests that should fail in the heap poisoning configuration with the Optimizing compiler.
+# 055: Exceeds run time limits due to heap poisoning instrumentation (on ARM and ARM64 devices).
+TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS := \
+  055-enum-performance
 
 ifeq ($(ART_HEAP_POISONING),true)
   ifneq (,$(filter default,$(COMPILER_TYPES)))
@@ -563,18 +574,10 @@ ifeq ($(ART_HEAP_POISONING),true)
         $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
         $(TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
   endif
-
-  ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
-    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
-        $(PREBUILD_TYPES),interpreter,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
-        $(TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
-  endif
 endif
 
-TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS :=
-TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS :=
+TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
