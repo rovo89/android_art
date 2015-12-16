@@ -27,9 +27,9 @@
 #include "prepare_for_register_allocation.h"
 #include "ssa_liveness_analysis.h"
 
-namespace art {
+#include "gtest/gtest.h"
 
-class LiveRangesTest : public CommonCompilerTest {};
+namespace art {
 
 static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
   HGraph* graph = CreateGraph(allocator);
@@ -39,13 +39,13 @@ static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
-  TransformToSsa(graph);
+  graph->TryBuildingSsa();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
   return graph;
 }
 
-TEST_F(LiveRangesTest, CFG1) {
+TEST(LiveRangesTest, CFG1) {
   /*
    * Test the following snippet:
    *  return 0;
@@ -83,7 +83,7 @@ TEST_F(LiveRangesTest, CFG1) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
-TEST_F(LiveRangesTest, CFG2) {
+TEST(LiveRangesTest, CFG2) {
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -131,7 +131,7 @@ TEST_F(LiveRangesTest, CFG2) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
-TEST_F(LiveRangesTest, CFG3) {
+TEST(LiveRangesTest, CFG3) {
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -204,7 +204,7 @@ TEST_F(LiveRangesTest, CFG3) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
-TEST_F(LiveRangesTest, Loop1) {
+TEST(LiveRangesTest, Loop1) {
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -284,7 +284,7 @@ TEST_F(LiveRangesTest, Loop1) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
-TEST_F(LiveRangesTest, Loop2) {
+TEST(LiveRangesTest, Loop2) {
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -360,7 +360,7 @@ TEST_F(LiveRangesTest, Loop2) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
-TEST_F(LiveRangesTest, CFG4) {
+TEST(LiveRangesTest, CFG4) {
   /*
    * Test the following snippet:
    *  var a = 0;

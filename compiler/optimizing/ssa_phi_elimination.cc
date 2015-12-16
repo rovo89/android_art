@@ -40,17 +40,15 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
         continue;
       }
 
-      bool keep_alive = (graph_->IsDebuggable() && phi->HasEnvironmentUses());
-      if (!keep_alive) {
-        for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
-          if (!use_it.Current()->GetUser()->IsPhi()) {
-            keep_alive = true;
-            break;
-          }
+      bool has_non_phi_use = false;
+      for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
+        if (!use_it.Current()->GetUser()->IsPhi()) {
+          has_non_phi_use = true;
+          break;
         }
       }
 
-      if (keep_alive) {
+      if (has_non_phi_use) {
         worklist_.push_back(phi);
       } else {
         phi->SetDead();
@@ -96,8 +94,8 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
           for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done();
                use_it.Advance()) {
             HInstruction* user = use_it.Current()->GetUser();
-            DCHECK(user->IsLoopHeaderPhi());
-            DCHECK(user->AsPhi()->IsDead());
+            DCHECK(user->IsLoopHeaderPhi()) << user->GetId();
+            DCHECK(user->AsPhi()->IsDead()) << user->GetId();
           }
         }
         // Remove the phi from use lists of its inputs.

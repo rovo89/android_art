@@ -33,7 +33,6 @@
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
 #include "sharpening.h"
-#include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
@@ -515,7 +514,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     return false;
   }
 
-  if (callee_graph->TryBuildingSsa(handles_) != kBuildSsaSuccess) {
+  if (!callee_graph->TryBuildingSsa()) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " could not be transformed to SSA";
     return false;
@@ -550,12 +549,14 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   // Run simple optimizations on the graph.
   HDeadCodeElimination dce(callee_graph, stats_);
   HConstantFolding fold(callee_graph);
+  ReferenceTypePropagation type_propagation(callee_graph, handles_);
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
   InstructionSimplifier simplify(callee_graph, stats_);
   IntrinsicsRecognizer intrinsics(callee_graph, compiler_driver_);
 
   HOptimization* optimizations[] = {
     &intrinsics,
+    &type_propagation,
     &sharpening,
     &simplify,
     &fold,
@@ -676,36 +677,42 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     DCHECK_EQ(graph_, return_replacement->GetBlock()->GetGraph());
   }
 
-  // Check the integrity of reference types and run another type propagation if needed.
-  if (return_replacement != nullptr) {
-    if (return_replacement->GetType() == Primitive::kPrimNot) {
-      if (!return_replacement->GetReferenceTypeInfo().IsValid()) {
-        // Make sure that we have a valid type for the return. We may get an invalid one when
-        // we inline invokes with multiple branches and create a Phi for the result.
-        // TODO: we could be more precise by merging the phi inputs but that requires
-        // some functionality from the reference type propagation.
-        DCHECK(return_replacement->IsPhi());
-        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        ReferenceTypeInfo::TypeHandle return_handle =
-            handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
-        return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
-            return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
-      }
+  // When merging the graph we might create a new NullConstant in the caller graph which does
+  // not have the chance to be typed. We assign the correct type here so that we can keep the
+  // assertion that every reference has a valid type. This also simplifies checks along the way.
+  HNullConstant* null_constant = graph_->GetNullConstant();
+  if (!null_constant->GetReferenceTypeInfo().IsValid()) {
+    ReferenceTypeInfo::TypeHandle obj_handle =
+        handles_->NewHandle(class_linker->GetClassRoot(ClassLinker::kJavaLangObject));
+    null_constant->SetReferenceTypeInfo(
+        ReferenceTypeInfo::Create(obj_handle, false /* is_exact */));
+  }
 
-      if (do_rtp) {
-        // If the return type is a refinement of the declared type run the type propagation again.
-        ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
-        ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
-        if (invoke_rti.IsStrictSupertypeOf(return_rti)
-            || (return_rti.IsExact() && !invoke_rti.IsExact())
-            || !return_replacement->CanBeNull()) {
-          ReferenceTypePropagation(graph_, handles_).Run();
-        }
-      }
-    } else if (return_replacement->IsInstanceOf()) {
-      if (do_rtp) {
-        // Inlining InstanceOf into an If may put a tighter bound on reference types.
-        ReferenceTypePropagation(graph_, handles_).Run();
+  // Check the integrity of reference types and run another type propagation if needed.
+  if ((return_replacement != nullptr)
+      && (return_replacement->GetType() == Primitive::kPrimNot)) {
+    if (!return_replacement->GetReferenceTypeInfo().IsValid()) {
+      // Make sure that we have a valid type for the return. We may get an invalid one when
+      // we inline invokes with multiple branches and create a Phi for the result.
+      // TODO: we could be more precise by merging the phi inputs but that requires
+      // some functionality from the reference type propagation.
+      DCHECK(return_replacement->IsPhi());
+      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      ReferenceTypeInfo::TypeHandle return_handle =
+          handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
+      return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
+         return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+    }
+
+    if (do_rtp) {
+      // If the return type is a refinement of the declared type run the type propagation again.
+      ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
+      ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
+      if (invoke_rti.IsStrictSupertypeOf(return_rti)
+          || (return_rti.IsExact() && !invoke_rti.IsExact())
+          || !return_replacement->CanBeNull()) {
+        ReferenceTypePropagation rtp_fixup(graph_, handles_);
+        rtp_fixup.Run();
       }
     }
   }

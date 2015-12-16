@@ -16,6 +16,7 @@
 
 #include "base/arena_allocator.h"
 #include "builder.h"
+#include "gtest/gtest.h"
 #include "induction_var_analysis.h"
 #include "induction_var_range.h"
 #include "nodes.h"
@@ -28,7 +29,7 @@ using Value = InductionVarRange::Value;
 /**
  * Fixture class for the InductionVarRange tests.
  */
-class InductionVarRangeTest : public CommonCompilerTest {
+class InductionVarRangeTest : public testing::Test {
  public:
   InductionVarRangeTest()
       : pool_(),
@@ -112,7 +113,7 @@ class InductionVarRangeTest : public CommonCompilerTest {
 
   /** Constructs SSA and performs induction variable analysis. */
   void PerformInductionVarAnalysis() {
-    TransformToSsa(graph_);
+    ASSERT_TRUE(graph_->TryBuildingSsa());
     iva_->Run();
   }
 
