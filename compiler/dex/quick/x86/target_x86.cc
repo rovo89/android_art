@@ -20,7 +20,7 @@
 #include <inttypes.h>
 #include <string>
 
-#include "arch/x86/instruction_set_features_x86.h"
+#include "arch/instruction_set_features.h"
 #include "art_method.h"
 #include "backend_x86.h"
 #include "base/logging.h"
@@ -585,8 +585,6 @@ bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
       case kX86LockCmpxchgAR:
       case kX86LockCmpxchg64M:
       case kX86LockCmpxchg64A:
-      case kX86LockCmpxchg64AR:
-      case kX86LockAdd32MI8:
       case kX86XchgMR:
       case kX86Mfence:
         // Atomic memory instructions provide full barrier.
@@ -600,9 +598,7 @@ bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
 }
 
 bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
-  const X86InstructionSetFeatures* features =
-    cu_->compiler_driver->GetInstructionSetFeatures()->AsX86InstructionSetFeatures();
-  if (!features->IsSmp()) {
+  if (!cu_->compiler_driver->GetInstructionSetFeatures()->IsSmp()) {
     return false;
   }
   // Start off with using the last LIR as the barrier. If it is not enough, then we will update it.
@@ -614,34 +610,20 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
    * All other barriers (LoadAny, AnyStore, StoreStore) are nops due to the x86 memory model.
    * For those cases, all we need to ensure is that there is a scheduling barrier in place.
    */
-  const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-  bool use_locked_add = features->PrefersLockedAddSynchronization();
   if (barrier_kind == kAnyAny) {
-    // If no LIR exists already that can be used a barrier, then generate a barrier.
+    // If no LIR exists already that can be used a barrier, then generate an mfence.
     if (mem_barrier == nullptr) {
-      if (use_locked_add) {
-        mem_barrier = NewLIR3(kX86LockAdd32MI8, rs_rSP.GetReg(), 0, 0);
-      } else {
-        mem_barrier = NewLIR0(kX86Mfence);
-      }
+      mem_barrier = NewLIR0(kX86Mfence);
       ret = true;
     }
 
-    // If last instruction does not provide full barrier, then insert a barrier.
+    // If last instruction does not provide full barrier, then insert an mfence.
     if (ProvidesFullMemoryBarrier(static_cast<X86OpCode>(mem_barrier->opcode)) == false) {
-      if (use_locked_add) {
-        mem_barrier = NewLIR3(kX86LockAdd32MI8, rs_rSP.GetReg(), 0, 0);
-      } else {
-        mem_barrier = NewLIR0(kX86Mfence);
-      }
+      mem_barrier = NewLIR0(kX86Mfence);
       ret = true;
     }
   } else if (barrier_kind == kNTStoreStore) {
-      if (use_locked_add) {
-        mem_barrier = NewLIR3(kX86LockAdd32MI8, rs_rSP.GetReg(), 0, 0);
-      } else {
-        mem_barrier = NewLIR0(kX86Sfence);
-      }
+      mem_barrier = NewLIR0(kX86Sfence);
       ret = true;
   }
 

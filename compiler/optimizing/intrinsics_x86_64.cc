@@ -2059,7 +2059,7 @@ static void GenUnsafePut(LocationSummary* locations, Primitive::Type type, bool 
   }
 
   if (is_volatile) {
-    codegen->MemoryFence();
+    __ mfence();
   }
 
   if (type == Primitive::kPrimNot) {

@@ -17,7 +17,6 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_64_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_64_H_
 
-#include "arch/x86_64/instruction_set_features_x86_64.h"
 #include "code_generator.h"
 #include "dex/compiler_enums.h"
 #include "driver/compiler_options.h"
@@ -423,18 +422,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
                           const Address& addr_high,
                           int64_t v,
                           HInstruction* instruction);
-
-  // Ensure that prior stores complete to memory before subsequent loads.
-  // The locked add implementation will avoid serializing device memory, but will
-  // touch (but not change) the top of the stack. The locked add should not be used for
-  // ordering non-temporal stores.
-  void MemoryFence(bool force_mfence = false) {
-    if (!force_mfence && isa_features_.PrefersLockedAddSynchronization()) {
-      assembler_.lock()->addl(Address(CpuRegister(RSP), 0), Immediate(0));
-    } else {
-      assembler_.mfence();
-    }
-  }
 
  private:
   struct PcRelativeDexCacheAccessInfo {

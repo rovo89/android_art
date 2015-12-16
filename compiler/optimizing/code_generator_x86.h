@@ -17,7 +17,6 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_H_
 
-#include "arch/x86/instruction_set_features_x86.h"
 #include "code_generator.h"
 #include "dex/compiler_enums.h"
 #include "driver/compiler_options.h"
@@ -506,19 +505,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   // The `out` location contains the value returned by
   // artReadBarrierForRootSlow.
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
-
-  // Ensure that prior stores complete to memory before subsequent loads.
-  // The locked add implementation will avoid serializing device memory, but will
-  // touch (but not change) the top of the stack.
-  // The 'non_temporal' parameter should be used to ensure ordering of non-temporal stores.
-  void MemoryFence(bool non_temporal = false) {
-    if (!non_temporal && isa_features_.PrefersLockedAddSynchronization()) {
-      assembler_.lock()->addl(Address(ESP, 0), Immediate(0));
-    } else {
-      assembler_.mfence();
-    }
-  }
-
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
