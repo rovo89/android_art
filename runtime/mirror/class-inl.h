@@ -22,14 +22,13 @@
 #include "art_field-inl.h"
 #include "art_method.h"
 #include "art_method-inl.h"
-#include "base/array_slice.h"
-#include "base/length_prefixed_array.h"
 #include "class_loader.h"
 #include "common_throws.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "gc/heap-inl.h"
 #include "iftable.h"
+#include "length_prefixed_array.h"
 #include "object_array-inl.h"
 #include "read_barrier-inl.h"
 #include "reference-inl.h"
@@ -63,148 +62,61 @@ inline DexCache* Class::GetDexCache() {
   return GetFieldObject<DexCache, kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_));
 }
 
-inline uint32_t Class::GetCopiedMethodsStartOffset() {
-  return GetFieldShort(OFFSET_OF_OBJECT_MEMBER(Class, copied_methods_offset_));
-}
-
-inline uint32_t Class::GetDirectMethodsStartOffset() {
-  return 0;
-}
-
-inline uint32_t Class::GetVirtualMethodsStartOffset() {
-  return GetFieldShort(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_offset_));
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDirectMethodsSlice(size_t pointer_size) {
+inline LengthPrefixedArray<ArtMethod>* Class::GetDirectMethodsPtr() {
   DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
-  return GetDirectMethodsSliceUnchecked(pointer_size);
+  return GetDirectMethodsPtrUnchecked();
 }
 
-inline ArraySlice<ArtMethod> Class::GetDirectMethodsSliceUnchecked(size_t pointer_size) {
-  return ArraySlice<ArtMethod>(GetMethodsPtr(),
-                               GetDirectMethodsStartOffset(),
-                               GetVirtualMethodsStartOffset(),
-                               ArtMethod::Size(pointer_size),
-                               ArtMethod::Alignment(pointer_size));
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSlice(size_t pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
-  return GetDeclaredMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSliceUnchecked(size_t pointer_size) {
-  return ArraySlice<ArtMethod>(GetMethodsPtr(),
-                               GetDirectMethodsStartOffset(),
-                               GetCopiedMethodsStartOffset(),
-                               ArtMethod::Size(pointer_size),
-                               ArtMethod::Alignment(pointer_size));
-}
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSlice(size_t pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
-  return GetDeclaredVirtualMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSliceUnchecked(size_t pointer_size) {
-  return ArraySlice<ArtMethod>(GetMethodsPtr(),
-                               GetVirtualMethodsStartOffset(),
-                               GetCopiedMethodsStartOffset(),
-                               ArtMethod::Size(pointer_size),
-                               ArtMethod::Alignment(pointer_size));
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSlice(size_t pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
-  return GetVirtualMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSliceUnchecked(size_t pointer_size) {
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  return ArraySlice<ArtMethod>(methods,
-                               GetVirtualMethodsStartOffset(),
-                               NumMethods(),
-                               ArtMethod::Size(pointer_size),
-                               ArtMethod::Alignment(pointer_size));
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSlice(size_t pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
-  return GetCopiedMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSliceUnchecked(size_t pointer_size) {
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  return ArraySlice<ArtMethod>(methods,
-                               GetCopiedMethodsStartOffset(),
-                               NumMethods(),
-                               ArtMethod::Size(pointer_size),
-                               ArtMethod::Alignment(pointer_size));
-}
-
-inline LengthPrefixedArray<ArtMethod>* Class::GetMethodsPtr() {
+inline LengthPrefixedArray<ArtMethod>* Class::GetDirectMethodsPtrUnchecked() {
   return reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
-      GetField64(OFFSET_OF_OBJECT_MEMBER(Class, methods_)));
+      GetField64(OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_)));
 }
 
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetMethodsSlice(size_t pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous());
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  return ArraySlice<ArtMethod>(methods,
-                               0,
-                               NumMethods(),
-                               ArtMethod::Size(pointer_size),
-                               ArtMethod::Alignment(pointer_size));
+inline LengthPrefixedArray<ArtMethod>* Class::GetVirtualMethodsPtrUnchecked() {
+  return reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
+      GetField64(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_)));
 }
 
+inline void Class::SetDirectMethodsPtr(LengthPrefixedArray<ArtMethod>* new_direct_methods) {
+  DCHECK(GetDirectMethodsPtrUnchecked() == nullptr);
+  SetDirectMethodsPtrUnchecked(new_direct_methods);
+}
 
-inline uint32_t Class::NumMethods() {
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  return (methods == nullptr) ? 0 : methods->size();
+inline void Class::SetDirectMethodsPtrUnchecked(
+    LengthPrefixedArray<ArtMethod>* new_direct_methods) {
+  SetField64<false>(OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_),
+                    reinterpret_cast<uint64_t>(new_direct_methods));
 }
 
 inline ArtMethod* Class::GetDirectMethodUnchecked(size_t i, size_t pointer_size) {
   CheckPointerSize(pointer_size);
-  return &GetDirectMethodsSliceUnchecked(pointer_size).At(i);
+  auto* methods = GetDirectMethodsPtrUnchecked();
+  DCHECK(methods != nullptr);
+  return &methods->At(i,
+                      ArtMethod::Size(pointer_size),
+                      ArtMethod::Alignment(pointer_size));
 }
 
 inline ArtMethod* Class::GetDirectMethod(size_t i, size_t pointer_size) {
   CheckPointerSize(pointer_size);
-  return &GetDirectMethodsSlice(pointer_size).At(i);
+  auto* methods = GetDirectMethodsPtr();
+  DCHECK(methods != nullptr);
+  return &methods->At(i,
+                      ArtMethod::Size(pointer_size),
+                      ArtMethod::Alignment(pointer_size));
 }
 
-inline void Class::SetMethodsPtr(LengthPrefixedArray<ArtMethod>* new_methods,
-                                 uint32_t num_direct,
-                                 uint32_t num_virtual) {
-  DCHECK(GetMethodsPtr() == nullptr);
-  SetMethodsPtrUnchecked(new_methods, num_direct, num_virtual);
+template<VerifyObjectFlags kVerifyFlags>
+inline LengthPrefixedArray<ArtMethod>* Class::GetVirtualMethodsPtr() {
+  DCHECK(IsLoaded<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
+  return GetVirtualMethodsPtrUnchecked();
 }
 
-
-inline void Class::SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_methods,
-                                          uint32_t num_direct,
-                                          uint32_t num_virtual) {
-  DCHECK_LE(num_direct + num_virtual, (new_methods == nullptr) ? 0 : new_methods->size());
-  SetMethodsPtrInternal(new_methods);
-  SetFieldShort<false>(OFFSET_OF_OBJECT_MEMBER(Class, copied_methods_offset_),
-                    dchecked_integral_cast<uint16_t>(num_direct + num_virtual));
-  SetFieldShort<false>(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_offset_),
-                       dchecked_integral_cast<uint16_t>(num_direct));
-}
-
-inline void Class::SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods) {
-  SetField64<false>(OFFSET_OF_OBJECT_MEMBER(Class, methods_),
-                    reinterpret_cast<uint64_t>(new_methods));
+inline void Class::SetVirtualMethodsPtr(LengthPrefixedArray<ArtMethod>* new_virtual_methods) {
+  // TODO: we reassign virtual methods to grow the table for miranda
+  // methods.. they should really just be assigned once.
+  SetField64<false>(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_),
+                    reinterpret_cast<uint64_t>(new_virtual_methods));
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -223,7 +135,11 @@ inline ArtMethod* Class::GetVirtualMethodDuringLinking(size_t i, size_t pointer_
 
 inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, size_t pointer_size) {
   CheckPointerSize(pointer_size);
-  return &GetVirtualMethodsSliceUnchecked(pointer_size).At(i);
+  LengthPrefixedArray<ArtMethod>* methods = GetVirtualMethodsPtrUnchecked();
+  DCHECK(methods != nullptr);
+  return &methods->At(i,
+                      ArtMethod::Size(pointer_size),
+                      ArtMethod::Alignment(pointer_size));
 }
 
 inline PointerArray* Class::GetVTable() {
@@ -917,42 +833,24 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
       CHECK_EQ(field.GetDeclaringClass(), this) << GetStatus();
     }
   }
-  for (ArtMethod& method : GetMethods(pointer_size)) {
+  for (ArtMethod& method : GetDirectMethods(pointer_size)) {
+    method.VisitRoots(visitor, pointer_size);
+  }
+  for (ArtMethod& method : GetVirtualMethods(pointer_size)) {
     method.VisitRoots(visitor, pointer_size);
   }
 }
 
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetDirectMethods(size_t pointer_size) {
   CheckPointerSize(pointer_size);
-  return GetDirectMethodsSliceUnchecked(pointer_size).AsRange();
-}
-
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetDeclaredMethods(
-      size_t pointer_size) {
-  CheckPointerSize(pointer_size);
-  return GetDeclaredMethodsSliceUnchecked(pointer_size).AsRange();
-}
-
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetDeclaredVirtualMethods(
-      size_t pointer_size) {
-  CheckPointerSize(pointer_size);
-  return GetDeclaredVirtualMethodsSliceUnchecked(pointer_size).AsRange();
+  return MakeIterationRangeFromLengthPrefixedArray(GetDirectMethodsPtrUnchecked(),
+                                                   ArtMethod::Size(pointer_size),
+                                                   ArtMethod::Alignment(pointer_size));
 }
 
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetVirtualMethods(size_t pointer_size) {
   CheckPointerSize(pointer_size);
-  return GetVirtualMethodsSliceUnchecked(pointer_size).AsRange();
-}
-
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetCopiedMethods(size_t pointer_size) {
-  CheckPointerSize(pointer_size);
-  return GetCopiedMethodsSliceUnchecked(pointer_size).AsRange();
-}
-
-
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetMethods(size_t pointer_size) {
-  CheckPointerSize(pointer_size);
-  return MakeIterationRangeFromLengthPrefixedArray(GetMethodsPtr(),
+  return MakeIterationRangeFromLengthPrefixedArray(GetVirtualMethodsPtrUnchecked(),
                                                    ArtMethod::Size(pointer_size),
                                                    ArtMethod::Alignment(pointer_size));
 }
@@ -1020,15 +918,13 @@ inline bool Class::IsAssignableFrom(Class* src) {
 }
 
 inline uint32_t Class::NumDirectMethods() {
-  return GetVirtualMethodsStartOffset();
-}
-
-inline uint32_t Class::NumDeclaredVirtualMethods() {
-  return GetCopiedMethodsStartOffset() - GetVirtualMethodsStartOffset();
+  LengthPrefixedArray<ArtMethod>* arr = GetDirectMethodsPtrUnchecked();
+  return arr != nullptr ? arr->size() : 0u;
 }
 
 inline uint32_t Class::NumVirtualMethods() {
-  return NumMethods() - GetVirtualMethodsStartOffset();
+  LengthPrefixedArray<ArtMethod>* arr = GetVirtualMethodsPtrUnchecked();
+  return arr != nullptr ? arr->size() : 0u;
 }
 
 inline uint32_t Class::NumInstanceFields() {
@@ -1056,11 +952,16 @@ inline void Class::FixupNativePointers(mirror::Class* dest,
   if (ifields != new_ifields) {
     dest->SetIFieldsPtrUnchecked(new_ifields);
   }
-  // Update method array.
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  LengthPrefixedArray<ArtMethod>* new_methods = visitor(methods);
-  if (methods != new_methods) {
-    dest->SetMethodsPtrInternal(new_methods);
+  // Update direct and virtual method arrays.
+  LengthPrefixedArray<ArtMethod>* direct_methods = GetDirectMethodsPtr();
+  LengthPrefixedArray<ArtMethod>* new_direct_methods = visitor(direct_methods);
+  if (direct_methods != new_direct_methods) {
+    dest->SetDirectMethodsPtrUnchecked(new_direct_methods);
+  }
+  LengthPrefixedArray<ArtMethod>* virtual_methods = GetVirtualMethodsPtr();
+  LengthPrefixedArray<ArtMethod>* new_virtual_methods = visitor(virtual_methods);
+  if (virtual_methods != new_virtual_methods) {
+    dest->SetVirtualMethodsPtr(new_virtual_methods);
   }
   // Update dex cache strings.
   GcRoot<mirror::String>* strings = GetDexCacheStrings();

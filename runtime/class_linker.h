@@ -983,8 +983,8 @@ class ClassLinker {
   bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics, bool can_init_parents)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void UpdateClassMethods(mirror::Class* klass,
-                          LengthPrefixedArray<ArtMethod>* new_methods)
+  void UpdateClassVirtualMethods(mirror::Class* klass,
+                                 LengthPrefixedArray<ArtMethod>* new_methods)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
