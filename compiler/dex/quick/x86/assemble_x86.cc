@@ -508,7 +508,6 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Lfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 5, 0, 0, false }, "Lfence", "" },
   { kX86Mfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 6, 0, 0, false }, "Mfence", "" },
   { kX86Sfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 7, 0, 0, false }, "Sfence", "" },
-  { kX86LockAdd32MI8, kMemImm,        IS_LOAD | IS_STORE | IS_TERTIARY_OP | REG_USE0 | SETS_CCODES, { 0xF0, 0, 0x83, 0x0, 0x0, 0, 0, 1, false }, "LockAdd32MI8", "[!0r+!1d],!2d" },
 
   EXT_0F_ENCODING_MAP(Imul16,  0x66, 0xAF, REG_USE0 | REG_DEF0 | SETS_CCODES),
   EXT_0F_ENCODING_MAP(Imul32,  0x00, 0xAF, REG_USE0 | REG_DEF0 | SETS_CCODES),
