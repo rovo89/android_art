@@ -41,7 +41,7 @@ else
 fi
 checker="${progdir}/../tools/checker/checker.py"
 export JAVA="java"
-export JAVAC="javac -g"
+export JAVAC="javac -g -source 1.7 -target 1.7 -Xlint:-options"
 export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
