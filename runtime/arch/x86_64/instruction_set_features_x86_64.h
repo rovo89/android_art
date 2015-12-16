@@ -74,9 +74,8 @@ class X86_64InstructionSetFeatures FINAL : public X86InstructionSetFeatures {
 
  private:
   X86_64InstructionSetFeatures(bool smp, bool has_SSSE3, bool has_SSE4_1, bool has_SSE4_2,
-                               bool has_AVX, bool has_AVX2, bool prefers_locked_add)
-      : X86InstructionSetFeatures(smp, has_SSSE3, has_SSE4_1, has_SSE4_2, has_AVX,
-                                  has_AVX2, prefers_locked_add) {
+                               bool has_AVX, bool has_AVX2)
+      : X86InstructionSetFeatures(smp, has_SSSE3, has_SSE4_1, has_SSE4_2, has_AVX, has_AVX2) {
   }
 
   friend class X86InstructionSetFeatures;
