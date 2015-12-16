@@ -3902,9 +3902,9 @@ void InstructionCodeGeneratorMIPS::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNU
 }
 
 void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
+  LocationSummary::CallKind call_kind = load->IsInDexCache()
+      ? LocationSummary::kNoCall
+      : LocationSummary::kCallOnSlowPath;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());

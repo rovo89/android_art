@@ -3051,7 +3051,8 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
   } else {
     __ LoadFromOffset(kLoadDoubleword, out, current_method,
                       ArtMethod::DexCacheResolvedTypesOffset(kMips64PointerSize).Int32Value());
-    __ LoadFromOffset(kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
+    __ LoadFromOffset(
+        kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
     // TODO: We will need a read barrier here.
     if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
       DCHECK(cls->CanCallRuntime());
@@ -3105,9 +3106,9 @@ void InstructionCodeGeneratorMIPS64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_U
 }
 
 void LocationsBuilderMIPS64::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
+  LocationSummary::CallKind call_kind = load->IsInDexCache()
+      ? LocationSummary::kNoCall
+      : LocationSummary::kCallOnSlowPath;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
@@ -3120,7 +3121,8 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) {
   __ LoadFromOffset(kLoadUnsignedWord, out, current_method,
                     ArtMethod::DeclaringClassOffset().Int32Value());
   __ LoadFromOffset(kLoadDoubleword, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
-  __ LoadFromOffset(kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+  __ LoadFromOffset(
+      kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
   // TODO: We will need a read barrier here.
 
   if (!load->IsInDexCache()) {
