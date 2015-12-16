@@ -4408,31 +4408,19 @@ void InstructionCodeGeneratorMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr
   HBasicBlock* default_block = switch_instr->GetDefaultBlock();
 
   // Create a set of compare/jumps.
-  Register temp_reg = TMP;
-  __ Addiu32(temp_reg, value_reg, -lower_bound);
-  // Jump to default if index is negative
-  // Note: We don't check the case that index is positive while value < lower_bound, because in
-  // this case, index >= num_entries must be true. So that we can save one branch instruction.
-  __ Bltz(temp_reg, codegen_->GetLabelOf(default_block));
-
   const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-  // Jump to successors[0] if value == lower_bound.
-  __ Beqz(temp_reg, codegen_->GetLabelOf(successors[0]));
-  int32_t last_index = 0;
-  for (; num_entries - last_index > 2; last_index += 2) {
-    __ Addiu(temp_reg, temp_reg, -2);
-    // Jump to successors[last_index + 1] if value < case_value[last_index + 2].
-    __ Bltz(temp_reg, codegen_->GetLabelOf(successors[last_index + 1]));
-    // Jump to successors[last_index + 2] if value == case_value[last_index + 2].
-    __ Beqz(temp_reg, codegen_->GetLabelOf(successors[last_index + 2]));
-  }
-  if (num_entries - last_index == 2) {
-    // The last missing case_value.
-    __ Addiu(temp_reg, temp_reg, -1);
-    __ Beqz(temp_reg, codegen_->GetLabelOf(successors[last_index + 1]));
+  for (int32_t i = 0; i < num_entries; ++i) {
+    int32_t case_value = lower_bound + i;
+    MipsLabel* successor_label = codegen_->GetLabelOf(successors[i]);
+    if (case_value == 0) {
+      __ Beqz(value_reg, successor_label);
+    } else {
+      __ LoadConst32(TMP, case_value);
+      __ Beq(value_reg, TMP, successor_label);
+    }
   }
 
-  // And the default for any other value.
+  // Insert the default branch for every other value.
   if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
     __ B(codegen_->GetLabelOf(default_block));
   }
