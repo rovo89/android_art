@@ -678,16 +678,6 @@ class LSEVisitor : public HGraphVisitor {
     }
   }
 
-  static bool IsIntFloatAlias(Primitive::Type type1, Primitive::Type type2) {
-    return (type1 == Primitive::kPrimFloat && type2 == Primitive::kPrimInt) ||
-           (type2 == Primitive::kPrimFloat && type1 == Primitive::kPrimInt);
-  }
-
-  static bool IsLongDoubleAlias(Primitive::Type type1, Primitive::Type type2) {
-    return (type1 == Primitive::kPrimDouble && type2 == Primitive::kPrimLong) ||
-           (type2 == Primitive::kPrimDouble && type1 == Primitive::kPrimLong);
-  }
-
   void VisitGetLocation(HInstruction* instruction,
                         HInstruction* ref,
                         size_t offset,
@@ -716,22 +706,14 @@ class LSEVisitor : public HGraphVisitor {
       // Get the real heap value of the store.
       heap_value = store->InputAt(1);
     }
-    if ((heap_value != kUnknownHeapValue) &&
-        // Keep the load due to possible I/F, J/D array aliasing.
-        // See b/22538329 for details.
-        !IsIntFloatAlias(heap_value->GetType(), instruction->GetType()) &&
-        !IsLongDoubleAlias(heap_value->GetType(), instruction->GetType())) {
+    if (heap_value == kUnknownHeapValue) {
+      // Load isn't eliminated. Put the load as the value into the HeapLocation.
+      // This acts like GVN but with better aliasing analysis.
+      heap_values[idx] = instruction;
+    } else {
       removed_loads_.push_back(instruction);
       substitute_instructions_for_loads_.push_back(heap_value);
       TryRemovingNullCheck(instruction);
-      return;
-    }
-
-    // Load isn't eliminated.
-    if (heap_value == kUnknownHeapValue) {
-      // Put the load as the value into the HeapLocation.
-      // This acts like GVN but with better aliasing analysis.
-      heap_values[idx] = instruction;
     }
   }
 

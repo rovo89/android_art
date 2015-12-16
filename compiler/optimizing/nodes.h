@@ -101,7 +101,7 @@ enum IfCondition {
 enum BuildSsaResult {
   kBuildSsaFailNonNaturalLoop,
   kBuildSsaFailThrowCatchLoop,
-  kBuildSsaFailAmbiguousArrayGet,
+  kBuildSsaFailAmbiguousArrayOp,
   kBuildSsaSuccess,
 };
 
