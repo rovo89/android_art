@@ -71,10 +71,10 @@ HInductionVarAnalysis::HInductionVarAnalysis(HGraph* graph)
 }
 
 void HInductionVarAnalysis::Run() {
-  // Detects sequence variables (generalized induction variables) during an inner-loop-first
-  // traversal of all loops using Gerlek's algorithm. The order is only relevant if outer
-  // loops would use induction information of inner loops (not currently done).
-  for (HPostOrderIterator it_graph(*graph_); !it_graph.Done(); it_graph.Advance()) {
+  // Detects sequence variables (generalized induction variables) during an outer to inner
+  // traversal of all loops using Gerlek's algorithm. The order is important to enable
+  // range analysis on outer loop while visiting inner loops.
+  for (HReversePostOrderIterator it_graph(*graph_); !it_graph.Done(); it_graph.Advance()) {
     HBasicBlock* graph_block = it_graph.Current();
     if (graph_block->IsLoopHeader()) {
       VisitLoop(graph_block->GetLoopInformation());
@@ -745,8 +745,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
       if (value == 1) {
         return b;
       } else if (value == -1) {
-        op = kNeg;
-        a = nullptr;
+        return CreateSimplifiedInvariant(kNeg, nullptr, b);
       }
     }
   }
@@ -763,24 +762,50 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
       if (value == 1) {
         return a;
       } else if (value == -1) {
-        op = kNeg;
-        b = a;
-        a = nullptr;
+        return CreateSimplifiedInvariant(kNeg, nullptr, a);
       }
     }
   } else if (b->operation == kNeg) {
     // Simplify a + (-b) = a - b, a - (-b) = a + b, -(-b) = b.
     if (op == kAdd) {
-      op = kSub;
-      b = b->op_b;
+      return CreateSimplifiedInvariant(kSub, a, b->op_b);
     } else if (op == kSub) {
-      op = kAdd;
-      b = b->op_b;
+      return CreateSimplifiedInvariant(kAdd, a, b->op_b);
     } else if (op == kNeg) {
       return b->op_b;
     }
+  } else if (b->operation == kSub) {
+    // Simplify - (a - b) = b - a.
+    if (op == kNeg) {
+      return CreateSimplifiedInvariant(kSub, b->op_b, b->op_a);
+    }
   }
   return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
+}
+
+bool HInductionVarAnalysis::IsIntAndGet(InductionInfo* info, int64_t* value) {
+  if (info != nullptr && info->induction_class == kInvariant) {
+    // A direct constant fetch.
+    if (info->operation == kFetch) {
+      DCHECK(info->fetch);
+      if (info->fetch->IsIntConstant()) {
+        *value = info->fetch->AsIntConstant()->GetValue();
+        return true;
+      } else if (info->fetch->IsLongConstant()) {
+        *value = info->fetch->AsLongConstant()->GetValue();
+        return true;
+      }
+    }
+    // Use range analysis to resolve compound values.
+    InductionVarRange range(this);
+    int32_t min_val = 0;
+    int32_t max_val = 0;
+    if (range.IsConstantRange(info, &min_val, &max_val) && min_val == max_val) {
+      *value = min_val;
+      return true;
+    }
+  }
+  return false;
 }
 
 bool HInductionVarAnalysis::InductionEqual(InductionInfo* info1,
@@ -798,33 +823,9 @@ bool HInductionVarAnalysis::InductionEqual(InductionInfo* info1,
   return info1 == info2;
 }
 
-bool HInductionVarAnalysis::IsIntAndGet(InductionInfo* info, int64_t* value) {
-  if (info != nullptr && info->induction_class == kInvariant) {
-    // A direct constant fetch.
-    if (info->operation == kFetch) {
-      DCHECK(info->fetch);
-      if (info->fetch->IsIntConstant()) {
-        *value = info->fetch->AsIntConstant()->GetValue();
-        return true;
-      } else if (info->fetch->IsLongConstant()) {
-        *value = info->fetch->AsLongConstant()->GetValue();
-        return true;
-      }
-    }
-    // Use range analysis to resolve compound values.
-    int32_t range_value;
-    if (InductionVarRange::GetConstant(info, &range_value)) {
-      *value = range_value;
-      return true;
-    }
-  }
-  return false;
-}
-
 std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
   if (info != nullptr) {
     if (info->induction_class == kInvariant) {
-      int64_t value = -1;
       std::string inv = "(";
       inv += InductionToString(info->op_a);
       switch (info->operation) {
@@ -840,8 +841,10 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
         case kGE:    inv += " >= "; break;
         case kFetch:
           DCHECK(info->fetch);
-          if (IsIntAndGet(info, &value)) {
-            inv += std::to_string(value);
+          if (info->fetch->IsIntConstant()) {
+            inv += std::to_string(info->fetch->AsIntConstant()->GetValue());
+          } else if (info->fetch->IsLongConstant()) {
+            inv += std::to_string(info->fetch->AsLongConstant()->GetValue());
           } else {
             inv += std::to_string(info->fetch->GetId()) + ":" + info->fetch->DebugName();
           }
