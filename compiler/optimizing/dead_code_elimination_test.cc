@@ -26,6 +26,8 @@
 
 namespace art {
 
+class DeadCodeEliminationTest : public CommonCompilerTest {};
+
 static void TestCode(const uint16_t* data,
                      const std::string& expected_before,
                      const std::string& expected_after) {
@@ -34,7 +36,7 @@ static void TestCode(const uint16_t* data,
   HGraph* graph = CreateCFG(&allocator, data);
   ASSERT_NE(graph, nullptr);
 
-  graph->TryBuildingSsa();
+  TransformToSsa(graph);
 
   StringPrettyPrinter printer_before(graph);
   printer_before.VisitInsertionOrder();
@@ -55,7 +57,6 @@ static void TestCode(const uint16_t* data,
   ASSERT_EQ(actual_after, expected_after);
 }
 
-
 /**
  * Small three-register program.
  *
@@ -69,7 +70,7 @@ static void TestCode(const uint16_t* data,
  * L1: v2 <- v0 + v1            5.      add-int v2, v0, v1
  *     return-void              7.      return
  */
-TEST(DeadCodeElimination, AdditionAndConditionalJump) {
+TEST_F(DeadCodeEliminationTest, AdditionAndConditionalJump) {
   const uint16_t data[] = THREE_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 1 << 8 | 1 << 12,
     Instruction::CONST_4 | 0 << 8 | 0 << 12,
@@ -131,7 +132,7 @@ TEST(DeadCodeElimination, AdditionAndConditionalJump) {
  * L3: v2 <- v1 + 4             11.     add-int/lit16 v2, v1, #+4
  *     return                   13.     return-void
  */
-TEST(DeadCodeElimination, AdditionsAndInconditionalJumps) {
+TEST_F(DeadCodeEliminationTest, AdditionsAndInconditionalJumps) {
   const uint16_t data[] = THREE_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 << 8 | 0 << 12,
     Instruction::CONST_4 | 1 << 8 | 1 << 12,
