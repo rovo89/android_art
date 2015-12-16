@@ -15,7 +15,6 @@
  */
 
 #include "pc_relative_fixups_x86.h"
-#include "code_generator_x86.h"
 
 namespace art {
 namespace x86 {
@@ -80,10 +79,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
   }
 
   void VisitPackedSwitch(HPackedSwitch* switch_insn) OVERRIDE {
-    if (switch_insn->GetNumEntries() <=
-        InstructionCodeGeneratorX86::kPackedSwitchJumpTableThreshold) {
-      return;
-    }
     // We need to replace the HPackedSwitch with a HX86PackedSwitch in order to
     // address the constant area.
     InitializePCRelativeBasePointer();
