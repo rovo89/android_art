@@ -147,7 +147,7 @@ class AssemblerTest : public testing::Test {
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               std::string fmt) {
     std::string str;
-    std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), imm_bits > 0);
+    std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
     for (auto reg1 : reg1_registers) {
       for (auto reg2 : reg2_registers) {
@@ -188,14 +188,66 @@ class AssemblerTest : public testing::Test {
     return str;
   }
 
+  template <typename ImmType, typename Reg1, typename Reg2>
+  std::string RepeatTemplatedImmBitsRegisters(void (Ass::*f)(ImmType, Reg1, Reg2),
+                                              const std::vector<Reg1*> reg1_registers,
+                                              const std::vector<Reg2*> reg2_registers,
+                                              std::string (AssemblerTest::*GetName1)(const Reg1&),
+                                              std::string (AssemblerTest::*GetName2)(const Reg2&),
+                                              int imm_bits,
+                                              std::string fmt) {
+    std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
+
+    WarnOnCombinations(reg1_registers.size() * reg2_registers.size() * imms.size());
+
+    std::string str;
+    for (auto reg1 : reg1_registers) {
+      for (auto reg2 : reg2_registers) {
+        for (int64_t imm : imms) {
+          ImmType new_imm = CreateImmediate(imm);
+          (assembler_.get()->*f)(new_imm, *reg1, *reg2);
+          std::string base = fmt;
+
+          std::string reg1_string = (this->*GetName1)(*reg1);
+          size_t reg1_index;
+          while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
+            base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
+          }
+
+          std::string reg2_string = (this->*GetName2)(*reg2);
+          size_t reg2_index;
+          while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
+            base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
+          }
+
+          size_t imm_index = base.find(IMM_TOKEN);
+          if (imm_index != std::string::npos) {
+            std::ostringstream sreg;
+            sreg << imm;
+            std::string imm_string = sreg.str();
+            base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
+          }
+
+          if (str.size() > 0) {
+            str += "\n";
+          }
+          str += base;
+        }
+      }
+    }
+    // Add a newline at the end.
+    str += "\n";
+    return str;
+  }
+
   template <typename RegType, typename ImmType>
   std::string RepeatTemplatedRegisterImmBits(void (Ass::*f)(RegType, ImmType),
-                                              int imm_bits,
-                                              const std::vector<Reg*> registers,
-                                              std::string (AssemblerTest::*GetName)(const RegType&),
-                                              std::string fmt) {
+                                             int imm_bits,
+                                             const std::vector<Reg*> registers,
+                                             std::string (AssemblerTest::*GetName)(const RegType&),
+                                             std::string fmt) {
     std::string str;
-    std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), imm_bits > 0);
+    std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
     for (auto reg : registers) {
       for (int64_t imm : imms) {
@@ -289,6 +341,17 @@ class AssemblerTest : public testing::Test {
                                                      &AssemblerTest::GetFPRegName,
                                                      imm_bytes,
                                                      fmt);
+  }
+
+  template <typename ImmType>
+  std::string RepeatIbFF(void (Ass::*f)(ImmType, FPReg, FPReg), int imm_bits, std::string fmt) {
+    return RepeatTemplatedImmBitsRegisters<ImmType, FPReg, FPReg>(f,
+                                                                  GetFPRegisters(),
+                                                                  GetFPRegisters(),
+                                                                  &AssemblerTest::GetFPRegName,
+                                                                  &AssemblerTest::GetFPRegName,
+                                                                  imm_bits,
+                                                                  fmt);
   }
 
   std::string RepeatFR(void (Ass::*f)(FPReg, Reg), std::string fmt) {
