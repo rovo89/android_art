@@ -225,6 +225,18 @@ class InstructionCodeGeneratorMIPS : public HGraphVisitor {
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateIntCompare(IfCondition cond, LocationSummary* locations);
+  void GenerateIntCompareAndBranch(IfCondition cond,
+                                   LocationSummary* locations,
+                                   MipsLabel* label);
+  void GenerateLongCompareAndBranch(IfCondition cond,
+                                    LocationSummary* locations,
+                                    MipsLabel* label);
+  void GenerateFpCompareAndBranch(IfCondition cond,
+                                  bool gt_bias,
+                                  Primitive::Type type,
+                                  LocationSummary* locations,
+                                  MipsLabel* label);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              MipsLabel* true_target,

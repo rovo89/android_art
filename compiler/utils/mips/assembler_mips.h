@@ -72,8 +72,8 @@ class MipsExceptionSlowPath {
       : scratch_(scratch), stack_adjust_(stack_adjust) {}
 
   MipsExceptionSlowPath(MipsExceptionSlowPath&& src)
-      : scratch_(std::move(src.scratch_)),
-        stack_adjust_(std::move(src.stack_adjust_)),
+      : scratch_(src.scratch_),
+        stack_adjust_(src.stack_adjust_),
         exception_entry_(std::move(src.exception_entry_)) {}
 
  private:
@@ -185,6 +185,8 @@ class MipsAssembler FINAL : public Assembler {
   void Bgez(Register rt, uint16_t imm16);
   void Blez(Register rt, uint16_t imm16);
   void Bgtz(Register rt, uint16_t imm16);
+  void Bc1f(int cc, uint16_t imm16);  // R2
+  void Bc1t(int cc, uint16_t imm16);  // R2
   void J(uint32_t addr26);
   void Jal(uint32_t addr26);
   void Jalr(Register rd, Register rs);
@@ -208,6 +210,8 @@ class MipsAssembler FINAL : public Assembler {
   void Bnec(Register rs, Register rt, uint16_t imm16);  // R6
   void Beqzc(Register rs, uint32_t imm21);  // R6
   void Bnezc(Register rs, uint32_t imm21);  // R6
+  void Bc1eqz(FRegister ft, uint16_t imm16);  // R6
+  void Bc1nez(FRegister ft, uint16_t imm16);  // R6
 
   void AddS(FRegister fd, FRegister fs, FRegister ft);
   void SubS(FRegister fd, FRegister fs, FRegister ft);
@@ -221,6 +225,43 @@ class MipsAssembler FINAL : public Assembler {
   void MovD(FRegister fd, FRegister fs);
   void NegS(FRegister fd, FRegister fs);
   void NegD(FRegister fd, FRegister fs);
+
+  void CunS(int cc, FRegister fs, FRegister ft);  // R2
+  void CeqS(int cc, FRegister fs, FRegister ft);  // R2
+  void CueqS(int cc, FRegister fs, FRegister ft);  // R2
+  void ColtS(int cc, FRegister fs, FRegister ft);  // R2
+  void CultS(int cc, FRegister fs, FRegister ft);  // R2
+  void ColeS(int cc, FRegister fs, FRegister ft);  // R2
+  void CuleS(int cc, FRegister fs, FRegister ft);  // R2
+  void CunD(int cc, FRegister fs, FRegister ft);  // R2
+  void CeqD(int cc, FRegister fs, FRegister ft);  // R2
+  void CueqD(int cc, FRegister fs, FRegister ft);  // R2
+  void ColtD(int cc, FRegister fs, FRegister ft);  // R2
+  void CultD(int cc, FRegister fs, FRegister ft);  // R2
+  void ColeD(int cc, FRegister fs, FRegister ft);  // R2
+  void CuleD(int cc, FRegister fs, FRegister ft);  // R2
+  void CmpUnS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpEqS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUeqS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpLtS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUltS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpLeS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUleS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpOrS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUneS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpNeS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUnD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpEqD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUeqD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpLtD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUltD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpLeD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUleD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpOrD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpUneD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void CmpNeD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void Movf(Register rd, Register rs, int cc);  // R2
+  void Movt(Register rd, Register rs, int cc);  // R2
 
   void Cvtsw(FRegister fd, FRegister fs);
   void Cvtdw(FRegister fd, FRegister fs);
@@ -267,6 +308,10 @@ class MipsAssembler FINAL : public Assembler {
   void Bge(Register rs, Register rt, MipsLabel* label);
   void Bltu(Register rs, Register rt, MipsLabel* label);
   void Bgeu(Register rs, Register rt, MipsLabel* label);
+  void Bc1f(int cc, MipsLabel* label);  // R2
+  void Bc1t(int cc, MipsLabel* label);  // R2
+  void Bc1eqz(FRegister ft, MipsLabel* label);  // R6
+  void Bc1nez(FRegister ft, MipsLabel* label);  // R6
 
   void EmitLoad(ManagedRegister m_dst, Register src_register, int32_t src_offset, size_t size);
   void LoadFromOffset(LoadOperandType type, Register reg, Register base, int32_t offset);
@@ -296,7 +341,8 @@ class MipsAssembler FINAL : public Assembler {
   //
 
   // Emit code that will create an activation on the stack.
-  void BuildFrame(size_t frame_size, ManagedRegister method_reg,
+  void BuildFrame(size_t frame_size,
+                  ManagedRegister method_reg,
                   const std::vector<ManagedRegister>& callee_save_regs,
                   const ManagedRegisterEntrySpills& entry_spills) OVERRIDE;
 
@@ -314,58 +360,85 @@ class MipsAssembler FINAL : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister mscratch) OVERRIDE;
 
-  void StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm, ManagedRegister mscratch)
-      OVERRIDE;
+  void StoreImmediateToThread32(ThreadOffset<kMipsWordSize> dest,
+                                uint32_t imm,
+                                ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackOffsetToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+  void StoreStackOffsetToThread32(ThreadOffset<kMipsWordSize> thr_offs,
+                                  FrameOffset fr_offs,
                                   ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackPointerToThread32(ThreadOffset<4> thr_offs) OVERRIDE;
+  void StoreStackPointerToThread32(ThreadOffset<kMipsWordSize> thr_offs) OVERRIDE;
 
-  void StoreSpanning(FrameOffset dest, ManagedRegister msrc, FrameOffset in_off,
+  void StoreSpanning(FrameOffset dest,
+                     ManagedRegister msrc,
+                     FrameOffset in_off,
                      ManagedRegister mscratch) OVERRIDE;
 
   // Load routines.
   void Load(ManagedRegister mdest, FrameOffset src, size_t size) OVERRIDE;
 
-  void LoadFromThread32(ManagedRegister mdest, ThreadOffset<4> src, size_t size) OVERRIDE;
+  void LoadFromThread32(ManagedRegister mdest,
+                        ThreadOffset<kMipsWordSize> src,
+                        size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
-  void LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
+  void LoadRef(ManagedRegister mdest,
+               ManagedRegister base,
+               MemberOffset offs,
                bool unpoison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  void LoadRawPtrFromThread32(ManagedRegister mdest, ThreadOffset<4> offs) OVERRIDE;
+  void LoadRawPtrFromThread32(ManagedRegister mdest, ThreadOffset<kMipsWordSize> offs) OVERRIDE;
 
   // Copying routines.
   void Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) OVERRIDE;
 
-  void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
+  void CopyRawPtrFromThread32(FrameOffset fr_offs,
+                              ThreadOffset<kMipsWordSize> thr_offs,
                               ManagedRegister mscratch) OVERRIDE;
 
-  void CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+  void CopyRawPtrToThread32(ThreadOffset<kMipsWordSize> thr_offs,
+                            FrameOffset fr_offs,
                             ManagedRegister mscratch) OVERRIDE;
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister mscratch) OVERRIDE;
 
   void Copy(FrameOffset dest, FrameOffset src, ManagedRegister mscratch, size_t size) OVERRIDE;
 
-  void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset, ManagedRegister mscratch,
+  void Copy(FrameOffset dest,
+            ManagedRegister src_base,
+            Offset src_offset,
+            ManagedRegister mscratch,
             size_t size) OVERRIDE;
 
-  void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src,
-            ManagedRegister mscratch, size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset, ManagedRegister mscratch,
+  void Copy(ManagedRegister dest_base,
+            Offset dest_offset,
+            FrameOffset src,
+            ManagedRegister mscratch,
             size_t size) OVERRIDE;
 
-  void Copy(ManagedRegister dest, Offset dest_offset, ManagedRegister src, Offset src_offset,
-            ManagedRegister mscratch, size_t size) OVERRIDE;
+  void Copy(FrameOffset dest,
+            FrameOffset src_base,
+            Offset src_offset,
+            ManagedRegister mscratch,
+            size_t size) OVERRIDE;
 
-  void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
-            ManagedRegister mscratch, size_t size) OVERRIDE;
+  void Copy(ManagedRegister dest,
+            Offset dest_offset,
+            ManagedRegister src,
+            Offset src_offset,
+            ManagedRegister mscratch,
+            size_t size) OVERRIDE;
+
+  void Copy(FrameOffset dest,
+            Offset dest_offset,
+            FrameOffset src,
+            Offset src_offset,
+            ManagedRegister mscratch,
+            size_t size) OVERRIDE;
 
   void MemoryBarrier(ManagedRegister) OVERRIDE;
 
@@ -383,13 +456,17 @@ class MipsAssembler FINAL : public Assembler {
   // value is null and null_allowed. in_reg holds a possibly stale reference
   // that can be used to avoid loading the handle scope entry to see if the value is
   // null.
-  void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset,
-                              ManagedRegister in_reg, bool null_allowed) OVERRIDE;
+  void CreateHandleScopeEntry(ManagedRegister out_reg,
+                              FrameOffset handlescope_offset,
+                              ManagedRegister in_reg,
+                              bool null_allowed) OVERRIDE;
 
   // Set up out_off to hold a Object** into the handle scope, or to be null if the
   // value is null and null_allowed.
-  void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset,
-                              ManagedRegister mscratch, bool null_allowed) OVERRIDE;
+  void CreateHandleScopeEntry(FrameOffset out_off,
+                              FrameOffset handlescope_offset,
+                              ManagedRegister mscratch,
+                              bool null_allowed) OVERRIDE;
 
   // src holds a handle scope entry (Object**) load this into dst.
   void LoadReferenceFromHandleScope(ManagedRegister dst, ManagedRegister src) OVERRIDE;
@@ -402,7 +479,7 @@ class MipsAssembler FINAL : public Assembler {
   // Call to address held at [base+offset].
   void Call(ManagedRegister base, Offset offset, ManagedRegister mscratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister mscratch) OVERRIDE;
-  void CallFromThread32(ThreadOffset<4> offset, ManagedRegister mscratch) OVERRIDE;
+  void CallFromThread32(ThreadOffset<kMipsWordSize> offset, ManagedRegister mscratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
@@ -437,6 +514,8 @@ class MipsAssembler FINAL : public Assembler {
     kCondNEZ,
     kCondLTU,
     kCondGEU,
+    kCondF,    // Floating-point predicate false.
+    kCondT,    // Floating-point predicate true.
     kUncond,
   };
   friend std::ostream& operator<<(std::ostream& os, const BranchCondition& rhs);
@@ -543,7 +622,22 @@ class MipsAssembler FINAL : public Assembler {
     //
     // Composite branches (made of several instructions) with longer reach have 32-bit
     // offsets encoded as 2 16-bit "halves" in two instructions (high half goes first).
-    // The composite branches cover the range of PC + +/-2GB.
+    // The composite branches cover the range of PC + +/-2GB on MIPS32 CPUs. However,
+    // the range is not end-to-end on MIPS64 (unless addresses are forced to zero- or
+    // sign-extend from 32 to 64 bits by the appropriate CPU configuration).
+    // Consider the following implementation of a long unconditional branch, for
+    // example:
+    //
+    //   auipc at, offset_31_16  // at = pc + sign_extend(offset_31_16) << 16
+    //   jic   at, offset_15_0   // pc = at + sign_extend(offset_15_0)
+    //
+    // Both of the above instructions take 16-bit signed offsets as immediate operands.
+    // When bit 15 of offset_15_0 is 1, it effectively causes subtraction of 0x10000
+    // due to sign extension. This must be compensated for by incrementing offset_31_16
+    // by 1. offset_31_16 can only be incremented by 1 if it's not 0x7FFF. If it is
+    // 0x7FFF, adding 1 will overflow the positive offset into the negative range.
+    // Therefore, the long branch range is something like from PC - 0x80000000 to
+    // PC + 0x7FFF7FFF, IOW, shorter by 32KB on one side.
     //
     // The returned values are therefore: 18, 21, 23, 28 and 32. There's also a special
     // case with the addiu instruction and a 16 bit offset.
@@ -580,17 +674,17 @@ class MipsAssembler FINAL : public Assembler {
     // Helper for the above.
     void InitShortOrLong(OffsetBits ofs_size, Type short_type, Type long_type);
 
-    uint32_t old_location_;          // Offset into assembler buffer in bytes.
-    uint32_t location_;              // Offset into assembler buffer in bytes.
-    uint32_t target_;                // Offset into assembler buffer in bytes.
+    uint32_t old_location_;      // Offset into assembler buffer in bytes.
+    uint32_t location_;          // Offset into assembler buffer in bytes.
+    uint32_t target_;            // Offset into assembler buffer in bytes.
 
-    uint32_t lhs_reg_ : 5;           // Left-hand side register in conditional branches or
-                                     // indirect call register.
-    uint32_t rhs_reg_ : 5;           // Right-hand side register in conditional branches.
-    BranchCondition condition_ : 5;  // Condition for conditional branches.
+    uint32_t lhs_reg_;           // Left-hand side register in conditional branches or
+                                 // indirect call register.
+    uint32_t rhs_reg_;           // Right-hand side register in conditional branches.
+    BranchCondition condition_;  // Condition for conditional branches.
 
-    Type type_ : 5;                  // Current type of the branch.
-    Type old_type_ : 5;              // Initial type of the branch.
+    Type type_;                  // Current type of the branch.
+    Type old_type_;              // Initial type of the branch.
   };
   friend std::ostream& operator<<(std::ostream& os, const Branch::Type& rhs);
   friend std::ostream& operator<<(std::ostream& os, const Branch::OffsetBits& rhs);
@@ -601,8 +695,8 @@ class MipsAssembler FINAL : public Assembler {
   void EmitI26(int opcode, uint32_t imm26);
   void EmitFR(int opcode, int fmt, FRegister ft, FRegister fs, FRegister fd, int funct);
   void EmitFI(int opcode, int fmt, FRegister rt, uint16_t imm);
-  void EmitBcond(BranchCondition cond, Register rs, Register rt, uint16_t imm16);
-  void EmitBcondc(BranchCondition cond, Register rs, Register rt, uint32_t imm16_21);  // R6
+  void EmitBcondR2(BranchCondition cond, Register rs, Register rt, uint16_t imm16);
+  void EmitBcondR6(BranchCondition cond, Register rs, Register rt, uint32_t imm16_21);
 
   void Buncond(MipsLabel* label);
   void Bcond(MipsLabel* label, BranchCondition condition, Register lhs, Register rhs = ZERO);
