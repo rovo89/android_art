@@ -60,7 +60,7 @@ public class Main {
         } catch (NullPointerException npe) {
             System.out.print("Got an NPE: ");
             System.out.println(npe.getMessage());
-            npe.printStackTrace();
+            npe.printStackTrace(System.out);
         }
     }
     public static void main (String args[]) {
@@ -103,7 +103,7 @@ public class Main {
                 System.out.println(e.getCause());
             }
         } catch (Exception error) {
-            error.printStackTrace();
+            error.printStackTrace(System.out);
         }
     }
 
@@ -126,7 +126,7 @@ public class Main {
                 System.out.println(e.getCause());
             }
         } catch (Exception error) {
-            error.printStackTrace();
+            error.printStackTrace(System.out);
         }
     }
 }
