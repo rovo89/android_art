@@ -42,6 +42,7 @@ LIBART_COMMON_SRC_FILES := \
   check_jni.cc \
   class_linker.cc \
   class_table.cc \
+  code_simulator_container.cc \
   common_throws.cc \
   debugger.cc \
   dex_file.cc \
