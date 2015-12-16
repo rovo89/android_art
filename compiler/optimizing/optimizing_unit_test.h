@@ -19,13 +19,9 @@
 
 #include "nodes.h"
 #include "builder.h"
-#include "common_compiler_test.h"
 #include "compiler/dex/pass_manager.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "handle_scope-inl.h"
-#include "scoped_thread_state_change.h"
-#include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"
 
 #include "gtest/gtest.h"
@@ -45,6 +41,7 @@ namespace art {
 #define FOUR_REGISTERS_CODE_ITEM(...)  N_REGISTERS_CODE_ITEM(4, __VA_ARGS__)
 #define FIVE_REGISTERS_CODE_ITEM(...)  N_REGISTERS_CODE_ITEM(5, __VA_ARGS__)
 #define SIX_REGISTERS_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(6, __VA_ARGS__)
+
 
 LiveInterval* BuildInterval(const size_t ranges[][2],
                             size_t number_of_ranges,
@@ -112,12 +109,6 @@ inline std::string Patch(const std::string& original, const diff_t& diff) {
 // Returns if the instruction is removed from the graph.
 inline bool IsRemoved(HInstruction* instruction) {
   return instruction->GetBlock() == nullptr;
-}
-
-inline void TransformToSsa(HGraph* graph) {
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
-  EXPECT_EQ(graph->TryBuildingSsa(&handles), kBuildSsaSuccess);
 }
 
 }  // namespace art

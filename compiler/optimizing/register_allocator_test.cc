@@ -28,12 +28,12 @@
 #include "ssa_liveness_analysis.h"
 #include "ssa_phi_elimination.h"
 
+#include "gtest/gtest.h"
+
 namespace art {
 
 // Note: the register allocator tests rely on the fact that constants have live
 // intervals and registers get allocated to them.
-
-class RegisterAllocatorTest : public CommonCompilerTest {};
 
 static bool Check(const uint16_t* data) {
   ArenaPool pool;
@@ -42,7 +42,7 @@ static bool Check(const uint16_t* data) {
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   builder.BuildGraph(*item);
-  TransformToSsa(graph);
+  graph->TryBuildingSsa();
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
@@ -57,7 +57,7 @@ static bool Check(const uint16_t* data) {
  * Unit testing of RegisterAllocator::ValidateIntervals. Register allocator
  * tests are based on this validation method.
  */
-TEST_F(RegisterAllocatorTest, ValidateIntervals) {
+TEST(RegisterAllocatorTest, ValidateIntervals) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = CreateGraph(&allocator);
@@ -146,7 +146,7 @@ TEST_F(RegisterAllocatorTest, ValidateIntervals) {
   }
 }
 
-TEST_F(RegisterAllocatorTest, CFG1) {
+TEST(RegisterAllocatorTest, CFG1) {
   /*
    * Test the following snippet:
    *  return 0;
@@ -166,7 +166,7 @@ TEST_F(RegisterAllocatorTest, CFG1) {
   ASSERT_TRUE(Check(data));
 }
 
-TEST_F(RegisterAllocatorTest, Loop1) {
+TEST(RegisterAllocatorTest, Loop1) {
   /*
    * Test the following snippet:
    *  int a = 0;
@@ -205,7 +205,7 @@ TEST_F(RegisterAllocatorTest, Loop1) {
   ASSERT_TRUE(Check(data));
 }
 
-TEST_F(RegisterAllocatorTest, Loop2) {
+TEST(RegisterAllocatorTest, Loop2) {
   /*
    * Test the following snippet:
    *  int a = 0;
@@ -259,11 +259,11 @@ static HGraph* BuildSSAGraph(const uint16_t* data, ArenaAllocator* allocator) {
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   builder.BuildGraph(*item);
-  TransformToSsa(graph);
+  graph->TryBuildingSsa();
   return graph;
 }
 
-TEST_F(RegisterAllocatorTest, Loop3) {
+TEST(RegisterAllocatorTest, Loop3) {
   /*
    * Test the following snippet:
    *  int a = 0
@@ -326,7 +326,7 @@ TEST_F(RegisterAllocatorTest, Loop3) {
   ASSERT_EQ(phi_interval->GetRegister(), ret->InputAt(0)->GetLiveInterval()->GetRegister());
 }
 
-TEST_F(RegisterAllocatorTest, FirstRegisterUse) {
+TEST(RegisterAllocatorTest, FirstRegisterUse) {
   const uint16_t data[] = THREE_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::XOR_INT_LIT8 | 1 << 8, 1 << 8,
@@ -366,7 +366,7 @@ TEST_F(RegisterAllocatorTest, FirstRegisterUse) {
   ASSERT_EQ(new_interval->FirstRegisterUse(), last_xor->GetLifetimePosition());
 }
 
-TEST_F(RegisterAllocatorTest, DeadPhi) {
+TEST(RegisterAllocatorTest, DeadPhi) {
   /* Test for a dead loop phi taking as back-edge input a phi that also has
    * this loop phi as input. Walking backwards in SsaDeadPhiElimination
    * does not solve the problem because the loop phi will be visited last.
@@ -407,7 +407,7 @@ TEST_F(RegisterAllocatorTest, DeadPhi) {
  * that share the same register. It should split the interval it is currently
  * allocating for at the minimum lifetime position between the two inactive intervals.
  */
-TEST_F(RegisterAllocatorTest, FreeUntil) {
+TEST(RegisterAllocatorTest, FreeUntil) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::RETURN);
@@ -539,7 +539,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   return graph;
 }
 
-TEST_F(RegisterAllocatorTest, PhiHint) {
+TEST(RegisterAllocatorTest, PhiHint) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HPhi *phi;
@@ -658,7 +658,7 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
   return graph;
 }
 
-TEST_F(RegisterAllocatorTest, ExpectedInRegisterHint) {
+TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HInstruction *field, *ret;
@@ -726,7 +726,7 @@ static HGraph* BuildTwoSubs(ArenaAllocator* allocator,
   return graph;
 }
 
-TEST_F(RegisterAllocatorTest, SameAsFirstInputHint) {
+TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HInstruction *first_sub, *second_sub;
@@ -795,7 +795,7 @@ static HGraph* BuildDiv(ArenaAllocator* allocator,
   return graph;
 }
 
-TEST_F(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
+TEST(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HInstruction *div;
@@ -819,7 +819,7 @@ TEST_F(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
 // Test a bug in the register allocator, where allocating a blocked
 // register would lead to spilling an inactive interval at the wrong
 // position.
-TEST_F(RegisterAllocatorTest, SpillInactive) {
+TEST(RegisterAllocatorTest, SpillInactive) {
   ArenaPool pool;
 
   // Create a synthesized graph to please the register_allocator and

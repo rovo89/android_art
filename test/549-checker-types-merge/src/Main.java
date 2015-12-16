@@ -38,14 +38,14 @@ class ClassImplementsInterfaceA extends ClassSuper implements InterfaceA {}
 
 public class Main {
 
-  /// CHECK-START: java.lang.Object Main.testMergeNullContant(boolean) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeNullContant(boolean) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:Main
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeNullContant(boolean cond) {
     return cond ? null : new Main();
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassExtendsA, ClassExtendsB) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassExtendsA, ClassExtendsB) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:ClassSuper
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeClasses(boolean cond, ClassExtendsA a, ClassExtendsB b) {
@@ -53,7 +53,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassExtendsA, ClassSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassExtendsA, ClassSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:ClassSuper
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeClasses(boolean cond, ClassExtendsA a, ClassSuper b) {
@@ -61,7 +61,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassSuper, ClassSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassSuper, ClassSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:ClassSuper
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeClasses(boolean cond, ClassSuper a, ClassSuper b) {
@@ -69,7 +69,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassOtherSuper, ClassSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeClasses(boolean, ClassOtherSuper, ClassSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeClasses(boolean cond, ClassOtherSuper a, ClassSuper b) {
@@ -77,7 +77,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeClassWithInterface(boolean, ClassImplementsInterfaceA, InterfaceSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeClassWithInterface(boolean, ClassImplementsInterfaceA, InterfaceSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:InterfaceSuper
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeClassWithInterface(boolean cond, ClassImplementsInterfaceA a, InterfaceSuper b) {
@@ -85,7 +85,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeClassWithInterface(boolean, ClassSuper, InterfaceSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeClassWithInterface(boolean, ClassSuper, InterfaceSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeClassWithInterface(boolean cond, ClassSuper a, InterfaceSuper b) {
@@ -93,7 +93,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceExtendsA, InterfaceSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceExtendsA, InterfaceSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:InterfaceSuper
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeInterfaces(boolean cond, InterfaceExtendsA a, InterfaceSuper b) {
@@ -101,7 +101,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceSuper, InterfaceSuper) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceSuper, InterfaceSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:InterfaceSuper
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeInterfaces(boolean cond, InterfaceSuper a, InterfaceSuper b) {
@@ -109,7 +109,7 @@ public class Main {
     return cond ? a : b;
   }
 
-  /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceExtendsA, InterfaceExtendsB) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceExtendsA, InterfaceExtendsB) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeInterfaces(boolean cond, InterfaceExtendsA a, InterfaceExtendsB b) {
@@ -117,7 +117,7 @@ public class Main {
     return cond ? a : b;
   }
 
-    /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceSuper, InterfaceOtherSuper) ssa_builder (after)
+    /// CHECK-START: java.lang.Object Main.testMergeInterfaces(boolean, InterfaceSuper, InterfaceOtherSuper) reference_type_propagation (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
   /// CHECK:                         Return [<<Phi>>]
   private Object testMergeInterfaces(boolean cond, InterfaceSuper a, InterfaceOtherSuper b) {

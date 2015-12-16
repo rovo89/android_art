@@ -49,20 +49,17 @@ static constexpr int kDefaultNumberOfLoops = 2;
  */
 class SsaBuilder : public HGraphVisitor {
  public:
-  explicit SsaBuilder(HGraph* graph, StackHandleScopeCollection* handles)
+  explicit SsaBuilder(HGraph* graph)
       : HGraphVisitor(graph),
-        handles_(handles),
-        agets_fixed_(false),
         current_locals_(nullptr),
         loop_headers_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
-        ambiguous_agets_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
         locals_for_(graph->GetBlocks().size(),
                     ArenaVector<HInstruction*>(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
                     graph->GetArena()->Adapter(kArenaAllocSsaBuilder)) {
     loop_headers_.reserve(kDefaultNumberOfLoops);
   }
 
-  BuildSsaResult BuildSsa();
+  void BuildSsa();
 
   // Returns locals vector for `block`. If it is a catch block, the vector will be
   // prepopulated with catch phis for vregs which are defined in `current_locals_`.
@@ -74,38 +71,23 @@ class SsaBuilder : public HGraphVisitor {
   void VisitStoreLocal(HStoreLocal* store);
   void VisitInstruction(HInstruction* instruction);
   void VisitTemporary(HTemporary* instruction);
-  void VisitArrayGet(HArrayGet* aget);
+
+  static HInstruction* GetFloatOrDoubleEquivalent(HInstruction* user,
+                                                  HInstruction* instruction,
+                                                  Primitive::Type type);
+
+  static HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
 
   static constexpr const char* kSsaBuilderPassName = "ssa_builder";
 
  private:
   void SetLoopHeaderPhiInputs();
-  void FixEnvironmentPhis();
   void FixNullConstantType();
   void EquivalentPhisCleanup();
-  void RunPrimitiveTypePropagation();
 
-  // Attempts to resolve types of aget and aget-wide instructions from reference
-  // type information on the input array. Returns false if the type of the array
-  // is unknown.
-  bool FixAmbiguousArrayGets();
-
-  bool TypeInputsOfPhi(HPhi* phi, ArenaVector<HPhi*>* worklist);
-  bool UpdatePrimitiveType(HPhi* phi, ArenaVector<HPhi*>* worklist);
-  void ProcessPrimitiveTypePropagationWorklist(ArenaVector<HPhi*>* worklist);
-
-  HInstruction* GetFloatOrDoubleEquivalent(HInstruction* instruction, Primitive::Type type);
-  HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
-
-  HFloatConstant* GetFloatEquivalent(HIntConstant* constant);
-  HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant);
-  HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
-  HArrayGet* GetFloatOrDoubleEquivalentOfArrayGet(HArrayGet* aget);
-
-  StackHandleScopeCollection* const handles_;
-
-  // True if types of ambiguous ArrayGets have been resolved.
-  bool agets_fixed_;
+  static HFloatConstant* GetFloatEquivalent(HIntConstant* constant);
+  static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant);
+  static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
 
   // Locals for the current block being visited.
   ArenaVector<HInstruction*>* current_locals_;
@@ -113,8 +95,6 @@ class SsaBuilder : public HGraphVisitor {
   // Keep track of loop headers found. The last phase of the analysis iterates
   // over these blocks to set the inputs of their phis.
   ArenaVector<HBasicBlock*> loop_headers_;
-
-  ArenaVector<HArrayGet*> ambiguous_agets_;
 
   // HEnvironment for each block.
   ArenaVector<ArenaVector<HInstruction*>> locals_for_;
