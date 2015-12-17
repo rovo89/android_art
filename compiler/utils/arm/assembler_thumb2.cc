@@ -500,6 +500,7 @@ bool Thumb2Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
                                             Register rn ATTRIBUTE_UNUSED,
                                             Opcode opcode,
                                             uint32_t immediate,
+                                            SetCc set_cc,
                                             ShifterOperand* shifter_op) {
   shifter_op->type_ = ShifterOperand::kImmediate;
   shifter_op->immed_ = immediate;
@@ -508,7 +509,8 @@ bool Thumb2Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
   switch (opcode) {
     case ADD:
     case SUB:
-      if (immediate < (1 << 12)) {    // Less than (or equal to) 12 bits can always be done.
+      // Less than (or equal to) 12 bits can be done if we don't need to set condition codes.
+      if (immediate < (1 << 12) && set_cc != kCcSet) {
         return true;
       }
       return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
@@ -1239,7 +1241,10 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
       // The only thumb1 instructions with a register and an immediate are ADD and SUB
       // with a 3-bit immediate, and RSB with zero immediate.
       if (opcode == ADD || opcode == SUB) {
-        if (!IsUint<3>(so.GetImmediate())) {
+        if ((cond == AL) ? set_cc == kCcKeep : set_cc == kCcSet) {
+          return true;  // Cannot match "setflags".
+        }
+        if (!IsUint<3>(so.GetImmediate()) && !IsUint<3>(-so.GetImmediate())) {
           return true;
         }
       } else {
@@ -1249,8 +1254,12 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
       // ADD, SUB, CMP and MOV may be thumb1 only if the immediate is 8 bits.
       if (!(opcode == ADD || opcode == SUB || opcode == MOV || opcode == CMP)) {
         return true;
+      } else if (opcode != CMP && ((cond == AL) ? set_cc == kCcKeep : set_cc == kCcSet)) {
+        return true;  // Cannot match "setflags" for ADD, SUB or MOV.
       } else {
-        if (!IsUint<8>(so.GetImmediate())) {
+        // For ADD and SUB allow also negative 8-bit immediate as we will emit the oposite opcode.
+        if (!IsUint<8>(so.GetImmediate()) &&
+            (opcode == MOV || opcode == CMP || !IsUint<8>(-so.GetImmediate()))) {
           return true;
         }
       }
@@ -1602,12 +1611,18 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
   uint8_t rn_shift = 3;
   uint8_t immediate_shift = 0;
   bool use_immediate = false;
-  uint32_t immediate = 0;  // Should be at most 9 bits but keep the full immediate for CHECKs.
+  uint32_t immediate = 0;  // Should be at most 10 bits but keep the full immediate for CHECKs.
   uint8_t thumb_opcode;
 
   if (so.IsImmediate()) {
     use_immediate = true;
     immediate = so.GetImmediate();
+    if (!IsUint<10>(immediate)) {
+      // Flip ADD/SUB.
+      opcode = (opcode == ADD) ? SUB : ADD;
+      immediate = -immediate;
+      DCHECK(IsUint<10>(immediate));  // More stringent checks below.
+    }
   }
 
   switch (opcode) {
@@ -1644,7 +1659,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
           dp_opcode = 2U /* 0b10 */;
           thumb_opcode = 3U /* 0b11 */;
           opcode_shift = 12;
-          CHECK_LT(immediate, (1u << 9));
+          CHECK(IsUint<9>(immediate));
           CHECK_ALIGNED(immediate, 4);
 
           // Remove rd and rn from instruction by orring it with immed and clearing bits.
@@ -1658,7 +1673,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
           dp_opcode = 2U /* 0b10 */;
           thumb_opcode = 5U /* 0b101 */;
           opcode_shift = 11;
-          CHECK_LT(immediate, (1u << 10));
+          CHECK(IsUint<10>(immediate));
           CHECK_ALIGNED(immediate, 4);
 
           // Remove rn from instruction.
@@ -1668,11 +1683,13 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
           immediate >>= 2;
         } else if (rn != rd) {
           // Must use T1.
+          CHECK(IsUint<3>(immediate));
           opcode_shift = 9;
           thumb_opcode = 14U /* 0b01110 */;
           immediate_shift = 6;
         } else {
           // T2 encoding.
+          CHECK(IsUint<8>(immediate));
           opcode_shift = 11;
           thumb_opcode = 6U /* 0b110 */;
           rd_shift = 8;
@@ -1702,7 +1719,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
           dp_opcode = 2U /* 0b10 */;
           thumb_opcode = 0x61 /* 0b1100001 */;
           opcode_shift = 7;
-          CHECK_LT(immediate, (1u << 9));
+          CHECK(IsUint<9>(immediate));
           CHECK_ALIGNED(immediate, 4);
 
           // Remove rd and rn from instruction by orring it with immed and clearing bits.
@@ -1713,11 +1730,13 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
           immediate >>= 2;
         } else if (rn != rd) {
           // Must use T1.
+          CHECK(IsUint<3>(immediate));
           opcode_shift = 9;
           thumb_opcode = 15U /* 0b01111 */;
           immediate_shift = 6;
         } else {
           // T2 encoding.
+          CHECK(IsUint<8>(immediate));
           opcode_shift = 11;
           thumb_opcode = 7U /* 0b111 */;
           rd_shift = 8;
@@ -3401,25 +3420,30 @@ void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
   // positive values and sub for negatives ones, which would slightly improve
   // the readability of generated code for some constants.
   ShifterOperand shifter_op;
-  if (ShifterOperandCanHold(rd, rn, ADD, value, &shifter_op)) {
+  if (ShifterOperandCanHold(rd, rn, ADD, value, set_cc, &shifter_op)) {
     add(rd, rn, shifter_op, cond, set_cc);
-  } else if (ShifterOperandCanHold(rd, rn, SUB, -value, &shifter_op)) {
+  } else if (ShifterOperandCanHold(rd, rn, SUB, -value, set_cc, &shifter_op)) {
     sub(rd, rn, shifter_op, cond, set_cc);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperandCanHold(rd, rn, MVN, ~value, &shifter_op)) {
-      mvn(IP, shifter_op, cond, kCcKeep);
-      add(rd, rn, ShifterOperand(IP), cond, set_cc);
-    } else if (ShifterOperandCanHold(rd, rn, MVN, ~(-value), &shifter_op)) {
-      mvn(IP, shifter_op, cond, kCcKeep);
-      sub(rd, rn, ShifterOperand(IP), cond, set_cc);
+    // If rd != rn, use rd as temp. This alows 16-bit ADD/SUB in more situations than using IP.
+    Register temp = (rd != rn) ? rd : IP;
+    if (ShifterOperandCanHold(temp, kNoRegister, MVN, ~value, set_cc, &shifter_op)) {
+      mvn(temp, shifter_op, cond, kCcKeep);
+      add(rd, rn, ShifterOperand(temp), cond, set_cc);
+    } else if (ShifterOperandCanHold(temp, kNoRegister, MVN, ~(-value), set_cc, &shifter_op)) {
+      mvn(temp, shifter_op, cond, kCcKeep);
+      sub(rd, rn, ShifterOperand(temp), cond, set_cc);
+    } else if (High16Bits(-value) == 0) {
+      movw(temp, Low16Bits(-value), cond);
+      sub(rd, rn, ShifterOperand(temp), cond, set_cc);
     } else {
-      movw(IP, Low16Bits(value), cond);
+      movw(temp, Low16Bits(value), cond);
       uint16_t value_high = High16Bits(value);
       if (value_high != 0) {
-        movt(IP, value_high, cond);
+        movt(temp, value_high, cond);
       }
-      add(rd, rn, ShifterOperand(IP), cond, set_cc);
+      add(rd, rn, ShifterOperand(temp), cond, set_cc);
     }
   }
 }
@@ -3429,9 +3453,9 @@ void Thumb2Assembler::CmpConstant(Register rn, int32_t value, Condition cond) {
   // positive values and sub for negatives ones, which would slightly improve
   // the readability of generated code for some constants.
   ShifterOperand shifter_op;
-  if (ShifterOperandCanHold(kNoRegister, rn, CMP, value, &shifter_op)) {
+  if (ShifterOperandCanHold(kNoRegister, rn, CMP, value, kCcSet, &shifter_op)) {
     cmp(rn, shifter_op, cond);
-  } else if (ShifterOperandCanHold(kNoRegister, rn, CMN, ~value, &shifter_op)) {
+  } else if (ShifterOperandCanHold(kNoRegister, rn, CMN, ~value, kCcSet, &shifter_op)) {
     cmn(rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
