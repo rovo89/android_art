@@ -153,6 +153,11 @@ class JitCodeCache {
 
   uint64_t GetLastUpdateTimeNs() REQUIRES(!lock_);
 
+  size_t GetCurrentCapacity() REQUIRES(!lock_) {
+    MutexLock lock(Thread::Current(), lock_);
+    return current_capacity_;
+  }
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,

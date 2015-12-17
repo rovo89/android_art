@@ -52,10 +52,10 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
 }
 
 void Jit::DumpInfo(std::ostream& os) {
-  os << "Code cache size=" << PrettySize(code_cache_->CodeCacheSize())
-     << " data cache size=" << PrettySize(code_cache_->DataCacheSize())
-     << " number of compiled code=" << code_cache_->NumberOfCompiledCode()
-     << "\n";
+  os << "JIT code cache size=" << PrettySize(code_cache_->CodeCacheSize()) << "\n"
+     << "JIT data cache size=" << PrettySize(code_cache_->DataCacheSize()) << "\n"
+     << "JIT current capacity=" << PrettySize(code_cache_->GetCurrentCapacity()) << "\n"
+     << "JIT number of compiled code=" << code_cache_->NumberOfCompiledCode() << "\n";
   cumulative_timings_.Dump(os);
 }
 
