@@ -40,15 +40,13 @@ class HInliner : public HOptimization {
            CompilerDriver* compiler_driver,
            StackHandleScopeCollection* handles,
            OptimizingCompilerStats* stats,
-           size_t total_number_of_dex_registers,
-           size_t depth)
+           size_t depth = 0)
       : HOptimization(outer_graph, kInlinerPassName, stats),
         outermost_graph_(outermost_graph),
         outer_compilation_unit_(outer_compilation_unit),
         caller_compilation_unit_(caller_compilation_unit),
         codegen_(codegen),
         compiler_driver_(compiler_driver),
-        total_number_of_dex_registers_(total_number_of_dex_registers),
         depth_(depth),
         number_of_inlined_instructions_(0),
         handles_(handles) {}
@@ -90,7 +88,6 @@ class HInliner : public HOptimization {
   const DexCompilationUnit& caller_compilation_unit_;
   CodeGenerator* const codegen_;
   CompilerDriver* const compiler_driver_;
-  const size_t total_number_of_dex_registers_;
   const size_t depth_;
   size_t number_of_inlined_instructions_;
   StackHandleScopeCollection* const handles_;
