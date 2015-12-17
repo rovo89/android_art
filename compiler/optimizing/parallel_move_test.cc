@@ -609,4 +609,36 @@ TYPED_TEST(ParallelMoveTest, CyclesWith64BitsMoves) {
   }
 }
 
+TYPED_TEST(ParallelMoveTest, CyclesWith64BitsMoves2) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  {
+    TypeParam resolver(&allocator);
+    HParallelMove* moves = new (&allocator) HParallelMove(&allocator);
+    moves->AddMove(
+        Location::RegisterLocation(0),
+        Location::RegisterLocation(3),
+        Primitive::kPrimInt,
+        nullptr);
+    moves->AddMove(
+        Location::RegisterPairLocation(2, 3),
+        Location::RegisterPairLocation(0, 1),
+        Primitive::kPrimLong,
+        nullptr);
+    moves->AddMove(
+        Location::RegisterLocation(7),
+        Location::RegisterLocation(2),
+        Primitive::kPrimInt,
+        nullptr);
+    resolver.EmitNativeCode(moves);
+    if (TestFixture::has_swap) {
+      ASSERT_STREQ("(2,3 <-> 0,1) (2 -> 3) (7 -> 2)", resolver.GetMessage().c_str());
+    } else {
+      ASSERT_STREQ("(2,3 -> T0,T1) (0 -> 3) (T0,T1 -> 0,1) (7 -> 2)",
+          resolver.GetMessage().c_str());
+    }
+  }
+}
+
 }  // namespace art

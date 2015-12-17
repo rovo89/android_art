@@ -169,7 +169,7 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
         // If `other_move` was swapped, we iterate again to find a new
         // potential cycle.
         required_swap = nullptr;
-        i = 0;
+        i = -1;
       } else if (required_swap != nullptr) {
         // A move is required to swap. We walk back the cycle to find the
         // move by just returning from this `PerforrmMove`.
