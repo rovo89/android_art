@@ -437,8 +437,8 @@ class WatchDog {
   // Debug builds are slower so they have larger timeouts.
   static constexpr int64_t kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 
-  // 60 minutes scaled by kSlowdownFactor.
-  static constexpr int64_t kWatchDogTimeoutSeconds = kSlowdownFactor * 60 * 60;
+  // 10 minutes scaled by kSlowdownFactor.
+  static constexpr int64_t kWatchDogTimeoutSeconds = kSlowdownFactor * 10 * 60;
 
   bool is_watch_dog_enabled_;
   bool shutting_down_;
