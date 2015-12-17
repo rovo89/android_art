@@ -126,7 +126,7 @@ mirror::ObjectArray<mirror::Object>* ImageHeader::GetImageRoots() const {
   mirror::ObjectArray<mirror::Object>* image_roots =
       reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(image_roots_);
   mirror::ObjectArray<mirror::Object>* result =
-      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Object>, kWithReadBarrier, true>(
+      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Object>, kWithReadBarrier>(
           &image_roots);
   DCHECK_EQ(image_roots, result);
   return result;
