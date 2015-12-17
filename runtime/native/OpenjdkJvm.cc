@@ -49,7 +49,7 @@ extern "C" void android_update_LD_LIBRARY_PATH(const char* ld_library_path);
 #endif  // __ANDROID__
 
 #undef LOG_TAG
-#define LOG_TAG "artopenjdx"
+#define LOG_TAG "artopenjdk"
 
 using art::DEBUG;
 using art::WARNING;
