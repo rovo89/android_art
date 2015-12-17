@@ -90,8 +90,9 @@ class HGraphBuilder : public ValueObject {
 
   static constexpr const char* kBuilderPassName = "builder";
 
-  // The number of entries in a packed switch before we use a jump table.
-  static constexpr uint16_t kSmallSwitchThreshold = 5;
+  // The number of entries in a packed switch before we use a jump table or specified
+  // compare/jump series.
+  static constexpr uint16_t kSmallSwitchThreshold = 3;
 
  private:
   // Analyzes the dex instruction and adds HInstruction to the graph

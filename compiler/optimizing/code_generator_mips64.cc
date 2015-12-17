@@ -3991,17 +3991,34 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
   GpuRegister value_reg = locations->InAt(0).AsRegister<GpuRegister>();
   HBasicBlock* default_block = switch_instr->GetDefaultBlock();
 
-  // Create a series of compare/jumps.
+  // Create a set of compare/jumps.
+  GpuRegister temp_reg = TMP;
+  if (IsInt<16>(-lower_bound)) {
+    __ Addiu(temp_reg, value_reg, -lower_bound);
+  } else {
+    __ LoadConst32(AT, -lower_bound);
+    __ Addu(temp_reg, value_reg, AT);
+  }
+  // Jump to default if index is negative
+  // Note: We don't check the case that index is positive while value < lower_bound, because in
+  // this case, index >= num_entries must be true. So that we can save one branch instruction.
+  __ Bltzc(temp_reg, codegen_->GetLabelOf(default_block));
+
   const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-  for (int32_t i = 0; i < num_entries; i++) {
-    int32_t case_value = lower_bound + i;
-    Mips64Label* succ = codegen_->GetLabelOf(successors[i]);
-    if (case_value == 0) {
-      __ Beqzc(value_reg, succ);
-    } else {
-      __ LoadConst32(TMP, case_value);
-      __ Beqc(value_reg, TMP, succ);
-    }
+  // Jump to successors[0] if value == lower_bound.
+  __ Beqzc(temp_reg, codegen_->GetLabelOf(successors[0]));
+  int32_t last_index = 0;
+  for (; num_entries - last_index > 2; last_index += 2) {
+    __ Addiu(temp_reg, temp_reg, -2);
+    // Jump to successors[last_index + 1] if value < case_value[last_index + 2].
+    __ Bltzc(temp_reg, codegen_->GetLabelOf(successors[last_index + 1]));
+    // Jump to successors[last_index + 2] if value == case_value[last_index + 2].
+    __ Beqzc(temp_reg, codegen_->GetLabelOf(successors[last_index + 2]));
+  }
+  if (num_entries - last_index == 2) {
+    // The last missing case_value.
+    __ Addiu(temp_reg, temp_reg, -1);
+    __ Beqzc(temp_reg, codegen_->GetLabelOf(successors[last_index + 1]));
   }
 
   // And the default for any other value.
