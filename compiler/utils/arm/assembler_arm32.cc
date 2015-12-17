@@ -57,6 +57,7 @@ bool Arm32Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
                                            Register rn ATTRIBUTE_UNUSED,
                                            Opcode opcode ATTRIBUTE_UNUSED,
                                            uint32_t immediate,
+                                           SetCc set_cc ATTRIBUTE_UNUSED,
                                            ShifterOperand* shifter_op) {
   return ShifterOperandCanHoldArm32(immediate, shifter_op);
 }
