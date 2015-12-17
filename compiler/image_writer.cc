@@ -1275,6 +1275,8 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   auto* interned_strings_section = &sections[ImageHeader::kSectionInternedStrings];
   *interned_strings_section = ImageSection(cur_pos, intern_table_bytes_);
   cur_pos = interned_strings_section->End();
+  // Round up to the alignment the class table expects. See HashSet::WriteToMemory.
+  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
   // Calculate the size of the class table section.
   auto* class_table_section = &sections[ImageHeader::kSectionClassTable];
   *class_table_section = ImageSection(cur_pos, class_table_bytes_);
