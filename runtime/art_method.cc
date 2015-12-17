@@ -146,10 +146,9 @@ ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
       mirror::IfTable* iftable = GetDeclaringClass()->GetIfTable();
       for (size_t i = 0; i < iftable->Count() && result == nullptr; i++) {
         mirror::Class* interface = iftable->GetInterface(i);
-        for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-          ArtMethod* interface_method = interface->GetVirtualMethod(j, pointer_size);
-          if (HasSameNameAndSignature(interface_method->GetInterfaceMethodIfProxy(sizeof(void*)))) {
-            result = interface_method;
+        for (ArtMethod& interface_method : interface->GetVirtualMethods(pointer_size)) {
+          if (HasSameNameAndSignature(interface_method.GetInterfaceMethodIfProxy(pointer_size))) {
+            result = &interface_method;
             break;
           }
         }
@@ -157,8 +156,8 @@ ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
     }
   }
   DCHECK(result == nullptr ||
-         GetInterfaceMethodIfProxy(sizeof(void*))->HasSameNameAndSignature(
-             result->GetInterfaceMethodIfProxy(sizeof(void*))));
+         GetInterfaceMethodIfProxy(pointer_size)->HasSameNameAndSignature(
+             result->GetInterfaceMethodIfProxy(pointer_size)));
   return result;
 }
 
