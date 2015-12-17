@@ -74,6 +74,10 @@ class Jit {
 
   void SaveProfilingInfo(const std::string& filename);
 
+  void DumpForSigQuit(std::ostream& os) {
+    DumpInfo(os);
+  }
+
  private:
   Jit();
   bool LoadCompiler(std::string* error_msg);

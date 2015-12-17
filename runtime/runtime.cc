@@ -1311,6 +1311,11 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   GetInternTable()->DumpForSigQuit(os);
   GetJavaVM()->DumpForSigQuit(os);
   GetHeap()->DumpForSigQuit(os);
+  if (GetJit() != nullptr) {
+    GetJit()->DumpForSigQuit(os);
+  } else {
+    os << "Running non JIT\n";
+  }
   TrackedAllocators::Dump(os);
   os << "\n";
 
