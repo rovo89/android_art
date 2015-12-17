@@ -254,10 +254,20 @@ class ClassLinkerTest : public CommonRuntimeTest {
       EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
     }
 
-    for (ArtMethod& method : klass->GetVirtualMethods(sizeof(void*))) {
+    for (ArtMethod& method : klass->GetDeclaredVirtualMethods(sizeof(void*))) {
       AssertMethod(&method);
       EXPECT_FALSE(method.IsDirect());
-      EXPECT_TRUE(method.GetDeclaringClass()->IsAssignableFrom(klass.Get()));
+      EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
+    }
+
+    for (ArtMethod& method : klass->GetCopiedMethods(sizeof(void*))) {
+      AssertMethod(&method);
+      EXPECT_FALSE(method.IsDirect());
+      EXPECT_TRUE(method.IsMiranda() || method.IsDefault() || method.IsDefaultConflicting());
+      EXPECT_TRUE(method.GetDeclaringClass()->IsInterface())
+          << "declaring class: " << PrettyClass(method.GetDeclaringClass());
+      EXPECT_TRUE(method.GetDeclaringClass()->IsAssignableFrom(klass.Get()))
+          << "declaring class: " << PrettyClass(method.GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
@@ -496,13 +506,14 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, class_size_), "classSize");
     addOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_), "clinitThreadId");
     addOffset(OFFSETOF_MEMBER(mirror::Class, component_type_), "componentType");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, copied_methods_offset_), "copiedMethodsOffset");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_), "dexCache");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_strings_), "dexCacheStrings");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_), "dexClassDefIndex");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_), "dexTypeIndex");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_), "directMethods");
     addOffset(OFFSETOF_MEMBER(mirror::Class, ifields_), "iFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, iftable_), "ifTable");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, methods_), "methods");
     addOffset(OFFSETOF_MEMBER(mirror::Class, name_), "name");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_),
               "numReferenceInstanceFields");
@@ -516,7 +527,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, status_), "status");
     addOffset(OFFSETOF_MEMBER(mirror::Class, super_class_), "superClass");
     addOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_), "verifyError");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_), "virtualMethods");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_offset_), "virtualMethodsOffset");
     addOffset(OFFSETOF_MEMBER(mirror::Class, vtable_), "vtable");
   };
 };
@@ -1122,10 +1133,7 @@ static void CheckPreverified(mirror::Class* c, bool preverified)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   EXPECT_EQ((c->GetAccessFlags() & kAccPreverified) != 0U, preverified)
       << "Class " << PrettyClass(c) << " not as expected";
-  for (auto& m : c->GetDirectMethods(sizeof(void*))) {
-    CheckMethod(&m, preverified);
-  }
-  for (auto& m : c->GetVirtualMethods(sizeof(void*))) {
+  for (auto& m : c->GetMethods(sizeof(void*))) {
     CheckMethod(&m, preverified);
   }
 }
