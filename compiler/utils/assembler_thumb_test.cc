@@ -135,7 +135,8 @@ void DumpAndCheck(std::vector<uint8_t>& code, const char* testname, const char* 
     toolsdir.c_str(), filename);
   if (kPrintResults) {
     // Print the results only, don't check. This is used to generate new output for inserting
-    // into the .inc file.
+    // into the .inc file, so let's add the appropriate prefix/suffix needed in the C++ code.
+    strcat(cmd, " | sed '-es/^/  \"/' | sed '-es/$/\\\\n\",/'");
     int cmd_result3 = system(cmd);
     ASSERT_EQ(cmd_result3, 0) << strerror(errno);
   } else {
@@ -1377,6 +1378,252 @@ TEST(Thumb2AssemblerTest, CompareAndBranch) {
   __ Bind(&label);
 
   EmitAndCheck(&assembler, "CompareAndBranch");
+}
+
+TEST(Thumb2AssemblerTest, AddConstant) {
+  arm::Thumb2Assembler assembler;
+
+  // Low registers, Rd != Rn.
+  __ AddConstant(R0, R1, 0);                          // MOV.
+  __ AddConstant(R0, R1, 1);                          // 16-bit ADDS, encoding T1.
+  __ AddConstant(R0, R1, 7);                          // 16-bit ADDS, encoding T1.
+  __ AddConstant(R0, R1, 8);                          // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 255);                        // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 256);                        // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 257);                        // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R1, 0xfff);                      // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R1, 0x1000);                     // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 0x1001);                     // MVN+SUB.
+  __ AddConstant(R0, R1, 0x1002);                     // MOVW+ADD.
+  __ AddConstant(R0, R1, 0xffff);                     // MOVW+ADD.
+  __ AddConstant(R0, R1, 0x10000);                    // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 0x10001);                    // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 0x10002);                    // MVN+SUB.
+  __ AddConstant(R0, R1, 0x10003);                    // MOVW+MOVT+ADD.
+  __ AddConstant(R0, R1, -1);                         // 16-bit SUBS.
+  __ AddConstant(R0, R1, -7);                         // 16-bit SUBS.
+  __ AddConstant(R0, R1, -8);                         // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -255);                       // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -256);                       // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -257);                       // 32-bit SUB, encoding T4.
+  __ AddConstant(R0, R1, -0xfff);                     // 32-bit SUB, encoding T4.
+  __ AddConstant(R0, R1, -0x1000);                    // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -0x1001);                    // MVN+ADD.
+  __ AddConstant(R0, R1, -0x1002);                    // MOVW+SUB.
+  __ AddConstant(R0, R1, -0xffff);                    // MOVW+SUB.
+  __ AddConstant(R0, R1, -0x10000);                   // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -0x10001);                   // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -0x10002);                   // MVN+ADD.
+  __ AddConstant(R0, R1, -0x10003);                   // MOVW+MOVT+ADD.
+
+  // Low registers, Rd == Rn.
+  __ AddConstant(R0, R0, 0);                          // Nothing.
+  __ AddConstant(R1, R1, 1);                          // 16-bit ADDS, encoding T2,
+  __ AddConstant(R0, R0, 7);                          // 16-bit ADDS, encoding T2.
+  __ AddConstant(R1, R1, 8);                          // 16-bit ADDS, encoding T2.
+  __ AddConstant(R0, R0, 255);                        // 16-bit ADDS, encoding T2.
+  __ AddConstant(R1, R1, 256);                        // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R0, 257);                        // 32-bit ADD, encoding T4.
+  __ AddConstant(R1, R1, 0xfff);                      // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R0, 0x1000);                     // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, 0x1001);                     // MVN+SUB.
+  __ AddConstant(R0, R0, 0x1002);                     // MOVW+ADD.
+  __ AddConstant(R1, R1, 0xffff);                     // MOVW+ADD.
+  __ AddConstant(R0, R0, 0x10000);                    // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, 0x10001);                    // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R0, 0x10002);                    // MVN+SUB.
+  __ AddConstant(R1, R1, 0x10003);                    // MOVW+MOVT+ADD.
+  __ AddConstant(R0, R0, -1);                         // 16-bit SUBS, encoding T2.
+  __ AddConstant(R1, R1, -7);                         // 16-bit SUBS, encoding T2.
+  __ AddConstant(R0, R0, -8);                         // 16-bit SUBS, encoding T2.
+  __ AddConstant(R1, R1, -255);                       // 16-bit SUBS, encoding T2.
+  __ AddConstant(R0, R0, -256);                       // 32-bit SUB, encoding T3.
+  __ AddConstant(R1, R1, -257);                       // 32-bit SUB, encoding T4.
+  __ AddConstant(R0, R0, -0xfff);                     // 32-bit SUB, encoding T4.
+  __ AddConstant(R1, R1, -0x1000);                    // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -0x1001);                    // MVN+ADD.
+  __ AddConstant(R1, R1, -0x1002);                    // MOVW+SUB.
+  __ AddConstant(R0, R0, -0xffff);                    // MOVW+SUB.
+  __ AddConstant(R1, R1, -0x10000);                   // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -0x10001);                   // 32-bit SUB, encoding T3.
+  __ AddConstant(R1, R1, -0x10002);                   // MVN+ADD.
+  __ AddConstant(R0, R0, -0x10003);                   // MOVW+MOVT+ADD.
+
+  // High registers.
+  __ AddConstant(R8, R8, 0);                          // Nothing.
+  __ AddConstant(R8, R1, 1);                          // 32-bit ADD, encoding T3,
+  __ AddConstant(R0, R8, 7);                          // 32-bit ADD, encoding T3.
+  __ AddConstant(R8, R8, 8);                          // 32-bit ADD, encoding T3.
+  __ AddConstant(R8, R1, 255);                        // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R8, 256);                        // 32-bit ADD, encoding T3.
+  __ AddConstant(R8, R8, 257);                        // 32-bit ADD, encoding T4.
+  __ AddConstant(R8, R1, 0xfff);                      // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R8, 0x1000);                     // 32-bit ADD, encoding T3.
+  __ AddConstant(R8, R8, 0x1001);                     // MVN+SUB.
+  __ AddConstant(R0, R1, 0x1002);                     // MOVW+ADD.
+  __ AddConstant(R0, R8, 0xffff);                     // MOVW+ADD.
+  __ AddConstant(R8, R8, 0x10000);                    // 32-bit ADD, encoding T3.
+  __ AddConstant(R8, R1, 0x10001);                    // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R8, 0x10002);                    // MVN+SUB.
+  __ AddConstant(R0, R8, 0x10003);                    // MOVW+MOVT+ADD.
+  __ AddConstant(R8, R8, -1);                         // 32-bit ADD, encoding T3.
+  __ AddConstant(R8, R1, -7);                         // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R8, -8);                         // 32-bit SUB, encoding T3.
+  __ AddConstant(R8, R8, -255);                       // 32-bit SUB, encoding T3.
+  __ AddConstant(R8, R1, -256);                       // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R8, -257);                       // 32-bit SUB, encoding T4.
+  __ AddConstant(R8, R8, -0xfff);                     // 32-bit SUB, encoding T4.
+  __ AddConstant(R8, R1, -0x1000);                    // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R8, -0x1001);                    // MVN+ADD.
+  __ AddConstant(R0, R1, -0x1002);                    // MOVW+SUB.
+  __ AddConstant(R8, R1, -0xffff);                    // MOVW+SUB.
+  __ AddConstant(R0, R8, -0x10000);                   // 32-bit SUB, encoding T3.
+  __ AddConstant(R8, R8, -0x10001);                   // 32-bit SUB, encoding T3.
+  __ AddConstant(R8, R1, -0x10002);                   // MVN+SUB.
+  __ AddConstant(R0, R8, -0x10003);                   // MOVW+MOVT+ADD.
+
+  // Low registers, Rd != Rn, kCcKeep.
+  __ AddConstant(R0, R1, 0, AL, kCcKeep);             // MOV.
+  __ AddConstant(R0, R1, 1, AL, kCcKeep);             // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 7, AL, kCcKeep);             // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 8, AL, kCcKeep);             // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 255, AL, kCcKeep);           // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 256, AL, kCcKeep);           // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 257, AL, kCcKeep);           // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R1, 0xfff, AL, kCcKeep);         // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R1, 0x1000, AL, kCcKeep);        // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 0x1001, AL, kCcKeep);        // MVN+SUB.
+  __ AddConstant(R0, R1, 0x1002, AL, kCcKeep);        // MOVW+ADD.
+  __ AddConstant(R0, R1, 0xffff, AL, kCcKeep);        // MOVW+ADD.
+  __ AddConstant(R0, R1, 0x10000, AL, kCcKeep);       // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 0x10001, AL, kCcKeep);       // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, 0x10002, AL, kCcKeep);       // MVN+SUB.
+  __ AddConstant(R0, R1, 0x10003, AL, kCcKeep);       // MOVW+MOVT+ADD.
+  __ AddConstant(R0, R1, -1, AL, kCcKeep);            // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R1, -7, AL, kCcKeep);            // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -8, AL, kCcKeep);            // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -255, AL, kCcKeep);          // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -256, AL, kCcKeep);          // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -257, AL, kCcKeep);          // 32-bit SUB, encoding T4.
+  __ AddConstant(R0, R1, -0xfff, AL, kCcKeep);        // 32-bit SUB, encoding T4.
+  __ AddConstant(R0, R1, -0x1000, AL, kCcKeep);       // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -0x1001, AL, kCcKeep);       // MVN+ADD.
+  __ AddConstant(R0, R1, -0x1002, AL, kCcKeep);       // MOVW+SUB.
+  __ AddConstant(R0, R1, -0xffff, AL, kCcKeep);       // MOVW+SUB.
+  __ AddConstant(R0, R1, -0x10000, AL, kCcKeep);      // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -0x10001, AL, kCcKeep);      // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R1, -0x10002, AL, kCcKeep);      // MVN+ADD.
+  __ AddConstant(R0, R1, -0x10003, AL, kCcKeep);      // MOVW+MOVT+ADD.
+
+  // Low registers, Rd == Rn, kCcKeep.
+  __ AddConstant(R0, R0, 0, AL, kCcKeep);             // Nothing.
+  __ AddConstant(R1, R1, 1, AL, kCcKeep);             // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R0, 7, AL, kCcKeep);             // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, 8, AL, kCcKeep);             // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R0, 255, AL, kCcKeep);           // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, 256, AL, kCcKeep);           // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R0, 257, AL, kCcKeep);           // 32-bit ADD, encoding T4.
+  __ AddConstant(R1, R1, 0xfff, AL, kCcKeep);         // 32-bit ADD, encoding T4.
+  __ AddConstant(R0, R0, 0x1000, AL, kCcKeep);        // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, 0x1001, AL, kCcKeep);        // MVN+SUB.
+  __ AddConstant(R0, R0, 0x1002, AL, kCcKeep);        // MOVW+ADD.
+  __ AddConstant(R1, R1, 0xffff, AL, kCcKeep);        // MOVW+ADD.
+  __ AddConstant(R0, R0, 0x10000, AL, kCcKeep);       // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, 0x10001, AL, kCcKeep);       // 32-bit ADD, encoding T3.
+  __ AddConstant(R0, R0, 0x10002, AL, kCcKeep);       // MVN+SUB.
+  __ AddConstant(R1, R1, 0x10003, AL, kCcKeep);       // MOVW+MOVT+ADD.
+  __ AddConstant(R0, R0, -1, AL, kCcKeep);            // 32-bit ADD, encoding T3.
+  __ AddConstant(R1, R1, -7, AL, kCcKeep);            // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -8, AL, kCcKeep);            // 32-bit SUB, encoding T3.
+  __ AddConstant(R1, R1, -255, AL, kCcKeep);          // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -256, AL, kCcKeep);          // 32-bit SUB, encoding T3.
+  __ AddConstant(R1, R1, -257, AL, kCcKeep);          // 32-bit SUB, encoding T4.
+  __ AddConstant(R0, R0, -0xfff, AL, kCcKeep);        // 32-bit SUB, encoding T4.
+  __ AddConstant(R1, R1, -0x1000, AL, kCcKeep);       // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -0x1001, AL, kCcKeep);       // MVN+ADD.
+  __ AddConstant(R1, R1, -0x1002, AL, kCcKeep);       // MOVW+SUB.
+  __ AddConstant(R0, R0, -0xffff, AL, kCcKeep);       // MOVW+SUB.
+  __ AddConstant(R1, R1, -0x10000, AL, kCcKeep);      // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -0x10001, AL, kCcKeep);      // 32-bit SUB, encoding T3.
+  __ AddConstant(R1, R1, -0x10002, AL, kCcKeep);      // MVN+ADD.
+  __ AddConstant(R0, R0, -0x10003, AL, kCcKeep);      // MOVW+MOVT+ADD.
+
+  // Low registers, Rd != Rn, kCcSet.
+  __ AddConstant(R0, R1, 0, AL, kCcSet);              // 16-bit ADDS.
+  __ AddConstant(R0, R1, 1, AL, kCcSet);              // 16-bit ADDS.
+  __ AddConstant(R0, R1, 7, AL, kCcSet);              // 16-bit ADDS.
+  __ AddConstant(R0, R1, 8, AL, kCcSet);              // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R1, 255, AL, kCcSet);            // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R1, 256, AL, kCcSet);            // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R1, 257, AL, kCcSet);            // MVN+SUBS.
+  __ AddConstant(R0, R1, 0xfff, AL, kCcSet);          // MOVW+ADDS.
+  __ AddConstant(R0, R1, 0x1000, AL, kCcSet);         // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R1, 0x1001, AL, kCcSet);         // MVN+SUBS.
+  __ AddConstant(R0, R1, 0x1002, AL, kCcSet);         // MOVW+ADDS.
+  __ AddConstant(R0, R1, 0xffff, AL, kCcSet);         // MOVW+ADDS.
+  __ AddConstant(R0, R1, 0x10000, AL, kCcSet);        // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R1, 0x10001, AL, kCcSet);        // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R1, 0x10002, AL, kCcSet);        // MVN+SUBS.
+  __ AddConstant(R0, R1, 0x10003, AL, kCcSet);        // MOVW+MOVT+ADDS.
+  __ AddConstant(R0, R1, -1, AL, kCcSet);             // 16-bit SUBS.
+  __ AddConstant(R0, R1, -7, AL, kCcSet);             // 16-bit SUBS.
+  __ AddConstant(R0, R1, -8, AL, kCcSet);             // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R1, -255, AL, kCcSet);           // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R1, -256, AL, kCcSet);           // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R1, -257, AL, kCcSet);           // MVN+ADDS.
+  __ AddConstant(R0, R1, -0xfff, AL, kCcSet);         // MOVW+SUBS.
+  __ AddConstant(R0, R1, -0x1000, AL, kCcSet);        // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R1, -0x1001, AL, kCcSet);        // MVN+ADDS.
+  __ AddConstant(R0, R1, -0x1002, AL, kCcSet);        // MOVW+SUBS.
+  __ AddConstant(R0, R1, -0xffff, AL, kCcSet);        // MOVW+SUBS.
+  __ AddConstant(R0, R1, -0x10000, AL, kCcSet);       // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R1, -0x10001, AL, kCcSet);       // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R1, -0x10002, AL, kCcSet);       // MVN+ADDS.
+  __ AddConstant(R0, R1, -0x10003, AL, kCcSet);       // MOVW+MOVT+ADDS.
+
+  // Low registers, Rd == Rn, kCcSet.
+  __ AddConstant(R0, R0, 0, AL, kCcSet);              // 16-bit ADDS, encoding T2.
+  __ AddConstant(R1, R1, 1, AL, kCcSet);              // 16-bit ADDS, encoding T2.
+  __ AddConstant(R0, R0, 7, AL, kCcSet);              // 16-bit ADDS, encoding T2.
+  __ AddConstant(R1, R1, 8, AL, kCcSet);              // 16-bit ADDS, encoding T2.
+  __ AddConstant(R0, R0, 255, AL, kCcSet);            // 16-bit ADDS, encoding T2.
+  __ AddConstant(R1, R1, 256, AL, kCcSet);            // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R0, 257, AL, kCcSet);            // MVN+SUBS.
+  __ AddConstant(R1, R1, 0xfff, AL, kCcSet);          // MOVW+ADDS.
+  __ AddConstant(R0, R0, 0x1000, AL, kCcSet);         // 32-bit ADDS, encoding T3.
+  __ AddConstant(R1, R1, 0x1001, AL, kCcSet);         // MVN+SUBS.
+  __ AddConstant(R0, R0, 0x1002, AL, kCcSet);         // MOVW+ADDS.
+  __ AddConstant(R1, R1, 0xffff, AL, kCcSet);         // MOVW+ADDS.
+  __ AddConstant(R0, R0, 0x10000, AL, kCcSet);        // 32-bit ADDS, encoding T3.
+  __ AddConstant(R1, R1, 0x10001, AL, kCcSet);        // 32-bit ADDS, encoding T3.
+  __ AddConstant(R0, R0, 0x10002, AL, kCcSet);        // MVN+SUBS.
+  __ AddConstant(R1, R1, 0x10003, AL, kCcSet);        // MOVW+MOVT+ADDS.
+  __ AddConstant(R0, R0, -1, AL, kCcSet);             // 16-bit SUBS, encoding T2.
+  __ AddConstant(R1, R1, -7, AL, kCcSet);             // 16-bit SUBS, encoding T2.
+  __ AddConstant(R0, R0, -8, AL, kCcSet);             // 16-bit SUBS, encoding T2.
+  __ AddConstant(R1, R1, -255, AL, kCcSet);           // 16-bit SUBS, encoding T2.
+  __ AddConstant(R0, R0, -256, AL, kCcSet);           // 32-bit SUB, encoding T3.
+  __ AddConstant(R1, R1, -257, AL, kCcSet);           // MNV+ADDS.
+  __ AddConstant(R0, R0, -0xfff, AL, kCcSet);         // MOVW+SUBS.
+  __ AddConstant(R1, R1, -0x1000, AL, kCcSet);        // 32-bit SUB, encoding T3.
+  __ AddConstant(R0, R0, -0x1001, AL, kCcSet);        // MVN+ADDS.
+  __ AddConstant(R1, R1, -0x1002, AL, kCcSet);        // MOVW+SUBS.
+  __ AddConstant(R0, R0, -0xffff, AL, kCcSet);        // MOVW+SUBS.
+  __ AddConstant(R1, R1, -0x10000, AL, kCcSet);       // 32-bit SUBS, encoding T3.
+  __ AddConstant(R0, R0, -0x10001, AL, kCcSet);       // 32-bit SUBS, encoding T3.
+  __ AddConstant(R1, R1, -0x10002, AL, kCcSet);       // MVN+ADDS.
+  __ AddConstant(R0, R0, -0x10003, AL, kCcSet);       // MOVW+MOVT+ADDS.
+
+  __ it(EQ);
+  __ AddConstant(R0, R1, 1, EQ, kCcSet);              // 32-bit ADDS, encoding T3.
+  __ it(NE);
+  __ AddConstant(R0, R1, 1, NE, kCcKeep);             // 16-bit ADDS, encoding T1.
+  __ it(GE);
+  __ AddConstant(R0, R0, 1, GE, kCcSet);              // 32-bit ADDS, encoding T3.
+  __ it(LE);
+  __ AddConstant(R0, R0, 1, LE, kCcKeep);             // 16-bit ADDS, encoding T2.
+
+  EmitAndCheck(&assembler, "AddConstant");
 }
 
 #undef __

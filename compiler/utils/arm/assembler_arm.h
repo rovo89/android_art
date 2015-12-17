@@ -878,7 +878,15 @@ class ArmAssembler : public Assembler {
                                      Register rn,
                                      Opcode opcode,
                                      uint32_t immediate,
+                                     SetCc set_cc,
                                      ShifterOperand* shifter_op) = 0;
+  bool ShifterOperandCanHold(Register rd,
+                             Register rn,
+                             Opcode opcode,
+                             uint32_t immediate,
+                             ShifterOperand* shifter_op) {
+    return ShifterOperandCanHold(rd, rn, opcode, immediate, kCcDontCare, shifter_op);
+  }
 
   virtual bool ShifterOperandCanAlwaysHold(uint32_t immediate) = 0;
 
