@@ -342,7 +342,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                              Register rn,
                              Opcode opcode,
                              uint32_t immediate,
+                             SetCc set_cc,
                              ShifterOperand* shifter_op) OVERRIDE;
+  using ArmAssembler::ShifterOperandCanHold;  // Don't hide the non-virtual override.
 
   bool ShifterOperandCanAlwaysHold(uint32_t immediate) OVERRIDE;
 
