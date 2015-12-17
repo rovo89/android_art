@@ -426,18 +426,8 @@ static void MaybeRunInliner(HGraph* graph,
   if (!should_inline) {
     return;
   }
-  size_t number_of_dex_registers = dex_compilation_unit.GetCodeItem()->registers_size_;
   HInliner* inliner = new (graph->GetArena()) HInliner(
-      graph,
-      graph,
-      codegen,
-      dex_compilation_unit,
-      dex_compilation_unit,
-      driver,
-      handles,
-      stats,
-      number_of_dex_registers,
-      /* depth */ 0);
+      graph, graph, codegen, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
   HOptimization* optimizations[] = { inliner };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
