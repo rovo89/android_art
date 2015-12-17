@@ -71,10 +71,10 @@ using helpers::ARM64EncodableConstantOrRegister;
 using helpers::ArtVixlRegCodeCoherentForRegSet;
 
 static constexpr int kCurrentMethodStackOffset = 0;
-// The compare/jump sequence will generate about (2 * num_entries + 1) instructions. While jump
+// The compare/jump sequence will generate about (1.5 * num_entries + 3) instructions. While jump
 // table version generates 7 instructions and num_entries literals. Compare/jump sequence will
 // generates less code/data with a small num_entries.
-static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
+static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 inline Condition ARM64Condition(IfCondition cond) {
   switch (cond) {
@@ -546,7 +546,7 @@ class ArraySetSlowPathARM64 : public SlowPathCodeARM64 {
 
 void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
   uint32_t num_entries = switch_instr_->GetNumEntries();
-  DCHECK_GE(num_entries, kPackedSwitchJumpTableThreshold);
+  DCHECK_GE(num_entries, kPackedSwitchCompareJumpThreshold);
 
   // We are about to use the assembler to place literals directly. Make sure we have enough
   // underlying code buffer and we have generated the jump table with right size.
@@ -4582,20 +4582,29 @@ void InstructionCodeGeneratorARM64::VisitPackedSwitch(HPackedSwitch* switch_inst
   // ranges and emit the tables only as required.
   static constexpr int32_t kJumpTableInstructionThreshold = 1* MB / kMaxExpectedSizePerHInstruction;
 
-  if (num_entries < kPackedSwitchJumpTableThreshold ||
+  if (num_entries <= kPackedSwitchCompareJumpThreshold ||
       // Current instruction id is an upper bound of the number of HIRs in the graph.
       GetGraph()->GetCurrentInstructionId() > kJumpTableInstructionThreshold) {
     // Create a series of compare/jumps.
+    UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
+    Register temp = temps.AcquireW();
+    __ Subs(temp, value_reg, Operand(lower_bound));
+
     const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
-    for (uint32_t i = 0; i < num_entries; i++) {
-      int32_t case_value = lower_bound + i;
-      vixl::Label* succ = codegen_->GetLabelOf(successors[i]);
-      if (case_value == 0) {
-        __ Cbz(value_reg, succ);
-      } else {
-        __ Cmp(value_reg, Operand(case_value));
-        __ B(eq, succ);
-      }
+    // Jump to successors[0] if value == lower_bound.
+    __ B(eq, codegen_->GetLabelOf(successors[0]));
+    int32_t last_index = 0;
+    for (; num_entries - last_index > 2; last_index += 2) {
+      __ Subs(temp, temp, Operand(2));
+      // Jump to successors[last_index + 1] if value < case_value[last_index + 2].
+      __ B(lo, codegen_->GetLabelOf(successors[last_index + 1]));
+      // Jump to successors[last_index + 2] if value == case_value[last_index + 2].
+      __ B(eq, codegen_->GetLabelOf(successors[last_index + 2]));
+    }
+    if (num_entries - last_index == 2) {
+      // The last missing case_value.
+      __ Cmp(temp, Operand(1));
+      __ B(eq, codegen_->GetLabelOf(successors[last_index + 1]));
     }
 
     // And the default for any other value.
