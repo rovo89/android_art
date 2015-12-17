@@ -606,6 +606,7 @@ enum X86OpCode {
                                 // load-from-memory and store-to-memory instructions
   kX86Sfence,                   // memory barrier to serialize all previous
                                 // store-to-memory instructions
+  kX86LockAdd32MI8,             // locked add used to serialize memory instructions
   Binary0fOpCode(kX86Imul16),   // 16bit multiply
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
   Binary0fOpCode(kX86Imul64),   // 64bit multiply
