@@ -43,26 +43,24 @@ class ReadBarrier {
   // Enable the read barrier checks.
   static constexpr bool kEnableReadBarrierInvariantChecks = true;
 
-  // It's up to the implementation whether the given field gets
-  // updated whereas the return value must be an updated reference.
+  // It's up to the implementation whether the given field gets updated whereas the return value
+  // must be an updated reference unless kAlwaysUpdateField is true.
   template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
-            bool kMaybeDuringStartup = false>
+            bool kAlwaysUpdateField = false>
   ALWAYS_INLINE static MirrorType* Barrier(
       mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // It's up to the implementation whether the given root gets updated
   // whereas the return value must be an updated reference.
-  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
-            bool kMaybeDuringStartup = false>
+  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE static MirrorType* BarrierForRoot(MirrorType** root,
                                                   GcRootSource* gc_root_source = nullptr)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // It's up to the implementation whether the given root gets updated
   // whereas the return value must be an updated reference.
-  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
-            bool kMaybeDuringStartup = false>
+  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE static MirrorType* BarrierForRoot(mirror::CompressedReference<MirrorType>* root,
                                                   GcRootSource* gc_root_source = nullptr)
       SHARED_REQUIRES(Locks::mutator_lock_);

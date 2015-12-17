@@ -52,6 +52,17 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
   mirror::Object* expectedValue = soa.Decode<mirror::Object*>(javaExpectedValue);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   // JNI must use non transactional mode.
+  if (kUseReadBarrier) {
+    // Need to make sure the reference stored in the field is a to-space one before attempting the
+    // CAS or the CAS could fail incorrectly.
+    mirror::HeapReference<mirror::Object>* field_addr =
+        reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
+            reinterpret_cast<uint8_t*>(obj) + static_cast<size_t>(offset));
+    ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /*kAlwaysUpdateField*/true>(
+        obj,
+        MemberOffset(offset),
+        field_addr);
+  }
   bool success = obj->CasFieldStrongSequentiallyConsistentObject<false>(MemberOffset(offset),
                                                                         expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
