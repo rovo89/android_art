@@ -42,15 +42,15 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromVariant(
   // Look for variants that have divide support.
   static const char* arm_variants_with_div[] = {
           "cortex-a7", "cortex-a12", "cortex-a15", "cortex-a17", "cortex-a53", "cortex-a57",
-          "cortex-m3", "cortex-m4", "cortex-r4", "cortex-r5",
-          "cyclone", "denver", "krait", "swift"};
+          "cortex-a53.a57", "cortex-m3", "cortex-m4", "cortex-r4", "cortex-r5",
+          "cyclone", "denver", "krait", "swift" };
 
   bool has_div = FindVariantInArray(arm_variants_with_div, arraysize(arm_variants_with_div),
                                     variant);
 
   // Look for variants that have LPAE support.
   static const char* arm_variants_with_lpae[] = {
-      "cortex-a7", "cortex-a15", "krait", "denver"
+      "cortex-a7", "cortex-a15", "krait", "denver", "cortex-a53", "cortex-a57", "cortex-a53.a57"
   };
   bool has_lpae = FindVariantInArray(arm_variants_with_lpae, arraysize(arm_variants_with_lpae),
                                      variant);
