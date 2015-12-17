@@ -31,6 +31,13 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     options->push_back(std::make_pair("imageinstructionset", "x86_64"));
   }
 
+  // Do not do any of the finalization. We don't want to run any code, we don't need the heap
+  // prepared, it actually will be a problem with setting the instruction set to x86_64 in
+  // SetUpRuntimeOptions.
+  void FinalizeSetup() OVERRIDE {
+    ASSERT_EQ(InstructionSet::kX86_64, Runtime::Current()->GetInstructionSet());
+  }
+
   static ArtMethod* CreateCalleeSaveMethod(InstructionSet isa, Runtime::CalleeSaveType type)
       NO_THREAD_SAFETY_ANALYSIS {
     Runtime* r = Runtime::Current();

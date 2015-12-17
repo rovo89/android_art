@@ -328,6 +328,19 @@ void CommonRuntimeTest::SetUp() {
   class_linker_ = runtime_->GetClassLinker();
   class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
 
+  // Runtime::Create acquired the mutator_lock_ that is normally given away when we
+  // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+
+  // Get the boot class path from the runtime so it can be used in tests.
+  boot_class_path_ = class_linker_->GetBootClassPath();
+  ASSERT_FALSE(boot_class_path_.empty());
+  java_lang_dex_file_ = boot_class_path_[0];
+
+  FinalizeSetup();
+}
+
+void CommonRuntimeTest::FinalizeSetup() {
   // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
   // set up.
   if (!unstarted_initialized_) {
@@ -335,14 +348,10 @@ void CommonRuntimeTest::SetUp() {
     unstarted_initialized_ = true;
   }
 
-  class_linker_->RunRootClinits();
-  boot_class_path_ = class_linker_->GetBootClassPath();
-  java_lang_dex_file_ = boot_class_path_[0];
-
-
-  // Runtime::Create acquired the mutator_lock_ that is normally given away when we
-  // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    class_linker_->RunRootClinits();
+  }
 
   // We're back in native, take the opportunity to initialize well known classes.
   WellKnownClasses::Init(Thread::Current()->GetJniEnv());
@@ -353,11 +362,6 @@ void CommonRuntimeTest::SetUp() {
   runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   // Reduce timinig-dependent flakiness in OOME behavior (eg StubTest.AllocObject).
   runtime_->GetHeap()->SetMinIntervalHomogeneousSpaceCompactionByOom(0U);
-
-  // Get the boot class path from the runtime so it can be used in tests.
-  boot_class_path_ = class_linker_->GetBootClassPath();
-  ASSERT_FALSE(boot_class_path_.empty());
-  java_lang_dex_file_ = boot_class_path_[0];
 }
 
 void CommonRuntimeTest::ClearDirectory(const char* dirpath) {
