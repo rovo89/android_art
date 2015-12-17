@@ -5236,6 +5236,14 @@ void InstructionCodeGeneratorMIPS::VisitInvokeUnresolved(HInvokeUnresolved* invo
   codegen_->GenerateInvokeUnresolvedRuntimeCall(invoke);
 }
 
+void LocationsBuilderMIPS::VisitClassTableGet(HClassTableGet*) {
+  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips";
+}
+
+void InstructionCodeGeneratorMIPS::VisitClassTableGet(HClassTableGet*) {
+  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips";
+}
+
 #undef __
 #undef QUICK_ENTRY_POINT
 

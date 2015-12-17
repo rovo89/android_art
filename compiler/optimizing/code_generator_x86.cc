@@ -3957,6 +3957,27 @@ void LocationsBuilderX86::VisitCurrentMethod(HCurrentMethod* instruction) {
 void InstructionCodeGeneratorX86::VisitCurrentMethod(HCurrentMethod* instruction ATTRIBUTE_UNUSED) {
 }
 
+void LocationsBuilderX86::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  uint32_t method_offset = 0;
+  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+        instruction->GetIndex(), kX86PointerSize).SizeValue();
+  } else {
+    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+        instruction->GetIndex() % mirror::Class::kImtSize, kX86PointerSize).Uint32Value();
+  }
+  __ movl(locations->Out().AsRegister<Register>(),
+          Address(locations->InAt(0).AsRegister<Register>(), method_offset));
+}
+
 void LocationsBuilderX86::VisitNot(HNot* not_) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(not_, LocationSummary::kNoCall);

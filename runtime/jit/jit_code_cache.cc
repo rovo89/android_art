@@ -737,8 +737,16 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self) {
   if (ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
     return false;
   }
-  MutexLock mu(self, lock_);
+
+  // Compiling requires a profiling info object to notify compilation. Create
+  // one if it hasn't been done before.
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  if (info == nullptr) {
+    ProfilingInfo::Create(self, method, /* retry_allocation */ true);
+  }
+
+  MutexLock mu(self, lock_);
+  info = method->GetProfilingInfo(sizeof(void*));
   if (info == nullptr || info->IsMethodBeingCompiled()) {
     return false;
   }

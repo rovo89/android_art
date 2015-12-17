@@ -51,6 +51,7 @@ enum MethodCompilationStat {
   kNotCompiledVerificationError,
   kNotCompiledVerifyAtRuntime,
   kInlinedMonomorphicCall,
+  kInlinedPolymorphicCall,
   kMonomorphicCall,
   kPolymorphicCall,
   kMegamorphicCall,
@@ -118,6 +119,7 @@ class OptimizingCompilerStats {
       case kNotCompiledVerificationError : name = "NotCompiledVerificationError"; break;
       case kNotCompiledVerifyAtRuntime : name = "NotCompiledVerifyAtRuntime"; break;
       case kInlinedMonomorphicCall: name = "InlinedMonomorphicCall"; break;
+      case kInlinedPolymorphicCall: name = "InlinedPolymorphicCall"; break;
       case kMonomorphicCall: name = "MonomorphicCall"; break;
       case kPolymorphicCall: name = "PolymorphicCall"; break;
       case kMegamorphicCall: name = "kMegamorphicCall"; break;

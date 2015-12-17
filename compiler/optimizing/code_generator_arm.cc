@@ -6599,6 +6599,29 @@ void CodeGeneratorARM::MoveFromReturnRegister(Location trg, Primitive::Type type
   }
 }
 
+void LocationsBuilderARM::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  uint32_t method_offset = 0;
+  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+        instruction->GetIndex(), kArmPointerSize).SizeValue();
+  } else {
+    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+        instruction->GetIndex() % mirror::Class::kImtSize, kArmPointerSize).Uint32Value();
+  }
+  __ LoadFromOffset(kLoadWord,
+                    locations->Out().AsRegister<Register>(),
+                    locations->InAt(0).AsRegister<Register>(),
+                    method_offset);
+}
+
 #undef __
 #undef QUICK_ENTRY_POINT
 

@@ -4267,5 +4267,14 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
   }
 }
 
+void LocationsBuilderMIPS64::VisitClassTableGet(HClassTableGet*) {
+  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips64";
+}
+
+void InstructionCodeGeneratorMIPS64::VisitClassTableGet(HClassTableGet*) {
+  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips64";
+}
+
 }  // namespace mips64
 }  // namespace art
+

@@ -167,6 +167,7 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self) {
   // Don't compile the method if we are supposed to be deoptimized.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (instrumentation->AreAllMethodsDeoptimized() || instrumentation->IsDeoptimized(method)) {
+    VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to deoptimization";
     return false;
   }
 

@@ -4983,6 +4983,29 @@ void CodeGeneratorARM64::GenerateReadBarrierForRootSlow(HInstruction* instructio
   __ Bind(slow_path->GetExitLabel());
 }
 
+void LocationsBuilderARM64::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  uint32_t method_offset = 0;
+  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+        instruction->GetIndex(), kArm64PointerSize).SizeValue();
+  } else {
+    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+        instruction->GetIndex() % mirror::Class::kImtSize, kArm64PointerSize).Uint32Value();
+  }
+  __ Ldr(XRegisterFrom(locations->Out()),
+         MemOperand(XRegisterFrom(locations->InAt(0)), method_offset));
+}
+
+
+
 #undef __
 #undef QUICK_ENTRY_POINT
 
