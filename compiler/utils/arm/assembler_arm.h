@@ -501,6 +501,8 @@ class ArmAssembler : public Assembler {
 
   virtual void cmp(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
+  // Note: CMN updates flags based on addition of its operands. Do not confuse
+  // the "N" suffix with bitwise inversion performed by MVN.
   virtual void cmn(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
   virtual void orr(Register rd, Register rn, const ShifterOperand& so,

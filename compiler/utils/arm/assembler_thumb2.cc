@@ -3428,10 +3428,10 @@ void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
     CHECK(rn != IP);
     // If rd != rn, use rd as temp. This alows 16-bit ADD/SUB in more situations than using IP.
     Register temp = (rd != rn) ? rd : IP;
-    if (ShifterOperandCanHold(temp, kNoRegister, MVN, ~value, set_cc, &shifter_op)) {
+    if (ShifterOperandCanHold(temp, kNoRegister, MVN, ~value, kCcKeep, &shifter_op)) {
       mvn(temp, shifter_op, cond, kCcKeep);
       add(rd, rn, ShifterOperand(temp), cond, set_cc);
-    } else if (ShifterOperandCanHold(temp, kNoRegister, MVN, ~(-value), set_cc, &shifter_op)) {
+    } else if (ShifterOperandCanHold(temp, kNoRegister, MVN, ~(-value), kCcKeep, &shifter_op)) {
       mvn(temp, shifter_op, cond, kCcKeep);
       sub(rd, rn, ShifterOperand(temp), cond, set_cc);
     } else if (High16Bits(-value) == 0) {
@@ -3449,22 +3449,32 @@ void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
 }
 
 void Thumb2Assembler::CmpConstant(Register rn, int32_t value, Condition cond) {
-  // We prefer to select the shorter code sequence rather than selecting add for
-  // positive values and sub for negatives ones, which would slightly improve
-  // the readability of generated code for some constants.
+  // We prefer to select the shorter code sequence rather than using plain cmp and cmn
+  // which would slightly improve the readability of generated code for some constants.
   ShifterOperand shifter_op;
   if (ShifterOperandCanHold(kNoRegister, rn, CMP, value, kCcSet, &shifter_op)) {
     cmp(rn, shifter_op, cond);
-  } else if (ShifterOperandCanHold(kNoRegister, rn, CMN, ~value, kCcSet, &shifter_op)) {
+  } else if (ShifterOperandCanHold(kNoRegister, rn, CMN, -value, kCcSet, &shifter_op)) {
     cmn(rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    movw(IP, Low16Bits(value), cond);
-    uint16_t value_high = High16Bits(value);
-    if (value_high != 0) {
-      movt(IP, value_high, cond);
+    if (ShifterOperandCanHold(IP, kNoRegister, MVN, ~value, kCcKeep, &shifter_op)) {
+      mvn(IP, shifter_op, cond, kCcKeep);
+      cmp(rn, ShifterOperand(IP), cond);
+    } else if (ShifterOperandCanHold(IP, kNoRegister, MVN, ~(-value), kCcKeep, &shifter_op)) {
+      mvn(IP, shifter_op, cond, kCcKeep);
+      cmn(rn, ShifterOperand(IP), cond);
+    } else if (High16Bits(-value) == 0) {
+      movw(IP, Low16Bits(-value), cond);
+      cmn(rn, ShifterOperand(IP), cond);
+    } else {
+      movw(IP, Low16Bits(value), cond);
+      uint16_t value_high = High16Bits(value);
+      if (value_high != 0) {
+        movt(IP, value_high, cond);
+      }
+      cmp(rn, ShifterOperand(IP), cond);
     }
-    cmp(rn, ShifterOperand(IP), cond);
   }
 }
 

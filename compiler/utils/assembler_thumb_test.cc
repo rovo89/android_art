@@ -1626,6 +1626,76 @@ TEST(Thumb2AssemblerTest, AddConstant) {
   EmitAndCheck(&assembler, "AddConstant");
 }
 
+TEST(Thumb2AssemblerTest, CmpConstant) {
+  arm::Thumb2Assembler assembler;
+
+  __ CmpConstant(R0, 0);                              // 16-bit CMP.
+  __ CmpConstant(R1, 1);                              // 16-bit CMP.
+  __ CmpConstant(R0, 7);                              // 16-bit CMP.
+  __ CmpConstant(R1, 8);                              // 16-bit CMP.
+  __ CmpConstant(R0, 255);                            // 16-bit CMP.
+  __ CmpConstant(R1, 256);                            // 32-bit CMP.
+  __ CmpConstant(R0, 257);                            // MNV+CMN.
+  __ CmpConstant(R1, 0xfff);                          // MOVW+CMP.
+  __ CmpConstant(R0, 0x1000);                         // 32-bit CMP.
+  __ CmpConstant(R1, 0x1001);                         // MNV+CMN.
+  __ CmpConstant(R0, 0x1002);                         // MOVW+CMP.
+  __ CmpConstant(R1, 0xffff);                         // MOVW+CMP.
+  __ CmpConstant(R0, 0x10000);                        // 32-bit CMP.
+  __ CmpConstant(R1, 0x10001);                        // 32-bit CMP.
+  __ CmpConstant(R0, 0x10002);                        // MVN+CMN.
+  __ CmpConstant(R1, 0x10003);                        // MOVW+MOVT+CMP.
+  __ CmpConstant(R0, -1);                             // 32-bit CMP.
+  __ CmpConstant(R1, -7);                             // CMN.
+  __ CmpConstant(R0, -8);                             // CMN.
+  __ CmpConstant(R1, -255);                           // CMN.
+  __ CmpConstant(R0, -256);                           // CMN.
+  __ CmpConstant(R1, -257);                           // MNV+CMP.
+  __ CmpConstant(R0, -0xfff);                         // MOVW+CMN.
+  __ CmpConstant(R1, -0x1000);                        // CMN.
+  __ CmpConstant(R0, -0x1001);                        // MNV+CMP.
+  __ CmpConstant(R1, -0x1002);                        // MOVW+CMN.
+  __ CmpConstant(R0, -0xffff);                        // MOVW+CMN.
+  __ CmpConstant(R1, -0x10000);                       // CMN.
+  __ CmpConstant(R0, -0x10001);                       // CMN.
+  __ CmpConstant(R1, -0x10002);                       // MVN+CMP.
+  __ CmpConstant(R0, -0x10003);                       // MOVW+MOVT+CMP.
+
+  __ CmpConstant(R8, 0);                              // 32-bit CMP.
+  __ CmpConstant(R9, 1);                              // 32-bit CMP.
+  __ CmpConstant(R8, 7);                              // 32-bit CMP.
+  __ CmpConstant(R9, 8);                              // 32-bit CMP.
+  __ CmpConstant(R8, 255);                            // 32-bit CMP.
+  __ CmpConstant(R9, 256);                            // 32-bit CMP.
+  __ CmpConstant(R8, 257);                            // MNV+CMN
+  __ CmpConstant(R9, 0xfff);                          // MOVW+CMP.
+  __ CmpConstant(R8, 0x1000);                         // 32-bit CMP.
+  __ CmpConstant(R9, 0x1001);                         // MVN+CMN.
+  __ CmpConstant(R8, 0x1002);                         // MOVW+CMP.
+  __ CmpConstant(R9, 0xffff);                         // MOVW+CMP.
+  __ CmpConstant(R8, 0x10000);                        // 32-bit CMP.
+  __ CmpConstant(R9, 0x10001);                        // 32-bit CMP.
+  __ CmpConstant(R8, 0x10002);                        // MVN+CMN.
+  __ CmpConstant(R9, 0x10003);                        // MOVW+MOVT+CMP.
+  __ CmpConstant(R8, -1);                             // 32-bit CMP
+  __ CmpConstant(R9, -7);                             // CMN.
+  __ CmpConstant(R8, -8);                             // CMN.
+  __ CmpConstant(R9, -255);                           // CMN.
+  __ CmpConstant(R8, -256);                           // CMN.
+  __ CmpConstant(R9, -257);                           // MNV+CMP.
+  __ CmpConstant(R8, -0xfff);                         // MOVW+CMN.
+  __ CmpConstant(R9, -0x1000);                        // CMN.
+  __ CmpConstant(R8, -0x1001);                        // MVN+CMP.
+  __ CmpConstant(R9, -0x1002);                        // MOVW+CMN.
+  __ CmpConstant(R8, -0xffff);                        // MOVW+CMN.
+  __ CmpConstant(R9, -0x10000);                       // CMN.
+  __ CmpConstant(R8, -0x10001);                       // CMN.
+  __ CmpConstant(R9, -0x10002);                       // MVN+CMP.
+  __ CmpConstant(R8, -0x10003);                       // MOVW+MOVT+CMP.
+
+  EmitAndCheck(&assembler, "CmpConstant");
+}
+
 #undef __
 }  // namespace arm
 }  // namespace art

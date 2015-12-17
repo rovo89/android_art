@@ -1358,17 +1358,6 @@ void LocationsBuilderARM::VisitExit(HExit* exit) {
 void InstructionCodeGeneratorARM::VisitExit(HExit* exit ATTRIBUTE_UNUSED) {
 }
 
-void InstructionCodeGeneratorARM::GenerateCompareWithImmediate(Register left, int32_t right) {
-  ShifterOperand operand;
-  if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, right, &operand)) {
-    __ cmp(left, operand);
-  } else {
-    Register temp = IP;
-    __ LoadImmediate(temp, right);
-    __ cmp(left, ShifterOperand(temp));
-  }
-}
-
 void InstructionCodeGeneratorARM::GenerateFPJumps(HCondition* cond,
                                                   Label* true_label,
                                                   Label* false_label) {
@@ -1434,7 +1423,7 @@ void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
     int32_t val_low = Low32Bits(value);
     int32_t val_high = High32Bits(value);
 
-    GenerateCompareWithImmediate(left_high, val_high);
+    __ CmpConstant(left_high, val_high);
     if (if_cond == kCondNE) {
       __ b(true_label, ARMCondition(true_high_cond));
     } else if (if_cond == kCondEQ) {
@@ -1444,7 +1433,7 @@ void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
       __ b(false_label, ARMCondition(false_high_cond));
     }
     // Must be equal high, so compare the lows.
-    GenerateCompareWithImmediate(left_low, val_low);
+    __ CmpConstant(left_low, val_low);
   } else {
     Register right_high = right.AsRegisterPairHigh<Register>();
     Register right_low = right.AsRegisterPairLow<Register>();
@@ -1568,7 +1557,7 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
       __ cmp(left, ShifterOperand(right.AsRegister<Register>()));
     } else {
       DCHECK(right.IsConstant());
-      GenerateCompareWithImmediate(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
+      __ CmpConstant(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
     }
     if (true_target == nullptr) {
       __ b(false_target, ARMCondition(condition->GetOppositeCondition()));
@@ -1667,8 +1656,8 @@ void InstructionCodeGeneratorARM::VisitCondition(HCondition* cond) {
         __ cmp(left.AsRegister<Register>(), ShifterOperand(right.AsRegister<Register>()));
       } else {
         DCHECK(right.IsConstant());
-        GenerateCompareWithImmediate(left.AsRegister<Register>(),
-                                     CodeGenerator::GetInt32ValueOf(right.GetConstant()));
+        __ CmpConstant(left.AsRegister<Register>(),
+                       CodeGenerator::GetInt32ValueOf(right.GetConstant()));
       }
       __ it(ARMCondition(cond->GetCondition()), kItElse);
       __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(1),
@@ -6288,7 +6277,7 @@ void InstructionCodeGeneratorARM::VisitPackedSwitch(HPackedSwitch* switch_instr)
     }
     if (num_entries - last_index == 2) {
       // The last missing case_value.
-      GenerateCompareWithImmediate(temp_reg, 1);
+      __ CmpConstant(temp_reg, 1);
       __ b(codegen_->GetLabelOf(successors[last_index + 1]), EQ);
     }
 

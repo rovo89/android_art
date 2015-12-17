@@ -1,4 +1,4 @@
-const char* SimpleMovResults[] = {
+const char* const SimpleMovResults[] = {
   "   0:	0008      	movs	r0, r1\n",
   "   2:	4608      	mov	r0, r1\n",
   "   4:	46c8      	mov	r8, r9\n",
@@ -6,18 +6,18 @@ const char* SimpleMovResults[] = {
   "   8:	f04f 0809 	mov.w	r8, #9\n",
   nullptr
 };
-const char* SimpleMov32Results[] = {
+const char* const SimpleMov32Results[] = {
   "   0:	ea4f 0001 	mov.w	r0, r1\n",
   "   4:	ea4f 0809 	mov.w	r8, r9\n",
   nullptr
 };
-const char* SimpleMovAddResults[] = {
+const char* const SimpleMovAddResults[] = {
   "   0:	4608      	mov	r0, r1\n",
   "   2:	1888      	adds	r0, r1, r2\n",
   "   4:	1c08      	adds	r0, r1, #0\n",
   nullptr
 };
-const char* DataProcessingRegisterResults[] = {
+const char* const DataProcessingRegisterResults[] = {
   "   0:	ea6f 0001 	mvn.w	r0, r1\n",
   "   4:	eb01 0002 	add.w	r0, r1, r2\n",
   "   8:	eba1 0002 	sub.w	r0, r1, r2\n",
@@ -129,7 +129,7 @@ const char* DataProcessingRegisterResults[] = {
   " 120:	eb01 0c00 	add.w	ip, r1, r0\n",
   nullptr
 };
-const char* DataProcessingImmediateResults[] = {
+const char* const DataProcessingImmediateResults[] = {
   "   0:	2055      	movs	r0, #85	; 0x55\n",
   "   2:	f06f 0055 	mvn.w	r0, #85	; 0x55\n",
   "   6:	f101 0055 	add.w	r0, r1, #85	; 0x55\n",
@@ -154,7 +154,7 @@ const char* DataProcessingImmediateResults[] = {
   "  48:	1f48      	subs	r0, r1, #5\n",
   nullptr
 };
-const char* DataProcessingModifiedImmediateResults[] = {
+const char* const DataProcessingModifiedImmediateResults[] = {
   "   0:	f04f 1055 	mov.w	r0, #5570645	; 0x550055\n",
   "   4:	f06f 1055 	mvn.w	r0, #5570645	; 0x550055\n",
   "   8:	f101 1055 	add.w	r0, r1, #5570645	; 0x550055\n",
@@ -173,7 +173,7 @@ const char* DataProcessingModifiedImmediateResults[] = {
   "  3c:	f110 1f55 	cmn.w	r0, #5570645	; 0x550055\n",
   nullptr
 };
-const char* DataProcessingModifiedImmediatesResults[] = {
+const char* const DataProcessingModifiedImmediatesResults[] = {
   "   0:	f04f 1055 	mov.w	r0, #5570645	; 0x550055\n",
   "   4:	f04f 2055 	mov.w	r0, #1426085120	; 0x55005500\n",
   "   8:	f04f 3055 	mov.w	r0, #1431655765	; 0x55555555\n",
@@ -183,7 +183,7 @@ const char* DataProcessingModifiedImmediatesResults[] = {
   "  18:	f44f 70d4 	mov.w	r0, #424	; 0x1a8\n",
   nullptr
 };
-const char* DataProcessingShiftedRegisterResults[] = {
+const char* const DataProcessingShiftedRegisterResults[] = {
   "   0:	0123      	lsls	r3, r4, #4\n",
   "   2:	0963      	lsrs	r3, r4, #5\n",
   "   4:	11a3      	asrs	r3, r4, #6\n",
@@ -201,7 +201,7 @@ const char* DataProcessingShiftedRegisterResults[] = {
   "  32:	ea5f 0834 	movs.w	r8, r4, rrx\n",
   nullptr
 };
-const char* ShiftImmediateResults[] = {
+const char* const ShiftImmediateResults[] = {
   "   0:  0123        lsls  r3, r4, #4\n",
   "   2:  0963        lsrs  r3, r4, #5\n",
   "   4:  11a3        asrs  r3, r4, #6\n",
@@ -219,7 +219,7 @@ const char* ShiftImmediateResults[] = {
   "  32:  ea5f 0834   movs.w  r8, r4, rrx\n",
   nullptr
 };
-const char* BasicLoadResults[] = {
+const char* const BasicLoadResults[] = {
   "   0:	69a3      	ldr	r3, [r4, #24]\n",
   "   2:	7e23      	ldrb	r3, [r4, #24]\n",
   "   4:	8b23      	ldrh	r3, [r4, #24]\n",
@@ -233,7 +233,7 @@ const char* BasicLoadResults[] = {
   "  20:	f9b4 8018 	ldrsh.w	r8, [r4, #24]\n",
   nullptr
 };
-const char* BasicStoreResults[] = {
+const char* const BasicStoreResults[] = {
   "   0:	61a3      	str	r3, [r4, #24]\n",
   "   2:	7623      	strb	r3, [r4, #24]\n",
   "   4:	8323      	strh	r3, [r4, #24]\n",
@@ -243,7 +243,7 @@ const char* BasicStoreResults[] = {
   "  10:	f8a4 8018 	strh.w	r8, [r4, #24]\n",
   nullptr
 };
-const char* ComplexLoadResults[] = {
+const char* const ComplexLoadResults[] = {
   "   0:	69a3      	ldr	r3, [r4, #24]\n",
   "   2:	f854 3f18 	ldr.w	r3, [r4, #24]!\n",
   "   6:	f854 3b18 	ldr.w	r3, [r4], #24\n",
@@ -276,7 +276,7 @@ const char* ComplexLoadResults[] = {
   "  6e:	f934 3918 	ldrsh.w	r3, [r4], #-24\n",
   nullptr
 };
-const char* ComplexStoreResults[] = {
+const char* const ComplexStoreResults[] = {
   "   0:	61a3      	str	r3, [r4, #24]\n",
   "   2:	f844 3f18 	str.w	r3, [r4, #24]!\n",
   "   6:	f844 3b18 	str.w	r3, [r4], #24\n",
@@ -297,7 +297,7 @@ const char* ComplexStoreResults[] = {
   "  3e:	f824 3918 	strh.w	r3, [r4], #-24\n",
   nullptr
 };
-const char* NegativeLoadStoreResults[] = {
+const char* const NegativeLoadStoreResults[] = {
   "   0:	f854 3c18 	ldr.w	r3, [r4, #-24]\n",
   "   4:	f854 3d18 	ldr.w	r3, [r4, #-24]!\n",
   "   8:	f854 3918 	ldr.w	r3, [r4], #-24\n",
@@ -348,12 +348,12 @@ const char* NegativeLoadStoreResults[] = {
   "  bc:	f824 3b18 	strh.w	r3, [r4], #24\n",
   nullptr
 };
-const char* SimpleLoadStoreDualResults[] = {
+const char* const SimpleLoadStoreDualResults[] = {
   "   0:	e9c0 2306 	strd	r2, r3, [r0, #24]\n",
   "   4:	e9d0 2306 	ldrd	r2, r3, [r0, #24]\n",
   nullptr
 };
-const char* ComplexLoadStoreDualResults[] = {
+const char* const ComplexLoadStoreDualResults[] = {
   "   0:	e9c0 2306 	strd	r2, r3, [r0, #24]\n",
   "   4:	e9e0 2306 	strd	r2, r3, [r0, #24]!\n",
   "   8:	e8e0 2306 	strd	r2, r3, [r0], #24\n",
@@ -368,7 +368,7 @@ const char* ComplexLoadStoreDualResults[] = {
   "  2c:	e870 2306 	ldrd	r2, r3, [r0], #-24\n",
   nullptr
 };
-const char* NegativeLoadStoreDualResults[] = {
+const char* const NegativeLoadStoreDualResults[] = {
   "   0:	e940 2306 	strd	r2, r3, [r0, #-24]\n",
   "   4:	e960 2306 	strd	r2, r3, [r0, #-24]!\n",
   "   8:	e860 2306 	strd	r2, r3, [r0], #-24\n",
@@ -383,7 +383,7 @@ const char* NegativeLoadStoreDualResults[] = {
   "  2c:	e8f0 2306 	ldrd	r2, r3, [r0], #24\n",
   nullptr
 };
-const char* SimpleBranchResults[] = {
+const char* const SimpleBranchResults[] = {
   "   0:	2002      	movs	r0, #2\n",
   "   2:	2101      	movs	r1, #1\n",
   "   4:	e7fd      	b.n	2 <SimpleBranch+0x2>\n",
@@ -403,7 +403,7 @@ const char* SimpleBranchResults[] = {
   "  20:	2006      	movs	r0, #6\n",
   nullptr
 };
-const char* LongBranchResults[] = {
+const char* const LongBranchResults[] = {
   "   0:	f04f 0002 	mov.w	r0, #2\n",
   "   4:	f04f 0101 	mov.w	r1, #1\n",
   "   8:	f7ff bffc 	b.w	4 <LongBranch+0x4>\n",
@@ -423,14 +423,14 @@ const char* LongBranchResults[] = {
   "  40:	f04f 0006 	mov.w	r0, #6\n",
   nullptr
 };
-const char* LoadMultipleResults[] = {
+const char* const LoadMultipleResults[] = {
   "   0:	cc09      	ldmia	r4!, {r0, r3}\n",
   "   2:	e934 4800 	ldmdb	r4!, {fp, lr}\n",
   "   6:	e914 4800 	ldmdb	r4, {fp, lr}\n",
   "   a:	f854 5b04 	ldr.w	r5, [r4], #4\n",
   nullptr
 };
-const char* StoreMultipleResults[] = {
+const char* const StoreMultipleResults[] = {
   "   0:	c409      	stmia	r4!, {r0, r3}\n",
   "   2:	e8a4 4800 	stmia.w	r4!, {fp, lr}\n",
   "   6:	e884 4800 	stmia.w	r4, {fp, lr}\n",
@@ -438,7 +438,7 @@ const char* StoreMultipleResults[] = {
   "   e:	f844 5d04 	str.w	r5, [r4, #-4]!\n",
   nullptr
 };
-const char* MovWMovTResults[] = {
+const char* const MovWMovTResults[] = {
   "   0:	f240 0400 	movw  r4, #0\n",
   "   4:	f240 0434 	movw  r4, #52 ; 0x34\n",
   "   8:	f240 0934 	movw	r9, #52	; 0x34\n",
@@ -449,7 +449,7 @@ const char* MovWMovTResults[] = {
   "  1c:	f6cf 71ff 	movt	r1, #65535	; 0xffff\n",
   nullptr
 };
-const char* SpecialAddSubResults[] = {
+const char* const SpecialAddSubResults[] = {
   "   0:	aa14      	add	r2, sp, #80	; 0x50\n",
   "   2:	b014      	add	sp, #80		; 0x50\n",
   "   4:	f10d 0850 	add.w	r8, sp, #80	; 0x50\n",
@@ -463,7 +463,7 @@ const char* SpecialAddSubResults[] = {
   "  22:	f6ad 7dfc 	subw	sp, sp, #4092	; 0xffc\n",
   nullptr
 };
-const char* LoadFromOffsetResults[] = {
+const char* const LoadFromOffsetResults[] = {
   "   0:	68e2      	ldr	r2, [r4, #12]\n",
   "   2:	f8d4 2fff 	ldr.w	r2, [r4, #4095]	; 0xfff\n",
   "   6:	f504 5280 	add.w	r2, r4, #4096	; 0x1000\n",
@@ -514,7 +514,7 @@ const char* LoadFromOffsetResults[] = {
   "  9e:	f9b4 200c 	ldrsh.w	r2, [r4, #12]\n",
   nullptr
 };
-const char* StoreToOffsetResults[] = {
+const char* const StoreToOffsetResults[] = {
   "   0:	60e2      	str	r2, [r4, #12]\n",
   "   2:	f8c4 2fff 	str.w	r2, [r4, #4095]	; 0xfff\n",
   "   6:	f504 5c80 	add.w	ip, r4, #4096	; 0x1000\n",
@@ -563,7 +563,7 @@ const char* StoreToOffsetResults[] = {
   "  a4:	7322      	strb	r2, [r4, #12]\n",
   nullptr
 };
-const char* IfThenResults[] = {
+const char* const IfThenResults[] = {
   "   0:	bf08      	it	eq\n",
   "   2:	2101      	moveq	r1, #1\n",
   "   4:	bf04      	itt	eq\n",
@@ -587,7 +587,7 @@ const char* IfThenResults[] = {
   "  28:	2404      	movne	r4, #4\n",
   nullptr
 };
-const char* CbzCbnzResults[] = {
+const char* const CbzCbnzResults[] = {
   "   0:	b10a      	cbz	r2, 6 <CbzCbnz+0x6>\n",
   "   2:	2103      	movs	r1, #3\n",
   "   4:	2203      	movs	r2, #3\n",
@@ -598,7 +598,7 @@ const char* CbzCbnzResults[] = {
   "  10:	2204      	movs	r2, #4\n",
   nullptr
 };
-const char* MultiplyResults[] = {
+const char* const MultiplyResults[] = {
   "   0:	4348      	muls	r0, r1\n",
   "   2:	fb01 f002 	mul.w	r0, r1, r2\n",
   "   6:	fb09 f808 	mul.w	r8, r9, r8\n",
@@ -611,21 +611,21 @@ const char* MultiplyResults[] = {
   "  22:	fbaa 890b 	umull	r8, r9, sl, fp\n",
   nullptr
 };
-const char* DivideResults[] = {
+const char* const DivideResults[] = {
   "   0:	fb91 f0f2 	sdiv	r0, r1, r2\n",
   "   4:	fb99 f8fa 	sdiv	r8, r9, sl\n",
   "   8:	fbb1 f0f2 	udiv	r0, r1, r2\n",
   "   c:	fbb9 f8fa 	udiv	r8, r9, sl\n",
   nullptr
 };
-const char* VMovResults[] = {
+const char* const VMovResults[] = {
   "   0:	eef7 0a00 	vmov.f32	s1, #112	; 0x70\n",
   "   4:	eeb7 1b00 	vmov.f64	d1, #112	; 0x70\n",
   "   8:	eef0 0a41 	vmov.f32	s1, s2\n",
   "   c:	eeb0 1b42 	vmov.f64	d1, d2\n",
   nullptr
 };
-const char* BasicFloatingPointResults[] = {
+const char* const BasicFloatingPointResults[] = {
   "   0:	ee30 0a81 	vadd.f32	s0, s1, s2\n",
   "   4:	ee30 0ac1 	vsub.f32	s0, s1, s2\n",
   "   8:	ee20 0a81 	vmul.f32	s0, s1, s2\n",
@@ -646,7 +646,7 @@ const char* BasicFloatingPointResults[] = {
   "  44:	eeb1 0bc1 	vsqrt.f64	d0, d1\n",
   nullptr
 };
-const char* FloatingPointConversionsResults[] = {
+const char* const FloatingPointConversionsResults[] = {
   "   0:	eeb7 1bc2 	vcvt.f32.f64	s2, d2\n",
   "   4:	eeb7 2ac1 	vcvt.f64.f32	d2, s2\n",
   "   8:	eefd 0ac1 	vcvt.s32.f32	s1, s2\n",
@@ -659,35 +659,35 @@ const char* FloatingPointConversionsResults[] = {
   "  24:	eeb8 1b41 	vcvt.f64.u32	d1, s2\n",
   nullptr
 };
-const char* FloatingPointComparisonsResults[] = {
+const char* const FloatingPointComparisonsResults[] = {
   "   0:	eeb4 0a60 	vcmp.f32	s0, s1\n",
   "   4:	eeb4 0b41 	vcmp.f64	d0, d1\n",
   "   8:	eeb5 1a40 	vcmp.f32	s2, #0.0\n",
   "   c:	eeb5 2b40 	vcmp.f64	d2, #0.0\n",
   nullptr
 };
-const char* CallsResults[] = {
+const char* const CallsResults[] = {
   "   0:	47f0      	blx	lr\n",
   "   2:	4770      	bx	lr\n",
   nullptr
 };
-const char* BreakpointResults[] = {
+const char* const BreakpointResults[] = {
   "   0:	be00      	bkpt	0x0000\n",
   nullptr
 };
-const char* StrR1Results[] = {
+const char* const StrR1Results[] = {
   "   0:	9111      	str	r1, [sp, #68]	; 0x44\n",
   "   2:	f8cd 142c 	str.w	r1, [sp, #1068]	; 0x42c\n",
   nullptr
 };
-const char* VPushPopResults[] = {
+const char* const VPushPopResults[] = {
   "   0:	ed2d 1a04 	vpush	{s2-s5}\n",
   "   4:	ed2d 2b08 	vpush	{d2-d5}\n",
   "   8:	ecbd 1a04 	vpop	{s2-s5}\n",
   "   c:	ecbd 2b08 	vpop	{d2-d5}\n",
   nullptr
 };
-const char* Max16BitBranchResults[] = {
+const char* const Max16BitBranchResults[] = {
   "   0:	e3ff      	b.n	802 <Max16BitBranch+0x802>\n",
   "   2:	2300      	movs	r3, #0\n",
   "   4:	2302      	movs	r3, #2\n",
@@ -1716,7 +1716,7 @@ const char* Max16BitBranchResults[] = {
   " 802:	4611      	mov	r1, r2\n",
   nullptr
 };
-const char* Branch32Results[] = {
+const char* const Branch32Results[] = {
   "   0:	f000 bc01 	b.w	806 <Branch32+0x806>\n",
   "   4:	2300      	movs	r3, #0\n",
   "   6:	2302      	movs	r3, #2\n",
@@ -2746,7 +2746,7 @@ const char* Branch32Results[] = {
   " 806:	4611      	mov	r1, r2\n",
   nullptr
 };
-const char* CompareAndBranchMaxResults[] = {
+const char* const CompareAndBranchMaxResults[] = {
   "   0:	b3fc      	cbz	r4, 82 <CompareAndBranchMax+0x82>\n",
   "   2:	2300      	movs	r3, #0\n",
   "   4:	2302      	movs	r3, #2\n",
@@ -2815,7 +2815,7 @@ const char* CompareAndBranchMaxResults[] = {
   "  82:	4611      	mov	r1, r2\n",
   nullptr
 };
-const char* CompareAndBranchRelocation16Results[] = {
+const char* const CompareAndBranchRelocation16Results[] = {
   "   0:	2c00      	cmp	r4, #0\n",
   "   2:	d040      	beq.n	86 <CompareAndBranchRelocation16+0x86>\n",
   "   4:	2300      	movs	r3, #0\n",
@@ -2886,7 +2886,7 @@ const char* CompareAndBranchRelocation16Results[] = {
   "  86:	4611      	mov	r1, r2\n",
   nullptr
 };
-const char* CompareAndBranchRelocation32Results[] = {
+const char* const CompareAndBranchRelocation32Results[] = {
   "   0:	2c00      	cmp	r4, #0\n",
   "   2:	f000 8401 	beq.w	808 <CompareAndBranchRelocation32+0x808>\n",
   "   6:	2300      	movs	r3, #0\n",
@@ -3917,7 +3917,7 @@ const char* CompareAndBranchRelocation32Results[] = {
   " 808:	4611      	mov	r1, r2\n",
   nullptr
 };
-const char* MixedBranch32Results[] = {
+const char* const MixedBranch32Results[] = {
   "   0:	f000 bc03 	b.w	80a <MixedBranch32+0x80a>\n",
   "   4:	2300      	movs	r3, #0\n",
   "   6:	2302      	movs	r3, #2\n",
@@ -4948,7 +4948,7 @@ const char* MixedBranch32Results[] = {
   " 80a:	4611      	mov	r1, r2\n",
   nullptr
 };
-const char* ShiftsResults[] = {
+const char* const ShiftsResults[] = {
   "   0:	0148      	lsls	r0, r1, #5\n",
   "   2:	0948      	lsrs	r0, r1, #5\n",
   "   4:	1148      	asrs	r0, r1, #5\n",
@@ -4997,7 +4997,7 @@ const char* ShiftsResults[] = {
   "  98:	fa51 f008 	asrs.w	r0, r1, r8\n",
   nullptr
 };
-const char* LoadStoreRegOffsetResults[] = {
+const char* const LoadStoreRegOffsetResults[] = {
   "   0:	5888      	ldr	r0, [r1, r2]\n",
   "   2:	5088      	str	r0, [r1, r2]\n",
   "   4:	f851 0012 	ldr.w	r0, [r1, r2, lsl #1]\n",
@@ -5012,7 +5012,7 @@ const char* LoadStoreRegOffsetResults[] = {
   "  28:	f841 0008 	str.w	r0, [r1, r8]\n",
   nullptr
 };
-const char* LoadStoreLiteralResults[] = {
+const char* const LoadStoreLiteralResults[] = {
   "   0:   4801            ldr     r0, [pc, #4]    ; (8 <LoadStoreLiteral+0x8>)\n",
   "   2:   f8cf 0004       str.w   r0, [pc, #4]    ; 8 <LoadStoreLiteral+0x8>\n",
   "   6:   f85f 0008       ldr.w   r0, [pc, #-8]   ; 0 <LoadStoreLiteral>\n",
@@ -5023,7 +5023,7 @@ const char* LoadStoreLiteralResults[] = {
   "  18:   f8cf 07ff       str.w   r0, [pc, #2047] ; 81b <LoadStoreLiteral+0x81b>\n",
   nullptr
 };
-const char* LoadStoreLimitsResults[] = {
+const char* const LoadStoreLimitsResults[] = {
   "   0:   6fe0            ldr     r0, [r4, #124]  ; 0x7c\n",
   "   2:   f8d4 0080       ldr.w   r0, [r4, #128]  ; 0x80\n",
   "   6:   7fe0            ldrb    r0, [r4, #31]\n",
@@ -5042,7 +5042,7 @@ const char* LoadStoreLimitsResults[] = {
   "  30:   f8a4 0040       strh.w  r0, [r4, #64]   ; 0x40\n",
   nullptr
 };
-const char* CompareAndBranchResults[] = {
+const char* const CompareAndBranchResults[] = {
   "  0: b130        cbz r0, 10 <CompareAndBranch+0x10>\n",
   "  2: f1bb 0f00   cmp.w fp, #0\n",
   "  6: d003        beq.n 10 <CompareAndBranch+0x10>\n",
@@ -5052,7 +5052,7 @@ const char* CompareAndBranchResults[] = {
   nullptr
 };
 
-const char* AddConstantResults[] = {
+const char* const AddConstantResults[] = {
   "   0:	4608      	mov	r0, r1\n",
   "   2:	1c48      	adds	r0, r1, #1\n",
   "   4:	1dc8      	adds	r0, r1, #7\n",
@@ -5370,6 +5370,104 @@ const char* AddConstantResults[] = {
   nullptr
 };
 
+const char* const CmpConstantResults[] = {
+  "   0:	2800      	cmp	r0, #0\n",
+  "   2:	2901      	cmp	r1, #1\n",
+  "   4:	2807      	cmp	r0, #7\n",
+  "   6:	2908      	cmp	r1, #8\n",
+  "   8:	28ff      	cmp	r0, #255	; 0xff\n",
+  "   a:	f5b1 7f80 	cmp.w	r1, #256	; 0x100\n",
+  "   e:	f46f 7c80 	mvn.w	ip, #256	; 0x100\n",
+  "  12:	eb10 0f0c 	cmn.w	r0, ip\n",
+  "  16:	f640 7cff 	movw	ip, #4095	; 0xfff\n",
+  "  1a:	4561      	cmp	r1, ip\n",
+  "  1c:	f5b0 5f80 	cmp.w	r0, #4096	; 0x1000\n",
+  "  20:	f46f 5c80 	mvn.w	ip, #4096	; 0x1000\n",
+  "  24:	eb11 0f0c 	cmn.w	r1, ip\n",
+  "  28:	f241 0c02 	movw	ip, #4098	; 0x1002\n",
+  "  2c:	4560      	cmp	r0, ip\n",
+  "  2e:	f64f 7cff 	movw	ip, #65535	; 0xffff\n",
+  "  32:	4561      	cmp	r1, ip\n",
+  "  34:	f5b0 3f80 	cmp.w	r0, #65536	; 0x10000\n",
+  "  38:	f1b1 1f01 	cmp.w	r1, #65537	; 0x10001\n",
+  "  3c:	f06f 1c01 	mvn.w	ip, #65537	; 0x10001\n",
+  "  40:	eb10 0f0c 	cmn.w	r0, ip\n",
+  "  44:	f240 0c03 	movw	ip, #3\n",
+  "  48:	f2c0 0c01 	movt	ip, #1\n",
+  "  4c:	4561      	cmp	r1, ip\n",
+  "  4e:	f1b0 3fff 	cmp.w	r0, #4294967295	; 0xffffffff\n",
+  "  52:	f111 0f07 	cmn.w	r1, #7\n",
+  "  56:	f110 0f08 	cmn.w	r0, #8\n",
+  "  5a:	f111 0fff 	cmn.w	r1, #255	; 0xff\n",
+  "  5e:	f510 7f80 	cmn.w	r0, #256	; 0x100\n",
+  "  62:	f46f 7c80 	mvn.w	ip, #256	; 0x100\n",
+  "  66:	4561      	cmp	r1, ip\n",
+  "  68:	f640 7cff 	movw	ip, #4095	; 0xfff\n",
+  "  6c:	eb10 0f0c 	cmn.w	r0, ip\n",
+  "  70:	f511 5f80 	cmn.w	r1, #4096	; 0x1000\n",
+  "  74:	f46f 5c80 	mvn.w	ip, #4096	; 0x1000\n",
+  "  78:	4560      	cmp	r0, ip\n",
+  "  7a:	f241 0c02 	movw	ip, #4098	; 0x1002\n",
+  "  7e:	eb11 0f0c 	cmn.w	r1, ip\n",
+  "  82:	f64f 7cff 	movw	ip, #65535	; 0xffff\n",
+  "  86:	eb10 0f0c 	cmn.w	r0, ip\n",
+  "  8a:	f511 3f80 	cmn.w	r1, #65536	; 0x10000\n",
+  "  8e:	f110 1f01 	cmn.w	r0, #65537	; 0x10001\n",
+  "  92:	f06f 1c01 	mvn.w	ip, #65537	; 0x10001\n",
+  "  96:	4561      	cmp	r1, ip\n",
+  "  98:	f64f 7cfd 	movw	ip, #65533	; 0xfffd\n",
+  "  9c:	f6cf 7cfe 	movt	ip, #65534	; 0xfffe\n",
+  "  a0:	4560      	cmp	r0, ip\n",
+  "  a2:	f1b8 0f00 	cmp.w	r8, #0\n",
+  "  a6:	f1b9 0f01 	cmp.w	r9, #1\n",
+  "  aa:	f1b8 0f07 	cmp.w	r8, #7\n",
+  "  ae:	f1b9 0f08 	cmp.w	r9, #8\n",
+  "  b2:	f1b8 0fff 	cmp.w	r8, #255	; 0xff\n",
+  "  b6:	f5b9 7f80 	cmp.w	r9, #256	; 0x100\n",
+  "  ba:	f46f 7c80 	mvn.w	ip, #256	; 0x100\n",
+  "  be:	eb18 0f0c 	cmn.w	r8, ip\n",
+  "  c2:	f640 7cff 	movw	ip, #4095	; 0xfff\n",
+  "  c6:	45e1      	cmp	r9, ip\n",
+  "  c8:	f5b8 5f80 	cmp.w	r8, #4096	; 0x1000\n",
+  "  cc:	f46f 5c80 	mvn.w	ip, #4096	; 0x1000\n",
+  "  d0:	eb19 0f0c 	cmn.w	r9, ip\n",
+  "  d4:	f241 0c02 	movw	ip, #4098	; 0x1002\n",
+  "  d8:	45e0      	cmp	r8, ip\n",
+  "  da:	f64f 7cff 	movw	ip, #65535	; 0xffff\n",
+  "  de:	45e1      	cmp	r9, ip\n",
+  "  e0:	f5b8 3f80 	cmp.w	r8, #65536	; 0x10000\n",
+  "  e4:	f1b9 1f01 	cmp.w	r9, #65537	; 0x10001\n",
+  "  e8:	f06f 1c01 	mvn.w	ip, #65537	; 0x10001\n",
+  "  ec:	eb18 0f0c 	cmn.w	r8, ip\n",
+  "  f0:	f240 0c03 	movw	ip, #3\n",
+  "  f4:	f2c0 0c01 	movt	ip, #1\n",
+  "  f8:	45e1      	cmp	r9, ip\n",
+  "  fa:	f1b8 3fff 	cmp.w	r8, #4294967295	; 0xffffffff\n",
+  "  fe:	f119 0f07 	cmn.w	r9, #7\n",
+  " 102:	f118 0f08 	cmn.w	r8, #8\n",
+  " 106:	f119 0fff 	cmn.w	r9, #255	; 0xff\n",
+  " 10a:	f518 7f80 	cmn.w	r8, #256	; 0x100\n",
+  " 10e:	f46f 7c80 	mvn.w	ip, #256	; 0x100\n",
+  " 112:	45e1      	cmp	r9, ip\n",
+  " 114:	f640 7cff 	movw	ip, #4095	; 0xfff\n",
+  " 118:	eb18 0f0c 	cmn.w	r8, ip\n",
+  " 11c:	f519 5f80 	cmn.w	r9, #4096	; 0x1000\n",
+  " 120:	f46f 5c80 	mvn.w	ip, #4096	; 0x1000\n",
+  " 124:	45e0      	cmp	r8, ip\n",
+  " 126:	f241 0c02 	movw	ip, #4098	; 0x1002\n",
+  " 12a:	eb19 0f0c 	cmn.w	r9, ip\n",
+  " 12e:	f64f 7cff 	movw	ip, #65535	; 0xffff\n",
+  " 132:	eb18 0f0c 	cmn.w	r8, ip\n",
+  " 136:	f519 3f80 	cmn.w	r9, #65536	; 0x10000\n",
+  " 13a:	f118 1f01 	cmn.w	r8, #65537	; 0x10001\n",
+  " 13e:	f06f 1c01 	mvn.w	ip, #65537	; 0x10001\n",
+  " 142:	45e1      	cmp	r9, ip\n",
+  " 144:	f64f 7cfd 	movw	ip, #65533	; 0xfffd\n",
+  " 148:	f6cf 7cfe 	movt	ip, #65534	; 0xfffe\n",
+  " 14c:	45e0      	cmp	r8, ip\n",
+  nullptr
+};
+
 std::map<std::string, const char* const*> test_results;
 void setup_results() {
     test_results["SimpleMov"] = SimpleMovResults;
@@ -5421,4 +5519,5 @@ void setup_results() {
     test_results["LoadStoreLimits"] = LoadStoreLimitsResults;
     test_results["CompareAndBranch"] = CompareAndBranchResults;
     test_results["AddConstant"] = AddConstantResults;
+    test_results["CmpConstant"] = CmpConstantResults;
 }
