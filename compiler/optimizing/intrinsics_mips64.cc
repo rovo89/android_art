@@ -1299,6 +1299,8 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   if (type == Primitive::kPrimLong) {
     __ Lld(out, TMP);
   } else {
+    // Note: We will need a read barrier here, when read barrier
+    // support is added to the MIPS64 back end.
     __ Ll(out, TMP);
   }
   __ Dsubu(out, out, expected);         // If we didn't get the 'expected'

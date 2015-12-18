@@ -1031,10 +1031,15 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   } else {
     __ Dmb(InnerShareable, BarrierWrites);
     __ Bind(&loop_head);
-    __ Ldxr(tmp_value, MemOperand(tmp_ptr));
-    // TODO: Do we need a read barrier here when `type == Primitive::kPrimNot`?
+    // TODO: When `type == Primitive::kPrimNot`, add a read barrier for
+    // the reference stored in the object before attempting the CAS,
+    // similar to the one in the art::Unsafe_compareAndSwapObject JNI
+    // implementation.
+    //
     // Note that this code is not (yet) used when read barriers are
     // enabled (see IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject).
+    DCHECK(!(type == Primitive::kPrimNot && kEmitCompilerReadBarrier));
+    __ Ldxr(tmp_value, MemOperand(tmp_ptr));
     __ Cmp(tmp_value, expected);
     __ B(&exit_loop, ne);
     __ Stxr(tmp_32, value, MemOperand(tmp_ptr));
@@ -1057,15 +1062,17 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeCASLong(HInvoke* invoke) {
   CreateIntIntIntIntIntToInt(arena_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
-  // The UnsafeCASObject intrinsic does not always work when heap
+  // The UnsafeCASObject intrinsic is missing a read barrier, and
+  // therefore sometimes does not work as expected (b/25883050).
+  // Turn it off temporarily as a quick fix, until the read barrier is
+  // implemented (see TODO in GenCAS below).
+  //
+  // Also, the UnsafeCASObject intrinsic does not always work when heap
   // poisoning is enabled (it breaks run-test 004-UnsafeTest); turn it
-  // off temporarily as a quick fix.
+  // off temporarily as a quick fix (b/26204023).
   //
-  // TODO(rpl): Fix it and turn it back on.
-  //
-  // TODO(rpl): Also, we should investigate whether we need a read
-  // barrier in the generated code.
-  if (kPoisonHeapReferences) {
+  // TODO(rpl): Fix these two issues and re-enable this intrinsic.
+  if (kEmitCompilerReadBarrier || kPoisonHeapReferences) {
     return;
   }
 
