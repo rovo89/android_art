@@ -52,6 +52,11 @@ class TestClass2 {
   int j;
 }
 
+class TestClass3 {
+  float floatField = 8.0f;
+  boolean test1 = true;
+}
+
 class Finalizable {
   static boolean sVisited = false;
   static final int VALUE = 0xbeef;
@@ -577,6 +582,37 @@ public class Main {
     return obj.i;
   }
 
+  /// CHECK-START: float Main.test24() load_store_elimination (before)
+  /// CHECK-DAG:     <<True:i\d+>>     IntConstant 1
+  /// CHECK-DAG:     <<Float8:f\d+>>   FloatConstant 8
+  /// CHECK-DAG:     <<Float42:f\d+>>  FloatConstant 42
+  /// CHECK-DAG:     <<Obj:l\d+>>      NewInstance
+  /// CHECK-DAG:                       InstanceFieldSet [<<Obj>>,<<True>>]
+  /// CHECK-DAG:                       InstanceFieldSet [<<Obj>>,<<Float8>>]
+  /// CHECK-DAG:     <<GetTest:z\d+>>  InstanceFieldGet [<<Obj>>]
+  /// CHECK-DAG:                       If [<<GetTest>>]
+  /// CHECK-DAG:     <<GetField:f\d+>> InstanceFieldGet [<<Obj>>]
+  /// CHECK-DAG:     <<Phi:f\d+>>      Phi [<<Float42>>,<<GetField>>]
+  /// CHECK-DAG:                       Return [<<Phi>>]
+
+  /// CHECK-START: float Main.test24() load_store_elimination (after)
+  /// CHECK-DAG:     <<True:i\d+>>     IntConstant 1
+  /// CHECK-DAG:     <<Float8:f\d+>>   FloatConstant 8
+  /// CHECK-DAG:     <<Float42:f\d+>>  FloatConstant 42
+  /// CHECK-DAG:     <<Obj:l\d+>>      NewInstance
+  /// CHECK-DAG:                       If [<<True>>]
+  /// CHECK-DAG:     <<Phi:f\d+>>      Phi [<<Float42>>,<<Float8>>]
+  /// CHECK-DAG:                       Return [<<Phi>>]
+
+  static float test24() {
+    float a = 42.0f;
+    TestClass3 obj = new TestClass3();
+    if (obj.test1) {
+      a = obj.floatField;
+    }
+    return a;
+  }
+
   /// CHECK-START: void Main.testFinalizable() load_store_elimination (before)
   /// CHECK: NewInstance
   /// CHECK: InstanceFieldSet
@@ -683,6 +719,7 @@ public class Main {
     assertIntEquals(test22(), 13);
     assertIntEquals(test23(true), 4);
     assertIntEquals(test23(false), 5);
+    assertFloatEquals(test24(), 8.0f);
     testFinalizableByForcingGc();
   }
 }
