@@ -119,10 +119,16 @@ class HeapLocation : public ArenaObject<kArenaAllocMisc> {
       : ref_info_(ref_info),
         offset_(offset),
         index_(index),
-        declaring_class_def_index_(declaring_class_def_index) {
+        declaring_class_def_index_(declaring_class_def_index),
+        value_killed_by_loop_side_effects_(true) {
     DCHECK(ref_info != nullptr);
     DCHECK((offset == kInvalidFieldOffset && index != nullptr) ||
            (offset != kInvalidFieldOffset && index == nullptr));
+    if (ref_info->IsSingleton() && !IsArrayElement()) {
+      // Assume this location's value cannot be killed by loop side effects
+      // until proven otherwise.
+      value_killed_by_loop_side_effects_ = false;
+    }
   }
 
   ReferenceInfo* GetReferenceInfo() const { return ref_info_; }
@@ -139,11 +145,22 @@ class HeapLocation : public ArenaObject<kArenaAllocMisc> {
     return index_ != nullptr;
   }
 
+  bool IsValueKilledByLoopSideEffects() const {
+    return value_killed_by_loop_side_effects_;
+  }
+
+  void SetValueKilledByLoopSideEffects(bool val) {
+    value_killed_by_loop_side_effects_ = val;
+  }
+
  private:
   ReferenceInfo* const ref_info_;      // reference for instance/static field or array access.
   const size_t offset_;                // offset of static/instance field.
   HInstruction* const index_;          // index of an array element.
   const int16_t declaring_class_def_index_;  // declaring class's def's dex index.
+  bool value_killed_by_loop_side_effects_;   // value of this location may be killed by loop
+                                             // side effects because this location is stored
+                                             // into inside a loop.
 
   DISALLOW_COPY_AND_ASSIGN(HeapLocation);
 };
@@ -370,13 +387,13 @@ class HeapLocationCollector : public HGraphVisitor {
     return heap_locations_[heap_location_idx];
   }
 
-  void VisitFieldAccess(HInstruction* ref, const FieldInfo& field_info) {
+  HeapLocation* VisitFieldAccess(HInstruction* ref, const FieldInfo& field_info) {
     if (field_info.IsVolatile()) {
       has_volatile_ = true;
     }
     const uint16_t declaring_class_def_index = field_info.GetDeclaringClassDefIndex();
     const size_t offset = field_info.GetFieldOffset().SizeValue();
-    GetOrCreateHeapLocation(ref, offset, nullptr, declaring_class_def_index);
+    return GetOrCreateHeapLocation(ref, offset, nullptr, declaring_class_def_index);
   }
 
   void VisitArrayAccess(HInstruction* array, HInstruction* index) {
@@ -390,8 +407,11 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* instruction) OVERRIDE {
-    VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
+    HeapLocation* location = VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
     has_heap_stores_ = true;
+    if (instruction->GetBlock()->GetLoopInformation() != nullptr) {
+      location->SetValueKilledByLoopSideEffects(true);
+    }
   }
 
   void VisitStaticFieldGet(HStaticFieldGet* instruction) OVERRIDE {
@@ -565,23 +585,26 @@ class LSEVisitor : public HGraphVisitor {
     HBasicBlock* pre_header = block->GetLoopInformation()->GetPreHeader();
     ArenaVector<HInstruction*>& pre_header_heap_values =
         heap_values_for_[pre_header->GetBlockId()];
+    // Inherit the values from pre-header.
+    for (size_t i = 0; i < heap_values.size(); i++) {
+      heap_values[i] = pre_header_heap_values[i];
+    }
+
     // We do a single pass in reverse post order. For loops, use the side effects as a hint
     // to see if the heap values should be killed.
     if (side_effects_.GetLoopEffects(block).DoesAnyWrite()) {
-      for (size_t i = 0; i < pre_header_heap_values.size(); i++) {
-        // heap value is killed by loop side effects, need to keep the last store.
-        KeepIfIsStore(pre_header_heap_values[i]);
-      }
-      if (kIsDebugBuild) {
-        // heap_values should all be kUnknownHeapValue that it is inited with.
-        for (size_t i = 0; i < heap_values.size(); i++) {
-          DCHECK_EQ(heap_values[i], kUnknownHeapValue);
-        }
-      }
-    } else {
-      // Inherit the values from pre-header.
       for (size_t i = 0; i < heap_values.size(); i++) {
-        heap_values[i] = pre_header_heap_values[i];
+        HeapLocation* location = heap_location_collector_.GetHeapLocation(i);
+        ReferenceInfo* ref_info = location->GetReferenceInfo();
+        if (!ref_info->IsSingleton() || location->IsValueKilledByLoopSideEffects()) {
+          // heap value is killed by loop side effects (stored into directly, or due to
+          // aliasing).
+          KeepIfIsStore(pre_header_heap_values[i]);
+          heap_values[i] = kUnknownHeapValue;
+        } else {
+          // A singleton's field that's not stored into inside a loop is invariant throughout
+          // the loop.
+        }
       }
     }
   }
@@ -762,6 +785,9 @@ class LSEVisitor : public HGraphVisitor {
         if (loop_info != nullptr) {
           // instruction is a store in the loop so the loop must does write.
           DCHECK(side_effects_.GetLoopEffects(loop_info->GetHeader()).DoesAnyWrite());
+          // If it's a singleton, IsValueKilledByLoopSideEffects() must be true.
+          DCHECK(!ref_info->IsSingleton() ||
+                 heap_location_collector_.GetHeapLocation(idx)->IsValueKilledByLoopSideEffects());
 
           if (loop_info->IsDefinedOutOfTheLoop(original_ref)) {
             DCHECK(original_ref->GetBlock()->Dominates(loop_info->GetPreHeader()));
