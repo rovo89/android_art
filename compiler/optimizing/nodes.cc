@@ -2288,4 +2288,19 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
   }
 }
 
+std::ostream& operator<<(std::ostream& os, const MoveOperands& rhs) {
+  os << "["
+     << " source=" << rhs.GetSource()
+     << " destination=" << rhs.GetDestination()
+     << " type=" << rhs.GetType()
+     << " instruction=";
+  if (rhs.GetInstruction() != nullptr) {
+    os << rhs.GetInstruction()->DebugName() << ' ' << rhs.GetInstruction()->GetId();
+  } else {
+    os << "null";
+  }
+  os << " ]";
+  return os;
+}
+
 }  // namespace art

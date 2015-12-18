@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <iostream>
 
 #include "parallel_move_resolver.h"
 
@@ -172,7 +171,7 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
         i = -1;
       } else if (required_swap != nullptr) {
         // A move is required to swap. We walk back the cycle to find the
-        // move by just returning from this `PerforrmMove`.
+        // move by just returning from this `PerformMove`.
         moves_[index]->ClearPending(destination);
         return required_swap;
       }
@@ -201,7 +200,7 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
   } else {
     for (MoveOperands* other_move : moves_) {
       if (other_move->Blocks(destination)) {
-        DCHECK(other_move->IsPending());
+        DCHECK(other_move->IsPending()) << "move=" << *move << " other_move=" << *other_move;
         if (!move->Is64BitMove() && other_move->Is64BitMove()) {
           // We swap 64bits moves before swapping 32bits moves. Go back from the
           // cycle by returning the move that must be swapped.

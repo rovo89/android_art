@@ -5613,8 +5613,8 @@ class MoveOperands : public ArenaObject<kArenaAllocMoveOperands> {
   }
 
   bool IsPending() const {
-    DCHECK(!source_.IsInvalid() || destination_.IsInvalid());
-    return destination_.IsInvalid() && !source_.IsInvalid();
+    DCHECK(source_.IsValid() || destination_.IsInvalid());
+    return destination_.IsInvalid() && source_.IsValid();
   }
 
   // True if this blocks a move from the given location.
@@ -5657,6 +5657,8 @@ class MoveOperands : public ArenaObject<kArenaAllocMoveOperands> {
   // in the same parallel move.
   HInstruction* instruction_;
 };
+
+std::ostream& operator<<(std::ostream& os, const MoveOperands& rhs);
 
 static constexpr size_t kDefaultNumberOfMoves = 4;
 

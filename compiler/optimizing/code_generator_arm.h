@@ -222,17 +222,51 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void HandleLongRotate(LocationSummary* locations);
   void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
-  void GenerateMemoryBarrier(MemBarrierKind kind);
+
   void GenerateWideAtomicStore(Register addr, uint32_t offset,
                                Register value_lo, Register value_hi,
                                Register temp1, Register temp2,
                                HInstruction* instruction);
   void GenerateWideAtomicLoad(Register addr, uint32_t offset,
                               Register out_lo, Register out_hi);
+
   void HandleFieldSet(HInstruction* instruction,
                       const FieldInfo& field_info,
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
+  // Generate a heap reference load using one register `out`:
+  //
+  //   out <- *(out + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  // Register `temp` is used when generating a read barrier.
+  void GenerateReferenceLoadOneRegister(HInstruction* instruction,
+                                        Location out,
+                                        uint32_t offset,
+                                        Location temp);
+  // Generate a heap reference load using two different registers
+  // `out` and `obj`:
+  //
+  //   out <- *(obj + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  // Register `temp` is used when generating a Baker's read barrier.
+  void GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
+                                         Location out,
+                                         Location obj,
+                                         uint32_t offset,
+                                         Location temp);
+  // Generate a GC root reference load:
+  //
+  //   root <- *(obj + offset)
+  //
+  // while honoring read barriers (if any).
+  void GenerateGcRootFieldLoad(HInstruction* instruction,
+                               Location root,
+                               Register obj,
+                               uint32_t offset);
+
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateTestAndBranch(HInstruction* instruction,
@@ -346,6 +380,8 @@ class CodeGeneratorARM : public CodeGenerator {
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value, bool can_be_null);
 
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+
   Label* GetLabelOf(HBasicBlock* block) const {
     return CommonGetLabelOf<Label>(block_labels_, block);
   }
@@ -406,7 +442,26 @@ class CodeGeneratorARM : public CodeGenerator {
     return &it->second;
   }
 
-  // Generate a read barrier for a heap reference within `instruction`.
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference field load when Baker's read barriers are used.
+  void GenerateFieldLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location out,
+                                             Register obj,
+                                             uint32_t offset,
+                                             Location temp,
+                                             bool needs_null_check);
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference array load when Baker's read barriers are used.
+  void GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location out,
+                                             Register obj,
+                                             uint32_t data_offset,
+                                             Location index,
+                                             Location temp,
+                                             bool needs_null_check);
+
+  // Generate a read barrier for a heap reference within `instruction`
+  // using a slow path.
   //
   // A read barrier for an object reference read from the heap is
   // implemented as a call to the artReadBarrierSlow runtime entry
@@ -423,23 +478,25 @@ class CodeGeneratorARM : public CodeGenerator {
   // When `index` is provided (i.e. for array accesses), the offset
   // value passed to artReadBarrierSlow is adjusted to take `index`
   // into account.
-  void GenerateReadBarrier(HInstruction* instruction,
-                           Location out,
-                           Location ref,
-                           Location obj,
-                           uint32_t offset,
-                           Location index = Location::NoLocation());
+  void GenerateReadBarrierSlow(HInstruction* instruction,
+                               Location out,
+                               Location ref,
+                               Location obj,
+                               uint32_t offset,
+                               Location index = Location::NoLocation());
 
-  // If read barriers are enabled, generate a read barrier for a heap reference.
-  // If heap poisoning is enabled, also unpoison the reference in `out`.
-  void MaybeGenerateReadBarrier(HInstruction* instruction,
-                                Location out,
-                                Location ref,
-                                Location obj,
-                                uint32_t offset,
-                                Location index = Location::NoLocation());
+  // If read barriers are enabled, generate a read barrier for a heap
+  // reference using a slow path. If heap poisoning is enabled, also
+  // unpoison the reference in `out`.
+  void MaybeGenerateReadBarrierSlow(HInstruction* instruction,
+                                    Location out,
+                                    Location ref,
+                                    Location obj,
+                                    uint32_t offset,
+                                    Location index = Location::NoLocation());
 
-  // Generate a read barrier for a GC root within `instruction`.
+  // Generate a read barrier for a GC root within `instruction` using
+  // a slow path.
   //
   // A read barrier for an object reference GC root is implemented as
   // a call to the artReadBarrierForRootSlow runtime entry point,
@@ -449,9 +506,19 @@ class CodeGeneratorARM : public CodeGenerator {
   //
   // The `out` location contains the value returned by
   // artReadBarrierForRootSlow.
-  void GenerateReadBarrierForRoot(HInstruction* instruction, Location out, Location root);
+  void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
  private:
+  // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
+  // and GenerateArrayLoadWithBakerReadBarrier.
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 Register obj,
+                                                 uint32_t offset,
+                                                 Location index,
+                                                 Location temp,
+                                                 bool needs_null_check);
+
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
   using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
