@@ -1491,25 +1491,20 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
     return error;
   }
 
-  size_t direct_method_count = c->NumDirectMethods();
-  size_t virtual_method_count = c->NumVirtualMethods();
-
-  expandBufAdd4BE(pReply, direct_method_count + virtual_method_count);
+  expandBufAdd4BE(pReply, c->NumMethods());
 
   auto* cl = Runtime::Current()->GetClassLinker();
   auto ptr_size = cl->GetImagePointerSize();
-  for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
-    ArtMethod* m = i < direct_method_count ?
-        c->GetDirectMethod(i, ptr_size) : c->GetVirtualMethod(i - direct_method_count, ptr_size);
-    expandBufAddMethodId(pReply, ToMethodId(m));
-    expandBufAddUtf8String(pReply, m->GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
+  for (ArtMethod& m : c->GetMethods(ptr_size)) {
+    expandBufAddMethodId(pReply, ToMethodId(&m));
+    expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
     expandBufAddUtf8String(pReply,
-                           m->GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
+                           m.GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
     if (with_generic) {
       const char* generic_signature = "";
       expandBufAddUtf8String(pReply, generic_signature);
     }
-    expandBufAdd4BE(pReply, MangleAccessFlags(m->GetAccessFlags()));
+    expandBufAdd4BE(pReply, MangleAccessFlags(m.GetAccessFlags()));
   }
   return JDWP::ERR_NONE;
 }

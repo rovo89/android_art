@@ -1874,12 +1874,10 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* 
     // We're invoking a virtual method directly (thanks to sharpening), compute the oat_method_index
     // by search for its position in the declared virtual methods.
     oat_method_index = declaring_class->NumDirectMethods();
-    size_t end = declaring_class->NumVirtualMethods();
     bool found_virtual = false;
-    for (size_t i = 0; i < end; i++) {
+    for (ArtMethod& art_method : declaring_class->GetVirtualMethods(image_pointer_size_)) {
       // Check method index instead of identity in case of duplicate method definitions.
-      if (method->GetDexMethodIndex() ==
-          declaring_class->GetVirtualMethod(i, image_pointer_size_)->GetDexMethodIndex()) {
+      if (method->GetDexMethodIndex() == art_method.GetDexMethodIndex()) {
         found_virtual = true;
         break;
       }
@@ -3213,11 +3211,8 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
 
 void ClassLinker::ResolveClassExceptionHandlerTypes(const DexFile& dex_file,
                                                     Handle<mirror::Class> klass) {
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    ResolveMethodExceptionHandlerTypes(dex_file, klass->GetDirectMethod(i, image_pointer_size_));
-  }
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    ResolveMethodExceptionHandlerTypes(dex_file, klass->GetVirtualMethod(i, image_pointer_size_));
+  for (ArtMethod& method : klass->GetMethods(image_pointer_size_)) {
+    ResolveMethodExceptionHandlerTypes(dex_file, &method);
   }
 }
 
