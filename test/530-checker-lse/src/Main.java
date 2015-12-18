@@ -489,27 +489,32 @@ public class Main {
     return obj;
   }
 
-  /// CHECK-START: void Main.test21() load_store_elimination (before)
+  /// CHECK-START: void Main.test21(TestClass) load_store_elimination (before)
   /// CHECK: NewInstance
   /// CHECK: InstanceFieldSet
-  /// CHECK: StaticFieldSet
-  /// CHECK: StaticFieldGet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: InstanceFieldGet
 
-  /// CHECK-START: void Main.test21() load_store_elimination (after)
+  /// CHECK-START: void Main.test21(TestClass) load_store_elimination (after)
   /// CHECK: NewInstance
   /// CHECK: InstanceFieldSet
-  /// CHECK: StaticFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
   /// CHECK: InstanceFieldGet
 
   // Loop side effects can kill heap values, stores need to be kept in that case.
-  static void test21() {
+  static void test21(TestClass obj0) {
     TestClass obj = new TestClass();
+    obj0.str = "abc";
     obj.str = "abc";
     for (int i = 0; i < 2; i++) {
-      // Generate some loop side effect that does write.
-      obj.si = 1;
+      // Generate some loop side effect that writes into obj.
+      obj.str = "def";
     }
-    System.out.print(obj.str.substring(0, 0));
+    System.out.print(obj0.str.substring(0, 0) + obj.str.substring(0, 0));
   }
 
   /// CHECK-START: int Main.test22() load_store_elimination (before)
@@ -525,27 +530,29 @@ public class Main {
 
   /// CHECK-START: int Main.test22() load_store_elimination (after)
   /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
   /// CHECK: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
   /// CHECK: NewInstance
   /// CHECK-NOT: InstanceFieldSet
-  /// CHECK: InstanceFieldGet
+  /// CHECK-NOT: InstanceFieldGet
   /// CHECK-NOT: InstanceFieldGet
 
-  // Loop side effects only affects stores into singletons that dominiates the loop header.
+  // For a singleton, loop side effects can kill its field values only if:
+  // (1) it dominiates the loop header, and
+  // (2) its fields are stored into inside a loop.
   static int test22() {
     int sum = 0;
     TestClass obj1 = new TestClass();
-    obj1.i = 2;       // This store can't be eliminated since it can be killed by loop side effects.
+    obj1.i = 2;    // This store can be eliminated since obj1 is never stored into inside a loop.
     for (int i = 0; i < 2; i++) {
       TestClass obj2 = new TestClass();
-      obj2.i = 3;    // This store can be eliminated since the singleton is inside the loop.
+      obj2.i = 3;  // This store can be eliminated since the singleton is inside the loop.
       sum += obj2.i;
     }
     TestClass obj3 = new TestClass();
-    obj3.i = 5;      // This store can be eliminated since the singleton is created after the loop.
+    obj3.i = 5;    // This store can be eliminated since the singleton is created after the loop.
     sum += obj1.i + obj3.i;
     return sum;
   }
@@ -715,7 +722,7 @@ public class Main {
     float[] fa2 = { 1.8f };
     assertFloatEquals(test19(fa1, fa2), 1.8f);
     assertFloatEquals(test20().i, 0);
-    test21();
+    test21(new TestClass());
     assertIntEquals(test22(), 13);
     assertIntEquals(test23(true), 4);
     assertIntEquals(test23(false), 5);
