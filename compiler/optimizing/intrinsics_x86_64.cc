@@ -2150,6 +2150,17 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASLong(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic is missing a read barrier, and
+  // therefore sometimes does not work as expected (b/25883050).
+  // Turn it off temporarily as a quick fix, until the read barrier is
+  // implemented.
+  //
+  // TODO(rpl): Implement a read barrier in GenCAS below and re-enable
+  // this intrinsic.
+  if (kEmitCompilerReadBarrier) {
+    return;
+  }
+
   CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimNot, invoke);
 }
 
@@ -2200,6 +2211,13 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86_64* c
       __ PoisonHeapReference(CpuRegister(value_reg));
     }
 
+    // TODO: Add a read barrier for the reference stored in the object
+    // before attempting the CAS, similar to the one in the
+    // art::Unsafe_compareAndSwapObject JNI implementation.
+    //
+    // Note that this code is not (yet) used when read barriers are
+    // enabled (see IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject).
+    DCHECK(!kEmitCompilerReadBarrier);
     __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), CpuRegister(value_reg));
 
     // LOCK CMPXCHG has full barrier semantics, and we don't need
@@ -2209,11 +2227,8 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86_64* c
     __ setcc(kZero, out);
     __ movzxb(out, out);
 
-    // In the case of the `UnsafeCASObject` intrinsic, accessing an
-    // object in the heap with LOCK CMPXCHG does not require a read
-    // barrier, as we do not keep a reference to this heap location.
-    // However, if heap poisoning is enabled, we need to unpoison the
-    // values that were poisoned earlier.
+    // If heap poisoning is enabled, we need to unpoison the values
+    // that were poisoned earlier.
     if (kPoisonHeapReferences) {
       if (base_equals_value) {
         // `value_reg` has been moved to a temporary register, no need
