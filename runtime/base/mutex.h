@@ -75,6 +75,7 @@ enum LockLevel {
   kReferenceQueueWeakReferencesLock,
   kReferenceQueueClearedReferencesLock,
   kReferenceProcessorLock,
+  kJitDebugInterfaceLock,
   kJitCodeCacheLock,
   kAllocSpaceLock,
   kBumpPointerSpaceBlockLock,

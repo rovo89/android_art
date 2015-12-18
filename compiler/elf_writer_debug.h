@@ -30,6 +30,8 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     CFIFormat cfi_format);
 
+ArrayRef<const uint8_t> WriteDebugElfFile(const dwarf::MethodDebugInfo& method_info);
+
 }  // namespace dwarf
 }  // namespace art
 
