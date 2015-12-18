@@ -227,6 +227,8 @@ class Mips64Assembler FINAL : public Assembler {
   void Bnec(GpuRegister rs, GpuRegister rt, uint16_t imm16);
   void Beqzc(GpuRegister rs, uint32_t imm21);
   void Bnezc(GpuRegister rs, uint32_t imm21);
+  void Bc1eqz(FpuRegister ft, uint16_t imm16);
+  void Bc1nez(FpuRegister ft, uint16_t imm16);
 
   void AddS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void SubS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
@@ -266,6 +268,26 @@ class Mips64Assembler FINAL : public Assembler {
   void MinD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void MaxS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void MaxD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUnS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpEqS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUeqS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpLtS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUltS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpLeS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUleS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpOrS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUneS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpNeS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUnD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpEqD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUeqD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpLtD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUltD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpLeD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUleD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpOrD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpUneD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void CmpNeD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
 
   void Cvtsw(FpuRegister fd, FpuRegister fs);
   void Cvtdw(FpuRegister fd, FpuRegister fs);
@@ -317,6 +339,8 @@ class Mips64Assembler FINAL : public Assembler {
   void Bnec(GpuRegister rs, GpuRegister rt, Mips64Label* label);
   void Beqzc(GpuRegister rs, Mips64Label* label);
   void Bnezc(GpuRegister rs, Mips64Label* label);
+  void Bc1eqz(FpuRegister ft, Mips64Label* label);
+  void Bc1nez(FpuRegister ft, Mips64Label* label);
 
   void EmitLoad(ManagedRegister m_dst, GpuRegister src_register, int32_t src_offset, size_t size);
   void LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuRegister base, int32_t offset);
@@ -474,6 +498,8 @@ class Mips64Assembler FINAL : public Assembler {
     kCondNEZ,
     kCondLTU,
     kCondGEU,
+    kCondF,    // Floating-point predicate false.
+    kCondT,    // Floating-point predicate true.
     kUncond,
   };
   friend std::ostream& operator<<(std::ostream& os, const BranchCondition& rhs);

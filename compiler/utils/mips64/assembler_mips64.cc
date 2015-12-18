@@ -616,6 +616,14 @@ void Mips64Assembler::Bnezc(GpuRegister rs, uint32_t imm21) {
   EmitI21(0x3E, rs, imm21);
 }
 
+void Mips64Assembler::Bc1eqz(FpuRegister ft, uint16_t imm16) {
+  EmitFI(0x11, 0x9, ft, imm16);
+}
+
+void Mips64Assembler::Bc1nez(FpuRegister ft, uint16_t imm16) {
+  EmitFI(0x11, 0xD, ft, imm16);
+}
+
 void Mips64Assembler::EmitBcondc(BranchCondition cond,
                                  GpuRegister rs,
                                  GpuRegister rt,
@@ -668,6 +676,14 @@ void Mips64Assembler::EmitBcondc(BranchCondition cond,
       break;
     case kCondGEU:
       Bgeuc(rs, rt, imm16_21);
+      break;
+    case kCondF:
+      CHECK_EQ(rt, ZERO);
+      Bc1eqz(static_cast<FpuRegister>(rs), imm16_21);
+      break;
+    case kCondT:
+      CHECK_EQ(rt, ZERO);
+      Bc1nez(static_cast<FpuRegister>(rs), imm16_21);
       break;
     case kUncond:
       LOG(FATAL) << "Unexpected branch condition " << cond;
@@ -825,6 +841,86 @@ void Mips64Assembler::MaxS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
 
 void Mips64Assembler::MaxD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
   EmitFR(0x11, 0x11, ft, fs, fd, 0x1e);
+}
+
+void Mips64Assembler::CmpUnS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x01);
+}
+
+void Mips64Assembler::CmpEqS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x02);
+}
+
+void Mips64Assembler::CmpUeqS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x03);
+}
+
+void Mips64Assembler::CmpLtS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x04);
+}
+
+void Mips64Assembler::CmpUltS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x05);
+}
+
+void Mips64Assembler::CmpLeS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x06);
+}
+
+void Mips64Assembler::CmpUleS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x07);
+}
+
+void Mips64Assembler::CmpOrS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x11);
+}
+
+void Mips64Assembler::CmpUneS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x12);
+}
+
+void Mips64Assembler::CmpNeS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x14, ft, fs, fd, 0x13);
+}
+
+void Mips64Assembler::CmpUnD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x01);
+}
+
+void Mips64Assembler::CmpEqD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x02);
+}
+
+void Mips64Assembler::CmpUeqD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x03);
+}
+
+void Mips64Assembler::CmpLtD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x04);
+}
+
+void Mips64Assembler::CmpUltD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x05);
+}
+
+void Mips64Assembler::CmpLeD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x06);
+}
+
+void Mips64Assembler::CmpUleD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x07);
+}
+
+void Mips64Assembler::CmpOrD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x11);
+}
+
+void Mips64Assembler::CmpUneD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x12);
+}
+
+void Mips64Assembler::CmpNeD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x15, ft, fs, fd, 0x13);
 }
 
 void Mips64Assembler::Cvtsw(FpuRegister fd, FpuRegister fs) {
@@ -1134,6 +1230,10 @@ Mips64Assembler::Branch::Branch(uint32_t location,
       CHECK_NE(lhs_reg, ZERO);
       CHECK_EQ(rhs_reg, ZERO);
       break;
+    case kCondF:
+    case kCondT:
+      CHECK_EQ(rhs_reg, ZERO);
+      break;
     case kUncond:
       UNREACHABLE();
   }
@@ -1188,6 +1288,10 @@ Mips64Assembler::BranchCondition Mips64Assembler::Branch::OppositeCondition(
       return kCondGEU;
     case kCondGEU:
       return kCondLTU;
+    case kCondF:
+      return kCondT;
+    case kCondT:
+      return kCondF;
     case kUncond:
       LOG(FATAL) << "Unexpected branch condition " << cond;
   }
@@ -1567,7 +1671,7 @@ void Mips64Assembler::EmitBranch(Mips64Assembler::Branch* branch) {
     case Branch::kCondBranch:
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
       EmitBcondc(condition, lhs, rhs, offset);
-      Nop();  // TODO: improve by filling the forbidden slot.
+      Nop();  // TODO: improve by filling the forbidden/delay slot.
       break;
     case Branch::kCall:
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
@@ -1655,6 +1759,14 @@ void Mips64Assembler::Beqzc(GpuRegister rs, Mips64Label* label) {
 
 void Mips64Assembler::Bnezc(GpuRegister rs, Mips64Label* label) {
   Bcond(label, kCondNEZ, rs);
+}
+
+void Mips64Assembler::Bc1eqz(FpuRegister ft, Mips64Label* label) {
+  Bcond(label, kCondF, static_cast<GpuRegister>(ft), ZERO);
+}
+
+void Mips64Assembler::Bc1nez(FpuRegister ft, Mips64Label* label) {
+  Bcond(label, kCondT, static_cast<GpuRegister>(ft), ZERO);
 }
 
 void Mips64Assembler::LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuRegister base,

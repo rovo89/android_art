@@ -237,6 +237,16 @@ class InstructionCodeGeneratorMIPS64 : public HGraphVisitor {
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
+  void GenerateIntLongCompare(IfCondition cond, bool is64bit, LocationSummary* locations);
+  void GenerateIntLongCompareAndBranch(IfCondition cond,
+                                       bool is64bit,
+                                       LocationSummary* locations,
+                                       Mips64Label* label);
+  void GenerateFpCompareAndBranch(IfCondition cond,
+                                  bool gt_bias,
+                                  Primitive::Type type,
+                                  LocationSummary* locations,
+                                  Mips64Label* label);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   Mips64Assembler* const assembler_;
