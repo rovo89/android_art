@@ -93,11 +93,8 @@ void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
     // We need the class to be resolved to install/uninstall stubs. Otherwise its methods
     // could not be initialized or linked with regards to class inheritance.
   } else {
-    for (size_t i = 0, e = klass->NumDirectMethods(); i < e; i++) {
-      InstallStubsForMethod(klass->GetDirectMethod(i, sizeof(void*)));
-    }
-    for (size_t i = 0, e = klass->NumVirtualMethods(); i < e; i++) {
-      InstallStubsForMethod(klass->GetVirtualMethod(i, sizeof(void*)));
+    for (ArtMethod& method : klass->GetMethods(sizeof(void*))) {
+      InstallStubsForMethod(&method);
     }
   }
 }
