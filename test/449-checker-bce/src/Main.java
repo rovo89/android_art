@@ -127,7 +127,7 @@ public class Main {
   }
 
 
-  /// CHECK-START: void Main.constantIndexing2(int[]) BCE (before)
+  /// CHECK-START: void Main.$opt$noinline$constantIndexing2(int[]) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK: BoundsCheck
@@ -137,7 +137,7 @@ public class Main {
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
 
-  /// CHECK-START: void Main.constantIndexing2(int[]) BCE (after)
+  /// CHECK-START: void Main.$opt$noinline$constantIndexing2(int[]) BCE (after)
   /// CHECK: LessThanOrEqual
   /// CHECK: Deoptimize
   /// CHECK-NOT: BoundsCheck
@@ -151,12 +151,15 @@ public class Main {
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
 
-  static void constantIndexing2(int[] array) {
+  static void $opt$noinline$constantIndexing2(int[] array) {
     array[1] = 1;
     array[2] = 1;
     array[3] = 1;
     array[4] = 1;
     array[-1] = 1;
+    if (array[1] == 1) {
+      throw new Error("");
+    }
   }
 
 
@@ -655,10 +658,10 @@ public class Main {
     try {
       assertIsManaged();
       // This will cause AIOOBE.
-      constantIndexing2(new int[3]);
+      $opt$noinline$constantIndexing2(new int[3]);
     } catch (ArrayIndexOutOfBoundsException e) {
       assertIsManaged();  // This is to ensure that single-frame deoptimization works.
-                          // Will need to be updated if constantIndexing2 is inlined.
+                          // Will need to be updated if $opt$noinline$constantIndexing2 is inlined.
       try {
         // This will cause AIOOBE.
         constantIndexingForward6(new int[3]);

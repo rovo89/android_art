@@ -40,15 +40,17 @@ class TestVisitor : public StackVisitor {
       uint32_t value = 0;
       CHECK(GetVReg(m, 0, kIntVReg, &value));
       CHECK_EQ(value, 42u);
-    } else if (m_name.compare("testIntervalHole") == 0) {
+    } else if (m_name.compare("$opt$noinline$testIntervalHole") == 0) {
+      uint32_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
+      uint32_t dex_register_of_first_parameter = number_of_dex_registers - 2;
       found_method_ = true;
       uint32_t value = 0;
       if (GetCurrentQuickFrame() != nullptr &&
           GetCurrentOatQuickMethodHeader()->IsOptimized() &&
           !Runtime::Current()->IsDebuggable()) {
-        CHECK_EQ(GetVReg(m, 0, kIntVReg, &value), false);
+        CHECK_EQ(GetVReg(m, dex_register_of_first_parameter, kIntVReg, &value), false);
       } else {
-        CHECK(GetVReg(m, 0, kIntVReg, &value));
+        CHECK(GetVReg(m, dex_register_of_first_parameter, kIntVReg, &value));
         CHECK_EQ(value, 1u);
       }
     }
