@@ -403,6 +403,106 @@ TEST_F(AssemblerMIPS64Test, MaxD) {
   DriverStr(RepeatFFF(&mips64::Mips64Assembler::MaxD, "max.d ${reg1}, ${reg2}, ${reg3}"), "max.d");
 }
 
+TEST_F(AssemblerMIPS64Test, CmpUnS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUnS, "cmp.un.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.un.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpEqS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpEqS, "cmp.eq.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.eq.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUeqS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUeqS, "cmp.ueq.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ueq.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpLtS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpLtS, "cmp.lt.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.lt.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUltS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUltS, "cmp.ult.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ult.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpLeS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpLeS, "cmp.le.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.le.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUleS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUleS, "cmp.ule.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ule.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpOrS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpOrS, "cmp.or.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.or.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUneS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUneS, "cmp.une.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.une.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpNeS) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpNeS, "cmp.ne.s ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ne.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUnD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUnD, "cmp.un.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.un.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpEqD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpEqD, "cmp.eq.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.eq.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUeqD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUeqD, "cmp.ueq.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ueq.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpLtD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpLtD, "cmp.lt.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.lt.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUltD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUltD, "cmp.ult.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ult.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpLeD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpLeD, "cmp.le.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.le.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUleD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUleD, "cmp.ule.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ule.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpOrD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpOrD, "cmp.or.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.or.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpUneD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpUneD, "cmp.une.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.une.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CmpNeD) {
+  DriverStr(RepeatFFF(&mips64::Mips64Assembler::CmpNeD, "cmp.ne.d ${reg1}, ${reg2}, ${reg3}"),
+            "cmp.ne.d");
+}
+
 TEST_F(AssemblerMIPS64Test, CvtDL) {
   DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtdl, "cvt.d.l ${reg1}, ${reg2}"), "cvt.d.l");
 }
@@ -589,6 +689,58 @@ TEST_F(AssemblerMIPS64Test, Bltuc) {
 
 TEST_F(AssemblerMIPS64Test, Bgeuc) {
   BranchCondTwoRegsHelper(&mips64::Mips64Assembler::Bgeuc, "Bgeuc");
+}
+
+TEST_F(AssemblerMIPS64Test, Bc1eqz) {
+    mips64::Mips64Label label;
+    __ Bc1eqz(mips64::F0, &label);
+    constexpr size_t kAdduCount1 = 63;
+    for (size_t i = 0; i != kAdduCount1; ++i) {
+      __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+    }
+    __ Bind(&label);
+    constexpr size_t kAdduCount2 = 64;
+    for (size_t i = 0; i != kAdduCount2; ++i) {
+      __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+    }
+    __ Bc1eqz(mips64::F31, &label);
+
+    std::string expected =
+        ".set noreorder\n"
+        "bc1eqz $f0, 1f\n"
+        "nop\n" +
+        RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
+        "1:\n" +
+        RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
+        "bc1eqz $f31, 1b\n"
+        "nop\n";
+    DriverStr(expected, "Bc1eqz");
+}
+
+TEST_F(AssemblerMIPS64Test, Bc1nez) {
+    mips64::Mips64Label label;
+    __ Bc1nez(mips64::F0, &label);
+    constexpr size_t kAdduCount1 = 63;
+    for (size_t i = 0; i != kAdduCount1; ++i) {
+      __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+    }
+    __ Bind(&label);
+    constexpr size_t kAdduCount2 = 64;
+    for (size_t i = 0; i != kAdduCount2; ++i) {
+      __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+    }
+    __ Bc1nez(mips64::F31, &label);
+
+    std::string expected =
+        ".set noreorder\n"
+        "bc1nez $f0, 1f\n"
+        "nop\n" +
+        RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
+        "1:\n" +
+        RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
+        "bc1nez $f31, 1b\n"
+        "nop\n";
+    DriverStr(expected, "Bc1nez");
 }
 
 TEST_F(AssemblerMIPS64Test, LongBeqc) {

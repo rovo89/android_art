@@ -777,13 +777,6 @@ void InstructionSimplifierVisitor::VisitLessThanOrEqual(HLessThanOrEqual* condit
 void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   // Try to fold an HCompare into this HCondition.
 
-  // This simplification is currently supported on x86, x86_64, ARM and ARM64.
-  // TODO: Implement it for MIPS64.
-  InstructionSet instruction_set = GetGraph()->GetInstructionSet();
-  if (instruction_set == kMips64) {
-    return;
-  }
-
   HInstruction* left = condition->GetLeft();
   HInstruction* right = condition->GetRight();
   // We can only replace an HCondition which compares a Compare to 0.
