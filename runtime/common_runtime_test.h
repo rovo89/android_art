@@ -114,6 +114,10 @@ class CommonRuntimeTest : public testing::Test {
   // Called after the runtime is created.
   virtual void PostRuntimeCreate() {}
 
+  // Called to finish up runtime creation and filling test fields. By default runs root
+  // initializers, initialize well-known classes, and creates the heap thread pool.
+  virtual void FinalizeSetup();
+
   // Gets the path of the specified dex file for host or target.
   static std::string GetDexFileName(const std::string& jar_prefix);
 

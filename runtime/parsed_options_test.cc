@@ -18,6 +18,8 @@
 
 #include <memory>
 
+#include "arch/instruction_set.h"
+#include "base/stringprintf.h"
 #include "common_runtime_test.h"
 
 namespace art {
@@ -123,6 +125,40 @@ TEST_F(ParsedOptionsTest, ParsedOptionsGc) {
   EXPECT_TRUE(map.Exists(Opt::GcOption));
 
   XGcOption xgc = map.GetOrDefault(Opt::GcOption);
-  EXPECT_EQ(gc::kCollectorTypeMC, xgc.collector_type_);}
+  EXPECT_EQ(gc::kCollectorTypeMC, xgc.collector_type_);
+}
+
+TEST_F(ParsedOptionsTest, ParsedOptionsInstructionSet) {
+  using Opt = RuntimeArgumentMap;
+
+  {
+    // Nothing set, should be kRuntimeISA.
+    RuntimeOptions options;
+    RuntimeArgumentMap map;
+    bool parsed = ParsedOptions::Parse(options, false, &map);
+    ASSERT_TRUE(parsed);
+    InstructionSet isa = map.GetOrDefault(Opt::ImageInstructionSet);
+    EXPECT_EQ(kRuntimeISA, isa);
+  }
+
+  const char* isa_strings[] = { "arm", "arm64", "x86", "x86_64", "mips", "mips64" };
+  InstructionSet ISAs[] = { InstructionSet::kArm,
+                            InstructionSet::kArm64,
+                            InstructionSet::kX86,
+                            InstructionSet::kX86_64,
+                            InstructionSet::kMips,
+                            InstructionSet::kMips64 };
+  static_assert(arraysize(isa_strings) == arraysize(ISAs), "Need same amount.");
+
+  for (size_t i = 0; i < arraysize(isa_strings); ++i) {
+    RuntimeOptions options;
+    options.push_back(std::make_pair("imageinstructionset", isa_strings[i]));
+    RuntimeArgumentMap map;
+    bool parsed = ParsedOptions::Parse(options, false, &map);
+    ASSERT_TRUE(parsed);
+    InstructionSet isa = map.GetOrDefault(Opt::ImageInstructionSet);
+    EXPECT_EQ(ISAs[i], isa);
+  }
+}
 
 }  // namespace art
