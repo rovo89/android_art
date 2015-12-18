@@ -170,5 +170,11 @@
   result: EXEC_FAILED,
   names: ["org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet"],
   bug: 25437292
+},
+{
+  description: "Assertion failing on the concurrent collector configuration.",
+  result: EXEC_FAILED,
+  names: ["jsr166.LinkedTransferQueueTest#testTransfer2"],
+  bug: 25883050
 }
 ]
