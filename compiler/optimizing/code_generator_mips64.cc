@@ -1752,11 +1752,7 @@ void InstructionCodeGeneratorMIPS64::VisitClinitCheck(HClinitCheck* check) {
 void LocationsBuilderMIPS64::VisitCompare(HCompare* compare) {
   Primitive::Type in_type = compare->InputAt(0)->GetType();
 
-  LocationSummary::CallKind call_kind = Primitive::IsFloatingPointType(in_type)
-      ? LocationSummary::kCall
-      : LocationSummary::kNoCall;
-
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare, call_kind);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare);
 
   switch (in_type) {
     case Primitive::kPrimLong:
@@ -1766,13 +1762,11 @@ void LocationsBuilderMIPS64::VisitCompare(HCompare* compare) {
       break;
 
     case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      InvokeRuntimeCallingConvention calling_convention;
-      locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
-      locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
-      locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
-    }
 
     default:
       LOG(FATAL) << "Unexpected type for compare operation " << in_type;
@@ -1781,14 +1775,15 @@ void LocationsBuilderMIPS64::VisitCompare(HCompare* compare) {
 
 void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
   LocationSummary* locations = instruction->GetLocations();
+  GpuRegister res = locations->Out().AsRegister<GpuRegister>();
   Primitive::Type in_type = instruction->InputAt(0)->GetType();
+  bool gt_bias = instruction->IsGtBias();
 
   //  0 if: left == right
   //  1 if: left  > right
   // -1 if: left  < right
   switch (in_type) {
     case Primitive::kPrimLong: {
-      GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
       GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
       Location rhs_location = locations->InAt(1);
       bool use_imm = rhs_location.IsConstant();
@@ -1803,35 +1798,52 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
         rhs = rhs_location.AsRegister<GpuRegister>();
       }
       __ Slt(TMP, lhs, rhs);
-      __ Slt(dst, rhs, lhs);
-      __ Subu(dst, dst, TMP);
+      __ Slt(res, rhs, lhs);
+      __ Subu(res, res, TMP);
       break;
     }
 
-    case Primitive::kPrimFloat:
+    case Primitive::kPrimFloat: {
+      FpuRegister lhs = locations->InAt(0).AsFpuRegister<FpuRegister>();
+      FpuRegister rhs = locations->InAt(1).AsFpuRegister<FpuRegister>();
+      Mips64Label done;
+      __ CmpEqS(FTMP, lhs, rhs);
+      __ LoadConst32(res, 0);
+      __ Bc1nez(FTMP, &done);
+      if (gt_bias) {
+        __ CmpLtS(FTMP, lhs, rhs);
+        __ LoadConst32(res, -1);
+        __ Bc1nez(FTMP, &done);
+        __ LoadConst32(res, 1);
+      } else {
+        __ CmpLtS(FTMP, rhs, lhs);
+        __ LoadConst32(res, 1);
+        __ Bc1nez(FTMP, &done);
+        __ LoadConst32(res, -1);
+      }
+      __ Bind(&done);
+      break;
+    }
+
     case Primitive::kPrimDouble: {
-      int32_t entry_point_offset;
-      if (in_type == Primitive::kPrimFloat) {
-        entry_point_offset = instruction->IsGtBias() ? QUICK_ENTRY_POINT(pCmpgFloat)
-                                                     : QUICK_ENTRY_POINT(pCmplFloat);
+      FpuRegister lhs = locations->InAt(0).AsFpuRegister<FpuRegister>();
+      FpuRegister rhs = locations->InAt(1).AsFpuRegister<FpuRegister>();
+      Mips64Label done;
+      __ CmpEqD(FTMP, lhs, rhs);
+      __ LoadConst32(res, 0);
+      __ Bc1nez(FTMP, &done);
+      if (gt_bias) {
+        __ CmpLtD(FTMP, lhs, rhs);
+        __ LoadConst32(res, -1);
+        __ Bc1nez(FTMP, &done);
+        __ LoadConst32(res, 1);
       } else {
-        entry_point_offset = instruction->IsGtBias() ? QUICK_ENTRY_POINT(pCmpgDouble)
-                                                     : QUICK_ENTRY_POINT(pCmplDouble);
+        __ CmpLtD(FTMP, rhs, lhs);
+        __ LoadConst32(res, 1);
+        __ Bc1nez(FTMP, &done);
+        __ LoadConst32(res, -1);
       }
-      codegen_->InvokeRuntime(entry_point_offset, instruction, instruction->GetDexPc(), nullptr);
-      if (in_type == Primitive::kPrimFloat) {
-        if (instruction->IsGtBias()) {
-          CheckEntrypointTypes<kQuickCmpgFloat, int32_t, float, float>();
-        } else {
-          CheckEntrypointTypes<kQuickCmplFloat, int32_t, float, float>();
-        }
-      } else {
-        if (instruction->IsGtBias()) {
-          CheckEntrypointTypes<kQuickCmpgDouble, int32_t, double, double>();
-        } else {
-          CheckEntrypointTypes<kQuickCmplDouble, int32_t, double, double>();
-        }
-      }
+      __ Bind(&done);
       break;
     }
 
@@ -1842,8 +1854,19 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
 
 void LocationsBuilderMIPS64::VisitCondition(HCondition* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  switch (instruction->InputAt(0)->GetType()) {
+    default:
+    case Primitive::kPrimLong:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+      break;
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      break;
+  }
   if (instruction->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
@@ -1854,129 +1877,42 @@ void InstructionCodeGeneratorMIPS64::VisitCondition(HCondition* instruction) {
     return;
   }
 
-  // TODO: generalize to long
-  DCHECK_NE(instruction->InputAt(0)->GetType(), Primitive::kPrimLong);
-
+  Primitive::Type type = instruction->InputAt(0)->GetType();
   LocationSummary* locations = instruction->GetLocations();
-
   GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
-  GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
-  Location rhs_location = locations->InAt(1);
+  Mips64Label true_label;
 
-  GpuRegister rhs_reg = ZERO;
-  int64_t rhs_imm = 0;
-  bool use_imm = rhs_location.IsConstant();
-  if (use_imm) {
-    rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
-  } else {
-    rhs_reg = rhs_location.AsRegister<GpuRegister>();
-  }
+  switch (type) {
+    default:
+      // Integer case.
+      GenerateIntLongCompare(instruction->GetCondition(), /* is64bit */ false, locations);
+      return;
+    case Primitive::kPrimLong:
+      GenerateIntLongCompare(instruction->GetCondition(), /* is64bit */ true, locations);
+      return;
 
-  IfCondition if_cond = instruction->GetCondition();
-
-  switch (if_cond) {
-    case kCondEQ:
-    case kCondNE:
-      if (use_imm && IsUint<16>(rhs_imm)) {
-        __ Xori(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Xor(dst, lhs, rhs_reg);
-      }
-      if (if_cond == kCondEQ) {
-        __ Sltiu(dst, dst, 1);
-      } else {
-        __ Sltu(dst, ZERO, dst);
-      }
-      break;
-
-    case kCondLT:
-    case kCondGE:
-      if (use_imm && IsInt<16>(rhs_imm)) {
-        __ Slti(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Slt(dst, lhs, rhs_reg);
-      }
-      if (if_cond == kCondGE) {
-        // Simulate lhs >= rhs via !(lhs < rhs) since there's
-        // only the slt instruction but no sge.
-        __ Xori(dst, dst, 1);
-      }
-      break;
-
-    case kCondLE:
-    case kCondGT:
-      if (use_imm && IsInt<16>(rhs_imm + 1)) {
-        // Simulate lhs <= rhs via lhs < rhs + 1.
-        __ Slti(dst, lhs, rhs_imm + 1);
-        if (if_cond == kCondGT) {
-          // Simulate lhs > rhs via !(lhs <= rhs) since there's
-          // only the slti instruction but no sgti.
-          __ Xori(dst, dst, 1);
-        }
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Slt(dst, rhs_reg, lhs);
-        if (if_cond == kCondLE) {
-          // Simulate lhs <= rhs via !(rhs < lhs) since there's
-          // only the slt instruction but no sle.
-          __ Xori(dst, dst, 1);
-        }
-      }
-      break;
-
-    case kCondB:
-    case kCondAE:
-      if (use_imm && 0 <= rhs_imm && rhs_imm <= 0x7fff) {
-        __ Sltiu(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Sltu(dst, lhs, rhs_reg);
-      }
-      if (if_cond == kCondAE) {
-        // Simulate lhs >= rhs via !(lhs < rhs) since there's
-        // only the sltu instruction but no sgeu.
-        __ Xori(dst, dst, 1);
-      }
-      break;
-
-    case kCondBE:
-    case kCondA:
-      if (use_imm && 0 <= rhs_imm && rhs_imm <= 0x7ffe) {
-        // Simulate lhs <= rhs via lhs < rhs + 1.
-        __ Sltiu(dst, lhs, rhs_imm + 1);
-        if (if_cond == kCondA) {
-          // Simulate lhs > rhs via !(lhs <= rhs) since there's
-          // only the sltiu instruction but no sgtiu.
-          __ Xori(dst, dst, 1);
-        }
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
-        }
-        __ Sltu(dst, rhs_reg, lhs);
-        if (if_cond == kCondBE) {
-          // Simulate lhs <= rhs via !(rhs < lhs) since there's
-          // only the sltu instruction but no sleu.
-          __ Xori(dst, dst, 1);
-        }
-      }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      // TODO: don't use branches.
+      GenerateFpCompareAndBranch(instruction->GetCondition(),
+                                 instruction->IsGtBias(),
+                                 type,
+                                 locations,
+                                 &true_label);
       break;
   }
+
+  // Convert the branches into the result.
+  Mips64Label done;
+
+  // False case: result = 0.
+  __ LoadConst32(dst, 0);
+  __ Bc(&done);
+
+  // True case: result = 1.
+  __ Bind(&true_label);
+  __ LoadConst32(dst, 1);
+  __ Bind(&done);
 }
 
 void InstructionCodeGeneratorMIPS64::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
@@ -2375,6 +2311,329 @@ void InstructionCodeGeneratorMIPS64::VisitTryBoundary(HTryBoundary* try_boundary
   }
 }
 
+void InstructionCodeGeneratorMIPS64::GenerateIntLongCompare(IfCondition cond,
+                                                            bool is64bit,
+                                                            LocationSummary* locations) {
+  GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
+  GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
+  Location rhs_location = locations->InAt(1);
+  GpuRegister rhs_reg = ZERO;
+  int64_t rhs_imm = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    if (is64bit) {
+      rhs_imm = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant());
+    } else {
+      rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
+    }
+  } else {
+    rhs_reg = rhs_location.AsRegister<GpuRegister>();
+  }
+  int64_t rhs_imm_plus_one = rhs_imm + UINT64_C(1);
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+      if (use_imm && IsUint<16>(rhs_imm)) {
+        __ Xori(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst64(rhs_reg, rhs_imm);
+        }
+        __ Xor(dst, lhs, rhs_reg);
+      }
+      if (cond == kCondEQ) {
+        __ Sltiu(dst, dst, 1);
+      } else {
+        __ Sltu(dst, ZERO, dst);
+      }
+      break;
+
+    case kCondLT:
+    case kCondGE:
+      if (use_imm && IsInt<16>(rhs_imm)) {
+        __ Slti(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst64(rhs_reg, rhs_imm);
+        }
+        __ Slt(dst, lhs, rhs_reg);
+      }
+      if (cond == kCondGE) {
+        // Simulate lhs >= rhs via !(lhs < rhs) since there's
+        // only the slt instruction but no sge.
+        __ Xori(dst, dst, 1);
+      }
+      break;
+
+    case kCondLE:
+    case kCondGT:
+      if (use_imm && IsInt<16>(rhs_imm_plus_one)) {
+        // Simulate lhs <= rhs via lhs < rhs + 1.
+        __ Slti(dst, lhs, rhs_imm_plus_one);
+        if (cond == kCondGT) {
+          // Simulate lhs > rhs via !(lhs <= rhs) since there's
+          // only the slti instruction but no sgti.
+          __ Xori(dst, dst, 1);
+        }
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst64(rhs_reg, rhs_imm);
+        }
+        __ Slt(dst, rhs_reg, lhs);
+        if (cond == kCondLE) {
+          // Simulate lhs <= rhs via !(rhs < lhs) since there's
+          // only the slt instruction but no sle.
+          __ Xori(dst, dst, 1);
+        }
+      }
+      break;
+
+    case kCondB:
+    case kCondAE:
+      if (use_imm && IsInt<16>(rhs_imm)) {
+        // Sltiu sign-extends its 16-bit immediate operand before
+        // the comparison and thus lets us compare directly with
+        // unsigned values in the ranges [0, 0x7fff] and
+        // [0x[ffffffff]ffff8000, 0x[ffffffff]ffffffff].
+        __ Sltiu(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst64(rhs_reg, rhs_imm);
+        }
+        __ Sltu(dst, lhs, rhs_reg);
+      }
+      if (cond == kCondAE) {
+        // Simulate lhs >= rhs via !(lhs < rhs) since there's
+        // only the sltu instruction but no sgeu.
+        __ Xori(dst, dst, 1);
+      }
+      break;
+
+    case kCondBE:
+    case kCondA:
+      if (use_imm && (rhs_imm_plus_one != 0) && IsInt<16>(rhs_imm_plus_one)) {
+        // Simulate lhs <= rhs via lhs < rhs + 1.
+        // Note that this only works if rhs + 1 does not overflow
+        // to 0, hence the check above.
+        // Sltiu sign-extends its 16-bit immediate operand before
+        // the comparison and thus lets us compare directly with
+        // unsigned values in the ranges [0, 0x7fff] and
+        // [0x[ffffffff]ffff8000, 0x[ffffffff]ffffffff].
+        __ Sltiu(dst, lhs, rhs_imm_plus_one);
+        if (cond == kCondA) {
+          // Simulate lhs > rhs via !(lhs <= rhs) since there's
+          // only the sltiu instruction but no sgtiu.
+          __ Xori(dst, dst, 1);
+        }
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst64(rhs_reg, rhs_imm);
+        }
+        __ Sltu(dst, rhs_reg, lhs);
+        if (cond == kCondBE) {
+          // Simulate lhs <= rhs via !(rhs < lhs) since there's
+          // only the sltu instruction but no sleu.
+          __ Xori(dst, dst, 1);
+        }
+      }
+      break;
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::GenerateIntLongCompareAndBranch(IfCondition cond,
+                                                                     bool is64bit,
+                                                                     LocationSummary* locations,
+                                                                     Mips64Label* label) {
+  GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
+  Location rhs_location = locations->InAt(1);
+  GpuRegister rhs_reg = ZERO;
+  int64_t rhs_imm = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    if (is64bit) {
+      rhs_imm = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant());
+    } else {
+      rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
+    }
+  } else {
+    rhs_reg = rhs_location.AsRegister<GpuRegister>();
+  }
+
+  if (use_imm && rhs_imm == 0) {
+    switch (cond) {
+      case kCondEQ:
+      case kCondBE:  // <= 0 if zero
+        __ Beqzc(lhs, label);
+        break;
+      case kCondNE:
+      case kCondA:  // > 0 if non-zero
+        __ Bnezc(lhs, label);
+        break;
+      case kCondLT:
+        __ Bltzc(lhs, label);
+        break;
+      case kCondGE:
+        __ Bgezc(lhs, label);
+        break;
+      case kCondLE:
+        __ Blezc(lhs, label);
+        break;
+      case kCondGT:
+        __ Bgtzc(lhs, label);
+        break;
+      case kCondB:  // always false
+        break;
+      case kCondAE:  // always true
+        __ Bc(label);
+        break;
+    }
+  } else {
+    if (use_imm) {
+      rhs_reg = TMP;
+      __ LoadConst64(rhs_reg, rhs_imm);
+    }
+    switch (cond) {
+      case kCondEQ:
+        __ Beqc(lhs, rhs_reg, label);
+        break;
+      case kCondNE:
+        __ Bnec(lhs, rhs_reg, label);
+        break;
+      case kCondLT:
+        __ Bltc(lhs, rhs_reg, label);
+        break;
+      case kCondGE:
+        __ Bgec(lhs, rhs_reg, label);
+        break;
+      case kCondLE:
+        __ Bgec(rhs_reg, lhs, label);
+        break;
+      case kCondGT:
+        __ Bltc(rhs_reg, lhs, label);
+        break;
+      case kCondB:
+        __ Bltuc(lhs, rhs_reg, label);
+        break;
+      case kCondAE:
+        __ Bgeuc(lhs, rhs_reg, label);
+        break;
+      case kCondBE:
+        __ Bgeuc(rhs_reg, lhs, label);
+        break;
+      case kCondA:
+        __ Bltuc(rhs_reg, lhs, label);
+        break;
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::GenerateFpCompareAndBranch(IfCondition cond,
+                                                                bool gt_bias,
+                                                                Primitive::Type type,
+                                                                LocationSummary* locations,
+                                                                Mips64Label* label) {
+  FpuRegister lhs = locations->InAt(0).AsFpuRegister<FpuRegister>();
+  FpuRegister rhs = locations->InAt(1).AsFpuRegister<FpuRegister>();
+  if (type == Primitive::kPrimFloat) {
+    switch (cond) {
+      case kCondEQ:
+        __ CmpEqS(FTMP, lhs, rhs);
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondNE:
+        __ CmpEqS(FTMP, lhs, rhs);
+        __ Bc1eqz(FTMP, label);
+        break;
+      case kCondLT:
+        if (gt_bias) {
+          __ CmpLtS(FTMP, lhs, rhs);
+        } else {
+          __ CmpUltS(FTMP, lhs, rhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondLE:
+        if (gt_bias) {
+          __ CmpLeS(FTMP, lhs, rhs);
+        } else {
+          __ CmpUleS(FTMP, lhs, rhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondGT:
+        if (gt_bias) {
+          __ CmpUltS(FTMP, rhs, lhs);
+        } else {
+          __ CmpLtS(FTMP, rhs, lhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondGE:
+        if (gt_bias) {
+          __ CmpUleS(FTMP, rhs, lhs);
+        } else {
+          __ CmpLeS(FTMP, rhs, lhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition";
+    }
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    switch (cond) {
+      case kCondEQ:
+        __ CmpEqD(FTMP, lhs, rhs);
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondNE:
+        __ CmpEqD(FTMP, lhs, rhs);
+        __ Bc1eqz(FTMP, label);
+        break;
+      case kCondLT:
+        if (gt_bias) {
+          __ CmpLtD(FTMP, lhs, rhs);
+        } else {
+          __ CmpUltD(FTMP, lhs, rhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondLE:
+        if (gt_bias) {
+          __ CmpLeD(FTMP, lhs, rhs);
+        } else {
+          __ CmpUleD(FTMP, lhs, rhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondGT:
+        if (gt_bias) {
+          __ CmpUltD(FTMP, rhs, lhs);
+        } else {
+          __ CmpLtD(FTMP, rhs, lhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      case kCondGE:
+        if (gt_bias) {
+          __ CmpUleD(FTMP, rhs, lhs);
+        } else {
+          __ CmpLeD(FTMP, rhs, lhs);
+        }
+        __ Bc1nez(FTMP, label);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition";
+    }
+  }
+}
+
 void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruction,
                                                            size_t condition_input_index,
                                                            Mips64Label* true_target,
@@ -2420,97 +2679,27 @@ void InstructionCodeGeneratorMIPS64::GenerateTestAndBranch(HInstruction* instruc
     // The condition instruction has not been materialized, use its inputs as
     // the comparison and its condition as the branch condition.
     HCondition* condition = cond->AsCondition();
+    Primitive::Type type = condition->InputAt(0)->GetType();
+    LocationSummary* locations = cond->GetLocations();
+    IfCondition if_cond = condition->GetCondition();
+    Mips64Label* branch_target = true_target;
 
-    GpuRegister lhs = condition->GetLocations()->InAt(0).AsRegister<GpuRegister>();
-    Location rhs_location = condition->GetLocations()->InAt(1);
-    GpuRegister rhs_reg = ZERO;
-    int32_t rhs_imm = 0;
-    bool use_imm = rhs_location.IsConstant();
-    if (use_imm) {
-      rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
-    } else {
-      rhs_reg = rhs_location.AsRegister<GpuRegister>();
-    }
-
-    IfCondition if_cond;
-    Mips64Label* non_fallthrough_target;
     if (true_target == nullptr) {
       if_cond = condition->GetOppositeCondition();
-      non_fallthrough_target = false_target;
-    } else {
-      if_cond = condition->GetCondition();
-      non_fallthrough_target = true_target;
+      branch_target = false_target;
     }
 
-    if (use_imm && rhs_imm == 0) {
-      switch (if_cond) {
-        case kCondEQ:
-          __ Beqzc(lhs, non_fallthrough_target);
-          break;
-        case kCondNE:
-          __ Bnezc(lhs, non_fallthrough_target);
-          break;
-        case kCondLT:
-          __ Bltzc(lhs, non_fallthrough_target);
-          break;
-        case kCondGE:
-          __ Bgezc(lhs, non_fallthrough_target);
-          break;
-        case kCondLE:
-          __ Blezc(lhs, non_fallthrough_target);
-          break;
-        case kCondGT:
-          __ Bgtzc(lhs, non_fallthrough_target);
-          break;
-        case kCondB:
-          break;  // always false
-        case kCondBE:
-          __ Beqzc(lhs, non_fallthrough_target);  // <= 0 if zero
-          break;
-        case kCondA:
-          __ Bnezc(lhs, non_fallthrough_target);  // > 0 if non-zero
-          break;
-        case kCondAE:
-          __ Bc(non_fallthrough_target);  // always true
-          break;
-      }
-    } else {
-      if (use_imm) {
-        rhs_reg = TMP;
-        __ LoadConst32(rhs_reg, rhs_imm);
-      }
-      switch (if_cond) {
-        case kCondEQ:
-          __ Beqc(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondNE:
-          __ Bnec(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondLT:
-          __ Bltc(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondGE:
-          __ Bgec(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondLE:
-          __ Bgec(rhs_reg, lhs, non_fallthrough_target);
-          break;
-        case kCondGT:
-          __ Bltc(rhs_reg, lhs, non_fallthrough_target);
-          break;
-        case kCondB:
-          __ Bltuc(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondAE:
-          __ Bgeuc(lhs, rhs_reg, non_fallthrough_target);
-          break;
-        case kCondBE:
-          __ Bgeuc(rhs_reg, lhs, non_fallthrough_target);
-          break;
-        case kCondA:
-          __ Bltuc(rhs_reg, lhs, non_fallthrough_target);
-          break;
-      }
+    switch (type) {
+      default:
+        GenerateIntLongCompareAndBranch(if_cond, /* is64bit */ false, locations, branch_target);
+        break;
+      case Primitive::kPrimLong:
+        GenerateIntLongCompareAndBranch(if_cond, /* is64bit */ true, locations, branch_target);
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
+        GenerateFpCompareAndBranch(if_cond, condition->IsGtBias(), type, locations, branch_target);
+        break;
     }
   }
 
