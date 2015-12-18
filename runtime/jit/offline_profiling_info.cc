@@ -77,9 +77,7 @@ static int OpenFile(const std::string& filename, OpenMode open_mode) {
       break;
     case READ_WRITE:
       // TODO(calin) allow the shared uid of the app to access the file.
-      fd = open(filename.c_str(),
-                    O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
-                    S_IRUSR | S_IWUSR);
+      fd = open(filename.c_str(), O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC);
       break;
   }
 

@@ -276,6 +276,9 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 // Wrapper on fork/execv to run a command in a subprocess.
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
 
+// Returns true if the file exists.
+bool FileExists(const std::string& filename);
+
 class VoidFunctor {
  public:
   template <typename A>

@@ -565,8 +565,8 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
  */
 static void VMRuntime_registerAppInfo(JNIEnv* env,
                                       jclass clazz ATTRIBUTE_UNUSED,
-                                      jstring pkg_name,
-                                      jstring app_dir,
+                                      jstring profile_file,
+                                      jstring app_dir ATTRIBUTE_UNUSED,  // TODO: remove argument
                                       jobjectArray code_paths) {
   std::vector<std::string> code_paths_vec;
   int code_paths_length = env->GetArrayLength(code_paths);
@@ -577,13 +577,11 @@ static void VMRuntime_registerAppInfo(JNIEnv* env,
     env->ReleaseStringUTFChars(code_path, raw_code_path);
   }
 
-  const char* raw_app_dir = env->GetStringUTFChars(app_dir, nullptr);
-  const char* raw_pkg_name = env->GetStringUTFChars(pkg_name, nullptr);
-  std::string profile_file = StringPrintf("%s/code_cache/%s.prof", raw_app_dir, raw_pkg_name);
-  env->ReleaseStringUTFChars(pkg_name, raw_pkg_name);
-  env->ReleaseStringUTFChars(app_dir, raw_app_dir);
+  const char* raw_profile_file = env->GetStringUTFChars(profile_file, nullptr);
+  std::string profile_file_str(raw_profile_file);
+  env->ReleaseStringUTFChars(profile_file, raw_profile_file);
 
-  Runtime::Current()->RegisterAppInfo(code_paths_vec, profile_file);
+  Runtime::Current()->RegisterAppInfo(code_paths_vec, profile_file_str);
 }
 
 static jboolean VMRuntime_isBootClassPathOnDisk(JNIEnv* env, jclass, jstring java_instruction_set) {
