@@ -1247,7 +1247,7 @@ void InstructionCodeGeneratorMIPS64::HandleBinaryOp(HBinaryOperation* instructio
 }
 
 void LocationsBuilderMIPS64::HandleShift(HBinaryOperation* instr) {
-  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr());
+  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr() || instr->IsRor());
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instr);
   Primitive::Type type = instr->GetResultType();
@@ -1265,7 +1265,7 @@ void LocationsBuilderMIPS64::HandleShift(HBinaryOperation* instr) {
 }
 
 void InstructionCodeGeneratorMIPS64::HandleShift(HBinaryOperation* instr) {
-  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr());
+  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr() || instr->IsRor());
   LocationSummary* locations = instr->GetLocations();
   Primitive::Type type = instr->GetType();
 
@@ -1290,13 +1290,19 @@ void InstructionCodeGeneratorMIPS64::HandleShift(HBinaryOperation* instr) {
           ? static_cast<uint32_t>(rhs_imm & kMaxIntShiftValue)
           : static_cast<uint32_t>(rhs_imm & kMaxLongShiftValue);
 
-        if (type == Primitive::kPrimInt) {
+        if (shift_value == 0) {
+          if (dst != lhs) {
+            __ Move(dst, lhs);
+          }
+        } else if (type == Primitive::kPrimInt) {
           if (instr->IsShl()) {
             __ Sll(dst, lhs, shift_value);
           } else if (instr->IsShr()) {
             __ Sra(dst, lhs, shift_value);
-          } else {
+          } else if (instr->IsUShr()) {
             __ Srl(dst, lhs, shift_value);
+          } else {
+            __ Rotr(dst, lhs, shift_value);
           }
         } else {
           if (shift_value < 32) {
@@ -1304,8 +1310,10 @@ void InstructionCodeGeneratorMIPS64::HandleShift(HBinaryOperation* instr) {
               __ Dsll(dst, lhs, shift_value);
             } else if (instr->IsShr()) {
               __ Dsra(dst, lhs, shift_value);
-            } else {
+            } else if (instr->IsUShr()) {
               __ Dsrl(dst, lhs, shift_value);
+            } else {
+              __ Drotr(dst, lhs, shift_value);
             }
           } else {
             shift_value -= 32;
@@ -1313,8 +1321,10 @@ void InstructionCodeGeneratorMIPS64::HandleShift(HBinaryOperation* instr) {
               __ Dsll32(dst, lhs, shift_value);
             } else if (instr->IsShr()) {
               __ Dsra32(dst, lhs, shift_value);
-            } else {
+            } else if (instr->IsUShr()) {
               __ Dsrl32(dst, lhs, shift_value);
+            } else {
+              __ Drotr32(dst, lhs, shift_value);
             }
           }
         }
@@ -1324,16 +1334,20 @@ void InstructionCodeGeneratorMIPS64::HandleShift(HBinaryOperation* instr) {
             __ Sllv(dst, lhs, rhs_reg);
           } else if (instr->IsShr()) {
             __ Srav(dst, lhs, rhs_reg);
-          } else {
+          } else if (instr->IsUShr()) {
             __ Srlv(dst, lhs, rhs_reg);
+          } else {
+            __ Rotrv(dst, lhs, rhs_reg);
           }
         } else {
           if (instr->IsShl()) {
             __ Dsllv(dst, lhs, rhs_reg);
           } else if (instr->IsShr()) {
             __ Dsrav(dst, lhs, rhs_reg);
-          } else {
+          } else if (instr->IsUShr()) {
             __ Dsrlv(dst, lhs, rhs_reg);
+          } else {
+            __ Drotrv(dst, lhs, rhs_reg);
           }
         }
       }
@@ -3722,14 +3736,12 @@ void InstructionCodeGeneratorMIPS64::VisitReturnVoid(HReturnVoid* ret ATTRIBUTE_
   codegen_->GenerateFrameExit();
 }
 
-void LocationsBuilderMIPS64::VisitRor(HRor* ror ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
+void LocationsBuilderMIPS64::VisitRor(HRor* ror) {
+  HandleShift(ror);
 }
 
-void InstructionCodeGeneratorMIPS64::VisitRor(HRor* ror ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
+void InstructionCodeGeneratorMIPS64::VisitRor(HRor* ror) {
+  HandleShift(ror);
 }
 
 void LocationsBuilderMIPS64::VisitShl(HShl* shl) {
