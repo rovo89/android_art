@@ -359,12 +359,6 @@ ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRE
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default $(art_host_cflags)
 ART_HOST_ASFLAGS += $(art_asflags)
 
-# The latest clang update trips over many of the files in art and never finishes
-# compiling for aarch64 with -O3 (or -O2). Drop back to -O1 while we investigate
-# to stop punishing the build server.
-# Bug: http://b/23256622
-ART_TARGET_CLANG_CFLAGS_arm64 += -O1
-
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
