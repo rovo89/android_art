@@ -356,7 +356,8 @@ static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
 
 
 JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject javaLoader,
-                                 jstring javaLdLibraryPath, jstring javaLibraryPermittedPath) {
+                                 jboolean isSharedNamespace, jstring javaLibrarySearchPath,
+                                 jstring javaLibraryPermittedPath) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
@@ -368,7 +369,7 @@ JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject java
   // linker namespace instead of global LD_LIBRARY_PATH
   // (23 is Marshmallow)
   if (target_sdk_version <= 23) {
-    SetLdLibraryPath(env, javaLdLibraryPath);
+    SetLdLibraryPath(env, javaLibrarySearchPath);
   }
 
   std::string error_msg;
@@ -376,8 +377,13 @@ JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject java
     art::ScopedObjectAccess soa(env);
     art::StackHandleScope<1> hs(soa.Self());
     art::JavaVMExt* vm = art::Runtime::Current()->GetJavaVM();
-    bool success = vm->LoadNativeLibrary(env, filename.c_str(), javaLoader,
-                                         javaLdLibraryPath, javaLibraryPermittedPath, &error_msg);
+    bool success = vm->LoadNativeLibrary(env,
+                                         filename.c_str(),
+                                         javaLoader,
+                                         isSharedNamespace == JNI_TRUE,
+                                         javaLibrarySearchPath,
+                                         javaLibraryPermittedPath,
+                                         &error_msg);
     if (success) {
       return nullptr;
     }

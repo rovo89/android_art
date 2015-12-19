@@ -717,8 +717,8 @@ void JavaVMExt::UnloadNativeLibraries() {
 }
 
 bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject class_loader,
-                                  jstring library_path, jstring permitted_path,
-                                  std::string* error_msg) {
+                                  bool is_shared_namespace, jstring library_path,
+                                  jstring permitted_path, std::string* error_msg) {
   error_msg->clear();
 
   // See if we've already loaded this library.  If we have, and the class loader
@@ -777,8 +777,9 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
 
   Locks::mutator_lock_->AssertNotHeld(self);
   const char* path_str = path.empty() ? nullptr : path.c_str();
-  void* handle = android::OpenNativeLibrary(env, runtime_->GetTargetSdkVersion(),
-                                            path_str, class_loader, library_path, permitted_path);
+  void* handle = android::OpenNativeLibrary(env, runtime_->GetTargetSdkVersion(), path_str,
+                                            class_loader, is_shared_namespace, library_path,
+                                            permitted_path);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
     if (android::NativeBridgeIsSupported(path_str)) {
