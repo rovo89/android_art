@@ -1439,8 +1439,12 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
       if (klass != nullptr) {
         *result = EnsureResolved(self, descriptor, klass);
       } else {
-        *result = DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(),
-                              *pair.first, *pair.second);
+        *result = DefineClass(self,
+                              descriptor,
+                              hash,
+                              ScopedNullHandle<mirror::ClassLoader>(),
+                              *pair.first,
+                              *pair.second);
       }
       if (*result == nullptr) {
         CHECK(self->IsExceptionPending()) << descriptor;
@@ -1565,7 +1569,11 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
     // The boot class loader, search the boot class path.
     ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
     if (pair.second != nullptr) {
-      return DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
+      return DefineClass(self,
+                         descriptor,
+                         hash,
+                         ScopedNullHandle<mirror::ClassLoader>(),
+                         *pair.first,
                          *pair.second);
     } else {
       // The boot class loader is searched ahead of the application class loader, failures are
@@ -5459,7 +5467,8 @@ bool ClassLinker::LinkInterfaceMethods(
       auto method_array(hs2.NewHandle(iftable->GetMethodArray(i)));
 
       ArraySlice<ArtMethod> input_virtual_methods;
-      Handle<mirror::PointerArray> input_vtable_array = NullHandle<mirror::PointerArray>();
+      ScopedNullHandle<mirror::PointerArray> null_handle;
+      Handle<mirror::PointerArray> input_vtable_array(null_handle);
       int32_t input_array_length = 0;
 
       // TODO Cleanup Needed: In the presence of default methods this optimization is rather dirty

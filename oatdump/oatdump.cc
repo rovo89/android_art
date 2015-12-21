@@ -2380,7 +2380,7 @@ class ImageDumper {
 static int DumpImage(Runtime* runtime, const char* image_location, OatDumperOptions* options,
                      std::ostream* os) {
   // Dumping the image, no explicit class loader.
-  NullHandle<mirror::ClassLoader> null_class_loader;
+  ScopedNullHandle<mirror::ClassLoader> null_class_loader;
   options->class_loader_ = &null_class_loader;
 
   ScopedObjectAccess soa(Thread::Current());
@@ -2439,7 +2439,7 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
 static int DumpOatWithoutRuntime(OatFile* oat_file, OatDumperOptions* options, std::ostream* os) {
   CHECK(oat_file != nullptr && options != nullptr);
   // No image = no class loader.
-  NullHandle<mirror::ClassLoader> null_class_loader;
+  ScopedNullHandle<mirror::ClassLoader> null_class_loader;
   options->class_loader_ = &null_class_loader;
 
   OatDumper oat_dumper(*oat_file, *options);

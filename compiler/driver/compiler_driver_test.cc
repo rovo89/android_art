@@ -149,9 +149,14 @@ TEST_F(CompilerDriverTest, DISABLED_AbstractMethodErrorStub) {
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());
-    CompileVirtualMethod(NullHandle<mirror::ClassLoader>(), "java.lang.Class", "isFinalizable",
+    CompileVirtualMethod(ScopedNullHandle<mirror::ClassLoader>(),
+                         "java.lang.Class",
+                         "isFinalizable",
                          "()Z");
-    CompileDirectMethod(NullHandle<mirror::ClassLoader>(), "java.lang.Object", "<init>", "()V");
+    CompileDirectMethod(ScopedNullHandle<mirror::ClassLoader>(),
+                        "java.lang.Object",
+                        "<init>",
+                        "()V");
     class_loader = LoadDex("AbstractMethod");
   }
   ASSERT_TRUE(class_loader != nullptr);

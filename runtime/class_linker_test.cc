@@ -856,7 +856,7 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
   // Validate that the "value" field is always the 0th field in each of java.lang's box classes.
   // This lets UnboxPrimitive avoid searching for the field by name at runtime.
   ScopedObjectAccess soa(Thread::Current());
-  NullHandle<mirror::ClassLoader> class_loader;
+  ScopedNullHandle<mirror::ClassLoader> class_loader;
   mirror::Class* c;
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Boolean;", class_loader);
   EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
@@ -1102,7 +1102,7 @@ TEST_F(ClassLinkerTest, ClassRootDescriptors) {
 
 TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
   ScopedObjectAccess soa(Thread::Current());
-  NullHandle<mirror::ClassLoader> class_loader;
+  ScopedNullHandle<mirror::ClassLoader> class_loader;
   mirror::Class* c;
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Class;", class_loader);

@@ -35,7 +35,7 @@ TEST_F(ReferenceQueueTest, EnqueueDequeue) {
   ASSERT_EQ(queue.GetLength(), 0U);
   auto ref_class = hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindClass(self, "Ljava/lang/ref/WeakReference;",
-                                                      NullHandle<mirror::ClassLoader>()));
+                                                      ScopedNullHandle<mirror::ClassLoader>()));
   ASSERT_TRUE(ref_class.Get() != nullptr);
   auto ref1(hs.NewHandle(ref_class->AllocObject(self)->AsReference()));
   ASSERT_TRUE(ref1.Get() != nullptr);
@@ -65,11 +65,11 @@ TEST_F(ReferenceQueueTest, Dump) {
   queue.Dump(LOG(INFO));
   auto weak_ref_class = hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindClass(self, "Ljava/lang/ref/WeakReference;",
-                                                      NullHandle<mirror::ClassLoader>()));
+                                                      ScopedNullHandle<mirror::ClassLoader>()));
   ASSERT_TRUE(weak_ref_class.Get() != nullptr);
   auto finalizer_ref_class = hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindClass(self, "Ljava/lang/ref/FinalizerReference;",
-                                                      NullHandle<mirror::ClassLoader>()));
+                                                      ScopedNullHandle<mirror::ClassLoader>()));
   ASSERT_TRUE(finalizer_ref_class.Get() != nullptr);
   auto ref1(hs.NewHandle(weak_ref_class->AllocObject(self)->AsReference()));
   ASSERT_TRUE(ref1.Get() != nullptr);
