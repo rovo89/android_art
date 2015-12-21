@@ -146,8 +146,9 @@ class JitCodeCache {
 
   void* MoreCore(const void* mspace, intptr_t increment);
 
-  // Adds to `methods` all the compiled ArtMethods which are part of the given `oat_file`.
-  void GetCompiledArtMethods(const OatFile* oat_file, std::set<ArtMethod*>& methods)
+  // Adds to `methods` all the compiled ArtMethods which are part of any of the given dex locations.
+  void GetCompiledArtMethods(const std::set<const std::string>& dex_base_locations,
+                             std::set<ArtMethod*>& methods)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 

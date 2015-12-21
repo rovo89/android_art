@@ -566,17 +566,25 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
  */
 static void VMRuntime_registerAppInfo(JNIEnv* env,
                                       jclass clazz ATTRIBUTE_UNUSED,
-                                      jstring pkgName,
-                                      jstring appDir,
-                                      jstring procName ATTRIBUTE_UNUSED) {
-  const char* appDirChars = env->GetStringUTFChars(appDir, nullptr);
-  const char* pkgNameChars = env->GetStringUTFChars(pkgName, nullptr);
-  std::string profileFile = StringPrintf("%s/code_cache/%s.prof", appDirChars, pkgNameChars);
+                                      jstring pkg_name,
+                                      jstring app_dir,
+                                      jobjectArray code_paths) {
+  std::vector<std::string> code_paths_vec;
+  int code_paths_length = env->GetArrayLength(code_paths);
+  for (int i = 0; i < code_paths_length; i++) {
+    jstring code_path = reinterpret_cast<jstring>(env->GetObjectArrayElement(code_paths, i));
+    const char* raw_code_path = env->GetStringUTFChars(code_path, nullptr);
+    code_paths_vec.push_back(raw_code_path);
+    env->ReleaseStringUTFChars(code_path, raw_code_path);
+  }
 
-  Runtime::Current()->SetJitProfilingFilename(profileFile.c_str());
+  const char* raw_app_dir = env->GetStringUTFChars(app_dir, nullptr);
+  const char* raw_pkg_name = env->GetStringUTFChars(pkg_name, nullptr);
+  std::string profile_file = StringPrintf("%s/code_cache/%s.prof", raw_app_dir, raw_pkg_name);
+  env->ReleaseStringUTFChars(pkg_name, raw_pkg_name);
+  env->ReleaseStringUTFChars(app_dir, raw_app_dir);
 
-  env->ReleaseStringUTFChars(appDir, appDirChars);
-  env->ReleaseStringUTFChars(pkgName, pkgNameChars);
+  Runtime::Current()->RegisterAppInfo(code_paths_vec, profile_file);
 }
 
 static jboolean VMRuntime_isBootClassPathOnDisk(JNIEnv* env, jclass, jstring java_instruction_set) {
@@ -633,7 +641,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, isCheckJniEnabled, "!()Z"),
   NATIVE_METHOD(VMRuntime, preloadDexCaches, "()V"),
   NATIVE_METHOD(VMRuntime, registerAppInfo,
-                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+                "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;)V"),
   NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
 };

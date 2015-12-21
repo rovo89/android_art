@@ -177,22 +177,13 @@ void Jit::SaveProfilingInfo(const std::string& filename) {
   if (offline_profile_info_ == nullptr) {
     return;
   }
-  // Note that we can't check the PrimaryOatFile when constructing the offline_profilie_info_
-  // because it becomes known to the Runtime after we create and initialize the JIT.
-  const OatFile* primary_oat_file = Runtime::Current()->GetOatFileManager().GetPrimaryOatFile();
-  if (primary_oat_file == nullptr) {
-    LOG(WARNING) << "Couldn't find a primary oat file when trying to save profile info to "
-                 << filename;
-    return;
-  }
-
   uint64_t last_update_ns = code_cache_->GetLastUpdateTimeNs();
   if (offline_profile_info_->NeedsSaving(last_update_ns)) {
     VLOG(profiler) << "Initiate save profiling information to: " << filename;
     std::set<ArtMethod*> methods;
     {
       ScopedObjectAccess soa(Thread::Current());
-      code_cache_->GetCompiledArtMethods(primary_oat_file, methods);
+      code_cache_->GetCompiledArtMethods(offline_profile_info_->GetTrackedDexLocations(), methods);
     }
     offline_profile_info_->SaveProfilingInfo(filename, last_update_ns, methods);
   } else {
@@ -217,6 +208,13 @@ void Jit::CreateInstrumentationCache(size_t compile_threshold, size_t warmup_thr
   CHECK_GT(compile_threshold, 0U);
   instrumentation_cache_.reset(
       new jit::JitInstrumentationCache(compile_threshold, warmup_threshold));
+}
+
+void Jit::SetDexLocationsForProfiling(const std::vector<std::string>& dex_base_locations) {
+  if (offline_profile_info_ == nullptr) {
+    return;
+  }
+  offline_profile_info_->SetTrackedDexLocations(dex_base_locations);
 }
 
 }  // namespace jit
