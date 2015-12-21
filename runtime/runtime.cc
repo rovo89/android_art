@@ -1653,7 +1653,12 @@ void Runtime::SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type) {
   callee_save_methods_[type] = reinterpret_cast<uintptr_t>(method);
 }
 
-void Runtime::SetJitProfilingFilename(const char* profile_output_filename) {
+void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,
+                              const std::string& profile_output_filename) {
+  DCHECK(!profile_output_filename.empty());
+  if (jit_.get() != nullptr) {
+    jit_->SetDexLocationsForProfiling(code_paths);
+  }
   profile_output_filename_ = profile_output_filename;
 }
 

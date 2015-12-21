@@ -40,6 +40,8 @@ class OfflineProfilingInfo {
   void SaveProfilingInfo(const std::string& filename,
                          uint64_t last_update_time_ns,
                          const std::set<ArtMethod*>& methods);
+  void SetTrackedDexLocations(const std::vector<std::string>& dex_locations);
+  const std::set<const std::string>& GetTrackedDexLocations() const;
 
  private:
   // Map identifying the location of the profiled methods.
@@ -53,6 +55,8 @@ class OfflineProfilingInfo {
   // TODO(calin): Verify if Atomic is really needed (are we sure to be called from a
   // single thread?)
   Atomic<uint64_t> last_update_time_ns_;
+
+  std::set<const std::string> tracked_dex_base_locations_;
 };
 
 /**
