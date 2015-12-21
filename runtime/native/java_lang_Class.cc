@@ -653,7 +653,8 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
     }
   }
   auto* constructor = klass->GetDeclaredConstructor(
-      soa.Self(), NullHandle<mirror::ObjectArray<mirror::Class>>());
+      soa.Self(),
+      ScopedNullHandle<mirror::ObjectArray<mirror::Class>>());
   if (UNLIKELY(constructor == nullptr)) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
                                    "%s has no zero argument constructor",
