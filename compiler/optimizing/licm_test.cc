@@ -107,7 +107,7 @@ TEST_F(LICMTest, FieldHoisting) {
   BuildLoop();
 
   // Populate the loop with instructions: set/get field with different types.
-  NullHandle<mirror::DexCache> dex_cache;
+  ScopedNullHandle<mirror::DexCache> dex_cache;
   HInstruction* get_field = new (&allocator_) HInstanceFieldGet(parameter_,
                                                                 Primitive::kPrimLong,
                                                                 MemberOffset(10),
@@ -134,7 +134,7 @@ TEST_F(LICMTest, NoFieldHoisting) {
   BuildLoop();
 
   // Populate the loop with instructions: set/get field with same types.
-  NullHandle<mirror::DexCache> dex_cache;
+  ScopedNullHandle<mirror::DexCache> dex_cache;
   HInstruction* get_field = new (&allocator_) HInstanceFieldGet(parameter_,
                                                                 Primitive::kPrimLong,
                                                                 MemberOffset(10),

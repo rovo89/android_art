@@ -30,7 +30,7 @@
 namespace art {
 
 inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
-  return FindClass(self, descriptor, NullHandle<mirror::ClassLoader>());
+  return FindClass(self, descriptor, ScopedNullHandle<mirror::ClassLoader>());
 }
 
 inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** element_class) {

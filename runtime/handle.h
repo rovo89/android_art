@@ -64,7 +64,7 @@ class Handle : public ValueObject {
 
   ALWAYS_INLINE jobject ToJObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
     if (UNLIKELY(reference_->AsMirrorPtr() == nullptr)) {
-      // Special case so that we work with NullHandles.
+      // Special case so that we work with null handles.
       return nullptr;
     }
     return reinterpret_cast<jobject>(reference_);
@@ -147,12 +147,12 @@ class MutableHandle : public Handle<T> {
   template<size_t kNumReferences> friend class StackHandleScope;
 };
 
-// A special case of Handle that only holds references to null.
+// A special case of Handle that only holds references to null. Invalid when if it goes out of
+// scope. Example: Handle<T> h = ScopedNullHandle<T> will leave h being undefined.
 template<class T>
-class NullHandle : public Handle<T> {
+class ScopedNullHandle : public Handle<T> {
  public:
-  NullHandle() : Handle<T>(&null_ref_) {
-  }
+  ScopedNullHandle() : Handle<T>(&null_ref_) {}
 
  private:
   StackReference<mirror::Object> null_ref_;

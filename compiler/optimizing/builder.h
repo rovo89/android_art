@@ -80,7 +80,8 @@ class HGraphBuilder : public ValueObject {
         can_use_baseline_for_string_init_(true),
         compilation_stats_(nullptr),
         interpreter_metadata_(nullptr),
-        dex_cache_(NullHandle<mirror::DexCache>()) {}
+        null_dex_cache_(),
+        dex_cache_(null_dex_cache_) {}
 
   bool BuildGraph(const DexFile::CodeItem& code);
 
@@ -371,6 +372,7 @@ class HGraphBuilder : public ValueObject {
   const uint8_t* interpreter_metadata_;
 
   // Dex cache for dex_file_.
+  ScopedNullHandle<mirror::DexCache> null_dex_cache_;
   Handle<mirror::DexCache> dex_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);

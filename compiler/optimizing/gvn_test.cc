@@ -28,7 +28,7 @@ namespace art {
 TEST(GVNTest, LocalFieldElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  NullHandle<mirror::DexCache> dex_cache;
+  ScopedNullHandle<mirror::DexCache> dex_cache;
 
   HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
@@ -113,7 +113,7 @@ TEST(GVNTest, LocalFieldElimination) {
 TEST(GVNTest, GlobalFieldElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  NullHandle<mirror::DexCache> dex_cache;
+  ScopedNullHandle<mirror::DexCache> dex_cache;
 
   HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
@@ -196,7 +196,7 @@ TEST(GVNTest, GlobalFieldElimination) {
 TEST(GVNTest, LoopFieldElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  NullHandle<mirror::DexCache> dex_cache;
+  ScopedNullHandle<mirror::DexCache> dex_cache;
 
   HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
@@ -319,7 +319,7 @@ TEST(GVNTest, LoopFieldElimination) {
 TEST(GVNTest, LoopSideEffects) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  NullHandle<mirror::DexCache> dex_cache;
+  ScopedNullHandle<mirror::DexCache> dex_cache;
 
   static const SideEffects kCanTriggerGC = SideEffects::CanTriggerGC();
 
