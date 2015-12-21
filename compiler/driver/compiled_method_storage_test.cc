@@ -45,7 +45,7 @@ TEST(CompiledMethodStorage, Deduplicate) {
                         false,
                         nullptr,
                         -1,
-                        "",
+                        nullptr,
                         nullptr);
   CompiledMethodStorage* storage = driver.GetCompiledMethodStorage();
 

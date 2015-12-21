@@ -347,8 +347,8 @@ CompilerDriver::CompilerDriver(
     size_t thread_count, bool dump_stats, bool dump_passes,
     const std::string& dump_cfg_file_name, bool dump_cfg_append,
     CumulativeLogger* timer, int swap_fd,
-    const std::string& profile_file,
-    const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map)
+    const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map,
+    const ProfileCompilationInfo* profile_compilation_info)
     : compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
@@ -377,7 +377,8 @@ CompilerDriver::CompilerDriver(
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
       dex_files_for_oat_file_(nullptr),
       dex_file_oat_filename_map_(dex_to_oat_map),
-      compiled_method_storage_(swap_fd) {
+      compiled_method_storage_(swap_fd),
+      profile_compilation_info_(profile_compilation_info) {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(verification_results_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
@@ -385,12 +386,6 @@ CompilerDriver::CompilerDriver(
   compiler_->Init();
 
   CHECK_EQ(boot_image_, image_classes_.get() != nullptr);
-
-  // Read the profile file if one is provided.
-  if (!profile_file.empty()) {
-    profile_compilation_info_.reset(new ProfileCompilationInfo(profile_file));
-    LOG(INFO) << "Using profile data from file " << profile_file;
-  }
 }
 
 CompilerDriver::~CompilerDriver() {
@@ -2306,15 +2301,11 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
 
 void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                              ThreadPool* thread_pool, TimingLogger* timings) {
-  if (profile_compilation_info_ != nullptr) {
-    if (!profile_compilation_info_->Load(dex_files)) {
-      LOG(WARNING) << "Failed to load offline profile info from "
-          << profile_compilation_info_->GetFilename()
-          << ". No methods will be compiled";
-    } else if (kDebugProfileGuidedCompilation) {
-      LOG(INFO) << "[ProfileGuidedCompilation] "
-          << profile_compilation_info_->DumpInfo();
-    }
+  if (kDebugProfileGuidedCompilation) {
+    LOG(INFO) << "[ProfileGuidedCompilation] " <<
+        ((profile_compilation_info_ == nullptr)
+            ? "null"
+            : profile_compilation_info_->DumpInfo(&dex_files));
   }
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];

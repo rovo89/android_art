@@ -121,7 +121,7 @@ class OatTest : public CommonCompilerTest {
                                               false,
                                               timer_.get(),
                                               -1,
-                                              "",
+                                              nullptr,
                                               nullptr));
   }
 

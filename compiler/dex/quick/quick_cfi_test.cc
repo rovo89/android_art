@@ -92,7 +92,7 @@ class QuickCFITest : public CFITest {
                           false,
                           0,
                           -1,
-                          "",
+                          nullptr,
                           nullptr);
     ClassLinker* linker = nullptr;
     CompilationUnit cu(&pool, isa, &driver, linker);

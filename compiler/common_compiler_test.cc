@@ -208,8 +208,8 @@ void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind, InstructionSe
                                             false,
                                             timer_.get(),
                                             -1,
-                                            /* profile_file */ "",
-                                            /* dex_to_oat_map */ nullptr));
+                                            /* dex_to_oat_map */ nullptr,
+                                            /* profile_compilation_info */ nullptr));
   // We typically don't generate an image in unit tests, disable this optimization by default.
   compiler_driver_->SetSupportBootImageFixup(false);
 }

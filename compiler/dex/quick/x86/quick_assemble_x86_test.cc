@@ -73,7 +73,7 @@ class QuickAssembleX86TestBase : public testing::Test {
         false,
         0,
         -1,
-        "",
+        nullptr,
         nullptr));
     cu_.reset(new CompilationUnit(pool_.get(), isa_, compiler_driver_.get(), nullptr));
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(

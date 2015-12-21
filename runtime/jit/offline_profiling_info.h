@@ -29,60 +29,50 @@ namespace art {
 
 class ArtMethod;
 
+// TODO: rename file.
 /**
- * Profiling information in a format that can be serialized to disk.
- * It is a serialize-friendly format based on information collected
- * by the interpreter (ProfileInfo).
+ * Profile information in a format suitable to be queried by the compiler and
+ * performing profile guided compilation.
+ * It is a serialize-friendly format based on information collected by the
+ * interpreter (ProfileInfo).
  * Currently it stores only the hot compiled methods.
- */
-class OfflineProfilingInfo {
- public:
-  void SaveProfilingInfo(const std::string& filename, const std::vector<ArtMethod*>& methods);
-
- private:
-  // Map identifying the location of the profiled methods.
-  // dex_file_ -> [dex_method_index]+
-  using DexFileToMethodsMap = SafeMap<const DexFile*, std::set<uint32_t>>;
-
-  void AddMethodInfo(ArtMethod* method, DexFileToMethodsMap* info)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool Serialize(const std::string& filename, const DexFileToMethodsMap& info) const;
-};
-
-/**
- * Profile information in a format suitable to be queried by the compiler and performing
- * profile guided compilation.
  */
 class ProfileCompilationInfo {
  public:
-  // Constructs a ProfileCompilationInfo backed by the provided file.
-  explicit ProfileCompilationInfo(const std::string& filename) : filename_(filename) {}
+  static bool SaveProfilingInfo(const std::string& filename,
+                                const std::vector<ArtMethod*>& methods);
 
-  // Loads profile information corresponding to the provided dex files.
-  // The dex files' multidex suffixes must be unique.
-  // This resets the state of the profiling information
-  // (i.e. all previously loaded info are cleared).
-  bool Load(const std::vector<const DexFile*>& dex_files);
+  // Loads profile information from the given file.
+  bool Load(const std::string& profile_filename);
+  // Loads the data from another ProfileCompilationInfo object.
+  bool Load(const ProfileCompilationInfo& info);
+  // Saves the profile data to the given file.
+  bool Save(const std::string& profile_filename);
+  // Returns the number of methods that were profiled.
+  uint32_t GetNumberOfMethods() const;
 
   // Returns true if the method reference is present in the profiling info.
   bool ContainsMethod(const MethodReference& method_ref) const;
 
-  const std::string& GetFilename() const { return filename_; }
-
   // Dumps all the loaded profile info into a string and returns it.
+  // If dex_files is not null then the method indices will be resolved to their
+  // names.
   // This is intended for testing and debugging.
-  std::string DumpInfo(bool print_full_dex_location = true) const;
+  std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
+                       bool print_full_dex_location = true) const;
 
  private:
-  bool ProcessLine(const std::string& line,
-                   const std::vector<const DexFile*>& dex_files);
+  bool AddData(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
+  bool ProcessLine(const std::string& line);
 
-  using ClassToMethodsMap = SafeMap<uint32_t, std::set<uint32_t>>;
-  // Map identifying the location of the profiled methods.
-  // dex_file -> class_index -> [dex_method_index]+
-  using DexFileToProfileInfoMap = SafeMap<const DexFile*, ClassToMethodsMap>;
+  struct DexFileData {
+    explicit DexFileData(uint32_t location_checksum) : checksum(location_checksum) {}
+    uint32_t checksum;
+    std::set<uint16_t> method_set;
+  };
 
-  const std::string filename_;
+  using DexFileToProfileInfoMap = SafeMap<const std::string, DexFileData>;
+
   DexFileToProfileInfoMap info_;
 };
 
