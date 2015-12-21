@@ -737,7 +737,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
         *dex_file_,
         it.GetMemberIndex(),
         dex_cache,
-        NullHandle<mirror::ClassLoader>(),
+        ScopedNullHandle<mirror::ClassLoader>(),
         nullptr,
         invoke_type);
     if (method == nullptr) {

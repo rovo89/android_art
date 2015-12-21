@@ -1383,8 +1383,11 @@ mirror::Class* DexFile::GetDeclaringClass(Handle<mirror::Class> klass) const {
   if (annotation_item == nullptr) {
     return nullptr;
   }
-  mirror::Object* obj = GetAnnotationValue(
-      klass, annotation_item, "value", NullHandle<mirror::Class>(), kDexAnnotationType);
+  mirror::Object* obj = GetAnnotationValue(klass,
+                                           annotation_item,
+                                           "value",
+                                           ScopedNullHandle<mirror::Class>(),
+                                           kDexAnnotationType);
   if (obj == nullptr) {
     return nullptr;
   }
@@ -1410,8 +1413,11 @@ mirror::Class* DexFile::GetEnclosingClass(Handle<mirror::Class> klass) const {
     return nullptr;
   }
   AnnotationValue annotation_value;
-  if (!ProcessAnnotationValue(
-      klass, &annotation, &annotation_value, NullHandle<mirror::Class>(), kAllRaw)) {
+  if (!ProcessAnnotationValue(klass,
+                              &annotation,
+                              &annotation_value,
+                              ScopedNullHandle<mirror::Class>(),
+                              kAllRaw)) {
     return nullptr;
   }
   if (annotation_value.type_ != kDexAnnotationMethod) {
@@ -1439,7 +1445,7 @@ mirror::Object* DexFile::GetEnclosingMethod(Handle<mirror::Class> klass) const {
     return nullptr;
   }
   return GetAnnotationValue(
-      klass, annotation_item, "value", NullHandle<mirror::Class>(), kDexAnnotationMethod);
+      klass, annotation_item, "value", ScopedNullHandle<mirror::Class>(), kDexAnnotationMethod);
 }
 
 bool DexFile::GetInnerClass(Handle<mirror::Class> klass, mirror::String** name) const {
@@ -1457,8 +1463,11 @@ bool DexFile::GetInnerClass(Handle<mirror::Class> klass, mirror::String** name) 
     return false;
   }
   AnnotationValue annotation_value;
-  if (!ProcessAnnotationValue(
-      klass, &annotation, &annotation_value, NullHandle<mirror::Class>(), kAllObjects)) {
+  if (!ProcessAnnotationValue(klass,
+                              &annotation,
+                              &annotation_value,
+                              ScopedNullHandle<mirror::Class>(),
+                              kAllObjects)) {
     return false;
   }
   if (annotation_value.type_ != kDexAnnotationNull &&
@@ -1484,8 +1493,11 @@ bool DexFile::GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) c
     return false;
   }
   AnnotationValue annotation_value;
-  if (!ProcessAnnotationValue(
-      klass, &annotation, &annotation_value, NullHandle<mirror::Class>(), kAllRaw)) {
+  if (!ProcessAnnotationValue(klass,
+                              &annotation,
+                              &annotation_value,
+                              ScopedNullHandle<mirror::Class>(),
+                              kAllRaw)) {
     return false;
   }
   if (annotation_value.type_ != kDexAnnotationInt) {

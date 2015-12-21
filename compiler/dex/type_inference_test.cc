@@ -253,7 +253,7 @@ class TypeInferenceTest : public testing::Test {
         &cu_, cu_.class_loader, cu_.class_linker, *cu_.dex_file, nullptr /* code_item not used */,
         0u /* class_def_idx not used */, 0u /* method_index not used */,
         cu_.access_flags, nullptr /* verified_method not used */,
-        NullHandle<mirror::DexCache>()));
+        ScopedNullHandle<mirror::DexCache>()));
     cu_.mir_graph->current_method_ = 0u;
     code_item_ = static_cast<DexFile::CodeItem*>(
         cu_.arena.Alloc(sizeof(DexFile::CodeItem), kArenaAllocMisc));

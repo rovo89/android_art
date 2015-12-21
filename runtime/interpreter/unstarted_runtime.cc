@@ -128,8 +128,13 @@ void UnstartedRuntime::UnstartedClassForName(
   }
   StackHandleScope<1> hs(self);
   Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
-  UnstartedRuntimeFindClass(self, h_class_name, NullHandle<mirror::ClassLoader>(), result,
-                            "Class.forName", true, false);
+  UnstartedRuntimeFindClass(self,
+                            h_class_name,
+                            ScopedNullHandle<mirror::ClassLoader>(),
+                            result,
+                            "Class.forName",
+                            true,
+                            false);
   CheckExceptionGenerateClassNotFound(self);
 }
 
@@ -704,7 +709,7 @@ void UnstartedRuntime::UnstartedSecurityGetSecurityPropertiesReader(
   Handle<mirror::Class> h_class(hs.NewHandle(
       runtime->GetClassLinker()->FindClass(self,
                                            "Ljava/io/StringReader;",
-                                           NullHandle<mirror::ClassLoader>())));
+                                           ScopedNullHandle<mirror::ClassLoader>())));
   if (h_class.Get() == nullptr) {
     AbortTransactionOrFail(self, "Could not find StringReader class");
     return;

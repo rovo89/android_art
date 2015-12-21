@@ -898,8 +898,10 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
           *dex_file,
           Runtime::Current()->GetLinearAlloc())));
       Handle<mirror::Class> klass(hs2.NewHandle(
-          class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache,
-                                    NullHandle<mirror::ClassLoader>())));
+          class_linker->ResolveType(*dex_file,
+                                    exception_type_idx,
+                                    dex_cache,
+                                    ScopedNullHandle<mirror::ClassLoader>())));
       if (klass.Get() == nullptr) {
         const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
