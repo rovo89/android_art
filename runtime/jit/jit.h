@@ -72,6 +72,7 @@ class Jit {
     return instrumentation_cache_.get();
   }
 
+  void SetDexLocationsForProfiling(const std::vector<std::string>& dex_locations);
   void SaveProfilingInfo(const std::string& filename);
 
   void DumpForSigQuit(std::ostream& os) {
