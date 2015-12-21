@@ -23,8 +23,6 @@ TODO:
    - Make sortable by clicking on headers.
  * For HeapTable with single heap shown, the heap name isn't centered?
  * Consistently document functions.
- * Should help be part of an AhatHandler, that automatically gets the menu and
-   stylesheet link rather than duplicating that?
  * Show version number with --version.
  * Show somewhere where to send bugs.
  * Include a link to /objects in the overview and menu?
@@ -79,6 +77,12 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
+ 0.3 Dec 15, 2015
+   Fix page loading performance by showing a limited number of entries by default.
+   Fix mismatch between overview and "roots" totals.
+   Annotate root objects and show their types.
+   Annotate references with their referents.
+
  0.2 Oct 20, 2015
    Take into account 'count' and 'offset' when displaying strings.
 
