@@ -48,6 +48,22 @@ class OverviewHandler implements AhatHandler {
 
     doc.section("Heap Sizes");
     printHeapSizes(doc, query);
+
+    List<InstanceUtils.NativeAllocation> allocs = mSnapshot.getNativeAllocations();
+    if (!allocs.isEmpty()) {
+      doc.section("Registered Native Allocations");
+      long totalSize = 0;
+      for (InstanceUtils.NativeAllocation alloc : allocs) {
+        totalSize += alloc.size;
+      }
+      doc.descriptions();
+      doc.description(DocString.text("Number of Registered Native Allocations"),
+          DocString.format("%,14d", allocs.size()));
+      doc.description(DocString.text("Total Size of Registered Native Allocations"),
+          DocString.format("%,14d", totalSize));
+      doc.end();
+    }
+
     doc.big(Menu.getMenu());
   }
 

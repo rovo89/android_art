@@ -43,22 +43,27 @@ import java.util.Map;
  * ahat.
  */
 class AhatSnapshot {
-  private Snapshot mSnapshot;
-  private List<Heap> mHeaps;
+  private final Snapshot mSnapshot;
+  private final List<Heap> mHeaps;
 
   // Map from Instance to the list of Instances it immediately dominates.
-  private Map<Instance, List<Instance>> mDominated;
+  private final Map<Instance, List<Instance>> mDominated
+    = new HashMap<Instance, List<Instance>>();
 
   // Collection of objects whose immediate dominator is the SENTINEL_ROOT.
-  private List<Instance> mRooted;
+  private final List<Instance> mRooted = new ArrayList<Instance>();
 
   // Map from roots to their types.
   // Instances are only included if they are roots, and the collection of root
   // types is guaranteed to be non-empty.
-  private Map<Instance, Collection<RootType>> mRoots;
+  private final Map<Instance, Collection<RootType>> mRoots
+    = new HashMap<Instance, Collection<RootType>>();
 
-  private Site mRootSite;
-  private Map<Heap, Long> mHeapSizes;
+  private final Site mRootSite = new Site("ROOT");
+  private final Map<Heap, Long> mHeapSizes = new HashMap<Heap, Long>();
+
+  private final List<InstanceUtils.NativeAllocation> mNativeAllocations
+    = new ArrayList<InstanceUtils.NativeAllocation>();
 
   /**
    * Create an AhatSnapshot from an hprof file.
@@ -77,10 +82,6 @@ class AhatSnapshot {
   private AhatSnapshot(Snapshot snapshot) {
     mSnapshot = snapshot;
     mHeaps = new ArrayList<Heap>(mSnapshot.getHeaps());
-    mDominated = new HashMap<Instance, List<Instance>>();
-    mRootSite = new Site("ROOT");
-    mHeapSizes = new HashMap<Heap, Long>();
-    mRooted = new ArrayList<Instance>();
 
     ClassObj javaLangClass = mSnapshot.findClass("java.lang.Class");
     for (Heap heap : mHeaps) {
@@ -118,13 +119,18 @@ class AhatSnapshot {
             }
           }
           mRootSite.add(stackId, 0, path.iterator(), inst);
+
+          // Update native allocations.
+          InstanceUtils.NativeAllocation alloc = InstanceUtils.getNativeAllocation(inst);
+          if (alloc != null) {
+            mNativeAllocations.add(alloc);
+          }
         }
       }
       mHeapSizes.put(heap, total);
     }
 
     // Record the roots and their types.
-    mRoots = new HashMap<Instance, Collection<RootType>>();
     for (RootObj root : snapshot.getGCRoots()) {
       Instance inst = root.getReferredInstance();
       Collection<RootType> types = mRoots.get(inst);
@@ -258,5 +264,10 @@ class AhatSnapshot {
       }
     }
     return site;
+  }
+
+  // Return a list of known native allocations in the snapshot.
+  public List<InstanceUtils.NativeAllocation> getNativeAllocations() {
+    return mNativeAllocations;
   }
 }

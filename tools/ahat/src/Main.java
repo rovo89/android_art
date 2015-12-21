@@ -78,6 +78,7 @@ public class Main {
     server.createContext("/object", new AhatHttpHandler(new ObjectHandler(ahat)));
     server.createContext("/objects", new AhatHttpHandler(new ObjectsHandler(ahat)));
     server.createContext("/site", new AhatHttpHandler(new SiteHandler(ahat)));
+    server.createContext("/native", new AhatHttpHandler(new NativeAllocationsHandler(ahat)));
     server.createContext("/bitmap", new BitmapHandler(ahat));
     server.createContext("/help", new HelpHandler());
     server.createContext("/style.css", new StaticHandler("style.css", "text/css"));

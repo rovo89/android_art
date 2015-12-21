@@ -27,6 +27,8 @@ class Menu {
       .append(" - ")
       .appendLink(DocString.uri("sites"), DocString.text("allocations"))
       .append(" - ")
+      .appendLink(DocString.uri("native"), DocString.text("native"))
+      .append(" - ")
       .appendLink(DocString.uri("help"), DocString.text("help"));
 
   /**
