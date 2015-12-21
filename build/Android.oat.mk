@@ -112,7 +112,7 @@ $$(core_image_name): PRIVATE_CORE_COMPILE_OPTIONS := $$(core_compile_options)
 $$(core_image_name): PRIVATE_CORE_IMG_NAME := $$(core_image_name)
 $$(core_image_name): PRIVATE_CORE_OAT_NAME := $$(core_oat_name)
 $$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(core_dex2oat_dependency)
-	@echo "host dex2oat: $$@ ($$?)"
+	@echo "host dex2oat: $$@"
 	@mkdir -p $$(dir $$@)
 	$$(hide) $(4) $$(DEX2OAT)$(5) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) \
 	  --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
@@ -238,7 +238,7 @@ $$(core_image_name): PRIVATE_CORE_COMPILE_OPTIONS := $$(core_compile_options)
 $$(core_image_name): PRIVATE_CORE_IMG_NAME := $$(core_image_name)
 $$(core_image_name): PRIVATE_CORE_OAT_NAME := $$(core_oat_name)
 $$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(core_dex2oat_dependency)
-	@echo "target dex2oat: $$@ ($$?)"
+	@echo "target dex2oat: $$@"
 	@mkdir -p $$(dir $$@)
 	$$(hide) $(4) $$(DEX2OAT)$(5) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) \
 	  --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
