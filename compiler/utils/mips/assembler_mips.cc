@@ -1035,6 +1035,22 @@ void MipsAssembler::Movt(Register rd, Register rs, int cc) {
   EmitR(0, rs, static_cast<Register>((cc << 2) | 1), rd, 0, 0x01);
 }
 
+void MipsAssembler::TruncLS(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x09);
+}
+
+void MipsAssembler::TruncLD(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0x09);
+}
+
+void MipsAssembler::TruncWS(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x0D);
+}
+
+void MipsAssembler::TruncWD(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0x0D);
+}
+
 void MipsAssembler::Cvtsw(FRegister fd, FRegister fs) {
   EmitFR(0x11, 0x14, static_cast<FRegister>(0), fs, fd, 0x20);
 }
@@ -1049,6 +1065,14 @@ void MipsAssembler::Cvtsd(FRegister fd, FRegister fs) {
 
 void MipsAssembler::Cvtds(FRegister fd, FRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x21);
+}
+
+void MipsAssembler::Cvtsl(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x15, static_cast<FRegister>(0), fs, fd, 0x20);
+}
+
+void MipsAssembler::Cvtdl(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x15, static_cast<FRegister>(0), fs, fd, 0x21);
 }
 
 void MipsAssembler::Mfc1(Register rt, FRegister fs) {

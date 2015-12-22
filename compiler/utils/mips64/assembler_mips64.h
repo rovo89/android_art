@@ -250,6 +250,10 @@ class Mips64Assembler FINAL : public Assembler {
   void RoundLD(FpuRegister fd, FpuRegister fs);
   void RoundWS(FpuRegister fd, FpuRegister fs);
   void RoundWD(FpuRegister fd, FpuRegister fs);
+  void TruncLS(FpuRegister fd, FpuRegister fs);
+  void TruncLD(FpuRegister fd, FpuRegister fs);
+  void TruncWS(FpuRegister fd, FpuRegister fs);
+  void TruncWD(FpuRegister fd, FpuRegister fs);
   void CeilLS(FpuRegister fd, FpuRegister fs);
   void CeilLD(FpuRegister fd, FpuRegister fs);
   void CeilWS(FpuRegister fd, FpuRegister fs);
