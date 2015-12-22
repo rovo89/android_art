@@ -362,7 +362,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   thread_state.h \
   verifier/method_verifier.h
 
-LIBOPENJDKJVM_SRC_FILES := native/OpenjdkJvm.cc
+LIBOPENJDKJVM_SRC_FILES := openjdkjvm/OpenjdkJvm.cc
 
 LIBART_CFLAGS := -DBUILDING_LIBART=1
 
@@ -560,6 +560,7 @@ endif
     else
       LOCAL_SHARED_LIBRARIES += libartd
     endif
+    LOCAL_NOTICE_FILE := $(LOCAL_PATH)/openjdkjvm/NOTICE
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk

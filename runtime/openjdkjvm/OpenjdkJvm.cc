@@ -52,7 +52,7 @@
 #include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it
 #include "jni_internal.h"
 #include "mirror/string-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "native/scoped_fast_native_object_access.h"
 #include "ScopedLocalRef.h"
 #include <sys/time.h>
 #include <sys/socket.h>
