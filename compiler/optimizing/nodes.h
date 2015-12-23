@@ -1066,6 +1066,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(MemoryBarrier, Instruction)                                         \
   M(MonitorOperation, Instruction)                                      \
   M(Mul, BinaryOperation)                                               \
+  M(NativeDebugInfo, Instruction)                                       \
   M(Neg, UnaryOperation)                                                \
   M(NewArray, Instruction)                                              \
   M(NewInstance, Instruction)                                           \
@@ -4870,6 +4871,23 @@ class HSuspendCheck : public HTemplateInstruction<0> {
   SlowPathCode* slow_path_;
 
   DISALLOW_COPY_AND_ASSIGN(HSuspendCheck);
+};
+
+// Pseudo-instruction which provides the native debugger with mapping information.
+// It ensures that we can generate line number and local variables at this point.
+class HNativeDebugInfo : public HTemplateInstruction<0> {
+ public:
+  explicit HNativeDebugInfo(uint32_t dex_pc)
+      : HTemplateInstruction<0>(SideEffects::None(), dex_pc) {}
+
+  bool NeedsEnvironment() const OVERRIDE {
+    return true;
+  }
+
+  DECLARE_INSTRUCTION(NativeDebugInfo);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HNativeDebugInfo);
 };
 
 /**
