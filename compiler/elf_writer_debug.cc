@@ -36,6 +36,15 @@
 namespace art {
 namespace dwarf {
 
+// The ARM specification defines three special mapping symbols
+// $a, $t and $d which mark ARM, Thumb and data ranges respectively.
+// These symbols can be used by tools, for example, to pretty
+// print instructions correctly.  Objdump will use them if they
+// exist, but it will still work well without them.
+// However, these extra symbols take space, so let's just generate
+// one symbol which marks the whole .text section as code.
+constexpr bool kGenerateSingleArmMappingSymbol = true;
+
 static Reg GetDwarfCoreReg(InstructionSet isa, int machine_reg) {
   switch (isa) {
     case kArm:
@@ -207,8 +216,7 @@ template<typename ElfTypes>
 void WriteCFISection(ElfBuilder<ElfTypes>* builder,
                      const ArrayRef<const MethodDebugInfo>& method_infos,
                      CFIFormat format) {
-  CHECK(format == dwarf::DW_DEBUG_FRAME_FORMAT ||
-        format == dwarf::DW_EH_FRAME_FORMAT);
+  CHECK(format == DW_DEBUG_FRAME_FORMAT || format == DW_EH_FRAME_FORMAT);
   typedef typename ElfTypes::Addr Elf_Addr;
 
   std::vector<uint32_t> binary_search_table;
@@ -220,7 +228,7 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   }
 
   // Write .eh_frame/.debug_frame section.
-  auto* cfi_section = (format == dwarf::DW_DEBUG_FRAME_FORMAT
+  auto* cfi_section = (format == DW_DEBUG_FRAME_FORMAT
                        ? builder->GetDebugFrame()
                        : builder->GetEhFrame());
   {
@@ -1134,21 +1142,87 @@ void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
   }
 }
 
+template <typename ElfTypes>
+void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
+                       const ArrayRef<const MethodDebugInfo>& method_infos) {
+  bool generated_mapping_symbol = false;
+  auto* strtab = builder->GetStrTab();
+  auto* symtab = builder->GetSymTab();
+
+  if (method_infos.empty()) {
+    return;
+  }
+
+  // Find all addresses (low_pc) which contain deduped methods.
+  // The first instance of method is not marked deduped_, but the rest is.
+  std::unordered_set<uint32_t> deduped_addresses;
+  for (const MethodDebugInfo& info : method_infos) {
+    if (info.deduped_) {
+      deduped_addresses.insert(info.low_pc_);
+    }
+  }
+
+  strtab->Start();
+  strtab->Write("");  // strtab should start with empty string.
+  for (const MethodDebugInfo& info : method_infos) {
+    if (info.deduped_) {
+      continue;  // Add symbol only for the first instance.
+    }
+    std::string name = PrettyMethod(info.dex_method_index_, *info.dex_file_, true);
+    if (deduped_addresses.find(info.low_pc_) != deduped_addresses.end()) {
+      name += " [DEDUPED]";
+    }
+
+    uint32_t low_pc = info.low_pc_;
+    // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
+    low_pc += info.compiled_method_->CodeDelta();
+    symtab->Add(strtab->Write(name), builder->GetText(), low_pc,
+                true, info.high_pc_ - info.low_pc_, STB_GLOBAL, STT_FUNC);
+
+    // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
+    // instructions, so that disassembler tools can correctly disassemble.
+    // Note that even if we generate just a single mapping symbol, ARM's Streamline
+    // requires it to match function symbol.  Just address 0 does not work.
+    if (info.compiled_method_->GetInstructionSet() == kThumb2) {
+      if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
+        symtab->Add(strtab->Write("$t"), builder->GetText(), info.low_pc_ & ~1,
+                    true, 0, STB_LOCAL, STT_NOTYPE);
+        generated_mapping_symbol = true;
+      }
+    }
+  }
+  strtab->End();
+
+  // Symbols are buffered and written after names (because they are smaller).
+  // We could also do two passes in this function to avoid the buffering.
+  symtab->Start();
+  symtab->Write();
+  symtab->End();
+}
+
+template <typename ElfTypes>
+void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
+                    const ArrayRef<const MethodDebugInfo>& method_infos,
+                    CFIFormat cfi_format) {
+  if (!method_infos.empty()) {
+    // Add methods to .symtab.
+    WriteDebugSymbols(builder, method_infos);
+    // Generate CFI (stack unwinding information).
+    WriteCFISection(builder, method_infos, cfi_format);
+    // Write DWARF .debug_* sections.
+    WriteDebugSections(builder, method_infos);
+  }
+}
+
 // Explicit instantiations
-template void WriteCFISection<ElfTypes32>(
+template void WriteDebugInfo<ElfTypes32>(
     ElfBuilder<ElfTypes32>* builder,
     const ArrayRef<const MethodDebugInfo>& method_infos,
-    CFIFormat format);
-template void WriteCFISection<ElfTypes64>(
+    CFIFormat cfi_format);
+template void WriteDebugInfo<ElfTypes64>(
     ElfBuilder<ElfTypes64>* builder,
     const ArrayRef<const MethodDebugInfo>& method_infos,
-    CFIFormat format);
-template void WriteDebugSections<ElfTypes32>(
-    ElfBuilder<ElfTypes32>* builder,
-    const ArrayRef<const MethodDebugInfo>& method_infos);
-template void WriteDebugSections<ElfTypes64>(
-    ElfBuilder<ElfTypes64>* builder,
-    const ArrayRef<const MethodDebugInfo>& method_infos);
+    CFIFormat cfi_format);
 
 }  // namespace dwarf
 }  // namespace art
