@@ -34,6 +34,7 @@ CompilerOptions::CompilerOptions()
       include_patch_information_(kDefaultIncludePatchInformation),
       top_k_profile_threshold_(kDefaultTopKProfileThreshold),
       debuggable_(false),
+      native_debuggable_(kDefaultNativeDebuggable),
       generate_debug_info_(kDefaultGenerateDebugInfo),
       implicit_null_checks_(true),
       implicit_so_checks_(true),
@@ -81,6 +82,7 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
     include_patch_information_(include_patch_information),
     top_k_profile_threshold_(top_k_profile_threshold),
     debuggable_(debuggable),
+    native_debuggable_(kDefaultNativeDebuggable),
     generate_debug_info_(generate_debug_info),
     implicit_null_checks_(implicit_null_checks),
     implicit_so_checks_(implicit_so_checks),
@@ -205,6 +207,10 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
   } else if (option == "--no-generate-debug-info") {
     generate_debug_info_ = false;
   } else if (option == "--debuggable") {
+    debuggable_ = true;
+    generate_debug_info_ = true;
+  } else if (option == "--native-debuggable") {
+    native_debuggable_ = true;
     debuggable_ = true;
     generate_debug_info_ = true;
   } else if (option.starts_with("--top-k-profile-threshold=")) {

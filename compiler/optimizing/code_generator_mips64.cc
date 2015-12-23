@@ -2745,6 +2745,14 @@ void InstructionCodeGeneratorMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+void LocationsBuilderMIPS64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  new (GetGraph()->GetArena()) LocationSummary(info);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  codegen_->RecordPcInfo(info, info->GetDexPc());
+}
+
 void LocationsBuilderMIPS64::HandleFieldGet(HInstruction* instruction,
                                             const FieldInfo& field_info ATTRIBUTE_UNUSED) {
   LocationSummary* locations =

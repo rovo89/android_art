@@ -1616,6 +1616,14 @@ void InstructionCodeGeneratorX86::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  new (GetGraph()->GetArena()) LocationSummary(info);
+}
+
+void InstructionCodeGeneratorX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  codegen_->RecordPcInfo(info, info->GetDexPc());
+}
+
 void LocationsBuilderX86::VisitLocal(HLocal* local) {
   local->SetLocations(nullptr);
 }

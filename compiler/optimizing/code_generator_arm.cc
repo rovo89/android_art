@@ -1618,6 +1618,14 @@ void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+void LocationsBuilderARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  new (GetGraph()->GetArena()) LocationSummary(info);
+}
+
+void InstructionCodeGeneratorARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  codegen_->RecordPcInfo(info, info->GetDexPc());
+}
+
 void LocationsBuilderARM::HandleCondition(HCondition* cond) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);

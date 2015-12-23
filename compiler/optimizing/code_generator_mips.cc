@@ -3244,6 +3244,14 @@ void InstructionCodeGeneratorMIPS::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+void LocationsBuilderMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  new (GetGraph()->GetArena()) LocationSummary(info);
+}
+
+void InstructionCodeGeneratorMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  codegen_->RecordPcInfo(info, info->GetDexPc());
+}
+
 void LocationsBuilderMIPS::HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info) {
   Primitive::Type field_type = field_info.GetFieldType();
   bool is_wide = (field_type == Primitive::kPrimLong) || (field_type == Primitive::kPrimDouble);
