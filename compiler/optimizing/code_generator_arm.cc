@@ -1618,7 +1618,7 @@ void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
-void LocationsBuilderARM::VisitCondition(HCondition* cond) {
+void LocationsBuilderARM::HandleCondition(HCondition* cond) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);
   // Handle the long/FP comparisons made in instruction simplification.
@@ -1649,7 +1649,7 @@ void LocationsBuilderARM::VisitCondition(HCondition* cond) {
   }
 }
 
-void InstructionCodeGeneratorARM::VisitCondition(HCondition* cond) {
+void InstructionCodeGeneratorARM::HandleCondition(HCondition* cond) {
   if (!cond->NeedsMaterialization()) {
     return;
   }
@@ -1706,83 +1706,83 @@ void InstructionCodeGeneratorARM::VisitCondition(HCondition* cond) {
 }
 
 void LocationsBuilderARM::VisitEqual(HEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitEqual(HEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitNotEqual(HNotEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitNotEqual(HNotEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitLessThan(HLessThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitLessThan(HLessThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitGreaterThan(HGreaterThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitGreaterThan(HGreaterThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitBelow(HBelow* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitBelow(HBelow* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitBelowOrEqual(HBelowOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitBelowOrEqual(HBelowOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitAbove(HAbove* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitAbove(HAbove* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitAboveOrEqual(HAboveOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorARM::VisitAboveOrEqual(HAboveOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderARM::VisitLocal(HLocal* local) {

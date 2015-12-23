@@ -185,6 +185,7 @@ class LocationsBuilderMIPS : public HGraphVisitor {
  private:
   void HandleInvoke(HInvoke* invoke);
   void HandleBinaryOp(HBinaryOperation* operation);
+  void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
@@ -220,6 +221,7 @@ class InstructionCodeGeneratorMIPS : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* operation);
+  void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
