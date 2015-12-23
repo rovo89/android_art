@@ -1554,7 +1554,7 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
 
     Location lhs = condition->GetLocations()->InAt(0);
     Location rhs = condition->GetLocations()->InAt(1);
-    // LHS is guaranteed to be in a register (see LocationsBuilderX86::VisitCondition).
+    // LHS is guaranteed to be in a register (see LocationsBuilderX86::HandleCondition).
     if (rhs.IsRegister()) {
       __ cmpl(lhs.AsRegister<Register>(), rhs.AsRegister<Register>());
     } else if (rhs.IsConstant()) {
@@ -1659,7 +1659,7 @@ void LocationsBuilderX86::VisitStoreLocal(HStoreLocal* store) {
 void InstructionCodeGeneratorX86::VisitStoreLocal(HStoreLocal* store ATTRIBUTE_UNUSED) {
 }
 
-void LocationsBuilderX86::VisitCondition(HCondition* cond) {
+void LocationsBuilderX86::HandleCondition(HCondition* cond) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);
   // Handle the long/FP comparisons made in instruction simplification.
@@ -1692,7 +1692,7 @@ void LocationsBuilderX86::VisitCondition(HCondition* cond) {
   }
 }
 
-void InstructionCodeGeneratorX86::VisitCondition(HCondition* cond) {
+void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
   if (!cond->NeedsMaterialization()) {
     return;
   }
@@ -1753,83 +1753,83 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* cond) {
 }
 
 void LocationsBuilderX86::VisitEqual(HEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitEqual(HEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitNotEqual(HNotEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitNotEqual(HNotEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitLessThan(HLessThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitLessThan(HLessThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitGreaterThan(HGreaterThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitGreaterThan(HGreaterThan* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitBelow(HBelow* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitBelow(HBelow* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitBelowOrEqual(HBelowOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitBelowOrEqual(HBelowOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitAbove(HAbove* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitAbove(HAbove* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitAboveOrEqual(HAboveOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void InstructionCodeGeneratorX86::VisitAboveOrEqual(HAboveOrEqual* comp) {
-  VisitCondition(comp);
+  HandleCondition(comp);
 }
 
 void LocationsBuilderX86::VisitIntConstant(HIntConstant* constant) {

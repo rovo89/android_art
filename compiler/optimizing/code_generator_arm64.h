@@ -215,6 +215,7 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
                       const FieldInfo& field_info,
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* instr);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
@@ -257,6 +258,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
   void HandleFieldSet(HInstruction* instruction);
   void HandleFieldGet(HInstruction* instruction);
   void HandleInvoke(HInvoke* instr);
+  void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* instr);
 
   CodeGeneratorARM64* const codegen_;

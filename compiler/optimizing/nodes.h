@@ -1034,7 +1034,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(ClearException, Instruction)                                        \
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
-  M(Condition, BinaryOperation)                                         \
   M(CurrentMethod, Instruction)                                         \
   M(Deoptimize, Instruction)                                            \
   M(Div, BinaryOperation)                                               \
@@ -1141,26 +1140,33 @@ class HLoopInformationOutwardIterator : public ValueObject {
   FOR_EACH_CONCRETE_INSTRUCTION_X86(M)                                  \
   FOR_EACH_CONCRETE_INSTRUCTION_X86_64(M)
 
-#define FOR_EACH_INSTRUCTION(M)                                         \
-  FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
+#define FOR_EACH_ABSTRACT_INSTRUCTION(M)                                \
+  M(Condition, BinaryOperation)                                         \
   M(Constant, Instruction)                                              \
   M(UnaryOperation, Instruction)                                        \
   M(BinaryOperation, Instruction)                                       \
   M(Invoke, Instruction)
+
+#define FOR_EACH_INSTRUCTION(M)                                         \
+  FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
+  FOR_EACH_ABSTRACT_INSTRUCTION(M)
 
 #define FORWARD_DECLARATION(type, super) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 #undef FORWARD_DECLARATION
 
 #define DECLARE_INSTRUCTION(type)                                       \
-  InstructionKind GetKind() const OVERRIDE { return k##type; }          \
+  InstructionKind GetKindInternal() const OVERRIDE { return k##type; }  \
   const char* DebugName() const OVERRIDE { return #type; }              \
-  const H##type* As##type() const OVERRIDE { return this; }             \
-  H##type* As##type() OVERRIDE { return this; }                         \
   bool InstructionTypeEquals(HInstruction* other) const OVERRIDE {      \
     return other->Is##type();                                           \
   }                                                                     \
   void Accept(HGraphVisitor* visitor) OVERRIDE
+
+#define DECLARE_ABSTRACT_INSTRUCTION(type)                              \
+  bool Is##type() const { return As##type() != nullptr; }               \
+  const H##type* As##type() const { return this; }                      \
+  H##type* As##type() { return this; }
 
 template <typename T> class HUseList;
 
@@ -1972,11 +1978,18 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   void MoveBeforeFirstUserAndOutOfLoops();
 
 #define INSTRUCTION_TYPE_CHECK(type, super)                                    \
+  bool Is##type() const;                                                       \
+  const H##type* As##type() const;                                             \
+  H##type* As##type();
+
+  FOR_EACH_CONCRETE_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
+#undef INSTRUCTION_TYPE_CHECK
+
+#define INSTRUCTION_TYPE_CHECK(type, super)                                    \
   bool Is##type() const { return (As##type() != nullptr); }                    \
   virtual const H##type* As##type() const { return nullptr; }                  \
   virtual H##type* As##type() { return nullptr; }
-
-  FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
+  FOR_EACH_ABSTRACT_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
 #undef INSTRUCTION_TYPE_CHECK
 
   // Returns whether the instruction can be moved within the graph.
@@ -1999,7 +2012,12 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   // 2) Their inputs are identical.
   bool Equals(HInstruction* other) const;
 
-  virtual InstructionKind GetKind() const = 0;
+  // TODO: Remove this indirection when the [[pure]] attribute proposal (n3744)
+  // is adopted and implemented by our C++ compiler(s). Fow now, we need to hide
+  // the virtual function because the __attribute__((__pure__)) doesn't really
+  // apply the strong requirement for virtual functions, preventing optimizations.
+  InstructionKind GetKind() const PURE;
+  virtual InstructionKind GetKindInternal() const = 0;
 
   virtual size_t ComputeHashCode() const {
     size_t result = GetKind();
@@ -2297,7 +2315,7 @@ class HConstant : public HExpression<0> {
 
   virtual uint64_t GetValueAsUint64() const = 0;
 
-  DECLARE_INSTRUCTION(Constant);
+  DECLARE_ABSTRACT_INSTRUCTION(Constant);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HConstant);
@@ -2558,7 +2576,7 @@ class HUnaryOperation : public HExpression<1> {
   virtual HConstant* Evaluate(HIntConstant* x) const = 0;
   virtual HConstant* Evaluate(HLongConstant* x) const = 0;
 
-  DECLARE_INSTRUCTION(UnaryOperation);
+  DECLARE_ABSTRACT_INSTRUCTION(UnaryOperation);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HUnaryOperation);
@@ -2651,7 +2669,7 @@ class HBinaryOperation : public HExpression<2> {
   // one. Otherwise it returns null.
   HInstruction* GetLeastConstantLeft() const;
 
-  DECLARE_INSTRUCTION(BinaryOperation);
+  DECLARE_ABSTRACT_INSTRUCTION(BinaryOperation);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HBinaryOperation);
@@ -2679,7 +2697,7 @@ class HCondition : public HBinaryOperation {
   // `instruction`, and disregard moves in between.
   bool IsBeforeWhenDisregardMoves(HInstruction* instruction) const;
 
-  DECLARE_INSTRUCTION(Condition);
+  DECLARE_ABSTRACT_INSTRUCTION(Condition);
 
   virtual IfCondition GetCondition() const = 0;
 
@@ -3288,7 +3306,7 @@ class HInvoke : public HInstruction {
 
   bool IsIntrinsic() const { return intrinsic_ != Intrinsics::kNone; }
 
-  DECLARE_INSTRUCTION(Invoke);
+  DECLARE_ABSTRACT_INSTRUCTION(Invoke);
 
  protected:
   HInvoke(ArenaAllocator* arena,
@@ -5868,6 +5886,18 @@ inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
   // all sorts of weird failures.
   return &lhs == &rhs;
 }
+
+#define INSTRUCTION_TYPE_CHECK(type, super)                                    \
+  inline bool HInstruction::Is##type() const { return GetKind() == k##type; }  \
+  inline const H##type* HInstruction::As##type() const {                       \
+    return Is##type() ? down_cast<const H##type*>(this) : nullptr;             \
+  }                                                                            \
+  inline H##type* HInstruction::As##type() {                                   \
+    return Is##type() ? static_cast<H##type*>(this) : nullptr;                 \
+  }
+
+  FOR_EACH_CONCRETE_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
+#undef INSTRUCTION_TYPE_CHECK
 
 }  // namespace art
 

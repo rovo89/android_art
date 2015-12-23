@@ -2427,7 +2427,7 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
   }
 }
 
-void LocationsBuilderARM64::VisitCondition(HCondition* instruction) {
+void LocationsBuilderARM64::HandleCondition(HCondition* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
 
   if (Primitive::IsFloatingPointType(instruction->InputAt(0)->GetType())) {
@@ -2447,7 +2447,7 @@ void LocationsBuilderARM64::VisitCondition(HCondition* instruction) {
   }
 }
 
-void InstructionCodeGeneratorARM64::VisitCondition(HCondition* instruction) {
+void InstructionCodeGeneratorARM64::HandleCondition(HCondition* instruction) {
   if (!instruction->NeedsMaterialization()) {
     return;
   }
@@ -2495,8 +2495,8 @@ void InstructionCodeGeneratorARM64::VisitCondition(HCondition* instruction) {
   M(Above)                                                                               \
   M(AboveOrEqual)
 #define DEFINE_CONDITION_VISITORS(Name)                                                  \
-void LocationsBuilderARM64::Visit##Name(H##Name* comp) { VisitCondition(comp); }         \
-void InstructionCodeGeneratorARM64::Visit##Name(H##Name* comp) { VisitCondition(comp); }
+void LocationsBuilderARM64::Visit##Name(H##Name* comp) { HandleCondition(comp); }         \
+void InstructionCodeGeneratorARM64::Visit##Name(H##Name* comp) { HandleCondition(comp); }
 FOR_EACH_CONDITION_INSTRUCTION(DEFINE_CONDITION_VISITORS)
 #undef DEFINE_CONDITION_VISITORS
 #undef FOR_EACH_CONDITION_INSTRUCTION

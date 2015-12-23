@@ -777,6 +777,10 @@ void HEnvironment::RemoveAsUserOfInput(size_t index) const {
   user_record.GetInstruction()->RemoveEnvironmentUser(user_record.GetUseNode());
 }
 
+HInstruction::InstructionKind HInstruction::GetKind() const {
+  return GetKindInternal();
+}
+
 HInstruction* HInstruction::GetNextDisregardingMoves() const {
   HInstruction* next = GetNext();
   while (next != nullptr && next->IsParallelMove()) {
@@ -960,7 +964,7 @@ void H##name::Accept(HGraphVisitor* visitor) {                                 \
   visitor->Visit##name(this);                                                  \
 }
 
-FOR_EACH_INSTRUCTION(DEFINE_ACCEPT)
+FOR_EACH_CONCRETE_INSTRUCTION(DEFINE_ACCEPT)
 
 #undef DEFINE_ACCEPT
 
