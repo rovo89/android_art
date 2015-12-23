@@ -2949,6 +2949,14 @@ void InstructionCodeGeneratorARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+void LocationsBuilderARM64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  new (GetGraph()->GetArena()) LocationSummary(info);
+}
+
+void InstructionCodeGeneratorARM64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  codegen_->RecordPcInfo(info, info->GetDexPc());
+}
+
 void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   HandleFieldGet(instruction);
 }

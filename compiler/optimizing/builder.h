@@ -112,6 +112,7 @@ class HGraphBuilder : public ValueObject {
                             const uint16_t* end,
                             size_t* number_of_branches);
   void MaybeUpdateCurrentBlock(size_t dex_pc);
+  void FindNativeDebugInfoLocations(const DexFile::CodeItem& code_item, ArenaBitVector* locations);
   HBasicBlock* FindBlockStartingAt(int32_t dex_pc) const;
   HBasicBlock* FindOrCreateBlockStartingAt(int32_t dex_pc);
 

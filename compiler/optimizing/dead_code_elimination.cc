@@ -165,6 +165,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
       if (!inst->HasSideEffects()
           && !inst->CanThrow()
           && !inst->IsSuspendCheck()
+          && !inst->IsNativeDebugInfo()
           // If we added an explicit barrier then we should keep it.
           && !inst->IsMemoryBarrier()
           && !inst->IsParameterValue()
