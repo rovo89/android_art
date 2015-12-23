@@ -25,14 +25,10 @@
 namespace art {
 namespace dwarf {
 
-template<typename ElfTypes>
-void WriteCFISection(ElfBuilder<ElfTypes>* builder,
-                     const ArrayRef<const MethodDebugInfo>& method_infos,
-                     CFIFormat format);
-
-template<typename ElfTypes>
-void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
-                        const ArrayRef<const MethodDebugInfo>& method_infos);
+template <typename ElfTypes>
+void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
+                    const ArrayRef<const MethodDebugInfo>& method_infos,
+                    CFIFormat cfi_format);
 
 }  // namespace dwarf
 }  // namespace art

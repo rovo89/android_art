@@ -46,15 +46,6 @@ namespace art {
 // Let's use .debug_frame because it is easier to strip or compress.
 constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_DEBUG_FRAME_FORMAT;
 
-// The ARM specification defines three special mapping symbols
-// $a, $t and $d which mark ARM, Thumb and data ranges respectively.
-// These symbols can be used by tools, for example, to pretty
-// print instructions correctly.  Objdump will use them if they
-// exist, but it will still work well without them.
-// However, these extra symbols take space, so let's just generate
-// one symbol which marks the whole .text section as code.
-constexpr bool kGenerateSingleArmMappingSymbol = true;
-
 template <typename ElfTypes>
 class ElfWriterQuick FINAL : public ElfWriter {
  public:
@@ -97,10 +88,6 @@ std::unique_ptr<ElfWriter> CreateElfWriterQuick(InstructionSet instruction_set,
     return MakeUnique<ElfWriterQuick<ElfTypes32>>(instruction_set, compiler_options, elf_file);
   }
 }
-
-template <typename ElfTypes>
-static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
-                              const ArrayRef<const dwarf::MethodDebugInfo>& method_infos);
 
 template <typename ElfTypes>
 ElfWriterQuick<ElfTypes>::ElfWriterQuick(InstructionSet instruction_set,
@@ -165,14 +152,7 @@ template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
     const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
   if (compiler_options_->GetGenerateDebugInfo()) {
-    if (!method_infos.empty()) {
-      // Add methods to .symtab.
-      WriteDebugSymbols(builder_.get(), method_infos);
-      // Generate CFI (stack unwinding information).
-      dwarf::WriteCFISection(builder_.get(), method_infos, kCFIFormat);
-      // Write DWARF .debug_* sections.
-      dwarf::WriteDebugSections(builder_.get(), method_infos);
-    }
+    dwarf::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat);
   }
 }
 
@@ -197,64 +177,6 @@ bool ElfWriterQuick<ElfTypes>::End() {
 template <typename ElfTypes>
 OutputStream* ElfWriterQuick<ElfTypes>::GetStream() {
   return builder_->GetStream();
-}
-
-template <typename ElfTypes>
-static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
-                              const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
-  bool generated_mapping_symbol = false;
-  auto* strtab = builder->GetStrTab();
-  auto* symtab = builder->GetSymTab();
-
-  if (method_infos.empty()) {
-    return;
-  }
-
-  // Find all addresses (low_pc) which contain deduped methods.
-  // The first instance of method is not marked deduped_, but the rest is.
-  std::unordered_set<uint32_t> deduped_addresses;
-  for (const dwarf::MethodDebugInfo& info : method_infos) {
-    if (info.deduped_) {
-      deduped_addresses.insert(info.low_pc_);
-    }
-  }
-
-  strtab->Start();
-  strtab->Write("");  // strtab should start with empty string.
-  for (const dwarf::MethodDebugInfo& info : method_infos) {
-    if (info.deduped_) {
-      continue;  // Add symbol only for the first instance.
-    }
-    std::string name = PrettyMethod(info.dex_method_index_, *info.dex_file_, true);
-    if (deduped_addresses.find(info.low_pc_) != deduped_addresses.end()) {
-      name += " [DEDUPED]";
-    }
-
-    uint32_t low_pc = info.low_pc_;
-    // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
-    low_pc += info.compiled_method_->CodeDelta();
-    symtab->Add(strtab->Write(name), builder->GetText(), low_pc,
-                true, info.high_pc_ - info.low_pc_, STB_GLOBAL, STT_FUNC);
-
-    // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
-    // instructions, so that disassembler tools can correctly disassemble.
-    // Note that even if we generate just a single mapping symbol, ARM's Streamline
-    // requires it to match function symbol.  Just address 0 does not work.
-    if (info.compiled_method_->GetInstructionSet() == kThumb2) {
-      if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
-        symtab->Add(strtab->Write("$t"), builder->GetText(), info.low_pc_ & ~1,
-                    true, 0, STB_LOCAL, STT_NOTYPE);
-        generated_mapping_symbol = true;
-      }
-    }
-  }
-  strtab->End();
-
-  // Symbols are buffered and written after names (because they are smaller).
-  // We could also do two passes in this function to avoid the buffering.
-  symtab->Start();
-  symtab->Write();
-  symtab->End();
 }
 
 // Explicit instantiations
