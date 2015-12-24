@@ -47,7 +47,7 @@ public class Main {
   }
 
   /// CHECK-START-X86: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
-  /// CHECK:          InvokeVirtual
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}}
   /// CHECK-NOT:      test
   public static boolean stringArgumentNotNull(Object obj) {
     obj.getClass();

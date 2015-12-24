@@ -364,6 +364,8 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   thread_state.h \
   verifier/method_verifier.h
 
+LIBOPENJDKJVM_SRC_FILES := openjdkjvm/OpenjdkJvm.cc
+
 LIBART_CFLAGS := -DBUILDING_LIBART=1
 
 LIBART_TARGET_CFLAGS :=
@@ -400,8 +402,9 @@ endif
 
 # $(1): target or host
 # $(2): ndebug or debug
-# $(3): static or shared (empty means shared, applies only for host)
-define build-libart
+# $(3): static or shared (note that static only applies for host)
+# $(4): module name : either libart or libopenjdkjvm
+define build-runtime-library
   ifneq ($(1),target)
     ifneq ($(1),host)
       $$(error expected target or host for argument 1, received $(1))
@@ -412,6 +415,11 @@ define build-libart
       $$(error expected ndebug or debug for argument 2, received $(2))
     endif
   endif
+  ifneq ($(4),libart)
+    ifneq ($(4),libopenjdkjvm)
+      $$(error expected libart of libopenjdkjvm for argument 4, received $(4))
+    endif
+  endif
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
@@ -420,12 +428,12 @@ define build-libart
   include $$(CLEAR_VARS)
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
-    LOCAL_MODULE := libart
+    LOCAL_MODULE := $(4)
     ifeq ($$(art_target_or_host),target)
       LOCAL_FDO_SUPPORT := true
     endif
   else # debug
-    LOCAL_MODULE := libartd
+    LOCAL_MODULE := $(4)d
   endif
 
   LOCAL_MODULE_TAGS := optional
@@ -436,17 +444,25 @@ define build-libart
     LOCAL_MODULE_CLASS := SHARED_LIBRARIES
   endif
 
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_SRC_FILES := $$(LIBART_TARGET_SRC_FILES)
-    $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
-      $$(eval LOCAL_SRC_FILES_$$(arch) := $$$$(LIBART_TARGET_SRC_FILES_$$(arch))))
-  else # host
-    LOCAL_SRC_FILES := $$(LIBART_HOST_SRC_FILES)
-    LOCAL_SRC_FILES_32 := $$(LIBART_HOST_SRC_FILES_32)
-    LOCAL_SRC_FILES_64 := $$(LIBART_HOST_SRC_FILES_64)
-    LOCAL_IS_HOST_MODULE := true
+  ifeq ($(4),libart)
+    ifeq ($$(art_target_or_host),target)
+      LOCAL_SRC_FILES := $$(LIBART_TARGET_SRC_FILES)
+      $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
+        $$(eval LOCAL_SRC_FILES_$$(arch) := $$$$(LIBART_TARGET_SRC_FILES_$$(arch))))
+    else # host
+      LOCAL_SRC_FILES := $$(LIBART_HOST_SRC_FILES)
+      LOCAL_SRC_FILES_32 := $$(LIBART_HOST_SRC_FILES_32)
+      LOCAL_SRC_FILES_64 := $$(LIBART_HOST_SRC_FILES_64)
+      LOCAL_IS_HOST_MODULE := true
+    endif
+  else # libopenjdkjvm
+    LOCAL_SRC_FILES := $$(LIBOPENJDKJVM_SRC_FILES)
+    ifeq ($$(art_target_or_host),host)
+      LOCAL_IS_HOST_MODULE := true
+    endif
   endif
 
+ifeq ($(4),libart)
   GENERATED_SRC_DIR := $$(call local-generated-sources-dir)
   ENUM_OPERATOR_OUT_CC_FILES := $$(patsubst %.h,%_operator_out.cc,$$(LIBART_ENUM_OPERATOR_OUT_HEADER_FILES))
   ENUM_OPERATOR_OUT_GEN := $$(addprefix $$(GENERATED_SRC_DIR)/,$$(ENUM_OPERATOR_OUT_CC_FILES))
@@ -457,6 +473,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 	$$(transform-generated-source)
 
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
+endif
 
   LOCAL_CFLAGS := $$(LIBART_CFLAGS)
   LOCAL_LDFLAGS := $$(LIBART_LDFLAGS)
@@ -538,6 +555,15 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       LOCAL_SHARED_LIBRARIES += libcutils
     endif
   endif
+
+  ifeq ($(4),libopenjdkjvm)
+    ifeq ($$(art_ndebug_or_debug),ndebug)
+      LOCAL_SHARED_LIBRARIES += libart
+    else
+      LOCAL_SHARED_LIBRARIES += libartd
+    endif
+    LOCAL_NOTICE_FILE := $(LOCAL_PATH)/openjdkjvm/NOTICE
+  endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
 
@@ -574,24 +600,30 @@ endef
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
 # they are used to cross compile for the target.
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-libart,host,ndebug))
+  $(eval $(call build-runtime-library,host,ndebug,shared,libart))
+  $(eval $(call build-runtime-library,host,ndebug,shared,libopenjdkjvm))
   ifeq ($(ART_BUILD_HOST_STATIC),true)
-    $(eval $(call build-libart,host,ndebug,static))
+    $(eval $(call build-runtime-library,host,ndebug,static,libart))
+    $(eval $(call build-runtime-library,host,ndebug,static,libopenjdkjvm))
   endif
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-libart,host,debug))
+  $(eval $(call build-runtime-library,host,debug,shared,libart))
+  $(eval $(call build-runtime-library,host,debug,shared,libopenjdkjvm))
   ifeq ($(ART_BUILD_HOST_STATIC),true)
-    $(eval $(call build-libart,host,debug,static))
+    $(eval $(call build-runtime-library,host,debug,static,libart))
+    $(eval $(call build-runtime-library,host,debug,static,libopenjdkjvm))
   endif
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-#  $(error $(call build-libart,target,ndebug))
-  $(eval $(call build-libart,target,ndebug))
+#  $(error $(call build-runtime-library,target,ndebug))
+  $(eval $(call build-runtime-library,target,ndebug,shared,libart))
+  $(eval $(call build-runtime-library,target,ndebug,shared,libopenjdkjvm))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart,target,debug))
+  $(eval $(call build-runtime-library,target,debug,shared,libart))
+  $(eval $(call build-runtime-library,target,debug,shared,libopenjdkjvm))
 endif
 
 # Clear locally defined variables.
@@ -622,4 +654,4 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES :=
 LIBART_CFLAGS :=
 LIBART_TARGET_CFLAGS :=
 LIBART_HOST_CFLAGS :=
-build-libart :=
+build-runtime-library :=

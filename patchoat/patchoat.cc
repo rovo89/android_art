@@ -118,6 +118,38 @@ static bool ReadOatPatchDelta(const ElfFile* elf_file, off_t* delta, std::string
   return true;
 }
 
+static File* CreateOrOpen(const char* name, bool* created) {
+  if (OS::FileExists(name)) {
+    *created = false;
+    return OS::OpenFileReadWrite(name);
+  } else {
+    *created = true;
+    std::unique_ptr<File> f(OS::CreateEmptyFile(name));
+    if (f.get() != nullptr) {
+      if (fchmod(f->Fd(), 0644) != 0) {
+        PLOG(ERROR) << "Unable to make " << name << " world readable";
+        TEMP_FAILURE_RETRY(unlink(name));
+        return nullptr;
+      }
+    }
+    return f.release();
+  }
+}
+
+// Either try to close the file (close=true), or erase it.
+static bool FinishFile(File* file, bool close) {
+  if (close) {
+    if (file->FlushCloseOrErase() != 0) {
+      PLOG(ERROR) << "Failed to flush and close file.";
+      return false;
+    }
+    return true;
+  } else {
+    file->Erase();
+    return false;
+  }
+}
+
 bool PatchOat::Patch(const std::string& image_location, off_t delta,
                      File* output_image, InstructionSet isa,
                      TimingLogger* timings) {
@@ -195,11 +227,12 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
     LOG(ERROR) << "unable to map image file " << input_image->GetPath() << " : " << error_msg;
     return false;
   }
-  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetBootImageSpace();
+  // TODO: Support multi-image when patchoat is only patching images. Ever used? b/26317072
+  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetBootImageSpaces()[0];
 
   PatchOat p(isa, image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(), delta, timings);
   t.NewTiming("Patching files");
-  if (!p.PatchImage()) {
+  if (!p.PatchImage(true)) {
     LOG(ERROR) << "Failed to patch image file " << input_image->GetPath();
     return false;
   }
@@ -214,7 +247,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
 bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t delta,
                      File* output_oat, File* output_image, InstructionSet isa,
                      TimingLogger* timings,
-                     bool output_oat_opened_from_fd,
+                     bool output_oat_opened_from_fd ATTRIBUTE_UNUSED,
                      bool new_oat_out) {
   CHECK(Runtime::Current() == nullptr);
   CHECK(output_image != nullptr);
@@ -236,31 +269,6 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
     isa = GetInstructionSetFromELF(elf_hdr.e_machine, elf_hdr.e_flags);
   }
   const char* isa_name = GetInstructionSetString(isa);
-  std::string image_filename;
-  if (!LocationToFilename(image_location, isa, &image_filename)) {
-    LOG(ERROR) << "Unable to find image at location " << image_location;
-    return false;
-  }
-  std::unique_ptr<File> input_image(OS::OpenFileForReading(image_filename.c_str()));
-  if (input_image.get() == nullptr) {
-    LOG(ERROR) << "unable to open input image file at " << image_filename
-               << " for location " << image_location;
-    return false;
-  }
-  int64_t image_len = input_image->GetLength();
-  if (image_len < 0) {
-    LOG(ERROR) << "Error while getting image length";
-    return false;
-  }
-  ImageHeader image_header;
-  if (sizeof(image_header) != input_image->Read(reinterpret_cast<char*>(&image_header),
-                                              sizeof(image_header), 0)) {
-    LOG(ERROR) << "Unable to read image header from image file " << input_image->GetPath();
-  }
-
-  /*bool is_image_pic = */IsImagePic(image_header, input_image->GetPath());
-  // Nothing special to do right now since the image always needs to get patched.
-  // Perhaps in some far-off future we may have images with relative addresses that are true-PIC.
 
   // Set up the runtime
   RuntimeOptions options;
@@ -279,70 +287,169 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   ScopedObjectAccess soa(Thread::Current());
 
+  std::string output_directory =
+      output_image->GetPath().substr(0, output_image->GetPath().find_last_of("/"));
   t.NewTiming("Image and oat Patching setup");
-  // Create the map where we will write the image patches to.
-  std::string error_msg;
-  std::unique_ptr<MemMap> image(MemMap::MapFile(image_len,
-                                                PROT_READ | PROT_WRITE,
-                                                MAP_PRIVATE,
-                                                input_image->Fd(),
-                                                0,
-                                                /*low_4gb*/false,
-                                                input_image->GetPath().c_str(),
-                                                &error_msg));
-  if (image.get() == nullptr) {
-    LOG(ERROR) << "unable to map image file " << input_image->GetPath() << " : " << error_msg;
-    return false;
-  }
-  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetBootImageSpace();
+  std::vector<gc::space::ImageSpace*> spaces = Runtime::Current()->GetHeap()->GetBootImageSpaces();
+  std::map<gc::space::ImageSpace*, std::unique_ptr<File>> space_to_file_map;
+  std::map<gc::space::ImageSpace*, std::unique_ptr<MemMap>> space_to_memmap_map;
+  std::map<gc::space::ImageSpace*, PatchOat> space_to_patchoat_map;
+  std::map<gc::space::ImageSpace*, bool> space_to_skip_patching_map;
 
-  std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat,
-                                             PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
-  if (elf.get() == nullptr) {
-    LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
-    return false;
-  }
-
-  bool skip_patching_oat = false;
-  MaybePic is_oat_pic = IsOatPic(elf.get());
-  if (is_oat_pic >= ERROR_FIRST) {
-    // Error logged by IsOatPic
-    return false;
-  } else if (is_oat_pic == PIC) {
-    // Do not need to do ELF-file patching. Create a symlink and skip the ELF patching.
-    if (!ReplaceOatFileWithSymlink(input_oat->GetPath(),
-                                   output_oat->GetPath(),
-                                   output_oat_opened_from_fd,
-                                   new_oat_out)) {
-      // Errors already logged by above call.
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    gc::space::ImageSpace* space = spaces[i];
+    std::string input_image_filename = space->GetImageFilename();
+    std::unique_ptr<File> input_image(OS::OpenFileForReading(input_image_filename.c_str()));
+    if (input_image.get() == nullptr) {
+      LOG(ERROR) << "Unable to open input image file at " << input_image_filename;
       return false;
     }
-    // Don't patch the OAT, since we just symlinked it. Image still needs patching.
-    skip_patching_oat = true;
-  } else {
-    CHECK(is_oat_pic == NOT_PIC);
+
+    int64_t image_len = input_image->GetLength();
+    if (image_len < 0) {
+      LOG(ERROR) << "Error while getting image length";
+      return false;
+    }
+    ImageHeader image_header;
+    if (sizeof(image_header) != input_image->Read(reinterpret_cast<char*>(&image_header),
+                                                  sizeof(image_header), 0)) {
+      LOG(ERROR) << "Unable to read image header from image file " << input_image->GetPath();
+    }
+
+    /*bool is_image_pic = */IsImagePic(image_header, input_image->GetPath());
+    // Nothing special to do right now since the image always needs to get patched.
+    // Perhaps in some far-off future we may have images with relative addresses that are true-PIC.
+
+    // Create the map where we will write the image patches to.
+    std::string error_msg;
+    std::unique_ptr<MemMap> image(MemMap::MapFile(image_len,
+                                                  PROT_READ | PROT_WRITE,
+                                                  MAP_PRIVATE,
+                                                  input_image->Fd(),
+                                                  0,
+                                                  /*low_4gb*/false,
+                                                  input_image->GetPath().c_str(),
+                                                  &error_msg));
+    if (image.get() == nullptr) {
+      LOG(ERROR) << "Unable to map image file " << input_image->GetPath() << " : " << error_msg;
+      return false;
+    }
+    space_to_file_map.emplace(space, std::move(input_image));
+    space_to_memmap_map.emplace(space, std::move(image));
   }
 
-  PatchOat p(isa, elf.release(), image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
-             delta, timings);
-  t.NewTiming("Patching files");
-  if (!skip_patching_oat && !p.PatchElf()) {
-    LOG(ERROR) << "Failed to patch oat file " << input_oat->GetPath();
-    return false;
-  }
-  if (!p.PatchImage()) {
-    LOG(ERROR) << "Failed to patch image file " << input_image->GetPath();
-    return false;
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    gc::space::ImageSpace* space = spaces[i];
+    std::string input_image_filename = space->GetImageFilename();
+    std::string input_oat_filename =
+        ImageHeader::GetOatLocationFromImageLocation(input_image_filename);
+    std::unique_ptr<File> input_oat_file(OS::OpenFileForReading(input_oat_filename.c_str()));
+    if (input_oat_file.get() == nullptr) {
+      LOG(ERROR) << "Unable to open input oat file at " << input_oat_filename;
+      return false;
+    }
+    std::string error_msg;
+    std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat_file.get(),
+                                               PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
+    if (elf.get() == nullptr) {
+      LOG(ERROR) << "Unable to open oat file " << input_oat_file->GetPath() << " : " << error_msg;
+      return false;
+    }
+
+    bool skip_patching_oat = false;
+    MaybePic is_oat_pic = IsOatPic(elf.get());
+    if (is_oat_pic >= ERROR_FIRST) {
+      // Error logged by IsOatPic
+      return false;
+    } else if (is_oat_pic == PIC) {
+      // Do not need to do ELF-file patching. Create a symlink and skip the ELF patching.
+
+      std::string converted_image_filename = space->GetImageLocation();
+      std::replace(converted_image_filename.begin() + 1, converted_image_filename.end(), '/', '@');
+      std::string output_image_filename = output_directory +
+                                          (StartsWith(converted_image_filename, "/") ? "" : "/") +
+                                          converted_image_filename;
+      std::string output_oat_filename =
+          ImageHeader::GetOatLocationFromImageLocation(output_image_filename);
+
+      if (!ReplaceOatFileWithSymlink(input_oat_file->GetPath(),
+                                     output_oat_filename,
+                                     false,
+                                     true)) {
+        // Errors already logged by above call.
+        return false;
+      }
+      // Don't patch the OAT, since we just symlinked it. Image still needs patching.
+      skip_patching_oat = true;
+    } else {
+      CHECK(is_oat_pic == NOT_PIC);
+    }
+
+    PatchOat& p = space_to_patchoat_map.emplace(space,
+                                                PatchOat(
+                                                    isa,
+                                                    elf.release(),
+                                                    space_to_memmap_map.find(space)->second.get(),
+                                                    space->GetLiveBitmap(),
+                                                    space->GetMemMap(),
+                                                    delta,
+                                                    &space_to_memmap_map,
+                                                    timings)).first->second;
+
+    t.NewTiming("Patching files");
+    if (!skip_patching_oat && !p.PatchElf()) {
+      LOG(ERROR) << "Failed to patch oat file " << input_oat_file->GetPath();
+      return false;
+    }
+    if (!p.PatchImage(i == 0)) {
+      LOG(ERROR) << "Failed to patch image file " << input_image_filename;
+      return false;
+    }
+
+    space_to_skip_patching_map.emplace(space, skip_patching_oat);
   }
 
-  t.NewTiming("Writing files");
-  if (!skip_patching_oat && !p.WriteElf(output_oat)) {
-    LOG(ERROR) << "Failed to write oat file " << input_oat->GetPath();
-    return false;
-  }
-  if (!p.WriteImage(output_image)) {
-    LOG(ERROR) << "Failed to write image file " << input_image->GetPath();
-    return false;
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    gc::space::ImageSpace* space = spaces[i];
+    std::string input_image_filename = space->GetImageFilename();
+
+    t.NewTiming("Writing files");
+    std::string converted_image_filename = space->GetImageLocation();
+    std::replace(converted_image_filename.begin() + 1, converted_image_filename.end(), '/', '@');
+    std::string output_image_filename = output_directory +
+                                        (StartsWith(converted_image_filename, "/") ? "" : "/") +
+                                        converted_image_filename;
+    std::unique_ptr<File>
+        output_image_file(CreateOrOpen(output_image_filename.c_str(), &new_oat_out));
+    if (output_image_file.get() == nullptr) {
+      LOG(ERROR) << "Failed to open output image file at " << output_image_filename;
+      return false;
+    }
+
+    PatchOat& p = space_to_patchoat_map.find(space)->second;
+
+    if (!p.WriteImage(output_image_file.get())) {
+      LOG(ERROR) << "Failed to write image file " << output_image_file->GetPath();
+      return false;
+    }
+    FinishFile(output_image_file.get(), true);
+
+    bool skip_patching_oat = space_to_skip_patching_map.find(space)->second;
+    if (!skip_patching_oat) {
+      std::string output_oat_filename =
+          ImageHeader::GetOatLocationFromImageLocation(output_image_filename);
+      std::unique_ptr<File>
+          output_oat_file(CreateOrOpen(output_oat_filename.c_str(), &new_oat_out));
+      if (output_oat_file.get() == nullptr) {
+        LOG(ERROR) << "Failed to open output oat file at " << output_oat_filename;
+        return false;
+      }
+      if (!p.WriteElf(output_oat_file.get())) {
+        LOG(ERROR) << "Failed to write oat file " << output_oat_file->GetPath();
+        return false;
+      }
+      FinishFile(output_oat_file.get(), true);
+    }
   }
   return true;
 }
@@ -616,7 +723,7 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
   }
 }
 
-bool PatchOat::PatchImage() {
+bool PatchOat::PatchImage(bool primary_image) {
   ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
   CHECK_GT(image_->Size(), sizeof(ImageHeader));
   // These are the roots from the original file.
@@ -630,9 +737,12 @@ bool PatchOat::PatchImage() {
   // Patch dex file int/long arrays which point to ArtFields.
   PatchDexFileArrays(img_roots);
 
-  VisitObject(img_roots);
+  if (primary_image) {
+    VisitObject(img_roots);
+  }
+
   if (!image_header->IsValid()) {
-    LOG(ERROR) << "reloction renders image header invalid";
+    LOG(ERROR) << "relocation renders image header invalid";
     return false;
   }
 
@@ -655,7 +765,8 @@ bool PatchOat::InHeap(mirror::Object* o) {
 void PatchOat::PatchVisitor::operator() (mirror::Object* obj, MemberOffset off,
                                          bool is_static_unused ATTRIBUTE_UNUSED) const {
   mirror::Object* referent = obj->GetFieldObject<mirror::Object, kVerifyNone>(off);
-  DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
+  // TODO: Modify check for multi-image support? b/26317072
+  // DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
   mirror::Object* moved_object = patcher_->RelocatedAddressOfPointer(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
@@ -664,7 +775,8 @@ void PatchOat::PatchVisitor::operator() (mirror::Class* cls ATTRIBUTE_UNUSED,
                                          mirror::Reference* ref) const {
   MemberOffset off = mirror::Reference::ReferentOffset();
   mirror::Object* referent = ref->GetReferent();
-  DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
+  // TODO: Modify check for multi-image support? b/26317072
+  // DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
   mirror::Object* moved_object = patcher_->RelocatedAddressOfPointer(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
@@ -691,7 +803,7 @@ void PatchOat::VisitObject(mirror::Object* object) {
     klass->FixupNativePointers(copy_klass, pointer_size, native_visitor);
     auto* vtable = klass->GetVTable();
     if (vtable != nullptr) {
-      vtable->Fixup(RelocatedCopyOf(vtable), pointer_size, native_visitor);
+      vtable->Fixup(RelocatedCopyOfFollowImages(vtable), pointer_size, native_visitor);
     }
     auto* iftable = klass->GetIfTable();
     if (iftable != nullptr) {
@@ -699,7 +811,9 @@ void PatchOat::VisitObject(mirror::Object* object) {
         if (iftable->GetMethodArrayCount(i) > 0) {
           auto* method_array = iftable->GetMethodArray(i);
           CHECK(method_array != nullptr);
-          method_array->Fixup(RelocatedCopyOf(method_array), pointer_size, native_visitor);
+          method_array->Fixup(RelocatedCopyOfFollowImages(method_array),
+                              pointer_size,
+                              native_visitor);
         }
       }
     }
@@ -970,38 +1084,6 @@ static bool ReadBaseDelta(const char* name, off_t* delta, std::string* error_msg
   }
   *delta = hdr.GetPatchDelta();
   return true;
-}
-
-static File* CreateOrOpen(const char* name, bool* created) {
-  if (OS::FileExists(name)) {
-    *created = false;
-    return OS::OpenFileReadWrite(name);
-  } else {
-    *created = true;
-    std::unique_ptr<File> f(OS::CreateEmptyFile(name));
-    if (f.get() != nullptr) {
-      if (fchmod(f->Fd(), 0644) != 0) {
-        PLOG(ERROR) << "Unable to make " << name << " world readable";
-        TEMP_FAILURE_RETRY(unlink(name));
-        return nullptr;
-      }
-    }
-    return f.release();
-  }
-}
-
-// Either try to close the file (close=true), or erase it.
-static bool FinishFile(File* file, bool close) {
-  if (close) {
-    if (file->FlushCloseOrErase() != 0) {
-      PLOG(ERROR) << "Failed to flush and close file.";
-      return false;
-    }
-    return true;
-  } else {
-    file->Erase();
-    return false;
-  }
 }
 
 static int patchoat(int argc, char **argv) {

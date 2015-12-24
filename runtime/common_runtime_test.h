@@ -77,8 +77,8 @@ class CommonRuntimeTest : public testing::Test {
   CommonRuntimeTest();
   ~CommonRuntimeTest();
 
-  // Gets the path of the libcore dex file.
-  static std::string GetLibCoreDexFileName();
+  // Gets the paths of the libcore dex files.
+  static std::vector<std::string> GetLibCoreDexFileNames();
 
   // Returns bin directory which contains host's prebuild tools.
   static std::string GetAndroidHostToolsDir();

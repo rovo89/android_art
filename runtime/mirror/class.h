@@ -560,8 +560,8 @@ class MANAGED Class FINAL : public Object {
   // The size of java.lang.Class.class.
   static uint32_t ClassClassSize(size_t pointer_size) {
     // The number of vtable entries in java.lang.Class.
-    uint32_t vtable_entries = Object::kVTableLength + 65;
-    return ComputeClassSize(true, vtable_entries, 0, 0, 0, 1, 0, pointer_size);
+    uint32_t vtable_entries = Object::kVTableLength + 69;
+    return ComputeClassSize(true, vtable_entries, 0, 0, 4, 1, 0, pointer_size);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
@@ -1275,6 +1275,8 @@ class MANAGED Class FINAL : public Object {
   // 'Class' Object Fields
   // Order governed by java field ordering. See art::ClassLinker::LinkFields.
 
+  HeapReference<Object> annotation_type_;
+
   // Defining class loader, or null for the "bootstrap" system loader.
   HeapReference<ClassLoader> class_loader_;
 
@@ -1320,6 +1322,9 @@ class MANAGED Class FINAL : public Object {
   // virtual_ methods_ for miranda methods.
   HeapReference<PointerArray> vtable_;
 
+  // Access flags; low 16 bits are defined by VM spec.
+  uint32_t access_flags_;
+
   // Short cuts to dex_cache_ member for fast compiled code access.
   uint64_t dex_cache_strings_;
 
@@ -1351,9 +1356,6 @@ class MANAGED Class FINAL : public Object {
 
   // Static fields length-prefixed array.
   uint64_t sfields_;
-
-  // Access flags; low 16 bits are defined by VM spec.
-  uint32_t access_flags_;
 
   // Class flags to help speed up visiting object references.
   uint32_t class_flags_;

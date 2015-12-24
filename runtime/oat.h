@@ -39,6 +39,7 @@ class PACKED(4) OatHeader {
   static constexpr const char* kPicKey = "pic";
   static constexpr const char* kDebuggableKey = "debuggable";
   static constexpr const char* kClassPathKey = "classpath";
+  static constexpr const char* kBootClassPath = "bootclasspath";
 
   static constexpr const char kTrueValue[] = "true";
   static constexpr const char kFalseValue[] = "false";

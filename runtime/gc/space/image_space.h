@@ -43,7 +43,10 @@ class ImageSpace : public MemMapSpace {
   // creation of the alloc space. The ReleaseOatFile will later be
   // used to transfer ownership of the OatFile to the ClassLinker when
   // it is initialized.
-  static ImageSpace* Create(const char* image, InstructionSet image_isa, std::string* error_msg)
+  static ImageSpace* Create(const char* image,
+                            InstructionSet image_isa,
+                            bool secondary_image,
+                            std::string* error_msg)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Reads the image header from the specified image location for the
@@ -158,8 +161,12 @@ class ImageSpace : public MemMapSpace {
 
   std::unique_ptr<accounting::ContinuousSpaceBitmap> live_bitmap_;
 
-  ImageSpace(const std::string& name, const char* image_location,
-             MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap, uint8_t* end);
+  ImageSpace(const std::string& name,
+             const char* image_location,
+             MemMap* mem_map,
+             accounting::ContinuousSpaceBitmap* live_bitmap,
+             uint8_t* end,
+             MemMap* shadow_map = nullptr);
 
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to
@@ -171,6 +178,10 @@ class ImageSpace : public MemMapSpace {
   const OatFile* oat_file_non_owned_;
 
   const std::string image_location_;
+
+  // A MemMap reserving the space of the bitmap "shadow," so that we don't allocate into it. Only
+  // used in the multi-image case.
+  std::unique_ptr<MemMap> shadow_map_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);

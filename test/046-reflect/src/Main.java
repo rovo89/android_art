@@ -407,12 +407,13 @@ public class Main {
         System.out.println("ReflectTest done!");
     }
 
-    public static void checkType() {
+    public static void checkSwap() {
         Method m;
 
+        final Object[] objects = new Object[2];
         try {
-            m = Collections.class.getDeclaredMethod("checkType",
-                            Object.class, Class.class);
+            m = Collections.class.getDeclaredMethod("swap",
+                            Object[].class, int.class, int.class);
         } catch (NoSuchMethodException nsme) {
             nsme.printStackTrace();
             return;
@@ -421,7 +422,7 @@ public class Main {
         m.setAccessible(true);
         System.out.println(m + " accessible=" + m.isAccessible());
         try {
-            m.invoke(null, new Object(), Object.class);
+            m.invoke(null, objects, 0, 1);
         } catch (IllegalAccessException iae) {
             iae.printStackTrace();
             return;
@@ -432,7 +433,7 @@ public class Main {
 
         try {
             String s = "Should be ignored";
-            m.invoke(s, new Object(), Object.class);
+            m.invoke(s, objects, 0, 1);
         } catch (IllegalAccessException iae) {
             iae.printStackTrace();
             return;
@@ -443,7 +444,8 @@ public class Main {
 
         try {
             System.out.println("checkType invoking null");
-            m.invoke(null, new Object(), int.class);
+            // Trigger an NPE at the target.
+            m.invoke(null, null, 0, 1);
             System.out.println("ERROR: should throw InvocationTargetException");
         } catch (InvocationTargetException ite) {
             System.out.println("checkType got expected exception");
@@ -710,27 +712,27 @@ public class Main {
     private static void checkGetDeclaredConstructor() {
         try {
             Method.class.getDeclaredConstructor().setAccessible(true);
-            System.out.print("Didn't get an exception from Method.class.getDeclaredConstructor().setAccessible");
+            System.out.println("Didn't get an exception from Method.class.getDeclaredConstructor().setAccessible");
         } catch (SecurityException e) {
         } catch (NoSuchMethodException e) {
         } catch (Exception e) {
-            System.out.print(e);
+            System.out.println(e);
         }
         try {
             Field.class.getDeclaredConstructor().setAccessible(true);
-            System.out.print("Didn't get an exception from Field.class.getDeclaredConstructor().setAccessible");
+            System.out.println("Didn't get an exception from Field.class.getDeclaredConstructor().setAccessible");
         } catch (SecurityException e) {
         } catch (NoSuchMethodException e) {
         } catch (Exception e) {
-            System.out.print(e);
+            System.out.println(e);
         }
         try {
             Class.class.getDeclaredConstructor().setAccessible(true);
-            System.out.print("Didn't get an exception from Class.class.getDeclaredConstructor().setAccessible");
+            System.out.println("Didn't get an exception from Class.class.getDeclaredConstructor().setAccessible");
         } catch (SecurityException e) {
         } catch (NoSuchMethodException e) {
         } catch (Exception e) {
-            System.out.print(e);
+            System.out.println(e);
         }
     }
 
@@ -744,7 +746,7 @@ public class Main {
 
         checkGetDeclaredConstructor();
         checkAccess();
-        checkType();
+        checkSwap();
         checkClinitForFields();
         checkClinitForMethods();
         checkGeneric();

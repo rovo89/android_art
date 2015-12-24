@@ -86,7 +86,7 @@ static jboolean Constructor_isAnnotationPresentNative(JNIEnv* env, jobject javaM
  * with an interface, array, or primitive class. If this is coming from
  * native, it is OK to avoid access checks since JNI does not enforce them.
  */
-static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
+static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Constructor* m = soa.Decode<mirror::Constructor*>(javaMethod);
   StackHandleScope<1> hs(soa.Self());
@@ -99,7 +99,9 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   }
   // Verify that we can access the class.
   if (!m->IsAccessible() && !c->IsPublic()) {
-    auto* caller = GetCallingClass(soa.Self(), 1);
+    // Go 2 frames back, this method is always called from newInstance0, which is called from
+    // Constructor.newInstance(Object... args).
+    auto* caller = GetCallingClass(soa.Self(), 2);
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
     if (caller != nullptr && !caller->CanAccess(c.Get())) {
@@ -127,7 +129,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
 
   // String constructor is replaced by a StringFactory method in InvokeMethod.
   if (c->IsStringClass()) {
-    return InvokeMethod(soa, javaMethod, nullptr, javaArgs, 1);
+    return InvokeMethod(soa, javaMethod, nullptr, javaArgs, 2);
   }
 
   mirror::Object* receiver =
@@ -136,9 +138,16 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return nullptr;
   }
   jobject javaReceiver = soa.AddLocalReference<jobject>(receiver);
-  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, 1);
+  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, 2);
   // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
   return javaReceiver;
+}
+
+static jobject Constructor_newInstanceFromSerialization(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED,
+                                                        jclass ctorClass, jclass allocClass) {
+    jmethodID ctor = env->GetMethodID(ctorClass, "<init>", "()V");
+    DCHECK(ctor != NULL);
+    return env->NewObject(allocClass, ctor);
 }
 
 static JNINativeMethod gMethods[] = {
@@ -149,7 +158,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Constructor, getParameterAnnotationsNative,
                 "!()[[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Constructor, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
-  NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstance0, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstanceFromSerialization, "!(Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {

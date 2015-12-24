@@ -156,6 +156,14 @@ public class Main {
             ex.printStackTrace();
         }
 
+        // should succeed
+        try {
+            otherpackage.ConstructorAccess.newConstructorInstance();
+            System.out.println("Cons ConstructorAccess succeeded");
+        } catch (Exception ex) {
+            System.err.println("Cons ConstructorAccess failed");
+            ex.printStackTrace();
+        }
     }
 
     class InnerClass {
@@ -172,7 +180,6 @@ class LocalClass {
 class LocalClass2 {
     public LocalClass2() {}
 }
-
 
 class LocalClass3 {
     public static void main() {

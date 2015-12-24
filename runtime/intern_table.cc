@@ -187,24 +187,27 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s) {
   if (image_added_to_intern_table_) {
     return nullptr;
   }
-  gc::space::ImageSpace* image = Runtime::Current()->GetHeap()->GetBootImageSpace();
-  if (image == nullptr) {
+  std::vector<gc::space::ImageSpace*> image_spaces =
+      Runtime::Current()->GetHeap()->GetBootImageSpaces();
+  if (image_spaces.empty()) {
     return nullptr;  // No image present.
   }
-  mirror::Object* root = image->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
-  mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
   const std::string utf8 = s->ToModifiedUtf8();
-  for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
-    mirror::DexCache* dex_cache = dex_caches->Get(i);
-    const DexFile* dex_file = dex_cache->GetDexFile();
-    // Binary search the dex file for the string index.
-    const DexFile::StringId* string_id = dex_file->FindStringId(utf8.c_str());
-    if (string_id != nullptr) {
-      uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
-      // GetResolvedString() contains a RB.
-      mirror::String* image_string = dex_cache->GetResolvedString(string_idx);
-      if (image_string != nullptr) {
-        return image_string;
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    mirror::Object* root = image_space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+    mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
+    for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
+      mirror::DexCache* dex_cache = dex_caches->Get(i);
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      // Binary search the dex file for the string index.
+      const DexFile::StringId* string_id = dex_file->FindStringId(utf8.c_str());
+      if (string_id != nullptr) {
+        uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
+        // GetResolvedString() contains a RB.
+        mirror::String* image_string = dex_cache->GetResolvedString(string_idx);
+        if (image_string != nullptr) {
+          return image_string;
+        }
       }
     }
   }

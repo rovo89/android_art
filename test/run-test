@@ -85,7 +85,7 @@ fi
 
 # If JACK_CLASSPATH is not set, assume it only contains core-libart.
 if [ -z "$JACK_CLASSPATH" ]; then
-  export JACK_CLASSPATH="${OUT_DIR:-$ANDROID_BUILD_TOP/out}/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack"
+  export JACK_CLASSPATH="${OUT_DIR:-$ANDROID_BUILD_TOP/out}/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack:${OUT_DIR:-$ANDROID_BUILD_TOP/out}/host/common/obj/JAVA_LIBRARIES/core-oj-hostdex_intermediates/classes.jack"
 fi
 
 # If JILL_JAR is not set, assume it is located in the prebuilts directory.
@@ -135,6 +135,7 @@ have_patchoat="yes"
 have_image="yes"
 image_suffix=""
 pic_image_suffix=""
+multi_image_suffix=""
 android_root="/system"
 
 while true; do
@@ -183,6 +184,9 @@ while true; do
         shift
     elif [ "x$1" = "x--pic-image" ]; then
         pic_image_suffix="-pic"
+        shift
+    elif [ "x$1" = "x--multi-image" ]; then
+        multi_image_suffix="-multi"
         shift
     elif [ "x$1" = "x--pic-test" ]; then
         run_args="${run_args} --pic-test"
@@ -458,7 +462,7 @@ fi
 if [ "$runtime" = "dalvik" ]; then
     if [ "$target_mode" = "no" ]; then
         framework="${ANDROID_PRODUCT_OUT}/system/framework"
-        bpath="${framework}/core.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/core-junit.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
+        bpath="${framework}/core-libart.jar:${framework}/core-oj.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/core-junit.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
         run_args="${run_args} --boot -Xbootclasspath:${bpath}"
     else
         true # defaults to using target BOOTCLASSPATH
@@ -470,12 +474,12 @@ elif [ "$runtime" = "art" ]; then
             export ANDROID_HOST_OUT=${OUT_DIR:-$ANDROID_BUILD_TOP/out/}host/linux-x86
         fi
         guess_host_arch_name
-        run_args="${run_args} --boot ${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}.art"
+        run_args="${run_args} --boot ${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}${multi_image_suffix}.art"
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
         guess_target_arch_name
         run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
-        run_args="${run_args} --boot /data/art-test/core${image_suffix}${pic_image_suffix}.art"
+        run_args="${run_args} --boot /data/art-test/core${image_suffix}${pic_image_suffix}${multi_image_suffix}.art"
     fi
     if [ "$relocate" = "yes" ]; then
       run_args="${run_args} --relocate"
@@ -502,6 +506,7 @@ if [ "$have_image" = "no" ]; then
     # TODO If the target was compiled WITH_DEXPREOPT=true then these tests will
     # fail since these jar files will be stripped.
     bpath="${framework}/core-libart${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/core-oj${bpath_suffix}.jar"
     bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
     bpath="${bpath}:${framework}/okhttp${bpath_suffix}.jar"
     bpath="${bpath}:${framework}/core-junit${bpath_suffix}.jar"
@@ -611,6 +616,8 @@ if [ "$usage" = "yes" ]; then
         echo "                          Set instruction-set-features for compilation."
         echo "    --pic-image           Use an image compiled with position independent code for the"
         echo "                          boot class path."
+        echo "    --multi-image         Use a set of images compiled with dex2oat multi-image for"
+        echo "                          the boot class path."
         echo "    --pic-test            Compile the test code position independent."
         echo "    --quiet               Don't print anything except failure messages"
     ) 1>&2  # Direct to stderr so usage is not printed if --quiet is set.

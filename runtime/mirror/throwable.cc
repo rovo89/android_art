@@ -56,9 +56,9 @@ void Throwable::SetCause(Throwable* cause) {
 void Throwable::SetStackState(Object* state) SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(state != nullptr);
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObjectVolatile<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), state);
+    SetFieldObjectVolatile<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_), state);
   } else {
-    SetFieldObjectVolatile<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), state);
+    SetFieldObjectVolatile<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_), state);
   }
 }
 

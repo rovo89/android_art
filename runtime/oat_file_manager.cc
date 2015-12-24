@@ -78,17 +78,23 @@ const OatFile* OatFileManager::FindOpenedOatFileFromOatLocationLocked(
   return nullptr;
 }
 
-const OatFile* OatFileManager::GetBootOatFile() const {
-  gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
-  return (image_space == nullptr) ? nullptr : image_space->GetOatFile();
+std::vector<const OatFile*> OatFileManager::GetBootOatFiles() const {
+  std::vector<const OatFile*> oat_files;
+  std::vector<gc::space::ImageSpace*> image_spaces =
+      Runtime::Current()->GetHeap()->GetBootImageSpaces();
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    oat_files.push_back(image_space->GetOatFile());
+  }
+  return oat_files;
 }
 
 const OatFile* OatFileManager::GetPrimaryOatFile() const {
   ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
-  const OatFile* boot_oat_file = GetBootOatFile();
-  if (boot_oat_file != nullptr) {
+  std::vector<const OatFile*> boot_oat_files = GetBootOatFiles();
+  if (!boot_oat_files.empty()) {
     for (const std::unique_ptr<const OatFile>& oat_file : oat_files_) {
-      if (oat_file.get() != boot_oat_file) {
+      if (std::find(boot_oat_files.begin(), boot_oat_files.end(), oat_file.get()) ==
+          boot_oat_files.end()) {
         return oat_file.get();
       }
     }
@@ -102,8 +108,13 @@ OatFileManager::~OatFileManager() {
   oat_files_.clear();
 }
 
-const OatFile* OatFileManager::RegisterImageOatFile(gc::space::ImageSpace* space) {
-  return RegisterOatFile(space->ReleaseOatFile());
+std::vector<const OatFile*> OatFileManager::RegisterImageOatFiles(
+    std::vector<gc::space::ImageSpace*> spaces) {
+  std::vector<const OatFile*> oat_files;
+  for (gc::space::ImageSpace* space : spaces) {
+    oat_files.push_back(RegisterOatFile(space->ReleaseOatFile()));
+  }
+  return oat_files;
 }
 
 class DexFileAndClassPair : ValueObject {
@@ -213,7 +224,7 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   std::priority_queue<DexFileAndClassPair> queue;
 
   // Add dex files from already loaded oat files, but skip boot.
-  const OatFile* boot_oat = GetBootOatFile();
+  std::vector<const OatFile*> boot_oat_files = GetBootOatFiles();
   // The same OatFile can be loaded multiple times at different addresses. In this case, we don't
   // need to check both against each other since they would have resolved the same way at compile
   // time.
@@ -221,8 +232,8 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   for (const std::unique_ptr<const OatFile>& loaded_oat_file : oat_files_) {
     DCHECK_NE(loaded_oat_file.get(), oat_file);
     const std::string& location = loaded_oat_file->GetLocation();
-    if (loaded_oat_file.get() != boot_oat &&
-        location != oat_file->GetLocation() &&
+    if (std::find(boot_oat_files.begin(), boot_oat_files.end(), loaded_oat_file.get()) ==
+        boot_oat_files.end() && location != oat_file->GetLocation() &&
         unique_locations.find(location) == unique_locations.end()) {
       unique_locations.insert(location);
       AddDexFilesFromOat(loaded_oat_file.get(), /*already_loaded*/true, &queue);

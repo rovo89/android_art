@@ -223,9 +223,10 @@ class OatFileAssistantTest : public CommonRuntimeTest {
         false, dex_location.c_str(), &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
 
-    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetBootImageSpace();
-    ASSERT_TRUE(image_space != nullptr);
-    const ImageHeader& image_header = image_space->GetImageHeader();
+    const std::vector<gc::space::ImageSpace*> image_spaces =
+        runtime->GetHeap()->GetBootImageSpaces();
+    ASSERT_TRUE(!image_spaces.empty() && image_spaces[0] != nullptr);
+    const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
     const OatHeader& oat_header = odex_file->GetOatHeader();
     EXPECT_FALSE(odex_file->IsPic());
     EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
@@ -1025,7 +1026,7 @@ TEST_F(OatFileAssistantTest, RaceToGenerate) {
 
   // We use the lib core dex file, because it's large, and hopefully should
   // take a while to generate.
-  Copy(GetLibCoreDexFileName(), dex_location);
+  Copy(GetLibCoreDexFileNames()[0], dex_location);
 
   const int kNumThreads = 32;
   Thread* self = Thread::Current();

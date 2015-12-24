@@ -372,6 +372,18 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction ATTRIBUTE_UN
 
 bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
+
+  // Check whether we're allowed to inline. The outermost compilation unit is the relevant
+  // dex file here (though the transitivity of an inline chain would allow checking the calller).
+  if (!compiler_driver_->MayInline(method->GetDexFile(),
+                                   outer_compilation_unit_.GetDexFile())) {
+    VLOG(compiler) << "Won't inline " << PrettyMethod(method) << " in "
+                   << outer_compilation_unit_.GetDexFile()->GetLocation() << " ("
+                   << caller_compilation_unit_.GetDexFile()->GetLocation() << ") from "
+                   << method->GetDexFile()->GetLocation();
+    return false;
+  }
+
   uint32_t method_index = FindMethodIndexIn(
       method, caller_dex_file, invoke_instruction->GetDexMethodIndex());
   if (method_index == DexFile::kDexNoIndex) {

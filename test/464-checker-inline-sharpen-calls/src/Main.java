@@ -16,6 +16,14 @@
 
 public final class Main {
 
+  public final static class Helper {
+    private int foo = 3;
+
+    public int getFoo() {
+        return foo;
+    }
+  }
+
   public void invokeVirtual() {
   }
 
@@ -31,25 +39,25 @@ public final class Main {
     m.invokeVirtual();
   }
 
-  /// CHECK-START: int Main.inlineSharpenStringInvoke() ssa_builder (after)
-  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeVirtual
+  /// CHECK-START: int Main.inlineSharpenHelperInvoke() ssa_builder (after)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeVirtual {{.*\.getFoo.*}}
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
-  /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      InvokeVirtual
+  /// CHECK-START: int Main.inlineSharpenHelperInvoke() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect {{.*\.getFoo.*}}
+  /// CHECK-NOT:                      InvokeVirtual {{.*\.getFoo.*}}
 
-  /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
+  /// CHECK-START: int Main.inlineSharpenHelperInvoke() inliner (after)
   /// CHECK-DAG:     <<Field:i\d+>>   InstanceFieldGet
   /// CHECK-DAG:                      Return [<<Field>>]
 
-  public static int inlineSharpenStringInvoke() {
-    return "Foo".length();
+  public static int inlineSharpenHelperInvoke() {
+    return new Helper().getFoo();
   }
 
   public static void main(String[] args) {
     inlineSharpenInvokeVirtual(new Main());
-    if (inlineSharpenStringInvoke() != 3) {
+    if (inlineSharpenHelperInvoke() != 3) {
       throw new Error("Expected 3");
     }
   }

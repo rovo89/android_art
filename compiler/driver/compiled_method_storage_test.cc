@@ -45,7 +45,8 @@ TEST(CompiledMethodStorage, Deduplicate) {
                         false,
                         nullptr,
                         -1,
-                        "");
+                        "",
+                        nullptr);
   CompiledMethodStorage* storage = driver.GetCompiledMethodStorage();
 
   ASSERT_TRUE(storage->DedupeEnabled());  // The default.

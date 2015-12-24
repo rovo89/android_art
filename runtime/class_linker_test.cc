@@ -501,6 +501,7 @@ struct ObjectOffsets : public CheckOffsets<mirror::Object> {
 struct ClassOffsets : public CheckOffsets<mirror::Class> {
   ClassOffsets() : CheckOffsets<mirror::Class>(false, "Ljava/lang/Class;") {
     addOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_), "accessFlags");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, annotation_type_), "annotationType");
     addOffset(OFFSETOF_MEMBER(mirror::Class, class_flags_), "classFlags");
     addOffset(OFFSETOF_MEMBER(mirror::Class, class_loader_), "classLoader");
     addOffset(OFFSETOF_MEMBER(mirror::Class, class_size_), "classSize");
@@ -535,15 +536,15 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
 struct StringOffsets : public CheckOffsets<mirror::String> {
   StringOffsets() : CheckOffsets<mirror::String>(false, "Ljava/lang/String;") {
     addOffset(OFFSETOF_MEMBER(mirror::String, count_), "count");
-    addOffset(OFFSETOF_MEMBER(mirror::String, hash_code_), "hashCode");
+    addOffset(OFFSETOF_MEMBER(mirror::String, hash_code_), "hash");
   };
 };
 
 struct ThrowableOffsets : public CheckOffsets<mirror::Throwable> {
   ThrowableOffsets() : CheckOffsets<mirror::Throwable>(false, "Ljava/lang/Throwable;") {
+    addOffset(OFFSETOF_MEMBER(mirror::Throwable, backtrace_), "backtrace");
     addOffset(OFFSETOF_MEMBER(mirror::Throwable, cause_), "cause");
     addOffset(OFFSETOF_MEMBER(mirror::Throwable, detail_message_), "detailMessage");
-    addOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_state_), "stackState");
     addOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_trace_), "stackTrace");
     addOffset(OFFSETOF_MEMBER(mirror::Throwable, suppressed_exceptions_), "suppressedExceptions");
   };
@@ -612,7 +613,7 @@ struct FinalizerReferenceOffsets : public CheckOffsets<mirror::FinalizerReferenc
 struct AccessibleObjectOffsets : public CheckOffsets<mirror::AccessibleObject> {
   AccessibleObjectOffsets() : CheckOffsets<mirror::AccessibleObject>(
       false, "Ljava/lang/reflect/AccessibleObject;") {
-    addOffset(mirror::AccessibleObject::FlagOffset().Uint32Value(), "flag");
+    addOffset(mirror::AccessibleObject::FlagOffset().Uint32Value(), "override");
   };
 };
 

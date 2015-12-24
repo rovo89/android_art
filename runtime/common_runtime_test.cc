@@ -303,7 +303,12 @@ void CommonRuntimeTest::SetUp() {
 
 
   RuntimeOptions options;
-  std::string boot_class_path_string = "-Xbootclasspath:" + GetLibCoreDexFileName();
+  std::string boot_class_path_string = "-Xbootclasspath";
+  for (const std::string &core_dex_file_name : GetLibCoreDexFileNames()) {
+    boot_class_path_string += ":";
+    boot_class_path_string += core_dex_file_name;
+  }
+
   options.push_back(std::make_pair(boot_class_path_string, nullptr));
   options.push_back(std::make_pair("-Xcheck:jni", nullptr));
   options.push_back(std::make_pair(min_heap_string, nullptr));
@@ -409,10 +414,30 @@ void CommonRuntimeTest::TearDown() {
   (*icu_cleanup_fn)();
 
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
+
+  // Manually closing the JNI libraries.
+  // Runtime does not support repeatedly doing JNI->CreateVM, thus we need to manually clean up the
+  // dynamic linking loader so that gtests would not fail.
+  // Bug: 25785594
+  if (runtime_->IsStarted()) {
+    {
+      // We retrieve the handle by calling dlopen on the library. To close it, we need to call
+      // dlclose twice, the first time to undo our dlopen and the second time to actually unload it.
+      // See man dlopen.
+      void* handle = dlopen("libjavacore.so", RTLD_LAZY);
+      dlclose(handle);
+      CHECK_EQ(0, dlclose(handle));
+    }
+    {
+      void* handle = dlopen("libopenjdk.so", RTLD_LAZY);
+      dlclose(handle);
+      CHECK_EQ(0, dlclose(handle));
+    }
+  }
 }
 
-std::string CommonRuntimeTest::GetLibCoreDexFileName() {
-  return GetDexFileName("core-libart");
+std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
+  return std::vector<std::string>({GetDexFileName("core-oj"), GetDexFileName("core-libart")});
 }
 
 std::string CommonRuntimeTest::GetDexFileName(const std::string& jar_prefix) {

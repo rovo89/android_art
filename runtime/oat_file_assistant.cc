@@ -846,11 +846,7 @@ std::string OatFileAssistant::OldProfileFileName() {
 
 std::string OatFileAssistant::ImageLocation() {
   Runtime* runtime = Runtime::Current();
-  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetBootImageSpace();
-  if (image_space == nullptr) {
-    return "";
-  }
-  return image_space->GetImageLocation();
+  return runtime->GetHeap()->GetBootImageSpaces()[0]->GetImageLocation();
 }
 
 const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
@@ -949,12 +945,13 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
     image_info_load_attempted_ = true;
 
     Runtime* runtime = Runtime::Current();
-    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetBootImageSpace();
-    if (image_space != nullptr) {
-      cached_image_info_.location = image_space->GetImageLocation();
+    std::vector<gc::space::ImageSpace*> image_spaces = runtime->GetHeap()->GetBootImageSpaces();
+    if (!image_spaces.empty()) {
+      // TODO: Better support multi-images? b/26317072
+      cached_image_info_.location = image_spaces[0]->GetImageLocation();
 
       if (isa_ == kRuntimeISA) {
-        const ImageHeader& image_header = image_space->GetImageHeader();
+        const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
         cached_image_info_.oat_checksum = image_header.GetOatChecksum();
         cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
             image_header.GetOatDataBegin());
@@ -969,7 +966,7 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
         cached_image_info_.patch_delta = image_header->GetPatchDelta();
       }
     }
-    image_info_load_succeeded_ = (image_space != nullptr);
+    image_info_load_succeeded_ = (!image_spaces.empty());
   }
   return image_info_load_succeeded_ ? &cached_image_info_ : nullptr;
 }

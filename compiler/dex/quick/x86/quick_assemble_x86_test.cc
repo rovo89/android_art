@@ -41,6 +41,7 @@ class QuickAssembleX86TestBase : public testing::Test {
         CompilerOptions::kDefaultNumDexMethodsThreshold,
         CompilerOptions::kDefaultInlineDepthLimit,
         CompilerOptions::kDefaultInlineMaxCodeUnits,
+        nullptr,
         false,
         CompilerOptions::kDefaultTopKProfileThreshold,
         false,
@@ -72,7 +73,8 @@ class QuickAssembleX86TestBase : public testing::Test {
         false,
         0,
         -1,
-        ""));
+        "",
+        nullptr));
     cu_.reset(new CompilationUnit(pool_.get(), isa_, compiler_driver_.get(), nullptr));
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(
         cu_->arena.Alloc(sizeof(DexFile::CodeItem), kArenaAllocMisc));

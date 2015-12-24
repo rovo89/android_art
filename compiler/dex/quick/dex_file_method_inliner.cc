@@ -22,6 +22,7 @@
 #include "base/macros.h"
 #include "base/mutex-inl.h"
 #include "dex/compiler_ir.h"
+#include "driver/compiler_driver.h"
 #include "thread-inl.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
@@ -777,6 +778,17 @@ bool DexFileMethodInliner::GenSpecial(Mir2Lir* backend, uint32_t method_idx) {
 
 bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
                                      uint32_t method_idx) {
+  // Check that we're allowed to inline.
+  {
+    CompilationUnit* cu = mir_graph->GetCurrentDexCompilationUnit()->GetCompilationUnit();
+    if (!cu->compiler_driver->MayInline(dex_file_, cu->dex_file)) {
+      VLOG(compiler) << "Won't inline " << method_idx << " in "
+                     << cu->dex_file->GetLocation() << " from "
+                     << dex_file_->GetLocation();
+      return false;
+    }
+  }
+
   InlineMethod method;
   {
     ReaderMutexLock mu(Thread::Current(), lock_);

@@ -716,6 +716,14 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
       SHARED_REQUIRES(Locks::mutator_lock_) {
+    const DexFile::TypeId& type_id =
+        dex_file_->GetTypeId(dex_file_->GetClassDef(class_def_index_).class_idx_);
+    const char* class_descriptor = dex_file_->GetTypeDescriptor(type_id);
+    // Skip methods that are not in the image.
+    if (!writer_->GetCompilerDriver()->IsImageClass(class_descriptor)) {
+      return true;
+    }
+
     OatClass* oat_class = &writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -958,7 +966,9 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     if (writer_->HasBootImage()) {
       auto* element = writer_->image_writer_->GetDexCacheArrayElementImageAddress<const uint8_t*>(
               patch.TargetDexCacheDexFile(), patch.TargetDexCacheElementOffset());
-      const uint8_t* oat_data = writer_->image_writer_->GetOatFileBegin() + file_offset_;
+      const char* oat_filename = writer_->image_writer_->GetOatFilenameForDexCache(dex_cache_);
+      const uint8_t* oat_data =
+          writer_->image_writer_->GetOatFileBegin(oat_filename) + file_offset_;
       return element - oat_data;
     } else {
       size_t start = writer_->dex_cache_arrays_offsets_.Get(patch.TargetDexCacheDexFile());
@@ -994,9 +1004,15 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       // NOTE: We're using linker patches for app->boot references when the image can
       // be relocated and therefore we need to emit .oat_patches. We're not using this
       // for app->app references, so check that the method is an image method.
-      gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
-      size_t method_offset = reinterpret_cast<const uint8_t*>(method) - image_space->Begin();
-      CHECK(image_space->GetImageHeader().GetMethodsSection().Contains(method_offset));
+      std::vector<gc::space::ImageSpace*> image_spaces =
+          Runtime::Current()->GetHeap()->GetBootImageSpaces();
+      bool contains_method = false;
+      for (gc::space::ImageSpace* image_space : image_spaces) {
+        size_t method_offset = reinterpret_cast<const uint8_t*>(method) - image_space->Begin();
+        contains_method |=
+            image_space->GetImageHeader().GetMethodsSection().Contains(method_offset);
+      }
+      CHECK(contains_method);
     }
     // Note: We only patch targeting ArtMethods in image which is in the low 4gb.
     uint32_t address = PointerToLowMemUInt32(method);
@@ -1012,7 +1028,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     uint32_t address = target_offset;
     if (writer_->HasBootImage()) {
-      address = PointerToLowMemUInt32(writer_->image_writer_->GetOatFileBegin() +
+      const char* oat_filename = writer_->image_writer_->GetOatFilenameForDexCache(dex_cache_);
+      address = PointerToLowMemUInt32(writer_->image_writer_->GetOatFileBegin(oat_filename) +
                                       writer_->oat_data_offset_ + target_offset);
     }
     DCHECK_LE(offset + 4, code->size());

@@ -2091,8 +2091,7 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
   MakeExecutable(nullptr, "java.lang.Class");
   MakeExecutable(nullptr, "java.lang.Object");
   MakeExecutable(nullptr, "java.nio.DirectByteBuffer");
-  MakeExecutable(nullptr, "java.nio.MemoryBlock");
-  MakeExecutable(nullptr, "java.nio.MemoryBlock$UnmanagedBlock");
+  MakeExecutable(nullptr, "java.nio.Bits");
   MakeExecutable(nullptr, "java.nio.MappedByteBuffer");
   MakeExecutable(nullptr, "java.nio.ByteBuffer");
   MakeExecutable(nullptr, "java.nio.Buffer");

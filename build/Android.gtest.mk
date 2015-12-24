@@ -441,7 +441,9 @@ define define-art-gtest-rule-target
     $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_TARGET_GTEST_$(file)_DEX)) \
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
-    $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar
+    $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libopenjdk.so \
+    $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar \
+    $$(TARGET_OUT_JAVA_LIBRARIES)/core-oj.jar
 
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): test-art-target-sync
@@ -483,6 +485,7 @@ define define-art-gtest-rule-host
   # Dependencies for all host gtests.
   gtest_deps := $$(HOST_CORE_DEX_LOCATIONS) \
     $$($(2)ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$$(ART_HOST_SHLIB_EXTENSION) \
+    $$($(2)ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdk$$(ART_HOST_SHLIB_EXTENSION) \
     $$(gtest_exe) \
     $$(ART_GTEST_$(1)_HOST_DEPS) \
     $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_HOST_GTEST_$(file)_DEX))

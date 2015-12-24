@@ -72,11 +72,18 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
+  std::unordered_map<const DexFile*, const char*> dex_file_to_oat_filename_map;
+  std::vector<const char*> oat_filename_vector(1, oat_filename.c_str());
+  for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
+    dex_file_to_oat_filename_map.emplace(dex_file, oat_filename.c_str());
+  }
   std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_,
                                                       requested_image_base,
                                                       /*compile_pic*/false,
                                                       /*compile_app_image*/false,
-                                                      storage_mode));
+                                                      storage_mode,
+                                                      oat_filename_vector,
+                                                      dex_file_to_oat_filename_map));
   // TODO: compile_pic should be a test argument.
   {
     {
@@ -131,12 +138,12 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   ASSERT_TRUE(dup_oat.get() != nullptr);
 
   {
-    bool success_image = writer->Write(kInvalidImageFd,
-                                       image_file.GetFilename(),
-                                       dup_oat->GetPath(),
-                                       dup_oat->GetPath());
+    std::vector<const char*> dup_oat_filename(1, dup_oat->GetPath().c_str());
+    std::vector<const char*> dup_image_filename(1, image_file.GetFilename().c_str());
+    bool success_image = writer->Write(kInvalidImageFd, dup_image_filename, dup_oat_filename);
     ASSERT_TRUE(success_image);
-    bool success_fixup = ElfWriter::Fixup(dup_oat.get(), writer->GetOatDataBegin());
+    bool success_fixup = ElfWriter::Fixup(dup_oat.get(),
+                                          writer->GetOatDataBegin(dup_oat_filename[0]));
     ASSERT_TRUE(success_fixup);
 
     ASSERT_EQ(dup_oat->FlushCloseOrErase(), 0) << "Could not flush and close oat file "
@@ -181,7 +188,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   java_lang_dex_file_ = nullptr;
 
   MemMap::Init();
-  std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str()));
+  std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileNames()[0].c_str()));
 
   RuntimeOptions options;
   std::string image("-Ximage:");
@@ -203,10 +210,11 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   class_linker_ = runtime_->GetClassLinker();
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  ASSERT_TRUE(heap->HasImageSpace());
+  ASSERT_TRUE(heap->HasBootImageSpace());
   ASSERT_TRUE(heap->GetNonMovingSpace()->IsMallocSpace());
 
-  gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
+  // We loaded the runtime with an explicit image, so it must exist.
+  gc::space::ImageSpace* image_space = heap->GetBootImageSpaces()[0];
   ASSERT_TRUE(image_space != nullptr);
   if (storage_mode == ImageHeader::kStorageModeUncompressed) {
     // Uncompressed, image should be smaller than file.

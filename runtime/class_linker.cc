@@ -330,7 +330,7 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   Runtime* const runtime = Runtime::Current();
   gc::Heap* const heap = runtime->GetHeap();
 
-  CHECK(!heap->HasImageSpace()) << "Runtime has image. We should use it.";
+  CHECK(!heap->HasBootImageSpace()) << "Runtime has image. We should use it.";
   CHECK(!init_done_);
 
   // Use the pointer size from the runtime since we are probably creating the image.
@@ -736,7 +736,7 @@ void ClassLinker::RunRootClinits() {
 
 static void SanityCheckArtMethod(ArtMethod* m,
                                  mirror::Class* expected_class,
-                                 gc::space::ImageSpace* space)
+                                 std::vector<gc::space::ImageSpace*> spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
     CHECK(m->GetDeclaringClass() == nullptr) << PrettyMethod(m);
@@ -745,18 +745,22 @@ static void SanityCheckArtMethod(ArtMethod* m,
   } else if (expected_class != nullptr) {
     CHECK_EQ(m->GetDeclaringClassUnchecked(), expected_class) << PrettyMethod(m);
   }
-  if (space != nullptr) {
-    auto& header = space->GetImageHeader();
-    auto& methods = header.GetMethodsSection();
-    auto offset = reinterpret_cast<uint8_t*>(m) - space->Begin();
-    CHECK(methods.Contains(offset)) << m << " not in " << methods;
+  if (!spaces.empty()) {
+    bool contains = false;
+    for (gc::space::ImageSpace* space : spaces) {
+      auto& header = space->GetImageHeader();
+      auto& methods = header.GetMethodsSection();
+      auto offset = reinterpret_cast<uint8_t*>(m) - space->Begin();
+      contains |= methods.Contains(offset);
+    }
+    CHECK(contains) << m << " not found";
   }
 }
 
 static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
                                              mirror::Class* expected_class,
                                              size_t pointer_size,
-                                             gc::space::ImageSpace* space)
+                                             std::vector<gc::space::ImageSpace*> spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(arr != nullptr);
   for (int32_t j = 0; j < arr->GetLength(); ++j) {
@@ -766,11 +770,12 @@ static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
       CHECK(method != nullptr);
     }
     if (method != nullptr) {
-      SanityCheckArtMethod(method, expected_class, space);
+      SanityCheckArtMethod(method, expected_class, spaces);
     }
   }
 }
 
+/* TODO: Modify check to support multiple image spaces and reenable. b/26317072
 static void SanityCheckArtMethodPointerArray(
     ArtMethod** arr,
     size_t size,
@@ -790,6 +795,7 @@ static void SanityCheckArtMethodPointerArray(
     }
   }
 }
+*/
 
 static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -805,29 +811,30 @@ static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_
       CHECK_EQ(field.GetDeclaringClass(), klass);
     }
     auto* runtime = Runtime::Current();
-    auto* image_space = runtime->GetHeap()->GetBootImageSpace();
+    auto image_spaces = runtime->GetHeap()->GetBootImageSpaces();
     auto pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
     for (auto& m : klass->GetMethods(pointer_size)) {
-      SanityCheckArtMethod(&m, klass, image_space);
+      SanityCheckArtMethod(&m, klass, image_spaces);
     }
     auto* vtable = klass->GetVTable();
     if (vtable != nullptr) {
-      SanityCheckArtMethodPointerArray(vtable, nullptr, pointer_size, image_space);
+      SanityCheckArtMethodPointerArray(vtable, nullptr, pointer_size, image_spaces);
     }
     if (klass->ShouldHaveEmbeddedImtAndVTable()) {
       for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
-        SanityCheckArtMethod(klass->GetEmbeddedImTableEntry(i, pointer_size), nullptr, image_space);
+        SanityCheckArtMethod(
+            klass->GetEmbeddedImTableEntry(i, pointer_size), nullptr, image_spaces);
       }
       for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
-        SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr, image_space);
+        SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr, image_spaces);
       }
     }
     auto* iftable = klass->GetIfTable();
     if (iftable != nullptr) {
       for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
         if (iftable->GetMethodArrayCount(i) > 0) {
-          SanityCheckArtMethodPointerArray(iftable->GetMethodArray(i), nullptr, pointer_size,
-                                           image_space);
+          SanityCheckArtMethodPointerArray(
+              iftable->GetMethodArray(i), nullptr, pointer_size, image_spaces);
         }
       }
     }
@@ -856,6 +863,33 @@ class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
   DISALLOW_COPY_AND_ASSIGN(SetInterpreterEntrypointArtMethodVisitor);
 };
 
+struct TrampolineCheckData {
+  const void* quick_resolution_trampoline;
+  const void* quick_imt_conflict_trampoline;
+  const void* quick_generic_jni_trampoline;
+  const void* quick_to_interpreter_bridge_trampoline;
+  size_t pointer_size;
+  ArtMethod* m;
+  bool error;
+};
+static void CheckTrampolines(mirror::Object* obj, void* arg) NO_THREAD_SAFETY_ANALYSIS {
+  if (obj->IsClass()) {
+    mirror::Class* klass = obj->AsClass();
+    TrampolineCheckData* d = reinterpret_cast<TrampolineCheckData*>(arg);
+    for (ArtMethod& m : klass->GetMethods(d->pointer_size)) {
+      const void* entrypoint = m.GetEntryPointFromQuickCompiledCodePtrSize(d->pointer_size);
+      if (entrypoint == d->quick_resolution_trampoline ||
+          entrypoint == d->quick_imt_conflict_trampoline ||
+          entrypoint == d->quick_generic_jni_trampoline ||
+          entrypoint == d->quick_to_interpreter_bridge_trampoline) {
+        d->m = &m;
+        d->error = true;
+        return;
+      }
+    }
+  }
+}
+
 bool ClassLinker::InitFromImage(std::string* error_msg) {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
@@ -863,28 +897,71 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
   Runtime* const runtime = Runtime::Current();
   Thread* const self = Thread::Current();
   gc::Heap* const heap = runtime->GetHeap();
-  gc::space::ImageSpace* const space = heap->GetBootImageSpace();
-  CHECK(space != nullptr);
-  image_pointer_size_ = space->GetImageHeader().GetPointerSize();
+  std::vector<gc::space::ImageSpace*> spaces = heap->GetBootImageSpaces();
+  CHECK(!spaces.empty());
+  image_pointer_size_ = spaces[0]->GetImageHeader().GetPointerSize();
   dex_cache_boot_image_class_lookup_required_ = true;
-  const OatFile* oat_file = runtime->GetOatFileManager().RegisterImageOatFile(space);
-  DCHECK(oat_file != nullptr);
-  CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
-  CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(), 0U);
-  const char* image_file_location = oat_file->GetOatHeader().
+  std::vector<const OatFile*> oat_files =
+      runtime->GetOatFileManager().RegisterImageOatFiles(spaces);
+  DCHECK(!oat_files.empty());
+  const OatHeader& default_oat_header = oat_files[0]->GetOatHeader();
+  CHECK_EQ(default_oat_header.GetImageFileLocationOatChecksum(), 0U);
+  CHECK_EQ(default_oat_header.GetImageFileLocationOatDataBegin(), 0U);
+  const char* image_file_location = oat_files[0]->GetOatHeader().
       GetStoreValueByKey(OatHeader::kImageLocationKey);
   CHECK(image_file_location == nullptr || *image_file_location == 0);
-  quick_resolution_trampoline_ = oat_file->GetOatHeader().GetQuickResolutionTrampoline();
-  quick_imt_conflict_trampoline_ = oat_file->GetOatHeader().GetQuickImtConflictTrampoline();
-  quick_generic_jni_trampoline_ = oat_file->GetOatHeader().GetQuickGenericJniTrampoline();
-  quick_to_interpreter_bridge_trampoline_ = oat_file->GetOatHeader().GetQuickToInterpreterBridge();
-  StackHandleScope<2> hs(self);
-  mirror::Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
-  Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches(
-      hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
+  quick_resolution_trampoline_ = default_oat_header.GetQuickResolutionTrampoline();
+  quick_imt_conflict_trampoline_ = default_oat_header.GetQuickImtConflictTrampoline();
+  quick_generic_jni_trampoline_ = default_oat_header.GetQuickGenericJniTrampoline();
+  quick_to_interpreter_bridge_trampoline_ = default_oat_header.GetQuickToInterpreterBridge();
+  if (kIsDebugBuild) {
+    // Check that the other images use the same trampoline.
+    for (size_t i = 1; i < oat_files.size(); ++i) {
+      const OatHeader& ith_oat_header = oat_files[i]->GetOatHeader();
+      const void* ith_quick_resolution_trampoline =
+          ith_oat_header.GetQuickResolutionTrampoline();
+      const void* ith_quick_imt_conflict_trampoline =
+          ith_oat_header.GetQuickImtConflictTrampoline();
+      const void* ith_quick_generic_jni_trampoline =
+          ith_oat_header.GetQuickGenericJniTrampoline();
+      const void* ith_quick_to_interpreter_bridge_trampoline =
+          ith_oat_header.GetQuickToInterpreterBridge();
+      if (ith_quick_resolution_trampoline != quick_resolution_trampoline_ ||
+          ith_quick_imt_conflict_trampoline != quick_imt_conflict_trampoline_ ||
+          ith_quick_generic_jni_trampoline != quick_generic_jni_trampoline_ ||
+          ith_quick_to_interpreter_bridge_trampoline != quick_to_interpreter_bridge_trampoline_) {
+        // Make sure that all methods in this image do not contain those trampolines as
+        // entrypoints. Otherwise the class-linker won't be able to work with a single set.
+        TrampolineCheckData data;
+        data.error = false;
+        data.pointer_size = GetImagePointerSize();
+        data.quick_resolution_trampoline = ith_quick_resolution_trampoline;
+        data.quick_imt_conflict_trampoline = ith_quick_imt_conflict_trampoline;
+        data.quick_generic_jni_trampoline = ith_quick_generic_jni_trampoline;
+        data.quick_to_interpreter_bridge_trampoline = ith_quick_to_interpreter_bridge_trampoline;
+        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+        spaces[i]->GetLiveBitmap()->Walk(CheckTrampolines, &data);
+        if (data.error) {
+          ArtMethod* m = data.m;
+          LOG(ERROR) << "Found a broken ArtMethod: " << PrettyMethod(m);
+          *error_msg = "Found an ArtMethod with a bad entrypoint";
+          return false;
+        }
+      }
+    }
+  }
 
-  Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
-      space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->
+  StackHandleScopeCollection handles(self);
+  std::vector<Handle<mirror::ObjectArray<mirror::DexCache>>> dex_caches_vector;
+  for (gc::space::ImageSpace* space : spaces) {
+    Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches(handles.NewHandle(
+        space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches)->
+        AsObjectArray<mirror::DexCache>()));
+    dex_caches_vector.push_back(dex_caches);
+  }
+
+  Handle<mirror::ObjectArray<mirror::Class>> class_roots(handles.NewHandle(
+      spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->
       AsObjectArray<mirror::Class>()));
   class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(class_roots.Get());
 
@@ -896,56 +973,70 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
   java_lang_Object->SetObjectSize(sizeof(mirror::Object));
   // Allocate in non-movable so that it's possible to check if a JNI weak global ref has been
   // cleared without triggering the read barrier and unintentionally mark the sentinel alive.
-  runtime->SetSentinel(heap->AllocNonMovableObject<true>(self,
-                                                         java_lang_Object,
-                                                         java_lang_Object->GetObjectSize(),
-                                                         VoidFunctor()));
+  runtime->SetSentinel(heap->AllocNonMovableObject<true>(
+      self, java_lang_Object, java_lang_Object->GetObjectSize(), VoidFunctor()));
 
-  if (oat_file->GetOatHeader().GetDexFileCount() !=
-      static_cast<uint32_t>(dex_caches->GetLength())) {
+  uint32_t dex_file_count = 0;
+  for (const OatFile* oat_file : oat_files) {
+    dex_file_count += oat_file->GetOatHeader().GetDexFileCount();
+  }
+  uint32_t dex_caches_count = 0;
+  for (auto dex_caches : dex_caches_vector) {
+    dex_caches_count += dex_caches->GetLength();
+  }
+  if (dex_file_count != dex_caches_count) {
     *error_msg = "Dex cache count and dex file count mismatch while trying to initialize from "
                  "image";
     return false;
   }
-  for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
-    StackHandleScope<1> hs2(self);
-    Handle<mirror::DexCache> dex_cache(hs2.NewHandle(dex_caches->Get(i)));
-    const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location.c_str(),
-                                                                      nullptr);
-    if (oat_dex_file == nullptr) {
-      *error_msg = StringPrintf("Failed finding oat dex file for %s %s",
-                                oat_file->GetLocation().c_str(),
-                                dex_file_location.c_str());
-      return false;
-    }
-    std::string inner_error_msg;
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&inner_error_msg);
-    if (dex_file == nullptr) {
-      *error_msg = StringPrintf("Failed to open dex file %s from within oat file %s error '%s'",
-                                dex_file_location.c_str(),
-                                oat_file->GetLocation().c_str(),
-                                inner_error_msg.c_str());
-      return false;
-    }
+  for (auto dex_caches : dex_caches_vector) {
+    for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::DexCache> dex_cache(hs2.NewHandle(dex_caches->Get(i)));
+      const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
+      const OatFile::OatDexFile* oat_dex_file = nullptr;
+      for (const OatFile* oat_file : oat_files) {
+        const OatFile::OatDexFile* oat_dex =
+            oat_file->GetOatDexFile(dex_file_location.c_str(), nullptr, false);
+        if (oat_dex != nullptr) {
+          DCHECK(oat_dex_file == nullptr);
+          oat_dex_file = oat_dex;
+        }
+      }
 
-    if (kSanityCheckObjects) {
-      SanityCheckArtMethodPointerArray(dex_cache->GetResolvedMethods(),
-                                       dex_cache->NumResolvedMethods(),
-                                       image_pointer_size_,
-                                       space);
-    }
+      if (oat_dex_file == nullptr) {
+        *error_msg = StringPrintf("Failed finding oat dex file for %s",
+                                  dex_file_location.c_str());
+        return false;
+      }
+      std::string inner_error_msg;
+      std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&inner_error_msg);
+      if (dex_file == nullptr) {
+        *error_msg = StringPrintf("Failed to open dex file %s error '%s'",
+                                  dex_file_location.c_str(),
+                                  inner_error_msg.c_str());
+        return false;
+      }
 
-    if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
-      *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
-                                dex_file_location.c_str(),
-                                dex_file->GetLocationChecksum(),
-                                oat_dex_file->GetDexFileLocationChecksum());
-      return false;
-    }
+      // TODO: Modify check to support multiple image spaces and reenable.
+//      if (kSanityCheckObjects) {
+//        SanityCheckArtMethodPointerArray(dex_cache->GetResolvedMethods(),
+//                                         dex_cache->NumResolvedMethods(),
+//                                         image_pointer_size_,
+//                                         spaces);
+//      }
 
-    AppendToBootClassPath(*dex_file.get(), dex_cache);
-    opened_dex_files_.push_back(std::move(dex_file));
+      if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
+        *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
+                                  dex_file_location.c_str(),
+                                  dex_file->GetLocationChecksum(),
+                                  oat_dex_file->GetDexFileLocationChecksum());
+        return false;
+      }
+
+      AppendToBootClassPath(*dex_file.get(), dex_cache);
+      opened_dex_files_.push_back(std::move(dex_file));
+    }
   }
 
   if (!ValidPointerSize(image_pointer_size_)) {
@@ -968,12 +1059,14 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
   }
 
   if (kSanityCheckObjects) {
-    for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
-      auto* dex_cache = dex_caches->Get(i);
-      for (size_t j = 0; j < dex_cache->NumResolvedFields(); ++j) {
-        auto* field = dex_cache->GetResolvedField(j, image_pointer_size_);
-        if (field != nullptr) {
-          CHECK(field->GetDeclaringClass()->GetClass() != nullptr);
+    for (auto dex_caches : dex_caches_vector) {
+      for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
+        auto* dex_cache = dex_caches->Get(i);
+        for (size_t j = 0; j < dex_cache->NumResolvedFields(); ++j) {
+          auto* field = dex_cache->GetResolvedField(j, image_pointer_size_);
+          if (field != nullptr) {
+            CHECK(field->GetDeclaringClass()->GetClass() != nullptr);
+          }
         }
       }
     }
@@ -982,10 +1075,12 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
 
   // Set entry point to interpreter if in InterpretOnly mode.
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
-    const ImageHeader& header = space->GetImageHeader();
-    const ImageSection& methods = header.GetMethodsSection();
-    SetInterpreterEntrypointArtMethodVisitor visitor(image_pointer_size_);
-    methods.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
+    for (gc::space::ImageSpace* space : spaces) {
+      const ImageHeader& header = space->GetImageHeader();
+      const ImageSection& methods = header.GetMethodsSection();
+      SetInterpreterEntrypointArtMethodVisitor visitor(image_pointer_size_);
+      methods.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
+    }
   }
 
   // reinit class_roots_
@@ -1014,13 +1109,15 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
-  const ImageHeader& header = space->GetImageHeader();
-  const ImageSection& section = header.GetImageSection(ImageHeader::kSectionClassTable);
-  if (section.Size() > 0u) {
-    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    ClassTable* const class_table = InsertClassTableForClassLoader(nullptr);
-    class_table->ReadFromMemory(space->Begin() + section.Offset());
-    dex_cache_boot_image_class_lookup_required_ = false;
+  for (gc::space::ImageSpace* space : spaces) {
+    const ImageHeader& header = space->GetImageHeader();
+    const ImageSection& section = header.GetImageSection(ImageHeader::kSectionClassTable);
+    if (section.Size() > 0u) {
+      WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+      ClassTable* const class_table = InsertClassTableForClassLoader(nullptr);
+      class_table->ReadFromMemory(space->Begin() + section.Offset());
+      dex_cache_boot_image_class_lookup_required_ = false;
+    }
   }
 
   FinishInit(self);
@@ -1974,7 +2071,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   }
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsStarted()) {
-    if (runtime->IsAotCompiler() || runtime->GetHeap()->HasImageSpace()) {
+    if (runtime->IsAotCompiler() || runtime->GetHeap()->HasBootImageSpace()) {
       return;  // OAT file unavailable.
     }
   }
@@ -2783,23 +2880,27 @@ mirror::Class* ClassLinker::LookupClass(Thread* self,
   return result;
 }
 
-static mirror::ObjectArray<mirror::DexCache>* GetImageDexCaches(gc::space::ImageSpace* image_space)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  CHECK(image_space != nullptr);
-  mirror::Object* root = image_space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
-  DCHECK(root != nullptr);
-  return root->AsObjectArray<mirror::DexCache>();
+static std::vector<mirror::ObjectArray<mirror::DexCache>*> GetImageDexCaches(
+    std::vector<gc::space::ImageSpace*> image_spaces) SHARED_REQUIRES(Locks::mutator_lock_) {
+  CHECK(!image_spaces.empty());
+  std::vector<mirror::ObjectArray<mirror::DexCache>*> dex_caches_vector;
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    mirror::Object* root = image_space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+    DCHECK(root != nullptr);
+    dex_caches_vector.push_back(root->AsObjectArray<mirror::DexCache>());
+  }
+  return dex_caches_vector;
 }
 
 void ClassLinker::AddBootImageClassesToClassTable() {
   if (dex_cache_boot_image_class_lookup_required_) {
-    AddImageClassesToClassTable(Runtime::Current()->GetHeap()->GetBootImageSpace(),
+    AddImageClassesToClassTable(Runtime::Current()->GetHeap()->GetBootImageSpaces(),
                                 /*class_loader*/nullptr);
     dex_cache_boot_image_class_lookup_required_ = false;
   }
 }
 
-void ClassLinker::AddImageClassesToClassTable(gc::space::ImageSpace* image_space,
+void ClassLinker::AddImageClassesToClassTable(std::vector<gc::space::ImageSpace*> image_spaces,
                                               mirror::ClassLoader* class_loader) {
   Thread* self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
@@ -2807,25 +2908,28 @@ void ClassLinker::AddImageClassesToClassTable(gc::space::ImageSpace* image_space
 
   ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
 
-  mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches(image_space);
   std::string temp;
-  for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
-    mirror::DexCache* dex_cache = dex_caches->Get(i);
-    GcRoot<mirror::Class>* types = dex_cache->GetResolvedTypes();
-    for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
-      mirror::Class* klass = types[j].Read();
-      if (klass != nullptr) {
-        DCHECK_EQ(klass->GetClassLoader(), class_loader);
-        const char* descriptor = klass->GetDescriptor(&temp);
-        size_t hash = ComputeModifiedUtf8Hash(descriptor);
-        mirror::Class* existing = class_table->Lookup(descriptor, hash);
-        if (existing != nullptr) {
-          CHECK_EQ(existing, klass) << PrettyClassAndClassLoader(existing) << " != "
-              << PrettyClassAndClassLoader(klass);
-        } else {
-          class_table->Insert(klass);
-          if (log_new_class_table_roots_) {
-            new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
+  std::vector<mirror::ObjectArray<mirror::DexCache>*> dex_caches_vector =
+      GetImageDexCaches(image_spaces);
+  for (mirror::ObjectArray<mirror::DexCache>* dex_caches : dex_caches_vector) {
+    for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
+      mirror::DexCache* dex_cache = dex_caches->Get(i);
+      GcRoot<mirror::Class>* types = dex_cache->GetResolvedTypes();
+      for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
+        mirror::Class* klass = types[j].Read();
+        if (klass != nullptr) {
+          DCHECK_EQ(klass->GetClassLoader(), class_loader);
+          const char* descriptor = klass->GetDescriptor(&temp);
+          size_t hash = ComputeModifiedUtf8Hash(descriptor);
+          mirror::Class* existing = class_table->Lookup(descriptor, hash);
+          if (existing != nullptr) {
+            CHECK_EQ(existing, klass) << PrettyClassAndClassLoader(existing) << " != "
+                << PrettyClassAndClassLoader(klass);
+          } else {
+            class_table->Insert(klass);
+            if (log_new_class_table_roots_) {
+              new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
+            }
           }
         }
       }
@@ -2856,18 +2960,20 @@ void ClassLinker::MoveClassTableToPreZygote() {
 
 mirror::Class* ClassLinker::LookupClassFromBootImage(const char* descriptor) {
   ScopedAssertNoThreadSuspension ants(Thread::Current(), "Image class lookup");
-  mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches(
-      Runtime::Current()->GetHeap()->GetBootImageSpace());
-  for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
-    mirror::DexCache* dex_cache = dex_caches->Get(i);
-    const DexFile* dex_file = dex_cache->GetDexFile();
-    // Try binary searching the type index by descriptor.
-    const DexFile::TypeId* type_id = dex_file->FindTypeId(descriptor);
-    if (type_id != nullptr) {
-      uint16_t type_idx = dex_file->GetIndexForTypeId(*type_id);
-      mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
-      if (klass != nullptr) {
-        return klass;
+  std::vector<mirror::ObjectArray<mirror::DexCache>*> dex_caches_vector =
+      GetImageDexCaches(Runtime::Current()->GetHeap()->GetBootImageSpaces());
+  for (mirror::ObjectArray<mirror::DexCache>* dex_caches : dex_caches_vector) {
+    for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
+      mirror::DexCache* dex_cache = dex_caches->Get(i);
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      // Try binary searching the type index by descriptor.
+      const DexFile::TypeId* type_id = dex_file->FindTypeId(descriptor);
+      if (type_id != nullptr) {
+        uint16_t type_idx = dex_file->GetIndexForTypeId(*type_id);
+        mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
+        if (klass != nullptr) {
+          return klass;
+        }
       }
     }
   }
@@ -3167,7 +3273,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
   // the runtime isn't started. On the other hand, app classes can be re-verified even if they are
   // already pre-opted, as then the runtime is started.
   if (!Runtime::Current()->IsAotCompiler() &&
-      !Runtime::Current()->GetHeap()->HasImageSpace() &&
+      !Runtime::Current()->GetHeap()->HasBootImageSpace() &&
       klass->GetClassLoader() != nullptr) {
     return false;
   }
@@ -3441,7 +3547,7 @@ ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod
 
 void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod* out) {
   // Create constructor for Proxy that must initialize the method.
-  CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 16u);
+  CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 19u);
   ArtMethod* proxy_constructor = GetClassRoot(kJavaLangReflectProxy)->GetDirectMethodUnchecked(
       2, image_pointer_size_);
   // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden

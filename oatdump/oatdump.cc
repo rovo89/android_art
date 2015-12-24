@@ -1492,6 +1492,8 @@ class ImageDumper {
 
     os << "MAGIC: " << image_header_.GetMagic() << "\n\n";
 
+    os << "IMAGE LOCATION: " << image_space_.GetImageLocation() << "\n\n";
+
     os << "IMAGE BEGIN: " << reinterpret_cast<void*>(image_header_.GetImageBegin()) << "\n\n";
 
     os << "IMAGE SIZE: " << image_header_.GetImageSize() << "\n\n";
@@ -1599,9 +1601,8 @@ class ImageDumper {
 
     os << "OBJECTS:\n" << std::flush;
 
-    // Loop through all the image spaces and dump their objects.
+    // Loop through the image space and dump its objects.
     gc::Heap* heap = runtime->GetHeap();
-    const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
     Thread* self = Thread::Current();
     {
       {
@@ -1629,21 +1630,16 @@ class ImageDumper {
         }
       }
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      for (const auto& space : spaces) {
-        if (space->IsImageSpace()) {
-          auto* image_space = space->AsImageSpace();
-          // Dump the normal objects before ArtMethods.
-          image_space->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
-          indent_os << "\n";
-          // TODO: Dump fields.
-          // Dump methods after.
-          const auto& methods_section = image_header_.GetMethodsSection();
-          const size_t pointer_size =
-              InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet());
-          DumpArtMethodVisitor visitor(this);
-          methods_section.VisitPackedArtMethods(&visitor, image_space->Begin(), pointer_size);
-        }
-      }
+      // Dump the normal objects before ArtMethods.
+      image_space_.GetLiveBitmap()->Walk(ImageDumper::Callback, this);
+      indent_os << "\n";
+      // TODO: Dump fields.
+      // Dump methods after.
+      const auto& methods_section = image_header_.GetMethodsSection();
+      const size_t pointer_size =
+          InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet());
+      DumpArtMethodVisitor visitor(this);
+      methods_section.VisitPackedArtMethods(&visitor, image_space_.Begin(), pointer_size);
       // Dump the large objects separately.
       heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       indent_os << "\n";
@@ -2163,6 +2159,9 @@ class ImageDumper {
       size_t sum_of_expansion = 0;
       size_t sum_of_expansion_squared = 0;
       size_t n = method_outlier_size.size();
+      if (n == 0) {
+        return;
+      }
       for (size_t i = 0; i < n; i++) {
         size_t cur_size = method_outlier_size[i];
         sum_of_sizes += cur_size;
@@ -2377,26 +2376,28 @@ class ImageDumper {
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
 
-static int DumpImage(Runtime* runtime, const char* image_location, OatDumperOptions* options,
-                     std::ostream* os) {
+static int DumpImage(Runtime* runtime, OatDumperOptions* options, std::ostream* os) {
   // Dumping the image, no explicit class loader.
   ScopedNullHandle<mirror::ClassLoader> null_class_loader;
   options->class_loader_ = &null_class_loader;
 
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = runtime->GetHeap();
-  gc::space::ImageSpace* image_space = heap->GetBootImageSpace();
-  CHECK(image_space != nullptr);
-  const ImageHeader& image_header = image_space->GetImageHeader();
-  if (!image_header.IsValid()) {
-    fprintf(stderr, "Invalid image header %s\n", image_location);
-    return EXIT_FAILURE;
+  std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
+  CHECK(!image_spaces.empty());
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    if (!image_header.IsValid()) {
+      fprintf(stderr, "Invalid image header %s\n", image_space->GetImageLocation().c_str());
+      return EXIT_FAILURE;
+    }
+
+    ImageDumper image_dumper(os, *image_space, image_header, options);
+    if (!image_dumper.Dump()) {
+      return EXIT_FAILURE;
+    }
   }
-
-  ImageDumper image_dumper(os, *image_space, image_header, options);
-
-  bool success = image_dumper.Dump();
-  return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
+  return EXIT_SUCCESS;
 }
 
 static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOptions* options,
@@ -2689,8 +2690,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
                      args_->os_) == EXIT_SUCCESS;
     }
 
-    return DumpImage(runtime, args_->image_location_, oat_dumper_options_.get(), args_->os_)
-      == EXIT_SUCCESS;
+    return DumpImage(runtime, oat_dumper_options_.get(), args_->os_) == EXIT_SUCCESS;
   }
 
   std::unique_ptr<OatDumperOptions> oat_dumper_options_;

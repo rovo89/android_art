@@ -155,8 +155,14 @@ IMAGE_TYPES := image
 ifeq ($(ART_TEST_RUN_TEST_NO_IMAGE),true)
   IMAGE_TYPES += no-image
 endif
+ifeq ($(ART_TEST_RUN_TEST_MULTI_IMAGE),true)
+  IMAGE_TYPES := multiimage
+endif
 ifeq ($(ART_TEST_PIC_IMAGE),true)
   IMAGE_TYPES += picimage
+  ifeq ($(ART_TEST_RUN_TEST_MULTI_IMAGE),true)
+    IMAGE_TYPES := multipicimage
+  endif
 endif
 PICTEST_TYPES := npictest
 ifeq ($(ART_TEST_PIC_TEST),true)
@@ -581,6 +587,19 @@ endif
 TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
+
+# Tests broken by multi-image. b/26317072
+TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS := \
+  476-checker-ctor-memory-barrier \
+  530-checker-lse
+
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+    $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), \
+    $(TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS),  $(ALL_ADDRESS_SIZES))
+
+TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS :=
+
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
 $(foreach target, $(TARGET_TYPES), \
@@ -642,14 +661,16 @@ ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttestd$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
-  $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+  $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
+  $(ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdk$(ART_HOST_SHLIB_EXTENSION)
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttestd$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
-  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
+  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdk$(ART_HOST_SHLIB_EXTENSION)
 endif
 
 # Create a rule to build and run a tests following the form:
@@ -837,7 +858,27 @@ define define-test-art-run-test
           prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(13))
         endif
       else
-        $$(error found $(9) expected $(IMAGE_TYPES))
+        ifeq ($(9),multiimage)
+          test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
+          run_test_options += --multi-image
+      		ifeq ($(1),host)
+        		prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
+      		else
+        		prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
+      		endif
+        else
+          ifeq ($(9),multipicimage)
+            test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
+        		run_test_options += --pic-image --multi-image
+        		ifeq ($(1),host)
+          		prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
+        		else
+          		prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
+        		endif
+          else
+            $$(error found $(9) expected $(IMAGE_TYPES))
+          endif
+        endif
       endif
     endif
   endif
