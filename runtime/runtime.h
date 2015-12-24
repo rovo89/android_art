@@ -470,7 +470,6 @@ class Runtime {
 
   void RegisterAppInfo(const std::vector<std::string>& code_paths,
                        const std::string& profile_output_filename);
-  void UpdateProfilerState(int state);
 
   // Transaction support.
   bool IsActiveTransaction() const {
@@ -735,7 +734,6 @@ class Runtime {
 
   std::string profile_output_filename_;
   ProfilerOptions profiler_options_;
-  bool profiler_started_;
 
   std::unique_ptr<TraceConfig> trace_config_;
 

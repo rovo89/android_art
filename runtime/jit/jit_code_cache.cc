@@ -317,7 +317,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       // code.
       GetLiveBitmap()->AtomicTestAndSet(FromCodeToAllocation(code_ptr));
     }
-    last_update_time_ns_ = NanoTime();
+    last_update_time_ns_.StoreRelease(NanoTime());
     VLOG(jit)
         << "JIT added "
         << PrettyMethod(method) << "@" << method
@@ -689,18 +689,17 @@ void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_S
 }
 
 void JitCodeCache::GetCompiledArtMethods(const std::set<const std::string>& dex_base_locations,
-                                         std::set<ArtMethod*>& methods) {
+                                         std::vector<ArtMethod*>& methods) {
   MutexLock mu(Thread::Current(), lock_);
   for (auto it : method_code_map_) {
     if (ContainsElement(dex_base_locations, it.second->GetDexFile()->GetBaseLocation())) {
-      methods.insert(it.second);
+      methods.push_back(it.second);
     }
   }
 }
 
-uint64_t JitCodeCache::GetLastUpdateTimeNs() {
-  MutexLock mu(Thread::Current(), lock_);
-  return last_update_time_ns_;
+uint64_t JitCodeCache::GetLastUpdateTimeNs() const {
+  return last_update_time_ns_.LoadAcquire();
 }
 
 bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self) {

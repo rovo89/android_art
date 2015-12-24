@@ -367,6 +367,9 @@ T GetRandomNumber(T min, T max) {
   return dist(rng);
 }
 
+// Return the file size in bytes or -1 if the file does not exists.
+int64_t GetFileSizeBytes(const std::string& filename);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

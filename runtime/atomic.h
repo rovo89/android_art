@@ -199,6 +199,11 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
     return this->load(std::memory_order_relaxed);
   }
 
+  // Load from memory with acquire ordering.
+  T LoadAcquire() const {
+    return this->load(std::memory_order_acquire);
+  }
+
   // Word tearing allowed, but may race.
   // TODO: Optimize?
   // There has been some discussion of eventually disallowing word
