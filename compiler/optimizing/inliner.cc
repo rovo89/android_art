@@ -226,6 +226,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   // We can query the dex cache directly. The verifier has populated it already.
   ArtMethod* resolved_method;
+  ArtMethod* actual_method = nullptr;
   if (invoke_instruction->IsInvokeStaticOrDirect()) {
     if (invoke_instruction->AsInvokeStaticOrDirect()->IsStringInit()) {
       VLOG(compiler) << "Not inlining a String.<init> method";
@@ -237,9 +238,15 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
         : class_linker->FindDexCache(soa.Self(), *ref.dex_file);
     resolved_method = dex_cache->GetResolvedMethod(
         ref.dex_method_index, class_linker->GetImagePointerSize());
+    // actual_method == resolved_method for direct or static calls.
+    actual_method = resolved_method;
   } else {
     resolved_method = caller_compilation_unit_.GetDexCache().Get()->GetResolvedMethod(
         method_index, class_linker->GetImagePointerSize());
+    if (resolved_method != nullptr) {
+      // Check if we can statically find the method.
+      actual_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
+    }
   }
 
   if (resolved_method == nullptr) {
@@ -249,15 +256,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     return false;
   }
 
-  if (invoke_instruction->IsInvokeStaticOrDirect()) {
-    return TryInline(invoke_instruction, resolved_method);
-  }
-
-  // Check if we can statically find the method.
-  ArtMethod* actual_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
   if (actual_method != nullptr) {
     return TryInline(invoke_instruction, actual_method);
   }
+  DCHECK(!invoke_instruction->IsInvokeStaticOrDirect());
 
   // Check if we can use an inline cache.
   ArtMethod* caller = graph_->GetArtMethod();
