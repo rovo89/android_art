@@ -84,6 +84,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
       CompilerOptions::kDefaultNumDexMethodsThreshold,
       CompilerOptions::kDefaultInlineDepthLimit,
       CompilerOptions::kDefaultInlineMaxCodeUnits,
+      /* no_inline_from */ nullptr,
       /* include_patch_information */ false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       Runtime::Current()->IsDebuggable(),
@@ -154,7 +155,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* dump_cfg_append */ false,
       cumulative_logger_.get(),
       /* swap_fd */ -1,
-      /* profile_file */ ""));
+      /* profile_file */ "",
+      /* dex to oat map */ nullptr));
   // Disable dedupe so we can remove compiled methods.
   compiler_driver_->SetDedupeEnabled(false);
   compiler_driver_->SetSupportBootImageFixup(false);

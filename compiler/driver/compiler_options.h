@@ -72,6 +72,7 @@ class CompilerOptions FINAL {
                   size_t num_dex_methods_threshold,
                   size_t inline_depth_limit,
                   size_t inline_max_code_units,
+                  const DexFile* no_inline_from,
                   bool include_patch_information,
                   double top_k_profile_threshold,
                   bool debuggable,
@@ -217,6 +218,10 @@ class CompilerOptions FINAL {
     return abort_on_hard_verifier_failure_;
   }
 
+  const DexFile* GetNoInlineFromDexFile() const {
+    return no_inline_from_;
+  }
+
   bool ParseCompilerOption(const StringPiece& option, UsageFn Usage);
 
  private:
@@ -241,6 +246,10 @@ class CompilerOptions FINAL {
   size_t num_dex_methods_threshold_;
   size_t inline_depth_limit_;
   size_t inline_max_code_units_;
+
+  // A dex file from which we should not inline code.
+  const DexFile* no_inline_from_;
+
   bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;

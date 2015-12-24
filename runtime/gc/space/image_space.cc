@@ -43,12 +43,17 @@ namespace space {
 
 Atomic<uint32_t> ImageSpace::bitmap_index_(0);
 
-ImageSpace::ImageSpace(const std::string& image_filename, const char* image_location,
-                       MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap,
-                       uint8_t* end)
+ImageSpace::ImageSpace(const std::string& image_filename,
+                       const char* image_location,
+                       MemMap* mem_map,
+                       accounting::ContinuousSpaceBitmap* live_bitmap,
+                       uint8_t* end,
+                       MemMap* shadow_map)
     : MemMapSpace(image_filename, mem_map, mem_map->Begin(), end, end,
                   kGcRetentionPolicyNeverCollect),
-      image_location_(image_location) {
+      oat_file_non_owned_(nullptr),
+      image_location_(image_location),
+      shadow_map_(shadow_map) {
   DCHECK(live_bitmap != nullptr);
   live_bitmap_.reset(live_bitmap);
 }
@@ -470,6 +475,7 @@ static bool CheckSpace(const std::string& cache_filename, std::string* error_msg
 
 ImageSpace* ImageSpace::Create(const char* image_location,
                                const InstructionSet image_isa,
+                               bool secondary_image,
                                std::string* error_msg) {
   std::string system_filename;
   bool has_system = false;
@@ -481,7 +487,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
                                              &has_system, &cache_filename, &dalvik_cache_exists,
                                              &has_cache, &is_global_cache);
 
-  if (Runtime::Current()->IsZygote()) {
+  if (Runtime::Current()->IsZygote() && !secondary_image) {
     MarkZygoteStart(image_isa, Runtime::Current()->GetZygoteMaxFailedBoots());
   }
 
@@ -686,7 +692,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     return nullptr;
   }
 
-  if (kIsDebugBuild) {
+  if (VLOG_IS_ON(startup)) {
     LOG(INFO) << "Dumping image sections";
     for (size_t i = 0; i < ImageHeader::kSectionCount; ++i) {
       const auto section_idx = static_cast<ImageHeader::ImageSections>(i);
@@ -799,11 +805,52 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     return nullptr;
   }
 
+  // In case of multi-images, the images are spaced apart so that the bitmaps don't overlap. We
+  // need to reserve the slack, as otherwise the large object space might allocate in there.
+  // TODO: Reconsider the multi-image layout. b/26317072
+  std::unique_ptr<MemMap> shadow_map;
+  {
+    uintptr_t image_begin = reinterpret_cast<uintptr_t>(image_header.GetImageBegin());
+    uintptr_t image_end = RoundUp(image_begin + image_header.GetImageSize(), kPageSize);
+    uintptr_t oat_begin = reinterpret_cast<uintptr_t>(image_header.GetOatFileBegin());
+    if (image_end < oat_begin) {
+      // There's a gap. Could be multi-image, could be the oat file spaced apart. Go ahead and
+      // dummy-reserve the space covered by the bitmap (which will be a shadow that introduces
+      // a gap to the next image).
+      uintptr_t heap_size = bitmap->HeapSize();
+      uintptr_t bitmap_coverage_end = RoundUp(image_begin + heap_size, kPageSize);
+      if (bitmap_coverage_end > image_end) {
+        VLOG(startup) << "Reserving bitmap shadow ["
+                      << std::hex << image_end << ";"
+                      << std::hex << bitmap_coverage_end << ";] (oat file begins at "
+                      << std::hex << oat_begin;
+        // Note: we cannot use MemMap::Dummy here, as that won't reserve the space in 32-bit mode.
+        shadow_map.reset(MemMap::MapAnonymous("Image bitmap shadow",
+                                              reinterpret_cast<uint8_t*>(image_end),
+                                              bitmap_coverage_end - image_end,
+                                              PROT_NONE,
+                                              false,
+                                              false,
+                                              error_msg));
+        if (shadow_map == nullptr) {
+          return nullptr;
+        }
+        // madvise it away, we don't really want it, just reserve the address space.
+        // TODO: Should we use MadviseDontNeedAndZero? b/26317072
+        madvise(shadow_map->BaseBegin(), shadow_map->BaseSize(), MADV_DONTNEED);
+      }
+    }
+  }
+
   // We only want the mirror object, not the ArtFields and ArtMethods.
   uint8_t* const image_end =
       map->Begin() + image_header.GetImageSection(ImageHeader::kSectionObjects).End();
-  std::unique_ptr<ImageSpace> space(new ImageSpace(image_filename, image_location,
-                                                   map.release(), bitmap.release(), image_end));
+  std::unique_ptr<ImageSpace> space(new ImageSpace(image_filename,
+                                                   image_location,
+                                                   map.release(),
+                                                   bitmap.release(),
+                                                   image_end,
+                                                   shadow_map.release()));
 
   // VerifyImageAllocations() will be called later in Runtime::Init()
   // as some class roots like ArtMethod::java_lang_reflect_ArtMethod_
@@ -826,16 +873,18 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   Runtime* runtime = Runtime::Current();
   runtime->SetInstructionSet(space->oat_file_->GetOatHeader().GetInstructionSet());
 
-  runtime->SetResolutionMethod(image_header.GetImageMethod(ImageHeader::kResolutionMethod));
-  runtime->SetImtConflictMethod(image_header.GetImageMethod(ImageHeader::kImtConflictMethod));
-  runtime->SetImtUnimplementedMethod(
-      image_header.GetImageMethod(ImageHeader::kImtUnimplementedMethod));
-  runtime->SetCalleeSaveMethod(
-      image_header.GetImageMethod(ImageHeader::kCalleeSaveMethod), Runtime::kSaveAll);
-  runtime->SetCalleeSaveMethod(
-      image_header.GetImageMethod(ImageHeader::kRefsOnlySaveMethod), Runtime::kRefsOnly);
-  runtime->SetCalleeSaveMethod(
-      image_header.GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod), Runtime::kRefsAndArgs);
+  if (!runtime->HasResolutionMethod()) {
+    runtime->SetResolutionMethod(image_header.GetImageMethod(ImageHeader::kResolutionMethod));
+    runtime->SetImtConflictMethod(image_header.GetImageMethod(ImageHeader::kImtConflictMethod));
+    runtime->SetImtUnimplementedMethod(
+        image_header.GetImageMethod(ImageHeader::kImtUnimplementedMethod));
+    runtime->SetCalleeSaveMethod(
+        image_header.GetImageMethod(ImageHeader::kCalleeSaveMethod), Runtime::kSaveAll);
+    runtime->SetCalleeSaveMethod(
+        image_header.GetImageMethod(ImageHeader::kRefsOnlySaveMethod), Runtime::kRefsOnly);
+    runtime->SetCalleeSaveMethod(
+        image_header.GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod), Runtime::kRefsAndArgs);
+  }
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "ImageSpace::Init exiting (" << PrettyDuration(NanoTime() - start_time)

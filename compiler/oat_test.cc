@@ -121,7 +121,8 @@ class OatTest : public CommonCompilerTest {
                                               false,
                                               timer_.get(),
                                               -1,
-                                              ""));
+                                              "",
+                                              nullptr));
   }
 
   bool WriteElf(File* file,

@@ -39,7 +39,7 @@ public class Main implements Itf {
   /// CHECK-DAG:     InvokeInterface
 
   /// CHECK-START: void Main.testMethod() inliner (after)
-  /// CHECK-NOT:     Invoke{{.*}}
+  /// CHECK-NOT:     Invoke{{.*Object\.<init>.*}}
 
   public static void testMethod() {
     createMain().invokeVirtual();

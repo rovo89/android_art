@@ -580,9 +580,8 @@ class Heap {
   // Unbind any bound bitmaps.
   void UnBindBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
 
-  // Returns the boot image space. There may be multiple image spaces, but there is only one boot
-  // image space.
-  space::ImageSpace* GetBootImageSpace() const;
+  // Returns the boot image spaces. There may be multiple boot image spaces.
+  std::vector<space::ImageSpace*> GetBootImageSpaces() const;
 
   // Permenantly disable moving garbage collection.
   void DisableMovingGc() REQUIRES(!*gc_complete_lock_);
@@ -660,8 +659,8 @@ class Heap {
   void RemoveRememberedSet(space::Space* space);
 
   bool IsCompilingBoot() const;
-  bool HasImageSpace() const {
-    return boot_image_space_ != nullptr;
+  bool HasBootImageSpace() const {
+    return !boot_image_spaces_.empty();
   }
 
   ReferenceProcessor* GetReferenceProcessor() {
@@ -1322,8 +1321,8 @@ class Heap {
   // allocating.
   bool gc_disabled_for_shutdown_ GUARDED_BY(gc_complete_lock_);
 
-  // Boot image space.
-  space::ImageSpace* boot_image_space_;
+  // Boot image spaces.
+  std::vector<space::ImageSpace*> boot_image_spaces_;
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;

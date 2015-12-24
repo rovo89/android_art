@@ -97,7 +97,8 @@ class CompilerDriver {
                  size_t thread_count, bool dump_stats, bool dump_passes,
                  const std::string& dump_cfg_file_name, bool dump_cfg_append,
                  CumulativeLogger* timer, int swap_fd,
-                 const std::string& profile_file);
+                 const std::string& profile_file,
+                 const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map);
 
   ~CompilerDriver();
 
@@ -111,6 +112,18 @@ class CompilerDriver {
     return (dex_files_for_oat_file_ != nullptr)
         ? ArrayRef<const DexFile* const>(*dex_files_for_oat_file_)
         : ArrayRef<const DexFile* const>();
+  }
+
+  // Are the given dex files compiled into the same oat file? Should only be called after
+  // GetDexFilesForOatFile, as the conservative answer (when we don't have a map) is true.
+  bool AreInSameOatFile(const DexFile* d1, const DexFile* d2) {
+    if (dex_file_oat_filename_map_ == nullptr) {
+      // TODO: Check for this wrt/ apps and boot image calls.
+      return true;
+    }
+    auto it1 = dex_file_oat_filename_map_->find(d1);
+    auto it2 = dex_file_oat_filename_map_->find(d2);
+    return it1 == it2;
   }
 
   void CompileAll(jobject class_loader,
@@ -471,6 +484,13 @@ class CompilerDriver {
   bool CanAssumeClassIsLoaded(mirror::Class* klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool MayInline(const DexFile* inlined_from, const DexFile* inlined_into) const {
+    if (!kIsTargetBuild) {
+      return MayInlineInternal(inlined_from, inlined_into);
+    }
+    return true;
+  }
+
  private:
   // Return whether the declaring class of `resolved_member` is
   // available to `referrer_class` for read or write access using two
@@ -587,6 +607,8 @@ class CompilerDriver {
                       ThreadPool* thread_pool, TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
+  bool MayInlineInternal(const DexFile* inlined_from, const DexFile* inlined_into) const;
+
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -621,9 +643,8 @@ class CompilerDriver {
 
   const bool boot_image_;
 
-  // If image_ is true, specifies the classes that will be included in
-  // the image. Note if image_classes_ is null, all classes are
-  // included in the image.
+  // If image_ is true, specifies the classes that will be included in the image.
+  // Note if image_classes_ is null, all classes are included in the image.
   std::unique_ptr<std::unordered_set<std::string>> image_classes_;
 
   // Specifies the classes that will be compiled. Note that if classes_to_compile_ is null,
@@ -662,6 +683,9 @@ class CompilerDriver {
 
   // List of dex files that will be stored in the oat file.
   const std::vector<const DexFile*>* dex_files_for_oat_file_;
+
+  // Map from dex files to the oat file (name) they will be compiled into.
+  const std::unordered_map<const DexFile*, const char*>* dex_file_oat_filename_map_;
 
   CompiledMethodStorage compiled_method_storage_;
 

@@ -58,6 +58,7 @@ class QuickCFITest : public CFITest {
       CompilerOptions::kDefaultNumDexMethodsThreshold,
       CompilerOptions::kDefaultInlineDepthLimit,
       CompilerOptions::kDefaultInlineMaxCodeUnits,
+      nullptr,
       false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       false,
@@ -74,9 +75,25 @@ class QuickCFITest : public CFITest {
     std::unique_ptr<const InstructionSetFeatures> isa_features;
     std::string error;
     isa_features.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
-    CompilerDriver driver(&compiler_options, &verification_results, &method_inliner_map,
-                          Compiler::kQuick, isa, isa_features.get(),
-                          false, nullptr, nullptr, nullptr, 0, false, false, "", false, 0, -1, "");
+    CompilerDriver driver(&compiler_options,
+                          &verification_results,
+                          &method_inliner_map,
+                          Compiler::kQuick,
+                          isa,
+                          isa_features.get(),
+                          false,
+                          nullptr,
+                          nullptr,
+                          nullptr,
+                          0,
+                          false,
+                          false,
+                          "",
+                          false,
+                          0,
+                          -1,
+                          "",
+                          nullptr);
     ClassLinker* linker = nullptr;
     CompilationUnit cu(&pool, isa, &driver, linker);
     DexFile::CodeItem code_item { 0, 0, 0, 0, 0, 0, { 0 } };  // NOLINT

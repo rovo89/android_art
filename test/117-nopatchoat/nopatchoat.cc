@@ -35,8 +35,9 @@ class NoPatchoatTest {
   }
 
   static bool isRelocationDeltaZero() {
-    gc::space::ImageSpace* space = Runtime::Current()->GetHeap()->GetBootImageSpace();
-    return space != nullptr && space->GetImageHeader().GetPatchDelta() == 0;
+    std::vector<gc::space::ImageSpace*> spaces =
+        Runtime::Current()->GetHeap()->GetBootImageSpaces();
+    return !spaces.empty() && spaces[0]->GetImageHeader().GetPatchDelta() == 0;
   }
 
   static bool hasExecutableOat(jclass cls) {

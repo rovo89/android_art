@@ -80,8 +80,7 @@ static bool LocationToFilename(const std::string& location, InstructionSet isa,
   }
 }
 
-static Runtime* StartRuntime(const char* boot_image_location,
-                             InstructionSet instruction_set) {
+static Runtime* StartRuntime(const char* boot_image_location, InstructionSet instruction_set) {
   CHECK(boot_image_location != nullptr);
 
   RuntimeOptions options;

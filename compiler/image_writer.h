@@ -56,30 +56,31 @@ class ImageWriter FINAL {
               uintptr_t image_begin,
               bool compile_pic,
               bool compile_app_image,
-              ImageHeader::StorageMode image_storage_mode)
+              ImageHeader::StorageMode image_storage_mode,
+              const std::vector<const char*> oat_filenames,
+              const std::unordered_map<const DexFile*, const char*>& dex_file_oat_filename_map)
       : compiler_driver_(compiler_driver),
-        image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
-        image_end_(0),
+        global_image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
         image_objects_offset_begin_(0),
-        image_roots_address_(0),
         oat_file_(nullptr),
-        oat_data_begin_(nullptr),
         compile_pic_(compile_pic),
         compile_app_image_(compile_app_image),
         boot_image_space_(nullptr),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
-        bin_slot_sizes_(),
-        bin_slot_offsets_(),
-        bin_slot_count_(),
         intern_table_bytes_(0u),
         image_method_array_(ImageHeader::kImageMethodsCount),
         dirty_methods_(0u),
         clean_methods_(0u),
         class_table_bytes_(0u),
-        image_storage_mode_(image_storage_mode) {
+        image_storage_mode_(image_storage_mode),
+        dex_file_oat_filename_map_(dex_file_oat_filename_map),
+        oat_filenames_(oat_filenames),
+        default_oat_filename_(oat_filenames[0]) {
     CHECK_NE(image_begin, 0U);
+    for (const char* oat_filename : oat_filenames) {
+      image_info_map_.emplace(oat_filename, ImageInfo());
+    }
     std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
-    std::fill_n(oat_address_offsets_, arraysize(oat_address_offsets_), 0);
   }
 
   ~ImageWriter() {
@@ -88,14 +89,25 @@ class ImageWriter FINAL {
   bool PrepareImageAddressSpace();
 
   bool IsImageAddressSpaceReady() const {
-    return image_roots_address_ != 0u;
+    bool ready = !image_info_map_.empty();
+    for (auto& pair : image_info_map_) {
+      const ImageInfo& image_info = pair.second;
+      if (image_info.image_roots_address_ == 0u) {
+        return false;
+      }
+    }
+    return ready;
   }
 
   template <typename T>
   T* GetImageAddress(T* object) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (object == nullptr || IsInBootImage(object))
-        ? object
-        : reinterpret_cast<T*>(image_begin_ + GetImageOffset(object));
+    if (object == nullptr || IsInBootImage(object)) {
+      return object;
+    } else {
+      const char* oat_filename = GetOatFilename(object);
+      const ImageInfo& image_info = GetConstImageInfo(oat_filename);
+      return reinterpret_cast<T*>(image_info.image_begin_ + GetImageOffset(object));
+    }
   }
 
   ArtMethod* GetImageMethodAddress(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -103,25 +115,35 @@ class ImageWriter FINAL {
   template <typename PtrType>
   PtrType GetDexCacheArrayElementImageAddress(const DexFile* dex_file, uint32_t offset)
       const SHARED_REQUIRES(Locks::mutator_lock_) {
-    auto it = dex_cache_array_starts_.find(dex_file);
-    DCHECK(it != dex_cache_array_starts_.end());
+    auto oat_it = dex_file_oat_filename_map_.find(dex_file);
+    DCHECK(oat_it != dex_file_oat_filename_map_.end());
+    const ImageInfo& image_info = GetConstImageInfo(oat_it->second);
+    auto it = image_info.dex_cache_array_starts_.find(dex_file);
+    DCHECK(it != image_info.dex_cache_array_starts_.end());
     return reinterpret_cast<PtrType>(
-        image_begin_ + bin_slot_offsets_[kBinDexCacheArray] + it->second + offset);
+        image_info.image_begin_ + image_info.bin_slot_offsets_[kBinDexCacheArray] +
+            it->second + offset);
   }
 
-  uint8_t* GetOatFileBegin() const;
+  uint8_t* GetOatFileBegin(const char* oat_filename) const;
 
   // If image_fd is not kInvalidImageFd, then we use that for the file. Otherwise we open
-  // image_filename.
+  // the names in image_filenames.
   bool Write(int image_fd,
-             const std::string& image_filename,
-             const std::string& oat_filename,
-             const std::string& oat_location)
+             const std::vector<const char*>& image_filenames,
+             const std::vector<const char*>& oat_filenames)
       REQUIRES(!Locks::mutator_lock_);
 
-  uintptr_t GetOatDataBegin() {
-    return reinterpret_cast<uintptr_t>(oat_data_begin_);
+  uintptr_t GetOatDataBegin(const char* oat_filename) {
+    return reinterpret_cast<uintptr_t>(GetImageInfo(oat_filename).oat_data_begin_);
   }
+
+  const char* GetOatFilenameForDexCache(mirror::DexCache* dex_cache) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Update the oat size for the given oat file. This will make the oat_offset for the next oat
+  // file valid.
+  void UpdateOatFile(const char* oat_filename);
 
  private:
   bool AllocMemory();
@@ -214,6 +236,58 @@ class ImageWriter FINAL {
     const uint32_t lockword_;
   };
 
+  struct ImageInfo {
+    explicit ImageInfo()
+        : image_begin_(nullptr),
+          image_end_(RoundUp(sizeof(ImageHeader), kObjectAlignment)),
+          image_roots_address_(0),
+          image_offset_(0),
+          image_size_(0),
+          oat_offset_(0),
+          bin_slot_sizes_(),
+          bin_slot_offsets_(),
+          bin_slot_count_() {}
+
+    std::unique_ptr<MemMap> image_;  // Memory mapped for generating the image.
+
+    // Target begin of this image. Notes: It is not valid to write here, this is the address
+    // of the target image, not necessarily where image_ is mapped. The address is only valid
+    // after layouting (otherwise null).
+    uint8_t* image_begin_;
+
+    size_t image_end_;  // Offset to the free space in image_, initially size of image header.
+    uint32_t image_roots_address_;  // The image roots address in the image.
+    size_t image_offset_;  // Offset of this image from the start of the first image.
+
+    // Image size is the *address space* covered by this image. As the live bitmap is aligned
+    // to the page size, the live bitmap will cover more address space than necessary. But live
+    // bitmaps may not overlap, so an image has a "shadow," which is accounted for in the size.
+    // The next image may only start at image_begin_ + image_size_ (which is guaranteed to be
+    // page-aligned).
+    size_t image_size_;
+
+    // Oat data.
+    size_t oat_offset_;  // Offset of the oat file for this image from start of oat files. This is
+                         // valid when the previous oat file has been written.
+    uint8_t* oat_data_begin_;           // Start of oatdata in the corresponding oat file. This is
+                                        // valid when the images have been layed out.
+    size_t oat_size_;                   // Size of the corresponding oat data.
+
+    // Image bitmap which lets us know where the objects inside of the image reside.
+    std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
+
+    // The start offsets of the dex cache arrays.
+    SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
+
+    // Offset from oat_data_begin_ to the stubs.
+    uint32_t oat_address_offsets_[kOatAddressCount];
+
+    // Bin slot tracking for dirty object packing.
+    size_t bin_slot_sizes_[kBinSize];  // Number of bytes in a bin.
+    size_t bin_slot_offsets_[kBinSize];  // Number of bytes in previous bins.
+    size_t bin_slot_count_[kBinSize];  // Number of objects in a bin.
+  };
+
   // We use the lock word to store the offset of the object in the image.
   void AssignImageOffset(mirror::Object* object, BinSlot bin_slot)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -233,7 +307,8 @@ class ImageWriter FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
   BinSlot GetImageBinSlot(mirror::Object* object) const SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void AddDexCacheArrayRelocation(void* array, size_t offset) SHARED_REQUIRES(Locks::mutator_lock_);
+  void AddDexCacheArrayRelocation(void* array, size_t offset, mirror::DexCache* dex_cache)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void AddMethodPointerArray(mirror::PointerArray* arr) SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void* GetImageAddressCallback(void* writer, mirror::Object* obj)
@@ -244,19 +319,21 @@ class ImageWriter FINAL {
   mirror::Object* GetLocalAddress(mirror::Object* object) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
     size_t offset = GetImageOffset(object);
-    uint8_t* dst = image_->Begin() + offset;
+    const char* oat_filename = GetOatFilename(object);
+    const ImageInfo& image_info = GetConstImageInfo(oat_filename);
+    uint8_t* dst = image_info.image_->Begin() + offset;
     return reinterpret_cast<mirror::Object*>(dst);
   }
 
   // Returns the address in the boot image if we are compiling the app image.
   const uint8_t* GetOatAddress(OatAddress type) const;
 
-  const uint8_t* GetOatAddressForOffset(uint32_t offset) const {
+  const uint8_t* GetOatAddressForOffset(uint32_t offset, const ImageInfo& image_info) const {
     // With Quick, code is within the OatFile, as there are all in one
-    // .o ELF object.
-    DCHECK_LE(offset, oat_file_->Size());
-    DCHECK(oat_data_begin_ != nullptr);
-    return offset == 0u ? nullptr : oat_data_begin_ + offset;
+    // .o ELF object. But interpret it as signed.
+    DCHECK_LE(static_cast<int32_t>(offset), static_cast<int32_t>(image_info.oat_size_));
+    DCHECK(image_info.oat_data_begin_ != nullptr);
+    return offset == 0u ? nullptr : image_info.oat_data_begin_ + static_cast<int32_t>(offset);
   }
 
   // Returns true if the class was in the original requested image classes list.
@@ -282,7 +359,7 @@ class ImageWriter FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateHeader(size_t oat_loaded_size, size_t oat_data_offset)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* CreateImageRoots() const
+  mirror::ObjectArray<mirror::Object>* CreateImageRoots(const char* oat_filename) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CalculateObjectBinSlots(mirror::Object* obj)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -304,7 +381,7 @@ class ImageWriter FINAL {
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CopyAndFixupObject(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
-  void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy)
+  void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy, const ImageInfo& image_info)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupClass(mirror::Class* orig, mirror::Class* copy)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -319,23 +396,24 @@ class ImageWriter FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get quick code for non-resolution/imt_conflict/abstract method.
-  const uint8_t* GetQuickCode(ArtMethod* method, bool* quick_is_interpreted)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  const uint8_t* GetQuickEntryPoint(ArtMethod* method)
+  const uint8_t* GetQuickCode(ArtMethod* method,
+                              const ImageInfo& image_info,
+                              bool* quick_is_interpreted)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
   void SetOatChecksumFromElfFile(File* elf_file);
 
   // Calculate the sum total of the bin slot sizes in [0, up_to). Defaults to all bins.
-  size_t GetBinSizeSum(Bin up_to = kBinSize) const;
+  size_t GetBinSizeSum(ImageInfo& image_info, Bin up_to = kBinSize) const;
 
   // Return true if a method is likely to be dirtied at runtime.
   bool WillMethodBeDirty(ArtMethod* m) const SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Assign the offset for an ArtMethod.
-  void AssignMethodOffset(ArtMethod* method, NativeObjectRelocationType type)
+  void AssignMethodOffset(ArtMethod* method,
+                          NativeObjectRelocationType type,
+                          const char* oat_filename)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return true if klass is loaded by the boot class loader but not in the boot image.
@@ -359,11 +437,11 @@ class ImageWriter FINAL {
 
   // Location of where the object will be when the image is loaded at runtime.
   template <typename T>
-  T* NativeLocationInImage(T* obj);
+  T* NativeLocationInImage(T* obj, const char* oat_filename) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Location of where the temporary copy of the object currently is.
   template <typename T>
-  T* NativeCopyLocation(T* obj);
+  T* NativeCopyLocation(T* obj, mirror::DexCache* dex_cache) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return true of obj is inside of the boot image space. This may only return true if we are
   // compiling an app image.
@@ -372,45 +450,34 @@ class ImageWriter FINAL {
   // Return true if ptr is within the boot oat file.
   bool IsInBootOatFile(const void* ptr) const;
 
+  const char* GetOatFilename(mirror::Object* object) const SHARED_REQUIRES(Locks::mutator_lock_);
+
+  const char* GetDefaultOatFilename() const {
+    return default_oat_filename_;
+  }
+
+  ImageInfo& GetImageInfo(const char* oat_filename);
+  const ImageInfo& GetConstImageInfo(const char* oat_filename) const;
+  const ImageInfo& GetImageInfo(size_t index) const;
+
   const CompilerDriver& compiler_driver_;
 
-  // Beginning target image address for the output image.
-  uint8_t* image_begin_;
-
-  // Offset to the free space in image_.
-  size_t image_end_;
+  // Beginning target image address for the first image.
+  uint8_t* global_image_begin_;
 
   // Offset from image_begin_ to where the first object is in image_.
   size_t image_objects_offset_begin_;
 
-  // The image roots address in the image.
-  uint32_t image_roots_address_;
-
   // oat file with code for this image
   OatFile* oat_file_;
-
-  // Memory mapped for generating the image.
-  std::unique_ptr<MemMap> image_;
 
   // Pointer arrays that need to be updated. Since these are only some int and long arrays, we need
   // to keep track. These include vtable arrays, iftable arrays, and dex caches.
   std::unordered_map<mirror::PointerArray*, Bin> pointer_arrays_;
 
-  // The start offsets of the dex cache arrays.
-  SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
-
   // Saved hash codes. We use these to restore lockwords which were temporarily used to have
   // forwarding addresses as well as copying over hash codes.
   std::unordered_map<mirror::Object*, uint32_t> saved_hashcode_map_;
-
-  // Beginning target oat address for the pointers from the output image to its oat file.
-  const uint8_t* oat_data_begin_;
-
-  // Image bitmap which lets us know where the objects inside of the image reside.
-  std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
-
-  // Offset from oat_data_begin_ to the stubs.
-  uint32_t oat_address_offsets_[kOatAddressCount];
 
   // Boolean flags.
   const bool compile_pic_;
@@ -422,10 +489,8 @@ class ImageWriter FINAL {
   // Size of pointers on the target architecture.
   size_t target_ptr_size_;
 
-  // Bin slot tracking for dirty object packing
-  size_t bin_slot_sizes_[kBinSize];  // Number of bytes in a bin
-  size_t bin_slot_offsets_[kBinSize];  // Number of bytes in previous bins.
-  size_t bin_slot_count_[kBinSize];  // Number of objects in a bin
+  // Mapping of oat filename to image data.
+  std::unordered_map<std::string, ImageInfo> image_info_map_;
 
   // Cached size of the intern table for when we allocate memory.
   size_t intern_table_bytes_;
@@ -434,6 +499,7 @@ class ImageWriter FINAL {
   // have one entry per art field for convenience. ArtFields are placed right after the end of the
   // image objects (aka sum of bin_slot_sizes_). ArtMethods are placed right after the ArtFields.
   struct NativeObjectRelocation {
+    const char* oat_filename;
     uintptr_t offset;
     NativeObjectRelocationType type;
 
@@ -467,6 +533,11 @@ class ImageWriter FINAL {
 
   // Which mode the image is stored as, see image.h
   const ImageHeader::StorageMode image_storage_mode_;
+
+  // Map of dex files to the oat filenames that they were compiled into.
+  const std::unordered_map<const DexFile*, const char*>& dex_file_oat_filename_map_;
+  const std::vector<const char*> oat_filenames_;
+  const char* default_oat_filename_;
 
   friend class ContainsBootClassLoaderNonImageClassVisitor;
   friend class FixupClassVisitor;

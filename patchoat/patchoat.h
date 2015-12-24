@@ -23,8 +23,10 @@
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "gc/accounting/space_bitmap.h"
+#include "gc/space/image_space.h"
 #include "gc/heap.h"
 #include "os.h"
+#include "runtime.h"
 
 namespace art {
 
@@ -57,21 +59,23 @@ class PatchOat {
                     bool output_oat_opened_from_fd,  // Was this using --oatput-oat-fd ?
                     bool new_oat_out);               // Output oat was a new file created by us?
 
+  ~PatchOat() {}
+  PatchOat(PatchOat&&) = default;
+
  private:
   // Takes ownership only of the ElfFile. All other pointers are only borrowed.
   PatchOat(ElfFile* oat_file, off_t delta, TimingLogger* timings)
       : oat_file_(oat_file), image_(nullptr), bitmap_(nullptr), heap_(nullptr), delta_(delta),
-        isa_(kNone), timings_(timings) {}
+        isa_(kNone), space_map_(nullptr), timings_(timings) {}
   PatchOat(InstructionSet isa, MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
            MemMap* heap, off_t delta, TimingLogger* timings)
       : image_(image), bitmap_(bitmap), heap_(heap),
-        delta_(delta), isa_(isa), timings_(timings) {}
+        delta_(delta), isa_(isa), space_map_(nullptr), timings_(timings) {}
   PatchOat(InstructionSet isa, ElfFile* oat_file, MemMap* image,
            gc::accounting::ContinuousSpaceBitmap* bitmap, MemMap* heap, off_t delta,
-           TimingLogger* timings)
+           std::map<gc::space::ImageSpace*, std::unique_ptr<MemMap>>* map, TimingLogger* timings)
       : oat_file_(oat_file), image_(image), bitmap_(bitmap), heap_(heap),
-        delta_(delta), isa_(isa), timings_(timings) {}
-  ~PatchOat() {}
+        delta_(delta), isa_(isa), space_map_(map), timings_(timings) {}
 
   // Was the .art image at image_path made with --compile-pic ?
   static bool IsImagePic(const ImageHeader& image_header, const std::string& image_path);
@@ -111,7 +115,7 @@ class PatchOat {
   template <typename ElfFileImpl>
   bool PatchOatHeader(ElfFileImpl* oat_file);
 
-  bool PatchImage() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool PatchImage(bool primary_image) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchArtFields(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchArtMethods(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchInternedStrings(const ImageHeader* image_header)
@@ -129,12 +133,31 @@ class PatchOat {
     if (obj == nullptr) {
       return nullptr;
     }
-    DCHECK_GT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->Begin()));
-    DCHECK_LT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->End()));
+    // TODO: Fix these checks for multi-image. Some may still be valid. b/26317072
+    // DCHECK_GT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->Begin()));
+    // DCHECK_LT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->End()));
     uintptr_t heap_off =
         reinterpret_cast<uintptr_t>(obj) - reinterpret_cast<uintptr_t>(heap_->Begin());
-    DCHECK_LT(heap_off, image_->Size());
+    // DCHECK_LT(heap_off, image_->Size());
     return reinterpret_cast<T*>(image_->Begin() + heap_off);
+  }
+
+  template <typename T>
+  T* RelocatedCopyOfFollowImages(T* obj) const {
+    if (obj == nullptr) {
+      return nullptr;
+    }
+    // Find ImageSpace this belongs to.
+    auto image_spaces = Runtime::Current()->GetHeap()->GetBootImageSpaces();
+    for (gc::space::ImageSpace* image_space : image_spaces) {
+      if (image_space->Contains(obj)) {
+        uintptr_t heap_off = reinterpret_cast<uintptr_t>(obj) -
+                             reinterpret_cast<uintptr_t>(image_space->GetMemMap()->Begin());
+        return reinterpret_cast<T*>(space_map_->find(image_space)->second->Begin() + heap_off);
+      }
+    }
+    LOG(FATAL) << "Did not find object in boot image space " << obj;
+    UNREACHABLE();
   }
 
   template <typename T>
@@ -196,6 +219,8 @@ class PatchOat {
   const off_t delta_;
   // Active instruction set, used to know the entrypoint size.
   const InstructionSet isa_;
+
+  const std::map<gc::space::ImageSpace*, std::unique_ptr<MemMap>>* space_map_;
 
   TimingLogger* timings_;
 

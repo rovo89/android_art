@@ -92,9 +92,10 @@ static bool CheckStack(Backtrace* bt, const std::vector<std::string>& seq) {
 // detecting this.
 #if __linux__
 static bool IsPicImage() {
-  gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetBootImageSpace();
-  CHECK(image_space != nullptr);  // We should be running with an image.
-  const OatFile* oat_file = image_space->GetOatFile();
+  std::vector<gc::space::ImageSpace*> image_spaces =
+      Runtime::Current()->GetHeap()->GetBootImageSpaces();
+  CHECK(!image_spaces.empty());  // We should be running with an image.
+  const OatFile* oat_file = image_spaces[0]->GetOatFile();
   CHECK(oat_file != nullptr);     // We should have an oat file to go with the image.
   return oat_file->IsPic();
 }

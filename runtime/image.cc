@@ -55,7 +55,6 @@ ImageHeader::ImageHeader(uint32_t image_begin,
   CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
   CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
   CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
-  CHECK_LT(image_begin, image_roots);
   CHECK_LT(image_roots, oat_file_begin);
   CHECK_LE(oat_file_begin, oat_data_begin);
   CHECK_LT(oat_data_begin, oat_data_end);
@@ -98,9 +97,6 @@ bool ImageHeader::IsValid() const {
     return false;
   }
   if (oat_file_begin_ >= oat_data_begin_) {
-    return false;
-  }
-  if (image_roots_ <= image_begin_ || oat_file_begin_ <= image_roots_) {
     return false;
   }
   if (!IsAligned<kPageSize>(patch_delta_)) {

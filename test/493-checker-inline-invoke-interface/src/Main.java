@@ -36,7 +36,7 @@ public class Main implements Itf {
   /// CHECK:           InvokeInterface
 
   /// CHECK-START: void Main.main(java.lang.String[]) inliner (after)
-  /// CHECK-NOT:       Invoke{{.*}}
+  /// CHECK-NOT:       Invoke{{.*Object\.<init>.*}}
   public static void main(String[] args) {
     Itf itf = bar();
     itf.foo();

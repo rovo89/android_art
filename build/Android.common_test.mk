@@ -114,6 +114,9 @@ ART_TEST_RUN_TEST_ALWAYS_CLEAN ?= true
 # Do you want run-tests with the --debuggable flag
 ART_TEST_RUN_TEST_DEBUGGABLE ?= $(ART_TEST_FULL)
 
+# Do you want to test multi-part boot-image functionality?
+ART_TEST_RUN_TEST_MULTI_IMAGE ?= $(ART_TEST_FULL)
+
 # Define the command run on test failure. $(1) is the name of the test. Executed by the shell.
 define ART_TEST_FAILED
   ( [ -f $(ART_HOST_TEST_DIR)/skipped/$(1) ] || \
