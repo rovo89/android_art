@@ -17,7 +17,7 @@
 #include "offline_profiling_info.h"
 
 #include <fstream>
-#include <set>
+#include <vector>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
@@ -30,34 +30,8 @@
 
 namespace art {
 
-// An arbitrary value to throttle save requests. Set to 500ms for now.
-static constexpr const uint64_t kMilisecondsToNano = 1000000;
-static constexpr const uint64_t kMinimumTimeBetweenSavesNs = 500 * kMilisecondsToNano;
-
-void OfflineProfilingInfo::SetTrackedDexLocations(
-      const std::vector<std::string>& dex_base_locations) {
-  tracked_dex_base_locations_.clear();
-  tracked_dex_base_locations_.insert(dex_base_locations.begin(), dex_base_locations.end());
-  VLOG(profiler) << "Tracking dex locations: " << Join(dex_base_locations, ':');
-}
-
-const std::set<const std::string>& OfflineProfilingInfo::GetTrackedDexLocations() const {
-  return tracked_dex_base_locations_;
-}
-
-bool OfflineProfilingInfo::NeedsSaving(uint64_t last_update_time_ns) const {
-  return !tracked_dex_base_locations_.empty() &&
-      (last_update_time_ns - last_update_time_ns_.LoadRelaxed() > kMinimumTimeBetweenSavesNs);
-}
-
 void OfflineProfilingInfo::SaveProfilingInfo(const std::string& filename,
-                                             uint64_t last_update_time_ns,
-                                             const std::set<ArtMethod*>& methods) {
-  if (!NeedsSaving(last_update_time_ns)) {
-    VLOG(profiler) << "No need to saved profile info to " << filename;
-    return;
-  }
-
+                                             const std::vector<ArtMethod*>& methods) {
   if (methods.empty()) {
     VLOG(profiler) << "No info to save to " << filename;
     return;
@@ -67,7 +41,6 @@ void OfflineProfilingInfo::SaveProfilingInfo(const std::string& filename,
   {
     ScopedObjectAccess soa(Thread::Current());
     for (auto it = methods.begin(); it != methods.end(); it++) {
-      DCHECK(ContainsElement(tracked_dex_base_locations_, (*it)->GetDexFile()->GetBaseLocation()));
       AddMethodInfo(*it, &info);
     }
   }
@@ -75,9 +48,8 @@ void OfflineProfilingInfo::SaveProfilingInfo(const std::string& filename,
   // This doesn't need locking because we are trying to lock the file for exclusive
   // access and fail immediately if we can't.
   if (Serialize(filename, info)) {
-    last_update_time_ns_.StoreRelaxed(last_update_time_ns);
-    VLOG(profiler) << "Successfully saved profile info to "
-                   << filename << " with time stamp: " << last_update_time_ns;
+    VLOG(profiler) << "Successfully saved profile info to " << filename
+        << " Size: " << GetFileSizeBytes(filename);
   }
 }
 

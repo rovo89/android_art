@@ -1860,4 +1860,10 @@ void ParseDouble(const std::string& option,
   *parsed_value = value;
 }
 
+int64_t GetFileSizeBytes(const std::string& filename) {
+  struct stat stat_buf;
+  int rc = stat(filename.c_str(), &stat_buf);
+  return rc == 0 ? stat_buf.st_size : -1;
+}
+
 }  // namespace art

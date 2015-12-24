@@ -224,7 +224,6 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
 static void VMRuntime_updateProcessState(JNIEnv*, jobject, jint process_state) {
   Runtime* runtime = Runtime::Current();
   runtime->GetHeap()->UpdateProcessState(static_cast<gc::ProcessState>(process_state));
-  runtime->UpdateProfilerState(process_state);
 }
 
 static void VMRuntime_trimHeap(JNIEnv* env, jobject) {

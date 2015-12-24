@@ -18,6 +18,7 @@
 #define ART_RUNTIME_JIT_OFFLINE_PROFILING_INFO_H_
 
 #include <set>
+#include <vector>
 
 #include "atomic.h"
 #include "dex_file.h"
@@ -36,12 +37,7 @@ class ArtMethod;
  */
 class OfflineProfilingInfo {
  public:
-  bool NeedsSaving(uint64_t last_update_time_ns) const;
-  void SaveProfilingInfo(const std::string& filename,
-                         uint64_t last_update_time_ns,
-                         const std::set<ArtMethod*>& methods);
-  void SetTrackedDexLocations(const std::vector<std::string>& dex_locations);
-  const std::set<const std::string>& GetTrackedDexLocations() const;
+  void SaveProfilingInfo(const std::string& filename, const std::vector<ArtMethod*>& methods);
 
  private:
   // Map identifying the location of the profiled methods.
@@ -51,12 +47,6 @@ class OfflineProfilingInfo {
   void AddMethodInfo(ArtMethod* method, DexFileToMethodsMap* info)
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool Serialize(const std::string& filename, const DexFileToMethodsMap& info) const;
-
-  // TODO(calin): Verify if Atomic is really needed (are we sure to be called from a
-  // single thread?)
-  Atomic<uint64_t> last_update_time_ns_;
-
-  std::set<const std::string> tracked_dex_base_locations_;
 };
 
 /**
