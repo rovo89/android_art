@@ -394,6 +394,12 @@ if [ "x$INSTRUCTION_SET_FEATURES" != "x" ] ; then
   DALVIKVM_ISA_FEATURES_ARGS="-Xcompiler-option --instruction-set-features=${INSTRUCTION_SET_FEATURES}"
 fi
 
+# java.io.tmpdir can only be set at launch time.
+TMP_DIR_OPTION=""
+if [ "$HOST" = "n" ]; then
+  TMP_DIR_OPTION="-Djava.io.tmpdir=/data/local/tmp"
+fi
+
 dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $GDB_ARGS \
                   $FLAGS \
@@ -407,6 +413,7 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $INT_OPTS \
                   $DEBUGGER_OPTS \
                   $DALVIKVM_BOOT_OPT \
+                  $TMP_DIR_OPTION \
                   -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN $ARGS"
 
 # Remove whitespace.
