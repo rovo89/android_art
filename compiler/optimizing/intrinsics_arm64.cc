@@ -614,6 +614,10 @@ static void GenMathRound(LocationSummary* locations,
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathRoundDouble(HInvoke* invoke) {
+  if ((true)) {
+    // TODO(26327751): Re-enable?
+    return;
+  }
   CreateFPToIntPlusTempLocations(arena_, invoke);
 }
 
@@ -622,6 +626,10 @@ void IntrinsicCodeGeneratorARM64::VisitMathRoundDouble(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathRoundFloat(HInvoke* invoke) {
+  if ((true)) {
+    // TODO(26327751): Re-enable?
+    return;
+  }
   CreateFPToIntPlusTempLocations(arena_, invoke);
 }
 

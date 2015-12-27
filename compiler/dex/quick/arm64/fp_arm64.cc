@@ -448,6 +448,10 @@ bool Arm64Mir2Lir::GenInlinedRint(CallInfo* info) {
 }
 
 bool Arm64Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
+  if ((true)) {
+    // TODO(26327751): Re-enable?
+    return false;
+  }
   int32_t encoded_imm = EncodeImmSingle(bit_cast<uint32_t, float>(0.5f));
   A64Opcode wide = (is_double) ? WIDE(0) : UNWIDE(0);
   RegLocation rl_src = info->args[0];
