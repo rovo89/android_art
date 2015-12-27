@@ -56,6 +56,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
   void VisitInvoke(HInvoke* instr) OVERRIDE;
   void VisitArrayGet(HArrayGet* instr) OVERRIDE;
   void VisitCheckCast(HCheckCast* instr) OVERRIDE;
+  void VisitBoundType(HBoundType* instr) OVERRIDE;
   void VisitNullCheck(HNullCheck* instr) OVERRIDE;
   void VisitFakeString(HFakeString* instr) OVERRIDE;
   void UpdateReferenceTypeInfo(HInstruction* instr,
@@ -160,34 +161,6 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
   BoundTypeForIfInstanceOf(block);
 }
 
-// Create a bound type for the given object narrowing the type as much as possible.
-// The BoundType upper values for the super type and can_be_null will be taken from
-// load_class.GetLoadedClassRTI() and upper_can_be_null.
-static HBoundType* CreateBoundType(ArenaAllocator* arena,
-                                   HInstruction* obj,
-                                   HLoadClass* load_class,
-                                   bool upper_can_be_null)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-  ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
-  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
-  DCHECK(class_rti.IsValid());
-  HBoundType* bound_type = new (arena) HBoundType(obj, class_rti, upper_can_be_null);
-  // Narrow the type as much as possible.
-  if (class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes()) {
-    bound_type->SetReferenceTypeInfo(
-        ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ true));
-  } else if (obj_rti.IsValid() && class_rti.IsSupertypeOf(obj_rti)) {
-    bound_type->SetReferenceTypeInfo(obj_rti);
-  } else {
-    bound_type->SetReferenceTypeInfo(
-        ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false));
-  }
-  if (upper_can_be_null) {
-    bound_type->SetCanBeNull(obj->CanBeNull());
-  }
-  return bound_type;
-}
-
 // Check if we should create a bound type for the given object at the specified
 // position. Because of inlining and the fact we run RTP more than once and we
 // might have a HBoundType already. If we do, we should not create a new one.
@@ -273,8 +246,8 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
         ReferenceTypeInfo object_rti = ReferenceTypeInfo::Create(
             object_class_handle_, /* is_exact */ true);
         if (ShouldCreateBoundType(insert_point, obj, object_rti, nullptr, notNullBlock)) {
-          bound_type = new (graph_->GetArena()) HBoundType(
-              obj, object_rti, /* bound_can_be_null */ false);
+          bound_type = new (graph_->GetArena()) HBoundType(obj);
+          bound_type->SetUpperBound(object_rti, /* bound_can_be_null */ false);
           if (obj->GetReferenceTypeInfo().IsValid()) {
             bound_type->SetReferenceTypeInfo(obj->GetReferenceTypeInfo());
           }
@@ -408,11 +381,8 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
         ScopedObjectAccess soa(Thread::Current());
         HInstruction* insert_point = instanceOfTrueBlock->GetFirstInstruction();
         if (ShouldCreateBoundType(insert_point, obj, class_rti, nullptr, instanceOfTrueBlock)) {
-          bound_type = CreateBoundType(
-              graph_->GetArena(),
-              obj,
-              load_class,
-              false /* InstanceOf ensures the object is not null. */);
+          bound_type = new (graph_->GetArena()) HBoundType(obj);
+          bound_type->SetUpperBound(class_rti, /* InstanceOf fails for null. */ false);
           instanceOfTrueBlock->InsertInstructionBefore(bound_type, insert_point);
         } else {
           // We already have a bound type on the position we would need to insert
@@ -602,43 +572,54 @@ void RTPVisitor::VisitFakeString(HFakeString* instr) {
   instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(string_class_handle_, /* is_exact */ true));
 }
 
+void RTPVisitor::VisitBoundType(HBoundType* instr) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  ReferenceTypeInfo class_rti = instr->GetUpperBound();
+  if (class_rti.IsValid()) {
+    // Narrow the type as much as possible.
+    HInstruction* obj = instr->InputAt(0);
+    ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
+    if (class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes()) {
+      instr->SetReferenceTypeInfo(
+          ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ true));
+    } else if (obj_rti.IsValid() && class_rti.IsSupertypeOf(obj_rti)) {
+      instr->SetReferenceTypeInfo(obj_rti);
+    } else {
+      instr->SetReferenceTypeInfo(
+          ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false));
+    }
+    instr->SetCanBeNull(obj->CanBeNull() && instr->GetUpperCanBeNull());
+  } else {
+    // The owner of the BoundType was already visited. If the class is unresolved,
+    // the BoundType should have been removed from the data flow and this method
+    // should remove it from the graph.
+    DCHECK(!instr->HasUses());
+    instr->GetBlock()->RemoveInstruction(instr);
+  }
+}
+
 void RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
+  ScopedObjectAccess soa(Thread::Current());
+
   HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
   ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    if (!class_rti.IsValid()) {
-      // He have loaded an unresolved class. Don't bother bounding the type.
-      return;
-    }
+  HBoundType* bound_type = check_cast->GetNext()->AsBoundType();
+  if (bound_type == nullptr || bound_type->GetUpperBound().IsValid()) {
+    // The next instruction is not an uninitialized BoundType. This must be
+    // an RTP pass after SsaBuilder and we do not need to do anything.
+    return;
   }
-  HInstruction* obj = check_cast->InputAt(0);
-  HBoundType* bound_type = nullptr;
-  for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
-    HInstruction* user = it.Current()->GetUser();
-    if (check_cast->StrictlyDominates(user)) {
-      if (bound_type == nullptr) {
-        ScopedObjectAccess soa(Thread::Current());
-        if (ShouldCreateBoundType(check_cast->GetNext(), obj, class_rti, check_cast, nullptr)) {
-          bound_type = CreateBoundType(
-              GetGraph()->GetArena(),
-              obj,
-              load_class,
-              true /* CheckCast succeeds for nulls. */);
-          check_cast->GetBlock()->InsertInstructionAfter(bound_type, check_cast);
-        } else {
-          // Update nullability of the existing bound type, which may not have known
-          // that its input was not null when it was being created.
-          bound_type = check_cast->GetNext()->AsBoundType();
-          bound_type->SetCanBeNull(obj->CanBeNull());
-          // We already have a bound type on the position we would need to insert
-          // the new one. The existing bound type should dominate all the users
-          // (dchecked) so there's no need to continue.
-          break;
-        }
-      }
-      user->ReplaceInput(bound_type, it.Current()->GetIndex());
-    }
+  DCHECK_EQ(bound_type->InputAt(0), check_cast->InputAt(0));
+
+  if (class_rti.IsValid()) {
+    // This is the first run of RTP and class is resolved.
+    bound_type->SetUpperBound(class_rti, /* CheckCast succeeds for nulls. */ true);
+  } else {
+    // This is the first run of RTP and class is unresolved. Remove the binding.
+    // The instruction itself is removed in VisitBoundType so as to not
+    // invalidate HInstructionIterator.
+    bound_type->ReplaceWith(bound_type->InputAt(0));
   }
 }
 
