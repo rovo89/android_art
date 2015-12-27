@@ -66,8 +66,7 @@
           "libcore.java.text.SimpleDateFormatTest#testDstZoneNameWithNonDstTimestamp",
           "libcore.java.text.SimpleDateFormatTest#testDstZoneWithNonDstTimestampForNonHourDstZone",
           "libcore.java.text.SimpleDateFormatTest#testNonDstZoneNameWithDstTimestamp",
-          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneWithDstTimestampForNonHourDstZone",
-          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parseLjava_lang_StringLjava_text_ParsePosition"]
+          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneWithDstTimestampForNonHourDstZone"]
 },
 {
   description: "Failing due to missing localhost on hammerhead and volantis.",
