@@ -64,8 +64,7 @@ while true; do
     # with mksh.
     art="bash ${OUT_DIR-out}/host/linux-x86/bin/art"
     art_debugee="bash ${OUT_DIR-out}/host/linux-x86/bin/art"
-    # We force generation of a new image to avoid build-time and run-time classpath differences.
-    image="-Ximage:/system/non/existent"
+    image="-Ximage:${ANDROID_BUILD_TOP}/${OUT_DIR-out}/host/linux-x86/framework/core-jit.art"
     # We do not need a device directory on host.
     device_dir=""
     # Vogar knows which VM to use on host.
