@@ -610,7 +610,10 @@ static void CreateSSE41FPToIntLocations(ArenaAllocator* arena,
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathRoundFloat(HInvoke* invoke) {
-  CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
+  // See intrinsics.h.
+  if (kRoundIsPlusPointFive) {
+    CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
+  }
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
@@ -657,7 +660,10 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathRoundDouble(HInvoke* invoke) {
-  CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
+  // See intrinsics.h.
+  if (kRoundIsPlusPointFive) {
+    CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
+  }
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {

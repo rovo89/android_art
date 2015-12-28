@@ -27,6 +27,9 @@ namespace art {
 class CompilerDriver;
 class DexFile;
 
+// Temporary measure until we have caught up with the Java 7 definition of Math.round. b/26327751
+static constexpr bool kRoundIsPlusPointFive = false;
+
 // Recognize intrinsics from HInvoke nodes.
 class IntrinsicsRecognizer : public HOptimization {
  public:
