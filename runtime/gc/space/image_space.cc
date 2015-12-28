@@ -523,6 +523,9 @@ ImageSpace* ImageSpace::Create(const char* image_location,
           } else if (!ImageCreationAllowed(is_global_cache, &reason)) {
             // Whether we can write to the cache.
             success = false;
+          } else if (secondary_image) {
+            reason = "Should not have to patch secondary image.";
+            success = false;
           } else {
             // Try to relocate.
             success = RelocateImage(image_location, cache_filename.c_str(), image_isa, &reason);
@@ -614,6 +617,9 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     *error_msg = StringPrintf("No place to put generated image.");
     return nullptr;
   } else if (!ImageCreationAllowed(is_global_cache, error_msg)) {
+    return nullptr;
+  } else if (secondary_image) {
+    *error_msg = "Cannot compile a secondary image.";
     return nullptr;
   } else if (!GenerateImage(cache_filename, image_isa, error_msg)) {
     *error_msg = StringPrintf("Failed to generate image '%s': %s",
@@ -967,6 +973,67 @@ void ImageSpace::Dump(std::ostream& os) const {
       << ",end=" << reinterpret_cast<void*>(End())
       << ",size=" << PrettySize(Size())
       << ",name=\"" << GetName() << "\"]";
+}
+
+void ImageSpace::CreateMultiImageLocations(const std::string& input_image_file_name,
+                                           const std::string& boot_classpath,
+                                           std::vector<std::string>* image_file_names) {
+  DCHECK(image_file_names != nullptr);
+
+  std::vector<std::string> images;
+  Split(boot_classpath, ':', &images);
+
+  // Add the rest into the list. We have to adjust locations, possibly:
+  //
+  // For example, image_file_name is /a/b/c/d/e.art
+  //              images[0] is          f/c/d/e.art
+  // ----------------------------------------------
+  //              images[1] is          g/h/i/j.art  -> /a/b/h/i/j.art
+
+  // Derive pattern.
+  std::vector<std::string> left;
+  Split(input_image_file_name, '/', &left);
+  std::vector<std::string> right;
+  Split(images[0], '/', &right);
+
+  size_t common = 1;
+  while (common < left.size() && common < right.size()) {
+    if (left[left.size() - common - 1] != right[right.size() - common - 1]) {
+      break;
+    }
+    common++;
+  }
+
+  std::vector<std::string> prefix_vector(left.begin(), left.end() - common);
+  std::string common_prefix = Join(prefix_vector, '/');
+  if (!common_prefix.empty() && common_prefix[0] != '/' && input_image_file_name[0] == '/') {
+    common_prefix = "/" + common_prefix;
+  }
+
+  // Apply pattern to images[1] .. images[n].
+  for (size_t i = 1; i < images.size(); ++i) {
+    std::string image = images[i];
+
+    size_t rslash = std::string::npos;
+    for (size_t j = 0; j < common; ++j) {
+      if (rslash != std::string::npos) {
+        rslash--;
+      }
+
+      rslash = image.rfind('/', rslash);
+      if (rslash == std::string::npos) {
+        rslash = 0;
+      }
+      if (rslash == 0) {
+        break;
+      }
+    }
+    std::string image_part = image.substr(rslash);
+
+    std::string new_image = common_prefix + (StartsWith(image_part, "/") ? "" : "/") +
+        image_part;
+    image_file_names->push_back(new_image);
+  }
 }
 
 }  // namespace space

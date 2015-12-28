@@ -122,6 +122,12 @@ class ImageSpace : public MemMapSpace {
                                 bool* has_data,
                                 bool *is_global_cache);
 
+  // Use the input image filename to adapt the names in the given boot classpath to establish
+  // complete locations for secondary images.
+  static void CreateMultiImageLocations(const std::string& input_image_file_name,
+                                        const std::string& boot_classpath,
+                                        std::vector<std::string>* image_filenames);
+
   // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
   uint8_t* GetImageEnd() const {
     return Begin() + GetImageHeader().GetImageSize();
