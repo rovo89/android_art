@@ -41,7 +41,6 @@ fi
 bpath="${framework}/core-libart${bpath_suffix}.jar"
 bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
 bpath="${bpath}:${framework}/okhttp${bpath_suffix}.jar"
-bpath="${bpath}:${framework}/core-junit${bpath_suffix}.jar"
 bpath="${bpath}:${framework}/bouncycastle${bpath_suffix}.jar"
 bpath_arg="--runtime-option -Xbootclasspath:${bpath}"
 
