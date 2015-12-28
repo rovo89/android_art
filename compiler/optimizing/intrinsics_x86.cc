@@ -720,6 +720,11 @@ void IntrinsicCodeGeneratorX86::VisitMathRint(HInvoke* invoke) {
 // Note that 32 bit x86 doesn't have the capability to inline MathRoundDouble,
 // as it needs 64 bit instructions.
 void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
+  // See intrinsics.h.
+  if (!kRoundIsPlusPointFive) {
+    return;
+  }
+
   // Do we have instruction support?
   if (codegen_->GetInstructionSetFeatures().HasSSE4_1()) {
     LocationSummary* locations = new (arena_) LocationSummary(invoke,
