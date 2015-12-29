@@ -706,7 +706,6 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::LookupInfo(HLoopInf
     }
   }
   if (loop->IsDefinedOutOfTheLoop(instruction)) {
-    DCHECK(instruction->GetBlock()->Dominates(loop->GetPreHeader()));
     InductionInfo* info = CreateInvariantFetch(instruction);
     AssignInfo(loop, instruction, info);
     return info;
