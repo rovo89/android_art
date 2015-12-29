@@ -540,7 +540,7 @@ void PatchOat::PatchInternedStrings(const ImageHeader* image_header) {
   // Note that we require that ReadFromMemory does not make an internal copy of the elements.
   // This also relies on visit roots not doing any verification which could fail after we update
   // the roots to be the image addresses.
-  temp_table.ReadFromMemory(image_->Begin() + section.Offset());
+  temp_table.AddTableFromMemory(image_->Begin() + section.Offset());
   FixupRootVisitor visitor(this);
   temp_table.VisitRoots(&visitor, kVisitRootFlagAllRoots);
 }
