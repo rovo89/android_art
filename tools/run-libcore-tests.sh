@@ -79,7 +79,11 @@ while true; do
     vogar_args="$vogar_args --vm-arg -Ximage:/data/art-test/core-optimizing.art"
     shift
   elif [[ "$1" == "--mode=host" ]]; then
-    vogar_args="$vogar_args --vm-arg -Ximage:${ANDROID_BUILD_TOP}/${OUT_DIR-out}/host/linux-x86/framework/core-jit.art"
+    # We explicitly give a wrong path for the image, to ensure vogar
+    # will create a boot image with the default compiler. Note that
+    # giving an existing image on host does not work because of
+    # classpath/resources differences when compiling the boot image.
+    vogar_args="$vogar_args --vm-arg -Ximage:/non/existent/vogar.art"
     shift
   elif [[ "$1" == "--debug" ]]; then
     # Remove the --debug from the arguments.
