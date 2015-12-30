@@ -265,9 +265,6 @@ Heap::Heap(size_t initial_size,
     // For code reuse, handle this like a work queue.
     std::vector<std::string> image_file_names;
     image_file_names.push_back(image_file_name);
-    // The loaded spaces. Secondary images may fail to load, in which case we need to remove
-    // already added spaces.
-    std::vector<space::Space*> added_image_spaces;
 
     for (size_t index = 0; index < image_file_names.size(); ++index) {
       std::string& image_name = image_file_names[index];
@@ -280,7 +277,6 @@ Heap::Heap(size_t initial_size,
       ATRACE_END();
       if (boot_image_space != nullptr) {
         AddSpace(boot_image_space);
-        added_image_spaces.push_back(boot_image_space);
         // Oat files referenced by image files immediately follow them in memory, ensure alloc space
         // isn't going to get in the middle
         uint8_t* oat_file_end_addr = boot_image_space->GetImageHeader().GetOatFileEnd();
@@ -302,18 +298,66 @@ Heap::Heap(size_t initial_size,
             continue;
           }
 
-          space::ImageSpace::CreateMultiImageLocations(image_file_name,
-                                                       boot_classpath,
-                                                       &image_file_names);
+          std::vector<std::string> images;
+          Split(boot_classpath, ':', &images);
+
+          // Add the rest into the list. We have to adjust locations, possibly:
+          //
+          // For example, image_file_name is /a/b/c/d/e.art
+          //              images[0] is          f/c/d/e.art
+          // ----------------------------------------------
+          //              images[1] is          g/h/i/j.art  -> /a/b/h/i/j.art
+
+          // Derive pattern.
+          std::vector<std::string> left;
+          Split(image_file_name, '/', &left);
+          std::vector<std::string> right;
+          Split(images[0], '/', &right);
+
+          size_t common = 1;
+          while (common < left.size() && common < right.size()) {
+            if (left[left.size() - common - 1] != right[right.size() - common - 1]) {
+              break;
+            }
+            common++;
+          }
+
+          std::vector<std::string> prefix_vector(left.begin(), left.end() - common);
+          std::string common_prefix = Join(prefix_vector, '/');
+          if (!common_prefix.empty() && common_prefix[0] != '/' && image_file_name[0] == '/') {
+            common_prefix = "/" + common_prefix;
+          }
+
+          // Apply pattern to images[1] .. images[n].
+          for (size_t i = 1; i < images.size(); ++i) {
+            std::string image = images[i];
+
+            size_t rslash = std::string::npos;
+            for (size_t j = 0; j < common; ++j) {
+              if (rslash != std::string::npos) {
+                rslash--;
+              }
+
+              rslash = image.rfind('/', rslash);
+              if (rslash == std::string::npos) {
+                rslash = 0;
+              }
+              if (rslash == 0) {
+                break;
+              }
+            }
+            std::string image_part = image.substr(rslash);
+
+            std::string new_image = common_prefix + (StartsWith(image_part, "/") ? "" : "/") +
+                image_part;
+            image_file_names.push_back(new_image);
+          }
         }
       } else {
         LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
             << "Attempting to fall back to imageless running. Error was: " << error_msg
             << "\nAttempted image: " << image_name;
-        // Remove already loaded spaces.
-        for (space::Space* loaded_space : added_image_spaces) {
-          RemoveSpace(loaded_space);
-        }
+        // TODO: Remove already loaded spaces.
         break;
       }
     }
