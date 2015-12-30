@@ -6385,7 +6385,7 @@ void InstructionCodeGeneratorX86_64::VisitPackedSwitch(HPackedSwitch* switch_ins
     if (index != num_entries) {
       // There are an odd number of entries. Handle the last one.
       DCHECK_EQ(index + 1, num_entries);
-      __ cmpl(value_reg_in, Immediate(lower_bound + index));
+      __ cmpl(value_reg_in, Immediate(static_cast<int32_t>(lower_bound + index)));
       __ j(kEqual, codegen_->GetLabelOf(successors[index]));
     }
 
