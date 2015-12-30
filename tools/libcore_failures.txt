@@ -236,7 +236,18 @@
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testExportSubtree",
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testFlush",
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testSync",
-          "org.apache.harmony.tests.java.util.prefs.FilePreferencesImplTest#testPutGet"]
+          "org.apache.harmony.tests.java.util.prefs.FilePreferencesImplTest#testPutGet",
+          "libcore.java.util.CalendarTest#test_clear_45877",
+          "org.apache.harmony.crypto.tests.javax.crypto.spec.SecretKeySpecTest#testGetFormat",
+          "org.apache.harmony.tests.java.util.TimerTaskTest#test_scheduledExecutionTime"]
+},
+{
+  description: "Failing tests after enso move, only on arm32",
+  result: EXEC_FAILED,
+  bug: 26353151,
+  modes_variants: [[device, X32]],
+  names: ["org.apache.harmony.tests.java.text.DecimalFormatTest#test_formatDouble_withFieldPosition",
+          "org.apache.harmony.tests.java.text.DecimalFormatTest#test_formatToCharacterIterator_original"]
 }
 
 ]
