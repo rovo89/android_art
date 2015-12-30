@@ -337,11 +337,6 @@ endif
 
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 
-# b/26320300: multi image is broken and 119-noimage-patchoat fails because of it.
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
-    $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), 119-noimage-patchoat, \
-    $(ALL_ADDRESS_SIZES))
-
 # 115-native-bridge setup is complicated. Need to implement it correctly for the target.
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
     $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), 115-native-bridge, \
