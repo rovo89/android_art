@@ -49,7 +49,7 @@ class ImgDiagDumper {
  public:
   explicit ImgDiagDumper(std::ostream* os,
                        const ImageHeader& image_header,
-                       const char* image_location,
+                       const std::string& image_location,
                        pid_t image_diff_pid)
       : os_(os),
         image_header_(image_header),
@@ -163,7 +163,7 @@ class ImgDiagDumper {
     std::string error_msg;
 
     // Walk the bytes and diff against our boot image
-    const ImageHeader& boot_image_header = GetBootImageHeader();
+    const ImageHeader& boot_image_header = image_header_;
 
     os << "\nObserving boot image header at address "
        << reinterpret_cast<const void*>(&boot_image_header)
@@ -812,14 +812,6 @@ class ImgDiagDumper {
     return page_frame_number != page_frame_number_clean;
   }
 
-  static const ImageHeader& GetBootImageHeader() {
-    gc::Heap* heap = Runtime::Current()->GetHeap();
-    std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
-    CHECK(!image_spaces.empty());
-    const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
-    return image_header;
-  }
-
  private:
   // Return the image location, stripped of any directories, e.g. "boot.art" or "core.art"
   std::string GetImageLocationBaseName() const {
@@ -828,7 +820,7 @@ class ImgDiagDumper {
 
   std::ostream* os_;
   const ImageHeader& image_header_;
-  const char* image_location_;
+  const std::string image_location_;
   pid_t image_diff_pid_;  // Dump image diff against boot.art if pid is non-negative
 
   DISALLOW_COPY_AND_ASSIGN(ImgDiagDumper);
@@ -847,7 +839,7 @@ static int DumpImage(Runtime* runtime, std::ostream* os, pid_t image_diff_pid) {
     }
 
     ImgDiagDumper img_diag_dumper(
-        os, image_header, image_space->GetImageLocation().c_str(), image_diff_pid);
+        os, image_header, image_space->GetImageLocation(), image_diff_pid);
     if (!img_diag_dumper.Dump()) {
       return EXIT_FAILURE;
     }
