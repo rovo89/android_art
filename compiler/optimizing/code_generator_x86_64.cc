@@ -786,7 +786,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
   switch (invoke->GetMethodLoadKind()) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
       // temp = thread->string_init_entrypoint
-      __ gs()->movl(temp.AsRegister<CpuRegister>(),
+      __ gs()->movq(temp.AsRegister<CpuRegister>(),
                     Address::Absolute(invoke->GetStringInitOffset(), /* no_rip */ true));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
