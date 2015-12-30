@@ -1190,42 +1190,42 @@ public class Main {
   /// CHECK: ArrayGet
   //
   /// CHECK-START: int Main.dynamicBCEAndConstantIndicesAllTypes(int[], boolean[], byte[], char[], short[], int[], long[], float[], double[], java.lang.Integer[], int, int) BCE (after)
-  /// CHECK: If
+  /// CHECK-DAG: If
   /// CHECK-NOT: BoundsCheck
-  /// CHECK: ArrayGet
+  /// CHECK-DAG: ArrayGet
   /// CHECK-NOT: BoundsCheck
   /// CHECK-NOT: ArrayGet
-  /// CHECK: Exit
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
-  /// CHECK: Deoptimize
-  /// CHECK: Deoptimize
-  /// CHECK: ArrayGet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: Deoptimize
+  /// CHECK-DAG: ArrayGet
   static int dynamicBCEAndConstantIndicesAllTypes(int[] q,
                                                   boolean[] r,
                                                   byte[] s,
