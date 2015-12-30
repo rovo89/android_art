@@ -616,6 +616,40 @@ public class Main {
     }
   }
 
+  static int[][] mA;
+
+  /// CHECK-START: void Main.dynamicBCEAndIntrinsic(int) BCE (before)
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: InvokeStaticOrDirect
+  /// CHECK-DAG: ArraySet
+
+  /// CHECK-START: void Main.dynamicBCEAndIntrinsic(int) BCE (after)
+  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-NOT: ArrayGet
+  /// CHECK-DAG: InvokeStaticOrDirect
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+
+  static void dynamicBCEAndIntrinsic(int n) {
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        // Since intrinsic call cannot modify fields or arrays,
+        // dynamic BCE and hoisting can be applied to the inner loop.
+        mA[i][j] = Math.abs(mA[i][j]);
+      }
+    }
+  }
 
   static int foo() {
     try {
@@ -1222,6 +1256,21 @@ public class Main {
     for (int i = 0; i < 8; i++) {
       if (array[i] != i) {
         System.out.println("bubble sort failed!");
+      }
+    }
+
+    mA = new int[4][4];
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 4; j++) {
+        mA[i][j] = -1;
+      }
+    }
+    dynamicBCEAndIntrinsic(4);
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 4; j++) {
+        if (mA[i][i] != 1) {
+          System.out.println("dynamic bce failed!");
+        }
       }
     }
 

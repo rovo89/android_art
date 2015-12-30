@@ -15,8 +15,14 @@
  */
 
 public class Main {
+
+  private static int mX = 2;
+  private static int mY = -3;
+
   public static void main(String[] args) {
     System.out.println(foo(3, 4));
+    System.out.println(mulAndIntrinsic());
+    System.out.println(directIntrinsic(-5));
   }
 
   /// CHECK-START: int Main.foo(int, int) GVN (before)
@@ -35,7 +41,50 @@ public class Main {
     return sum1 + sum2;
   }
 
-  public static long bar(int i) {
-    return i;
+  /// CHECK-START: int Main.mulAndIntrinsic() GVN (before)
+  /// CHECK: StaticFieldGet
+  /// CHECK: StaticFieldGet
+  /// CHECK: Mul
+  /// CHECK: InvokeStaticOrDirect
+  /// CHECK: StaticFieldGet
+  /// CHECK: StaticFieldGet
+  /// CHECK: Mul
+  /// CHECK: Add
+
+  /// CHECK-START: int Main.mulAndIntrinsic() GVN (after)
+  /// CHECK: StaticFieldGet
+  /// CHECK: StaticFieldGet
+  /// CHECK: Mul
+  /// CHECK: InvokeStaticOrDirect
+  /// CHECK-NOT: StaticFieldGet
+  /// CHECK-NOT: StaticFieldGet
+  /// CHECK-NOT: Mul
+  /// CHECK: Add
+
+  public static int mulAndIntrinsic() {
+    // The intermediate call to abs() does not kill
+    // the common subexpression on the multiplication.
+    int mul1 = mX * mY;
+    int abs  = Math.abs(mul1);
+    int mul2 = mY * mX;
+    return abs + mul2;
   }
+
+  /// CHECK-START: int Main.directIntrinsic(int) GVN (before)
+  /// CHECK: InvokeStaticOrDirect
+  /// CHECK: InvokeStaticOrDirect
+  /// CHECK: Add
+
+  /// CHECK-START: int Main.directIntrinsic(int) GVN (after)
+  /// CHECK: InvokeStaticOrDirect
+  /// CHECK-NOT: InvokeStaticOrDirect
+  /// CHECK: Add
+
+  public static int directIntrinsic(int x) {
+    // Here, the two calls to abs() themselves can be replaced with just one.
+    int abs1 = Math.abs(x);
+    int abs2 = Math.abs(x);
+    return abs1 + abs2;
+  }
+
 }
