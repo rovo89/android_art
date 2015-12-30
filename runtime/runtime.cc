@@ -827,9 +827,13 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
       const OatHeader& boot_oat_header = oat_file->GetOatHeader();
       const char* boot_cp = boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPath);
       if (boot_cp != nullptr) {
-        gc::space::ImageSpace::CreateMultiImageLocations(image_locations[0],
-                                                         boot_cp,
-                                                         &image_locations);
+        std::vector<std::string> cp;
+        Split(boot_cp, ':', &cp);
+
+        if (cp.size() > 1) {
+          // More images, enqueue (skipping the first).
+          image_locations.insert(image_locations.end(), cp.begin() + 1, cp.end());
+        }
       }
     }
 

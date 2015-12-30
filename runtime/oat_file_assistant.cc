@@ -846,12 +846,7 @@ std::string OatFileAssistant::OldProfileFileName() {
 
 std::string OatFileAssistant::ImageLocation() {
   Runtime* runtime = Runtime::Current();
-  const std::vector<gc::space::ImageSpace*>& image_spaces =
-      runtime->GetHeap()->GetBootImageSpaces();
-  if (image_spaces.empty()) {
-    return "";
-  }
-  return image_spaces[0]->GetImageLocation();
+  return runtime->GetHeap()->GetBootImageSpaces()[0]->GetImageLocation();
 }
 
 const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {

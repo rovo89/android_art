@@ -854,11 +854,6 @@ class Dex2Oat FINAL {
       if (last_oat_slash == std::string::npos) {
         Usage("--multi-image used with unusable oat filename %s", base_oat.c_str());
       }
-      // We also need to honor path components that were encoded through '@'. Otherwise the loading
-      // code won't be able to find the images.
-      if (base_oat.find('@', last_oat_slash) != std::string::npos) {
-        last_oat_slash = base_oat.rfind('@');
-      }
       base_oat = base_oat.substr(0, last_oat_slash + 1);
 
       std::string base_img = image_filenames_[0];
@@ -866,24 +861,9 @@ class Dex2Oat FINAL {
       if (last_img_slash == std::string::npos) {
         Usage("--multi-image used with unusable image filename %s", base_img.c_str());
       }
-      // We also need to honor path components that were encoded through '@'. Otherwise the loading
-      // code won't be able to find the images.
-      if (base_img.find('@', last_img_slash) != std::string::npos) {
-        last_img_slash = base_img.rfind('@');
-      }
-
-      // Get the prefix, which is the primary image name (without path components). Strip the
-      // extension.
-      std::string prefix = base_img.substr(last_img_slash + 1);
-      if (prefix.rfind('.') != std::string::npos) {
-        prefix = prefix.substr(0, prefix.rfind('.'));
-      }
-      if (!prefix.empty()) {
-        prefix = prefix + "-";
-      }
-
       base_img = base_img.substr(0, last_img_slash + 1);
 
+      // Now create the other names.
       // Note: we have some special case here for our testing. We have to inject the differentiating
       //       parts for the different core images.
       std::string infix;  // Empty infix by default.
@@ -902,15 +882,14 @@ class Dex2Oat FINAL {
           infix = dex_file.substr(strlen("core"));
         }
       }
-
-      // Now create the other names. Use a counted loop to skip the first one.
+      // Use a counted loop to skip the first one.
       for (size_t i = 1; i < dex_locations_.size(); ++i) {
         // TODO: Make everything properly std::string.
-        std::string image_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".art");
+        std::string image_name = CreateMultiImageName(dex_locations_[i], infix, ".art");
         char_backing_storage_.push_back(base_img + image_name);
         image_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
 
-        std::string oat_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".oat");
+        std::string oat_name = CreateMultiImageName(dex_locations_[i], infix, ".oat");
         char_backing_storage_.push_back(base_oat + oat_name);
         oat_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
       }
@@ -925,22 +904,12 @@ class Dex2Oat FINAL {
     key_value_store_.reset(new SafeMap<std::string, std::string>());
   }
 
-  // Modify the input string in the following way:
-  //   0) Assume input is /a/b/c.d
-  //   1) Strip the path  -> c.d
-  //   2) Inject prefix p -> pc.d
-  //   3) Inject infix i  -> pci.d
-  //   4) Replace suffix with s if it's "jar"  -> d == "jar" -> pci.s
   static std::string CreateMultiImageName(std::string in,
-                                          const std::string& prefix,
                                           const std::string& infix,
-                                          const char* replace_suffix) {
+                                          const char* suffix) {
     size_t last_dex_slash = in.rfind('/');
     if (last_dex_slash != std::string::npos) {
       in = in.substr(last_dex_slash + 1);
-    }
-    if (!prefix.empty()) {
-      in = prefix + in;
     }
     if (!infix.empty()) {
       // Inject infix.
@@ -950,8 +919,7 @@ class Dex2Oat FINAL {
       }
     }
     if (EndsWith(in, ".jar")) {
-      in = in.substr(0, in.length() - strlen(".jar")) +
-          (replace_suffix != nullptr ? replace_suffix : "");
+      in = in.substr(0, in.length() - strlen(".jar")) + (suffix != nullptr ? suffix : "");
     }
     return in;
   }
@@ -1316,21 +1284,16 @@ class Dex2Oat FINAL {
 
   void CreateDexOatMappings() {
     if (oat_files_.size() > 1) {
-      // TODO: This needs to change, as it is not a stable mapping. If a dex file is missing,
-      //       the images will be out of whack. b/26317072
       size_t index = 0;
       for (size_t i = 0; i < oat_files_.size(); ++i) {
-        std::vector<const DexFile*> dex_files;
-        if (index < dex_files_.size()) {
-          dex_files.push_back(dex_files_[index]);
+        std::vector<const DexFile*> dex_files = { 1, dex_files_[index] };
+        dex_file_oat_filename_map_.emplace(dex_files_[index], oat_filenames_[i]);
+        index++;
+        while (index < dex_files_.size() &&
+            (dex_files_[index]->GetBaseLocation() == dex_files_[index - 1]->GetBaseLocation())) {
           dex_file_oat_filename_map_.emplace(dex_files_[index], oat_filenames_[i]);
+          dex_files.push_back(dex_files_[index]);
           index++;
-          while (index < dex_files_.size() &&
-              (dex_files_[index]->GetBaseLocation() == dex_files_[index - 1]->GetBaseLocation())) {
-            dex_file_oat_filename_map_.emplace(dex_files_[index], oat_filenames_[i]);
-            dex_files.push_back(dex_files_[index]);
-            index++;
-          }
         }
         dex_files_per_oat_file_.push_back(std::move(dex_files));
       }
@@ -1421,9 +1384,8 @@ class Dex2Oat FINAL {
 
     if (IsBootImage() && image_filenames_.size() > 1) {
       // If we're compiling the boot image, store the boot classpath into the Key-Value store. If
-      // the image filename was adapted (e.g., for our tests), we need to change this here, too, but
-      // need to strip all path components (they will be re-established when loading).
-      // We need this for the multi-image case.
+      // the image filename was adapted (e.g., for our tests), we need to change this here, too. We
+      // need this for the multi-image case.
       std::ostringstream bootcp_oss;
       bool first_bootcp = true;
       for (size_t i = 0; i < dex_locations_.size(); ++i) {
@@ -1434,24 +1396,14 @@ class Dex2Oat FINAL {
         std::string dex_loc = dex_locations_[i];
         std::string image_filename = image_filenames_[i];
 
-        // Use the dex_loc path, but the image_filename name (without path elements).
+        // Use the dex_loc path, but the image_filename name.
         size_t dex_last_slash = dex_loc.rfind('/');
-
-        // npos is max(size_t). That makes this a bit ugly.
         size_t image_last_slash = image_filename.rfind('/');
-        size_t image_last_at = image_filename.rfind('@');
-        size_t image_last_sep = (image_last_slash == std::string::npos)
-                                    ? image_last_at
-                                    : (image_last_at == std::string::npos)
-                                          ? std::string::npos
-                                          : std::max(image_last_slash, image_last_at);
-        // Note: whenever image_last_sep == npos, +1 overflow means using the full string.
-
         if (dex_last_slash == std::string::npos) {
-          dex_loc = image_filename.substr(image_last_sep + 1);
+          dex_loc = image_filename.substr(image_last_slash + 1);
         } else {
           dex_loc = dex_loc.substr(0, dex_last_slash + 1) +
-              image_filename.substr(image_last_sep + 1);
+              image_filename.substr(image_last_slash + 1);
         }
 
         // Image filenames already end with .art, no need to replace.
