@@ -1213,6 +1213,7 @@ void X86_64Assembler::xchgl(CpuRegister reg, const Address& address) {
 
 void X86_64Assembler::cmpw(const Address& address, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());
   EmitOperandSizeOverride();
   EmitOptionalRex32(address);
   EmitComplex(7, address, imm);
@@ -1221,6 +1222,7 @@ void X86_64Assembler::cmpw(const Address& address, const Immediate& imm) {
 
 void X86_64Assembler::cmpl(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());
   EmitOptionalRex32(reg);
   EmitComplex(7, Operand(reg), imm);
 }
@@ -1252,6 +1254,7 @@ void X86_64Assembler::cmpl(const Address& address, CpuRegister reg) {
 
 void X86_64Assembler::cmpl(const Address& address, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());
   EmitOptionalRex32(address);
   EmitComplex(7, address, imm);
 }
