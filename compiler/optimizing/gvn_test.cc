@@ -21,11 +21,11 @@
 #include "optimizing_unit_test.h"
 #include "side_effects_analysis.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
-TEST(GVNTest, LocalFieldElimination) {
+class GVNTest : public CommonCompilerTest {};
+
+TEST_F(GVNTest, LocalFieldElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   ScopedNullHandle<mirror::DexCache> dex_cache;
@@ -100,7 +100,7 @@ TEST(GVNTest, LocalFieldElimination) {
   ASSERT_EQ(different_offset->GetBlock(), block);
   ASSERT_EQ(use_after_kill->GetBlock(), block);
 
-  graph->TryBuildingSsa();
+  TransformToSsa(graph);
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
   GVNOptimization(graph, side_effects).Run();
@@ -110,7 +110,7 @@ TEST(GVNTest, LocalFieldElimination) {
   ASSERT_EQ(use_after_kill->GetBlock(), block);
 }
 
-TEST(GVNTest, GlobalFieldElimination) {
+TEST_F(GVNTest, GlobalFieldElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   ScopedNullHandle<mirror::DexCache> dex_cache;
@@ -182,7 +182,7 @@ TEST(GVNTest, GlobalFieldElimination) {
                                                           0));
   join->AddInstruction(new (&allocator) HExit());
 
-  graph->TryBuildingSsa();
+  TransformToSsa(graph);
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
   GVNOptimization(graph, side_effects).Run();
@@ -193,7 +193,7 @@ TEST(GVNTest, GlobalFieldElimination) {
   ASSERT_TRUE(join->GetFirstInstruction()->IsExit());
 }
 
-TEST(GVNTest, LoopFieldElimination) {
+TEST_F(GVNTest, LoopFieldElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   ScopedNullHandle<mirror::DexCache> dex_cache;
@@ -288,7 +288,7 @@ TEST(GVNTest, LoopFieldElimination) {
   ASSERT_EQ(field_get_in_loop_body->GetBlock(), loop_body);
   ASSERT_EQ(field_get_in_exit->GetBlock(), exit);
 
-  graph->TryBuildingSsa();
+  TransformToSsa(graph);
   {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
@@ -316,7 +316,7 @@ TEST(GVNTest, LoopFieldElimination) {
 }
 
 // Test that inner loops affect the side effects of the outer loop.
-TEST(GVNTest, LoopSideEffects) {
+TEST_F(GVNTest, LoopSideEffects) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   ScopedNullHandle<mirror::DexCache> dex_cache;
@@ -364,7 +364,7 @@ TEST(GVNTest, LoopSideEffects) {
   inner_loop_exit->AddInstruction(new (&allocator) HGoto());
   outer_loop_exit->AddInstruction(new (&allocator) HExit());
 
-  graph->TryBuildingSsa();
+  TransformToSsa(graph);
 
   ASSERT_TRUE(inner_loop_header->GetLoopInformation()->IsIn(
       *outer_loop_header->GetLoopInformation()));

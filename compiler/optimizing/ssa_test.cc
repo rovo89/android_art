@@ -28,6 +28,8 @@
 
 namespace art {
 
+class SsaTest : public CommonCompilerTest {};
+
 class SsaPrettyPrinter : public HPrettyPrinter {
  public:
   explicit SsaPrettyPrinter(HGraph* graph) : HPrettyPrinter(graph), str_("") {}
@@ -83,11 +85,10 @@ static void TestCode(const uint16_t* data, const char* expected) {
   bool graph_built = builder.BuildGraph(*item);
   ASSERT_TRUE(graph_built);
 
-  graph->BuildDominatorTree();
+  TransformToSsa(graph);
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
-  graph->TransformToSsa();
   ReNumberInstructions(graph);
 
   // Test that phis had their type set.
@@ -103,7 +104,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   ASSERT_STREQ(expected, printer.str().c_str());
 }
 
-TEST(SsaTest, CFG1) {
+TEST_F(SsaTest, CFG1) {
   // Test that we get rid of loads and stores.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -131,7 +132,7 @@ TEST(SsaTest, CFG1) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, CFG2) {
+TEST_F(SsaTest, CFG2) {
   // Test that we create a phi for the join block of an if control flow instruction
   // when there is only code in the else branch.
   const char* expected =
@@ -162,7 +163,7 @@ TEST(SsaTest, CFG2) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, CFG3) {
+TEST_F(SsaTest, CFG3) {
   // Test that we create a phi for the join block of an if control flow instruction
   // when both branches update a local.
   const char* expected =
@@ -195,7 +196,7 @@ TEST(SsaTest, CFG3) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop1) {
+TEST_F(SsaTest, Loop1) {
   // Test that we create a phi for an initialized local at entry of a loop.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -228,7 +229,7 @@ TEST(SsaTest, Loop1) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop2) {
+TEST_F(SsaTest, Loop2) {
   // Simple loop with one preheader and one back edge.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -258,7 +259,7 @@ TEST(SsaTest, Loop2) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop3) {
+TEST_F(SsaTest, Loop3) {
   // Test that a local not yet defined at the entry of a loop is handled properly.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -290,7 +291,7 @@ TEST(SsaTest, Loop3) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop4) {
+TEST_F(SsaTest, Loop4) {
   // Make sure we support a preheader of a loop not being the first predecessor
   // in the predecessor list of the header.
   const char* expected =
@@ -325,7 +326,7 @@ TEST(SsaTest, Loop4) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop5) {
+TEST_F(SsaTest, Loop5) {
   // Make sure we create a preheader of a loop when a header originally has two
   // incoming blocks and one back edge.
   const char* expected =
@@ -367,7 +368,7 @@ TEST(SsaTest, Loop5) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop6) {
+TEST_F(SsaTest, Loop6) {
   // Test a loop with one preheader and two back edges (e.g. continue).
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -406,7 +407,7 @@ TEST(SsaTest, Loop6) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, Loop7) {
+TEST_F(SsaTest, Loop7) {
   // Test a loop with one preheader, one back edge, and two exit edges (e.g. break).
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -448,7 +449,7 @@ TEST(SsaTest, Loop7) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, DeadLocal) {
+TEST_F(SsaTest, DeadLocal) {
   // Test that we correctly handle a local not being used.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
@@ -466,7 +467,7 @@ TEST(SsaTest, DeadLocal) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, LocalInIf) {
+TEST_F(SsaTest, LocalInIf) {
   // Test that we do not create a phi in the join block when one predecessor
   // does not update the local.
   const char* expected =
@@ -496,7 +497,7 @@ TEST(SsaTest, LocalInIf) {
   TestCode(data, expected);
 }
 
-TEST(SsaTest, MultiplePredecessors) {
+TEST_F(SsaTest, MultiplePredecessors) {
   // Test that we do not create a phi when one predecessor
   // does not update the local.
   const char* expected =
