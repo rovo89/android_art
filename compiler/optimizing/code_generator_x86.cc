@@ -1335,9 +1335,10 @@ void LocationsBuilderX86::VisitExit(HExit* exit) {
 void InstructionCodeGeneratorX86::VisitExit(HExit* exit ATTRIBUTE_UNUSED) {
 }
 
+template<class LabelType>
 void InstructionCodeGeneratorX86::GenerateFPJumps(HCondition* cond,
-                                                  Label* true_label,
-                                                  Label* false_label) {
+                                                  LabelType* true_label,
+                                                  LabelType* false_label) {
   if (cond->IsFPConditionTrueIfNaN()) {
     __ j(kUnordered, true_label);
   } else if (cond->IsFPConditionFalseIfNaN()) {
@@ -1346,9 +1347,10 @@ void InstructionCodeGeneratorX86::GenerateFPJumps(HCondition* cond,
   __ j(X86UnsignedOrFPCondition(cond->GetCondition()), true_label);
 }
 
+template<class LabelType>
 void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
-                                                               Label* true_label,
-                                                               Label* false_label) {
+                                                               LabelType* true_label,
+                                                               LabelType* false_label) {
   LocationSummary* locations = cond->GetLocations();
   Location left = locations->InAt(0);
   Location right = locations->InAt(1);
@@ -1437,14 +1439,15 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
   __ j(final_condition, true_label);
 }
 
+template<class LabelType>
 void InstructionCodeGeneratorX86::GenerateCompareTestAndBranch(HCondition* condition,
-                                                               Label* true_target_in,
-                                                               Label* false_target_in) {
+                                                               LabelType* true_target_in,
+                                                               LabelType* false_target_in) {
   // Generated branching requires both targets to be explicit. If either of the
   // targets is nullptr (fallthrough) use and bind `fallthrough_target` instead.
-  Label fallthrough_target;
-  Label* true_target = true_target_in == nullptr ? &fallthrough_target : true_target_in;
-  Label* false_target = false_target_in == nullptr ? &fallthrough_target : false_target_in;
+  LabelType fallthrough_target;
+  LabelType* true_target = true_target_in == nullptr ? &fallthrough_target : true_target_in;
+  LabelType* false_target = false_target_in == nullptr ? &fallthrough_target : false_target_in;
 
   LocationSummary* locations = condition->GetLocations();
   Location left = locations->InAt(0);
@@ -1486,10 +1489,11 @@ static bool AreEflagsSetFrom(HInstruction* cond, HInstruction* branch) {
          !Primitive::IsFloatingPointType(cond->InputAt(0)->GetType());
 }
 
+template<class LabelType>
 void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instruction,
                                                         size_t condition_input_index,
-                                                        Label* true_target,
-                                                        Label* false_target) {
+                                                        LabelType* true_target,
+                                                        LabelType* false_target) {
   HInstruction* cond = instruction->InputAt(condition_input_index);
 
   if (true_target == nullptr && false_target == nullptr) {
@@ -1613,7 +1617,7 @@ void InstructionCodeGeneratorX86::VisitDeoptimize(HDeoptimize* deoptimize) {
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),
-                        /* false_target */ nullptr);
+                        /* false_target */ static_cast<Label*>(nullptr));
 }
 
 void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
@@ -1709,7 +1713,7 @@ void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
   Location lhs = locations->InAt(0);
   Location rhs = locations->InAt(1);
   Register reg = locations->Out().AsRegister<Register>();
-  Label true_label, false_label;
+  NearLabel true_label, false_label;
 
   switch (cond->InputAt(0)->GetType()) {
     default: {

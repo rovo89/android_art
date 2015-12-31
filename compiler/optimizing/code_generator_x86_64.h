@@ -258,14 +258,18 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateExplicitNullCheck(HNullCheck* instruction);
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
+  template<class LabelType>
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
-                             Label* true_target,
-                             Label* false_target);
+                             LabelType* true_target,
+                             LabelType* false_target);
+  template<class LabelType>
   void GenerateCompareTestAndBranch(HCondition* condition,
-                                    Label* true_target,
-                                    Label* false_target);
-  void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
+                                    LabelType* true_target,
+                                    LabelType* false_target);
+  template<class LabelType>
+  void GenerateFPJumps(HCondition* cond, LabelType* true_label, LabelType* false_label);
+
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   X86_64Assembler* const assembler_;
