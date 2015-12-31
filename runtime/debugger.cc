@@ -730,8 +730,7 @@ JDWP::JdwpError Dbg::GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply)
   if (o == nullptr) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  DCHECK(o->IsClass());
-  expandBufAddObjectId(pReply, gRegistry->Add(o->AsClass()->GetClassLoader()));
+  expandBufAddObjectId(pReply, gRegistry->Add(o->GetClass()->GetClassLoader()));
   return JDWP::ERR_NONE;
 }
 
