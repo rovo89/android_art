@@ -2534,8 +2534,7 @@ void InstructionCodeGeneratorARM64::DivRemByPowerOfTwo(HBinaryOperation* instruc
   Register out = OutputRegister(instruction);
   Register dividend = InputRegisterAt(instruction, 0);
   int64_t imm = Int64FromConstant(second.GetConstant());
-  uint64_t abs_imm = static_cast<uint64_t>(std::abs(imm));
-  DCHECK(IsPowerOfTwo(abs_imm));
+  uint64_t abs_imm = static_cast<uint64_t>(AbsOrMin(imm));
   int ctz_imm = CTZ(abs_imm);
 
   UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -2627,7 +2626,7 @@ void InstructionCodeGeneratorARM64::GenerateDivRemIntegral(HBinaryOperation* ins
       // Do not generate anything. DivZeroCheck would prevent any code to be executed.
     } else if (imm == 1 || imm == -1) {
       DivRemOneOrMinusOne(instruction);
-    } else if (IsPowerOfTwo(std::abs(imm))) {
+    } else if (IsPowerOfTwo(AbsOrMin(imm))) {
       DivRemByPowerOfTwo(instruction);
     } else {
       DCHECK(imm <= -2 || imm >= 2);

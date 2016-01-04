@@ -1955,8 +1955,7 @@ void InstructionCodeGeneratorMIPS64::DivRemByPowerOfTwo(HBinaryOperation* instru
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
   GpuRegister dividend = locations->InAt(0).AsRegister<GpuRegister>();
   int64_t imm = Int64FromConstant(second.GetConstant());
-  uint64_t abs_imm = static_cast<uint64_t>(std::abs(imm));
-  DCHECK(IsPowerOfTwo(abs_imm));
+  uint64_t abs_imm = static_cast<uint64_t>(AbsOrMin(imm));
   int ctz_imm = CTZ(abs_imm);
 
   if (instruction->IsDiv()) {
@@ -2138,7 +2137,7 @@ void InstructionCodeGeneratorMIPS64::GenerateDivRemIntegral(HBinaryOperation* in
       // Do not generate anything. DivZeroCheck would prevent any code to be executed.
     } else if (imm == 1 || imm == -1) {
       DivRemOneOrMinusOne(instruction);
-    } else if (IsPowerOfTwo(std::abs(imm))) {
+    } else if (IsPowerOfTwo(AbsOrMin(imm))) {
       DivRemByPowerOfTwo(instruction);
     } else {
       DCHECK(imm <= -2 || imm >= 2);

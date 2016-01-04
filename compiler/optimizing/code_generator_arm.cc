@@ -2846,8 +2846,7 @@ void InstructionCodeGeneratorARM::DivRemByPowerOfTwo(HBinaryOperation* instructi
   Register dividend = locations->InAt(0).AsRegister<Register>();
   Register temp = locations->GetTemp(0).AsRegister<Register>();
   int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
-  uint32_t abs_imm = static_cast<uint32_t>(std::abs(imm));
-  DCHECK(IsPowerOfTwo(abs_imm));
+  uint32_t abs_imm = static_cast<uint32_t>(AbsOrMin(imm));
   int ctz_imm = CTZ(abs_imm);
 
   if (ctz_imm == 1) {
@@ -2923,7 +2922,7 @@ void InstructionCodeGeneratorARM::GenerateDivRemConstantIntegral(HBinaryOperatio
     // Do not generate anything. DivZeroCheck would prevent any code to be executed.
   } else if (imm == 1 || imm == -1) {
     DivRemOneOrMinusOne(instruction);
-  } else if (IsPowerOfTwo(std::abs(imm))) {
+  } else if (IsPowerOfTwo(AbsOrMin(imm))) {
     DivRemByPowerOfTwo(instruction);
   } else {
     DCHECK(imm <= -2 || imm >= 2);
@@ -2952,12 +2951,12 @@ void LocationsBuilderARM::VisitDiv(HDiv* div) {
         locations->SetInAt(0, Location::RequiresRegister());
         locations->SetInAt(1, Location::ConstantLocation(div->InputAt(1)->AsConstant()));
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-        int32_t abs_imm = std::abs(div->InputAt(1)->AsIntConstant()->GetValue());
-        if (abs_imm <= 1) {
+        int32_t value = div->InputAt(1)->AsIntConstant()->GetValue();
+        if (value == 1 || value == 0 || value == -1) {
           // No temp register required.
         } else {
           locations->AddTemp(Location::RequiresRegister());
-          if (!IsPowerOfTwo(abs_imm)) {
+          if (!IsPowerOfTwo(AbsOrMin(value))) {
             locations->AddTemp(Location::RequiresRegister());
           }
         }
@@ -3078,12 +3077,12 @@ void LocationsBuilderARM::VisitRem(HRem* rem) {
         locations->SetInAt(0, Location::RequiresRegister());
         locations->SetInAt(1, Location::ConstantLocation(rem->InputAt(1)->AsConstant()));
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-        int32_t abs_imm = std::abs(rem->InputAt(1)->AsIntConstant()->GetValue());
-        if (abs_imm <= 1) {
+        int32_t value = rem->InputAt(1)->AsIntConstant()->GetValue();
+        if (value == 1 || value == 0 || value == -1) {
           // No temp register required.
         } else {
           locations->AddTemp(Location::RequiresRegister());
-          if (!IsPowerOfTwo(abs_imm)) {
+          if (!IsPowerOfTwo(AbsOrMin(value))) {
             locations->AddTemp(Location::RequiresRegister());
           }
         }

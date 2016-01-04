@@ -3347,13 +3347,13 @@ void InstructionCodeGeneratorX86_64::DivByPowerOfTwo(HDiv* instruction) {
   CpuRegister numerator = locations->InAt(0).AsRegister<CpuRegister>();
 
   int64_t imm = Int64FromConstant(second.GetConstant());
-
-  DCHECK(IsPowerOfTwo(std::abs(imm)));
+  DCHECK(IsPowerOfTwo(AbsOrMin(imm)));
+  uint64_t abs_imm = AbsOrMin(imm);
 
   CpuRegister tmp = locations->GetTemp(0).AsRegister<CpuRegister>();
 
   if (instruction->GetResultType() == Primitive::kPrimInt) {
-    __ leal(tmp, Address(numerator, std::abs(imm) - 1));
+    __ leal(tmp, Address(numerator, abs_imm - 1));
     __ testl(numerator, numerator);
     __ cmov(kGreaterEqual, tmp, numerator);
     int shift = CTZ(imm);
@@ -3368,7 +3368,7 @@ void InstructionCodeGeneratorX86_64::DivByPowerOfTwo(HDiv* instruction) {
     DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
     CpuRegister rdx = locations->GetTemp(0).AsRegister<CpuRegister>();
 
-    codegen_->Load64BitValue(rdx, std::abs(imm) - 1);
+    codegen_->Load64BitValue(rdx, abs_imm - 1);
     __ addq(rdx, numerator);
     __ testq(numerator, numerator);
     __ cmov(kGreaterEqual, rdx, numerator);
@@ -3526,7 +3526,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* in
       // Do not generate anything. DivZeroCheck would prevent any code to be executed.
     } else if (imm == 1 || imm == -1) {
       DivRemOneOrMinusOne(instruction);
-    } else if (instruction->IsDiv() && IsPowerOfTwo(std::abs(imm))) {
+    } else if (instruction->IsDiv() && IsPowerOfTwo(AbsOrMin(imm))) {
       DivByPowerOfTwo(instruction->AsDiv());
     } else {
       DCHECK(imm <= -2 || imm >= 2);

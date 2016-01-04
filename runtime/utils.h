@@ -99,6 +99,18 @@ static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');
 }
 
+template <typename T> T SafeAbs(T value) {
+  // std::abs has undefined behavior on min limits.
+  DCHECK_NE(value, std::numeric_limits<T>::min());
+  return std::abs(value);
+}
+
+template <typename T> T AbsOrMin(T value) {
+  return (value == std::numeric_limits<T>::min())
+      ? value
+      : std::abs(value);
+}
+
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.

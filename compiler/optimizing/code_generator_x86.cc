@@ -3219,11 +3219,12 @@ void InstructionCodeGeneratorX86::DivByPowerOfTwo(HDiv* instruction) {
   Register out_register = locations->Out().AsRegister<Register>();
   Register input_register = locations->InAt(0).AsRegister<Register>();
   int32_t imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  DCHECK(IsPowerOfTwo(AbsOrMin(imm)));
+  uint32_t abs_imm = static_cast<uint32_t>(AbsOrMin(imm));
 
-  DCHECK(IsPowerOfTwo(std::abs(imm)));
   Register num = locations->GetTemp(0).AsRegister<Register>();
 
-  __ leal(num, Address(input_register, std::abs(imm) - 1));
+  __ leal(num, Address(input_register, abs_imm - 1));
   __ testl(input_register, input_register);
   __ cmovl(kGreaterEqual, num, input_register);
   int shift = CTZ(imm);
@@ -3336,7 +3337,7 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
           // Do not generate anything for 0. DivZeroCheck would forbid any generated code.
         } else if (imm == 1 || imm == -1) {
           DivRemOneOrMinusOne(instruction);
-        } else if (is_div && IsPowerOfTwo(std::abs(imm))) {
+        } else if (is_div && IsPowerOfTwo(AbsOrMin(imm))) {
           DivByPowerOfTwo(instruction->AsDiv());
         } else {
           DCHECK(imm <= -2 || imm >= 2);
