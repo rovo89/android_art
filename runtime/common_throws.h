@@ -154,10 +154,10 @@ void ThrowNegativeArraySizeException(const char* msg)
 
 void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
                            const StringPiece& type, const StringPiece& name)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowNoSuchFieldException(mirror::Class* c, const StringPiece& name)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
 // NoSuchMethodError
 
@@ -193,6 +193,10 @@ void ThrowNullPointerException(const char* msg)
 void ThrowRuntimeException(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
+
+// Stack overflow.
+
+void ThrowStackOverflowError(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
 // VerifyError
 
