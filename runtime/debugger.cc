@@ -726,12 +726,11 @@ JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId* supercla
 
 JDWP::JdwpError Dbg::GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError error;
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(id, &error);
-  if (o == nullptr) {
-    return JDWP::ERR_INVALID_OBJECT;
+  mirror::Class* c = DecodeClass(id, &error);
+  if (c == nullptr) {
+    return error;
   }
-  DCHECK(o->IsClass());
-  expandBufAddObjectId(pReply, gRegistry->Add(o->AsClass()->GetClassLoader()));
+  expandBufAddObjectId(pReply, gRegistry->Add(c->GetClassLoader()));
   return JDWP::ERR_NONE;
 }
 
