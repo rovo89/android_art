@@ -1191,17 +1191,16 @@ void CodeGeneratorMIPS::InvokeRuntime(int32_t entry_point_offset,
                                       uint32_t dex_pc,
                                       SlowPathCode* slow_path,
                                       bool is_direct_entrypoint) {
+  __ LoadFromOffset(kLoadWord, T9, TR, entry_point_offset);
+  __ Jalr(T9);
   if (is_direct_entrypoint) {
     // Reserve argument space on stack (for $a0-$a3) for
     // entrypoints that directly reference native implementations.
     // Called function may use this space to store $a0-$a3 regs.
-    __ IncreaseFrameSize(kMipsDirectEntrypointRuntimeOffset);
-  }
-  __ LoadFromOffset(kLoadWord, T9, TR, entry_point_offset);
-  __ Jalr(T9);
-  __ Nop();
-  if (is_direct_entrypoint) {
+    __ IncreaseFrameSize(kMipsDirectEntrypointRuntimeOffset);  // Single instruction in delay slot.
     __ DecreaseFrameSize(kMipsDirectEntrypointRuntimeOffset);
+  } else {
+    __ Nop();  // In delay slot.
   }
   RecordPcInfo(instruction, dex_pc, slow_path);
 }
@@ -1275,15 +1274,9 @@ void LocationsBuilderMIPS::HandleBinaryOp(HBinaryOperation* instruction) {
     }
 
     case Primitive::kPrimLong: {
-      // TODO: can 2nd param be const?
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
-      if (instruction->IsAdd() || instruction->IsSub()) {
-        locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-      } else {
-        DCHECK(instruction->IsAnd() || instruction->IsOr() || instruction->IsXor());
-        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-      }
+      locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1350,34 +1343,142 @@ void InstructionCodeGeneratorMIPS::HandleBinaryOp(HBinaryOperation* instruction)
     }
 
     case Primitive::kPrimLong: {
-      // TODO: can 2nd param be const?
       Register dst_high = locations->Out().AsRegisterPairHigh<Register>();
       Register dst_low = locations->Out().AsRegisterPairLow<Register>();
       Register lhs_high = locations->InAt(0).AsRegisterPairHigh<Register>();
       Register lhs_low = locations->InAt(0).AsRegisterPairLow<Register>();
-      Register rhs_high = locations->InAt(1).AsRegisterPairHigh<Register>();
-      Register rhs_low = locations->InAt(1).AsRegisterPairLow<Register>();
-
-      if (instruction->IsAnd()) {
-        __ And(dst_low, lhs_low, rhs_low);
-        __ And(dst_high, lhs_high, rhs_high);
-      } else if (instruction->IsOr()) {
-        __ Or(dst_low, lhs_low, rhs_low);
-        __ Or(dst_high, lhs_high, rhs_high);
-      } else if (instruction->IsXor()) {
-        __ Xor(dst_low, lhs_low, rhs_low);
-        __ Xor(dst_high, lhs_high, rhs_high);
-      } else if (instruction->IsAdd()) {
-        __ Addu(dst_low, lhs_low, rhs_low);
-        __ Sltu(TMP, dst_low, lhs_low);
-        __ Addu(dst_high, lhs_high, rhs_high);
-        __ Addu(dst_high, dst_high, TMP);
+      Location rhs_location = locations->InAt(1);
+      bool use_imm = rhs_location.IsConstant();
+      if (!use_imm) {
+        Register rhs_high = rhs_location.AsRegisterPairHigh<Register>();
+        Register rhs_low = rhs_location.AsRegisterPairLow<Register>();
+        if (instruction->IsAnd()) {
+          __ And(dst_low, lhs_low, rhs_low);
+          __ And(dst_high, lhs_high, rhs_high);
+        } else if (instruction->IsOr()) {
+          __ Or(dst_low, lhs_low, rhs_low);
+          __ Or(dst_high, lhs_high, rhs_high);
+        } else if (instruction->IsXor()) {
+          __ Xor(dst_low, lhs_low, rhs_low);
+          __ Xor(dst_high, lhs_high, rhs_high);
+        } else if (instruction->IsAdd()) {
+          if (lhs_low == rhs_low) {
+            // Special case for lhs = rhs and the sum potentially overwriting both lhs and rhs.
+            __ Slt(TMP, lhs_low, ZERO);
+            __ Addu(dst_low, lhs_low, rhs_low);
+          } else {
+            __ Addu(dst_low, lhs_low, rhs_low);
+            // If the sum overwrites rhs, lhs remains unchanged, otherwise rhs remains unchanged.
+            __ Sltu(TMP, dst_low, (dst_low == rhs_low) ? lhs_low : rhs_low);
+          }
+          __ Addu(dst_high, lhs_high, rhs_high);
+          __ Addu(dst_high, dst_high, TMP);
+        } else {
+          DCHECK(instruction->IsSub());
+          __ Sltu(TMP, lhs_low, rhs_low);
+          __ Subu(dst_low, lhs_low, rhs_low);
+          __ Subu(dst_high, lhs_high, rhs_high);
+          __ Subu(dst_high, dst_high, TMP);
+        }
       } else {
-        DCHECK(instruction->IsSub());
-        __ Subu(dst_low, lhs_low, rhs_low);
-        __ Sltu(TMP, lhs_low, dst_low);
-        __ Subu(dst_high, lhs_high, rhs_high);
-        __ Subu(dst_high, dst_high, TMP);
+        int64_t value = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()->AsConstant());
+        if (instruction->IsOr()) {
+          uint32_t low = Low32Bits(value);
+          uint32_t high = High32Bits(value);
+          if (IsUint<16>(low)) {
+            if (dst_low != lhs_low || low != 0) {
+              __ Ori(dst_low, lhs_low, low);
+            }
+          } else {
+            __ LoadConst32(TMP, low);
+            __ Or(dst_low, lhs_low, TMP);
+          }
+          if (IsUint<16>(high)) {
+            if (dst_high != lhs_high || high != 0) {
+              __ Ori(dst_high, lhs_high, high);
+            }
+          } else {
+            if (high != low) {
+              __ LoadConst32(TMP, high);
+            }
+            __ Or(dst_high, lhs_high, TMP);
+          }
+        } else if (instruction->IsXor()) {
+          uint32_t low = Low32Bits(value);
+          uint32_t high = High32Bits(value);
+          if (IsUint<16>(low)) {
+            if (dst_low != lhs_low || low != 0) {
+              __ Xori(dst_low, lhs_low, low);
+            }
+          } else {
+            __ LoadConst32(TMP, low);
+            __ Xor(dst_low, lhs_low, TMP);
+          }
+          if (IsUint<16>(high)) {
+            if (dst_high != lhs_high || high != 0) {
+              __ Xori(dst_high, lhs_high, high);
+            }
+          } else {
+            if (high != low) {
+              __ LoadConst32(TMP, high);
+            }
+            __ Xor(dst_high, lhs_high, TMP);
+          }
+        } else if (instruction->IsAnd()) {
+          uint32_t low = Low32Bits(value);
+          uint32_t high = High32Bits(value);
+          if (IsUint<16>(low)) {
+            __ Andi(dst_low, lhs_low, low);
+          } else if (low != 0xFFFFFFFF) {
+            __ LoadConst32(TMP, low);
+            __ And(dst_low, lhs_low, TMP);
+          } else if (dst_low != lhs_low) {
+            __ Move(dst_low, lhs_low);
+          }
+          if (IsUint<16>(high)) {
+            __ Andi(dst_high, lhs_high, high);
+          } else if (high != 0xFFFFFFFF) {
+            if (high != low) {
+              __ LoadConst32(TMP, high);
+            }
+            __ And(dst_high, lhs_high, TMP);
+          } else if (dst_high != lhs_high) {
+            __ Move(dst_high, lhs_high);
+          }
+        } else {
+          if (instruction->IsSub()) {
+            value = -value;
+          } else {
+            DCHECK(instruction->IsAdd());
+          }
+          int32_t low = Low32Bits(value);
+          int32_t high = High32Bits(value);
+          if (IsInt<16>(low)) {
+            if (dst_low != lhs_low || low != 0) {
+              __ Addiu(dst_low, lhs_low, low);
+            }
+            if (low != 0) {
+              __ Sltiu(AT, dst_low, low);
+            }
+          } else {
+            __ LoadConst32(TMP, low);
+            __ Addu(dst_low, lhs_low, TMP);
+            __ Sltu(AT, dst_low, TMP);
+          }
+          if (IsInt<16>(high)) {
+            if (dst_high != lhs_high || high != 0) {
+              __ Addiu(dst_high, lhs_high, high);
+            }
+          } else {
+            if (high != low) {
+              __ LoadConst32(TMP, high);
+            }
+            __ Addu(dst_high, lhs_high, TMP);
+          }
+          if (low != 0) {
+            __ Addu(dst_high, dst_high, AT);
+          }
+        }
       }
       break;
     }
@@ -1416,12 +1517,15 @@ void LocationsBuilderMIPS::HandleShift(HBinaryOperation* instr) {
   Primitive::Type type = instr->GetResultType();
   switch (type) {
     case Primitive::kPrimInt:
-    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(instr->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(instr->InputAt(1)));
       locations->SetOut(Location::RequiresRegister());
       break;
-    }
     default:
       LOG(FATAL) << "Unexpected shift type " << type;
   }
@@ -1440,6 +1544,8 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
   int64_t rhs_imm = use_imm ? CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()) : 0;
   uint32_t shift_mask = (type == Primitive::kPrimInt) ? kMaxIntShiftValue : kMaxLongShiftValue;
   uint32_t shift_value = rhs_imm & shift_mask;
+  // Is the INS (Insert Bit Field) instruction supported?
+  bool has_ins = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
 
   switch (type) {
     case Primitive::kPrimInt: {
@@ -1474,21 +1580,37 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
           if (shift_value == 0) {
             codegen_->Move64(locations->Out(), locations->InAt(0));
           } else if (shift_value < kMipsBitsPerWord) {
-            if (instr->IsShl()) {
-              __ Sll(dst_low, lhs_low, shift_value);
-              __ Srl(TMP, lhs_low, kMipsBitsPerWord - shift_value);
-              __ Sll(dst_high, lhs_high, shift_value);
-              __ Or(dst_high, dst_high, TMP);
-            } else if (instr->IsShr()) {
-              __ Sra(dst_high, lhs_high, shift_value);
-              __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
-              __ Srl(dst_low, lhs_low, shift_value);
-              __ Or(dst_low, dst_low, TMP);
+            if (has_ins) {
+              if (instr->IsShl()) {
+                __ Srl(dst_high, lhs_low, kMipsBitsPerWord - shift_value);
+                __ Ins(dst_high, lhs_high, shift_value, kMipsBitsPerWord - shift_value);
+                __ Sll(dst_low, lhs_low, shift_value);
+              } else if (instr->IsShr()) {
+                __ Srl(dst_low, lhs_low, shift_value);
+                __ Ins(dst_low, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
+                __ Sra(dst_high, lhs_high, shift_value);
+              } else {
+                __ Srl(dst_low, lhs_low, shift_value);
+                __ Ins(dst_low, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
+                __ Srl(dst_high, lhs_high, shift_value);
+              }
             } else {
-              __ Srl(dst_high, lhs_high, shift_value);
-              __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
-              __ Srl(dst_low, lhs_low, shift_value);
-              __ Or(dst_low, dst_low, TMP);
+              if (instr->IsShl()) {
+                __ Sll(dst_low, lhs_low, shift_value);
+                __ Srl(TMP, lhs_low, kMipsBitsPerWord - shift_value);
+                __ Sll(dst_high, lhs_high, shift_value);
+                __ Or(dst_high, dst_high, TMP);
+              } else if (instr->IsShr()) {
+                __ Sra(dst_high, lhs_high, shift_value);
+                __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
+                __ Srl(dst_low, lhs_low, shift_value);
+                __ Or(dst_low, dst_low, TMP);
+              } else {
+                __ Srl(dst_high, lhs_high, shift_value);
+                __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
+                __ Srl(dst_low, lhs_low, shift_value);
+                __ Or(dst_low, dst_low, TMP);
+              }
             }
           } else {
             shift_value -= kMipsBitsPerWord;
