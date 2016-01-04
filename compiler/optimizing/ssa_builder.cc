@@ -154,7 +154,7 @@ static bool TypePhiFromInputs(HPhi* phi) {
     Primitive::Type input_type = HPhi::ToPhiType(input->GetType());
     if (common_type == input_type) {
       // No change in type.
-    } else if (Primitive::ComponentSize(common_type) != Primitive::ComponentSize(input_type)) {
+    } else if (Primitive::Is64BitType(common_type) != Primitive::Is64BitType(input_type)) {
       // Types are of different sizes, e.g. int vs. long. Must be a conflict.
       return false;
     } else if (Primitive::IsIntegralType(common_type)) {
