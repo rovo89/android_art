@@ -42,12 +42,22 @@
 
 namespace art {
 
-static constexpr size_t kMaximumNumberOfHInstructions = 12;
+static constexpr size_t kMaximumNumberOfHInstructions = 32;
+
+// Limit the number of dex registers that we accumulate while inlining
+// to avoid creating large amount of nested environments.
+static constexpr size_t kMaximumNumberOfCumulatedDexRegisters = 64;
+
+// Avoid inlining within a huge method due to memory pressure.
+static constexpr size_t kMaximumCodeUnitSize = 4096;
 
 void HInliner::Run() {
   const CompilerOptions& compiler_options = compiler_driver_->GetCompilerOptions();
   if ((compiler_options.GetInlineDepthLimit() == 0)
       || (compiler_options.GetInlineMaxCodeUnits() == 0)) {
+    return;
+  }
+  if (caller_compilation_unit_.GetCodeItem()->insns_size_in_code_units_ > kMaximumCodeUnitSize) {
     return;
   }
   if (graph_->IsDebuggable()) {
@@ -589,6 +599,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                      compiler_driver_,
                      handles_,
                      stats_,
+                     total_number_of_dex_registers_ + code_item->registers_size_,
                      depth_ + 1);
     inliner.Run();
     number_of_instructions_budget += inliner.number_of_inlined_instructions_;
@@ -620,6 +631,10 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   HReversePostOrderIterator it(*callee_graph);
   it.Advance();  // Past the entry block, it does not contain instructions that prevent inlining.
   size_t number_of_instructions = 0;
+
+  bool can_inline_environment =
+      total_number_of_dex_registers_ < kMaximumNumberOfCumulatedDexRegisters;
+
   for (; !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     if (block->IsLoopHeader()) {
@@ -633,10 +648,17 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
          instr_it.Advance()) {
       if (number_of_instructions++ ==  number_of_instructions_budget) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
-                       << " could not be inlined because it is too big.";
+                       << " is not inlined because its caller has reached"
+                       << " its instruction budget limit.";
         return false;
       }
       HInstruction* current = instr_it.Current();
+      if (!can_inline_environment && current->NeedsEnvironment()) {
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " is not inlined because its caller has reached"
+                       << " its environment budget limit.";
+        return false;
+      }
 
       if (current->IsInvokeInterface()) {
         // Disable inlining of interface calls. The cost in case of entering the

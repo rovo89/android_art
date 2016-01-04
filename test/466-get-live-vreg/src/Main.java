@@ -31,7 +31,7 @@ public class Main {
     }
   }
 
-  static void testIntervalHole(int arg, boolean test) {
+  static void $opt$noinline$testIntervalHole(int arg, boolean test) {
     // Move the argument to callee save to ensure it is in
     // a readable register.
     moveArgToCalleeSave();
@@ -43,6 +43,9 @@ public class Main {
       staticField2 = arg;
       // The environment use of `arg` should not make it live.
       doStaticNativeCallLiveVreg();
+    }
+    if (staticField1 == 2) {
+      throw new Error("");
     }
   }
 
@@ -67,7 +70,7 @@ public class Main {
   static void testWrapperIntervalHole(int arg, boolean test) {
     try {
       Thread.sleep(0);
-      testIntervalHole(arg, test);
+      $opt$noinline$testIntervalHole(arg, test);
     } catch (Exception e) {
       throw new Error(e);
     }

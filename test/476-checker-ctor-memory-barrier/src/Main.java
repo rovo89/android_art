@@ -25,13 +25,14 @@ class ClassWithoutFinals {
 class ClassWithFinals {
   public final int x;
   public ClassWithFinals obj;
+  public static boolean doThrow = false;
 
   /// CHECK-START: void ClassWithFinals.<init>(boolean) register (after)
   /// CHECK:      MemoryBarrier kind:StoreStore
   /// CHECK-NEXT: ReturnVoid
   public ClassWithFinals(boolean cond) {
     x = 0;
-    if (cond) {
+    if (doThrow) {
       // avoid inlining
       throw new RuntimeException();
     }
