@@ -222,6 +222,7 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 # Tests that are timing sensitive and flaky on heavily loaded systems.
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
+  002-sleep \
   053-wait-some \
   055-enum-performance \
   133-static-invoke-super
