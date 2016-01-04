@@ -722,22 +722,6 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.testLoopPhisWithNullAndCrossUses(boolean) ssa_builder (after)
-  /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
-  /// CHECK-DAG:  <<PhiA:l\d+>>      Phi [<<Null>>,<<PhiB:l\d+>>,<<PhiA>>] klass:java.lang.Object exact:false
-  /// CHECK-DAG:  <<PhiB>>           Phi [<<Null>>,<<PhiB>>,<<PhiA>>] klass:java.lang.Object exact:false
-  private void testLoopPhisWithNullAndCrossUses(boolean cond) {
-    Main a = null;
-    Main b = null;
-    while (a == null) {
-      if (cond) {
-        a = b;
-      } else {
-        b = a;
-      }
-    }
-  }
-
   /// CHECK-START: java.lang.Object[] Main.testInstructionsWithUntypedParent() ssa_builder (after)
   /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
   /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<Phi:l\d+>>] klass:java.lang.Object[] exact:true

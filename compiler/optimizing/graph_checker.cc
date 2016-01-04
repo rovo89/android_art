@@ -763,6 +763,14 @@ void SSAChecker::VisitPhi(HPhi* phi) {
                                 phi->GetId(),
                                 phi->GetRegNumber(),
                                 type_str.str().c_str()));
+        } else if (phi->GetType() == Primitive::kPrimNot) {
+          std::stringstream type_str;
+          type_str << other_phi->GetType();
+          AddError(StringPrintf(
+              "Equivalent non-reference phi (%d) found for VReg %d with type: %s.",
+              phi->GetId(),
+              phi->GetRegNumber(),
+              type_str.str().c_str()));
         } else {
           ArenaBitVector visited(GetGraph()->GetArena(), 0, /* expandable */ true);
           if (!IsConstantEquivalent(phi, other_phi, &visited)) {

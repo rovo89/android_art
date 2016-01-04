@@ -17,6 +17,7 @@
 #include "ssa_phi_elimination.h"
 
 #include "base/arena_containers.h"
+#include "base/bit_vector-inl.h"
 
 namespace art {
 
@@ -129,6 +130,9 @@ void SsaRedundantPhiElimination::Run() {
     }
   }
 
+  ArenaSet<uint32_t> visited_phis_in_cycle(graph_->GetArena()->Adapter());
+  ArenaVector<HPhi*> cycle_worklist(graph_->GetArena()->Adapter());
+
   while (!worklist_.empty()) {
     HPhi* phi = worklist_.back();
     worklist_.pop_back();
@@ -143,46 +147,92 @@ void SsaRedundantPhiElimination::Run() {
       continue;
     }
 
-    // Find if the inputs of the phi are the same instruction.
-    HInstruction* candidate = phi->InputAt(0);
-    // A loop phi cannot have itself as the first phi. Note that this
-    // check relies on our simplification pass ensuring the pre-header
-    // block is first in the list of predecessors of the loop header.
-    DCHECK(!phi->IsLoopHeaderPhi() || phi->GetBlock()->IsLoopPreHeaderFirstPredecessor());
-    DCHECK_NE(phi, candidate);
+    HInstruction* candidate = nullptr;
+    visited_phis_in_cycle.clear();
+    cycle_worklist.clear();
 
-    for (size_t i = 1; i < phi->InputCount(); ++i) {
-      HInstruction* input = phi->InputAt(i);
-      // For a loop phi, if the input is the phi, the phi is still candidate for
-      // elimination.
-      if (input != candidate && input != phi) {
+    cycle_worklist.push_back(phi);
+    visited_phis_in_cycle.insert(phi->GetId());
+    bool catch_phi_in_cycle = phi->IsCatchPhi();
+
+    // First do a simple loop over inputs and check if they are all the same.
+    for (size_t j = 0; j < phi->InputCount(); ++j) {
+      HInstruction* input = phi->InputAt(j);
+      if (input == phi) {
+        continue;
+      } else if (candidate == nullptr) {
+        candidate = input;
+      } else if (candidate != input) {
         candidate = nullptr;
         break;
       }
     }
 
-    // If the inputs are not the same, continue.
+    // If we haven't found a candidate, check for a phi cycle. Note that we need to detect
+    // such cycles to avoid having reference and non-reference equivalents. We check this
+    // invariant in the graph checker.
+    if (candidate == nullptr) {
+      // We iterate over the array as long as it grows.
+      for (size_t i = 0; i < cycle_worklist.size(); ++i) {
+        HPhi* current = cycle_worklist[i];
+        DCHECK(!current->IsLoopHeaderPhi() ||
+               current->GetBlock()->IsLoopPreHeaderFirstPredecessor());
+
+        for (size_t j = 0; j < current->InputCount(); ++j) {
+          HInstruction* input = current->InputAt(j);
+          if (input == current) {
+            continue;
+          } else if (input->IsPhi()) {
+            if (!ContainsElement(visited_phis_in_cycle, input->GetId())) {
+              cycle_worklist.push_back(input->AsPhi());
+              visited_phis_in_cycle.insert(input->GetId());
+              catch_phi_in_cycle |= input->AsPhi()->IsCatchPhi();
+            } else {
+              // Already visited, nothing to do.
+            }
+          } else if (candidate == nullptr) {
+            candidate = input;
+          } else if (candidate != input) {
+            candidate = nullptr;
+            // Clear the cycle worklist to break out of the outer loop.
+            cycle_worklist.clear();
+            break;
+          }
+        }
+      }
+    }
+
     if (candidate == nullptr) {
       continue;
     }
 
-    // The candidate may not dominate a phi in a catch block.
-    if (phi->IsCatchPhi() && !candidate->StrictlyDominates(phi)) {
-      continue;
-    }
-
-    // Because we're updating the users of this phi, we may have new candidates
-    // for elimination. Add phis that use this phi to the worklist.
-    for (HUseIterator<HInstruction*> it(phi->GetUses()); !it.Done(); it.Advance()) {
-      HUseListNode<HInstruction*>* current = it.Current();
-      HInstruction* user = current->GetUser();
-      if (user->IsPhi()) {
-        worklist_.push_back(user->AsPhi());
+    for (HPhi* current : cycle_worklist) {
+      // The candidate may not dominate a phi in a catch block: there may be non-throwing
+      // instructions at the beginning of a try range, that may be the first input of
+      // catch phis.
+      // TODO(dbrazdil): Remove this situation by moving those non-throwing instructions
+      // before the try entry.
+      if (catch_phi_in_cycle) {
+        if (!candidate->StrictlyDominates(current)) {
+          continue;
+        }
+      } else {
+        DCHECK(candidate->StrictlyDominates(current));
       }
-    }
 
-    phi->ReplaceWith(candidate);
-    phi->GetBlock()->RemovePhi(phi);
+      // Because we're updating the users of this phi, we may have new candidates
+      // for elimination. Add phis that use this phi to the worklist.
+      for (HUseIterator<HInstruction*> it(current->GetUses()); !it.Done(); it.Advance()) {
+        HUseListNode<HInstruction*>* use = it.Current();
+        HInstruction* user = use->GetUser();
+        if (user->IsPhi() && !ContainsElement(visited_phis_in_cycle, user->GetId())) {
+          worklist_.push_back(user->AsPhi());
+        }
+      }
+      DCHECK(candidate->StrictlyDominates(current));
+      current->ReplaceWith(candidate);
+      current->GetBlock()->RemovePhi(current);
+    }
   }
 }
 

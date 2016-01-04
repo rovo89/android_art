@@ -124,91 +124,6 @@ void ReferenceTypePropagation::ValidateTypes() {
   }
 }
 
-static void CheckHasNoTypedInputs(HInstruction* root_instr) {
-  ArenaAllocatorAdapter<void> adapter =
-      root_instr->GetBlock()->GetGraph()->GetArena()->Adapter(kArenaAllocReferenceTypePropagation);
-
-  ArenaVector<HPhi*> visited_phis(adapter);
-  ArenaVector<HInstruction*> worklist(adapter);
-  worklist.push_back(root_instr);
-
-  while (!worklist.empty()) {
-    HInstruction* instr = worklist.back();
-    worklist.pop_back();
-
-    if (instr->IsPhi() || instr->IsBoundType() || instr->IsNullCheck()) {
-      // Expect that both `root_instr` and its inputs have invalid RTI.
-      ScopedObjectAccess soa(Thread::Current());
-      DCHECK(!instr->GetReferenceTypeInfo().IsValid()) << "Instruction should not have valid RTI.";
-
-      // Insert all unvisited inputs to the worklist.
-      for (HInputIterator it(instr); !it.Done(); it.Advance()) {
-        HInstruction* input = it.Current();
-        if (input->IsPhi()) {
-          if (ContainsElement(visited_phis, input->AsPhi())) {
-            continue;
-          } else {
-            visited_phis.push_back(input->AsPhi());
-          }
-        }
-        worklist.push_back(input);
-      }
-    } else if (instr->IsNullConstant()) {
-      // The only input of `root_instr` allowed to have valid RTI because it is ignored.
-    } else {
-      LOG(FATAL) << "Unexpected input " << instr->DebugName() << instr->GetId() << " with RTI "
-          << instr->GetReferenceTypeInfo();
-      UNREACHABLE();
-    }
-  }
-}
-
-template<typename Functor>
-static void ForEachUntypedInstruction(HGraph* graph, Functor fn) {
-  ScopedObjectAccess soa(Thread::Current());
-  for (HReversePostOrderIterator block_it(*graph); !block_it.Done(); block_it.Advance()) {
-    for (HInstructionIterator it(block_it.Current()->GetPhis()); !it.Done(); it.Advance()) {
-      HPhi* phi = it.Current()->AsPhi();
-      // Note that the graph may contain dead phis when run from the SsaBuilder.
-      // Skip those as they might have a type conflict and will be removed anyway.
-      if (phi->IsLive() &&
-          phi->GetType() == Primitive::kPrimNot &&
-          !phi->GetReferenceTypeInfo().IsValid()) {
-        fn(phi);
-      }
-    }
-    for (HInstructionIterator it(block_it.Current()->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* instr = it.Current();
-      if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
-        fn(instr);
-      }
-    }
-  }
-}
-
-void ReferenceTypePropagation::SetUntypedInstructionsToObject() {
-  // In some cases, the fix-point iteration will leave kPrimNot instructions with
-  // invalid RTI because bytecode does not provide enough typing information.
-  // Set the RTI of such instructions to Object.
-  // Example:
-  //   MyClass a = null, b = null;
-  //   while (a == null) {
-  //     if (cond) { a = b; } else { b = a; }
-  //   }
-
-  if (kIsDebugBuild) {
-    // Test that if we are going to set RTI from invalid to Object, that
-    // instruction did not have any typed instructions in its def-use chain
-    // and therefore its type could not be inferred.
-    ForEachUntypedInstruction(graph_, [](HInstruction* instr) { CheckHasNoTypedInputs(instr); });
-  }
-
-  ReferenceTypeInfo obj_rti = ReferenceTypeInfo::Create(object_class_handle_, /* is_exact */ false);
-  ForEachUntypedInstruction(graph_, [obj_rti](HInstruction* instr) {
-    instr->SetReferenceTypeInfo(obj_rti);
-  });
-}
-
 void ReferenceTypePropagation::Run() {
   // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
@@ -218,7 +133,6 @@ void ReferenceTypePropagation::Run() {
   }
 
   ProcessWorklist();
-  SetUntypedInstructionsToObject();
   ValidateTypes();
 }
 
