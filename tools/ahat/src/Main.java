@@ -79,7 +79,7 @@ public class Main {
     server.createContext("/objects", new AhatHttpHandler(new ObjectsHandler(ahat)));
     server.createContext("/site", new AhatHttpHandler(new SiteHandler(ahat)));
     server.createContext("/bitmap", new BitmapHandler(ahat));
-    server.createContext("/help", new StaticHandler("help.html", "text/html"));
+    server.createContext("/help", new HelpHandler());
     server.createContext("/style.css", new StaticHandler("style.css", "text/css"));
     server.setExecutor(Executors.newFixedThreadPool(1));
     System.out.println("Server started on localhost:" + port);
