@@ -133,12 +133,11 @@ class PatchOat {
     if (obj == nullptr) {
       return nullptr;
     }
-    // TODO: Fix these checks for multi-image. Some may still be valid. b/26317072
-    // DCHECK_GT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->Begin()));
-    // DCHECK_LT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->End()));
+    DCHECK_GT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->Begin()));
+    DCHECK_LT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->End()));
     uintptr_t heap_off =
         reinterpret_cast<uintptr_t>(obj) - reinterpret_cast<uintptr_t>(heap_->Begin());
-    // DCHECK_LT(heap_off, image_->Size());
+    DCHECK_LT(heap_off, image_->Size());
     return reinterpret_cast<T*>(image_->Begin() + heap_off);
   }
 
