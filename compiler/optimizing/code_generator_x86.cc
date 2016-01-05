@@ -4185,19 +4185,28 @@ void CodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method ATTRIBUTE_UNUSED) {
-  switch (desired_dispatch_info.code_ptr_location) {
+  HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
+
+  // We disable pc-relative load when there is an irreducible loop, as the optimization
+  // is incompatible with it.
+  if (GetGraph()->HasIrreducibleLoops() &&
+      (dispatch_info.method_load_kind ==
+          HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative)) {
+    dispatch_info.method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
+  }
+  switch (dispatch_info.code_ptr_location) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
       // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
       // (Though the direct CALL ptr16:32 is available for consideration).
       return HInvokeStaticOrDirect::DispatchInfo {
-        desired_dispatch_info.method_load_kind,
+        dispatch_info.method_load_kind,
         HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-        desired_dispatch_info.method_load_data,
+        dispatch_info.method_load_data,
         0u
       };
     default:
-      return desired_dispatch_info;
+      return dispatch_info;
   }
 }
 

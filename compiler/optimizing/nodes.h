@@ -98,11 +98,10 @@ enum IfCondition {
   kCondAE,  // >=
 };
 
-enum BuildSsaResult {
-  kBuildSsaFailNonNaturalLoop,
-  kBuildSsaFailThrowCatchLoop,
-  kBuildSsaFailAmbiguousArrayOp,
-  kBuildSsaSuccess,
+enum GraphAnalysisResult {
+  kAnalysisFailThrowCatchLoop,
+  kAnalysisFailAmbiguousArrayOp,
+  kAnalysisSuccess,
 };
 
 class HInstructionList : public ValueObject {
@@ -289,6 +288,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         temporaries_vreg_slots_(0),
         has_bounds_checks_(false),
         has_try_catch_(false),
+        has_irreducible_loops_(false),
         debuggable_(debuggable),
         current_instruction_id_(start_instruction_id),
         dex_file_(dex_file),
@@ -324,20 +324,20 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // Try building the SSA form of this graph, with dominance computation and
   // loop recognition. Returns a code specifying that it was successful or the
   // reason for failure.
-  BuildSsaResult TryBuildingSsa(StackHandleScopeCollection* handles);
+  GraphAnalysisResult TryBuildingSsa(StackHandleScopeCollection* handles);
 
   void ComputeDominanceInformation();
   void ClearDominanceInformation();
-
-  void BuildDominatorTree();
+  void ClearLoopInformation();
+  void FindBackEdges(ArenaBitVector* visited);
+  GraphAnalysisResult BuildDominatorTree();
   void SimplifyCFG();
   void SimplifyCatchBlocks();
 
   // Analyze all natural loops in this graph. Returns a code specifying that it
   // was successful or the reason for failure. The method will fail if a loop
-  // is not natural, that is the header does not dominate a back edge, or if it
   // is a throw-catch loop, i.e. the header is a catch block.
-  BuildSsaResult AnalyzeNaturalLoops() const;
+  GraphAnalysisResult AnalyzeLoops() const;
 
   // Iterate over blocks to compute try block membership. Needs reverse post
   // order and loop information.
@@ -482,6 +482,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
+  bool HasIrreducibleLoops() const { return has_irreducible_loops_; }
+  void SetHasIrreducibleLoops(bool value) { has_irreducible_loops_ = value; }
+
   ArtMethod* GetArtMethod() const { return art_method_; }
   void SetArtMethod(ArtMethod* method) { art_method_ = method; }
 
@@ -491,7 +494,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   HInstruction* InsertOppositeCondition(HInstruction* cond, HInstruction* cursor);
 
  private:
-  void FindBackEdges(ArenaBitVector* visited);
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited);
 
@@ -558,6 +560,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // try/catch-related passes if false.
   bool has_try_catch_;
 
+  // Flag whether there are any irreducible loops in the graph.
+  bool has_irreducible_loops_;
+
   // Indicates whether the graph should be compiled in a way that
   // ensures full debuggability. If false, we can apply more
   // aggressive optimizations that may limit the level of debugging.
@@ -613,11 +618,16 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
         suspend_check_(nullptr),
+        irreducible_(false),
         back_edges_(graph->GetArena()->Adapter(kArenaAllocLoopInfoBackEdges)),
         // Make bit vector growable, as the number of blocks may change.
         blocks_(graph->GetArena(), graph->GetBlocks().size(), true) {
     back_edges_.reserve(kDefaultNumberOfBackEdges);
   }
+
+  bool IsIrreducible() const { return irreducible_; }
+
+  void Dump(std::ostream& os);
 
   HBasicBlock* GetHeader() const {
     return header_;
@@ -661,15 +671,8 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
     ReplaceElement(back_edges_, existing, new_back_edge);
   }
 
-  // Finds blocks that are part of this loop. Returns whether the loop is a natural loop,
-  // that is the header dominates the back edge.
-  bool Populate();
-
-  // Reanalyzes the loop by removing loop info from its blocks and re-running
-  // Populate(). If there are no back edges left, the loop info is completely
-  // removed as well as its SuspendCheck instruction. It must be run on nested
-  // inner loops first.
-  void Update();
+  // Finds blocks that are part of this loop.
+  void Populate();
 
   // Returns whether this loop information contains `block`.
   // Note that this loop information *must* be populated before entering this function.
@@ -690,9 +693,11 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);
+  void PopulateIrreducibleRecursive(HBasicBlock* block);
 
   HBasicBlock* header_;
   HSuspendCheck* suspend_check_;
+  bool irreducible_;
   ArenaVector<HBasicBlock*> back_edges_;
   ArenaBitVector blocks_;
 
@@ -1017,6 +1022,11 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   bool IsLoopPreHeaderFirstPredecessor() const {
     DCHECK(IsLoopHeader());
     return GetPredecessors()[0] == GetLoopInformation()->GetPreHeader();
+  }
+
+  bool IsFirstPredecessorBackEdge() const {
+    DCHECK(IsLoopHeader());
+    return GetLoopInformation()->IsBackEdge(*GetPredecessors()[0]);
   }
 
   HLoopInformation* GetLoopInformation() const {
@@ -1831,7 +1841,10 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   void SetBlock(HBasicBlock* block) { block_ = block; }
   bool IsInBlock() const { return block_ != nullptr; }
   bool IsInLoop() const { return block_->IsInLoop(); }
-  bool IsLoopHeaderPhi() { return IsPhi() && block_->IsLoopHeader(); }
+  bool IsLoopHeaderPhi() const { return IsPhi() && block_->IsLoopHeader(); }
+  bool IsIrreducibleLoopHeaderPhi() const {
+    return IsLoopHeaderPhi() && GetBlock()->GetLoopInformation()->IsIrreducible();
+  }
 
   virtual size_t InputCount() const = 0;
   HInstruction* InputAt(size_t i) const { return InputRecordAt(i).GetInstruction(); }

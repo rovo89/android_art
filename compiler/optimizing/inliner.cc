@@ -539,7 +539,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     return false;
   }
 
-  if (callee_graph->TryBuildingSsa(handles_) != kBuildSsaSuccess) {
+  if (callee_graph->TryBuildingSsa(handles_) != kAnalysisSuccess) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " could not be transformed to SSA";
     return false;

@@ -38,7 +38,6 @@ enum MethodCompilationStat {
   kRemovedDeadInstruction,
   kRemovedNullCheck,
   kNotCompiledBranchOutsideMethodCode,
-  kNotCompiledNonNaturalLoop,
   kNotCompiledThrowCatchLoop,
   kNotCompiledAmbiguousArrayOp,
   kNotCompiledHugeMethod,
@@ -106,7 +105,6 @@ class OptimizingCompilerStats {
       case kRemovedDeadInstruction: name = "RemovedDeadInstruction"; break;
       case kRemovedNullCheck: name = "RemovedNullCheck"; break;
       case kNotCompiledBranchOutsideMethodCode: name = "NotCompiledBranchOutsideMethodCode"; break;
-      case kNotCompiledNonNaturalLoop : name = "NotCompiledNonNaturalLoop"; break;
       case kNotCompiledThrowCatchLoop : name = "NotCompiledThrowCatchLoop"; break;
       case kNotCompiledAmbiguousArrayOp : name = "NotCompiledAmbiguousArrayOp"; break;
       case kNotCompiledHugeMethod : name = "NotCompiledHugeMethod"; break;

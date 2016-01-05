@@ -33,7 +33,6 @@ static HGraph* TestCode(const uint16_t* data, ArenaAllocator* allocator) {
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   builder.BuildGraph(*item);
   graph->BuildDominatorTree();
-  graph->AnalyzeNaturalLoops();
   return graph;
 }
 

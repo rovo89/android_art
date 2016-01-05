@@ -486,7 +486,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         StartAttributeStream("is_low") << interval->IsLowInterval();
         StartAttributeStream("is_high") << interval->IsHighInterval();
       }
-    } else if (IsPass(RegisterAllocator::kRegisterAllocatorPassName) && is_after_pass_) {
+    }
+
+    if (IsPass(RegisterAllocator::kRegisterAllocatorPassName) && is_after_pass_) {
       StartAttributeStream("liveness") << instruction->GetLifetimePosition();
       LocationSummary* locations = instruction->GetLocations();
       if (locations != nullptr) {
@@ -498,15 +500,29 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         attr << inputs << "->";
         DumpLocation(attr, locations->Out());
       }
-    } else if (IsPass(LICM::kLoopInvariantCodeMotionPassName)
-               || IsPass(HDeadCodeElimination::kFinalDeadCodeEliminationPassName)) {
+    }
+
+    if (IsPass(LICM::kLoopInvariantCodeMotionPassName)
+        || IsPass(HDeadCodeElimination::kFinalDeadCodeEliminationPassName)
+        || IsPass(HDeadCodeElimination::kInitialDeadCodeEliminationPassName)
+        || IsPass(SsaBuilder::kSsaBuilderPassName)) {
       HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
       if (info == nullptr) {
         StartAttributeStream("loop") << "none";
       } else {
         StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
+        HLoopInformation* outer = info->GetPreHeader()->GetLoopInformation();
+        if (outer != nullptr) {
+          StartAttributeStream("outer_loop") << "B" << outer->GetHeader()->GetBlockId();
+        } else {
+          StartAttributeStream("outer_loop") << "none";
+        }
+        StartAttributeStream("irreducible")
+            << std::boolalpha << info->IsIrreducible() << std::noboolalpha;
       }
-    } else if ((IsPass(SsaBuilder::kSsaBuilderPassName)
+    }
+
+    if ((IsPass(SsaBuilder::kSsaBuilderPassName)
         || IsPass(HInliner::kInlinerPassName))
         && (instruction->GetType() == Primitive::kPrimNot)) {
       ReferenceTypeInfo info = instruction->IsLoadClass()

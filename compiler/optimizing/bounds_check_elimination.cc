@@ -1295,8 +1295,13 @@ class BCEVisitor : public HGraphVisitor {
    */
   bool DynamicBCESeemsProfitable(HLoopInformation* loop, HBasicBlock* block) {
     if (loop != nullptr) {
+      // The loop preheader of an irreducible loop does not dominate all the blocks in
+      // the loop. We would need to find the common dominator of all blocks in the loop.
+      if (loop->IsIrreducible()) {
+        return false;
+      }
       // A try boundary preheader is hard to handle.
-      // TODO: remove this restriction
+      // TODO: remove this restriction.
       if (loop->GetPreHeader()->GetLastInstruction()->IsTryBoundary()) {
         return false;
       }

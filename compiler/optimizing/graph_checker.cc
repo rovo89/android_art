@@ -391,6 +391,15 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
     }
   }
 
+  // Ensure dominated blocks have `block` as the dominator.
+  for (HBasicBlock* dominated : block->GetDominatedBlocks()) {
+    if (dominated->GetDominator() != block) {
+      AddError(StringPrintf("Block %d should be the dominator of %d.",
+                            block->GetBlockId(),
+                            dominated->GetBlockId()));
+    }
+  }
+
   // Ensure there is no critical edge (i.e., an edge connecting a
   // block with multiple successors to a block with multiple
   // predecessors). Exceptional edges are synthesized and hence
@@ -467,13 +476,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   int id = loop_header->GetBlockId();
   HLoopInformation* loop_information = loop_header->GetLoopInformation();
 
-  // Ensure the pre-header block is first in the list of predecessors of a loop
-  // header and that the header block is its only successor.
-  if (!loop_header->IsLoopPreHeaderFirstPredecessor()) {
-    AddError(StringPrintf(
-        "Loop pre-header is not the first predecessor of the loop header %d.",
-        id));
-  } else if (loop_information->GetPreHeader()->GetSuccessors().size() != 1) {
+  if (loop_information->GetPreHeader()->GetSuccessors().size() != 1) {
     AddError(StringPrintf(
         "Loop pre-header %d of loop defined by header %d has %zu successors.",
         loop_information->GetPreHeader()->GetBlockId(),
@@ -532,20 +535,6 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
     }
   }
 
-  // Ensure all blocks in the loop are live and dominated by the loop header.
-  for (uint32_t i : loop_blocks.Indexes()) {
-    HBasicBlock* loop_block = GetGraph()->GetBlocks()[i];
-    if (loop_block == nullptr) {
-      AddError(StringPrintf("Loop defined by header %d contains a previously removed block %d.",
-                            id,
-                            i));
-    } else if (!loop_header->Dominates(loop_block)) {
-      AddError(StringPrintf("Loop block %d not dominated by loop header %d.",
-                            i,
-                            id));
-    }
-  }
-
   // If this is a nested loop, ensure the outer loops contain a superset of the blocks.
   for (HLoopInformationOutwardIterator it(*loop_header); !it.Done(); it.Advance()) {
     HLoopInformation* outer_info = it.Current();
@@ -554,6 +543,29 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
                             "an outer loop defined by header %d.",
                             id,
                             outer_info->GetHeader()->GetBlockId()));
+    }
+  }
+
+  // Ensure the pre-header block is first in the list of predecessors of a loop
+  // header and that the header block is its only successor.
+  if (!loop_header->IsLoopPreHeaderFirstPredecessor()) {
+    AddError(StringPrintf(
+        "Loop pre-header is not the first predecessor of the loop header %d.",
+        id));
+  }
+
+  // Ensure all blocks in the loop are live and dominated by the loop header in
+  // the case of natural loops.
+  for (uint32_t i : loop_blocks.Indexes()) {
+    HBasicBlock* loop_block = GetGraph()->GetBlocks()[i];
+    if (loop_block == nullptr) {
+      AddError(StringPrintf("Loop defined by header %d contains a previously removed block %d.",
+                            id,
+                            i));
+    } else if (!loop_information->IsIrreducible() && !loop_header->Dominates(loop_block)) {
+      AddError(StringPrintf("Loop block %d not dominated by loop header %d.",
+                            i,
+                            id));
     }
   }
 }

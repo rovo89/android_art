@@ -777,19 +777,16 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
 
     {
       PassScope scope(SsaBuilder::kSsaBuilderPassName, &pass_observer);
-      BuildSsaResult result = graph->TryBuildingSsa(&handles);
-      if (result != kBuildSsaSuccess) {
+      GraphAnalysisResult result = graph->TryBuildingSsa(&handles);
+      if (result != kAnalysisSuccess) {
         switch (result) {
-          case kBuildSsaFailNonNaturalLoop:
-            MaybeRecordStat(MethodCompilationStat::kNotCompiledNonNaturalLoop);
-            break;
-          case kBuildSsaFailThrowCatchLoop:
+          case kAnalysisFailThrowCatchLoop:
             MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
             break;
-          case kBuildSsaFailAmbiguousArrayOp:
+          case kAnalysisFailAmbiguousArrayOp:
             MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
             break;
-          case kBuildSsaSuccess:
+          case kAnalysisSuccess:
             UNREACHABLE();
         }
         pass_observer.SetGraphInBadState();
