@@ -57,12 +57,14 @@ public class Main implements Runnable {
     }
 
     private final static class OOM extends Operation {
+        private final static int ALLOC_SIZE = 1024;
+
         @Override
         public boolean perform() {
             try {
                 List<byte[]> l = new ArrayList<byte[]>();
                 while (true) {
-                    l.add(new byte[1024]);
+                    l.add(new byte[ALLOC_SIZE]);
                 }
             } catch (OutOfMemoryError e) {
             }
@@ -115,12 +117,33 @@ public class Main implements Runnable {
     }
 
     private final static class Alloc extends Operation {
+        private final static int ALLOC_SIZE = 1024;  // Needs to be small enough to not be in LOS.
+        private final static int ALLOC_COUNT = 1024;
+
         @Override
         public boolean perform() {
             try {
                 List<byte[]> l = new ArrayList<byte[]>();
-                for (int i = 0; i < 1024; i++) {
-                    l.add(new byte[1024]);
+                for (int i = 0; i < ALLOC_COUNT; i++) {
+                    l.add(new byte[ALLOC_SIZE]);
+                }
+            } catch (OutOfMemoryError e) {
+            }
+            return true;
+        }
+    }
+
+    private final static class LargeAlloc extends Operation {
+        private final static int PAGE_SIZE = 4096;
+        private final static int PAGE_SIZE_MODIFIER = 10;  // Needs to be large enough for LOS.
+        private final static int ALLOC_COUNT = 100;
+
+        @Override
+        public boolean perform() {
+            try {
+                List<byte[]> l = new ArrayList<byte[]>();
+                for (int i = 0; i < ALLOC_COUNT; i++) {
+                    l.add(new byte[PAGE_SIZE_MODIFIER * PAGE_SIZE]);
                 }
             } catch (OutOfMemoryError e) {
             }
@@ -144,10 +167,12 @@ public class Main implements Runnable {
     }
 
     private final static class Sleep extends Operation {
+        private final static int SLEEP_TIME = 100;
+
         @Override
         public boolean perform() {
             try {
-                Thread.sleep(100);
+                Thread.sleep(SLEEP_TIME);
             } catch (InterruptedException ignored) {
             }
             return true;
@@ -155,6 +180,8 @@ public class Main implements Runnable {
     }
 
     private final static class TimedWait extends Operation {
+        private final static int SLEEP_TIME = 100;
+
         private final Object lock;
 
         public TimedWait(Object lock) {
@@ -165,7 +192,7 @@ public class Main implements Runnable {
         public boolean perform() {
             synchronized (lock) {
                 try {
-                    lock.wait(100, 0);
+                    lock.wait(SLEEP_TIME, 0);
                 } catch (InterruptedException ignored) {
                 }
             }
@@ -215,7 +242,8 @@ public class Main implements Runnable {
         Map<Operation, Double> frequencyMap = new HashMap<Operation, Double>();
         frequencyMap.put(new OOM(), 0.005);             //  1/200
         frequencyMap.put(new SigQuit(), 0.095);         // 19/200
-        frequencyMap.put(new Alloc(), 0.3);             // 60/200
+        frequencyMap.put(new Alloc(), 0.25);            // 50/200
+        frequencyMap.put(new LargeAlloc(), 0.05);       // 10/200
         frequencyMap.put(new StackTrace(), 0.1);        // 20/200
         frequencyMap.put(new Exit(), 0.25);             // 50/200
         frequencyMap.put(new Sleep(), 0.125);           // 25/200
@@ -261,6 +289,8 @@ public class Main implements Runnable {
             op = new SigQuit();
         } else if (split[0].equals("-alloc")) {
             op = new Alloc();
+        } else if (split[0].equals("-largealloc")) {
+            op = new LargeAlloc();
         } else if (split[0].equals("-stacktrace")) {
             op = new StackTrace();
         } else if (split[0].equals("-exit")) {
