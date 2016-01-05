@@ -16,41 +16,37 @@
 
 package com.android.ahat;
 
+import com.google.common.io.ByteStreams;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 
 /**
- * AhatHttpHandler.
+ * HelpHandler.
  *
- * HttpHandler for AhatHandlers.
+ * HttpHandler to show the help page.
  */
-class AhatHttpHandler implements HttpHandler {
-
-  private AhatHandler mAhatHandler;
-
-  public AhatHttpHandler(AhatHandler handler) {
-    mAhatHandler = handler;
-  }
+class HelpHandler implements HttpHandler {
 
   @Override
   public void handle(HttpExchange exchange) throws IOException {
+    ClassLoader loader = HelpHandler.class.getClassLoader();
     exchange.getResponseHeaders().add("Content-Type", "text/html;charset=utf-8");
     exchange.sendResponseHeaders(200, 0);
     PrintStream ps = new PrintStream(exchange.getResponseBody());
-    try {
-      HtmlDoc doc = new HtmlDoc(ps, DocString.text("ahat"), DocString.uri("style.css"));
-      doc.menu(Menu.getMenu());
-      mAhatHandler.handle(doc, new Query(exchange.getRequestURI()));
-      doc.close();
-    } catch (RuntimeException e) {
-      // Print runtime exceptions to standard error for debugging purposes,
-      // because otherwise they are swallowed and not reported.
-      System.err.println("Exception when handling " + exchange.getRequestURI() + ": ");
-      e.printStackTrace();
-      throw e;
+    HtmlDoc doc = new HtmlDoc(ps, DocString.text("ahat"), DocString.uri("style.css"));
+    doc.menu(Menu.getMenu());
+
+    InputStream is = loader.getResourceAsStream("help.html");
+    if (is == null) {
+      ps.println("No help available.");
+    } else {
+      ByteStreams.copy(is, ps);
     }
+
+    doc.close();
     ps.close();
   }
 }

@@ -48,14 +48,7 @@ class OverviewHandler implements AhatHandler {
 
     doc.section("Heap Sizes");
     printHeapSizes(doc, query);
-
-    DocString menu = new DocString();
-    menu.appendLink(DocString.uri("rooted"), DocString.text("Rooted"));
-    menu.append(" - ");
-    menu.appendLink(DocString.uri("site"), DocString.text("Allocations"));
-    menu.append(" - ");
-    menu.appendLink(DocString.uri("help"), DocString.text("Help"));
-    doc.big(menu);
+    doc.big(Menu.getMenu());
   }
 
   private void printHeapSizes(Doc doc, Query query) {
