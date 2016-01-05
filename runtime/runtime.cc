@@ -1089,13 +1089,11 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
       LOG(ERROR) << "Could not initialize from image: " << error_msg;
       return false;
     }
-    /* TODO: Modify check to support multiple image spaces and reenable. b/26317072
     if (kIsDebugBuild) {
       for (auto image_space : GetHeap()->GetBootImageSpaces()) {
         image_space->VerifyImageAllocations();
       }
     }
-    */
     if (boot_class_path_string_.empty()) {
       // The bootclasspath is not explicitly specified: construct it from the loaded dex files.
       const std::vector<const DexFile*>& boot_class_path = GetClassLinker()->GetBootClassPath();
