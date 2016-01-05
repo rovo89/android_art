@@ -736,7 +736,7 @@ void ClassLinker::RunRootClinits() {
 
 static void SanityCheckArtMethod(ArtMethod* m,
                                  mirror::Class* expected_class,
-                                 std::vector<gc::space::ImageSpace*> spaces)
+                                 std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
     CHECK(m->GetDeclaringClass() == nullptr) << PrettyMethod(m);
@@ -760,7 +760,7 @@ static void SanityCheckArtMethod(ArtMethod* m,
 static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
                                              mirror::Class* expected_class,
                                              size_t pointer_size,
-                                             std::vector<gc::space::ImageSpace*> spaces)
+                                             std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(arr != nullptr);
   for (int32_t j = 0; j < arr->GetLength(); ++j) {
@@ -775,27 +775,32 @@ static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
   }
 }
 
-/* TODO: Modify check to support multiple image spaces and reenable. b/26317072
-static void SanityCheckArtMethodPointerArray(
-    ArtMethod** arr,
-    size_t size,
-    size_t pointer_size,
-    gc::space::ImageSpace* space) SHARED_REQUIRES(Locks::mutator_lock_) {
+static void SanityCheckArtMethodPointerArray(ArtMethod** arr,
+                                             size_t size,
+                                             size_t pointer_size,
+                                             std::vector<gc::space::ImageSpace*>& spaces)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK_EQ(arr != nullptr, size != 0u);
   if (arr != nullptr) {
-    auto offset = reinterpret_cast<uint8_t*>(arr) - space->Begin();
-    CHECK(space->GetImageHeader().GetImageSection(
-        ImageHeader::kSectionDexCacheArrays).Contains(offset));
+    bool contains = false;
+    for (auto space : spaces) {
+      auto offset = reinterpret_cast<uint8_t*>(arr) - space->Begin();
+      if (space->GetImageHeader().GetImageSection(
+          ImageHeader::kSectionDexCacheArrays).Contains(offset)) {
+        contains = true;
+        break;
+      }
+    }
+    CHECK(contains);
   }
   for (size_t j = 0; j < size; ++j) {
     ArtMethod* method = mirror::DexCache::GetElementPtrSize(arr, j, pointer_size);
     // expected_class == null means we are a dex cache.
     if (method != nullptr) {
-      SanityCheckArtMethod(method, nullptr, space);
+      SanityCheckArtMethod(method, nullptr, spaces);
     }
   }
 }
-*/
 
 static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -1018,13 +1023,12 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
         return false;
       }
 
-      // TODO: Modify check to support multiple image spaces and reenable.
-//      if (kSanityCheckObjects) {
-//        SanityCheckArtMethodPointerArray(dex_cache->GetResolvedMethods(),
-//                                         dex_cache->NumResolvedMethods(),
-//                                         image_pointer_size_,
-//                                         spaces);
-//      }
+      if (kSanityCheckObjects) {
+        SanityCheckArtMethodPointerArray(dex_cache->GetResolvedMethods(),
+                                         dex_cache->NumResolvedMethods(),
+                                         image_pointer_size_,
+                                         spaces);
+      }
 
       if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
         *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
