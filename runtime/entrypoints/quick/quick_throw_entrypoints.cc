@@ -16,7 +16,6 @@
 
 #include "callee_save_frame.h"
 #include "common_throws.h"
-#include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/object-inl.h"
 #include "thread.h"
 #include "well_known_classes.h"

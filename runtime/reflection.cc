@@ -21,7 +21,6 @@
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
-#include "entrypoints/entrypoint_utils.h"
 #include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method.h"

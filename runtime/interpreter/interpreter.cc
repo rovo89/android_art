@@ -18,6 +18,7 @@
 
 #include <limits>
 
+#include "common_throws.h"
 #include "interpreter_common.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"

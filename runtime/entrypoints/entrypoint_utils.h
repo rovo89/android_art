@@ -158,8 +158,6 @@ inline mirror::Class* ResolveVerifyAndClinit(
     uint32_t type_idx, ArtMethod* referrer, Thread* self, bool can_run_clinit, bool verify_access)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-extern void ThrowStackOverflowError(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
-
 inline mirror::String* ResolveStringFromCode(ArtMethod* referrer, uint32_t string_idx)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
