@@ -248,6 +248,12 @@
   modes_variants: [[device, X32]],
   names: ["org.apache.harmony.tests.java.text.DecimalFormatTest#test_formatDouble_withFieldPosition",
           "org.apache.harmony.tests.java.text.DecimalFormatTest#test_formatToCharacterIterator_original"]
+},
+{
+  description: "'cat -' does not work anymore",
+  result: EXEC_FAILED,
+  bug: 26395656,
+  modes: [device],
+  names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getOutputStream"]
 }
-
 ]
