@@ -26,16 +26,25 @@
 namespace art {
 
 bool ScopedFlock::Init(const char* filename, std::string* error_msg) {
+  return Init(filename, O_CREAT | O_RDWR, true, error_msg);
+}
+
+bool ScopedFlock::Init(const char* filename, int flags, bool block, std::string* error_msg) {
   while (true) {
     if (file_.get() != nullptr) {
       UNUSED(file_->FlushCloseOrErase());  // Ignore result.
     }
-    file_.reset(OS::OpenFileWithFlags(filename, O_CREAT | O_RDWR));
+    file_.reset(OS::OpenFileWithFlags(filename, flags));
     if (file_.get() == nullptr) {
       *error_msg = StringPrintf("Failed to open file '%s': %s", filename, strerror(errno));
       return false;
     }
-    int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_EX));
+    int operation = block ? LOCK_EX : (LOCK_EX | LOCK_NB);
+    int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), operation));
+    if (flock_result == EWOULDBLOCK) {
+      // File is locked by someone else and we are required not to block;
+      return false;
+    }
     if (flock_result != 0) {
       *error_msg = StringPrintf("Failed to lock file '%s': %s", filename, strerror(errno));
       return false;
@@ -51,11 +60,23 @@ bool ScopedFlock::Init(const char* filename, std::string* error_msg) {
     if (stat_result != 0) {
       PLOG(WARNING) << "Failed to stat, will retry: " << filename;
       // ENOENT can happen if someone racing with us unlinks the file we created so just retry.
-      continue;
+      if (block) {
+        continue;
+      } else {
+        // Note that in theory we could race with someone here for a long time and end up retrying
+        // over and over again. This potential behavior does not fit well in the non-blocking
+        // semantics. Thus, if we are not require to block return failure when racing.
+        return false;
+      }
     }
     if (fstat_stat.st_dev != stat_stat.st_dev || fstat_stat.st_ino != stat_stat.st_ino) {
       LOG(WARNING) << "File changed while locking, will retry: " << filename;
-      continue;
+      if (block) {
+        continue;
+      } else {
+        // See comment above.
+        return false;
+      }
     }
     return true;
   }
@@ -78,7 +99,7 @@ bool ScopedFlock::Init(File* file, std::string* error_msg) {
   return true;
 }
 
-File* ScopedFlock::GetFile() {
+File* ScopedFlock::GetFile() const {
   CHECK(file_.get() != nullptr);
   return file_.get();
 }

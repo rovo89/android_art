@@ -39,6 +39,7 @@ GTEST_DEX_DIRECTORIES := \
   NonStaticLeafMethods \
   ProtoCompare \
   ProtoCompare2 \
+  ProfileTestMultiDex \
   StaticLeafMethods \
   Statics \
   StaticsFromCode \
@@ -65,7 +66,7 @@ $(ART_TEST_TARGET_GTEST_MainStripped_DEX): $(ART_TEST_TARGET_GTEST_Main_DEX)
 
 # Dex file dependencies for each gtest.
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MultiDex MyClass Nested Statics StaticsFromCode
-ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods
+ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods ProfileTestMultiDex
 ART_GTEST_dex_cache_test_DEX_DEPS := Main
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
@@ -78,6 +79,8 @@ ART_GTEST_oat_test_DEX_DEPS := Main
 ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
 ART_GTEST_proxy_test_DEX_DEPS := Interfaces
 ART_GTEST_reflection_test_DEX_DEPS := Main NonStaticLeafMethods StaticLeafMethods
+ART_GTEST_profile_assistant_test_DEX_DEPS := ProfileTestMultiDex
+ART_GTEST_profile_compilation_info_test_DEX_DEPS := ProfileTestMultiDex
 ART_GTEST_stub_test_DEX_DEPS := AllFields
 ART_GTEST_transaction_test_DEX_DEPS := Transaction
 ART_GTEST_type_lookup_table_test_DEX_DEPS := Lookup
@@ -208,6 +211,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/interpreter/safe_math_test.cc \
   runtime/interpreter/unstarted_runtime_test.cc \
   runtime/java_vm_ext_test.cc \
+  runtime/jit/profile_compilation_info_test.cc \
   runtime/lambda/closure_test.cc \
   runtime/lambda/shorty_field_type_test.cc \
   runtime/leb128_test.cc \
@@ -267,6 +271,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
   compiler/optimizing/suspend_check_test.cc \
+  compiler/profile_assistant_test.cc \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
   compiler/utils/swap_space_test.cc \

@@ -168,6 +168,12 @@ std::unordered_set<std::string>* CommonCompilerTest::GetCompiledMethods() {
   return nullptr;
 }
 
+// Get ProfileCompilationInfo that should be passed to the driver.
+ProfileCompilationInfo* CommonCompilerTest::GetProfileCompilationInfo() {
+  // Null, profile information will not be taken into account.
+  return nullptr;
+}
+
 void CommonCompilerTest::SetUp() {
   CommonRuntimeTest::SetUp();
   {
@@ -209,7 +215,7 @@ void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind, InstructionSe
                                             timer_.get(),
                                             -1,
                                             /* dex_to_oat_map */ nullptr,
-                                            /* profile_compilation_info */ nullptr));
+                                            GetProfileCompilationInfo()));
   // We typically don't generate an image in unit tests, disable this optimization by default.
   compiler_driver_->SetSupportBootImageFixup(false);
 }
