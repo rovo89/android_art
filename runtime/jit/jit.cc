@@ -127,6 +127,13 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = "JIT couldn't find jit_compile_method entry point";
     return false;
   }
+  jit_type_loaded_ = reinterpret_cast<void (*)(void*, mirror::Class*)>(
+      dlsym(jit_library_handle_, "jit_type_loaded"));
+  if (jit_type_loaded_ == nullptr) {
+    dlclose(jit_library_handle_);
+    *error_msg = "JIT couldn't find jit_type_loaded entry point";
+    return false;
+  }
   CompilerCallbacks* callbacks = nullptr;
   bool will_generate_debug_symbols = false;
   VLOG(jit) << "Calling JitLoad interpreter_only="
@@ -212,6 +219,14 @@ void Jit::CreateInstrumentationCache(size_t compile_threshold, size_t warmup_thr
   CHECK_GT(compile_threshold, 0U);
   instrumentation_cache_.reset(
       new jit::JitInstrumentationCache(compile_threshold, warmup_threshold));
+}
+
+void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr && jit->generate_debug_info_) {
+    DCHECK(jit->jit_type_loaded_ != nullptr);
+    jit->jit_type_loaded_(jit->jit_compiler_handle_, type);
+  }
 }
 
 }  // namespace jit

@@ -1879,6 +1879,9 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
    */
   Dbg::PostClassPrepare(h_new_class.Get());
 
+  // Notify native debugger of the new class and its layout.
+  jit::Jit::NewTypeLoadedIfUsingJit(h_new_class.Get());
+
   return h_new_class.Get();
 }
 
@@ -2765,6 +2768,7 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
 
   mirror::Class* existing = InsertClass(descriptor, new_class.Get(), hash);
   if (existing == nullptr) {
+    jit::Jit::NewTypeLoadedIfUsingJit(new_class.Get());
     return new_class.Get();
   }
   // Another thread must have loaded the class after we
