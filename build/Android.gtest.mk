@@ -442,8 +442,8 @@ define define-art-gtest-rule-target
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libopenjdk.so \
-    $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar \
-    $$(TARGET_OUT_JAVA_LIBRARIES)/core-oj.jar
+    $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart-testdex.jar \
+    $$(TARGET_OUT_JAVA_LIBRARIES)/core-oj-testdex.jar
 
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): test-art-target-sync

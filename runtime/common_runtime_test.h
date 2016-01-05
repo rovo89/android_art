@@ -118,9 +118,6 @@ class CommonRuntimeTest : public testing::Test {
   // initializers, initialize well-known classes, and creates the heap thread pool.
   virtual void FinalizeSetup();
 
-  // Gets the path of the specified dex file for host or target.
-  static std::string GetDexFileName(const std::string& jar_prefix);
-
   std::string GetTestAndroidRoot();
 
   std::string GetTestDexFileName(const char* name);
