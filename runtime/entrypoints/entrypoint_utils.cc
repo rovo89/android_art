@@ -33,7 +33,6 @@
 #include "oat_quick_method_header.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
-#include "ScopedLocalRef.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -118,102 +117,6 @@ mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
   return mirror::Array::Alloc<true>(self, klass, component_count,
                                     klass->GetComponentSizeShift(),
                                     heap->GetCurrentAllocator());
-}
-
-void ThrowStackOverflowError(Thread* self) {
-  if (self->IsHandlingStackOverflow()) {
-    LOG(ERROR) << "Recursive stack overflow.";
-    // We don't fail here because SetStackEndForStackOverflow will print better diagnostics.
-  }
-
-  self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
-  JNIEnvExt* env = self->GetJniEnv();
-  std::string msg("stack size ");
-  msg += PrettySize(self->GetStackSize());
-
-  // Avoid running Java code for exception initialization.
-  // TODO: Checks to make this a bit less brittle.
-
-  std::string error_msg;
-
-  // Allocate an uninitialized object.
-  ScopedLocalRef<jobject> exc(env,
-                              env->AllocObject(WellKnownClasses::java_lang_StackOverflowError));
-  if (exc.get() != nullptr) {
-    // "Initialize".
-    // StackOverflowError -> VirtualMachineError -> Error -> Throwable -> Object.
-    // Only Throwable has "custom" fields:
-    //   String detailMessage.
-    //   Throwable cause (= this).
-    //   List<Throwable> suppressedExceptions (= Collections.emptyList()).
-    //   Object stackState;
-    //   StackTraceElement[] stackTrace;
-    // Only Throwable has a non-empty constructor:
-    //   this.stackTrace = EmptyArray.STACK_TRACE_ELEMENT;
-    //   fillInStackTrace();
-
-    // detailMessage.
-    // TODO: Use String::FromModifiedUTF...?
-    ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg.c_str()));
-    if (s.get() != nullptr) {
-      env->SetObjectField(exc.get(), WellKnownClasses::java_lang_Throwable_detailMessage, s.get());
-
-      // cause.
-      env->SetObjectField(exc.get(), WellKnownClasses::java_lang_Throwable_cause, exc.get());
-
-      // suppressedExceptions.
-      ScopedLocalRef<jobject> emptylist(env, env->GetStaticObjectField(
-          WellKnownClasses::java_util_Collections,
-          WellKnownClasses::java_util_Collections_EMPTY_LIST));
-      CHECK(emptylist.get() != nullptr);
-      env->SetObjectField(exc.get(),
-                          WellKnownClasses::java_lang_Throwable_suppressedExceptions,
-                          emptylist.get());
-
-      // stackState is set as result of fillInStackTrace. fillInStackTrace calls
-      // nativeFillInStackTrace.
-      ScopedLocalRef<jobject> stack_state_val(env, nullptr);
-      {
-        ScopedObjectAccessUnchecked soa(env);
-        stack_state_val.reset(soa.Self()->CreateInternalStackTrace<false>(soa));
-      }
-      if (stack_state_val.get() != nullptr) {
-        env->SetObjectField(exc.get(),
-                            WellKnownClasses::java_lang_Throwable_stackState,
-                            stack_state_val.get());
-
-        // stackTrace.
-        ScopedLocalRef<jobject> stack_trace_elem(env, env->GetStaticObjectField(
-            WellKnownClasses::libcore_util_EmptyArray,
-            WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT));
-        env->SetObjectField(exc.get(),
-                            WellKnownClasses::java_lang_Throwable_stackTrace,
-                            stack_trace_elem.get());
-      } else {
-        error_msg = "Could not create stack trace.";
-      }
-      // Throw the exception.
-      self->SetException(reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
-    } else {
-      // Could not allocate a string object.
-      error_msg = "Couldn't throw new StackOverflowError because JNI NewStringUTF failed.";
-    }
-  } else {
-    error_msg = "Could not allocate StackOverflowError object.";
-  }
-
-  if (!error_msg.empty()) {
-    LOG(WARNING) << error_msg;
-    CHECK(self->IsExceptionPending());
-  }
-
-  bool explicit_overflow_check = Runtime::Current()->ExplicitStackOverflowChecks();
-  self->ResetDefaultStackEnd();  // Return to default stack size.
-
-  // And restore protection if implicit checks are on.
-  if (!explicit_overflow_check) {
-    self->ProtectStack();
-  }
 }
 
 void CheckReferenceResult(mirror::Object* o, Thread* self) {
