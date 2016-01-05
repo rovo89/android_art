@@ -150,100 +150,6 @@ static bool FinishFile(File* file, bool close) {
   }
 }
 
-bool PatchOat::Patch(const std::string& image_location, off_t delta,
-                     File* output_image, InstructionSet isa,
-                     TimingLogger* timings) {
-  CHECK(Runtime::Current() == nullptr);
-  CHECK(output_image != nullptr);
-  CHECK_GE(output_image->Fd(), 0);
-  CHECK(!image_location.empty()) << "image file must have a filename.";
-  CHECK_NE(isa, kNone);
-
-  TimingLogger::ScopedTiming t("Runtime Setup", timings);
-  const char *isa_name = GetInstructionSetString(isa);
-  std::string image_filename;
-  if (!LocationToFilename(image_location, isa, &image_filename)) {
-    LOG(ERROR) << "Unable to find image at location " << image_location;
-    return false;
-  }
-  std::unique_ptr<File> input_image(OS::OpenFileForReading(image_filename.c_str()));
-  if (input_image.get() == nullptr) {
-    LOG(ERROR) << "unable to open input image file at " << image_filename
-               << " for location " << image_location;
-    return false;
-  }
-
-  int64_t image_len = input_image->GetLength();
-  if (image_len < 0) {
-    LOG(ERROR) << "Error while getting image length";
-    return false;
-  }
-  ImageHeader image_header;
-  if (sizeof(image_header) != input_image->Read(reinterpret_cast<char*>(&image_header),
-                                                sizeof(image_header), 0)) {
-    LOG(ERROR) << "Unable to read image header from image file " << input_image->GetPath();
-    return false;
-  }
-
-  if (image_header.GetStorageMode() != ImageHeader::kStorageModeUncompressed) {
-    LOG(ERROR) << "Patchoat is not supported with compressed image files "
-               << input_image->GetPath();
-    return false;
-  }
-
-  /*bool is_image_pic = */IsImagePic(image_header, input_image->GetPath());
-  // Nothing special to do right now since the image always needs to get patched.
-  // Perhaps in some far-off future we may have images with relative addresses that are true-PIC.
-
-  // Set up the runtime
-  RuntimeOptions options;
-  NoopCompilerCallbacks callbacks;
-  options.push_back(std::make_pair("compilercallbacks", &callbacks));
-  std::string img = "-Ximage:" + image_location;
-  options.push_back(std::make_pair(img.c_str(), nullptr));
-  options.push_back(std::make_pair("imageinstructionset", reinterpret_cast<const void*>(isa_name)));
-  options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
-  if (!Runtime::Create(options, false)) {
-    LOG(ERROR) << "Unable to initialize runtime";
-    return false;
-  }
-  // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
-  // give it away now and then switch to a more manageable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-  ScopedObjectAccess soa(Thread::Current());
-
-  t.NewTiming("Image and oat Patching setup");
-  // Create the map where we will write the image patches to.
-  std::string error_msg;
-  std::unique_ptr<MemMap> image(MemMap::MapFile(image_len,
-                                                PROT_READ | PROT_WRITE,
-                                                MAP_PRIVATE,
-                                                input_image->Fd(),
-                                                0,
-                                                /*low_4gb*/false,
-                                                input_image->GetPath().c_str(),
-                                                &error_msg));
-  if (image.get() == nullptr) {
-    LOG(ERROR) << "unable to map image file " << input_image->GetPath() << " : " << error_msg;
-    return false;
-  }
-  // TODO: Support multi-image when patchoat is only patching images. Ever used? b/26317072
-  gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetBootImageSpaces()[0];
-
-  PatchOat p(isa, image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(), delta, timings);
-  t.NewTiming("Patching files");
-  if (!p.PatchImage(true)) {
-    LOG(ERROR) << "Failed to patch image file " << input_image->GetPath();
-    return false;
-  }
-
-  t.NewTiming("Writing files");
-  if (!p.WriteImage(output_image)) {
-    return false;
-  }
-  return true;
-}
-
 bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t delta,
                      File* output_oat, File* output_image, InstructionSet isa,
                      TimingLogger* timings,
@@ -765,8 +671,6 @@ bool PatchOat::InHeap(mirror::Object* o) {
 void PatchOat::PatchVisitor::operator() (mirror::Object* obj, MemberOffset off,
                                          bool is_static_unused ATTRIBUTE_UNUSED) const {
   mirror::Object* referent = obj->GetFieldObject<mirror::Object, kVerifyNone>(off);
-  // TODO: Modify check for multi-image support? b/26317072
-  // DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
   mirror::Object* moved_object = patcher_->RelocatedAddressOfPointer(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
@@ -775,8 +679,7 @@ void PatchOat::PatchVisitor::operator() (mirror::Class* cls ATTRIBUTE_UNUSED,
                                          mirror::Reference* ref) const {
   MemberOffset off = mirror::Reference::ReferentOffset();
   mirror::Object* referent = ref->GetReferent();
-  // TODO: Modify check for multi-image support? b/26317072
-  // DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
+  DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
   mirror::Object* moved_object = patcher_->RelocatedAddressOfPointer(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
@@ -1271,8 +1174,12 @@ static int patchoat(int argc, char **argv) {
   bool have_image_files = have_output_image;
   bool have_oat_files = have_output_oat;
 
-  if (!have_oat_files && !have_image_files) {
-    Usage("Must be patching either an oat or an image file or both.");
+  if (!have_oat_files) {
+    if (have_image_files) {
+      Usage("Cannot patch an image file without an oat file");
+    } else {
+      Usage("Must be patching either an oat file or an image file with an oat file.");
+    }
   }
 
   if (!have_oat_files && !isa_set) {
@@ -1507,10 +1414,6 @@ static int patchoat(int argc, char **argv) {
                           output_oat_fd >= 0,  // was it opened from FD?
                           new_oat_out);
     ret = FinishFile(output_oat.get(), ret);
-  } else if (have_image_files) {
-    TimingLogger::ScopedTiming pt("patch image", &timings);
-    ret = PatchOat::Patch(input_image_location, base_delta, output_image.get(), isa, &timings);
-    ret = FinishFile(output_image.get(), ret);
   } else {
     CHECK(false);
     ret = true;
