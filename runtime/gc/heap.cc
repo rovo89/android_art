@@ -2333,7 +2333,7 @@ void Heap::PreZygoteFork() {
   if (HasZygoteSpace()) {
     return;
   }
-  Runtime::Current()->GetInternTable()->SwapPostZygoteWithPreZygote();
+  Runtime::Current()->GetInternTable()->AddNewTable();
   Runtime::Current()->GetClassLinker()->MoveClassTableToPreZygote();
   VLOG(heap) << "Starting PreZygoteFork";
   // Trim the pages at the end of the non moving space.

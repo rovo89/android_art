@@ -58,33 +58,7 @@ class ImageWriter FINAL {
               bool compile_app_image,
               ImageHeader::StorageMode image_storage_mode,
               const std::vector<const char*> oat_filenames,
-              const std::unordered_map<const DexFile*, const char*>& dex_file_oat_filename_map)
-      : compiler_driver_(compiler_driver),
-        global_image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
-        image_objects_offset_begin_(0),
-        oat_file_(nullptr),
-        compile_pic_(compile_pic),
-        compile_app_image_(compile_app_image),
-        boot_image_space_(nullptr),
-        target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
-        intern_table_bytes_(0u),
-        image_method_array_(ImageHeader::kImageMethodsCount),
-        dirty_methods_(0u),
-        clean_methods_(0u),
-        class_table_bytes_(0u),
-        image_storage_mode_(image_storage_mode),
-        dex_file_oat_filename_map_(dex_file_oat_filename_map),
-        oat_filenames_(oat_filenames),
-        default_oat_filename_(oat_filenames[0]) {
-    CHECK_NE(image_begin, 0U);
-    for (const char* oat_filename : oat_filenames) {
-      image_info_map_.emplace(oat_filename, ImageInfo());
-    }
-    std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
-  }
-
-  ~ImageWriter() {
-  }
+              const std::unordered_map<const DexFile*, const char*>& dex_file_oat_filename_map);
 
   bool PrepareImageAddressSpace();
 
@@ -237,41 +211,36 @@ class ImageWriter FINAL {
   };
 
   struct ImageInfo {
-    explicit ImageInfo()
-        : image_begin_(nullptr),
-          image_end_(RoundUp(sizeof(ImageHeader), kObjectAlignment)),
-          image_roots_address_(0),
-          image_offset_(0),
-          image_size_(0),
-          oat_offset_(0),
-          bin_slot_sizes_(),
-          bin_slot_offsets_(),
-          bin_slot_count_() {}
+    ImageInfo();
+    ImageInfo(ImageInfo&&) = default;
 
     std::unique_ptr<MemMap> image_;  // Memory mapped for generating the image.
 
     // Target begin of this image. Notes: It is not valid to write here, this is the address
     // of the target image, not necessarily where image_ is mapped. The address is only valid
     // after layouting (otherwise null).
-    uint8_t* image_begin_;
+    uint8_t* image_begin_ = nullptr;
 
-    size_t image_end_;  // Offset to the free space in image_, initially size of image header.
-    uint32_t image_roots_address_;  // The image roots address in the image.
-    size_t image_offset_;  // Offset of this image from the start of the first image.
+    // Offset to the free space in image_, initially size of image header.
+    size_t image_end_ = RoundUp(sizeof(ImageHeader), kObjectAlignment);
+    uint32_t image_roots_address_ = 0;  // The image roots address in the image.
+    size_t image_offset_ = 0;  // Offset of this image from the start of the first image.
 
     // Image size is the *address space* covered by this image. As the live bitmap is aligned
     // to the page size, the live bitmap will cover more address space than necessary. But live
     // bitmaps may not overlap, so an image has a "shadow," which is accounted for in the size.
     // The next image may only start at image_begin_ + image_size_ (which is guaranteed to be
     // page-aligned).
-    size_t image_size_;
+    size_t image_size_ = 0;
 
     // Oat data.
-    size_t oat_offset_;  // Offset of the oat file for this image from start of oat files. This is
-                         // valid when the previous oat file has been written.
-    uint8_t* oat_data_begin_;           // Start of oatdata in the corresponding oat file. This is
-                                        // valid when the images have been layed out.
-    size_t oat_size_;                   // Size of the corresponding oat data.
+    // Offset of the oat file for this image from start of oat files. This is
+    // valid when the previous oat file has been written.
+    size_t oat_offset_ = 0;
+    // Start of oatdata in the corresponding oat file. This is
+    // valid when the images have been layed out.
+    uint8_t* oat_data_begin_ = nullptr;
+    size_t oat_size_ = 0;  // Size of the corresponding oat data.
 
     // Image bitmap which lets us know where the objects inside of the image reside.
     std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
@@ -280,12 +249,18 @@ class ImageWriter FINAL {
     SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
 
     // Offset from oat_data_begin_ to the stubs.
-    uint32_t oat_address_offsets_[kOatAddressCount];
+    uint32_t oat_address_offsets_[kOatAddressCount] = {};
 
     // Bin slot tracking for dirty object packing.
-    size_t bin_slot_sizes_[kBinSize];  // Number of bytes in a bin.
-    size_t bin_slot_offsets_[kBinSize];  // Number of bytes in previous bins.
-    size_t bin_slot_count_[kBinSize];  // Number of objects in a bin.
+    size_t bin_slot_sizes_[kBinSize] = {};  // Number of bytes in a bin.
+    size_t bin_slot_offsets_[kBinSize] = {};  // Number of bytes in previous bins.
+    size_t bin_slot_count_[kBinSize] = {};  // Number of objects in a bin.
+
+    // Cached size of the intern table for when we allocate memory.
+    size_t intern_table_bytes_ = 0;
+
+    // Intern table associated with this for serialization.
+    std::unique_ptr<InternTable> intern_table_;
   };
 
   // We use the lock word to store the offset of the object in the image.
@@ -491,9 +466,6 @@ class ImageWriter FINAL {
 
   // Mapping of oat filename to image data.
   std::unordered_map<std::string, ImageInfo> image_info_map_;
-
-  // Cached size of the intern table for when we allocate memory.
-  size_t intern_table_bytes_;
 
   // ArtField, ArtMethod relocating map. These are allocated as array of structs but we want to
   // have one entry per art field for convenience. ArtFields are placed right after the end of the
