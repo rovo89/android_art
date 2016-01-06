@@ -32,7 +32,8 @@
 namespace art {
 
 InternTable::InternTable()
-    : image_added_to_intern_table_(false), log_new_roots_(false),
+    : images_added_to_intern_table_(false),
+      log_new_roots_(false),
       weak_intern_condition_("New intern condition", *Locks::intern_table_lock_),
       weak_root_state_(gc::kWeakRootStateNormal) {
 }
@@ -93,10 +94,10 @@ mirror::String* InternTable::LookupWeak(mirror::String* s) {
   return weak_interns_.Find(s);
 }
 
-void InternTable::SwapPostZygoteWithPreZygote() {
+void InternTable::AddNewTable() {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  weak_interns_.SwapPostZygoteWithPreZygote();
-  strong_interns_.SwapPostZygoteWithPreZygote();
+  weak_interns_.AddNewTable();
+  strong_interns_.AddNewTable();
 }
 
 mirror::String* InternTable::InsertStrong(mirror::String* s) {
@@ -153,41 +154,36 @@ void InternTable::RemoveWeakFromTransaction(mirror::String* s) {
 void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
   CHECK(image_space != nullptr);
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  if (!image_added_to_intern_table_) {
-    const ImageHeader* const header = &image_space->GetImageHeader();
-    // Check if we have the interned strings section.
-    const ImageSection& section = header->GetImageSection(ImageHeader::kSectionInternedStrings);
-    if (section.Size() > 0) {
-      ReadFromMemoryLocked(image_space->Begin() + section.Offset());
-    } else {
-      // TODO: Delete this logic?
-      mirror::Object* root = header->GetImageRoot(ImageHeader::kDexCaches);
-      mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
-      for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
-        mirror::DexCache* dex_cache = dex_caches->Get(i);
-        const size_t num_strings = dex_cache->NumStrings();
-        for (size_t j = 0; j < num_strings; ++j) {
-          mirror::String* image_string = dex_cache->GetResolvedString(j);
-          if (image_string != nullptr) {
-            mirror::String* found = LookupStrong(image_string);
-            if (found == nullptr) {
-              InsertStrong(image_string);
-            } else {
-              DCHECK_EQ(found, image_string);
-            }
+  const ImageHeader* const header = &image_space->GetImageHeader();
+  // Check if we have the interned strings section.
+  const ImageSection& section = header->GetImageSection(ImageHeader::kSectionInternedStrings);
+  if (section.Size() > 0) {
+    AddTableFromMemoryLocked(image_space->Begin() + section.Offset());
+  } else {
+    // TODO: Delete this logic?
+    mirror::Object* root = header->GetImageRoot(ImageHeader::kDexCaches);
+    mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
+    for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
+      mirror::DexCache* dex_cache = dex_caches->Get(i);
+      const size_t num_strings = dex_cache->NumStrings();
+      for (size_t j = 0; j < num_strings; ++j) {
+        mirror::String* image_string = dex_cache->GetResolvedString(j);
+        if (image_string != nullptr) {
+          mirror::String* found = LookupStrong(image_string);
+          if (found == nullptr) {
+            InsertStrong(image_string);
+          } else {
+            DCHECK_EQ(found, image_string);
           }
         }
       }
     }
-    image_added_to_intern_table_ = true;
   }
+  images_added_to_intern_table_ = true;
 }
 
 mirror::String* InternTable::LookupStringFromImage(mirror::String* s) {
-  if (image_added_to_intern_table_) {
-    return nullptr;
-  }
-  std::vector<gc::space::ImageSpace*> image_spaces =
+  const std::vector<gc::space::ImageSpace*>& image_spaces =
       Runtime::Current()->GetHeap()->GetBootImageSpaces();
   if (image_spaces.empty()) {
     return nullptr;  // No image present.
@@ -284,9 +280,11 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
     return weak;
   }
   // Check the image for a match.
-  mirror::String* image = LookupStringFromImage(s);
-  if (image != nullptr) {
-    return is_strong ? InsertStrong(image) : InsertWeak(image);
+  if (!images_added_to_intern_table_) {
+    mirror::String* const image_string = LookupStringFromImage(s);
+    if (image_string != nullptr) {
+      return is_strong ? InsertStrong(image_string) : InsertWeak(image_string);
+    }
   }
   // No match in the strong table or the weak table. Insert into the strong / weak table.
   return is_strong ? InsertStrong(s) : InsertWeak(s);
@@ -326,27 +324,18 @@ void InternTable::SweepInternTableWeaks(IsMarkedVisitor* visitor) {
   weak_interns_.SweepWeaks(visitor);
 }
 
-void InternTable::AddImageInternTable(gc::space::ImageSpace* image_space) {
-  const ImageSection& intern_section = image_space->GetImageHeader().GetImageSection(
-      ImageHeader::kSectionInternedStrings);
-  // Read the string tables from the image.
-  const uint8_t* ptr = image_space->Begin() + intern_section.Offset();
-  const size_t offset = ReadFromMemory(ptr);
-  CHECK_LE(offset, intern_section.Size());
-}
-
-size_t InternTable::ReadFromMemory(const uint8_t* ptr) {
+size_t InternTable::AddTableFromMemory(const uint8_t* ptr) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  return ReadFromMemoryLocked(ptr);
+  return AddTableFromMemoryLocked(ptr);
 }
 
-size_t InternTable::ReadFromMemoryLocked(const uint8_t* ptr) {
-  return strong_interns_.ReadIntoPreZygoteTable(ptr);
+size_t InternTable::AddTableFromMemoryLocked(const uint8_t* ptr) {
+  return strong_interns_.AddTableFromMemory(ptr);
 }
 
 size_t InternTable::WriteToMemory(uint8_t* ptr) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  return strong_interns_.WriteFromPostZygoteTable(ptr);
+  return strong_interns_.WriteToMemory(ptr);
 }
 
 std::size_t InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& root) const {
@@ -364,71 +353,87 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
   return a.Read()->Equals(b.Read());
 }
 
-size_t InternTable::Table::ReadIntoPreZygoteTable(const uint8_t* ptr) {
-  CHECK_EQ(pre_zygote_table_.Size(), 0u);
+size_t InternTable::Table::AddTableFromMemory(const uint8_t* ptr) {
   size_t read_count = 0;
-  pre_zygote_table_ = UnorderedSet(ptr, false /* make copy */, &read_count);
+  UnorderedSet set(ptr, /*make copy*/false, &read_count);
+  // TODO: Disable this for app images if app images have intern tables.
+  static constexpr bool kCheckDuplicates = true;
+  if (kCheckDuplicates) {
+    for (GcRoot<mirror::String>& string : set) {
+      CHECK(Find(string.Read()) == nullptr) << "Already found " << string.Read()->ToModifiedUtf8();
+    }
+  }
+  // Insert at the front since we insert into the back.
+  tables_.insert(tables_.begin(), std::move(set));
   return read_count;
 }
 
-size_t InternTable::Table::WriteFromPostZygoteTable(uint8_t* ptr) {
-  return post_zygote_table_.WriteToMemory(ptr);
+size_t InternTable::Table::WriteToMemory(uint8_t* ptr) {
+  if (tables_.empty()) {
+    return 0;
+  }
+  UnorderedSet* table_to_write;
+  UnorderedSet combined;
+  if (tables_.size() > 1) {
+    table_to_write = &combined;
+    for (UnorderedSet& table : tables_) {
+      for (GcRoot<mirror::String>& string : table) {
+        combined.Insert(string);
+      }
+    }
+  } else {
+    table_to_write = &tables_.back();
+  }
+  return table_to_write->WriteToMemory(ptr);
 }
 
 void InternTable::Table::Remove(mirror::String* s) {
-  auto it = post_zygote_table_.Find(GcRoot<mirror::String>(s));
-  if (it != post_zygote_table_.end()) {
-    post_zygote_table_.Erase(it);
-  } else {
-    it = pre_zygote_table_.Find(GcRoot<mirror::String>(s));
-    DCHECK(it != pre_zygote_table_.end());
-    pre_zygote_table_.Erase(it);
+  for (UnorderedSet& table : tables_) {
+    auto it = table.Find(GcRoot<mirror::String>(s));
+    if (it != table.end()) {
+      table.Erase(it);
+      return;
+    }
   }
+  LOG(FATAL) << "Attempting to remove non-interned string " << s->ToModifiedUtf8();
 }
 
 mirror::String* InternTable::Table::Find(mirror::String* s) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
-  auto it = pre_zygote_table_.Find(GcRoot<mirror::String>(s));
-  if (it != pre_zygote_table_.end()) {
-    return it->Read();
-  }
-  it = post_zygote_table_.Find(GcRoot<mirror::String>(s));
-  if (it != post_zygote_table_.end()) {
-    return it->Read();
+  for (UnorderedSet& table : tables_) {
+    auto it = table.Find(GcRoot<mirror::String>(s));
+    if (it != table.end()) {
+      return it->Read();
+    }
   }
   return nullptr;
 }
 
-void InternTable::Table::SwapPostZygoteWithPreZygote() {
-  if (pre_zygote_table_.Empty()) {
-    std::swap(pre_zygote_table_, post_zygote_table_);
-    VLOG(heap) << "Swapping " << pre_zygote_table_.Size() << " interns to the pre zygote table";
-  } else {
-    // This case happens if read the intern table from the image.
-    VLOG(heap) << "Not swapping due to non-empty pre_zygote_table_";
-  }
+void InternTable::Table::AddNewTable() {
+  tables_.push_back(UnorderedSet());
 }
 
 void InternTable::Table::Insert(mirror::String* s) {
-  // Always insert the post zygote table, this gets swapped when we create the zygote to be the
-  // pre zygote table.
-  post_zygote_table_.Insert(GcRoot<mirror::String>(s));
+  // Always insert the last table, the image tables are before and we avoid inserting into these
+  // to prevent dirty pages.
+  DCHECK(!tables_.empty());
+  tables_.back().Insert(GcRoot<mirror::String>(s));
 }
 
 void InternTable::Table::VisitRoots(RootVisitor* visitor) {
   BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
       visitor, RootInfo(kRootInternedString));
-  for (auto& intern : pre_zygote_table_) {
-    buffered_visitor.VisitRoot(intern);
-  }
-  for (auto& intern : post_zygote_table_) {
-    buffered_visitor.VisitRoot(intern);
+  for (UnorderedSet& table : tables_) {
+    for (auto& intern : table) {
+      buffered_visitor.VisitRoot(intern);
+    }
   }
 }
 
 void InternTable::Table::SweepWeaks(IsMarkedVisitor* visitor) {
-  SweepWeaks(&pre_zygote_table_, visitor);
-  SweepWeaks(&post_zygote_table_, visitor);
+  for (UnorderedSet& table : tables_) {
+    SweepWeaks(&table, visitor);
+  }
 }
 
 void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor) {
@@ -446,7 +451,12 @@ void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor)
 }
 
 size_t InternTable::Table::Size() const {
-  return pre_zygote_table_.Size() + post_zygote_table_.Size();
+  return std::accumulate(tables_.begin(),
+                         tables_.end(),
+                         size_t(0),
+                         [](size_t sum, const UnorderedSet& set) {
+                           return sum + set.Size();
+                         });
 }
 
 void InternTable::ChangeWeakRootState(gc::WeakRootState new_state) {
@@ -464,10 +474,10 @@ void InternTable::ChangeWeakRootStateLocked(gc::WeakRootState new_state) {
 
 InternTable::Table::Table() {
   Runtime* const runtime = Runtime::Current();
-  pre_zygote_table_.SetLoadFactor(runtime->GetHashTableMinLoadFactor(),
-                                  runtime->GetHashTableMaxLoadFactor());
-  post_zygote_table_.SetLoadFactor(runtime->GetHashTableMinLoadFactor(),
-                                   runtime->GetHashTableMaxLoadFactor());
+  // Initial table.
+  tables_.push_back(UnorderedSet());
+  tables_.back().SetLoadFactor(runtime->GetHashTableMinLoadFactor(),
+                               runtime->GetHashTableMaxLoadFactor());
 }
 
 }  // namespace art

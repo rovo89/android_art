@@ -543,8 +543,7 @@ bool Runtime::Start() {
   // Use !IsAotCompiler so that we get test coverage, tests are never the zygote.
   if (!IsAotCompiler()) {
     ScopedObjectAccess soa(self);
-    std::vector<gc::space::ImageSpace*> image_spaces = heap_->GetBootImageSpaces();
-    for (gc::space::ImageSpace* image_space : image_spaces) {
+    for (gc::space::ImageSpace* image_space : heap_->GetBootImageSpaces()) {
       ATRACE_BEGIN("AddImageStringsToTable");
       GetInternTable()->AddImageStringsToTable(image_space);
       ATRACE_END();

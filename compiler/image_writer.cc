@@ -637,7 +637,7 @@ bool ImageWriter::AllocMemory() {
     ImageInfo& image_info = GetImageInfo(oat_filename);
     const size_t length = RoundUp(image_objects_offset_begin_ +
                                   GetBinSizeSum(image_info) +
-                                  intern_table_bytes_ +
+                                  image_info.intern_table_bytes_ +
                                   class_table_bytes_,
                                   kPageSize);
     std::string error_msg;
@@ -909,14 +909,17 @@ void ImageWriter::CalculateObjectBinSlots(Object* obj) {
   DCHECK(obj != nullptr);
   // if it is a string, we want to intern it if its not interned.
   if (obj->GetClass()->IsStringClass()) {
+    const char* oat_filename = GetOatFilename(obj);
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+
     // we must be an interned string that was forward referenced and already assigned
     if (IsImageBinSlotAssigned(obj)) {
-      DCHECK_EQ(obj, obj->AsString()->Intern());
+      DCHECK_EQ(obj, image_info.intern_table_->InternStrongImageString(obj->AsString()));
       return;
     }
     // InternImageString allows us to intern while holding the heap bitmap lock. This is safe since
     // we are guaranteed to not have GC during image writing.
-    mirror::String* const interned = Runtime::Current()->GetInternTable()->InternStrongImageString(
+    mirror::String* const interned = image_info.intern_table_->InternStrongImageString(
         obj->AsString());
     if (obj != interned) {
       if (!IsImageBinSlotAssigned(interned)) {
@@ -1249,6 +1252,15 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // Calculate size of the dex cache arrays slot and prepare offsets.
   PrepareDexCacheArraySlots();
 
+  // Calculate the sizes of the intern tables.
+  for (const char* oat_filename : oat_filenames_) {
+    ImageInfo& image_info = GetImageInfo(oat_filename);
+    // Calculate how big the intern table will be after being serialized.
+    InternTable* const intern_table = image_info.intern_table_.get();
+    CHECK_EQ(intern_table->WeakSize(), 0u) << " should have strong interned all the strings";
+    image_info.intern_table_bytes_ = intern_table->WriteToMemory(nullptr);
+  }
+
   // Calculate bin slot offsets.
   for (const char* oat_filename : oat_filenames_) {
     ImageInfo& image_info = GetImageInfo(oat_filename);
@@ -1279,7 +1291,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
                                   image_info.bin_slot_sizes_[kBinArtMethodDirty] +
                                   image_info.bin_slot_sizes_[kBinArtMethodClean] +
                                   image_info.bin_slot_sizes_[kBinDexCacheArray] +
-                                  intern_table_bytes_ +
+                                  image_info.intern_table_bytes_ +
                                   class_table_bytes_;
     size_t image_objects = RoundUp(image_info.image_end_, kPageSize);
     size_t bitmap_size =
@@ -1310,12 +1322,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
     relocation.offset += image_info.bin_slot_offsets_[bin_type];
   }
 
-  /* TODO: Reenable the intern table and class table. b/26317072
-  // Calculate how big the intern table will be after being serialized.
-  InternTable* const intern_table = runtime->GetInternTable();
-  CHECK_EQ(intern_table->WeakSize(), 0u) << " should have strong interned all the strings";
-  intern_table_bytes_ = intern_table->WriteToMemory(nullptr);
-
+  /* TODO: Reenable the class table. b/26317072
   // Write out the class table.
   ClassLinker* class_linker = runtime->GetClassLinker();
   if (boot_image_space_ == nullptr) {
@@ -1378,7 +1385,7 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
   // Calculate the size of the interned strings.
   auto* interned_strings_section = &sections[ImageHeader::kSectionInternedStrings];
-  *interned_strings_section = ImageSection(cur_pos, intern_table_bytes_);
+  *interned_strings_section = ImageSection(cur_pos, image_info.intern_table_bytes_);
   cur_pos = interned_strings_section->End();
   // Round up to the alignment the class table expects. See HashSet::WriteToMemory.
   cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
@@ -1444,7 +1451,7 @@ class FixupRootVisitor : public RootVisitor {
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
-      *roots[i] = ImageAddress(*roots[i]);
+      *roots[i] = image_writer_->GetImageAddress(*roots[i]);
     }
   }
 
@@ -1452,19 +1459,12 @@ class FixupRootVisitor : public RootVisitor {
                   const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
-      roots[i]->Assign(ImageAddress(roots[i]->AsMirrorPtr()));
+      roots[i]->Assign(image_writer_->GetImageAddress(roots[i]->AsMirrorPtr()));
     }
   }
 
  private:
   ImageWriter* const image_writer_;
-
-  mirror::Object* ImageAddress(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
-    const size_t offset = image_writer_->GetImageOffset(obj);
-    auto* const dest = reinterpret_cast<Object*>(image_writer_->global_image_begin_ + offset);
-    VLOG(compiler) << "Update root from " << obj << " to " << dest;
-    return dest;
-  }
 };
 
 void ImageWriter::CopyAndFixupNativeData() {
@@ -1536,26 +1536,26 @@ void ImageWriter::CopyAndFixupNativeData() {
   }
   FixupRootVisitor root_visitor(this);
 
-  /* TODO: Reenable the intern table and class table
   // Write the intern table into the image.
-  const ImageSection& intern_table_section = image_header->GetImageSection(
-      ImageHeader::kSectionInternedStrings);
-  Runtime* const runtime = Runtime::Current();
-  InternTable* const intern_table = runtime->GetInternTable();
-  uint8_t* const intern_table_memory_ptr =
-      image_info.image_->Begin() + intern_table_section.Offset();
-  const size_t intern_table_bytes = intern_table->WriteToMemory(intern_table_memory_ptr);
-  CHECK_EQ(intern_table_bytes, intern_table_bytes_);
-  // Fixup the pointers in the newly written intern table to contain image addresses.
-  InternTable temp_intern_table;
-  // Note that we require that ReadFromMemory does not make an internal copy of the elements so that
-  // the VisitRoots() will update the memory directly rather than the copies.
-  // This also relies on visit roots not doing any verification which could fail after we update
-  // the roots to be the image addresses.
-  temp_intern_table.ReadFromMemory(intern_table_memory_ptr);
-  CHECK_EQ(temp_intern_table.Size(), intern_table->Size());
-  temp_intern_table.VisitRoots(&root_visitor, kVisitRootFlagAllRoots);
-
+  if (image_info.intern_table_bytes_ > 0) {
+    const ImageSection& intern_table_section = image_header->GetImageSection(
+        ImageHeader::kSectionInternedStrings);
+    InternTable* const intern_table = image_info.intern_table_.get();
+    uint8_t* const intern_table_memory_ptr =
+        image_info.image_->Begin() + intern_table_section.Offset();
+    const size_t intern_table_bytes = intern_table->WriteToMemory(intern_table_memory_ptr);
+    CHECK_EQ(intern_table_bytes, image_info.intern_table_bytes_);
+    // Fixup the pointers in the newly written intern table to contain image addresses.
+    InternTable temp_intern_table;
+    // Note that we require that ReadFromMemory does not make an internal copy of the elements so that
+    // the VisitRoots() will update the memory directly rather than the copies.
+    // This also relies on visit roots not doing any verification which could fail after we update
+    // the roots to be the image addresses.
+    temp_intern_table.AddTableFromMemory(intern_table_memory_ptr);
+    CHECK_EQ(temp_intern_table.Size(), intern_table->Size());
+    temp_intern_table.VisitRoots(&root_visitor, kVisitRootFlagAllRoots);
+  }
+  /* TODO: Reenable the class table writing.
   // Write the class table(s) into the image. class_table_bytes_ may be 0 if there are multiple
   // class loaders. Writing multiple class tables into the image is currently unsupported.
   if (class_table_bytes_ > 0u) {
@@ -2110,7 +2110,6 @@ uint32_t ImageWriter::BinSlot::GetIndex() const {
 }
 
 uint8_t* ImageWriter::GetOatFileBegin(const char* oat_filename) const {
-  // DCHECK_GT(intern_table_bytes_, 0u);  TODO: Reenable intern table and class table.
   uintptr_t last_image_end = 0;
   for (const char* oat_fn : oat_filenames_) {
     const ImageInfo& image_info = GetConstImageInfo(oat_fn);
@@ -2196,5 +2195,38 @@ void ImageWriter::UpdateOatFile(const char* oat_filename) {
     next_image_info.oat_offset_ = cur_image_info.oat_offset_ + oat_loaded_size;
   }
 }
+
+ImageWriter::ImageWriter(
+    const CompilerDriver& compiler_driver,
+    uintptr_t image_begin,
+    bool compile_pic,
+    bool compile_app_image,
+    ImageHeader::StorageMode image_storage_mode,
+    const std::vector<const char*> oat_filenames,
+    const std::unordered_map<const DexFile*, const char*>& dex_file_oat_filename_map)
+    : compiler_driver_(compiler_driver),
+      global_image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
+      image_objects_offset_begin_(0),
+      oat_file_(nullptr),
+      compile_pic_(compile_pic),
+      compile_app_image_(compile_app_image),
+      boot_image_space_(nullptr),
+      target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
+      image_method_array_(ImageHeader::kImageMethodsCount),
+      dirty_methods_(0u),
+      clean_methods_(0u),
+      class_table_bytes_(0u),
+      image_storage_mode_(image_storage_mode),
+      dex_file_oat_filename_map_(dex_file_oat_filename_map),
+      oat_filenames_(oat_filenames),
+      default_oat_filename_(oat_filenames[0]) {
+  CHECK_NE(image_begin, 0U);
+  for (const char* oat_filename : oat_filenames) {
+    image_info_map_.emplace(oat_filename, ImageInfo());
+  }
+  std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
+}
+
+ImageWriter::ImageInfo::ImageInfo() : intern_table_(new InternTable) {}
 
 }  // namespace art
