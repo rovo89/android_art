@@ -56,6 +56,7 @@ class SsaBuilder : public HGraphVisitor {
         current_locals_(nullptr),
         loop_headers_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
         ambiguous_agets_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
+        ambiguous_asets_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
         locals_for_(graph->GetBlocks().size(),
                     ArenaVector<HInstruction*>(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
                     graph->GetArena()->Adapter(kArenaAllocSsaBuilder)) {
@@ -75,6 +76,7 @@ class SsaBuilder : public HGraphVisitor {
   void VisitInstruction(HInstruction* instruction);
   void VisitTemporary(HTemporary* instruction);
   void VisitArrayGet(HArrayGet* aget);
+  void VisitArraySet(HArraySet* aset);
 
   static constexpr const char* kSsaBuilderPassName = "ssa_builder";
 
@@ -85,10 +87,10 @@ class SsaBuilder : public HGraphVisitor {
   void EquivalentPhisCleanup();
   void RunPrimitiveTypePropagation();
 
-  // Attempts to resolve types of aget and aget-wide instructions from reference
-  // type information on the input array. Returns false if the type of the array
-  // is unknown.
-  bool FixAmbiguousArrayGets();
+  // Attempts to resolve types of aget(-wide) instructions and type values passed
+  // to aput(-wide) instructions from reference type information on the array
+  // input. Returns false if the type of an array is unknown.
+  bool FixAmbiguousArrayOps();
 
   bool TypeInputsOfPhi(HPhi* phi, ArenaVector<HPhi*>* worklist);
   bool UpdatePrimitiveType(HPhi* phi, ArenaVector<HPhi*>* worklist);
@@ -115,6 +117,7 @@ class SsaBuilder : public HGraphVisitor {
   ArenaVector<HBasicBlock*> loop_headers_;
 
   ArenaVector<HArrayGet*> ambiguous_agets_;
+  ArenaVector<HArraySet*> ambiguous_asets_;
 
   // HEnvironment for each block.
   ArenaVector<ArenaVector<HInstruction*>> locals_for_;

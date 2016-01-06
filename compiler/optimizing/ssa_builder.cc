@@ -317,27 +317,15 @@ static HArrayGet* CreateFloatOrDoubleEquivalentOfArrayGet(HArrayGet* aget) {
   return equivalent;
 }
 
-// Returns true if the array input of `aget` is either of type int[] or long[].
-// Should only be called on ArrayGets with ambiguous type (int/float, long/double)
-// on arrays which were typed to an array class by RTP.
-static bool IsArrayGetOnIntegralArray(HArrayGet* aget) SHARED_REQUIRES(Locks::mutator_lock_) {
-  ReferenceTypeInfo array_type = aget->GetArray()->GetReferenceTypeInfo();
+static Primitive::Type GetPrimitiveArrayComponentType(HInstruction* array)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  ReferenceTypeInfo array_type = array->GetReferenceTypeInfo();
   DCHECK(array_type.IsPrimitiveArrayClass());
-  ReferenceTypeInfo::TypeHandle array_type_handle = array_type.GetTypeHandle();
-
-  bool is_integral_type;
-  if (Primitive::Is64BitType(aget->GetType())) {
-    is_integral_type = array_type_handle->GetComponentType()->IsPrimitiveLong();
-    DCHECK(is_integral_type || array_type_handle->GetComponentType()->IsPrimitiveDouble());
-  } else {
-    is_integral_type = array_type_handle->GetComponentType()->IsPrimitiveInt();
-    DCHECK(is_integral_type || array_type_handle->GetComponentType()->IsPrimitiveFloat());
-  }
-  return is_integral_type;
+  return array_type.GetTypeHandle()->GetComponentType()->GetPrimitiveType();
 }
 
-bool SsaBuilder::FixAmbiguousArrayGets() {
-  if (ambiguous_agets_.empty()) {
+bool SsaBuilder::FixAmbiguousArrayOps() {
+  if (ambiguous_agets_.empty() && ambiguous_asets_.empty()) {
     return true;
   }
 
@@ -351,13 +339,17 @@ bool SsaBuilder::FixAmbiguousArrayGets() {
     ScopedObjectAccess soa(Thread::Current());
 
     for (HArrayGet* aget_int : ambiguous_agets_) {
-      if (!aget_int->GetArray()->GetReferenceTypeInfo().IsPrimitiveArrayClass()) {
+      HInstruction* array = aget_int->GetArray();
+      if (!array->GetReferenceTypeInfo().IsPrimitiveArrayClass()) {
         // RTP did not type the input array. Bail.
         return false;
       }
 
       HArrayGet* aget_float = FindFloatOrDoubleEquivalentOfArrayGet(aget_int);
-      if (IsArrayGetOnIntegralArray(aget_int)) {
+      Primitive::Type array_type = GetPrimitiveArrayComponentType(array);
+      DCHECK_EQ(Primitive::Is64BitType(aget_int->GetType()), Primitive::Is64BitType(array_type));
+
+      if (Primitive::IsIntOrLongType(array_type)) {
         if (aget_float != nullptr) {
           // There is a float/double equivalent. We must replace it and re-run
           // primitive type propagation on all dependent instructions.
@@ -366,6 +358,7 @@ bool SsaBuilder::FixAmbiguousArrayGets() {
           AddDependentInstructionsToWorklist(aget_int, &worklist);
         }
       } else {
+        DCHECK(Primitive::IsFloatingPointType(array_type));
         if (aget_float == nullptr) {
           // This is a float/double ArrayGet but there were no typed uses which
           // would create the typed equivalent. Create it now.
@@ -379,11 +372,47 @@ bool SsaBuilder::FixAmbiguousArrayGets() {
         AddDependentInstructionsToWorklist(aget_float, &worklist);
       }
     }
-  }
 
-  // Set a flag stating that types of ArrayGets have been resolved. This is used
-  // by GetFloatOrDoubleEquivalentOfArrayGet to report conflict.
-  agets_fixed_ = true;
+    // Set a flag stating that types of ArrayGets have been resolved. Requesting
+    // equivalent of the wrong type with GetFloatOrDoubleEquivalentOfArrayGet
+    // will fail from now on.
+    agets_fixed_ = true;
+
+    for (HArraySet* aset : ambiguous_asets_) {
+      HInstruction* array = aset->GetArray();
+      if (!array->GetReferenceTypeInfo().IsPrimitiveArrayClass()) {
+        // RTP did not type the input array. Bail.
+        return false;
+      }
+
+      HInstruction* value = aset->GetValue();
+      Primitive::Type value_type = value->GetType();
+      Primitive::Type array_type = GetPrimitiveArrayComponentType(array);
+      DCHECK_EQ(Primitive::Is64BitType(value_type), Primitive::Is64BitType(array_type));
+
+      if (Primitive::IsFloatingPointType(array_type)) {
+        if (!Primitive::IsFloatingPointType(value_type)) {
+          DCHECK(Primitive::IsIntegralType(value_type));
+          // Array elements are floating-point but the value has not been replaced
+          // with its floating-point equivalent. The replacement must always
+          // succeed in code validated by the verifier.
+          HInstruction* equivalent = GetFloatOrDoubleEquivalent(value, array_type);
+          DCHECK(equivalent != nullptr);
+          aset->ReplaceInput(equivalent, /* input_index */ 2);
+          if (equivalent->IsPhi()) {
+            // Returned equivalent is a phi which may not have had its inputs
+            // replaced yet. We need to run primitive type propagation on it.
+            worklist.push_back(equivalent->AsPhi());
+          }
+        }
+      } else {
+        // Array elements are integral and the value assigned to it initially
+        // was integral too. Nothing to do.
+        DCHECK(Primitive::IsIntegralType(array_type));
+        DCHECK(Primitive::IsIntegralType(value_type));
+      }
+    }
+  }
 
   if (!worklist.empty()) {
     ProcessPrimitiveTypePropagationWorklist(&worklist);
@@ -429,10 +458,11 @@ BuildSsaResult SsaBuilder::BuildSsa() {
   ReferenceTypePropagation(GetGraph(), handles_).Run();
 
   // 7) Step 1) duplicated ArrayGet instructions with ambiguous type (int/float
-  // or long/double). Now that RTP computed the type of the array input, the
-  // ambiguity can be resolved and the correct equivalent kept.
-  if (!FixAmbiguousArrayGets()) {
-    return kBuildSsaFailAmbiguousArrayGet;
+  // or long/double) and marked ArraySets with ambiguous input type. Now that RTP
+  // computed the type of the array input, the ambiguity can be resolved and the
+  // correct equivalents kept.
+  if (!FixAmbiguousArrayOps()) {
+    return kBuildSsaFailAmbiguousArrayOp;
   }
 
   // 8) Mark dead phis. This will mark phis which are not used by instructions
@@ -702,7 +732,7 @@ HArrayGet* SsaBuilder::GetFloatOrDoubleEquivalentOfArrayGet(HArrayGet* aget) {
     // int/long. Requesting a float/double equivalent should lead to a conflict.
     if (kIsDebugBuild) {
       ScopedObjectAccess soa(Thread::Current());
-      DCHECK(IsArrayGetOnIntegralArray(aget));
+      DCHECK(Primitive::IsIntOrLongType(GetPrimitiveArrayComponentType(aget->GetArray())));
     }
     return nullptr;
   } else {
@@ -845,6 +875,14 @@ void SsaBuilder::VisitArrayGet(HArrayGet* aget) {
     ambiguous_agets_.push_back(aget);
   }
   VisitInstruction(aget);
+}
+
+void SsaBuilder::VisitArraySet(HArraySet* aset) {
+  Primitive::Type type = aset->GetValue()->GetType();
+  if (Primitive::IsIntOrLongType(type)) {
+    ambiguous_asets_.push_back(aset);
+  }
+  VisitInstruction(aset);
 }
 
 }  // namespace art
