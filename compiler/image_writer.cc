@@ -635,11 +635,11 @@ ImageWriter::BinSlot ImageWriter::GetImageBinSlot(mirror::Object* object) const 
 bool ImageWriter::AllocMemory() {
   for (const char* oat_filename : oat_filenames_) {
     ImageInfo& image_info = GetImageInfo(oat_filename);
-    const size_t length = RoundUp(image_objects_offset_begin_ +
-                                  GetBinSizeSum(image_info) +
-                                  image_info.intern_table_bytes_ +
-                                  class_table_bytes_,
-                                  kPageSize);
+    ImageSection unused_sections[ImageHeader::kSectionCount];
+    const size_t length = RoundUp(
+        image_info.CreateImageSections(target_ptr_size_, unused_sections),
+        kPageSize);
+
     std::string error_msg;
     image_info.image_.reset(MemMap::MapAnonymous("image writer image",
                                                  nullptr,
@@ -1287,18 +1287,11 @@ void ImageWriter::CalculateNewObjectOffsets() {
     ImageInfo& image_info = GetImageInfo(oat_filename);
     image_info.image_begin_ = global_image_begin_ + image_offset;
     image_info.image_offset_ = image_offset;
-    size_t native_sections_size = image_info.bin_slot_sizes_[kBinArtField] +
-                                  image_info.bin_slot_sizes_[kBinArtMethodDirty] +
-                                  image_info.bin_slot_sizes_[kBinArtMethodClean] +
-                                  image_info.bin_slot_sizes_[kBinDexCacheArray] +
-                                  image_info.intern_table_bytes_ +
-                                  class_table_bytes_;
-    size_t image_objects = RoundUp(image_info.image_end_, kPageSize);
-    size_t bitmap_size =
-        RoundUp(gc::accounting::ContinuousSpaceBitmap::ComputeBitmapSize(image_objects), kPageSize);
-    size_t heap_size = gc::accounting::ContinuousSpaceBitmap::ComputeHeapSize(bitmap_size);
-    size_t max = std::max(heap_size, image_info.image_end_ + native_sections_size + bitmap_size);
-    image_info.image_size_ = RoundUp(max, kPageSize);
+    ImageSection unused_sections[ImageHeader::kSectionCount];
+    image_info.image_size_ = RoundUp(
+        image_info.CreateImageSections(target_ptr_size_, unused_sections),
+        kPageSize);
+    // There should be no gaps until the next image.
     image_offset += image_info.image_size_;
   }
 
@@ -1346,6 +1339,49 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // Note that image_info.image_end_ is left at end of used mirror object section.
 }
 
+size_t ImageWriter::ImageInfo::CreateImageSections(size_t target_ptr_size,
+                                                   ImageSection* out_sections) const {
+  DCHECK(out_sections != nullptr);
+  // Objects section
+  auto* objects_section = &out_sections[ImageHeader::kSectionObjects];
+  *objects_section = ImageSection(0u, image_end_);
+  size_t cur_pos = objects_section->End();
+  // Add field section.
+  auto* field_section = &out_sections[ImageHeader::kSectionArtFields];
+  *field_section = ImageSection(cur_pos, bin_slot_sizes_[kBinArtField]);
+  CHECK_EQ(bin_slot_offsets_[kBinArtField], field_section->Offset());
+  cur_pos = field_section->End();
+  // Round up to the alignment the required by the method section.
+  cur_pos = RoundUp(cur_pos, ArtMethod::Alignment(target_ptr_size));
+  // Add method section.
+  auto* methods_section = &out_sections[ImageHeader::kSectionArtMethods];
+  *methods_section = ImageSection(cur_pos,
+                                  bin_slot_sizes_[kBinArtMethodClean] +
+                                      bin_slot_sizes_[kBinArtMethodDirty]);
+  CHECK_EQ(bin_slot_offsets_[kBinArtMethodClean], methods_section->Offset());
+  cur_pos = methods_section->End();
+  // Add dex cache arrays section.
+  auto* dex_cache_arrays_section = &out_sections[ImageHeader::kSectionDexCacheArrays];
+  *dex_cache_arrays_section = ImageSection(cur_pos, bin_slot_sizes_[kBinDexCacheArray]);
+  CHECK_EQ(bin_slot_offsets_[kBinDexCacheArray], dex_cache_arrays_section->Offset());
+  cur_pos = dex_cache_arrays_section->End();
+  // Round up to the alignment the string table expects. See HashSet::WriteToMemory.
+  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
+  // Calculate the size of the interned strings.
+  auto* interned_strings_section = &out_sections[ImageHeader::kSectionInternedStrings];
+  *interned_strings_section = ImageSection(cur_pos, intern_table_bytes_);
+  cur_pos = interned_strings_section->End();
+  // Round up to the alignment the class table expects. See HashSet::WriteToMemory.
+  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
+  // Calculate the size of the class table section.
+  auto* class_table_section = &out_sections[ImageHeader::kSectionClassTable];
+  // TODO: class_table_bytes_
+  *class_table_section = ImageSection(cur_pos, 0u);
+  cur_pos = class_table_section->End();
+  // Image end goes right before the start of the image bitmap.
+  return cur_pos;
+}
+
 void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_NE(0U, oat_loaded_size);
   const char* oat_filename = oat_file_->GetLocation().c_str();
@@ -1358,48 +1394,12 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
 
   // Create the image sections.
   ImageSection sections[ImageHeader::kSectionCount];
-  // Objects section
-  auto* objects_section = &sections[ImageHeader::kSectionObjects];
-  *objects_section = ImageSection(0u, image_info.image_end_);
-  size_t cur_pos = objects_section->End();
-  // Add field section.
-  auto* field_section = &sections[ImageHeader::kSectionArtFields];
-  *field_section = ImageSection(cur_pos, image_info.bin_slot_sizes_[kBinArtField]);
-  CHECK_EQ(image_info.bin_slot_offsets_[kBinArtField], field_section->Offset());
-  cur_pos = field_section->End();
-  // Round up to the alignment the required by the method section.
-  cur_pos = RoundUp(cur_pos, ArtMethod::Alignment(target_ptr_size_));
-  // Add method section.
-  auto* methods_section = &sections[ImageHeader::kSectionArtMethods];
-  *methods_section = ImageSection(cur_pos,
-                                  image_info.bin_slot_sizes_[kBinArtMethodClean] +
-                                      image_info.bin_slot_sizes_[kBinArtMethodDirty]);
-  CHECK_EQ(image_info.bin_slot_offsets_[kBinArtMethodClean], methods_section->Offset());
-  cur_pos = methods_section->End();
-  // Add dex cache arrays section.
-  auto* dex_cache_arrays_section = &sections[ImageHeader::kSectionDexCacheArrays];
-  *dex_cache_arrays_section = ImageSection(cur_pos, image_info.bin_slot_sizes_[kBinDexCacheArray]);
-  CHECK_EQ(image_info.bin_slot_offsets_[kBinDexCacheArray], dex_cache_arrays_section->Offset());
-  cur_pos = dex_cache_arrays_section->End();
-  // Round up to the alignment the string table expects. See HashSet::WriteToMemory.
-  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
-  // Calculate the size of the interned strings.
-  auto* interned_strings_section = &sections[ImageHeader::kSectionInternedStrings];
-  *interned_strings_section = ImageSection(cur_pos, image_info.intern_table_bytes_);
-  cur_pos = interned_strings_section->End();
-  // Round up to the alignment the class table expects. See HashSet::WriteToMemory.
-  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
-  // Calculate the size of the class table section.
-  auto* class_table_section = &sections[ImageHeader::kSectionClassTable];
-  *class_table_section = ImageSection(cur_pos, class_table_bytes_);
-  cur_pos = class_table_section->End();
-  // Image end goes right before the start of the image bitmap.
-  const size_t image_end = static_cast<uint32_t>(cur_pos);
+  const size_t image_end = image_info.CreateImageSections(target_ptr_size_, sections);
+
   // Finally bitmap section.
   const size_t bitmap_bytes = image_info.image_bitmap_->Size();
   auto* bitmap_section = &sections[ImageHeader::kSectionImageBitmap];
-  *bitmap_section = ImageSection(RoundUp(cur_pos, kPageSize), RoundUp(bitmap_bytes, kPageSize));
-  cur_pos = bitmap_section->End();
+  *bitmap_section = ImageSection(RoundUp(image_end, kPageSize), RoundUp(bitmap_bytes, kPageSize));
   if (VLOG_IS_ON(compiler)) {
     LOG(INFO) << "Creating header for " << oat_filename;
     size_t idx = 0;
