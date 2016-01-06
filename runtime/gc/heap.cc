@@ -571,15 +571,19 @@ Heap::Heap(size_t initial_size,
     // Check that there's no gap between the image space and the non moving space so that the
     // immune region won't break (eg. due to a large object allocated in the gap). This is only
     // required when we're the zygote or using GSS.
-    /* TODO: Modify this check to support multi-images. b/26317072
-    bool no_gap = MemMap::CheckNoGaps(GetBootImageSpace()->GetMemMap(),
-                                      non_moving_space_->GetMemMap());
+    // Space with smallest Begin().
+    space::ImageSpace* first_space = nullptr;
+    for (space::ImageSpace* space : boot_image_spaces_) {
+      if (first_space == nullptr || space->Begin() < first_space->Begin()) {
+        first_space = space;
+      }
+    }
+    bool no_gap = MemMap::CheckNoGaps(first_space->GetMemMap(), non_moving_space_->GetMemMap());
     if (!no_gap) {
       PrintFileToLog("/proc/self/maps", LogSeverity::ERROR);
       MemMap::DumpMaps(LOG(ERROR), true);
       LOG(FATAL) << "There's a gap between the image space and the non-moving space";
     }
-    */
   }
   instrumentation::Instrumentation* const instrumentation = runtime->GetInstrumentation();
   if (gc_stress_mode_) {
