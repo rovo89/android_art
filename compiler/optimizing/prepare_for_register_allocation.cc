@@ -96,7 +96,7 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
     if (can_merge_with_load_class && !load_class->HasUses()) {
       load_class->GetBlock()->RemoveInstruction(load_class);
     }
-  } else if (can_merge_with_load_class) {
+  } else if (can_merge_with_load_class && !load_class->NeedsAccessCheck()) {
     // Pass the initialization duty to the `HLoadClass` instruction,
     // and remove the instruction from the graph.
     load_class->SetMustGenerateClinitCheck(true);
