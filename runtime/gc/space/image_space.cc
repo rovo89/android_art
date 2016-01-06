@@ -47,13 +47,15 @@ ImageSpace::ImageSpace(const std::string& image_filename,
                        const char* image_location,
                        MemMap* mem_map,
                        accounting::ContinuousSpaceBitmap* live_bitmap,
-                       uint8_t* end,
-                       MemMap* shadow_map)
-    : MemMapSpace(image_filename, mem_map, mem_map->Begin(), end, end,
+                       uint8_t* end)
+    : MemMapSpace(image_filename,
+                  mem_map,
+                  mem_map->Begin(),
+                  end,
+                  end,
                   kGcRetentionPolicyNeverCollect),
       oat_file_non_owned_(nullptr),
-      image_location_(image_location),
-      shadow_map_(shadow_map) {
+      image_location_(image_location) {
   DCHECK(live_bitmap != nullptr);
   live_bitmap_.reset(live_bitmap);
 }
@@ -800,52 +802,17 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   uint32_t bitmap_index = bitmap_index_.FetchAndAddSequentiallyConsistent(1);
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_filename,
                                        bitmap_index));
+  // Bitmap only needs to cover until the end of the mirror objects section.
+  const ImageSection& image_objects = image_header.GetImageSection(ImageHeader::kSectionObjects);
   std::unique_ptr<accounting::ContinuousSpaceBitmap> bitmap(
       accounting::ContinuousSpaceBitmap::CreateFromMemMap(
           bitmap_name,
           image_bitmap_map.release(),
           reinterpret_cast<uint8_t*>(map->Begin()),
-          accounting::ContinuousSpaceBitmap::ComputeHeapSize(bitmap_section.Size())));
+          image_objects.End()));
   if (bitmap == nullptr) {
     *error_msg = StringPrintf("Could not create bitmap '%s'", bitmap_name.c_str());
     return nullptr;
-  }
-
-  // In case of multi-images, the images are spaced apart so that the bitmaps don't overlap. We
-  // need to reserve the slack, as otherwise the large object space might allocate in there.
-  // TODO: Reconsider the multi-image layout. b/26317072
-  std::unique_ptr<MemMap> shadow_map;
-  {
-    uintptr_t image_begin = reinterpret_cast<uintptr_t>(image_header.GetImageBegin());
-    uintptr_t image_end = RoundUp(image_begin + image_header.GetImageSize(), kPageSize);
-    uintptr_t oat_begin = reinterpret_cast<uintptr_t>(image_header.GetOatFileBegin());
-    if (image_end < oat_begin) {
-      // There's a gap. Could be multi-image, could be the oat file spaced apart. Go ahead and
-      // dummy-reserve the space covered by the bitmap (which will be a shadow that introduces
-      // a gap to the next image).
-      uintptr_t heap_size = bitmap->HeapSize();
-      uintptr_t bitmap_coverage_end = RoundUp(image_begin + heap_size, kPageSize);
-      if (bitmap_coverage_end > image_end) {
-        VLOG(startup) << "Reserving bitmap shadow ["
-                      << std::hex << image_end << ";"
-                      << std::hex << bitmap_coverage_end << ";] (oat file begins at "
-                      << std::hex << oat_begin;
-        // Note: we cannot use MemMap::Dummy here, as that won't reserve the space in 32-bit mode.
-        shadow_map.reset(MemMap::MapAnonymous("Image bitmap shadow",
-                                              reinterpret_cast<uint8_t*>(image_end),
-                                              bitmap_coverage_end - image_end,
-                                              PROT_NONE,
-                                              false,
-                                              false,
-                                              error_msg));
-        if (shadow_map == nullptr) {
-          return nullptr;
-        }
-        // madvise it away, we don't really want it, just reserve the address space.
-        // TODO: Should we use MadviseDontNeedAndZero? b/26317072
-        madvise(shadow_map->BaseBegin(), shadow_map->BaseSize(), MADV_DONTNEED);
-      }
-    }
   }
 
   // We only want the mirror object, not the ArtFields and ArtMethods.
@@ -855,8 +822,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
                                                    image_location,
                                                    map.release(),
                                                    bitmap.release(),
-                                                   image_end,
-                                                   shadow_map.release()));
+                                                   image_end));
 
   // VerifyImageAllocations() will be called later in Runtime::Init()
   // as some class roots like ArtMethod::java_lang_reflect_ArtMethod_

@@ -171,8 +171,7 @@ class ImageSpace : public MemMapSpace {
              const char* image_location,
              MemMap* mem_map,
              accounting::ContinuousSpaceBitmap* live_bitmap,
-             uint8_t* end,
-             MemMap* shadow_map = nullptr);
+             uint8_t* end);
 
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to
@@ -184,10 +183,6 @@ class ImageSpace : public MemMapSpace {
   const OatFile* oat_file_non_owned_;
 
   const std::string image_location_;
-
-  // A MemMap reserving the space of the bitmap "shadow," so that we don't allocate into it. Only
-  // used in the multi-image case.
-  std::unique_ptr<MemMap> shadow_map_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
