@@ -214,6 +214,10 @@ class ImageWriter FINAL {
     ImageInfo();
     ImageInfo(ImageInfo&&) = default;
 
+    // Create the image sections into the out sections variable, returns the size of the image
+    // excluding the bitmap.
+    size_t CreateImageSections(size_t target_ptr_size, ImageSection* out_sections) const;
+
     std::unique_ptr<MemMap> image_;  // Memory mapped for generating the image.
 
     // Target begin of this image. Notes: It is not valid to write here, this is the address
