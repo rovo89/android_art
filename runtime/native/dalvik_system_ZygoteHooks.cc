@@ -65,6 +65,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     DEBUG_ENABLE_SAFEMODE           = 1 << 3,
     DEBUG_ENABLE_JNI_LOGGING        = 1 << 4,
     DEBUG_GENERATE_DEBUG_INFO       = 1 << 5,
+    DEBUG_ALWAYS_JIT                = 1 << 6,
   };
 
   Runtime* const runtime = Runtime::Current();
@@ -108,6 +109,13 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
 
   // This is for backwards compatibility with Dalvik.
   debug_flags &= ~DEBUG_ENABLE_ASSERT;
+
+  if ((debug_flags & DEBUG_ALWAYS_JIT) != 0) {
+    jit::JitOptions* jit_options = runtime->GetJITOptions();
+    CHECK(jit_options != nullptr);
+    jit_options->SetJitAtFirstUse();
+    debug_flags &= ~DEBUG_ALWAYS_JIT;
+  }
 
   if (debug_flags != 0) {
     LOG(ERROR) << StringPrintf("Unknown bits set in debug_flags: %#x", debug_flags);

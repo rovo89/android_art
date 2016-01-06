@@ -518,10 +518,10 @@ static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame)
         Dbg::IsForcedInterpreterNeededForCalling(self, target);
 }
 
-static void ArtInterpreterToCompiledCodeBridge(Thread* self,
-                                               const DexFile::CodeItem* code_item,
-                                               ShadowFrame* shadow_frame,
-                                               JValue* result)
+void ArtInterpreterToCompiledCodeBridge(Thread* self,
+                                        const DexFile::CodeItem* code_item,
+                                        ShadowFrame* shadow_frame,
+                                        JValue* result)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
