@@ -921,4 +921,16 @@ void SSAChecker::VisitConstant(HConstant* instruction) {
   }
 }
 
+void SSAChecker::VisitBoundType(HBoundType* instruction) {
+  VisitInstruction(instruction);
+
+  ScopedObjectAccess soa(Thread::Current());
+  if (!instruction->GetUpperBound().IsValid()) {
+    AddError(StringPrintf(
+        "%s %d does not have a valid upper bound RTI.",
+        instruction->DebugName(),
+        instruction->GetId()));
+  }
+}
+
 }  // namespace art

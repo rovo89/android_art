@@ -128,6 +128,7 @@ class SSAChecker : public GraphChecker {
   void VisitPackedSwitch(HPackedSwitch* instruction) OVERRIDE;
   void VisitBooleanNot(HBooleanNot* instruction) OVERRIDE;
   void VisitConstant(HConstant* instruction) OVERRIDE;
+  void VisitBoundType(HBoundType* instruction) OVERRIDE;
 
   void HandleBooleanInput(HInstruction* instruction, size_t input_index);
 
