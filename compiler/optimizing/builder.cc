@@ -1817,7 +1817,12 @@ void HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
     UpdateLocal(destination, current_block_->GetLastInstruction(), dex_pc);
   } else {
     DCHECK_EQ(instruction.Opcode(), Instruction::CHECK_CAST);
+    // We emit a CheckCast followed by a BoundType. CheckCast is a statement
+    // which may throw. If it succeeds BoundType sets the new type of `object`
+    // for all subsequent uses.
     current_block_->AddInstruction(new (arena_) HCheckCast(object, cls, check_kind, dex_pc));
+    current_block_->AddInstruction(new (arena_) HBoundType(object, dex_pc));
+    UpdateLocal(reference, current_block_->GetLastInstruction(), dex_pc);
   }
 }
 
