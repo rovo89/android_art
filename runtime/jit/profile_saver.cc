@@ -106,10 +106,9 @@ bool ProfileSaver::ProcessProfilingInfo() {
     VLOG(profiler) << "Not enough information to save. Nr of methods: " << methods.size();
     return false;
   }
-  offline_profiling_info_.SaveProfilingInfo(output_filename_, methods);
 
-  VLOG(profiler) << "Saved profile time: " << PrettyDuration(NanoTime() - start);
-
+  ProfileCompilationInfo::SaveProfilingInfo(output_filename_, methods);
+  VLOG(profiler) << "Profile process time: " << PrettyDuration(NanoTime() - start);
   return true;
 }
 

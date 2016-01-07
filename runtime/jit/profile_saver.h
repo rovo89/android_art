@@ -66,7 +66,6 @@ class ProfileSaver {
   const std::string output_filename_;
   jit::JitCodeCache* jit_code_cache_;
   const std::set<const std::string> tracked_dex_base_locations_;
-  OfflineProfilingInfo offline_profiling_info_;
   uint64_t code_cache_last_update_time_ns_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
 

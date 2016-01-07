@@ -155,8 +155,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* dump_cfg_append */ false,
       cumulative_logger_.get(),
       /* swap_fd */ -1,
-      /* profile_file */ "",
-      /* dex to oat map */ nullptr));
+      /* dex to oat map */ nullptr,
+      /* profile_compilation_info */ nullptr));
   // Disable dedupe so we can remove compiled methods.
   compiler_driver_->SetDedupeEnabled(false);
   compiler_driver_->SetSupportBootImageFixup(false);

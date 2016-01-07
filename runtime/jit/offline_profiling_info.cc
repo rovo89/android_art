@@ -30,38 +30,40 @@
 
 namespace art {
 
-void OfflineProfilingInfo::SaveProfilingInfo(const std::string& filename,
-                                             const std::vector<ArtMethod*>& methods) {
+bool ProfileCompilationInfo::SaveProfilingInfo(const std::string& filename,
+                                               const std::vector<ArtMethod*>& methods) {
   if (methods.empty()) {
     VLOG(profiler) << "No info to save to " << filename;
-    return;
+    return true;
   }
 
-  DexFileToMethodsMap info;
+  ProfileCompilationInfo info;
+  if (!info.Load(filename)) {
+    LOG(WARNING) << "Could not load previous profile data from file " << filename;
+    return false;
+  }
   {
     ScopedObjectAccess soa(Thread::Current());
     for (auto it = methods.begin(); it != methods.end(); it++) {
-      AddMethodInfo(*it, &info);
+      const DexFile* dex_file = (*it)->GetDexFile();
+      if (!info.AddData(dex_file->GetLocation(),
+                        dex_file->GetLocationChecksum(),
+                        (*it)->GetDexMethodIndex())) {
+        return false;
+      }
     }
   }
 
   // This doesn't need locking because we are trying to lock the file for exclusive
   // access and fail immediately if we can't.
-  if (Serialize(filename, info)) {
+  bool result = info.Save(filename);
+  if (result) {
     VLOG(profiler) << "Successfully saved profile info to " << filename
         << " Size: " << GetFileSizeBytes(filename);
+  } else {
+    VLOG(profiler) << "Failed to save profile info to " << filename;
   }
-}
-
-void OfflineProfilingInfo::AddMethodInfo(ArtMethod* method, DexFileToMethodsMap* info) {
-  DCHECK(method != nullptr);
-  const DexFile* dex_file = method->GetDexFile();
-
-  auto info_it = info->find(dex_file);
-  if (info_it == info->end()) {
-    info_it = info->Put(dex_file, std::set<uint32_t>());
-  }
-  info_it->second.insert(method->GetDexMethodIndex());
+  return result;
 }
 
 enum OpenMode {
@@ -135,8 +137,7 @@ static constexpr const char kLineSeparator = '\n';
  *    /system/priv-app/app/app.apk,131232145,11,23,454,54
  *    /system/priv-app/app/app.apk:classes5.dex,218490184,39,13,49,1
  **/
-bool OfflineProfilingInfo::Serialize(const std::string& filename,
-                                     const DexFileToMethodsMap& info) const {
+bool ProfileCompilationInfo::Save(const std::string& filename) {
   int fd = OpenFile(filename, READ_WRITE);
   if (fd == -1) {
     return false;
@@ -146,14 +147,12 @@ bool OfflineProfilingInfo::Serialize(const std::string& filename,
   // TODO(calin): Profile this and see how much memory it takes. If too much,
   // write to file directly.
   std::ostringstream os;
-  for (auto it : info) {
-    const DexFile* dex_file = it.first;
-    const std::set<uint32_t>& method_dex_ids = it.second;
+  for (const auto& it : info_) {
+    const std::string& dex_location = it.first;
+    const DexFileData& dex_data = it.second;
 
-    os << dex_file->GetLocation()
-        << kFieldSeparator
-        << dex_file->GetLocationChecksum();
-    for (auto method_it : method_dex_ids) {
+    os << dex_location << kFieldSeparator << dex_data.checksum;
+    for (auto method_it : dex_data.method_set) {
       os << kFieldSeparator << method_it;
     }
     os << kLineSeparator;
@@ -188,8 +187,22 @@ static void SplitString(const std::string& s, char separator, std::vector<std::s
   }
 }
 
-bool ProfileCompilationInfo::ProcessLine(const std::string& line,
-                                         const std::vector<const DexFile*>& dex_files) {
+bool ProfileCompilationInfo::AddData(const std::string& dex_location,
+                                     uint32_t checksum,
+                                     uint16_t method_idx) {
+  auto info_it = info_.find(dex_location);
+  if (info_it == info_.end()) {
+    info_it = info_.Put(dex_location, DexFileData(checksum));
+  }
+  if (info_it->second.checksum != checksum) {
+    LOG(WARNING) << "Checksum mismatch for dex " << dex_location;
+    return false;
+  }
+  info_it->second.method_set.insert(method_idx);
+  return true;
+}
+
+bool ProfileCompilationInfo::ProcessLine(const std::string& line) {
   std::vector<std::string> parts;
   SplitString(line, kFieldSeparator, &parts);
   if (parts.size() < 3) {
@@ -203,39 +216,13 @@ bool ProfileCompilationInfo::ProcessLine(const std::string& line,
     return false;
   }
 
-  const DexFile* current_dex_file = nullptr;
-  for (auto dex_file : dex_files) {
-    if (dex_file->GetLocation() == dex_location) {
-      if (checksum != dex_file->GetLocationChecksum()) {
-        LOG(WARNING) << "Checksum mismatch for "
-            << dex_file->GetLocation() << " when parsing " << filename_;
-        return false;
-      }
-      current_dex_file = dex_file;
-      break;
-    }
-  }
-  if (current_dex_file == nullptr) {
-    return true;
-  }
-
   for (size_t i = 2; i < parts.size(); i++) {
     uint32_t method_idx;
     if (!ParseInt(parts[i].c_str(), &method_idx)) {
       LOG(WARNING) << "Cannot parse method_idx " << parts[i];
       return false;
     }
-    uint16_t class_idx = current_dex_file->GetMethodId(method_idx).class_idx_;
-    auto info_it = info_.find(current_dex_file);
-    if (info_it == info_.end()) {
-      info_it = info_.Put(current_dex_file, ClassToMethodsMap());
-    }
-    ClassToMethodsMap& class_map = info_it->second;
-    auto class_it = class_map.find(class_idx);
-    if (class_it == class_map.end()) {
-      class_it = class_map.Put(class_idx, std::set<uint32_t>());
-    }
-    class_it->second.insert(method_idx);
+    AddData(dex_location, checksum, method_idx);
   }
   return true;
 }
@@ -262,25 +249,8 @@ static int GetLineFromBuffer(char* buffer, int n, int start_from, std::string& l
   return new_line_pos == -1 ? new_line_pos : new_line_pos + 1;
 }
 
-bool ProfileCompilationInfo::Load(const std::vector<const DexFile*>& dex_files) {
-  if (dex_files.empty()) {
-    return true;
-  }
-  if (kIsDebugBuild) {
-    // In debug builds verify that the locations are unique.
-    std::set<std::string> locations;
-    for (auto dex_file : dex_files) {
-      const std::string& location = dex_file->GetLocation();
-      DCHECK(locations.find(location) == locations.end())
-          << "DexFiles appear to belong to different apks."
-          << " There are multiple dex files with the same location: "
-          << location;
-      locations.insert(location);
-    }
-  }
-  info_.clear();
-
-  int fd = OpenFile(filename_, READ);
+bool ProfileCompilationInfo::Load(const std::string& filename) {
+  int fd = OpenFile(filename, READ);
   if (fd == -1) {
     return false;
   }
@@ -293,7 +263,7 @@ bool ProfileCompilationInfo::Load(const std::vector<const DexFile*>& dex_files) 
   while (success) {
     int n = read(fd, buffer, kBufferSize);
     if (n < 0) {
-      PLOG(WARNING) << "Error when reading profile file " << filename_;
+      PLOG(WARNING) << "Error when reading profile file " << filename;
       success = false;
       break;
     } else if (n == 0) {
@@ -307,7 +277,7 @@ bool ProfileCompilationInfo::Load(const std::vector<const DexFile*>& dex_files) 
       if (current_start_pos == -1) {
         break;
       }
-      if (!ProcessLine(current_line, dex_files)) {
+      if (!ProcessLine(current_line)) {
         success = false;
         break;
       }
@@ -318,25 +288,50 @@ bool ProfileCompilationInfo::Load(const std::vector<const DexFile*>& dex_files) 
   if (!success) {
     info_.clear();
   }
-  return CloseDescriptorForFile(fd, filename_) && success;
+  return CloseDescriptorForFile(fd, filename) && success;
+}
+
+bool ProfileCompilationInfo::Load(const ProfileCompilationInfo& other) {
+  for (const auto& other_it : other.info_) {
+    const std::string& other_dex_location = other_it.first;
+    const DexFileData& other_dex_data = other_it.second;
+
+    auto info_it = info_.find(other_dex_location);
+    if (info_it == info_.end()) {
+      info_it = info_.Put(other_dex_location, DexFileData(other_dex_data.checksum));
+    }
+    if (info_it->second.checksum != other_dex_data.checksum) {
+      LOG(WARNING) << "Checksum mismatch for dex " << other_dex_location;
+      return false;
+    }
+    info_it->second.method_set.insert(other_dex_data.method_set.begin(),
+                                      other_dex_data.method_set.end());
+  }
+  return true;
 }
 
 bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) const {
-  auto info_it = info_.find(method_ref.dex_file);
+  auto info_it = info_.find(method_ref.dex_file->GetLocation());
   if (info_it != info_.end()) {
-    uint16_t class_idx = method_ref.dex_file->GetMethodId(method_ref.dex_method_index).class_idx_;
-    const ClassToMethodsMap& class_map = info_it->second;
-    auto class_it = class_map.find(class_idx);
-    if (class_it != class_map.end()) {
-      const std::set<uint32_t>& methods = class_it->second;
-      return methods.find(method_ref.dex_method_index) != methods.end();
+    if (method_ref.dex_file->GetLocationChecksum() != info_it->second.checksum) {
+      return false;
     }
-    return false;
+    const std::set<uint16_t>& methods = info_it->second.method_set;
+    return methods.find(method_ref.dex_method_index) != methods.end();
   }
   return false;
 }
 
-std::string ProfileCompilationInfo::DumpInfo(bool print_full_dex_location) const {
+uint32_t ProfileCompilationInfo::GetNumberOfMethods() const {
+  uint32_t total = 0;
+  for (const auto& it : info_) {
+    total += it.second.method_set.size();
+  }
+  return total;
+}
+
+std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* dex_files,
+                                             bool print_full_dex_location) const {
   std::ostringstream os;
   if (info_.empty()) {
     return "ProfileInfo: empty";
@@ -344,17 +339,11 @@ std::string ProfileCompilationInfo::DumpInfo(bool print_full_dex_location) const
 
   os << "ProfileInfo:";
 
-  // Use an additional map to achieve a predefined order based on the dex locations.
-  SafeMap<const std::string, const DexFile*> dex_locations_map;
-  for (auto info_it : info_) {
-    dex_locations_map.Put(info_it.first->GetLocation(), info_it.first);
-  }
-
   const std::string kFirstDexFileKeySubstitute = ":classes.dex";
-  for (auto dex_file_it : dex_locations_map) {
+  for (const auto& it : info_) {
     os << "\n";
-    const std::string& location = dex_file_it.first;
-    const DexFile* dex_file = dex_file_it.second;
+    const std::string& location = it.first;
+    const DexFileData& dex_data = it.second;
     if (print_full_dex_location) {
       os << location;
     } else {
@@ -362,10 +351,19 @@ std::string ProfileCompilationInfo::DumpInfo(bool print_full_dex_location) const
       std::string multidex_suffix = DexFile::GetMultiDexSuffix(location);
       os << (multidex_suffix.empty() ? kFirstDexFileKeySubstitute : multidex_suffix);
     }
-    for (auto class_it : info_.find(dex_file)->second) {
-      for (auto method_it : class_it.second) {
-        os << "\n  " << PrettyMethod(method_it, *dex_file, true);
+    for (const auto method_it : dex_data.method_set) {
+      if (dex_files != nullptr) {
+        const DexFile* dex_file = nullptr;
+        for (size_t i = 0; i < dex_files->size(); i++) {
+          if (location == (*dex_files)[i]->GetLocation()) {
+            dex_file = (*dex_files)[i];
+          }
+        }
+        if (dex_file != nullptr) {
+          os << "\n  " << PrettyMethod(method_it, *dex_file, true);
+        }
       }
+      os << "\n  " << method_it;
     }
   }
   return os.str();
