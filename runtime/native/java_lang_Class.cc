@@ -288,13 +288,6 @@ static jobject Class_getPublicFieldRecursive(JNIEnv* env, jobject javaThis, jstr
       GetPublicFieldRecursive(soa.Self(), DecodeClass(soa, javaThis), name_string));
 }
 
-static jobject Class_getDeclaredFieldInternal(JNIEnv* env, jobject javaThis, jstring name) {
-  ScopedFastNativeObjectAccess soa(env);
-  auto* name_string = soa.Decode<mirror::String*>(name);
-  return soa.AddLocalReference<jobject>(
-      GetDeclaredField(soa.Self(), DecodeClass(soa, javaThis), name_string));
-}
-
 static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring name) {
   ScopedFastNativeObjectAccess soa(env);
   auto* name_string = soa.Decode<mirror::String*>(name);
@@ -306,6 +299,12 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
   mirror::Field* result = GetDeclaredField(soa.Self(), klass, name_string);
   if (result == nullptr) {
     std::string name_str = name_string->ToModifiedUtf8();
+    if (name_str == "value" && klass->IsStringClass()) {
+      // We log the error for this specific case, as the user might just swallow the exception.
+      // This helps diagnose crashes when applications rely on the String#value field being
+      // there.
+      LOG(ERROR) << "The String#value field is not present on Android versions >= 6.0";
+    }
     // We may have a pending exception if we failed to resolve.
     if (!soa.Self()->IsExceptionPending()) {
       ThrowNoSuchFieldException(DecodeClass(soa, javaThis), name_str.c_str());
@@ -723,7 +722,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDeclaredConstructorsInternal, "!(Z)[Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredField, "!(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getPublicFieldRecursive, "!(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
-  NATIVE_METHOD(Class, getDeclaredFieldInternal, "!(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFields, "!()[Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFieldsUnchecked, "!(Z)[Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredMethodInternal,
