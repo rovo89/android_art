@@ -98,11 +98,10 @@ class InternTable {
 
   void BroadcastForNewInterns() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Adds all of the resolved image strings from the image space into the intern table. The
+  // Adds all of the resolved image strings from the image spaces into the intern table. The
   // advantage of doing this is preventing expensive DexFile::FindStringId calls. Sets
-  // images_added_to_intern_table_ to true, AddImageStringsToTable must be called on either all
-  // images or none.
-  void AddImageStringsToTable(gc::space::ImageSpace* image_space)
+  // images_added_to_intern_table_ to true.
+  void AddImagesStringsToTable(const std::vector<gc::space::ImageSpace*>& image_spaces)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::intern_table_lock_);
 
   // Add a new intern table for inserting to, previous intern tables are still there but no
@@ -164,8 +163,8 @@ class InternTable {
     // debug builds. Returns how many bytes were read.
     size_t AddTableFromMemory(const uint8_t* ptr)
         REQUIRES(Locks::intern_table_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
-    // Write the intern tables to ptr, if there are multiple tables they are combined into a single one.
-    // Returns how many bytes were written.
+    // Write the intern tables to ptr, if there are multiple tables they are combined into a single
+    // one. Returns how many bytes were written.
     size_t WriteToMemory(uint8_t* ptr)
         REQUIRES(Locks::intern_table_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
