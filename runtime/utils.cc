@@ -1446,6 +1446,11 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   return true;
 }
 
+bool FileExists(const std::string& filename) {
+  struct stat buffer;
+  return stat(filename.c_str(), &buffer) == 0;
+}
+
 std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(Primitive::Descriptor(type));
 }
