@@ -138,6 +138,27 @@ public class Main extends UnresolvedSuperClass {
     callUnresolvedInstanceFieldAccess(c);
     testInstanceOf(m);
     testCheckCast(m);
+    testLicm(2);
+  }
+
+  /// CHECK-START: void Main.testLicm(int) licm (before)
+  /// CHECK:      <<Class:l\d+>>        LoadClass                                 loop:B2
+  /// CHECK-NEXT: <<Clinit:l\d+>>       ClinitCheck [<<Class>>]                   loop:B2
+  /// CHECK-NEXT: <<New:l\d+>>          NewInstance [<<Clinit>>,<<Method:i\d+>>]  loop:B2
+  /// CHECK-NEXT:                       InvokeUnresolved [<<New>>]                loop:B2
+
+    /// CHECK-START: void Main.testLicm(int) licm (after)
+  /// CHECK:      <<Class:l\d+>>        LoadClass                                 loop:none
+  /// CHECK-NEXT: <<Clinit:l\d+>>       ClinitCheck [<<Class>>]                   loop:none
+  /// CHECK:      <<New:l\d+>>          NewInstance [<<Clinit>>,<<Method:i\d+>>]  loop:B2
+  /// CHECK-NEXT:                       InvokeUnresolved [<<New>>]                loop:B2
+  static public void testLicm(int count) {
+    // Test to make sure we keep the initialization check after loading an unresolved class.
+    UnresolvedClass c;
+    int i = 0;
+    do {
+      c = new UnresolvedClass();
+    } while (i++ != count);
   }
 
   public static void expectEquals(byte expected, byte result) {
