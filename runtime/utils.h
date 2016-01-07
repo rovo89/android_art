@@ -373,6 +373,9 @@ T GetRandomNumber(T min, T max) {
 // Return the file size in bytes or -1 if the file does not exists.
 int64_t GetFileSizeBytes(const std::string& filename);
 
+// Sleep forever and never come back.
+NO_RETURN void SleepForever();
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
