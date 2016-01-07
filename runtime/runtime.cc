@@ -1272,11 +1272,14 @@ void Runtime::InitNativeMethods() {
     }
   }
   {
+    constexpr const char* kOpenJdkLibrary = kIsDebugBuild
+                                                ? "libopenjdkd.so"
+                                                : "libopenjdk.so";
     std::string error_msg;
-    if (!java_vm_->LoadNativeLibrary(env, "libopenjdk.so", nullptr,
+    if (!java_vm_->LoadNativeLibrary(env, kOpenJdkLibrary, nullptr,
                                      /* is_shared_namespace */ false,
                                      nullptr, nullptr, &error_msg)) {
-      LOG(FATAL) << "LoadNativeLibrary failed for \"libopenjdk.so\": " << error_msg;
+      LOG(FATAL) << "LoadNativeLibrary failed for \"" << kOpenJdkLibrary << "\": " << error_msg;
     }
   }
 
