@@ -63,6 +63,7 @@
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
 #include "interpreter/unstarted_runtime.h"
+#include "jit/offline_profiling_info.h"
 #include "leb128.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -70,6 +71,7 @@
 #include "mirror/object_array-inl.h"
 #include "oat_writer.h"
 #include "os.h"
+#include "profile_assistant.h"
 #include "runtime.h"
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
@@ -328,6 +330,16 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Example: --runtime-arg -Xms256m");
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
+  UsageError("      Can be specified multiple time, in which case the data from the different");
+  UsageError("      profiles will be aggregated.");
+  UsageError("");
+  UsageError("  --reference-profile-file=<filename>: specify a reference profile file to use when");
+  UsageError("      compiling. The data in this file will be compared with the data in the");
+  UsageError("      associated --profile-file and the compilation will proceed only if there is");
+  UsageError("      a significant difference (--reference-profile-file is paired with");
+  UsageError("      --profile-file in the natural order). If the compilation was attempted then");
+  UsageError("      --profile-file will be merged into --reference-profile-file. Valid only when");
+  UsageError("      specified together with --profile-file.");
   UsageError("");
   UsageError("  --print-pass-names: print a list of pass names");
   UsageError("");
@@ -767,6 +779,13 @@ class Dex2Oat FINAL {
       }
     }
 
+    if (!profile_files_.empty()) {
+      if (!reference_profile_files_.empty() &&
+          (reference_profile_files_.size() != profile_files_.size())) {
+        Usage("If specified, --reference-profile-file should match the number of --profile-file.");
+      }
+    }
+
     if (!parser_options->oat_symbols.empty()) {
       oat_unstripped_ = std::move(parser_options->oat_symbols);
     }
@@ -1057,8 +1076,10 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--compiler-backend=")) {
         ParseCompilerBackend(option, parser_options.get());
       } else if (option.starts_with("--profile-file=")) {
-        profile_file_ = option.substr(strlen("--profile-file=")).data();
-        VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
+        profile_files_.push_back(option.substr(strlen("--profile-file=")).ToString());
+      } else if (option.starts_with("--reference-profile-file=")) {
+        reference_profile_files_.push_back(
+            option.substr(strlen("--reference-profile-file=")).ToString());
       } else if (option == "--no-profile-file") {
         // No profile
       } else if (option == "--host") {
@@ -1479,9 +1500,8 @@ class Dex2Oat FINAL {
                                      dump_cfg_append_,
                                      compiler_phases_timings_.get(),
                                      swap_fd_,
-                                     profile_file_,
-                                     &dex_file_oat_filename_map_));
-
+                                     &dex_file_oat_filename_map_,
+                                     profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
     driver_->CompileAll(class_loader, dex_files_, timings_);
   }
@@ -1788,6 +1808,26 @@ class Dex2Oat FINAL {
 
   bool IsHost() const {
     return is_host_;
+  }
+
+  bool UseProfileGuidedCompilation() const {
+    return !profile_files_.empty();
+  }
+
+  bool ProcessProfiles() {
+    DCHECK(UseProfileGuidedCompilation());
+    ProfileCompilationInfo* info = nullptr;
+    if (ProfileAssistant::ProcessProfiles(profile_files_, reference_profile_files_, &info)) {
+      profile_compilation_info_.reset(info);
+      return true;
+    }
+    return false;
+  }
+
+  bool ShouldCompileBasedOnProfiles() const {
+    DCHECK(UseProfileGuidedCompilation());
+    // If we are given profiles, compile only if we have new information.
+    return profile_compilation_info_ != nullptr;
   }
 
  private:
@@ -2263,7 +2303,9 @@ class Dex2Oat FINAL {
   int swap_fd_;
   std::string app_image_file_name_;
   int app_image_fd_;
-  std::string profile_file_;  // Profile file to use
+  std::vector<std::string> profile_files_;
+  std::vector<std::string> reference_profile_files_;
+  std::unique_ptr<ProfileCompilationInfo> profile_compilation_info_;
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
@@ -2379,6 +2421,20 @@ static int dex2oat(int argc, char** argv) {
 
   // Parse arguments. Argument mistakes will lead to exit(EXIT_FAILURE) in UsageError.
   dex2oat.ParseArgs(argc, argv);
+
+  // Process profile information and assess if we need to do a profile guided compilation.
+  // This operation involves I/O.
+  if (dex2oat.UseProfileGuidedCompilation()) {
+    if (dex2oat.ProcessProfiles()) {
+      if (!dex2oat.ShouldCompileBasedOnProfiles()) {
+        LOG(INFO) << "Skipped compilation because of insignificant profile delta";
+        return EXIT_SUCCESS;
+      }
+    } else {
+      LOG(WARNING) << "Failed to process profile files";
+      return EXIT_FAILURE;
+    }
+  }
 
   // Check early that the result of compilation can be written
   if (!dex2oat.OpenFile()) {
