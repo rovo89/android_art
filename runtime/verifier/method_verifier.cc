@@ -3948,11 +3948,27 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
   // If we're using invoke-super(method), make sure that the executing method's class' superclass
   // has a vtable entry for the target method. Or the target is on a interface.
   if (method_type == METHOD_SUPER) {
-    if (res_method->GetDeclaringClass()->IsInterface()) {
-      // TODO Fill in this part. Verify what we can...
-      if (Runtime::Current()->IsAotCompiler()) {
-        Fail(VERIFY_ERROR_FORCE_INTERPRETER) << "Currently we only allow invoke-super in "
-                                             << "interpreter when using interface methods";
+    uint16_t class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
+    mirror::Class* reference_class = dex_cache_->GetResolvedType(class_idx);
+    if (reference_class == nullptr) {
+      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Unable to find referenced class from invoke-super";
+      return nullptr;
+    }
+    if (reference_class->IsInterface()) {
+      // TODO Can we verify anything else.
+      if (class_idx == class_def_->class_idx_) {
+        Fail(VERIFY_ERROR_CLASS_CHANGE) << "Cannot invoke-super on self as interface";
+      }
+      // TODO Revisit whether we want to allow invoke-super on direct interfaces only like the JLS
+      // does.
+      mirror::Class* this_class = GetDeclaringClass().GetClass();
+      if (!reference_class->IsAssignableFrom(this_class)) {
+        Fail(VERIFY_ERROR_CLASS_CHANGE)
+            << "invoke-super in " << PrettyClass(this_class) << " in method "
+            << PrettyMethod(dex_method_idx_, *dex_file_) << " to method "
+            << PrettyMethod(method_idx, *dex_file_) << " references "
+            << "non-super-interface type " << PrettyClass(reference_class);
+        return nullptr;
       }
     } else {
       const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);

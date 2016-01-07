@@ -116,6 +116,30 @@ inline ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx, ArtMethod*
   return resolved_method;
 }
 
+inline mirror::Class* ClassLinker::ResolveReferencedClassOfMethod(Thread* self,
+                                                                  uint32_t method_idx,
+                                                                  ArtMethod* referrer) {
+  // NB: We cannot simply use `GetResolvedMethod(method_idx, ...)->GetDeclaringClass()`. This is
+  // because if we did so than an invoke-super could be incorrectly dispatched in cases where
+  // GetMethodId(method_idx).class_idx_ refers to a non-interface, non-direct-superclass
+  // (super*-class?) of the referrer and the direct superclass of the referrer contains a concrete
+  // implementation of the method. If this class's implementation of the method is copied from an
+  // interface (either miranda, default or conflict) we would incorrectly assume that is what we
+  // want to invoke on, instead of the 'concrete' implementation that the direct superclass
+  // contains.
+  mirror::Class* declaring_class = referrer->GetDeclaringClass();
+  StackHandleScope<2> hs(self);
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+  const DexFile* dex_file = h_dex_cache->GetDexFile();
+  const DexFile::MethodId& method = dex_file->GetMethodId(method_idx);
+  mirror::Class* resolved_type = h_dex_cache->GetResolvedType(method.class_idx_);
+  if (UNLIKELY(resolved_type == nullptr)) {
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+    resolved_type = ResolveType(*dex_file, method.class_idx_, h_dex_cache, class_loader);
+  }
+  return resolved_type;
+}
+
 template <ClassLinker::ResolveMode kResolveMode>
 inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
                                              uint32_t method_idx,
