@@ -608,7 +608,6 @@ SafeMap<uint32_t, std::set<uint32_t>>& MethodVerifier::FindStringInitMap() {
 bool MethodVerifier::Verify() {
   // Some older code doesn't correctly mark constructors as such. Test for this case by looking at
   // the name.
-  Runtime* runtime = Runtime::Current();
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
   const char* method_name = dex_file_->StringDataByIdx(method_id.name_idx_);
   bool instance_constructor_by_name = strcmp("<init>", method_name) == 0;
@@ -678,12 +677,9 @@ bool MethodVerifier::Verify() {
       }
       if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
         // Interface methods must be public and abstract (if default methods are disabled).
-        bool default_methods_supported =
-            runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods);
-        uint32_t kRequired = kAccPublic | (default_methods_supported ? 0 : kAccAbstract);
+        uint32_t kRequired = kAccPublic;
         if ((method_access_flags_ & kRequired) != kRequired) {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be public"
-                                            << (default_methods_supported ? "" : " and abstract");
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be public";
           return false;
         }
         // In addition to the above, interface methods must not be protected.
@@ -715,19 +711,14 @@ bool MethodVerifier::Verify() {
       // default methods enabled we also allow other public, static, non-final methods to have code.
       // Otherwise that is the only type of method allowed.
       if (!(IsConstructor() && IsStatic())) {
-        if (runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods)) {
-          if (IsInstanceConstructor()) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-static constructor";
-            return false;
-          } else if (method_access_flags_ & kAccFinal) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have final methods";
-            return false;
-          } else if (!(method_access_flags_ & kAccPublic)) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-public members";
-            return false;
-          }
-        } else {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be abstract";
+        if (IsInstanceConstructor()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-static constructor";
+          return false;
+        } else if (method_access_flags_ & kAccFinal) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have final methods";
+          return false;
+        } else if (!(method_access_flags_ & kAccPublic)) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-public members";
           return false;
         }
       }
@@ -3713,12 +3704,10 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   // Note: this check must be after the initializer check, as those are required to fail a class,
   //       while this check implies an IncompatibleClassChangeError.
   if (klass->IsInterface()) {
-    Runtime* runtime = Runtime::Current();
-    const bool default_methods_supported =
-        runtime == nullptr ||
-        runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods);
+    // methods called on interfaces should be invoke-interface, invoke-super, or invoke-static.
     if (method_type != METHOD_INTERFACE &&
-        (!default_methods_supported || method_type != METHOD_STATIC)) {
+        method_type != METHOD_STATIC &&
+        method_type != METHOD_SUPER) {
       Fail(VERIFY_ERROR_CLASS_CHANGE)
           << "non-interface method " << PrettyMethod(dex_method_idx, *dex_file_)
           << " is in an interface class " << PrettyClass(klass);

@@ -27,7 +27,6 @@ struct ExperimentalFlags {
   enum {
     kNone           = 0x0000,
     kLambdas        = 0x0001,
-    kDefaultMethods = 0x0002,
   };
 
   constexpr ExperimentalFlags() : value_(0x0000) {}
@@ -67,10 +66,6 @@ inline std::ostream& operator<<(std::ostream& stream, const ExperimentalFlags& e
   bool started = false;
   if (e & ExperimentalFlags::kLambdas) {
     stream << (started ? "|" : "") << "kLambdas";
-    started = true;
-  }
-  if (e & ExperimentalFlags::kDefaultMethods) {
-    stream << (started ? "|" : "") << "kDefaultMethods";
     started = true;
   }
   if (!started) {

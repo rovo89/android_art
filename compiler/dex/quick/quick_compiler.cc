@@ -486,11 +486,6 @@ static const size_t kUnsupportedOpcodesSize[] = {
 static_assert(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
               "kUnsupportedOpcodesSize unexpected");
 
-static bool IsUnsupportedExperimentalLambdasOnly(size_t i) {
-  DCHECK_LE(i, arraysize(kUnsupportedOpcodes));
-  return kUnsupportedOpcodes[i] == kUnsupportedLambdaOpcodes;
-}
-
 // The maximum amount of Dalvik register in a method for which we will start compiling. Tries to
 // avoid an abort when we need to manage more SSA registers than we can.
 static constexpr size_t kMaxAllowedDalvikRegisters = INT16_MAX / 2;
@@ -511,36 +506,6 @@ static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set)
     }
   }
   return true;
-}
-
-// If the ISA has unsupported opcodes, should we skip scanning over them?
-//
-// Most of the time we're compiling non-experimental files, so scanning just slows
-// performance down by as much as 6% with 4 threads.
-// In the rare cases we compile experimental opcodes, the runtime has an option to enable it,
-// which will force scanning for any unsupported opcodes.
-static bool SkipScanningUnsupportedOpcodes(InstructionSet instruction_set) {
-  Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods))) {
-    // Always need to scan opcodes if we have default methods since invoke-super for interface
-    // methods is never going to be supported in the quick compiler.
-    return false;
-  } else if (UNLIKELY(kUnsupportedOpcodesSize[instruction_set] == 0U)) {
-    // All opcodes are supported no matter what. Usually not the case
-    // since experimental opcodes are not implemented in the quick compiler.
-    return true;
-  } else if (LIKELY(!Runtime::Current()->
-                      AreExperimentalFlagsEnabled(ExperimentalFlags::kLambdas))) {
-    // Experimental opcodes are disabled.
-    //
-    // If all unsupported opcodes are experimental we don't need to do scanning.
-    return IsUnsupportedExperimentalLambdasOnly(instruction_set);
-  } else {
-    // Experimental opcodes are enabled.
-    //
-    // Do the opcode scanning if the ISA has any unsupported opcodes.
-    return false;
-  }
 }
 
 bool QuickCompiler::CanCompileInstruction(const MIR* mir,
@@ -572,11 +537,8 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx,
     return false;
   }
 
-  // Check whether we do have limitations at all.
-  if (kSupportedTypes[cu->instruction_set] == nullptr &&
-      SkipScanningUnsupportedOpcodes(cu->instruction_set)) {
-    return true;
-  }
+  // Since the quick compiler doesn't (and never will) support default methods we always need to
+  // scan opcodes.
 
   // Check if we can compile the prototype.
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
