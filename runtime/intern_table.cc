@@ -151,29 +151,30 @@ void InternTable::RemoveWeakFromTransaction(mirror::String* s) {
   RemoveWeak(s);
 }
 
-void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
-  CHECK(image_space != nullptr);
+void InternTable::AddImagesStringsToTable(const std::vector<gc::space::ImageSpace*>& image_spaces) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  const ImageHeader* const header = &image_space->GetImageHeader();
-  // Check if we have the interned strings section.
-  const ImageSection& section = header->GetImageSection(ImageHeader::kSectionInternedStrings);
-  if (section.Size() > 0) {
-    AddTableFromMemoryLocked(image_space->Begin() + section.Offset());
-  } else {
-    // TODO: Delete this logic?
-    mirror::Object* root = header->GetImageRoot(ImageHeader::kDexCaches);
-    mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
-    for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
-      mirror::DexCache* dex_cache = dex_caches->Get(i);
-      const size_t num_strings = dex_cache->NumStrings();
-      for (size_t j = 0; j < num_strings; ++j) {
-        mirror::String* image_string = dex_cache->GetResolvedString(j);
-        if (image_string != nullptr) {
-          mirror::String* found = LookupStrong(image_string);
-          if (found == nullptr) {
-            InsertStrong(image_string);
-          } else {
-            DCHECK_EQ(found, image_string);
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    const ImageHeader* const header = &image_space->GetImageHeader();
+    // Check if we have the interned strings section.
+    const ImageSection& section = header->GetImageSection(ImageHeader::kSectionInternedStrings);
+    if (section.Size() > 0) {
+      AddTableFromMemoryLocked(image_space->Begin() + section.Offset());
+    } else {
+      // TODO: Delete this logic?
+      mirror::Object* root = header->GetImageRoot(ImageHeader::kDexCaches);
+      mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
+      for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
+        mirror::DexCache* dex_cache = dex_caches->Get(i);
+        const size_t num_strings = dex_cache->NumStrings();
+        for (size_t j = 0; j < num_strings; ++j) {
+          mirror::String* image_string = dex_cache->GetResolvedString(j);
+          if (image_string != nullptr) {
+            mirror::String* found = LookupStrong(image_string);
+            if (found == nullptr) {
+              InsertStrong(image_string);
+            } else {
+              DCHECK_EQ(found, image_string);
+            }
           }
         }
       }
@@ -183,6 +184,7 @@ void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
 }
 
 mirror::String* InternTable::LookupStringFromImage(mirror::String* s) {
+  DCHECK(!images_added_to_intern_table_);
   const std::vector<gc::space::ImageSpace*>& image_spaces =
       Runtime::Current()->GetHeap()->GetBootImageSpaces();
   if (image_spaces.empty()) {
@@ -453,7 +455,7 @@ void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor)
 size_t InternTable::Table::Size() const {
   return std::accumulate(tables_.begin(),
                          tables_.end(),
-                         size_t(0),
+                         0U,
                          [](size_t sum, const UnorderedSet& set) {
                            return sum + set.Size();
                          });
