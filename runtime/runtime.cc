@@ -214,6 +214,7 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  ATRACE_BEGIN("Runtime shutdown");
   if (is_native_bridge_loaded_) {
     UnloadNativeBridge();
   }
@@ -228,45 +229,55 @@ Runtime::~Runtime() {
   Thread* self = Thread::Current();
   const bool attach_shutdown_thread = self == nullptr;
   if (attach_shutdown_thread) {
+    ATRACE_BEGIN("Attach shutdown thread");
     CHECK(AttachCurrentThread("Shutdown thread", false, nullptr, false));
+    ATRACE_END();
     self = Thread::Current();
   } else {
     LOG(WARNING) << "Current thread not detached in Runtime shutdown";
   }
 
   {
+    ATRACE_BEGIN("Wait for shutdown cond");
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     shutting_down_started_ = true;
     while (threads_being_born_ > 0) {
       shutdown_cond_->Wait(self);
     }
     shutting_down_ = true;
+    ATRACE_END();
   }
   // Shutdown and wait for the daemons.
   CHECK(self != nullptr);
   if (IsFinishedStarting()) {
+    ATRACE_BEGIN("Waiting for Daemons");
     self->ClearException();
     self->GetJniEnv()->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
                                             WellKnownClasses::java_lang_Daemons_stop);
+    ATRACE_END();
   }
 
   Trace::Shutdown();
 
   if (attach_shutdown_thread) {
+    ATRACE_BEGIN("Detach shutdown thread");
     DetachCurrentThread();
+    ATRACE_END();
     self = nullptr;
   }
 
   // Make sure to let the GC complete if it is running.
   heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
   heap_->DeleteThreadPool();
-  if (jit_.get() != nullptr) {
+  if (jit_ != nullptr) {
+    ATRACE_BEGIN("Delete jit");
     VLOG(jit) << "Deleting jit thread pool";
     // Delete thread pool before the thread list since we don't want to wait forever on the
     // JIT compiler threads.
     jit_->DeleteThreadPool();
     // Similarly, stop the profile saver thread before deleting the thread list.
     jit_->StopProfileSaver();
+    ATRACE_END();
   }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
@@ -274,11 +285,13 @@ Runtime::~Runtime() {
   delete signal_catcher_;
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
+  ATRACE_BEGIN("Delete thread list");
   delete thread_list_;
+  ATRACE_END();
 
   // Delete the JIT after thread list to ensure that there is no remaining threads which could be
   // accessing the instrumentation when we delete it.
-  if (jit_.get() != nullptr) {
+  if (jit_ != nullptr) {
     VLOG(jit) << "Deleting jit";
     jit_.reset(nullptr);
   }
@@ -286,6 +299,7 @@ Runtime::~Runtime() {
   // Shutdown the fault manager if it was initialized.
   fault_manager.Shutdown();
 
+  ATRACE_BEGIN("Delete state");
   delete monitor_list_;
   delete monitor_pool_;
   delete class_linker_;
@@ -302,10 +316,12 @@ Runtime::~Runtime() {
   low_4gb_arena_pool_.reset();
   arena_pool_.reset();
   MemMap::Shutdown();
+  ATRACE_END();
 
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == nullptr || instance_ == this);
   instance_ = nullptr;
+  ATRACE_END();
 }
 
 struct AbortState {

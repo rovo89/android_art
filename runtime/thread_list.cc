@@ -69,6 +69,7 @@ ThreadList::ThreadList()
 }
 
 ThreadList::~ThreadList() {
+  ATRACE_BEGIN(__FUNCTION__);
   // Detach the current thread if necessary. If we failed to start, there might not be any threads.
   // We need to detach the current thread here in case there's another thread waiting to join with
   // us.
@@ -79,19 +80,27 @@ ThreadList::~ThreadList() {
     contains = Contains(self);
   }
   if (contains) {
+    ATRACE_BEGIN("DetachCurrentThread");
     Runtime::Current()->DetachCurrentThread();
+    ATRACE_END();
   }
+  ATRACE_BEGIN("WaitForOtherNonDaemonThreadsToExit");
   WaitForOtherNonDaemonThreadsToExit();
+  ATRACE_END();
   // Disable GC and wait for GC to complete in case there are still daemon threads doing
   // allocations.
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   heap->DisableGCForShutdown();
   // In case a GC is in progress, wait for it to finish.
+  ATRACE_BEGIN("WaitForGcToComplete");
   heap->WaitForGcToComplete(gc::kGcCauseBackground, Thread::Current());
-
+  ATRACE_END();
   // TODO: there's an unaddressed race here where a thread may attach during shutdown, see
   //       Thread::Init.
+  ATRACE_BEGIN("SuspendAllDaemonThreads");
   SuspendAllDaemonThreads();
+  ATRACE_END();
+  ATRACE_END();
 }
 
 bool ThreadList::Contains(Thread* thread) {
