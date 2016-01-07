@@ -387,18 +387,16 @@ class TypeCheckSlowPathX86_64 : public SlowPathCode {
 
 class DeoptimizationSlowPathX86_64 : public SlowPathCode {
  public:
-  explicit DeoptimizationSlowPathX86_64(HInstruction* instruction)
+  explicit DeoptimizationSlowPathX86_64(HDeoptimize* instruction)
       : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
-    DCHECK(instruction_->IsDeoptimize());
-    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
     x86_64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize),
-                                  deoptimize,
-                                  deoptimize->GetDexPc(),
+                                  instruction_,
+                                  instruction_->GetDexPc(),
                                   this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
@@ -406,7 +404,7 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathX86_64"; }
 
  private:
-  HInstruction* const instruction_;
+  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathX86_64);
 };
 
@@ -1000,7 +998,7 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
 
 InstructionCodeGeneratorX86_64::InstructionCodeGeneratorX86_64(HGraph* graph,
                                                                CodeGeneratorX86_64* codegen)
-      : HGraphVisitor(graph),
+      : InstructionCodeGenerator(graph, codegen),
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
@@ -1594,9 +1592,7 @@ void LocationsBuilderX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena())
-      DeoptimizationSlowPathX86_64(deoptimize);
-  codegen_->AddSlowPath(slow_path);
+  SlowPathCode* slow_path = deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathX86_64>(deoptimize);
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),

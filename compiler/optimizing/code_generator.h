@@ -613,7 +613,7 @@ class CodeGenerator {
 
   ArenaVector<SlowPathCode*> slow_paths_;
 
-  // The current slow path that we're generating code for.
+  // The current slow-path that we're generating code for.
   SlowPathCode* current_slow_path_;
 
   // The current block index in `block_order_` of the block
@@ -672,6 +672,122 @@ class CallingConvention {
   const size_t pointer_size_;
 
   DISALLOW_COPY_AND_ASSIGN(CallingConvention);
+};
+
+/**
+ * A templated class SlowPathGenerator with a templated method NewSlowPath()
+ * that can be used by any code generator to share equivalent slow-paths with
+ * the objective of reducing generated code size.
+ *
+ * InstructionType:  instruction that requires SlowPathCodeType
+ * SlowPathCodeType: subclass of SlowPathCode, with constructor SlowPathCodeType(InstructionType *)
+ */
+template <typename InstructionType>
+class SlowPathGenerator {
+  static_assert(std::is_base_of<HInstruction, InstructionType>::value,
+                "InstructionType is not a subclass of art::HInstruction");
+
+ public:
+  SlowPathGenerator(HGraph* graph, CodeGenerator* codegen)
+      : graph_(graph),
+        codegen_(codegen),
+        slow_path_map_(std::less<uint32_t>(), graph->GetArena()->Adapter(kArenaAllocSlowPaths)) {}
+
+  // Creates and adds a new slow-path, if needed, or returns existing one otherwise.
+  // Templating the method (rather than the whole class) on the slow-path type enables
+  // keeping this code at a generic, non architecture-specific place.
+  //
+  // NOTE: This approach assumes each InstructionType only generates one SlowPathCodeType.
+  //       To relax this requirement, we would need some RTTI on the stored slow-paths,
+  //       or template the class as a whole on SlowPathType.
+  template <typename SlowPathCodeType>
+  SlowPathCodeType* NewSlowPath(InstructionType* instruction) {
+    static_assert(std::is_base_of<SlowPathCode, SlowPathCodeType>::value,
+                  "SlowPathCodeType is not a subclass of art::SlowPathCode");
+    static_assert(std::is_constructible<SlowPathCodeType, InstructionType*>::value,
+                  "SlowPathCodeType is not constructible from InstructionType*");
+    // Iterate over potential candidates for sharing. Currently, only same-typed
+    // slow-paths with exactly the same dex-pc are viable candidates.
+    // TODO: pass dex-pc/slow-path-type to run-time to allow even more sharing?
+    const uint32_t dex_pc = instruction->GetDexPc();
+    auto iter = slow_path_map_.find(dex_pc);
+    if (iter != slow_path_map_.end()) {
+      auto candidates = iter->second;
+      for (const auto& it : candidates) {
+        InstructionType* other_instruction = it.first;
+        SlowPathCodeType* other_slow_path = down_cast<SlowPathCodeType*>(it.second);
+        // Determine if the instructions allow for slow-path sharing.
+        if (HaveSameLiveRegisters(instruction, other_instruction) &&
+            HaveSameStackMap(instruction, other_instruction)) {
+          // Can share: reuse existing one.
+          return other_slow_path;
+        }
+      }
+    } else {
+      // First time this dex-pc is seen.
+      iter = slow_path_map_.Put(dex_pc, {{}, {graph_->GetArena()->Adapter(kArenaAllocSlowPaths)}});
+    }
+    // Cannot share: create and add new slow-path for this particular dex-pc.
+    SlowPathCodeType* slow_path = new (graph_->GetArena()) SlowPathCodeType(instruction);
+    iter->second.emplace_back(std::make_pair(instruction, slow_path));
+    codegen_->AddSlowPath(slow_path);
+    return slow_path;
+  }
+
+ private:
+  // Tests if both instructions have same set of live physical registers. This ensures
+  // the slow-path has exactly the same preamble on saving these registers to stack.
+  bool HaveSameLiveRegisters(const InstructionType* i1, const InstructionType* i2) const {
+    const uint32_t core_spill = ~codegen_->GetCoreSpillMask();
+    const uint32_t fpu_spill = ~codegen_->GetFpuSpillMask();
+    RegisterSet* live1 = i1->GetLocations()->GetLiveRegisters();
+    RegisterSet* live2 = i2->GetLocations()->GetLiveRegisters();
+    return (((live1->GetCoreRegisters() & core_spill) ==
+             (live2->GetCoreRegisters() & core_spill)) &&
+            ((live1->GetFloatingPointRegisters() & fpu_spill) ==
+             (live2->GetFloatingPointRegisters() & fpu_spill)));
+  }
+
+  // Tests if both instructions have the same stack map. This ensures the interpreter
+  // will find exactly the same dex-registers at the same entries.
+  bool HaveSameStackMap(const InstructionType* i1, const InstructionType* i2) const {
+    DCHECK(i1->HasEnvironment());
+    DCHECK(i2->HasEnvironment());
+    // We conservatively test if the two instructions find exactly the same instructions
+    // and location in each dex-register. This guarantees they will have the same stack map.
+    HEnvironment* e1 = i1->GetEnvironment();
+    HEnvironment* e2 = i2->GetEnvironment();
+    if (e1->GetParent() != e2->GetParent() || e1->Size() != e2->Size()) {
+      return false;
+    }
+    for (size_t i = 0, sz = e1->Size(); i < sz; ++i) {
+      if (e1->GetInstructionAt(i) != e2->GetInstructionAt(i) ||
+          !e1->GetLocationAt(i).Equals(e2->GetLocationAt(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  HGraph* const graph_;
+  CodeGenerator* const codegen_;
+
+  // Map from dex-pc to vector of already existing instruction/slow-path pairs.
+  ArenaSafeMap<uint32_t, ArenaVector<std::pair<InstructionType*, SlowPathCode*>>> slow_path_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathGenerator);
+};
+
+class InstructionCodeGenerator : public HGraphVisitor {
+ public:
+  InstructionCodeGenerator(HGraph* graph, CodeGenerator* codegen)
+      : HGraphVisitor(graph),
+        deopt_slow_paths_(graph, codegen) {}
+
+ protected:
+  // Add slow-path generator for each instruction/slow-path combination that desires sharing.
+  // TODO: under current regime, only deopt sharing make sense; extend later.
+  SlowPathGenerator<HDeoptimize> deopt_slow_paths_;
 };
 
 }  // namespace art
