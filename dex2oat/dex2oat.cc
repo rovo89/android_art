@@ -1589,7 +1589,6 @@ class Dex2Oat FINAL {
         std::vector<gc::space::ImageSpace*> image_spaces =
             Runtime::Current()->GetHeap()->GetBootImageSpaces();
         for (gc::space::ImageSpace* image_space : image_spaces) {
-          // TODO: IS THIS IN ORDER? JUST TAKE THE LAST ONE?
           image_base_ = std::max(image_base_, RoundUp(
               reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatFileEnd()),
               kPageSize));

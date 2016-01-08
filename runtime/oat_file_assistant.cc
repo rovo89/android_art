@@ -952,7 +952,6 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
     Runtime* runtime = Runtime::Current();
     std::vector<gc::space::ImageSpace*> image_spaces = runtime->GetHeap()->GetBootImageSpaces();
     if (!image_spaces.empty()) {
-      // TODO: Better support multi-images? b/26317072
       cached_image_info_.location = image_spaces[0]->GetImageLocation();
 
       if (isa_ == kRuntimeISA) {

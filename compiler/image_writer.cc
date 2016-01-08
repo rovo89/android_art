@@ -209,9 +209,6 @@ bool ImageWriter::Write(int image_fd,
           oat_header.GetQuickResolutionTrampolineOffset();
       image_info.oat_address_offsets_[kOatAddressQuickToInterpreterBridge] =
           oat_header.GetQuickToInterpreterBridgeOffset();
-    } else {
-      // Other oat files use the primary trampolines.
-      // TODO: Dummy values to protect usage? b/26317072
     }
 
 
