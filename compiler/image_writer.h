@@ -470,9 +470,6 @@ class ImageWriter FINAL {
   const bool compile_pic_;
   const bool compile_app_image_;
 
-  // Cache the boot image space in this class for faster lookups.
-  gc::space::ImageSpace* boot_image_space_;
-
   // Size of pointers on the target architecture.
   size_t target_ptr_size_;
 

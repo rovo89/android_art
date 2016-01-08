@@ -361,9 +361,7 @@ fi
 dex2oat_cmdline="true"
 mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
 
-# TODO: allow app-image to work with multi-image. b/26317072
-app_image=""
-# app_image="--app-image-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.art | cut -d/ -f 2- | sed "s:/:@:g")"
+app_image="--app-image-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.art | cut -d/ -f 2- | sed "s:/:@:g")"
 
 if [ "$PREBUILD" = "y" ]; then
   dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
