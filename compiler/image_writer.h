@@ -47,6 +47,8 @@ class ImageSpace;
 }  // namespace space
 }  // namespace gc
 
+class ClassTable;
+
 static constexpr int kInvalidImageFd = -1;
 
 // Write a Space built during compilation for use during execution.
@@ -263,8 +265,14 @@ class ImageWriter FINAL {
     // Cached size of the intern table for when we allocate memory.
     size_t intern_table_bytes_ = 0;
 
-    // Intern table associated with this for serialization.
+    // Number of image class table bytes.
+    size_t class_table_bytes_ = 0;
+
+    // Intern table associated with this image for serialization.
     std::unique_ptr<InternTable> intern_table_;
+
+    // Class table associated with this image for serialization.
+    std::unique_ptr<ClassTable> class_table_;
   };
 
   // We use the lock word to store the offset of the object in the image.
@@ -503,9 +511,6 @@ class ImageWriter FINAL {
   // dex2oat loads the dex files to be compiled into a single class loader. For the boot image,
   // null is a valid entry.
   std::unordered_set<mirror::ClassLoader*> class_loaders_;
-
-  // Number of image class table bytes.
-  size_t class_table_bytes_;
 
   // Which mode the image is stored as, see image.h
   const ImageHeader::StorageMode image_storage_mode_;
