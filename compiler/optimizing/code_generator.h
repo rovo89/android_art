@@ -269,6 +269,8 @@ class CodeGenerator {
 
   // Record native to dex mapping for a suspend point.  Required by runtime.
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path = nullptr);
+  // Check whether we have already recorded mapping at this PC.
+  bool HasStackMapAtCurrentPc();
 
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);

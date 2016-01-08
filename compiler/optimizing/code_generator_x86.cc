@@ -1625,6 +1625,10 @@ void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
 }
 
 void InstructionCodeGeneratorX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  if (codegen_->HasStackMapAtCurrentPc()) {
+    // Ensure that we do not collide with the stack map of the previous instruction.
+    __ nop();
+  }
   codegen_->RecordPcInfo(info, info->GetDexPc());
 }
 
