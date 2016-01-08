@@ -736,7 +736,7 @@ void ClassLinker::RunRootClinits() {
 
 static void SanityCheckArtMethod(ArtMethod* m,
                                  mirror::Class* expected_class,
-                                 std::vector<gc::space::ImageSpace*>& spaces)
+                                 const std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
     CHECK(m->GetDeclaringClass() == nullptr) << PrettyMethod(m);
@@ -760,7 +760,7 @@ static void SanityCheckArtMethod(ArtMethod* m,
 static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
                                              mirror::Class* expected_class,
                                              size_t pointer_size,
-                                             std::vector<gc::space::ImageSpace*>& spaces)
+                                             const std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(arr != nullptr);
   for (int32_t j = 0; j < arr->GetLength(); ++j) {
@@ -778,7 +778,7 @@ static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
 static void SanityCheckArtMethodPointerArray(ArtMethod** arr,
                                              size_t size,
                                              size_t pointer_size,
-                                             std::vector<gc::space::ImageSpace*>& spaces)
+                                             const std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK_EQ(arr != nullptr, size != 0u);
   if (arr != nullptr) {
