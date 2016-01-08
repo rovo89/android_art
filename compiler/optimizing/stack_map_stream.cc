@@ -270,7 +270,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
       stack_map.SetStackMask(stack_map_encoding_, *entry.sp_mask);
     }
 
-    if (entry.num_dex_registers == 0) {
+    if (entry.num_dex_registers == 0 || (entry.live_dex_registers_mask->NumSetBits() == 0)) {
       // No dex map available.
       stack_map.SetDexRegisterMapOffset(stack_map_encoding_, StackMap::kNoDexRegisterMap);
     } else {
