@@ -1113,6 +1113,7 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
+  size_t class_tables_added = 0;
   for (gc::space::ImageSpace* space : spaces) {
     const ImageHeader& header = space->GetImageHeader();
     const ImageSection& section = header.GetImageSection(ImageHeader::kSectionClassTable);
@@ -1120,8 +1121,16 @@ bool ClassLinker::InitFromImage(std::string* error_msg) {
       WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
       ClassTable* const class_table = InsertClassTableForClassLoader(nullptr);
       class_table->ReadFromMemory(space->Begin() + section.Offset());
-      dex_cache_boot_image_class_lookup_required_ = false;
+      ++class_tables_added;
     }
+  }
+  if (class_tables_added != 0) {
+    // Either all of the image spaces have an empty class section or none do. In the case where
+    // an image space has no classes, it will still have a non-empty class section that contains
+    // metadata.
+    CHECK_EQ(spaces.size(), class_tables_added)
+        << "Expected non-empty class section for each image space.";
+    dex_cache_boot_image_class_lookup_required_ = false;
   }
 
   FinishInit(self);

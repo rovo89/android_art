@@ -106,8 +106,7 @@ class ClassTable {
 
   // Combines all of the tables into one class set.
   size_t WriteToMemory(uint8_t* ptr) const
-      REQUIRES(Locks::classlinker_classes_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
   size_t ReadFromMemory(uint8_t* ptr)
       REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

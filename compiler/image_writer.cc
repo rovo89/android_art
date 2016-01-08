@@ -1070,6 +1070,13 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
       };
       const char* oat_file = GetOatFilenameForDexCache(dex_cache);
       ImageInfo& image_info = GetImageInfo(oat_file);
+      {
+        // Note: This table is only accessed from the image writer, so the lock is technically
+        // unnecessary.
+        WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+        // Insert in the class table for this iamge.
+        image_info.class_table_->Insert(as_klass);
+      }
       for (LengthPrefixedArray<ArtField>* cur_fields : fields) {
         // Total array length including header.
         if (cur_fields != nullptr) {
@@ -1252,13 +1259,16 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // Calculate size of the dex cache arrays slot and prepare offsets.
   PrepareDexCacheArraySlots();
 
-  // Calculate the sizes of the intern tables.
+  // Calculate the sizes of the intern tables and class tables.
   for (const char* oat_filename : oat_filenames_) {
     ImageInfo& image_info = GetImageInfo(oat_filename);
     // Calculate how big the intern table will be after being serialized.
     InternTable* const intern_table = image_info.intern_table_.get();
     CHECK_EQ(intern_table->WeakSize(), 0u) << " should have strong interned all the strings";
     image_info.intern_table_bytes_ = intern_table->WriteToMemory(nullptr);
+    // Calculate the size of the class table.
+    ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    image_info.class_table_bytes_ += image_info.class_table_->WriteToMemory(nullptr);
   }
 
   // Calculate bin slot offsets.
@@ -1315,27 +1325,6 @@ void ImageWriter::CalculateNewObjectOffsets() {
     relocation.offset += image_info.bin_slot_offsets_[bin_type];
   }
 
-  /* TODO: Reenable the class table. b/26317072
-  // Write out the class table.
-  ClassLinker* class_linker = runtime->GetClassLinker();
-  if (boot_image_space_ == nullptr) {
-    // Compiling the boot image, add null class loader.
-    class_loaders_.insert(nullptr);
-  }
-  // class_loaders_ usually will not be empty, but may be empty if we attempt to create an image
-  // with no classes.
-  if (class_loaders_.size() == 1u) {
-    // Only write the class table if we have exactly one class loader. There may be cases where
-    // there are multiple class loaders if a class path is passed to dex2oat.
-    ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    for (mirror::ClassLoader* loader : class_loaders_) {
-      ClassTable* table = class_linker->ClassTableForClassLoader(loader);
-      CHECK(table != nullptr);
-      class_table_bytes_ += table->WriteToMemory(nullptr);
-    }
-  }
-  */
-
   // Note that image_info.image_end_ is left at end of used mirror object section.
 }
 
@@ -1375,8 +1364,7 @@ size_t ImageWriter::ImageInfo::CreateImageSections(size_t target_ptr_size,
   cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
   // Calculate the size of the class table section.
   auto* class_table_section = &out_sections[ImageHeader::kSectionClassTable];
-  // TODO: class_table_bytes_
-  *class_table_section = ImageSection(cur_pos, 0u);
+  *class_table_section = ImageSection(cur_pos, class_table_bytes_);
   cur_pos = class_table_section->End();
   // Image end goes right before the start of the image bitmap.
   return cur_pos;
@@ -1555,35 +1543,29 @@ void ImageWriter::CopyAndFixupNativeData() {
     CHECK_EQ(temp_intern_table.Size(), intern_table->Size());
     temp_intern_table.VisitRoots(&root_visitor, kVisitRootFlagAllRoots);
   }
-  /* TODO: Reenable the class table writing.
   // Write the class table(s) into the image. class_table_bytes_ may be 0 if there are multiple
   // class loaders. Writing multiple class tables into the image is currently unsupported.
-  if (class_table_bytes_ > 0u) {
-    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  if (image_info.class_table_bytes_ > 0u) {
     const ImageSection& class_table_section = image_header->GetImageSection(
         ImageHeader::kSectionClassTable);
     uint8_t* const class_table_memory_ptr =
         image_info.image_->Begin() + class_table_section.Offset();
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    size_t class_table_bytes = 0;
-    for (mirror::ClassLoader* loader : class_loaders_) {
-      ClassTable* table = class_linker->ClassTableForClassLoader(loader);
-      CHECK(table != nullptr);
-      uint8_t* memory_ptr = class_table_memory_ptr + class_table_bytes;
-      class_table_bytes += table->WriteToMemory(memory_ptr);
-      // Fixup the pointers in the newly written class table to contain image addresses. See
-      // above comment for intern tables.
-      ClassTable temp_class_table;
-      temp_class_table.ReadFromMemory(memory_ptr);
-      CHECK_EQ(temp_class_table.NumZygoteClasses(), table->NumNonZygoteClasses() +
-               table->NumZygoteClasses());
-      BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&root_visitor,
-                                                                      RootInfo(kRootUnknown));
-      temp_class_table.VisitRoots(buffered_visitor);
-    }
-    CHECK_EQ(class_table_bytes, class_table_bytes_);
+
+    ClassTable* table = image_info.class_table_.get();
+    CHECK(table != nullptr);
+    const size_t class_table_bytes = table->WriteToMemory(class_table_memory_ptr);
+    CHECK_EQ(class_table_bytes, image_info.class_table_bytes_);
+    // Fixup the pointers in the newly written class table to contain image addresses. See
+    // above comment for intern tables.
+    ClassTable temp_class_table;
+    temp_class_table.ReadFromMemory(class_table_memory_ptr);
+    CHECK_EQ(temp_class_table.NumZygoteClasses(), table->NumNonZygoteClasses() +
+             table->NumZygoteClasses());
+    BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&root_visitor,
+                                                                    RootInfo(kRootUnknown));
+    temp_class_table.VisitRoots(buffered_visitor);
   }
-  */
 }
 
 void ImageWriter::CopyAndFixupObjects() {
@@ -2215,7 +2197,6 @@ ImageWriter::ImageWriter(
       image_method_array_(ImageHeader::kImageMethodsCount),
       dirty_methods_(0u),
       clean_methods_(0u),
-      class_table_bytes_(0u),
       image_storage_mode_(image_storage_mode),
       dex_file_oat_filename_map_(dex_file_oat_filename_map),
       oat_filenames_(oat_filenames),
@@ -2227,6 +2208,8 @@ ImageWriter::ImageWriter(
   std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
 }
 
-ImageWriter::ImageInfo::ImageInfo() : intern_table_(new InternTable) {}
+ImageWriter::ImageInfo::ImageInfo()
+    : intern_table_(new InternTable),
+      class_table_(new ClassTable) {}
 
 }  // namespace art
