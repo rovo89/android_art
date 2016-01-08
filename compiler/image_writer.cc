@@ -76,23 +76,35 @@ static constexpr bool kBinObjects = true;
 
 // Return true if an object is already in an image space.
 bool ImageWriter::IsInBootImage(const void* obj) const {
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
   if (!compile_app_image_) {
-    DCHECK(boot_image_space_ == nullptr);
+    DCHECK(heap->GetBootImageSpaces().empty());
     return false;
   }
-  const uint8_t* image_begin = boot_image_space_->Begin();
-  // Real image end including ArtMethods and ArtField sections.
-  const uint8_t* image_end = image_begin + boot_image_space_->GetImageHeader().GetImageSize();
-  return image_begin <= obj && obj < image_end;
+  for (gc::space::ImageSpace* boot_image_space : heap->GetBootImageSpaces()) {
+    const uint8_t* image_begin = boot_image_space->Begin();
+    // Real image end including ArtMethods and ArtField sections.
+    const uint8_t* image_end = image_begin + boot_image_space->GetImageHeader().GetImageSize();
+    if (image_begin <= obj && obj < image_end) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool ImageWriter::IsInBootOatFile(const void* ptr) const {
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
   if (!compile_app_image_) {
-    DCHECK(boot_image_space_ == nullptr);
+    DCHECK(heap->GetBootImageSpaces().empty());
     return false;
   }
-  const ImageHeader& image_header = boot_image_space_->GetImageHeader();
-  return image_header.GetOatFileBegin() <= ptr && ptr < image_header.GetOatFileEnd();
+  for (gc::space::ImageSpace* boot_image_space : heap->GetBootImageSpaces()) {
+    const ImageHeader& image_header = boot_image_space->GetImageHeader();
+    if (image_header.GetOatFileBegin() <= ptr && ptr < image_header.GetOatFileEnd()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
@@ -109,14 +121,6 @@ static void CheckNoDexObjects() {
 bool ImageWriter::PrepareImageAddressSpace() {
   target_ptr_size_ = InstructionSetPointerSize(compiler_driver_.GetInstructionSet());
   gc::Heap* const heap = Runtime::Current()->GetHeap();
-  // Cache boot image space.
-    for (gc::space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
-      if (space->IsImageSpace()) {
-        CHECK(compile_app_image_);
-        CHECK(boot_image_space_ == nullptr) << "Multiple image spaces";
-        boot_image_space_ = space->AsImageSpace();
-      }
-    }
   {
     ScopedObjectAccess soa(Thread::Current());
     PruneNonImageClasses();  // Remove junk
@@ -1973,7 +1977,7 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
   copy->SetDeclaringClass(GetImageAddress(orig->GetDeclaringClassUnchecked()));
 
   const char* oat_filename;
-  if (orig->IsRuntimeMethod()) {
+  if (orig->IsRuntimeMethod() || compile_app_image_) {
     oat_filename = default_oat_filename_;
   } else {
     auto it = dex_file_oat_filename_map_.find(orig->GetDexFile());
@@ -2192,7 +2196,6 @@ ImageWriter::ImageWriter(
       oat_file_(nullptr),
       compile_pic_(compile_pic),
       compile_app_image_(compile_app_image),
-      boot_image_space_(nullptr),
       target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
       image_method_array_(ImageHeader::kImageMethodsCount),
       dirty_methods_(0u),
