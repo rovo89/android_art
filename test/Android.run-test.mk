@@ -588,8 +588,7 @@ endif
 TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
-
-# Tests broken by multi-image. b/26317072
+# Tests broken by multi-image.
 TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS := \
   476-checker-ctor-memory-barrier \
   530-checker-lse
