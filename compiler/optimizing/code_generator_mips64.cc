@@ -3515,17 +3515,32 @@ void LocationsBuilderMIPS64::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  if (instruction->IsStringAlloc()) {
+    locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
+  } else {
+    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  }
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
 }
 
 void InstructionCodeGeneratorMIPS64::VisitNewInstance(HNewInstance* instruction) {
-  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
-                          instruction,
-                          instruction->GetDexPc(),
-                          nullptr);
-  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+  if (instruction->IsStringAlloc()) {
+    // String is allocated through StringFactory. Call NewEmptyString entry point.
+    GpuRegister temp = instruction->GetLocations()->GetTemp(0).AsRegister<GpuRegister>();
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64WordSize);
+    __ LoadFromOffset(kLoadDoubleword, temp, TR, QUICK_ENTRY_POINT(pNewEmptyString));
+    __ LoadFromOffset(kLoadDoubleword, T9, temp, code_offset.Int32Value());
+    __ Jalr(T9);
+    __ Nop();
+    codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  } else {
+    codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                            instruction,
+                            instruction->GetDexPc(),
+                            nullptr);
+    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+  }
 }
 
 void LocationsBuilderMIPS64::VisitNot(HNot* instruction) {
@@ -4174,18 +4189,6 @@ void LocationsBuilderMIPS64::VisitAboveOrEqual(HAboveOrEqual* comp) {
 
 void InstructionCodeGeneratorMIPS64::VisitAboveOrEqual(HAboveOrEqual* comp) {
   HandleCondition(comp);
-}
-
-void LocationsBuilderMIPS64::VisitFakeString(HFakeString* instruction) {
-  DCHECK(codegen_->IsBaseline());
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetOut(Location::ConstantLocation(GetGraph()->GetNullConstant()));
-}
-
-void InstructionCodeGeneratorMIPS64::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
-  DCHECK(codegen_->IsBaseline());
-  // Will be generated at use site.
 }
 
 // Simple implementation of packed switch - generate cascaded compare/jumps.

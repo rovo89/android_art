@@ -2169,6 +2169,11 @@ void HInvoke::SetIntrinsic(Intrinsics intrinsic,
   }
 }
 
+bool HNewInstance::IsStringAlloc() const {
+  ScopedObjectAccess soa(Thread::Current());
+  return GetReferenceTypeInfo().IsStringClass();
+}
+
 bool HInvoke::NeedsEnvironment() const {
   if (!IsIntrinsic()) {
     return true;

@@ -885,4 +885,22 @@ void SsaBuilder::VisitArraySet(HArraySet* aset) {
   VisitInstruction(aset);
 }
 
+void SsaBuilder::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  VisitInstruction(invoke);
+
+  if (invoke->IsStringInit()) {
+    // This is a StringFactory call which acts as a String constructor. Its
+    // result replaces the empty String pre-allocated by NewInstance.
+    HNewInstance* new_instance = invoke->GetThisArgumentOfStringInit();
+    invoke->RemoveThisArgumentOfStringInit();
+
+    // Walk over all vregs and replace any occurrence of `new_instance` with `invoke`.
+    for (size_t vreg = 0, e = current_locals_->size(); vreg < e; ++vreg) {
+      if ((*current_locals_)[vreg] == new_instance) {
+        (*current_locals_)[vreg] = invoke;
+      }
+    }
+  }
+}
+
 }  // namespace art

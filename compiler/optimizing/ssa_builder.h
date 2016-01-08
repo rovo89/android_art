@@ -70,13 +70,14 @@ class SsaBuilder : public HGraphVisitor {
   ArenaVector<HInstruction*>* GetLocalsFor(HBasicBlock* block);
   HInstruction* ValueOfLocal(HBasicBlock* block, size_t local);
 
-  void VisitBasicBlock(HBasicBlock* block);
-  void VisitLoadLocal(HLoadLocal* load);
-  void VisitStoreLocal(HStoreLocal* store);
-  void VisitInstruction(HInstruction* instruction);
-  void VisitTemporary(HTemporary* instruction);
-  void VisitArrayGet(HArrayGet* aget);
-  void VisitArraySet(HArraySet* aset);
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
+  void VisitLoadLocal(HLoadLocal* load) OVERRIDE;
+  void VisitStoreLocal(HStoreLocal* store) OVERRIDE;
+  void VisitInstruction(HInstruction* instruction) OVERRIDE;
+  void VisitTemporary(HTemporary* instruction) OVERRIDE;
+  void VisitArrayGet(HArrayGet* aget) OVERRIDE;
+  void VisitArraySet(HArraySet* aset) OVERRIDE;
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
 
   static constexpr const char* kSsaBuilderPassName = "ssa_builder";
 
