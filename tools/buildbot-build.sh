@@ -48,7 +48,7 @@ done
 if [[ $mode == "host" ]]; then
   make_command="make $j_arg $showcommands build-art-host-tests $common_targets ${out_dir}/host/linux-x86/lib/libjavacoretests.so ${out_dir}/host/linux-x86/lib64/libjavacoretests.so"
 elif [[ $mode == "target" ]]; then
-  make_command="make $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh ${out_dir}/host/linux-x86/bin/adb"
+  make_command="make $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh ${out_dir}/host/linux-x86/bin/adb libstdc++"
 fi
 
 echo "Executing $make_command"
