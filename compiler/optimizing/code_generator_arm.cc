@@ -4683,6 +4683,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
           __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
           __ StoreToOffset(kStoreWord, source, IP, data_offset);
         }
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
         DCHECK(!needs_write_barrier);
         DCHECK(!may_need_runtime_call_for_type_check);
         break;
