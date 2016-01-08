@@ -4826,8 +4826,6 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
         __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
         __ StoreToOffset(kStoreWord, value, IP, data_offset);
       }
-
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
@@ -4879,8 +4877,8 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       UNREACHABLE();
   }
 
-  // Ints and objects are handled in the switch.
-  if (value_type != Primitive::kPrimInt && value_type != Primitive::kPrimNot) {
+  // Objects are handled in the switch.
+  if (value_type != Primitive::kPrimNot) {
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 }
