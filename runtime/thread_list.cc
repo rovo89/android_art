@@ -97,8 +97,8 @@ ThreadList::~ThreadList() {
   ATRACE_END();
   // TODO: there's an unaddressed race here where a thread may attach during shutdown, see
   //       Thread::Init.
-  ATRACE_BEGIN("SuspendAllDaemonThreads");
-  SuspendAllDaemonThreads();
+  ATRACE_BEGIN("SuspendAllDaemonThreadsForShutdown");
+  SuspendAllDaemonThreadsForShutdown();
   ATRACE_END();
   ATRACE_END();
 }
@@ -1142,7 +1142,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
   }
 }
 
-void ThreadList::SuspendAllDaemonThreads() {
+void ThreadList::SuspendAllDaemonThreadsForShutdown() {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::thread_list_lock_);
   {  // Tell all the daemons it's time to suspend.
@@ -1154,6 +1154,9 @@ void ThreadList::SuspendAllDaemonThreads() {
       if (thread != self) {
         thread->ModifySuspendCount(self, +1, nullptr, false);
       }
+      // We are shutting down the runtime, set the JNI functions of all the JNIEnvs to be
+      // the sleep forever one.
+      thread->GetJniEnv()->SetFunctionsToRuntimeShutdownFunctions();
     }
   }
   // Give the threads a chance to suspend, complaining if they're slow.
