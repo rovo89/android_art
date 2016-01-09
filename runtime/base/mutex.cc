@@ -855,6 +855,18 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
       PLOG(FATAL) << "futex wait failed for " << name_;
     }
   }
+  if (self != nullptr) {
+    JNIEnvExt* const env = self->GetJniEnv();
+    if (UNLIKELY(env != nullptr && env->runtime_deleted)) {
+      CHECK(self->IsDaemon());
+      // If the runtime has been deleted, then we cannot proceed. Just sleep forever. This may
+      // occur for user daemon threads that get a spurious wakeup. This occurs for test 132 with
+      // --host and --gdb.
+      // After we wake up, the runtime may have been shutdown, which means that this condition may
+      // have been deleted. It is not safe to retry the wait.
+      SleepForever();
+    }
+  }
   guard_.ExclusiveLock(self);
   CHECK_GE(num_waiters_, 0);
   num_waiters_--;

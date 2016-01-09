@@ -1871,4 +1871,10 @@ int64_t GetFileSizeBytes(const std::string& filename) {
   return rc == 0 ? stat_buf.st_size : -1;
 }
 
+void SleepForever() {
+  while (true) {
+    usleep(1000000);
+  }
+}
+
 }  // namespace art

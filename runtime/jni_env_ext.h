@@ -74,6 +74,9 @@ struct JNIEnvExt : public JNIEnv {
   // Frequently-accessed fields cached from JavaVM.
   bool check_jni;
 
+  // If we are a JNI env for a daemon thread with a deleted runtime.
+  bool runtime_deleted;
+
   // How many nested "critical" JNI calls are we in?
   int critical;
 
@@ -94,6 +97,9 @@ struct JNIEnvExt : public JNIEnv {
 
   // Check that no monitors are held that have been acquired in this JNI "segment."
   void CheckNoHeldMonitors() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Set the functions to the runtime shutdown functions.
+  void SetFunctionsToRuntimeShutdownFunctions();
 
  private:
   // The constructor should not be called directly. It may leave the object in an erronuous state,

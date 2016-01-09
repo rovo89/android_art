@@ -30,6 +30,7 @@
 namespace art {
 
 const JNINativeInterface* GetJniNativeInterface();
+const JNINativeInterface* GetRuntimeShutdownNativeInterface();
 
 // Similar to RegisterNatives except its passed a descriptor for a class name and failures are
 // fatal.

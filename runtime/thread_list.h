@@ -164,7 +164,7 @@ class ThreadList {
   void DumpUnattachedThreads(std::ostream& os)
       REQUIRES(!Locks::thread_list_lock_);
 
-  void SuspendAllDaemonThreads()
+  void SuspendAllDaemonThreadsForShutdown()
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
   void WaitForOtherNonDaemonThreadsToExit()
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
