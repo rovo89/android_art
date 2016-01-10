@@ -248,10 +248,5 @@
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testFlush",
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testSync",
           "org.apache.harmony.tests.java.util.prefs.FilePreferencesImplTest#testPutGet"]
-},
-{
-  description: "Missing resource",
-  result: EXEC_FAILED,
-  names: ["libcore.java.util.LocaleTest#test_SerializationBug_26387905"]
 }
 ]
