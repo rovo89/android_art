@@ -213,12 +213,6 @@ class ElfFileImpl {
   SymbolTable* symtab_symbol_table_;
   SymbolTable* dynsym_symbol_table_;
 
-  // Support for GDB JIT
-  uint8_t* jit_elf_image_;
-  JITCodeEntry* jit_gdb_entry_;
-  std::unique_ptr<ElfFileImpl<ElfTypes>> gdb_file_mapping_;
-  void GdbJITSupport();
-
   // Override the 'base' p_vaddr in the first LOAD segment with this value (if non-null).
   uint8_t* requested_base_;
 

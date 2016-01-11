@@ -27,7 +27,6 @@
 #include "base/unix_file/fd_file.h"
 #include "elf_file_impl.h"
 #include "elf_utils.h"
-#include "jit/debugger_interface.h"
 #include "leb128.h"
 #include "utils.h"
 
@@ -53,8 +52,6 @@ ElfFileImpl<ElfTypes>::ElfFileImpl(File* file, bool writable,
     hash_section_start_(nullptr),
     symtab_symbol_table_(nullptr),
     dynsym_symbol_table_(nullptr),
-    jit_elf_image_(nullptr),
-    jit_gdb_entry_(nullptr),
     requested_base_(requested_base) {
   CHECK(file != nullptr);
 }
@@ -273,10 +270,6 @@ ElfFileImpl<ElfTypes>::~ElfFileImpl() {
   STLDeleteElements(&segments_);
   delete symtab_symbol_table_;
   delete dynsym_symbol_table_;
-  delete jit_elf_image_;
-  if (jit_gdb_entry_) {
-    DeleteJITCodeEntry(jit_gdb_entry_);
-  }
 }
 
 template <typename ElfTypes>
@@ -1300,11 +1293,6 @@ bool ElfFileImpl<ElfTypes>::Load(bool executable, std::string* error_msg) {
     return false;
   }
 
-  // Use GDB JIT support to do stack backtrace, etc.
-  if (executable) {
-    GdbJITSupport();
-  }
-
   return true;
 }
 
@@ -1392,50 +1380,6 @@ void ElfFileImpl<ElfTypes>::ApplyOatPatches(
     DCHECK_LT(to_patch, to_patch_end) << "Patch past the end of section.";
     *reinterpret_cast<UnalignedAddress*>(to_patch) += delta;
   }
-}
-
-template <typename ElfTypes>
-void ElfFileImpl<ElfTypes>::GdbJITSupport() {
-  // We only get here if we only are mapping the program header.
-  DCHECK(program_header_only_);
-
-  // Well, we need the whole file to do this.
-  std::string error_msg;
-  // Make it MAP_PRIVATE so we can just give it to gdb if all the necessary
-  // sections are there.
-  std::unique_ptr<ElfFileImpl<ElfTypes>> all_ptr(
-      Open(const_cast<File*>(file_), PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
-  if (all_ptr.get() == nullptr) {
-    return;
-  }
-  ElfFileImpl<ElfTypes>& all = *all_ptr;
-
-  // We need the eh_frame for gdb but debug info might be present without it.
-  const Elf_Shdr* eh_frame = all.FindSectionByName(".eh_frame");
-  if (eh_frame == nullptr) {
-    return;
-  }
-
-  // Do we have interesting sections?
-  // We need to add in a strtab and symtab to the image.
-  // all is MAP_PRIVATE so it can be written to freely.
-  // We also already have strtab and symtab so we are fine there.
-  Elf_Ehdr& elf_hdr = all.GetHeader();
-  elf_hdr.e_entry = 0;
-  elf_hdr.e_phoff = 0;
-  elf_hdr.e_phnum = 0;
-  elf_hdr.e_phentsize = 0;
-  elf_hdr.e_type = ET_EXEC;
-
-  // Since base_address_ is 0 if we are actually loaded at a known address (i.e. this is boot.oat)
-  // and the actual address stuff starts at in regular files this is good.
-  if (!all.FixupDebugSections(reinterpret_cast<intptr_t>(base_address_))) {
-    LOG(ERROR) << "Failed to load GDB data";
-    return;
-  }
-
-  jit_gdb_entry_ = CreateJITCodeEntry(all.Begin(), all.Size());
-  gdb_file_mapping_.reset(all_ptr.release());
 }
 
 template <typename ElfTypes>
