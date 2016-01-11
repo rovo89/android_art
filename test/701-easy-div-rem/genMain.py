@@ -13,25 +13,27 @@
 # limitations under the License.
 
 upper_bound_int_pow2 = 31
+upper_bound_int_pow2_neg = 32
 upper_bound_long_pow2 = 63
+upper_bound_long_pow2_neg = 64
 upper_bound_constant = 100
 all_tests = [
     ({'@INT@': 'int', '@SUFFIX@':''},
      [('CheckDiv', 'idiv_by_pow2_', [2**i for i in range(upper_bound_int_pow2)]),
-      ('CheckDiv', 'idiv_by_pow2_neg_', [-2**i for i in range(upper_bound_int_pow2)]),
+      ('CheckDiv', 'idiv_by_pow2_neg_', [-2**i for i in range(upper_bound_int_pow2_neg)]),
       ('CheckDiv', 'idiv_by_constant_', [i for i in range(1, upper_bound_constant)]),
       ('CheckDiv', 'idiv_by_constant_neg_', [-i for i in range(1, upper_bound_constant)]),
       ('CheckRem', 'irem_by_pow2_', [2**i for i in range(upper_bound_int_pow2)]),
-      ('CheckRem', 'irem_by_pow2_neg_', [-2**i for i in range(upper_bound_int_pow2)]),
+      ('CheckRem', 'irem_by_pow2_neg_', [-2**i for i in range(upper_bound_int_pow2_neg)]),
       ('CheckRem', 'irem_by_constant_', [i for i in range(1, upper_bound_constant)]),
       ('CheckRem', 'irem_by_constant_neg_', [-i for i in range(1, upper_bound_constant)])]),
     ({'@INT@': 'long', '@SUFFIX@': 'l'},
      [('CheckDiv', 'ldiv_by_pow2_', [2**i for i in range(upper_bound_long_pow2)]),
-      ('CheckDiv', 'ldiv_by_pow2_neg_', [-2**i for i in range(upper_bound_long_pow2)]),
+      ('CheckDiv', 'ldiv_by_pow2_neg_', [-2**i for i in range(upper_bound_long_pow2_neg)]),
       ('CheckDiv', 'ldiv_by_constant_', [i for i in range(1, upper_bound_constant)]),
       ('CheckDiv', 'ldiv_by_constant_neg_', [-i for i in range(1, upper_bound_constant)]),
       ('CheckRem', 'lrem_by_pow2_', [2**i for i in range(upper_bound_long_pow2)]),
-      ('CheckRem', 'lrem_by_pow2_neg_', [-2**i for i in range(upper_bound_long_pow2)]),
+      ('CheckRem', 'lrem_by_pow2_neg_', [-2**i for i in range(upper_bound_long_pow2_neg)]),
       ('CheckRem', 'lrem_by_constant_', [i for i in range(1, upper_bound_constant)]),
       ('CheckRem', 'lrem_by_constant_neg_', [-i for i in range(1, upper_bound_constant)])])
 ]

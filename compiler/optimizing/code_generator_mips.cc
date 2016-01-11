@@ -2314,8 +2314,7 @@ void InstructionCodeGeneratorMIPS::DivRemByPowerOfTwo(HBinaryOperation* instruct
   Register out = locations->Out().AsRegister<Register>();
   Register dividend = locations->InAt(0).AsRegister<Register>();
   int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
-  uint32_t abs_imm = static_cast<uint32_t>(std::abs(imm));
-  DCHECK(IsPowerOfTwo(abs_imm));
+  uint32_t abs_imm = static_cast<uint32_t>(AbsOrMin(imm));
   int ctz_imm = CTZ(abs_imm);
 
   if (instruction->IsDiv()) {
@@ -2418,7 +2417,7 @@ void InstructionCodeGeneratorMIPS::GenerateDivRemIntegral(HBinaryOperation* inst
       // Do not generate anything. DivZeroCheck would prevent any code to be executed.
     } else if (imm == 1 || imm == -1) {
       DivRemOneOrMinusOne(instruction);
-    } else if (IsPowerOfTwo(std::abs(imm))) {
+    } else if (IsPowerOfTwo(AbsOrMin(imm))) {
       DivRemByPowerOfTwo(instruction);
     } else {
       DCHECK(imm <= -2 || imm >= 2);
