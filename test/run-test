@@ -683,11 +683,6 @@ function arch_supports_read_barrier() {
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
-  # Build Checker DEX files without dx's optimizations so the input to dex2oat
-  # better resembles the Java source. We always build the DEX the same way, even
-  # if Checker is not invoked and the test only runs the program.
-  build_args="${build_args} --dx-option --no-optimize"
-
   # Jack does not necessarily generate the same DEX output than dx. Because these tests depend
   # on a particular DEX output, keep building them with dx for now (b/19467889).
   USE_JACK="false"

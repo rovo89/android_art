@@ -163,8 +163,8 @@ public class Main {
   /// CHECK:         <<Arg:z\d+>>  StaticFieldGet  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse>>]
   /// CHECK:                       If [<<Arg>>]    liveness:<<IfLiv:\d+>>
   /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
-  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
   /// CHECK:                       Exit
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
   /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
   /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse>>

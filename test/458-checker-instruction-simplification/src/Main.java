@@ -288,7 +288,7 @@ public class Main {
   /// CHECK-START: long Main.Mul1(long) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:j\d+>>     ParameterValue
   /// CHECK-DAG:     <<Const1:j\d+>>  LongConstant 1
-  /// CHECK-DAG:     <<Mul:j\d+>>     Mul [<<Arg>>,<<Const1>>]
+  /// CHECK-DAG:     <<Mul:j\d+>>     Mul [<<Const1>>,<<Arg>>]
   /// CHECK-DAG:                      Return [<<Mul>>]
 
   /// CHECK-START: long Main.Mul1(long) instruction_simplifier (after)
@@ -323,7 +323,7 @@ public class Main {
   /// CHECK-START: long Main.MulPowerOfTwo128(long) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:j\d+>>       ParameterValue
   /// CHECK-DAG:     <<Const128:j\d+>>  LongConstant 128
-  /// CHECK-DAG:     <<Mul:j\d+>>       Mul [<<Arg>>,<<Const128>>]
+  /// CHECK-DAG:     <<Mul:j\d+>>       Mul [<<Const128>>,<<Arg>>]
   /// CHECK-DAG:                        Return [<<Mul>>]
 
   /// CHECK-START: long Main.MulPowerOfTwo128(long) instruction_simplifier (after)
@@ -705,7 +705,7 @@ public class Main {
   /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:     <<Neg1:i\d+>>     Neg [<<Arg>>]
   /// CHECK-DAG:     <<Neg2:i\d+>>     Neg [<<Neg1>>]
-  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Neg1>>,<<Neg2>>]
+  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Neg2>>,<<Neg1>>]
   /// CHECK-DAG:                       Return [<<Add>>]
 
   /// CHECK-START: int Main.NegNeg2(int) instruction_simplifier (after)
@@ -841,13 +841,13 @@ public class Main {
   /// CHECK-DAG:     <<ConstF1:i\d+>>  IntConstant -1
   /// CHECK-DAG:     <<Xor1:i\d+>>     Xor [<<Arg>>,<<ConstF1>>]
   /// CHECK-DAG:     <<Xor2:i\d+>>     Xor [<<Xor1>>,<<ConstF1>>]
-  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Xor1>>,<<Xor2>>]
+  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Xor2>>,<<Xor1>>]
   /// CHECK-DAG:                       Return [<<Add>>]
 
   /// CHECK-START: int Main.NotNot2(int) instruction_simplifier (after)
   /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:     <<Not:i\d+>>      Not [<<Arg>>]
-  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Not>>,<<Arg>>]
+  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Arg>>,<<Not>>]
   /// CHECK-DAG:                       Return [<<Add>>]
 
   /// CHECK-START: int Main.NotNot2(int) instruction_simplifier (after)
@@ -1005,7 +1005,7 @@ public class Main {
   /// CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<Const0>>,<<Arg>>]
+  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<Arg>>,<<Const0>>]
   /// CHECK-DAG:                       If [<<Cond>>]
 
   /// CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier (after)
@@ -1064,7 +1064,7 @@ public class Main {
   /// CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<Const0>>,<<Arg>>]
+  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<Arg>>,<<Const0>>]
   /// CHECK-DAG:                       If [<<Cond>>]
 
   /// CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier (after)
@@ -1234,7 +1234,7 @@ public class Main {
   /// CHECK-START: long Main.mulPow2Minus1(long) instruction_simplifier (before)
   /// CHECK-DAG:   <<Arg:j\d+>>         ParameterValue
   /// CHECK-DAG:   <<Const31:j\d+>>     LongConstant 31
-  /// CHECK:                            Mul [<<Arg>>,<<Const31>>]
+  /// CHECK:                            Mul [<<Const31>>,<<Arg>>]
 
   /// CHECK-START: long Main.mulPow2Minus1(long) instruction_simplifier (after)
   /// CHECK-DAG:   <<Arg:j\d+>>         ParameterValue
