@@ -443,6 +443,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
+  void VisitArm64BitwiseNegatedRight(HArm64BitwiseNegatedRight* instruction) OVERRIDE {
+    StartAttributeStream("kind") << instruction->GetOpKind();
+  }
+
   void VisitArm64DataProcWithShifterOp(HArm64DataProcWithShifterOp* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetInstrKind() << "+" << instruction->GetOpKind();
     if (HArm64DataProcWithShifterOp::IsShiftOp(instruction->GetOpKind())) {
