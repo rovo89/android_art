@@ -3370,6 +3370,10 @@ void LocationsBuilderMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
 }
 
 void InstructionCodeGeneratorMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  if (codegen_->HasStackMapAtCurrentPc()) {
+    // Ensure that we do not collide with the stack map of the previous instruction.
+    __ Nop();
+  }
   codegen_->RecordPcInfo(info, info->GetDexPc());
 }
 
