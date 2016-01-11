@@ -267,6 +267,16 @@ endif
 
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
 
+# b/26483935
+TEST_ART_BROKEN_HOST_RUN_TESTS := \
+  132-daemon-locks-shutdown \
+
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,host,$(RUN_TYPES),$(PREBUILD_TYPES), \
+    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+    $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+
+TEST_ART_BROKEN_HOST_RUN_TESTS :=
+
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat \
