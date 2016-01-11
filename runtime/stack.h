@@ -184,11 +184,12 @@ class ShadowFrame {
   }
 
   uint32_t GetDexPC() const {
-    return dex_pc_;
+    return (dex_pc_ptr_ == nullptr) ? dex_pc_ : dex_pc_ptr_ - code_item_->insns_;
   }
 
   void SetDexPC(uint32_t dex_pc) {
     dex_pc_ = dex_pc;
+    dex_pc_ptr_ = nullptr;
   }
 
   ShadowFrame* GetLink() const {
@@ -204,6 +205,20 @@ class ShadowFrame {
     DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
     return *reinterpret_cast<const int32_t*>(vreg);
+  }
+
+  uint32_t* GetVRegAddr(size_t i) {
+    return &vregs_[i];
+  }
+
+  uint32_t* GetShadowRefAddr(size_t i) {
+    DCHECK(HasReferenceArray());
+    DCHECK_LT(i, NumberOfVRegs());
+    return &vregs_[i + NumberOfVRegs()];
+  }
+
+  void SetCodeItem(const DexFile::CodeItem* code_item) {
+    code_item_ = code_item;
   }
 
   float GetVRegFloat(size_t i) const {
@@ -346,6 +361,10 @@ class ShadowFrame {
     return lock_count_data_;
   }
 
+  static size_t LockCountDataOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, lock_count_data_);
+  }
+
   static size_t LinkOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, link_);
   }
@@ -366,6 +385,18 @@ class ShadowFrame {
     return OFFSETOF_MEMBER(ShadowFrame, vregs_);
   }
 
+  static size_t ResultRegisterOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, result_register_);
+  }
+
+  static size_t DexPCPtrOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, dex_pc_ptr_);
+  }
+
+  static size_t CodeItemOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, code_item_);
+  }
+
   // Create ShadowFrame for interpreter using provided memory.
   static ShadowFrame* CreateShadowFrameImpl(uint32_t num_vregs,
                                             ShadowFrame* link,
@@ -375,10 +406,19 @@ class ShadowFrame {
     return new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
   }
 
+  uint16_t* GetDexPCPtr() {
+    return dex_pc_ptr_;
+  }
+
+  JValue* GetResultRegister() {
+    return result_register_;
+  }
+
  private:
   ShadowFrame(uint32_t num_vregs, ShadowFrame* link, ArtMethod* method,
               uint32_t dex_pc, bool has_reference_array)
-      : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
+      : link_(link), method_(method), result_register_(nullptr), dex_pc_ptr_(nullptr),
+        code_item_(nullptr), number_of_vregs_(num_vregs), dex_pc_(dex_pc) {
     // TODO(iam): Remove this parameter, it's an an artifact of portable removal
     DCHECK(has_reference_array);
     if (has_reference_array) {
@@ -399,12 +439,15 @@ class ShadowFrame {
         const_cast<const ShadowFrame*>(this)->References());
   }
 
-  const uint32_t number_of_vregs_;
   // Link to previous shadow frame or null.
   ShadowFrame* link_;
   ArtMethod* method_;
-  uint32_t dex_pc_;
+  JValue* result_register_;
+  uint16_t* dex_pc_ptr_;
+  const DexFile::CodeItem* code_item_;
   LockCountData lock_count_data_;  // This may contain GC roots when lock counting is active.
+  const uint32_t number_of_vregs_;
+  uint32_t dex_pc_;
 
   // This is a two-part array:
   //  - [0..number_of_vregs) holds the raw virtual registers, and each element here is always 4

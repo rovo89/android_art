@@ -211,6 +211,7 @@ Runtime::Runtime()
       safe_mode_(false) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
+  interpreter::CheckInterpreterAsmConstants();
 }
 
 Runtime::~Runtime() {

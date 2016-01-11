@@ -76,6 +76,7 @@
 #include "verify_object-inl.h"
 #include "vmap_table.h"
 #include "well_known_classes.h"
+#include "interpreter/interpreter.h"
 
 #if ART_USE_FUTEXES
 #include "linux/futex.h"
@@ -686,6 +687,7 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
   RemoveSuspendTrigger();
   InitCardTable();
   InitTid();
+  interpreter::InitInterpreterTls(this);
 
 #ifdef __ANDROID__
   __get_tls()[TLS_SLOT_ART_THREAD_SELF] = this;

@@ -601,6 +601,24 @@ class Thread {
   }
 
   template<size_t pointer_size>
+  static ThreadOffset<pointer_size> MterpCurrentIBaseOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(
+        OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_current_ibase));
+  }
+
+  template<size_t pointer_size>
+  static ThreadOffset<pointer_size> MterpDefaultIBaseOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(
+        OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_default_ibase));
+  }
+
+  template<size_t pointer_size>
+  static ThreadOffset<pointer_size> MterpAltIBaseOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(
+        OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_alt_ibase));
+  }
+
+  template<size_t pointer_size>
   static ThreadOffset<pointer_size> ExceptionOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, exception));
   }
@@ -1001,6 +1019,30 @@ class Thread {
   void ProtectStack();
   bool UnprotectStack();
 
+  void SetMterpDefaultIBase(void* ibase) {
+    tlsPtr_.mterp_default_ibase = ibase;
+  }
+
+  void SetMterpCurrentIBase(void* ibase) {
+    tlsPtr_.mterp_current_ibase = ibase;
+  }
+
+  void SetMterpAltIBase(void* ibase) {
+    tlsPtr_.mterp_alt_ibase = ibase;
+  }
+
+  const void* GetMterpDefaultIBase() const {
+    return tlsPtr_.mterp_default_ibase;
+  }
+
+  const void* GetMterpCurrentIBase() const {
+    return tlsPtr_.mterp_current_ibase;
+  }
+
+  const void* GetMterpAltIBase() const {
+    return tlsPtr_.mterp_alt_ibase;
+  }
+
   void NoteSignalBeingHandled() {
     if (tls32_.handling_signal_) {
       LOG(FATAL) << "Detected signal while processing a signal";
@@ -1246,6 +1288,7 @@ class Thread {
       frame_id_to_shadow_frame(nullptr), name(nullptr), pthread_self(0),
       last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
+      mterp_current_ibase(nullptr), mterp_default_ibase(nullptr), mterp_alt_ibase(nullptr),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
       nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr),
       thread_local_mark_stack(nullptr) {
@@ -1363,6 +1406,11 @@ class Thread {
     uint8_t* thread_local_pos;
     uint8_t* thread_local_end;
     size_t thread_local_objects;
+
+    // Mterp jump table bases.
+    void* mterp_current_ibase;
+    void* mterp_default_ibase;
+    void* mterp_alt_ibase;
 
     // There are RosAlloc::kNumThreadLocalSizeBrackets thread-local size brackets per thread.
     void* rosalloc_runs[kNumRosAllocThreadLocalSizeBrackets];

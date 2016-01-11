@@ -250,6 +250,8 @@ LIBART_TARGET_SRC_FILES := \
   thread_android.cc
 
 LIBART_TARGET_SRC_FILES_arm := \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_arm.S \
   arch/arm/context_arm.cc.arm \
   arch/arm/entrypoints_init_arm.cc \
   arch/arm/instruction_set_features_assembly_tests.S \
@@ -261,6 +263,7 @@ LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/fault_handler_arm.cc
 
 LIBART_TARGET_SRC_FILES_arm64 := \
+  interpreter/mterp/mterp_stub.cc \
   arch/arm64/context_arm64.cc \
   arch/arm64/entrypoints_init_arm64.cc \
   arch/arm64/jni_entrypoints_arm64.S \
@@ -271,6 +274,7 @@ LIBART_TARGET_SRC_FILES_arm64 := \
   arch/arm64/fault_handler_arm64.cc
 
 LIBART_SRC_FILES_x86 := \
+  interpreter/mterp/mterp_stub.cc \
   arch/x86/context_x86.cc \
   arch/x86/entrypoints_init_x86.cc \
   arch/x86/jni_entrypoints_x86.S \
@@ -285,6 +289,7 @@ LIBART_TARGET_SRC_FILES_x86 := \
 # Note that the fault_handler_x86.cc is not a mistake.  This file is
 # shared between the x86 and x86_64 architectures.
 LIBART_SRC_FILES_x86_64 := \
+  interpreter/mterp/mterp_stub.cc \
   arch/x86_64/context_x86_64.cc \
   arch/x86_64/entrypoints_init_x86_64.cc \
   arch/x86_64/jni_entrypoints_x86_64.S \
@@ -298,6 +303,7 @@ LIBART_TARGET_SRC_FILES_x86_64 := \
   $(LIBART_SRC_FILES_x86_64) \
 
 LIBART_TARGET_SRC_FILES_mips := \
+  interpreter/mterp/mterp_stub.cc \
   arch/mips/context_mips.cc \
   arch/mips/entrypoints_init_mips.cc \
   arch/mips/jni_entrypoints_mips.S \
@@ -307,6 +313,7 @@ LIBART_TARGET_SRC_FILES_mips := \
   arch/mips/fault_handler_mips.cc
 
 LIBART_TARGET_SRC_FILES_mips64 := \
+  interpreter/mterp/mterp_stub.cc \
   arch/mips64/context_mips64.cc \
   arch/mips64/entrypoints_init_mips64.cc \
   arch/mips64/jni_entrypoints_mips64.S \

@@ -67,15 +67,20 @@ using ::art::mirror::Throwable;
 namespace art {
 namespace interpreter {
 
-// External references to both interpreter implementations.
+// External references to all interpreter implementations.
 
 template<bool do_access_check, bool transaction_active>
 extern JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
-                                ShadowFrame& shadow_frame, JValue result_register);
+                                ShadowFrame& shadow_frame, JValue result_register,
+                                bool interpret_one_instruction);
 
 template<bool do_access_check, bool transaction_active>
 extern JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
+
+// Mterp does not support transactions or access check, thus no templated versions.
+extern "C" bool ExecuteMterpImpl(Thread* self, const DexFile::CodeItem* code_item,
+                                 ShadowFrame* shadow_frame, JValue* result_register);
 
 void ThrowNullPointerExceptionFromInterpreter()
     SHARED_REQUIRES(Locks::mutator_lock_);
