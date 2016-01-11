@@ -1,0 +1,20 @@
+/*
+ * This file contains expectations for ART's buildbot's concurrent collector
+ * configurations. The purpose of this file is to temporary and quickly list
+ * failing tests and not break the bots on the CC configurations, until they
+ * are fixed or until the libcore expectation files get properly updated. The
+ * script that uses this file is art/tools/run-libcore-tests.sh.
+ *
+ * It is also used to enable AOSP experiments, and not mess up with CTS's
+ * expectations.
+ */
+
+[
+{
+  description: "Assertion failing on the concurrent collector configuration.",
+  result: EXEC_FAILED,
+  names: ["jsr166.LinkedTransferQueueTest#testTransfer2",
+          "jsr166.LinkedTransferQueueTest#testWaitingConsumer"],
+  bug: 25883050
+}
+]
