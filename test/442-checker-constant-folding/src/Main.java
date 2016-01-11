@@ -120,9 +120,10 @@ public class Main {
   /// CHECK-DAG:     <<Const2:i\d+>>  IntConstant 2
   /// CHECK-DAG:     <<Const5:i\d+>>  IntConstant 5
   /// CHECK-DAG:     <<Const6:i\d+>>  IntConstant 6
+  /// CHECK-DAG:     <<Const11:i\d+>> IntConstant 11
   /// CHECK-DAG:     <<Add1:i\d+>>    Add [<<Const1>>,<<Const2>>]
-  /// CHECK-DAG:     <<Add2:i\d+>>    Add [<<Const5>>,<<Const6>>]
-  /// CHECK-DAG:     <<Add3:i\d+>>    Add [<<Add1>>,<<Add2>>]
+  /// CHECK-DAG:                      Add [<<Const5>>,<<Const6>>]
+  /// CHECK-DAG:     <<Add3:i\d+>>    Add [<<Add1>>,<<Const11>>]
   /// CHECK-DAG:                      Return [<<Add3>>]
 
   /// CHECK-START: int Main.IntAddition2() constant_folding (after)
@@ -522,7 +523,7 @@ public class Main {
   /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
-  /// CHECK-DAG:     <<And:j\d+>>      And [<<Const10L>>,<<TypeConv>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<TypeConv>>,<<Const10L>>]
   /// CHECK-DAG:                       Return [<<And>>]
 
   /// CHECK-START: long Main.AndLongInt() constant_folding (after)
@@ -567,7 +568,7 @@ public class Main {
   /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
-  /// CHECK-DAG:     <<Or:j\d+>>       Or [<<Const10L>>,<<TypeConv>>]
+  /// CHECK-DAG:     <<Or:j\d+>>       Or [<<TypeConv>>,<<Const10L>>]
   /// CHECK-DAG:                       Return [<<Or>>]
 
   /// CHECK-START: long Main.OrLongInt() constant_folding (after)
@@ -612,7 +613,7 @@ public class Main {
   /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
-  /// CHECK-DAG:     <<Xor:j\d+>>      Xor [<<Const10L>>,<<TypeConv>>]
+  /// CHECK-DAG:     <<Xor:j\d+>>      Xor [<<TypeConv>>,<<Const10L>>]
   /// CHECK-DAG:                       Return [<<Xor>>]
 
   /// CHECK-START: long Main.XorLongInt() constant_folding (after)
@@ -749,7 +750,7 @@ public class Main {
   /// CHECK-START: long Main.Mul0(long) constant_folding (before)
   /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:j\d+>>   LongConstant 0
-  /// CHECK-DAG:     <<Mul:j\d+>>      Mul [<<Arg>>,<<Const0>>]
+  /// CHECK-DAG:     <<Mul:j\d+>>      Mul [<<Const0>>,<<Arg>>]
   /// CHECK-DAG:                       Return [<<Mul>>]
 
   /// CHECK-START: long Main.Mul0(long) constant_folding (after)
