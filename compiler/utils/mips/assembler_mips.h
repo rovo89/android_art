@@ -274,6 +274,8 @@ class MipsAssembler FINAL : public Assembler {
   void Mtc1(Register rt, FRegister fs);
   void Mfhc1(Register rt, FRegister fs);
   void Mthc1(Register rt, FRegister fs);
+  void MoveFromFpuHigh(Register rt, FRegister fs);
+  void MoveToFpuHigh(Register rt, FRegister fs);
   void Lwc1(FRegister ft, Register rs, uint16_t imm16);
   void Ldc1(FRegister ft, Register rs, uint16_t imm16);
   void Swc1(FRegister ft, Register rs, uint16_t imm16);
