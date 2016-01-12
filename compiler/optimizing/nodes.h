@@ -2706,8 +2706,6 @@ class HCondition : public HBinaryOperation {
 
   bool IsGtBias() const { return bias_ == ComparisonBias::kGtBias; }
 
-  bool IsLtBias() const { return bias_ == ComparisonBias::kLtBias; }
-
   void SetBias(ComparisonBias bias) { bias_ = bias; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
@@ -2717,23 +2715,13 @@ class HCondition : public HBinaryOperation {
   bool IsFPConditionTrueIfNaN() const {
     DCHECK(Primitive::IsFloatingPointType(InputAt(0)->GetType()));
     IfCondition if_cond = GetCondition();
-    if (if_cond == kCondNE) {
-      return true;
-    } else if (if_cond == kCondEQ) {
-      return false;
-    }
-    return ((if_cond == kCondGT) || (if_cond == kCondGE)) && IsGtBias();
+    return IsGtBias() ? ((if_cond == kCondGT) || (if_cond == kCondGE)) : (if_cond == kCondNE);
   }
 
   bool IsFPConditionFalseIfNaN() const {
     DCHECK(Primitive::IsFloatingPointType(InputAt(0)->GetType()));
     IfCondition if_cond = GetCondition();
-    if (if_cond == kCondEQ) {
-      return true;
-    } else if (if_cond == kCondNE) {
-      return false;
-    }
-    return ((if_cond == kCondLT) || (if_cond == kCondLE)) && IsGtBias();
+    return IsGtBias() ? ((if_cond == kCondLT) || (if_cond == kCondLE)) : (if_cond == kCondEQ);
   }
 
  private:
