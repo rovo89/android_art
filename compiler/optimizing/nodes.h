@@ -1868,6 +1868,10 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     return false;
   }
 
+  virtual bool IsActualObject() const {
+    return GetType() == Primitive::kPrimNot;
+  }
+
   void SetReferenceTypeInfo(ReferenceTypeInfo rti);
 
   ReferenceTypeInfo GetReferenceTypeInfo() const {
