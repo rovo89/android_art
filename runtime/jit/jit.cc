@@ -64,10 +64,14 @@ void Jit::AddTimingLogger(const TimingLogger& logger) {
   cumulative_timings_.AddLogger(logger);
 }
 
-Jit::Jit()
-    : jit_library_handle_(nullptr), jit_compiler_handle_(nullptr), jit_load_(nullptr),
-      jit_compile_method_(nullptr), dump_info_on_shutdown_(false),
-      cumulative_timings_("JIT timings"), save_profiling_info_(false) {
+Jit::Jit() : jit_library_handle_(nullptr),
+             jit_compiler_handle_(nullptr),
+             jit_load_(nullptr),
+             jit_compile_method_(nullptr),
+             dump_info_on_shutdown_(false),
+             cumulative_timings_("JIT timings"),
+             save_profiling_info_(false),
+             generate_debug_info_(false) {
 }
 
 Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
@@ -77,7 +81,10 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
     return nullptr;
   }
   jit->code_cache_.reset(JitCodeCache::Create(
-      options->GetCodeCacheInitialCapacity(), options->GetCodeCacheMaxCapacity(), error_msg));
+      options->GetCodeCacheInitialCapacity(),
+      options->GetCodeCacheMaxCapacity(),
+      jit->generate_debug_info_,
+      error_msg));
   if (jit->GetCodeCache() == nullptr) {
     return nullptr;
   }
@@ -99,7 +106,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = oss.str();
     return false;
   }
-  jit_load_ = reinterpret_cast<void* (*)(CompilerCallbacks**)>(
+  jit_load_ = reinterpret_cast<void* (*)(CompilerCallbacks**, bool*)>(
       dlsym(jit_library_handle_, "jit_load"));
   if (jit_load_ == nullptr) {
     dlclose(jit_library_handle_);
@@ -121,9 +128,10 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     return false;
   }
   CompilerCallbacks* callbacks = nullptr;
+  bool will_generate_debug_symbols = false;
   VLOG(jit) << "Calling JitLoad interpreter_only="
       << Runtime::Current()->GetInstrumentation()->InterpretOnly();
-  jit_compiler_handle_ = (jit_load_)(&callbacks);
+  jit_compiler_handle_ = (jit_load_)(&callbacks, &will_generate_debug_symbols);
   if (jit_compiler_handle_ == nullptr) {
     dlclose(jit_library_handle_);
     *error_msg = "JIT couldn't load compiler";
@@ -136,6 +144,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     return false;
   }
   compiler_callbacks_ = callbacks;
+  generate_debug_info_ = will_generate_debug_symbols;
   return true;
 }
 

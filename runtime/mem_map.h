@@ -57,17 +57,18 @@ class MemMap {
   // "reuse" allows re-mapping an address range from an existing mapping.
   //
   // The word "anonymous" in this context means "not backed by a file". The supplied
-  // 'ashmem_name' will be used -- on systems that support it -- to give the mapping
+  // 'name' will be used -- on systems that support it -- to give the mapping
   // a name.
   //
   // On success, returns returns a MemMap instance.  On failure, returns null.
-  static MemMap* MapAnonymous(const char* ashmem_name,
+  static MemMap* MapAnonymous(const char* name,
                               uint8_t* addr,
                               size_t byte_count,
                               int prot,
                               bool low_4gb,
                               bool reuse,
-                              std::string* error_msg);
+                              std::string* error_msg,
+                              bool use_ashmem = true);
 
   // Create placeholder for a region allocated by direct call to mmap.
   // This is useful when we do not have control over the code calling mmap,
@@ -168,7 +169,8 @@ class MemMap {
   MemMap* RemapAtEnd(uint8_t* new_end,
                      const char* tail_name,
                      int tail_prot,
-                     std::string* error_msg);
+                     std::string* error_msg,
+                     bool use_ashmem = true);
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
       REQUIRES(!Locks::mem_maps_lock_);
