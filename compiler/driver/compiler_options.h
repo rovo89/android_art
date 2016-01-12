@@ -50,7 +50,7 @@ class CompilerOptions FINAL {
   static const size_t kDefaultNumDexMethodsThreshold = 900;
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
   static const bool kDefaultNativeDebuggable = false;
-  static const bool kDefaultGenerateDebugInfo = kIsDebugBuild;
+  static const bool kDefaultGenerateDebugInfo = false;
   static const bool kDefaultIncludePatchInformation = false;
   static const size_t kDefaultInlineDepthLimit = 3;
   static const size_t kDefaultInlineMaxCodeUnits = 32;
