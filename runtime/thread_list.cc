@@ -1145,6 +1145,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
 void ThreadList::SuspendAllDaemonThreadsForShutdown() {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::thread_list_lock_);
+  size_t daemons_left = 0;
   {  // Tell all the daemons it's time to suspend.
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (const auto& thread : list_) {
@@ -1153,11 +1154,20 @@ void ThreadList::SuspendAllDaemonThreadsForShutdown() {
       CHECK(thread->IsDaemon()) << *thread;
       if (thread != self) {
         thread->ModifySuspendCount(self, +1, nullptr, false);
+        ++daemons_left;
       }
       // We are shutting down the runtime, set the JNI functions of all the JNIEnvs to be
       // the sleep forever one.
       thread->GetJniEnv()->SetFunctionsToRuntimeShutdownFunctions();
     }
+  }
+  // If we have any daemons left, wait 200ms to ensure they are not stuck in a place where they
+  // are about to access runtime state and are not in a runnable state. Examples: Monitor code
+  // or waking up from a condition variable. TODO: Try and see if there is a better way to wait
+  // for daemon threads to be in a blocked state.
+  if (daemons_left > 0) {
+    static constexpr size_t kDaemonSleepTime = 200 * 1000;
+    usleep(kDaemonSleepTime);
   }
   // Give the threads a chance to suspend, complaining if they're slow.
   bool have_complained = false;
