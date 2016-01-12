@@ -400,6 +400,35 @@ oat-target-sync: oat-target
 	$(TEST_ART_ADB_ROOT_AND_REMOUNT)
 	adb sync
 
+####################################################################################################
+# Fake packages to ensure generation of libopenjdkd when one builds with mm/mmm/mmma.
+#
+# The library is required for starting a runtime in debug mode, but libartd does not depend on it
+# (dependency cycle otherwise).
+#
+# Note: * As the package is phony to create a dependency the package name is irrelevant.
+#       * We make MULTILIB explicit to "both," just to state here that we want both libraries on
+#         64-bit systems, even if it is the default.
+
+# ART on the host.
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
+include $(CLEAR_VARS)
+LOCAL_MODULE := art-libartd-libopenjdkd-host-dependency
+LOCAL_MULTILIB := both
+LOCAL_REQUIRED_MODULES := libopenjdkd
+LOCAL_IS_HOST_MODULE := true
+include $(BUILD_PHONY_PACKAGE)
+endif
+
+# ART on the target.
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+include $(CLEAR_VARS)
+LOCAL_MODULE := art-libartd-libopenjdkd-target-dependency
+LOCAL_MULTILIB := both
+LOCAL_REQUIRED_MODULES := libopenjdkd
+include $(BUILD_PHONY_PACKAGE)
+endif
+
 ########################################################################
 # "m build-art" for quick minimal build
 .PHONY: build-art

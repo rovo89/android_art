@@ -429,7 +429,7 @@ void CommonRuntimeTest::TearDown() {
       CHECK_EQ(0, dlclose(handle));
     }
     {
-      void* handle = dlopen("libopenjdk.so", RTLD_LAZY);
+      void* handle = dlopen("libopenjdkd.so", RTLD_LAZY);
       dlclose(handle);
       CHECK_EQ(0, dlclose(handle));
     }
