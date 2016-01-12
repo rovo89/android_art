@@ -35,6 +35,9 @@ namespace interpreter {
       /* Structured locking is to be enforced for abnormal termination, too. */                 \
       shadow_frame.GetLockCountData().                                                          \
           CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self);                        \
+      if (interpret_one_instruction) {                                                          \
+        shadow_frame.SetDexPC(DexFile::kDexNoIndex);                                            \
+      }                                                                                         \
       return JValue(); /* Handled in caller. */                                                 \
     } else {                                                                                    \
       int32_t displacement = static_cast<int32_t>(found_dex_pc) - static_cast<int32_t>(dex_pc); \
@@ -78,7 +81,8 @@ static bool IsExperimentalInstructionEnabled(const Instruction *inst) {
 
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
-                         ShadowFrame& shadow_frame, JValue result_register) {
+                         ShadowFrame& shadow_frame, JValue result_register,
+                         bool interpret_one_instruction) {
   constexpr bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
@@ -105,7 +109,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   // to keep this live for the scope of the entire function call.
   std::unique_ptr<lambda::ClosureBuilder> lambda_closure_builder;
   size_t lambda_captured_variable_index = 0;
-  while (true) {
+  do {
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
     TraceExecution(shadow_frame, inst, dex_pc);
@@ -203,6 +207,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }
+        if (interpret_one_instruction) {
+          shadow_frame.SetDexPC(DexFile::kDexNoIndex);
+        }
         return result;
       }
       case Instruction::RETURN_VOID: {
@@ -215,6 +222,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        }
+        if (interpret_one_instruction) {
+          shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
       }
@@ -230,6 +240,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }
+        if (interpret_one_instruction) {
+          shadow_frame.SetDexPC(DexFile::kDexNoIndex);
+        }
         return result;
       }
       case Instruction::RETURN_WIDE: {
@@ -242,6 +255,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        }
+        if (interpret_one_instruction) {
+          shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
       }
@@ -277,6 +293,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        }
+        if (interpret_one_instruction) {
+          shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
       }
@@ -2370,22 +2389,29 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, shadow_frame);
     }
-  }
+  } while (!interpret_one_instruction);
+  // Record where we stopped.
+  shadow_frame.SetDexPC(inst->GetDexPc(insns));
+  return JValue();
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteSwitchImpl.
 template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
 JValue ExecuteSwitchImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
-                                      ShadowFrame& shadow_frame, JValue result_register);
+                                      ShadowFrame& shadow_frame, JValue result_register,
+                                      bool interpret_one_instruction);
 template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
 JValue ExecuteSwitchImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
-                                       ShadowFrame& shadow_frame, JValue result_register);
+                                       ShadowFrame& shadow_frame, JValue result_register,
+                                       bool interpret_one_instruction);
 template SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteSwitchImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
-                                     ShadowFrame& shadow_frame, JValue result_register);
+                                     ShadowFrame& shadow_frame, JValue result_register,
+                                     bool interpret_one_instruction);
 template SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteSwitchImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
-                                      ShadowFrame& shadow_frame, JValue result_register);
+                                      ShadowFrame& shadow_frame, JValue result_register,
+                                      bool interpret_one_instruction);
 
 }  // namespace interpreter
 }  // namespace art

@@ -133,8 +133,20 @@ ADD_TEST_EQ(THREAD_LOCAL_END_OFFSET,
 #define THREAD_LOCAL_OBJECTS_OFFSET (THREAD_LOCAL_POS_OFFSET + 2 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_OBJECTS_OFFSET,
             art::Thread::ThreadLocalObjectsOffset<__SIZEOF_POINTER__>().Int32Value())
+// Offset of field Thread::tlsPtr_.mterp_current_ibase.
+#define THREAD_CURRENT_IBASE_OFFSET (THREAD_LOCAL_POS_OFFSET + 3 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_CURRENT_IBASE_OFFSET,
+            art::Thread::MterpCurrentIBaseOffset<__SIZEOF_POINTER__>().Int32Value())
+// Offset of field Thread::tlsPtr_.mterp_default_ibase.
+#define THREAD_DEFAULT_IBASE_OFFSET (THREAD_LOCAL_POS_OFFSET + 4 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_DEFAULT_IBASE_OFFSET,
+            art::Thread::MterpDefaultIBaseOffset<__SIZEOF_POINTER__>().Int32Value())
+// Offset of field Thread::tlsPtr_.mterp_alt_ibase.
+#define THREAD_ALT_IBASE_OFFSET (THREAD_LOCAL_POS_OFFSET + 5 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_ALT_IBASE_OFFSET,
+            art::Thread::MterpAltIBaseOffset<__SIZEOF_POINTER__>().Int32Value())
 // Offset of field Thread::tlsPtr_.rosalloc_runs.
-#define THREAD_ROSALLOC_RUNS_OFFSET (THREAD_LOCAL_POS_OFFSET + 3 * __SIZEOF_POINTER__)
+#define THREAD_ROSALLOC_RUNS_OFFSET (THREAD_LOCAL_POS_OFFSET + 6 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_ROSALLOC_RUNS_OFFSET,
             art::Thread::RosAllocRunsOffset<__SIZEOF_POINTER__>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_alloc_stack_top.
@@ -145,6 +157,40 @@ ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET,
 #define THREAD_LOCAL_ALLOC_STACK_END_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 35 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_END_OFFSET,
             art::Thread::ThreadLocalAllocStackEndOffset<__SIZEOF_POINTER__>().Int32Value())
+
+// Offsets within ShadowFrame.
+#define SHADOWFRAME_LINK_OFFSET 0
+ADD_TEST_EQ(SHADOWFRAME_LINK_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::LinkOffset()))
+#define SHADOWFRAME_METHOD_OFFSET (SHADOWFRAME_LINK_OFFSET + 1 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(SHADOWFRAME_METHOD_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::MethodOffset()))
+#define SHADOWFRAME_RESULT_REGISTER_OFFSET (SHADOWFRAME_LINK_OFFSET + 2 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(SHADOWFRAME_RESULT_REGISTER_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::ResultRegisterOffset()))
+#define SHADOWFRAME_DEX_PC_PTR_OFFSET (SHADOWFRAME_LINK_OFFSET + 3 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(SHADOWFRAME_DEX_PC_PTR_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::DexPCPtrOffset()))
+#define SHADOWFRAME_CODE_ITEM_OFFSET (SHADOWFRAME_LINK_OFFSET + 4 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(SHADOWFRAME_CODE_ITEM_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::CodeItemOffset()))
+#define SHADOWFRAME_LOCK_COUNT_DATA_OFFSET (SHADOWFRAME_LINK_OFFSET + 5 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(SHADOWFRAME_LOCK_COUNT_DATA_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::LockCountDataOffset()))
+#define SHADOWFRAME_NUMBER_OF_VREGS_OFFSET (SHADOWFRAME_LINK_OFFSET + 6 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::NumberOfVRegsOffset()))
+#define SHADOWFRAME_DEX_PC_OFFSET (SHADOWFRAME_NUMBER_OF_VREGS_OFFSET + 4)
+ADD_TEST_EQ(SHADOWFRAME_DEX_PC_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::DexPCOffset()))
+#define SHADOWFRAME_VREGS_OFFSET (SHADOWFRAME_NUMBER_OF_VREGS_OFFSET + 8)
+ADD_TEST_EQ(SHADOWFRAME_VREGS_OFFSET,
+            static_cast<int32_t>(art::ShadowFrame::VRegsOffset()))
+
+// Offsets within CodeItem
+#define CODEITEM_INSNS_OFFSET 16
+ADD_TEST_EQ(CODEITEM_INSNS_OFFSET,
+            static_cast<int32_t>(OFFSETOF_MEMBER(art::DexFile::CodeItem, insns_)))
 
 // Offsets within java.lang.Object.
 #define MIRROR_OBJECT_CLASS_OFFSET 0
@@ -187,6 +233,26 @@ ADD_TEST_EQ(MIRROR_ARRAY_LENGTH_OFFSET, art::mirror::Array::LengthOffset().Int32
 #define MIRROR_CHAR_ARRAY_DATA_OFFSET   (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CHAR_ARRAY_DATA_OFFSET,
             art::mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value())
+
+#define MIRROR_BOOLEAN_ARRAY_DATA_OFFSET MIRROR_CHAR_ARRAY_DATA_OFFSET
+ADD_TEST_EQ(MIRROR_BOOLEAN_ARRAY_DATA_OFFSET,
+            art::mirror::Array::DataOffset(sizeof(uint8_t)).Int32Value())
+
+#define MIRROR_BYTE_ARRAY_DATA_OFFSET MIRROR_CHAR_ARRAY_DATA_OFFSET
+ADD_TEST_EQ(MIRROR_BYTE_ARRAY_DATA_OFFSET,
+            art::mirror::Array::DataOffset(sizeof(int8_t)).Int32Value())
+
+#define MIRROR_SHORT_ARRAY_DATA_OFFSET MIRROR_CHAR_ARRAY_DATA_OFFSET
+ADD_TEST_EQ(MIRROR_SHORT_ARRAY_DATA_OFFSET,
+            art::mirror::Array::DataOffset(sizeof(int16_t)).Int32Value())
+
+#define MIRROR_INT_ARRAY_DATA_OFFSET MIRROR_CHAR_ARRAY_DATA_OFFSET
+ADD_TEST_EQ(MIRROR_INT_ARRAY_DATA_OFFSET,
+            art::mirror::Array::DataOffset(sizeof(int32_t)).Int32Value())
+
+#define MIRROR_WIDE_ARRAY_DATA_OFFSET (8 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_WIDE_ARRAY_DATA_OFFSET,
+            art::mirror::Array::DataOffset(sizeof(uint64_t)).Int32Value())
 
 #define MIRROR_OBJECT_ARRAY_DATA_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_OBJECT_ARRAY_DATA_OFFSET,
@@ -298,6 +364,12 @@ ADD_TEST_EQ(ROSALLOC_SLOT_NEXT_OFFSET,
             static_cast<int32_t>(art::gc::allocator::RosAlloc::RunSlotNextOffset()))
 // Assert this so that we can avoid zeroing the next field by installing the class pointer.
 ADD_TEST_EQ(ROSALLOC_SLOT_NEXT_OFFSET, MIRROR_OBJECT_CLASS_OFFSET)
+
+#define THREAD_SUSPEND_REQUEST 1
+ADD_TEST_EQ(THREAD_SUSPEND_REQUEST, static_cast<int32_t>(art::kSuspendRequest))
+
+#define THREAD_CHECKPOINT_REQUEST 2
+ADD_TEST_EQ(THREAD_CHECKPOINT_REQUEST, static_cast<int32_t>(art::kCheckpointRequest))
 
 #if defined(__cplusplus)
 }  // End of CheckAsmSupportOffsets.
