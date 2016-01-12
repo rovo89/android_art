@@ -171,13 +171,6 @@
   bug: 25437292
 },
 {
-  description: "Assertion failing on the concurrent collector configuration.",
-  result: EXEC_FAILED,
-  names: ["jsr166.LinkedTransferQueueTest#testTransfer2",
-          "jsr166.LinkedTransferQueueTest#testWaitingConsumer"],
-  bug: 25883050
-},
-{
   description: "Failing tests after enso move.",
   result: EXEC_FAILED,
   bug: 26326992,

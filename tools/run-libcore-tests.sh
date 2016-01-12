@@ -32,6 +32,12 @@ if [ ! -f $test_jar ]; then
   exit 1
 fi
 
+expectations="--expectations art/tools/libcore_failures.txt"
+if [ "x$ART_USE_READ_BARRIER" = xtrue ]; then
+  # Tolerate some more failures on the concurrent collector configurations.
+  expectations="$expectations --expectations art/tools/libcore_failures_concurrent_collector.txt"
+fi
+
 emulator="no"
 if [ "$ANDROID_SERIAL" = "emulator-5554" ]; then
   emulator="yes"
@@ -105,4 +111,4 @@ vogar_args="$vogar_args --timeout 480"
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $vogar_args --vm-arg -Xusejit:true --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
+vogar $vogar_args --vm-arg -Xusejit:true $expectations --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
