@@ -146,7 +146,7 @@ bool operator!=(const SafeMap<K, V, Comparator, Allocator>& lhs,
 
 template<class Key, class T, AllocatorTag kTag, class Compare = std::less<Key>>
 class AllocationTrackingSafeMap : public SafeMap<
-    Key, T, Compare, TrackingAllocator<std::pair<Key, T>, kTag>> {
+    Key, T, Compare, TrackingAllocator<std::pair<const Key, T>, kTag>> {
 };
 
 }  // namespace art
