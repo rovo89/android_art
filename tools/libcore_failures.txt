@@ -242,5 +242,22 @@
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testFlush",
           "org.apache.harmony.tests.java.util.prefs.AbstractPreferencesTest#testSync",
           "org.apache.harmony.tests.java.util.prefs.FilePreferencesImplTest#testPutGet"]
+},
+{
+  description: "libnativehelper_compat_libc++ loading issue",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["dalvik.system.JniTest#testGetSuperclass",
+          "dalvik.system.JniTest#testPassingBooleans",
+          "dalvik.system.JniTest#testPassingBytes",
+          "dalvik.system.JniTest#testPassingChars",
+          "dalvik.system.JniTest#testPassingClass",
+          "dalvik.system.JniTest#testPassingDoubles",
+          "dalvik.system.JniTest#testPassingFloats",
+          "dalvik.system.JniTest#testPassingInts",
+          "dalvik.system.JniTest#testPassingLongs",
+          "dalvik.system.JniTest#testPassingObjectReferences",
+          "dalvik.system.JniTest#testPassingShorts",
+          "dalvik.system.JniTest#testPassingThis"]
 }
 ]
