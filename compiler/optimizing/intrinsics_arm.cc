@@ -847,6 +847,9 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   }
 
   // Prevent reordering with prior memory operations.
+  // Emit a DMB ISH instruction instead of an DMB ISHST one, as the
+  // latter allows a preceding load to be delayed past the STXR
+  // instruction below.
   __ dmb(ISH);
 
   __ add(tmp_ptr, base, ShifterOperand(offset));
