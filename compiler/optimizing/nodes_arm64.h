@@ -107,6 +107,7 @@ class HArm64IntermediateAddress : public HExpression<2> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
+  bool IsActualObject() const OVERRIDE { return false; }
 
   HInstruction* GetBaseAddress() const { return InputAt(0); }
   HInstruction* GetOffset() const { return InputAt(1); }

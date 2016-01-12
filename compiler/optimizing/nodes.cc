@@ -2146,16 +2146,21 @@ void HInvoke::SetIntrinsic(Intrinsics intrinsic,
                            IntrinsicExceptions exceptions) {
   intrinsic_ = intrinsic;
   IntrinsicOptimizations opt(this);
-  if (needs_env_or_cache == kNoEnvironmentOrCache) {
-    opt.SetDoesNotNeedDexCache();
-    opt.SetDoesNotNeedEnvironment();
-  }
+
   // Adjust method's side effects from intrinsic table.
   switch (side_effects) {
     case kNoSideEffects: SetSideEffects(SideEffects::None()); break;
     case kReadSideEffects: SetSideEffects(SideEffects::AllReads()); break;
     case kWriteSideEffects: SetSideEffects(SideEffects::AllWrites()); break;
     case kAllSideEffects: SetSideEffects(SideEffects::AllExceptGCDependency()); break;
+  }
+
+  if (needs_env_or_cache == kNoEnvironmentOrCache) {
+    opt.SetDoesNotNeedDexCache();
+    opt.SetDoesNotNeedEnvironment();
+  } else {
+    // If we need an environment, that means there will be a call, which can trigger GC.
+    SetSideEffects(GetSideEffects().Union(SideEffects::CanTriggerGC()));
   }
   // Adjust method's exception status from intrinsic table.
   switch (exceptions) {
