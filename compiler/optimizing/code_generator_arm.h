@@ -188,7 +188,7 @@ class LocationsBuilderARM : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM);
 };
 
-class InstructionCodeGeneratorARM : public HGraphVisitor {
+class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
  public:
   InstructionCodeGeneratorARM(HGraph* graph, CodeGeneratorARM* codegen);
 

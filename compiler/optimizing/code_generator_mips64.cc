@@ -391,24 +391,24 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
 class DeoptimizationSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
-  explicit DeoptimizationSlowPathMIPS64(HInstruction* instruction)
+  explicit DeoptimizationSlowPathMIPS64(HDeoptimize* instruction)
     : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
-    DCHECK(instruction_->IsDeoptimize());
-    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
-    uint32_t dex_pc = deoptimize->GetDexPc();
-    CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
-    mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
+    mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize),
+                                  instruction_,
+                                  instruction_->GetDexPc(),
+                                  this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathMIPS64"; }
 
  private:
-  HInstruction* const instruction_;
+  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathMIPS64);
 };
 
@@ -1113,7 +1113,7 @@ void InstructionCodeGeneratorMIPS64::GenerateSuspendCheck(HSuspendCheck* instruc
 
 InstructionCodeGeneratorMIPS64::InstructionCodeGeneratorMIPS64(HGraph* graph,
                                                                CodeGeneratorMIPS64* codegen)
-      : HGraphVisitor(graph),
+      : InstructionCodeGenerator(graph, codegen),
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
@@ -2749,9 +2749,8 @@ void LocationsBuilderMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena())
-      DeoptimizationSlowPathMIPS64(deoptimize);
-  codegen_->AddSlowPath(slow_path);
+  SlowPathCodeMIPS64* slow_path =
+      deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathMIPS64>(deoptimize);
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),

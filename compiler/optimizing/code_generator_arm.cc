@@ -350,24 +350,24 @@ class TypeCheckSlowPathARM : public SlowPathCode {
 
 class DeoptimizationSlowPathARM : public SlowPathCode {
  public:
-  explicit DeoptimizationSlowPathARM(HInstruction* instruction)
+  explicit DeoptimizationSlowPathARM(HDeoptimize* instruction)
     : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
-    DCHECK(instruction_->IsDeoptimize());
-    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
-    uint32_t dex_pc = deoptimize->GetDexPc();
-    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
-    arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
+    arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize),
+                               instruction_,
+                               instruction_->GetDexPc(),
+                               this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM"; }
 
  private:
-  HInstruction* const instruction_;
+  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM);
 };
 
@@ -913,7 +913,7 @@ void CodeGeneratorARM::UpdateBlockedPairRegisters() const {
 }
 
 InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGeneratorARM* codegen)
-      : HGraphVisitor(graph),
+      : InstructionCodeGenerator(graph, codegen),
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
@@ -1655,8 +1655,7 @@ void LocationsBuilderARM::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) DeoptimizationSlowPathARM(deoptimize);
-  codegen_->AddSlowPath(slow_path);
+  SlowPathCode* slow_path = deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathARM>(deoptimize);
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),
