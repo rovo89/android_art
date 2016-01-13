@@ -21,6 +21,7 @@
 #include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "base/time_utils.h"
+#include "debugger_interface.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
 #include "jit/profiling_info.h"
@@ -215,6 +216,9 @@ void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UN
   uintptr_t allocation = FromCodeToAllocation(code_ptr);
   const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
   const uint8_t* data = method_header->GetNativeGcMap();
+  // Notify native debugger that we are about to remove the code.
+  // It does nothing if we are not using native debugger.
+  DeleteJITCodeEntryForAddress(reinterpret_cast<uintptr_t>(code_ptr));
   if (data != nullptr) {
     mspace_free(data_mspace_, const_cast<uint8_t*>(data));
   }

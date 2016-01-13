@@ -22,16 +22,17 @@
 #include "base/casts.h"
 #include "base/stl_util.h"
 #include "compiled_method.h"
-#include "driver/compiler_driver.h"
 #include "dex_file-inl.h"
+#include "driver/compiler_driver.h"
 #include "dwarf/dedup_vector.h"
 #include "dwarf/headers.h"
 #include "dwarf/method_debug_info.h"
 #include "dwarf/register.h"
 #include "elf_builder.h"
+#include "linker/vector_output_stream.h"
 #include "oat_writer.h"
-#include "utils.h"
 #include "stack_map.h"
+#include "utils.h"
 
 namespace art {
 namespace dwarf {
@@ -234,7 +235,9 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   {
     cfi_section->Start();
     const bool is64bit = Is64BitInstructionSet(builder->GetIsa());
-    const Elf_Addr text_address = builder->GetText()->GetAddress();
+    const Elf_Addr text_address = builder->GetText()->Exists()
+        ? builder->GetText()->GetAddress()
+        : 0;
     const Elf_Addr cfi_address = cfi_section->GetAddress();
     const Elf_Addr cie_address = cfi_address;
     Elf_Addr buffer_address = cfi_address;
@@ -305,8 +308,8 @@ namespace {
   struct CompilationUnit {
     std::vector<const MethodDebugInfo*> methods_;
     size_t debug_line_offset_ = 0;
-    uint32_t low_pc_ = 0xFFFFFFFFU;
-    uint32_t high_pc_ = 0;
+    uintptr_t low_pc_ = std::numeric_limits<uintptr_t>::max();
+    uintptr_t high_pc_ = 0;
   };
 
   typedef std::vector<DexFile::LocalInfo> LocalInfos;
@@ -439,14 +442,17 @@ class DebugInfoWriter {
 
     void Write(const CompilationUnit& compilation_unit) {
       CHECK(!compilation_unit.methods_.empty());
-      const Elf_Addr text_address = owner_->builder_->GetText()->GetAddress();
+      const Elf_Addr text_address = owner_->builder_->GetText()->Exists()
+          ? owner_->builder_->GetText()->GetAddress()
+          : 0;
+      const uintptr_t cu_size = compilation_unit.high_pc_ - compilation_unit.low_pc_;
 
       info_.StartTag(DW_TAG_compile_unit);
       info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
       info_.WriteStrp(DW_AT_comp_dir, owner_->WriteString("$JAVA_SRC_ROOT"));
       info_.WriteAddr(DW_AT_low_pc, text_address + compilation_unit.low_pc_);
-      info_.WriteUdata(DW_AT_high_pc, compilation_unit.high_pc_ - compilation_unit.low_pc_);
+      info_.WriteUdata(DW_AT_high_pc, dchecked_integral_cast<uint32_t>(cu_size));
       info_.WriteSecOffset(DW_AT_stmt_list, compilation_unit.debug_line_offset_);
 
       const char* last_dex_class_desc = nullptr;
@@ -476,7 +482,7 @@ class DebugInfoWriter {
         info_.StartTag(DW_TAG_subprogram);
         WriteName(dex->GetMethodName(dex_method));
         info_.WriteAddr(DW_AT_low_pc, text_address + mi->low_pc_);
-        info_.WriteUdata(DW_AT_high_pc, mi->high_pc_ - mi->low_pc_);
+        info_.WriteUdata(DW_AT_high_pc, dchecked_integral_cast<uint32_t>(mi->high_pc_-mi->low_pc_));
         uint8_t frame_base[] = { DW_OP_call_frame_cfa };
         info_.WriteExprLoc(DW_AT_frame_base, &frame_base, sizeof(frame_base));
         WriteLazyType(dex->GetReturnTypeDescriptor(dex_proto));
@@ -924,7 +930,9 @@ class DebugLineWriter {
   // Returns the number of bytes written.
   size_t WriteCompilationUnit(CompilationUnit& compilation_unit) {
     const bool is64bit = Is64BitInstructionSet(builder_->GetIsa());
-    const Elf_Addr text_address = builder_->GetText()->GetAddress();
+    const Elf_Addr text_address = builder_->GetText()->Exists()
+        ? builder_->GetText()->GetAddress()
+        : 0;
 
     compilation_unit.debug_line_offset_ = builder_->GetDebugLine()->GetSize();
 
@@ -1173,11 +1181,13 @@ void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
       name += " [DEDUPED]";
     }
 
+    const auto* text = builder->GetText()->Exists() ? builder->GetText() : nullptr;
+    const bool is_relative = (text != nullptr);
     uint32_t low_pc = info.low_pc_;
     // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
     low_pc += info.compiled_method_->CodeDelta();
-    symtab->Add(strtab->Write(name), builder->GetText(), low_pc,
-                true, info.high_pc_ - info.low_pc_, STB_GLOBAL, STT_FUNC);
+    symtab->Add(strtab->Write(name), text, low_pc,
+                is_relative, info.high_pc_ - info.low_pc_, STB_GLOBAL, STT_FUNC);
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
     // instructions, so that disassembler tools can correctly disassemble.
@@ -1185,8 +1195,8 @@ void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
     // requires it to match function symbol.  Just address 0 does not work.
     if (info.compiled_method_->GetInstructionSet() == kThumb2) {
       if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
-        symtab->Add(strtab->Write("$t"), builder->GetText(), info.low_pc_ & ~1,
-                    true, 0, STB_LOCAL, STT_NOTYPE);
+        symtab->Add(strtab->Write("$t"), text, info.low_pc_ & ~1,
+                    is_relative, 0, STB_LOCAL, STT_NOTYPE);
         generated_mapping_symbol = true;
       }
     }
@@ -1211,6 +1221,36 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
     WriteCFISection(builder, method_infos, cfi_format);
     // Write DWARF .debug_* sections.
     WriteDebugSections(builder, method_infos);
+  }
+}
+
+template <typename ElfTypes>
+static ArrayRef<const uint8_t> WriteDebugElfFileInternal(
+    const dwarf::MethodDebugInfo& method_info) {
+  const InstructionSet isa = method_info.compiled_method_->GetInstructionSet();
+  std::vector<uint8_t> buffer;
+  buffer.reserve(KB);
+  VectorOutputStream out("Debug ELF file", &buffer);
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
+  builder->Start();
+  WriteDebugInfo(builder.get(),
+                 ArrayRef<const MethodDebugInfo>(&method_info, 1),
+                 DW_DEBUG_FRAME_FORMAT);
+  builder->End();
+  CHECK(builder->Good());
+  // Make a copy of the buffer.  We want to shrink it anyway.
+  uint8_t* result = new uint8_t[buffer.size()];
+  CHECK(result != nullptr);
+  memcpy(result, buffer.data(), buffer.size());
+  return ArrayRef<const uint8_t>(result, buffer.size());
+}
+
+ArrayRef<const uint8_t> WriteDebugElfFile(const dwarf::MethodDebugInfo& method_info) {
+  const InstructionSet isa = method_info.compiled_method_->GetInstructionSet();
+  if (Is64BitInstructionSet(isa)) {
+    return WriteDebugElfFileInternal<ElfTypes64>(method_info);
+  } else {
+    return WriteDebugElfFileInternal<ElfTypes32>(method_info);
   }
 }
 

@@ -17,6 +17,7 @@
 #include "optimizing_compiler.h"
 
 #include <fstream>
+#include <memory>
 #include <stdint.h>
 
 #ifdef ART_ENABLE_CODEGEN_arm64
@@ -52,6 +53,8 @@
 #include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
+#include "dwarf/method_debug_info.h"
+#include "elf_writer_debug.h"
 #include "elf_writer_quick.h"
 #include "graph_checker.h"
 #include "graph_visualizer.h"
@@ -60,6 +63,7 @@
 #include "inliner.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
+#include "jit/debugger_interface.h"
 #include "jit/jit_code_cache.h"
 #include "licm.h"
 #include "jni/quick/jni_compiler.h"
@@ -68,6 +72,7 @@
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
+#include "oat_quick_method_header.h"
 #include "sharpening.h"
 #include "side_effects_analysis.h"
 #include "ssa_builder.h"
@@ -966,6 +971,39 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   if (code == nullptr) {
     code_cache->ClearData(self, stack_map_data);
     return false;
+  }
+
+  if (GetCompilerDriver()->GetCompilerOptions().GetGenerateDebugInfo()) {
+    const auto* method_header = reinterpret_cast<const OatQuickMethodHeader*>(code);
+    const uintptr_t code_address = reinterpret_cast<uintptr_t>(method_header->GetCode());
+    CompiledMethod compiled_method(
+        GetCompilerDriver(),
+        codegen->GetInstructionSet(),
+        ArrayRef<const uint8_t>(code_allocator.GetMemory()),
+        codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
+        codegen->GetCoreSpillMask(),
+        codegen->GetFpuSpillMask(),
+        ArrayRef<const SrcMapElem>(),
+        ArrayRef<const uint8_t>(),  // mapping_table.
+        ArrayRef<const uint8_t>(stack_map_data, stack_map_size),
+        ArrayRef<const uint8_t>(),  // native_gc_map.
+        ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
+        ArrayRef<const LinkerPatch>());
+    dwarf::MethodDebugInfo method_debug_info {
+        dex_file,
+        class_def_idx,
+        method_idx,
+        access_flags,
+        code_item,
+        false,  // deduped.
+        code_address,
+        code_address + code_allocator.GetSize(),
+        &compiled_method
+    };
+    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFile(method_debug_info);
+    CreateJITCodeEntryForAddress(code_address,
+                                 std::unique_ptr<const uint8_t[]>(elf_file.data()),
+                                 elf_file.size());
   }
 
   return true;
