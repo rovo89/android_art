@@ -2491,8 +2491,10 @@ class HTryBoundary : public HTemplateInstruction<0> {
 // Deoptimize to interpreter, upon checking a condition.
 class HDeoptimize : public HTemplateInstruction<1> {
  public:
+  // We set CanTriggerGC to prevent any intermediate address to be live
+  // at the point of the `HDeoptimize`.
   HDeoptimize(HInstruction* cond, uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::None(), dex_pc) {
+      : HTemplateInstruction(SideEffects::CanTriggerGC(), dex_pc) {
     SetRawInputAt(0, cond);
   }
 
