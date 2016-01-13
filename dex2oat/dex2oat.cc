@@ -2035,6 +2035,10 @@ class Dex2Oat FINAL {
     // Disable libsigchain. We don't don't need it during compilation and it prevents us
     // from getting a statically linked version of dex2oat (because of dlsym and RTLD_NEXT).
     raw_options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
+    // Disable Hspace compaction to save heap size virtual space.
+    // Only need disable Hspace for OOM becasue background collector is equal to
+    // foreground collector by default for dex2oat.
+    raw_options.push_back(std::make_pair("-XX:DisableHSpaceCompactForOOM", nullptr));
 
     if (!Runtime::ParseOptions(raw_options, false, runtime_options)) {
       LOG(ERROR) << "Failed to parse runtime options";
