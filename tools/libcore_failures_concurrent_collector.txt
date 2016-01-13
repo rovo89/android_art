@@ -22,5 +22,12 @@
   result: EXEC_FAILED,
   names: ["libcore.java.lang.OldSystemTest#test_gc"],
   bug: 26155567
+},
+{
+  description: "TimeoutException on host-x86-concurrent-collector",
+  result: EXEC_FAILED,
+  names: ["libcore.java.util.zip.ZipFileTest#testZipFileWithLotsOfEntries,
+           libcore.java.util.zip.ZipInputStreamTest#testLongMessage"],
+  bug: 26507762
 }
 ]
