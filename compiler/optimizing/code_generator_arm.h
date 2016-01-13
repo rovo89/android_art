@@ -273,7 +273,6 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
                              size_t condition_input_index,
                              Label* true_target,
                              Label* false_target);
-  void GenerateCompareWithImmediate(Register left, int32_t right);
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     Label* true_target,
                                     Label* false_target);
