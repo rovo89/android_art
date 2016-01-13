@@ -1142,7 +1142,7 @@ class BCEVisitor : public HGraphVisitor {
           loop->IsDefinedOutOfTheLoop(array_get->InputAt(1))) {
         SideEffects loop_effects = side_effects_.GetLoopEffects(loop->GetHeader());
         if (!array_get->GetSideEffects().MayDependOn(loop_effects)) {
-          HoistToPreheaderOrDeoptBlock(loop, array_get);
+          HoistToPreHeaderOrDeoptBlock(loop, array_get);
         }
       }
     }
@@ -1280,7 +1280,8 @@ class BCEVisitor : public HGraphVisitor {
       // as runtime test. By restricting dynamic bce to unit strides (with a maximum of 32-bit
       // iterations) and by not combining access (e.g. a[i], a[i-3], a[i+5] etc.), these tests
       // correctly guard against any possible OOB (including arithmetic wrap-around cases).
-      HBasicBlock* block = TransformLoopForDeoptimizationIfNeeded(loop, needs_taken_test);
+      TransformLoopForDeoptimizationIfNeeded(loop, needs_taken_test);
+      HBasicBlock* block = GetPreHeader(loop, instruction);
       induction_range_.GenerateRangeCode(instruction, index, GetGraph(), block, &lower, &upper);
       if (lower != nullptr) {
         InsertDeopt(loop, block, new (GetGraph()->GetArena()) HAbove(lower, upper));
@@ -1353,7 +1354,7 @@ class BCEVisitor : public HGraphVisitor {
       return true;
     } else if (length->IsArrayLength() && length->GetBlock()->GetLoopInformation() == loop) {
       if (CanHandleNullCheck(loop, length->InputAt(0), needs_taken_test)) {
-        HoistToPreheaderOrDeoptBlock(loop, length);
+        HoistToPreHeaderOrDeoptBlock(loop, length);
         return true;
       }
     }
@@ -1371,7 +1372,8 @@ class BCEVisitor : public HGraphVisitor {
       HInstruction* array = check->InputAt(0);
       if (loop->IsDefinedOutOfTheLoop(array)) {
         // Generate: if (array == null) deoptimize;
-        HBasicBlock* block = TransformLoopForDeoptimizationIfNeeded(loop, needs_taken_test);
+        TransformLoopForDeoptimizationIfNeeded(loop, needs_taken_test);
+        HBasicBlock* block = GetPreHeader(loop, check);
         HInstruction* cond =
             new (GetGraph()->GetArena()) HEqual(array, GetGraph()->GetNullConstant());
         InsertDeopt(loop, block, cond);
@@ -1418,6 +1420,28 @@ class BCEVisitor : public HGraphVisitor {
     return true;
   }
 
+  /**
+   * Returns appropriate preheader for the loop, depending on whether the
+   * instruction appears in the loop header or proper loop-body.
+   */
+  HBasicBlock* GetPreHeader(HLoopInformation* loop, HInstruction* instruction) {
+    // Use preheader unless there is an earlier generated deoptimization block since
+    // hoisted expressions may depend on and/or used by the deoptimization tests.
+    HBasicBlock* header = loop->GetHeader();
+    const uint32_t loop_id = header->GetBlockId();
+    auto it = taken_test_loop_.find(loop_id);
+    if (it != taken_test_loop_.end()) {
+      HBasicBlock* block = it->second;
+      // If always taken, keep it that way by returning the original preheader,
+      // which can be found by following the predecessor of the true-block twice.
+      if (instruction->GetBlock() == header) {
+        return block->GetSinglePredecessor()->GetSinglePredecessor();
+      }
+      return block;
+    }
+    return loop->GetPreHeader();
+  }
+
   /** Inserts a deoptimization test. */
   void InsertDeopt(HLoopInformation* loop, HBasicBlock* block, HInstruction* condition) {
     HInstruction* suspend = loop->GetSuspendCheck();
@@ -1432,27 +1456,16 @@ class BCEVisitor : public HGraphVisitor {
   }
 
   /** Hoists instruction out of the loop to preheader or deoptimization block. */
-  void HoistToPreheaderOrDeoptBlock(HLoopInformation* loop, HInstruction* instruction) {
-    // Use preheader unless there is an earlier generated deoptimization block since
-    // hoisted expressions may depend on and/or used by the deoptimization tests.
-    const uint32_t loop_id = loop->GetHeader()->GetBlockId();
-    HBasicBlock* preheader = loop->GetPreHeader();
-    HBasicBlock* block = preheader;
-    auto it = taken_test_loop_.find(loop_id);
-    if (it != taken_test_loop_.end()) {
-      block = it->second;
-    }
-    // Hoist the instruction.
+  void HoistToPreHeaderOrDeoptBlock(HLoopInformation* loop, HInstruction* instruction) {
+    HBasicBlock* block = GetPreHeader(loop, instruction);
     DCHECK(!instruction->HasEnvironment());
     instruction->MoveBefore(block->GetLastInstruction());
   }
 
   /**
-   * Adds a new taken-test structure to a loop if needed (and not already done).
+   * Adds a new taken-test structure to a loop if needed and not already done.
    * The taken-test protects range analysis evaluation code to avoid any
    * deoptimization caused by incorrect trip-count evaluation in non-taken loops.
-   *
-   * Returns block in which deoptimizations/invariants can be put.
    *
    *          old_preheader
    *               |
@@ -1485,16 +1498,11 @@ class BCEVisitor : public HGraphVisitor {
    *     array[i] = 0;
    *   }
    */
-  HBasicBlock* TransformLoopForDeoptimizationIfNeeded(HLoopInformation* loop, bool needs_taken_test) {
-    // Not needed (can use preheader), or already done (can reuse)?
+  void TransformLoopForDeoptimizationIfNeeded(HLoopInformation* loop, bool needs_taken_test) {
+    // Not needed (can use preheader) or already done (can reuse)?
     const uint32_t loop_id = loop->GetHeader()->GetBlockId();
-    if (!needs_taken_test) {
-      return loop->GetPreHeader();
-    } else {
-      auto it = taken_test_loop_.find(loop_id);
-      if (it != taken_test_loop_.end()) {
-        return it->second;
-      }
+    if (!needs_taken_test || taken_test_loop_.find(loop_id) != taken_test_loop_.end()) {
+      return;
     }
 
     // Generate top test structure.
@@ -1523,7 +1531,6 @@ class BCEVisitor : public HGraphVisitor {
     if_block->AddInstruction(new (GetGraph()->GetArena()) HIf(condition));
 
     taken_test_loop_.Put(loop_id, true_block);
-    return true_block;
   }
 
   /**
@@ -1538,7 +1545,7 @@ class BCEVisitor : public HGraphVisitor {
    *            \       /
    *           x_1 = phi(x_0, null)   <- synthetic phi
    *               |
-   *             header
+   *          new_preheader
    */
   void InsertPhiNodes() {
     // Scan all new deoptimization blocks.
