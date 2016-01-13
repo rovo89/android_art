@@ -17,20 +17,29 @@
 #ifndef ART_COMPILER_ELF_WRITER_DEBUG_H_
 #define ART_COMPILER_ELF_WRITER_DEBUG_H_
 
-#include "elf_builder.h"
+#include "base/macros.h"
+#include "base/mutex.h"
 #include "dwarf/dwarf_constants.h"
-#include "oat_writer.h"
+#include "elf_builder.h"
 #include "utils/array_ref.h"
 
 namespace art {
+namespace mirror {
+class Class;
+}
 namespace dwarf {
+struct MethodDebugInfo;
 
 template <typename ElfTypes>
 void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
+                    bool write_loaded_runtime_types,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     CFIFormat cfi_format);
 
-ArrayRef<const uint8_t> WriteDebugElfFile(const dwarf::MethodDebugInfo& method_info);
+ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const dwarf::MethodDebugInfo& method_info);
+
+ArrayRef<const uint8_t> WriteDebugElfFileForClass(const InstructionSet isa, mirror::Class* type)
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 }  // namespace dwarf
 }  // namespace art
