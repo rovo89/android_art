@@ -201,7 +201,7 @@ class LocationsBuilderMIPS64 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderMIPS64);
 };
 
-class InstructionCodeGeneratorMIPS64 : public HGraphVisitor {
+class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
  public:
   InstructionCodeGeneratorMIPS64(HGraph* graph, CodeGeneratorMIPS64* codegen);
 

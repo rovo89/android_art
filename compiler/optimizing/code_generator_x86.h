@@ -178,7 +178,7 @@ class LocationsBuilderX86 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86);
 };
 
-class InstructionCodeGeneratorX86 : public HGraphVisitor {
+class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
  public:
   InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen);
 
