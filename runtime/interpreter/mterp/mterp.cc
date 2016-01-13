@@ -607,5 +607,14 @@ extern "C" mirror::Object* artAGetObjectFromMterp(mirror::Object* arr, int32_t i
   }
 }
 
+extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t field_offset)
+  SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (UNLIKELY(obj == nullptr)) {
+    ThrowNullPointerExceptionFromInterpreter();
+    return nullptr;
+  }
+  return obj->GetFieldObject<mirror::Object>(MemberOffset(field_offset));
+}
+
 }  // namespace interpreter
 }  // namespace art
