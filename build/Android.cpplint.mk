@@ -16,10 +16,14 @@
 
 include art/build/Android.common_build.mk
 
-ART_CPPLINT := art/tools/cpplint.py
+ART_CPPLINT := $(LOCAL_PATH)/tools/cpplint.py
 ART_CPPLINT_FILTER := --filter=-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references,-runtime/sizeof,-runtime/threadsafe_fn,-runtime/printf
 ART_CPPLINT_FLAGS := --quiet
-ART_CPPLINT_SRC := $(shell find art -name "*.h" -o -name "*$(ART_CPP_EXTENSION)" | grep -v art/compiler/llvm/generated/ | grep -v art/runtime/elf\.h)
+# This:
+#  1) Gets a list of all .h & .cc files in the art directory.
+#  2) Prepends 'art/' to each of them to make the full name.
+#  3) removes art/runtime/elf.h from the list.
+ART_CPPLINT_SRC := $(filter-out $(LOCAL_PATH)/runtime/elf.h, $(addprefix $(LOCAL_PATH)/, $(call all-subdir-named-files,*.h) $(call all-subdir-named-files,*$(ART_CPP_EXTENSION))))
 
 # "mm cpplint-art" to verify we aren't regressing
 .PHONY: cpplint-art
