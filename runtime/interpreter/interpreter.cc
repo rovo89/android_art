@@ -294,7 +294,7 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
         const instrumentation::Instrumentation* const instrumentation =
             Runtime::Current()->GetInstrumentation();
         while (true) {
-          if (instrumentation->IsActive()) {
+          if (instrumentation->IsActive() || !Runtime::Current()->IsStarted()) {
             // TODO: allow JIT profiling instrumentation.  Now, just punt on all instrumentation.
 #if !defined(__clang__)
             return ExecuteGotoImpl<false, false>(self, code_item, shadow_frame, result_register);
