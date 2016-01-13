@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <sys/mman.h>
 
 #include "base/logging.h"
 #include "base/macros.h"
@@ -44,23 +45,17 @@ static void DumpFreeMap(const FreeBySizeSet& free_by_size) {
   }
 }
 
-template <typename FreeByStartSet, typename FreeBySizeSet>
-static void RemoveChunk(FreeByStartSet* free_by_start,
-                        FreeBySizeSet* free_by_size,
-                        typename FreeBySizeSet::const_iterator free_by_size_pos) {
+void SwapSpace::RemoveChunk(FreeBySizeSet::const_iterator free_by_size_pos) {
   auto free_by_start_pos = free_by_size_pos->second;
-  free_by_size->erase(free_by_size_pos);
-  free_by_start->erase(free_by_start_pos);
+  free_by_size_.erase(free_by_size_pos);
+  free_by_start_.erase(free_by_start_pos);
 }
 
-template <typename FreeByStartSet, typename FreeBySizeSet>
-static void InsertChunk(FreeByStartSet* free_by_start,
-                        FreeBySizeSet* free_by_size,
-                        const SpaceChunk& chunk) {
+inline void SwapSpace::InsertChunk(const SpaceChunk& chunk) {
   DCHECK_NE(chunk.size, 0u);
-  auto insert_result = free_by_start->insert(chunk);
+  auto insert_result = free_by_start_.insert(chunk);
   DCHECK(insert_result.second);
-  free_by_size->emplace(chunk.size, insert_result.first);
+  free_by_size_.emplace(chunk.size, insert_result.first);
 }
 
 SwapSpace::SwapSpace(int fd, size_t initial_size)
@@ -69,10 +64,18 @@ SwapSpace::SwapSpace(int fd, size_t initial_size)
       lock_("SwapSpace lock", static_cast<LockLevel>(LockLevel::kDefaultMutexLevel - 1)) {
   // Assume that the file is unlinked.
 
-  InsertChunk(&free_by_start_, &free_by_size_, NewFileChunk(initial_size));
+  InsertChunk(NewFileChunk(initial_size));
 }
 
 SwapSpace::~SwapSpace() {
+  // Unmap all mmapped chunks. Nothing should be allocated anymore at
+  // this point, so there should be only full size chunks in free_by_start_.
+  for (const SpaceChunk& chunk : free_by_start_) {
+    if (munmap(chunk.ptr, chunk.size) != 0) {
+      PLOG(ERROR) << "Failed to unmap swap space chunk at "
+          << static_cast<const void*>(chunk.ptr) << " size=" << chunk.size;
+    }
+  }
   // All arenas are backed by the same file. Just close the descriptor.
   close(fd_);
 }
@@ -113,7 +116,7 @@ void* SwapSpace::Alloc(size_t size) {
       : free_by_size_.lower_bound(FreeBySizeEntry { size, free_by_start_.begin() });
   if (it != free_by_size_.end()) {
     old_chunk = *it->second;
-    RemoveChunk(&free_by_start_, &free_by_size_, it);
+    RemoveChunk(it);
   } else {
     // Not a big enough free chunk, need to increase file size.
     old_chunk = NewFileChunk(size);
@@ -124,13 +127,13 @@ void* SwapSpace::Alloc(size_t size) {
   if (old_chunk.size != size) {
     // Insert the remainder.
     SpaceChunk new_chunk = { old_chunk.ptr + size, old_chunk.size - size };
-    InsertChunk(&free_by_start_, &free_by_size_, new_chunk);
+    InsertChunk(new_chunk);
   }
 
   return ret;
 }
 
-SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
+SwapSpace::SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
 #if !defined(__APPLE__)
   size_t next_part = std::max(RoundUp(min_size, kPageSize), RoundUp(kMininumMapSize, kPageSize));
   int result = TEMP_FAILURE_RETRY(ftruncate64(fd_, size_ + next_part));
@@ -159,7 +162,7 @@ SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
 }
 
 // TODO: Full coalescing.
-void SwapSpace::Free(void* ptrV, size_t size) {
+void SwapSpace::Free(void* ptr, size_t size) {
   MutexLock lock(Thread::Current(), lock_);
   size = RoundUp(size, 8U);
 
@@ -168,7 +171,7 @@ void SwapSpace::Free(void* ptrV, size_t size) {
     free_before = CollectFree(free_by_start_, free_by_size_);
   }
 
-  SpaceChunk chunk = { reinterpret_cast<uint8_t*>(ptrV), size };
+  SpaceChunk chunk = { reinterpret_cast<uint8_t*>(ptr), size };
   auto it = free_by_start_.lower_bound(chunk);
   if (it != free_by_start_.begin()) {
     auto prev = it;
@@ -180,7 +183,7 @@ void SwapSpace::Free(void* ptrV, size_t size) {
       chunk.ptr -= prev->size;
       auto erase_pos = free_by_size_.find(FreeBySizeEntry { prev->size, prev });
       DCHECK(erase_pos != free_by_size_.end());
-      RemoveChunk(&free_by_start_, &free_by_size_, erase_pos);
+      RemoveChunk(erase_pos);
       // "prev" is invalidated but "it" remains valid.
     }
   }
@@ -191,11 +194,11 @@ void SwapSpace::Free(void* ptrV, size_t size) {
       chunk.size += it->size;
       auto erase_pos = free_by_size_.find(FreeBySizeEntry { it->size, it });
       DCHECK(erase_pos != free_by_size_.end());
-      RemoveChunk(&free_by_start_, &free_by_size_, erase_pos);
+      RemoveChunk(erase_pos);
       // "it" is invalidated but we don't need it anymore.
     }
   }
-  InsertChunk(&free_by_start_, &free_by_size_, chunk);
+  InsertChunk(chunk);
 
   if (kCheckFreeMaps) {
     size_t free_after = CollectFree(free_by_start_, free_by_size_);
