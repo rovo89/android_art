@@ -477,24 +477,24 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
 class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit DeoptimizationSlowPathARM64(HInstruction* instruction)
+  explicit DeoptimizationSlowPathARM64(HDeoptimize* instruction)
       : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
-    DCHECK(instruction_->IsDeoptimize());
-    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
-    uint32_t dex_pc = deoptimize->GetDexPc();
-    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
-    arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
+    arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize),
+                                 instruction_,
+                                 instruction_->GetDexPc(),
+                                 this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM64"; }
 
  private:
-  HInstruction* const instruction_;
+  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM64);
 };
 
@@ -1605,7 +1605,7 @@ void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruct
 
 InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
                                                              CodeGeneratorARM64* codegen)
-      : HGraphVisitor(graph),
+      : InstructionCodeGenerator(graph, codegen),
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
@@ -2939,9 +2939,8 @@ void LocationsBuilderARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena())
-      DeoptimizationSlowPathARM64(deoptimize);
-  codegen_->AddSlowPath(slow_path);
+  SlowPathCodeARM64* slow_path =
+      deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathARM64>(deoptimize);
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),

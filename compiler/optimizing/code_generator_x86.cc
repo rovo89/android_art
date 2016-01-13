@@ -365,11 +365,10 @@ class TypeCheckSlowPathX86 : public SlowPathCode {
 
 class DeoptimizationSlowPathX86 : public SlowPathCode {
  public:
-  explicit DeoptimizationSlowPathX86(HInstruction* instruction)
+  explicit DeoptimizationSlowPathX86(HDeoptimize* instruction)
     : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    DCHECK(instruction_->IsDeoptimize());
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
@@ -383,7 +382,7 @@ class DeoptimizationSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathX86"; }
 
  private:
-  HInstruction* const instruction_;
+  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathX86);
 };
 
@@ -892,7 +891,7 @@ void CodeGeneratorX86::UpdateBlockedPairRegisters() const {
 }
 
 InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen)
-      : HGraphVisitor(graph),
+      : InstructionCodeGenerator(graph, codegen),
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
@@ -1611,9 +1610,7 @@ void LocationsBuilderX86::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorX86::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena())
-      DeoptimizationSlowPathX86(deoptimize);
-  codegen_->AddSlowPath(slow_path);
+  SlowPathCode* slow_path = deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathX86>(deoptimize);
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),

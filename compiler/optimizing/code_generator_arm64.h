@@ -186,7 +186,7 @@ class FieldAccessCallingConventionARM64 : public FieldAccessCallingConvention {
   DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConventionARM64);
 };
 
-class InstructionCodeGeneratorARM64 : public HGraphVisitor {
+class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
  public:
   InstructionCodeGeneratorARM64(HGraph* graph, CodeGeneratorARM64* codegen);
 
