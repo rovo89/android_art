@@ -719,7 +719,7 @@ void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_S
   }
 }
 
-void JitCodeCache::GetCompiledArtMethods(const std::set<const std::string>& dex_base_locations,
+void JitCodeCache::GetCompiledArtMethods(const std::set<std::string>& dex_base_locations,
                                          std::vector<ArtMethod*>& methods) {
   MutexLock mu(Thread::Current(), lock_);
   for (auto it : method_code_map_) {
