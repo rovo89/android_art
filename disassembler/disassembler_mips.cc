@@ -56,7 +56,7 @@ static const MipsInstruction gMipsInstructions[] = {
   // R-type instructions.
   { kRTypeMask, 0, "sll", "DTA", },
   // 0, 1, movci
-  { kRTypeMask, 2, "srl", "DTA", },
+  { kRTypeMask | (0x1f << 21), 2, "srl", "DTA", },
   { kRTypeMask, 3, "sra", "DTA", },
   { kRTypeMask | (0x1f << 6), 4, "sllv", "DTS", },
   { kRTypeMask | (0x1f << 6), 6, "srlv", "DTS", },

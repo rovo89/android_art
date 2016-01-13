@@ -1511,7 +1511,7 @@ void InstructionCodeGeneratorMIPS::HandleBinaryOp(HBinaryOperation* instruction)
 }
 
 void LocationsBuilderMIPS::HandleShift(HBinaryOperation* instr) {
-  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr());
+  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr() || instr->IsRor());
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instr);
   Primitive::Type type = instr->GetResultType();
@@ -1534,7 +1534,7 @@ void LocationsBuilderMIPS::HandleShift(HBinaryOperation* instr) {
 static constexpr size_t kMipsBitsPerWord = kMipsWordSize * kBitsPerByte;
 
 void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
-  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr());
+  DCHECK(instr->IsShl() || instr->IsShr() || instr->IsUShr() || instr->IsRor());
   LocationSummary* locations = instr->GetLocations();
   Primitive::Type type = instr->GetType();
 
@@ -1544,28 +1544,49 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
   int64_t rhs_imm = use_imm ? CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()) : 0;
   uint32_t shift_mask = (type == Primitive::kPrimInt) ? kMaxIntShiftValue : kMaxLongShiftValue;
   uint32_t shift_value = rhs_imm & shift_mask;
-  // Is the INS (Insert Bit Field) instruction supported?
-  bool has_ins = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
+  // Are the INS (Insert Bit Field) and ROTR instructions supported?
+  bool has_ins_rotr = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
 
   switch (type) {
     case Primitive::kPrimInt: {
       Register dst = locations->Out().AsRegister<Register>();
       Register lhs = locations->InAt(0).AsRegister<Register>();
       if (use_imm) {
-        if (instr->IsShl()) {
+        if (shift_value == 0) {
+          if (dst != lhs) {
+            __ Move(dst, lhs);
+          }
+        } else if (instr->IsShl()) {
           __ Sll(dst, lhs, shift_value);
         } else if (instr->IsShr()) {
           __ Sra(dst, lhs, shift_value);
-        } else {
+        } else if (instr->IsUShr()) {
           __ Srl(dst, lhs, shift_value);
+        } else {
+          if (has_ins_rotr) {
+            __ Rotr(dst, lhs, shift_value);
+          } else {
+            __ Sll(TMP, lhs, (kMipsBitsPerWord - shift_value) & shift_mask);
+            __ Srl(dst, lhs, shift_value);
+            __ Or(dst, dst, TMP);
+          }
         }
       } else {
         if (instr->IsShl()) {
           __ Sllv(dst, lhs, rhs_reg);
         } else if (instr->IsShr()) {
           __ Srav(dst, lhs, rhs_reg);
-        } else {
+        } else if (instr->IsUShr()) {
           __ Srlv(dst, lhs, rhs_reg);
+        } else {
+          if (has_ins_rotr) {
+            __ Rotrv(dst, lhs, rhs_reg);
+          } else {
+            __ Subu(TMP, ZERO, rhs_reg);
+            __ Sllv(TMP, lhs, TMP);
+            __ Srlv(dst, lhs, rhs_reg);
+            __ Or(dst, dst, TMP);
+          }
         }
       }
       break;
@@ -1580,7 +1601,7 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
           if (shift_value == 0) {
             codegen_->Move64(locations->Out(), locations->InAt(0));
           } else if (shift_value < kMipsBitsPerWord) {
-            if (has_ins) {
+            if (has_ins_rotr) {
               if (instr->IsShl()) {
                 __ Srl(dst_high, lhs_low, kMipsBitsPerWord - shift_value);
                 __ Ins(dst_high, lhs_high, shift_value, kMipsBitsPerWord - shift_value);
@@ -1589,10 +1610,15 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
                 __ Srl(dst_low, lhs_low, shift_value);
                 __ Ins(dst_low, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
                 __ Sra(dst_high, lhs_high, shift_value);
+              } else if (instr->IsUShr()) {
+                __ Srl(dst_low, lhs_low, shift_value);
+                __ Ins(dst_low, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
+                __ Srl(dst_high, lhs_high, shift_value);
               } else {
                 __ Srl(dst_low, lhs_low, shift_value);
                 __ Ins(dst_low, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
                 __ Srl(dst_high, lhs_high, shift_value);
+                __ Ins(dst_high, lhs_low, kMipsBitsPerWord - shift_value, shift_value);
               }
             } else {
               if (instr->IsShl()) {
@@ -1605,11 +1631,18 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
                 __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
                 __ Srl(dst_low, lhs_low, shift_value);
                 __ Or(dst_low, dst_low, TMP);
-              } else {
+              } else if (instr->IsUShr()) {
                 __ Srl(dst_high, lhs_high, shift_value);
                 __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
                 __ Srl(dst_low, lhs_low, shift_value);
                 __ Or(dst_low, dst_low, TMP);
+              } else {
+                __ Srl(TMP, lhs_low, shift_value);
+                __ Sll(dst_low, lhs_high, kMipsBitsPerWord - shift_value);
+                __ Or(dst_low, dst_low, TMP);
+                __ Srl(TMP, lhs_high, shift_value);
+                __ Sll(dst_high, lhs_low, kMipsBitsPerWord - shift_value);
+                __ Or(dst_high, dst_high, TMP);
               }
             }
           } else {
@@ -1620,9 +1653,29 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
             } else if (instr->IsShr()) {
               __ Sra(dst_low, lhs_high, shift_value);
               __ Sra(dst_high, dst_low, kMipsBitsPerWord - 1);
-            } else {
+            } else if (instr->IsUShr()) {
               __ Srl(dst_low, lhs_high, shift_value);
               __ Move(dst_high, ZERO);
+            } else {
+              if (shift_value == 0) {
+                // 64-bit rotation by 32 is just a swap.
+                __ Move(dst_low, lhs_high);
+                __ Move(dst_high, lhs_low);
+              } else {
+                if (has_ins_rotr) {
+                  __ Srl(dst_low, lhs_high, shift_value);
+                  __ Ins(dst_low, lhs_low, kMipsBitsPerWord - shift_value, shift_value);
+                  __ Srl(dst_high, lhs_low, shift_value);
+                  __ Ins(dst_high, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
+                } else {
+                  __ Sll(TMP, lhs_low, kMipsBitsPerWord - shift_value);
+                  __ Srl(dst_low, lhs_high, shift_value);
+                  __ Or(dst_low, dst_low, TMP);
+                  __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
+                  __ Srl(dst_high, lhs_low, shift_value);
+                  __ Or(dst_high, dst_high, TMP);
+                }
+              }
             }
           }
       } else {
@@ -1649,7 +1702,7 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
           __ Beqz(TMP, &done);
           __ Move(dst_low, dst_high);
           __ Sra(dst_high, dst_high, 31);
-        } else {
+        } else if (instr->IsUShr()) {
           __ Srlv(dst_high, lhs_high, rhs_reg);
           __ Nor(AT, ZERO, rhs_reg);
           __ Sll(TMP, lhs_high, 1);
@@ -1660,6 +1713,21 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
           __ Beqz(TMP, &done);
           __ Move(dst_low, dst_high);
           __ Move(dst_high, ZERO);
+        } else {
+          __ Nor(AT, ZERO, rhs_reg);
+          __ Srlv(TMP, lhs_low, rhs_reg);
+          __ Sll(dst_low, lhs_high, 1);
+          __ Sllv(dst_low, dst_low, AT);
+          __ Or(dst_low, dst_low, TMP);
+          __ Srlv(TMP, lhs_high, rhs_reg);
+          __ Sll(dst_high, lhs_low, 1);
+          __ Sllv(dst_high, dst_high, AT);
+          __ Or(dst_high, dst_high, TMP);
+          __ Andi(TMP, rhs_reg, kMipsBitsPerWord);
+          __ Beqz(TMP, &done);
+          __ Move(TMP, dst_high);
+          __ Move(dst_high, dst_low);
+          __ Move(dst_low, TMP);
         }
         __ Bind(&done);
       }
@@ -4539,14 +4607,12 @@ void InstructionCodeGeneratorMIPS::VisitReturnVoid(HReturnVoid* ret ATTRIBUTE_UN
   codegen_->GenerateFrameExit();
 }
 
-void LocationsBuilderMIPS::VisitRor(HRor* ror ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
+void LocationsBuilderMIPS::VisitRor(HRor* ror) {
+  HandleShift(ror);
 }
 
-void InstructionCodeGeneratorMIPS::VisitRor(HRor* ror ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
+void InstructionCodeGeneratorMIPS::VisitRor(HRor* ror) {
+  HandleShift(ror);
 }
 
 void LocationsBuilderMIPS::VisitShl(HShl* shl) {
