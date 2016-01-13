@@ -211,11 +211,9 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     generate_debug_info_ = false;
   } else if (option == "--debuggable") {
     debuggable_ = true;
-    generate_debug_info_ = true;
   } else if (option == "--native-debuggable") {
     native_debuggable_ = true;
     debuggable_ = true;
-    generate_debug_info_ = true;
   } else if (option.starts_with("--top-k-profile-threshold=")) {
     ParseDouble(option.data(), '=', 0.0, 100.0, &top_k_profile_threshold_, Usage);
   } else if (option == "--include-patch-information") {
