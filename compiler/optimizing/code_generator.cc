@@ -1326,12 +1326,6 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
         << "instruction->DebugName()=" << instruction->DebugName()
         << " slow_path->GetDescription()=" << slow_path->GetDescription();
     DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
-           // Control flow would not come back into the code if a fatal slow
-           // path is taken, so we do not care if it triggers GC.
-           slow_path->IsFatal() ||
-           // HDeoptimize is a special case: we know we are not coming back from
-           // it into the code.
-           instruction->IsDeoptimize() ||
            // When read barriers are enabled, some instructions use a
            // slow path to emit a read barrier, which does not trigger
            // GC, is not fatal, nor is emitted by HDeoptimize
