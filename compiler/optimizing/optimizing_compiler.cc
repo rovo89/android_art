@@ -1000,7 +1000,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         code_address + code_allocator.GetSize(),
         &compiled_method
     };
-    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFile(method_debug_info);
+    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFileForMethod(method_debug_info);
     CreateJITCodeEntryForAddress(code_address,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());
