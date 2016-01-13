@@ -1677,7 +1677,9 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
 
       LocationSummary* locations = safepoint_position->GetLocations();
       if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
-        DCHECK(interval->GetDefinedBy()->IsActualObject()) << interval->GetDefinedBy()->DebugName();
+        DCHECK(interval->GetDefinedBy()->IsActualObject())
+            << interval->GetDefinedBy()->DebugName()
+            << "@" << safepoint_position->GetInstruction()->DebugName();
         locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
       }
 
@@ -1691,7 +1693,8 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
           }
           if (current->GetType() == Primitive::kPrimNot) {
             DCHECK(interval->GetDefinedBy()->IsActualObject())
-                << interval->GetDefinedBy()->DebugName();
+                << interval->GetDefinedBy()->DebugName()
+                << "@" << safepoint_position->GetInstruction()->DebugName();
             locations->SetRegisterBit(source.reg());
           }
           break;
