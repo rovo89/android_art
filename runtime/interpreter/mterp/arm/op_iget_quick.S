@@ -1,5 +1,5 @@
-%default { "load":"ldr", "is_object":"0" }
-    /* For: iget-quick, iget-object-quick */
+%default { "load":"ldr" }
+    /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
@@ -9,10 +9,6 @@
     beq     common_errNullObject        @ object was null
     $load   r0, [r3, r1]                @ r0<- obj.field
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if $is_object
-    SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
     SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction

@@ -1,11 +1,11 @@
-%default { "load":"ldr", "shift":"2", "is_object":"0", "data_offset":"MIRROR_INT_ARRAY_DATA_OFFSET" }
+%default { "load":"ldr", "shift":"2", "data_offset":"MIRROR_INT_ARRAY_DATA_OFFSET" }
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
      * Note: using the usual FETCH/and/shift stuff, this fits in exactly 17
      * instructions.  We use a pair of FETCH_Bs instead.
      *
-     * for: aget, aget-object, aget-boolean, aget-byte, aget-char, aget-short
+     * for: aget, aget-boolean, aget-byte, aget-char, aget-short
      *
      * NOTE: assumes data offset for arrays is the same for all non-wide types.
      * If this changes, specialize.
@@ -25,9 +25,5 @@
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     $load   r2, [r0, #$data_offset]     @ r2<- vBB[vCC]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    .if $is_object
-    SET_VREG_OBJECT r2, r9              @ vAA<- r2
-    .else
     SET_VREG r2, r9                     @ vAA<- r2
-    .endif
     GOTO_OPCODE ip                      @ jump to next instruction
