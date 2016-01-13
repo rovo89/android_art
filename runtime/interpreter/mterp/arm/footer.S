@@ -128,9 +128,11 @@ MterpCheckSuspendAndContinue:
  */
 MterpFallback:
     EXPORT_PC
+#if MTERP_LOGGING
     mov  r0, rSELF
     add  r1, rFP, #OFF_FP_SHADOWFRAME
     bl MterpLogFallback
+#endif
 MterpCommonFallback:
     mov     r0, #0                                  @ signal retry with reference interpreter.
     b       MterpDone
@@ -144,9 +146,6 @@ MterpCommonFallback:
  *  uint32_t* rFP  (should still be live, pointer to base of vregs)
  */
 MterpExceptionReturn:
-    ldr     r2, [rFP, #OFF_FP_RESULT_REGISTER]
-    str     r0, [r2]
-    str     r1, [r2, #4]
     mov     r0, #1                                  @ signal return to caller.
     b MterpDone
 MterpReturn:

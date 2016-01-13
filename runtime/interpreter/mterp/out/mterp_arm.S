@@ -2013,7 +2013,7 @@ artMterpAsmInstructionStart = .L_op_nop
      * Note: using the usual FETCH/and/shift stuff, this fits in exactly 17
      * instructions.  We use a pair of FETCH_Bs instead.
      *
-     * for: aget, aget-object, aget-boolean, aget-byte, aget-char, aget-short
+     * for: aget, aget-boolean, aget-byte, aget-char, aget-short
      *
      * NOTE: assumes data offset for arrays is the same for all non-wide types.
      * If this changes, specialize.
@@ -2033,11 +2033,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldr   r2, [r0, #MIRROR_INT_ARRAY_DATA_OFFSET]     @ r2<- vBB[vCC]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    .if 0
-    SET_VREG_OBJECT r2, r9              @ vAA<- r2
-    .else
     SET_VREG r2, r9                     @ vAA<- r2
-    .endif
     GOTO_OPCODE ip                      @ jump to next instruction
 
 /* ------------------------------ */
@@ -2106,7 +2102,7 @@ artMterpAsmInstructionStart = .L_op_nop
      * Note: using the usual FETCH/and/shift stuff, this fits in exactly 17
      * instructions.  We use a pair of FETCH_Bs instead.
      *
-     * for: aget, aget-object, aget-boolean, aget-byte, aget-char, aget-short
+     * for: aget, aget-boolean, aget-byte, aget-char, aget-short
      *
      * NOTE: assumes data offset for arrays is the same for all non-wide types.
      * If this changes, specialize.
@@ -2126,11 +2122,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldrb   r2, [r0, #MIRROR_BOOLEAN_ARRAY_DATA_OFFSET]     @ r2<- vBB[vCC]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    .if 0
-    SET_VREG_OBJECT r2, r9              @ vAA<- r2
-    .else
     SET_VREG r2, r9                     @ vAA<- r2
-    .endif
     GOTO_OPCODE ip                      @ jump to next instruction
 
 
@@ -2145,7 +2137,7 @@ artMterpAsmInstructionStart = .L_op_nop
      * Note: using the usual FETCH/and/shift stuff, this fits in exactly 17
      * instructions.  We use a pair of FETCH_Bs instead.
      *
-     * for: aget, aget-object, aget-boolean, aget-byte, aget-char, aget-short
+     * for: aget, aget-boolean, aget-byte, aget-char, aget-short
      *
      * NOTE: assumes data offset for arrays is the same for all non-wide types.
      * If this changes, specialize.
@@ -2165,11 +2157,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldrsb   r2, [r0, #MIRROR_BYTE_ARRAY_DATA_OFFSET]     @ r2<- vBB[vCC]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    .if 0
-    SET_VREG_OBJECT r2, r9              @ vAA<- r2
-    .else
     SET_VREG r2, r9                     @ vAA<- r2
-    .endif
     GOTO_OPCODE ip                      @ jump to next instruction
 
 
@@ -2184,7 +2172,7 @@ artMterpAsmInstructionStart = .L_op_nop
      * Note: using the usual FETCH/and/shift stuff, this fits in exactly 17
      * instructions.  We use a pair of FETCH_Bs instead.
      *
-     * for: aget, aget-object, aget-boolean, aget-byte, aget-char, aget-short
+     * for: aget, aget-boolean, aget-byte, aget-char, aget-short
      *
      * NOTE: assumes data offset for arrays is the same for all non-wide types.
      * If this changes, specialize.
@@ -2204,11 +2192,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldrh   r2, [r0, #MIRROR_CHAR_ARRAY_DATA_OFFSET]     @ r2<- vBB[vCC]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    .if 0
-    SET_VREG_OBJECT r2, r9              @ vAA<- r2
-    .else
     SET_VREG r2, r9                     @ vAA<- r2
-    .endif
     GOTO_OPCODE ip                      @ jump to next instruction
 
 
@@ -2223,7 +2207,7 @@ artMterpAsmInstructionStart = .L_op_nop
      * Note: using the usual FETCH/and/shift stuff, this fits in exactly 17
      * instructions.  We use a pair of FETCH_Bs instead.
      *
-     * for: aget, aget-object, aget-boolean, aget-byte, aget-char, aget-short
+     * for: aget, aget-boolean, aget-byte, aget-char, aget-short
      *
      * NOTE: assumes data offset for arrays is the same for all non-wide types.
      * If this changes, specialize.
@@ -2243,11 +2227,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldrsh   r2, [r0, #MIRROR_SHORT_ARRAY_DATA_OFFSET]     @ r2<- vBB[vCC]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    .if 0
-    SET_VREG_OBJECT r2, r9              @ vAA<- r2
-    .else
     SET_VREG r2, r9                     @ vAA<- r2
-    .endif
     GOTO_OPCODE ip                      @ jump to next instruction
 
 
@@ -7127,7 +7107,7 @@ constvalop_long_to_double:
     .balign 128
 .L_op_iget_quick: /* 0xe3 */
 /* File: arm/op_iget_quick.S */
-    /* For: iget-quick, iget-object-quick */
+    /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
@@ -7137,11 +7117,7 @@ constvalop_long_to_double:
     beq     common_errNullObject        @ object was null
     ldr   r0, [r3, r1]                @ r0<- obj.field
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if 0
-    SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
     SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 
@@ -7167,25 +7143,23 @@ constvalop_long_to_double:
     .balign 128
 .L_op_iget_object_quick: /* 0xe5 */
 /* File: arm/op_iget_object_quick.S */
-/* File: arm/op_iget_quick.S */
-    /* For: iget-quick, iget-object-quick */
+    /* For: iget-object-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
-    GET_VREG r3, r2                     @ r3<- object we're operating on
-    ubfx    r2, rINST, #8, #4           @ r2<- A
-    cmp     r3, #0                      @ check object for null
+    GET_VREG r0, r2                     @ r0<- object we're operating on
+    cmp     r0, #0                      @ check object for null
     beq     common_errNullObject        @ object was null
-    ldr   r0, [r3, r1]                @ r0<- obj.field
-    FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if 1
+    bl      artIGetObjectFromMterp      @ (obj, offset)
+    ldr     r3, [rSELF, #THREAD_EXCEPTION_OFFSET]
+    ubfx    r2, rINST, #8, #4           @ r2<- A
+    PREFETCH_INST 2
+    cmp     r3, #0
+    bne     MterpPossibleException      @ bail out
     SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
-    SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
+    ADVANCE 2                           @ advance rPC
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
-
 
 /* ------------------------------ */
     .balign 128
@@ -7373,7 +7347,7 @@ constvalop_long_to_double:
 .L_op_iget_boolean_quick: /* 0xef */
 /* File: arm/op_iget_boolean_quick.S */
 /* File: arm/op_iget_quick.S */
-    /* For: iget-quick, iget-object-quick */
+    /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
@@ -7383,11 +7357,7 @@ constvalop_long_to_double:
     beq     common_errNullObject        @ object was null
     ldrb   r0, [r3, r1]                @ r0<- obj.field
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if 0
-    SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
     SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 
@@ -7397,7 +7367,7 @@ constvalop_long_to_double:
 .L_op_iget_byte_quick: /* 0xf0 */
 /* File: arm/op_iget_byte_quick.S */
 /* File: arm/op_iget_quick.S */
-    /* For: iget-quick, iget-object-quick */
+    /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
@@ -7407,11 +7377,7 @@ constvalop_long_to_double:
     beq     common_errNullObject        @ object was null
     ldrsb   r0, [r3, r1]                @ r0<- obj.field
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if 0
-    SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
     SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 
@@ -7421,7 +7387,7 @@ constvalop_long_to_double:
 .L_op_iget_char_quick: /* 0xf1 */
 /* File: arm/op_iget_char_quick.S */
 /* File: arm/op_iget_quick.S */
-    /* For: iget-quick, iget-object-quick */
+    /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
@@ -7431,11 +7397,7 @@ constvalop_long_to_double:
     beq     common_errNullObject        @ object was null
     ldrh   r0, [r3, r1]                @ r0<- obj.field
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if 0
-    SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
     SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 
@@ -7445,7 +7407,7 @@ constvalop_long_to_double:
 .L_op_iget_short_quick: /* 0xf2 */
 /* File: arm/op_iget_short_quick.S */
 /* File: arm/op_iget_quick.S */
-    /* For: iget-quick, iget-object-quick */
+    /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
@@ -7455,11 +7417,7 @@ constvalop_long_to_double:
     beq     common_errNullObject        @ object was null
     ldrsh   r0, [r3, r1]                @ r0<- obj.field
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    .if 0
-    SET_VREG_OBJECT r0, r2              @ fp[A]<- r0
-    .else
     SET_VREG r0, r2                     @ fp[A]<- r0
-    .endif
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 
@@ -12204,9 +12162,11 @@ MterpCheckSuspendAndContinue:
  */
 MterpFallback:
     EXPORT_PC
+#if MTERP_LOGGING
     mov  r0, rSELF
     add  r1, rFP, #OFF_FP_SHADOWFRAME
     bl MterpLogFallback
+#endif
 MterpCommonFallback:
     mov     r0, #0                                  @ signal retry with reference interpreter.
     b       MterpDone
@@ -12220,9 +12180,6 @@ MterpCommonFallback:
  *  uint32_t* rFP  (should still be live, pointer to base of vregs)
  */
 MterpExceptionReturn:
-    ldr     r2, [rFP, #OFF_FP_RESULT_REGISTER]
-    str     r0, [r2]
-    str     r1, [r2, #4]
     mov     r0, #1                                  @ signal return to caller.
     b MterpDone
 MterpReturn:
