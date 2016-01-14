@@ -322,6 +322,9 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
                                            number_of_dex_registers)
       : code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
 
+  if (!dex_register_map.IsValid()) {
+    return false;
+  }
   DexRegisterLocation::Kind location_kind =
       dex_register_map.GetLocationKind(vreg, number_of_dex_registers, code_info, encoding);
   switch (location_kind) {

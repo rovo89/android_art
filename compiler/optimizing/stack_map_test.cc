@@ -614,6 +614,10 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   stream.EndStackMapEntry();
 
+  number_of_dex_registers = 1;
+  stream.BeginStackMapEntry(1, 67, 0x4, &sp_mask, number_of_dex_registers, 0);
+  stream.EndStackMapEntry();
+
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
@@ -622,7 +626,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   CodeInfo code_info(region);
   StackMapEncoding encoding = code_info.ExtractEncoding();
   ASSERT_EQ(0u, encoding.NumberOfBytesForStackMask());
-  ASSERT_EQ(1u, code_info.GetNumberOfStackMaps());
+  ASSERT_EQ(2u, code_info.GetNumberOfStackMaps());
 
   uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
   ASSERT_EQ(0u, number_of_location_catalog_entries);
@@ -635,6 +639,16 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding));
   ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding));
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding));
+
+  ASSERT_FALSE(stack_map.HasDexRegisterMap(encoding));
+  ASSERT_FALSE(stack_map.HasInlineInfo(encoding));
+
+  stack_map = code_info.GetStackMapAt(1, encoding);
+  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(1, encoding)));
+  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(67, encoding)));
+  ASSERT_EQ(1u, stack_map.GetDexPc(encoding));
+  ASSERT_EQ(67u, stack_map.GetNativePcOffset(encoding));
+  ASSERT_EQ(0x4u, stack_map.GetRegisterMask(encoding));
 
   ASSERT_FALSE(stack_map.HasDexRegisterMap(encoding));
   ASSERT_FALSE(stack_map.HasInlineInfo(encoding));
