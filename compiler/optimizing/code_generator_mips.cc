@@ -1539,8 +1539,10 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
   bool use_imm = rhs_location.IsConstant();
   Register rhs_reg = use_imm ? ZERO : rhs_location.AsRegister<Register>();
   int64_t rhs_imm = use_imm ? CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()) : 0;
-  uint32_t shift_mask = (type == Primitive::kPrimInt) ? kMaxIntShiftValue : kMaxLongShiftValue;
-  uint32_t shift_value = rhs_imm & shift_mask;
+  const uint32_t shift_mask = (type == Primitive::kPrimInt)
+      ? kMaxIntShiftValue
+      : kMaxLongShiftValue;
+  const uint32_t shift_value = rhs_imm & shift_mask;
   // Are the INS (Insert Bit Field) and ROTR instructions supported?
   bool has_ins_rotr = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
 
@@ -1580,6 +1582,11 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
             __ Rotrv(dst, lhs, rhs_reg);
           } else {
             __ Subu(TMP, ZERO, rhs_reg);
+            // 32-bit shift instructions use the 5 least significant bits of the shift count, so
+            // shifting by `-rhs_reg` is equivalent to shifting by `(32 - rhs_reg) & 31`. The case
+            // when `rhs_reg & 31 == 0` is OK even though we don't shift `lhs` left all the way out
+            // by 32, because the result in this case is computed as `(lhs >> 0) | (lhs << 0)`,
+            // IOW, the OR'd values are equal.
             __ Sllv(TMP, lhs, TMP);
             __ Srlv(dst, lhs, rhs_reg);
             __ Or(dst, dst, TMP);
@@ -1643,33 +1650,33 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
               }
             }
           } else {
-            shift_value -= kMipsBitsPerWord;
+            const uint32_t shift_value_high = shift_value - kMipsBitsPerWord;
             if (instr->IsShl()) {
-              __ Sll(dst_high, lhs_low, shift_value);
+              __ Sll(dst_high, lhs_low, shift_value_high);
               __ Move(dst_low, ZERO);
             } else if (instr->IsShr()) {
-              __ Sra(dst_low, lhs_high, shift_value);
+              __ Sra(dst_low, lhs_high, shift_value_high);
               __ Sra(dst_high, dst_low, kMipsBitsPerWord - 1);
             } else if (instr->IsUShr()) {
-              __ Srl(dst_low, lhs_high, shift_value);
+              __ Srl(dst_low, lhs_high, shift_value_high);
               __ Move(dst_high, ZERO);
             } else {
-              if (shift_value == 0) {
+              if (shift_value == kMipsBitsPerWord) {
                 // 64-bit rotation by 32 is just a swap.
                 __ Move(dst_low, lhs_high);
                 __ Move(dst_high, lhs_low);
               } else {
                 if (has_ins_rotr) {
-                  __ Srl(dst_low, lhs_high, shift_value);
-                  __ Ins(dst_low, lhs_low, kMipsBitsPerWord - shift_value, shift_value);
-                  __ Srl(dst_high, lhs_low, shift_value);
-                  __ Ins(dst_high, lhs_high, kMipsBitsPerWord - shift_value, shift_value);
+                  __ Srl(dst_low, lhs_high, shift_value_high);
+                  __ Ins(dst_low, lhs_low, kMipsBitsPerWord - shift_value_high, shift_value_high);
+                  __ Srl(dst_high, lhs_low, shift_value_high);
+                  __ Ins(dst_high, lhs_high, kMipsBitsPerWord - shift_value_high, shift_value_high);
                 } else {
-                  __ Sll(TMP, lhs_low, kMipsBitsPerWord - shift_value);
-                  __ Srl(dst_low, lhs_high, shift_value);
+                  __ Sll(TMP, lhs_low, kMipsBitsPerWord - shift_value_high);
+                  __ Srl(dst_low, lhs_high, shift_value_high);
                   __ Or(dst_low, dst_low, TMP);
-                  __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value);
-                  __ Srl(dst_high, lhs_low, shift_value);
+                  __ Sll(TMP, lhs_high, kMipsBitsPerWord - shift_value_high);
+                  __ Srl(dst_high, lhs_low, shift_value_high);
                   __ Or(dst_high, dst_high, TMP);
                 }
               }
