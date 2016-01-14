@@ -548,6 +548,11 @@ TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
   484-checker-register-hints \
   537-checker-arraycopy
 
+# Tests that should fail in the read barrier configuration with JIT.
+# 141: Disabled because of intermittent failures on the ART Builtbot (b/25866001).
+TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS := \
+  141-class-unload
+
 ifeq ($(ART_USE_READ_BARRIER),true)
   ifneq (,$(filter default,$(COMPILER_TYPES)))
     ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
@@ -562,10 +567,18 @@ ifeq ($(ART_USE_READ_BARRIER),true)
         $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
         $(TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
   endif
+
+  ifneq (,$(filter jit,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),jit,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
+        $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
 endif
 
 TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS :=
+TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
 
 # Tests that should fail in the heap poisoning configuration with the default (Quick) compiler.
 # 137: Quick has no support for read barriers and punts to the
@@ -873,20 +886,20 @@ define define-test-art-run-test
         ifeq ($(9),multiimage)
           test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
           run_test_options += --multi-image
-      		ifeq ($(1),host)
-        		prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
-      		else
-        		prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
-      		endif
+                ifeq ($(1),host)
+                        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
+                else
+                        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
+                endif
         else
           ifeq ($(9),multipicimage)
             test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
-        		run_test_options += --pic-image --multi-image
-        		ifeq ($(1),host)
-          		prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
-        		else
-          		prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
-        		endif
+                        run_test_options += --pic-image --multi-image
+                        ifeq ($(1),host)
+                        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
+                        else
+                        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
+                        endif
           else
             $$(error found $(9) expected $(IMAGE_TYPES))
           endif
