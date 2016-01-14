@@ -24,6 +24,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
+#include "experimental_flags.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
 #include "mirror/abstract_method.h"
@@ -228,7 +229,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
       if (klass->IsInterface()) {
         EXPECT_EQ(0U, iftable->GetMethodArrayCount(i));
       } else {
-        EXPECT_EQ(interface->NumVirtualMethods(), iftable->GetMethodArrayCount(i));
+        EXPECT_EQ(interface->NumDeclaredVirtualMethods(), iftable->GetMethodArrayCount(i));
       }
     }
     if (klass->IsAbstract()) {

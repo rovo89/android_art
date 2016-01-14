@@ -654,7 +654,7 @@ class MethodVerifier {
    * the referrer can access the resolved method.
    * Does not throw exceptions.
    */
-  ArtMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
+  ArtMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type, bool is_super)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*

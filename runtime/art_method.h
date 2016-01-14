@@ -267,7 +267,9 @@ class ArtMethod FINAL {
   bool HasSameNameAndSignature(ArtMethod* other) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Find the method that this method overrides.
-  ArtMethod* FindOverriddenMethod(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* FindOverriddenMethod(size_t pointer_size)
+      REQUIRES(Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Find the method index for this method within other_dexfile. If this method isn't present then
   // return DexFile::kDexNoIndex. The name_and_signature_idx MUST refer to a MethodId with the same

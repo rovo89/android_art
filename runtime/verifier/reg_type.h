@@ -246,28 +246,18 @@ class RegType {
   }
 
   /*
-   * A basic Join operation on classes. For a pair of types S and T the Join,
-   *written S v T = J, is
-   * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is
-   *J is the parent of
-   * S and T such that there isn't a parent of both S and T that isn't also the
-   *parent of J (ie J
+   * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
+   * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is J is the parent of
+   * S and T such that there isn't a parent of both S and T that isn't also the parent of J (ie J
    * is the deepest (lowest upper bound) parent of S and T).
    *
-   * This operation applies for regular classes and arrays, however, for
-   *interface types there
-   * needn't be a partial ordering on the types. We could solve the problem of a
-   *lack of a partial
-   * order by introducing sets of types, however, the only operation permissible
-   *on an interface is
-   * invoke-interface. In the tradition of Java verifiers [1] we defer the
-   *verification of interface
-   * types until an invoke-interface call on the interface typed reference at
-   *runtime and allow
-   * the perversion of Object being assignable to an interface type (note,
-   *however, that we don't
-   * allow assignment of Object or Interface to any concrete class and are
-   *therefore type safe).
+   * This operation applies for regular classes and arrays, however, for interface types there
+   * needn't be a partial ordering on the types. We could solve the problem of a lack of a partial
+   * order by introducing sets of types, however, the only operation permissible on an interface is
+   * invoke-interface. In the tradition of Java verifiers [1] we defer the verification of interface
+   * types until an invoke-interface call on the interface typed reference at runtime and allow
+   * the perversion of Object being assignable to an interface type (note, however, that we don't
+   * allow assignment of Object or Interface to any concrete class and are therefore type safe).
    *
    * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
    */
