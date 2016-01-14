@@ -599,12 +599,36 @@ TEST_F(AssemblerMIPSTest, CvtDW) {
   DriverStr(RepeatFF(&mips::MipsAssembler::Cvtdw, "cvt.d.w ${reg1}, ${reg2}"), "CvtDW");
 }
 
+TEST_F(AssemblerMIPSTest, CvtSL) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::Cvtsl, "cvt.s.l ${reg1}, ${reg2}"), "CvtSL");
+}
+
+TEST_F(AssemblerMIPSTest, CvtDL) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::Cvtdl, "cvt.d.l ${reg1}, ${reg2}"), "CvtDL");
+}
+
 TEST_F(AssemblerMIPSTest, CvtSD) {
   DriverStr(RepeatFF(&mips::MipsAssembler::Cvtsd, "cvt.s.d ${reg1}, ${reg2}"), "CvtSD");
 }
 
 TEST_F(AssemblerMIPSTest, CvtDS) {
   DriverStr(RepeatFF(&mips::MipsAssembler::Cvtds, "cvt.d.s ${reg1}, ${reg2}"), "CvtDS");
+}
+
+TEST_F(AssemblerMIPSTest, TruncWS) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::TruncWS, "trunc.w.s ${reg1}, ${reg2}"), "TruncWS");
+}
+
+TEST_F(AssemblerMIPSTest, TruncWD) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::TruncWD, "trunc.w.d ${reg1}, ${reg2}"), "TruncWD");
+}
+
+TEST_F(AssemblerMIPSTest, TruncLS) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::TruncLS, "trunc.l.s ${reg1}, ${reg2}"), "TruncLS");
+}
+
+TEST_F(AssemblerMIPSTest, TruncLD) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::TruncLD, "trunc.l.d ${reg1}, ${reg2}"), "TruncLD");
 }
 
 TEST_F(AssemblerMIPSTest, Mfc1) {
