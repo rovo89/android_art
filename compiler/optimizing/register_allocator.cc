@@ -179,9 +179,11 @@ void RegisterAllocator::AllocateRegistersInternal() {
       ProcessInstruction(inst_it.Current());
     }
 
-    if (block->IsCatchBlock()) {
-      // By blocking all registers at the top of each catch block, we force
-      // intervals used after catch to spill.
+    if (block->IsCatchBlock() ||
+        (block->GetLoopInformation() != nullptr && block->GetLoopInformation()->IsIrreducible())) {
+      // By blocking all registers at the top of each catch block or irreducible loop, we force
+      // intervals belonging to the live-in set of the catch/header block to be spilled.
+      // TODO(ngeoffray): Phis in this block could be allocated in register.
       size_t position = block->GetLifetimeStart();
       BlockRegisters(position, position + 1);
     }
@@ -1870,8 +1872,10 @@ void RegisterAllocator::Resolve() {
   // Resolve non-linear control flow across branches. Order does not matter.
   for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    if (block->IsCatchBlock()) {
-      // Instructions live at the top of catch blocks were forced to spill.
+    if (block->IsCatchBlock() ||
+        (block->GetLoopInformation() != nullptr && block->GetLoopInformation()->IsIrreducible())) {
+      // Instructions live at the top of catch blocks or irreducible loop header
+      // were forced to spill.
       if (kIsDebugBuild) {
         BitVector* live = liveness_.GetLiveInSet(*block);
         for (uint32_t idx : live->Indexes()) {

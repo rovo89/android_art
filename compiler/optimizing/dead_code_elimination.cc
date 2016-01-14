@@ -81,12 +81,6 @@ static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
   }
 }
 
-static void MarkLoopHeadersContaining(const HBasicBlock& block, ArenaBitVector* set) {
-  for (HLoopInformationOutwardIterator it(block); !it.Done(); it.Advance()) {
-    set->SetBit(it.Current()->GetHeader()->GetBlockId());
-  }
-}
-
 void HDeadCodeElimination::MaybeRecordDeadBlock(HBasicBlock* block) {
   if (stats_ != nullptr) {
     stats_->RecordStat(MethodCompilationStat::kRemovedDeadInstruction,
@@ -98,36 +92,45 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   // Classify blocks as reachable/unreachable.
   ArenaAllocator* allocator = graph_->GetArena();
   ArenaBitVector live_blocks(allocator, graph_->GetBlocks().size(), false);
-  ArenaBitVector affected_loops(allocator, graph_->GetBlocks().size(), false);
 
   MarkReachableBlocks(graph_, &live_blocks);
   bool removed_one_or_more_blocks = false;
+  // If the graph has irreducible loops we need to reset all graph analysis we have done
+  // before: the irreducible loop can be turned into a reducible one.
+  // For simplicity, we do the full computation regardless of the type of the loops.
+  bool rerun_dominance_and_loop_analysis = false;
 
   // Remove all dead blocks. Iterate in post order because removal needs the
   // block's chain of dominators and nested loops need to be updated from the
   // inside out.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block  = it.Current();
+    if (block->IsLoopHeader() && block->GetLoopInformation()->IsIrreducible()) {
+      rerun_dominance_and_loop_analysis = true;
+    }
     int id = block->GetBlockId();
-    if (live_blocks.IsBitSet(id)) {
-      if (affected_loops.IsBitSet(id)) {
-        DCHECK(block->IsLoopHeader());
-        block->GetLoopInformation()->Update();
-      }
-    } else {
+    if (!live_blocks.IsBitSet(id)) {
       MaybeRecordDeadBlock(block);
-      MarkLoopHeadersContaining(*block, &affected_loops);
       block->DisconnectAndDelete();
       removed_one_or_more_blocks = true;
+      if (block->IsInLoop()) {
+        rerun_dominance_and_loop_analysis = true;
+      }
     }
   }
 
   // If we removed at least one block, we need to recompute the full
   // dominator tree and try block membership.
   if (removed_one_or_more_blocks) {
-    graph_->ClearDominanceInformation();
-    graph_->ComputeDominanceInformation();
-    graph_->ComputeTryBlockInformation();
+    if (rerun_dominance_and_loop_analysis) {
+      graph_->ClearLoopInformation();
+      graph_->ClearDominanceInformation();
+      graph_->BuildDominatorTree();
+    } else {
+      graph_->ClearDominanceInformation();
+      graph_->ComputeDominanceInformation();
+      graph_->ComputeTryBlockInformation();
+    }
   }
 
   // Connect successive blocks created by dead branches. Order does not matter.

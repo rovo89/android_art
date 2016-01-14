@@ -76,7 +76,9 @@ void HInductionVarAnalysis::Run() {
   // range analysis on outer loop while visiting inner loops.
   for (HReversePostOrderIterator it_graph(*graph_); !it_graph.Done(); it_graph.Advance()) {
     HBasicBlock* graph_block = it_graph.Current();
-    if (graph_block->IsLoopHeader()) {
+    // Don't analyze irreducible loops.
+    // TODO(ajcbik): could/should we remove this restriction?
+    if (graph_block->IsLoopHeader() && !graph_block->GetLoopInformation()->IsIrreducible()) {
       VisitLoop(graph_block->GetLoopInformation());
     }
   }
