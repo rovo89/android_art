@@ -105,7 +105,7 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   code_size = initial_capacity - data_size;
   DCHECK_EQ(code_size + data_size, initial_capacity);
   return new JitCodeCache(
-      code_map, data_map, code_size, data_size, garbage_collect_code, max_capacity);
+      code_map, data_map, code_size, data_size, max_capacity, garbage_collect_code);
 }
 
 JitCodeCache::JitCodeCache(MemMap* code_map,
@@ -127,6 +127,7 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       last_update_time_ns_(0),
       garbage_collect_code_(garbage_collect_code) {
 
+  DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
   data_mspace_ = create_mspace_with_base(data_map_->Begin(), data_end_, false /*locked*/);
 
