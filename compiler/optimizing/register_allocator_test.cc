@@ -535,7 +535,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   (*phi)->AddInput(*input2);
 
   graph->BuildDominatorTree();
-  graph->AnalyzeNaturalLoops();
+  graph->AnalyzeLoops();
   return graph;
 }
 

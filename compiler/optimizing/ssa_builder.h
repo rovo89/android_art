@@ -49,7 +49,7 @@ static constexpr int kDefaultNumberOfLoops = 2;
  */
 class SsaBuilder : public HGraphVisitor {
  public:
-  explicit SsaBuilder(HGraph* graph, StackHandleScopeCollection* handles)
+  SsaBuilder(HGraph* graph, StackHandleScopeCollection* handles)
       : HGraphVisitor(graph),
         handles_(handles),
         agets_fixed_(false),
@@ -63,7 +63,7 @@ class SsaBuilder : public HGraphVisitor {
     loop_headers_.reserve(kDefaultNumberOfLoops);
   }
 
-  BuildSsaResult BuildSsa();
+  GraphAnalysisResult BuildSsa();
 
   // Returns locals vector for `block`. If it is a catch block, the vector will be
   // prepopulated with catch phis for vregs which are defined in `current_locals_`.

@@ -94,6 +94,16 @@ void LICM::Run() {
     SideEffects loop_effects = side_effects_.GetLoopEffects(block);
     HBasicBlock* pre_header = loop_info->GetPreHeader();
 
+    bool contains_irreducible_loop = false;
+    if (graph_->HasIrreducibleLoops()) {
+      for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {
+        if (it_loop.Current()->GetLoopInformation()->IsIrreducible()) {
+          contains_irreducible_loop = true;
+          break;
+        }
+      }
+    }
+
     for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {
       HBasicBlock* inner = it_loop.Current();
       DCHECK(inner->IsInLoop());
@@ -103,6 +113,12 @@ void LICM::Run() {
         continue;
       }
       visited.SetBit(inner->GetBlockId());
+
+      if (contains_irreducible_loop) {
+        // We cannot licm in an irreducible loop, or in a natural loop containing an
+        // irreducible loop.
+        continue;
+      }
 
       // We can move an instruction that can throw only if it is the first
       // throwing instruction in the loop. Note that the first potentially

@@ -83,6 +83,11 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
 };
 
 void DexCacheArrayFixups::Run() {
+  if (graph_->HasIrreducibleLoops()) {
+    // Do not run this optimization, as irreducible loops do not work with an instruction
+    // that can be live-in at the irreducible loop header.
+    return;
+  }
   DexCacheArrayFixupsVisitor visitor(graph_);
   visitor.VisitInsertionOrder();
   visitor.MoveBasesIfNeeded();
