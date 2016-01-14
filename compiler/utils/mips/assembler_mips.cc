@@ -1091,6 +1091,24 @@ void MipsAssembler::Mthc1(Register rt, FRegister fs) {
   EmitFR(0x11, 0x07, static_cast<FRegister>(rt), fs, static_cast<FRegister>(0), 0x0);
 }
 
+void MipsAssembler::MoveFromFpuHigh(Register rt, FRegister fs) {
+  if (Is32BitFPU()) {
+    CHECK_EQ(fs % 2, 0) << fs;
+    Mfc1(rt, static_cast<FRegister>(fs + 1));
+  } else {
+    Mfhc1(rt, fs);
+  }
+}
+
+void MipsAssembler::MoveToFpuHigh(Register rt, FRegister fs) {
+  if (Is32BitFPU()) {
+    CHECK_EQ(fs % 2, 0) << fs;
+    Mtc1(rt, static_cast<FRegister>(fs + 1));
+  } else {
+    Mthc1(rt, fs);
+  }
+}
+
 void MipsAssembler::Lwc1(FRegister ft, Register rs, uint16_t imm16) {
   EmitI(0x31, rs, static_cast<Register>(ft), imm16);
 }
@@ -1237,10 +1255,10 @@ void MipsAssembler::LoadDConst64(FRegister rd, int64_t value, Register temp) {
     Mtc1(temp, rd);
   }
   if (high == 0) {
-    Mthc1(ZERO, rd);
+    MoveToFpuHigh(ZERO, rd);
   } else {
     LoadConst32(temp, high);
-    Mthc1(temp, rd);
+    MoveToFpuHigh(temp, rd);
   }
 }
 

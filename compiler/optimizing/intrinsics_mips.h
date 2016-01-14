@@ -67,8 +67,9 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
 
-  bool IsR2OrNewer(void);
-  bool IsR6(void);
+  bool IsR2OrNewer() const;
+  bool IsR6() const;
+  bool Is32BitFPU() const;
 
  private:
   MipsAssembler* GetAssembler();
