@@ -18,6 +18,7 @@
 #define ART_COMPILER_DEX_QUICK_QUICK_COMPILER_H_
 
 #include "compiler.h"
+#include "dex/mir_graph.h"
 
 namespace art {
 
@@ -74,6 +75,8 @@ class QuickCompiler : public Compiler {
   explicit QuickCompiler(CompilerDriver* driver);
 
  private:
+  bool CanCompileInstruction(const MIR* mir, const DexFile& dex_file) const;
+
   std::unique_ptr<PassManager> pre_opt_pass_manager_;
   std::unique_ptr<PassManager> post_opt_pass_manager_;
   DISALLOW_COPY_AND_ASSIGN(QuickCompiler);
