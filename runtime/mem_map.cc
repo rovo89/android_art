@@ -34,13 +34,10 @@
 #include "thread-inl.h"
 #include "utils.h"
 
-#define USE_ASHMEM 1
-
-#ifdef USE_ASHMEM
 #include <cutils/ashmem.h>
+
 #ifndef ANDROID_OS
 #include <sys/resource.h>
-#endif
 #endif
 
 #ifndef MAP_ANONYMOUS
@@ -282,7 +279,8 @@ MemMap* MemMap::MapAnonymous(const char* name,
                              int prot,
                              bool low_4gb,
                              bool reuse,
-                             std::string* error_msg) {
+                             std::string* error_msg,
+                             bool use_ashmem) {
 #ifndef __LP64__
   UNUSED(low_4gb);
 #endif
@@ -303,17 +301,17 @@ MemMap* MemMap::MapAnonymous(const char* name,
 
   ScopedFd fd(-1);
 
-#ifdef USE_ASHMEM
-#ifdef __ANDROID__
-  const bool use_ashmem = true;
-#else
-  // When not on Android ashmem is faked using files in /tmp. Ensure that such files won't
-  // fail due to ulimit restrictions. If they will then use a regular mmap.
-  struct rlimit rlimit_fsize;
-  CHECK_EQ(getrlimit(RLIMIT_FSIZE, &rlimit_fsize), 0);
-  const bool use_ashmem = (rlimit_fsize.rlim_cur == RLIM_INFINITY) ||
-      (page_aligned_byte_count < rlimit_fsize.rlim_cur);
-#endif
+  if (use_ashmem) {
+    if (!kIsTargetBuild) {
+      // When not on Android ashmem is faked using files in /tmp. Ensure that such files won't
+      // fail due to ulimit restrictions. If they will then use a regular mmap.
+      struct rlimit rlimit_fsize;
+      CHECK_EQ(getrlimit(RLIMIT_FSIZE, &rlimit_fsize), 0);
+      use_ashmem = (rlimit_fsize.rlim_cur == RLIM_INFINITY) ||
+        (page_aligned_byte_count < rlimit_fsize.rlim_cur);
+    }
+  }
+
   if (use_ashmem) {
     // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
     // prefixed "dalvik-".
@@ -326,7 +324,6 @@ MemMap* MemMap::MapAnonymous(const char* name,
     }
     flags &= ~MAP_ANONYMOUS;
   }
-#endif
 
   // We need to store and potentially set an error number for pretty printing of errors
   int saved_errno = 0;
@@ -508,7 +505,7 @@ MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_
 }
 
 MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_prot,
-                           std::string* error_msg) {
+                           std::string* error_msg, bool use_ashmem) {
   DCHECK_GE(new_end, Begin());
   DCHECK_LE(new_end, End());
   DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
@@ -532,23 +529,22 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   DCHECK_EQ(tail_base_begin + tail_base_size, old_base_end);
   DCHECK_ALIGNED(tail_base_size, kPageSize);
 
-#ifdef USE_ASHMEM
-  // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
-  // prefixed "dalvik-".
-  std::string debug_friendly_name("dalvik-");
-  debug_friendly_name += tail_name;
-  ScopedFd fd(ashmem_create_region(debug_friendly_name.c_str(), tail_base_size));
-  int flags = MAP_PRIVATE | MAP_FIXED;
-  if (fd.get() == -1) {
-    *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s",
-                              tail_name, strerror(errno));
-    return nullptr;
-  }
-#else
-  ScopedFd fd(-1);
+  int int_fd = -1;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-#endif
-
+  if (use_ashmem) {
+    // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
+    // prefixed "dalvik-".
+    std::string debug_friendly_name("dalvik-");
+    debug_friendly_name += tail_name;
+    int_fd = ashmem_create_region(debug_friendly_name.c_str(), tail_base_size);
+    flags = MAP_PRIVATE | MAP_FIXED;
+    if (int_fd == -1) {
+      *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s",
+                                tail_name, strerror(errno));
+      return nullptr;
+    }
+  }
+  ScopedFd fd(int_fd);
 
   MEMORY_TOOL_MAKE_UNDEFINED(tail_base_begin, tail_base_size);
   // Unmap/map the tail region.

@@ -86,7 +86,7 @@ class Jit {
   // JIT compiler
   void* jit_library_handle_;
   void* jit_compiler_handle_;
-  void* (*jit_load_)(CompilerCallbacks**);
+  void* (*jit_load_)(CompilerCallbacks**, bool*);
   void (*jit_unload_)(void*);
   bool (*jit_compile_method_)(void*, ArtMethod*, Thread*);
 
@@ -99,6 +99,7 @@ class Jit {
   CompilerCallbacks* compiler_callbacks_;  // Owned by the jit compiler.
 
   bool save_profiling_info_;
+  bool generate_debug_info_;
 
   DISALLOW_COPY_AND_ASSIGN(Jit);
 };

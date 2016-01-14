@@ -43,6 +43,9 @@ class JitCompiler {
   size_t GetTotalCompileTime() const {
     return total_time_;
   }
+  CompilerOptions* GetCompilerOptions() const {
+    return compiler_options_.get();
+  }
 
  private:
   uint64_t total_time_;
@@ -53,6 +56,7 @@ class JitCompiler {
   std::unique_ptr<CompilerCallbacks> callbacks_;
   std::unique_ptr<CompilerDriver> compiler_driver_;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;
+  std::unique_ptr<File> perf_file_;
 
   JitCompiler();
 
