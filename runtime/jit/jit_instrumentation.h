@@ -78,7 +78,9 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
                                 ArtMethod* caller,
                                 uint32_t dex_pc,
                                 ArtMethod* callee)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
+      OVERRIDE
+      REQUIRES(Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static constexpr uint32_t kJitEvents =
       instrumentation::Instrumentation::kMethodEntered |

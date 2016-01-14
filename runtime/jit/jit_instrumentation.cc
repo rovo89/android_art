@@ -177,9 +177,8 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
                                                           ArtMethod* caller,
                                                           uint32_t dex_pc,
                                                           ArtMethod* callee ATTRIBUTE_UNUSED) {
-  instrumentation_cache_->AddSamples(thread, caller, 1);
   // We make sure we cannot be suspended, as the profiling info can be concurrently deleted.
-  thread->StartAssertNoThreadSuspension("Instrumenting invoke");
+  instrumentation_cache_->AddSamples(thread, caller, 1);
   DCHECK(this_object != nullptr);
   ProfilingInfo* info = caller->GetProfilingInfo(sizeof(void*));
   if (info != nullptr) {
@@ -188,7 +187,6 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(caller->GetDeclaringClass());
     info->AddInvokeInfo(dex_pc, this_object->GetClass());
   }
-  thread->EndAssertNoThreadSuspension(nullptr);
 }
 
 void JitInstrumentationCache::WaitForCompilationToFinish(Thread* self) {
