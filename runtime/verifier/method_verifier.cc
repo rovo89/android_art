@@ -3639,8 +3639,9 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
+// TODO Maybe I should just add a METHOD_SUPER to MethodType?
 ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
-    uint32_t dex_method_idx, MethodType method_type) {
+    uint32_t dex_method_idx, MethodType method_type, bool is_super) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (klass_type.IsConflict()) {
@@ -3666,6 +3667,8 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     if (method_type == METHOD_DIRECT || method_type == METHOD_STATIC) {
       res_method = klass->FindDirectMethod(name, signature, pointer_size);
     } else if (method_type == METHOD_INTERFACE) {
+      res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
+    } else if (is_super && klass->IsInterface()) {
       res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
     } else {
       res_method = klass->FindVirtualMethod(name, signature, pointer_size);
@@ -3939,7 +3942,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
   // we're making.
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
 
-  ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type);
+  ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type, is_super);
   if (res_method == nullptr) {  // error or class is unresolved
     // Check what we can statically.
     if (!have_pending_hard_failure_) {
@@ -3949,24 +3952,32 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
   }
 
   // If we're using invoke-super(method), make sure that the executing method's class' superclass
-  // has a vtable entry for the target method.
+  // has a vtable entry for the target method. Or the target is on a interface.
   if (is_super) {
     DCHECK(method_type == METHOD_VIRTUAL);
-    const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
-    if (super.IsUnresolvedTypes()) {
-      Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
-                                   << PrettyMethod(dex_method_idx_, *dex_file_)
-                                   << " to super " << PrettyMethod(res_method);
-      return nullptr;
-    }
-    mirror::Class* super_klass = super.GetClass();
-    if (res_method->GetMethodIndex() >= super_klass->GetVTableLength()) {
-      Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                   << PrettyMethod(dex_method_idx_, *dex_file_)
-                                   << " to super " << super
-                                   << "." << res_method->GetName()
-                                   << res_method->GetSignature();
-      return nullptr;
+    if (res_method->GetDeclaringClass()->IsInterface()) {
+      // TODO Fill in this part. Verify what we can...
+      if (Runtime::Current()->IsAotCompiler()) {
+        Fail(VERIFY_ERROR_FORCE_INTERPRETER) << "Currently we only allow invoke-super in "
+                                             << "interpreter when using interface methods";
+      }
+    } else {
+      const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
+      if (super.IsUnresolvedTypes()) {
+        Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
+                                    << PrettyMethod(dex_method_idx_, *dex_file_)
+                                    << " to super " << PrettyMethod(res_method);
+        return nullptr;
+      }
+      mirror::Class* super_klass = super.GetClass();
+      if (res_method->GetMethodIndex() >= super_klass->GetVTableLength()) {
+        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
+                                    << PrettyMethod(dex_method_idx_, *dex_file_)
+                                    << " to super " << super
+                                    << "." << res_method->GetName()
+                                    << res_method->GetSignature();
+        return nullptr;
+      }
     }
   }
 

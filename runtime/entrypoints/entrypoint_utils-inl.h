@@ -416,10 +416,10 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
     return nullptr;  // Failure.
   } else if (access_check) {
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-    mirror::Class* referring_class = referrer->GetDeclaringClass();
     bool can_access_resolved_method =
-        referring_class->CheckResolvedMethodAccess<type>(methods_class, resolved_method,
-                                                         method_idx);
+        referrer->GetDeclaringClass()->CheckResolvedMethodAccess<type>(methods_class,
+                                                                       resolved_method,
+                                                                       method_idx);
     if (UNLIKELY(!can_access_resolved_method)) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
@@ -450,23 +450,56 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
       return klass->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
     }
     case kSuper: {
-      mirror::Class* super_class = referrer->GetDeclaringClass()->GetSuperClass();
-      uint16_t vtable_index = resolved_method->GetMethodIndex();
-      if (access_check) {
-        // Check existence of super class.
-        if (super_class == nullptr || !super_class->HasVTable() ||
-            vtable_index >= static_cast<uint32_t>(super_class->GetVTableLength())) {
-          // Behavior to agree with that of the verifier.
+      // TODO This lookup is quite slow.
+      // NB This is actually quite tricky to do any other way. We cannot use GetDeclaringClass since
+      //    that will actually not be what we want in some cases where there are miranda methods or
+      //    defaults. What we actually need is a GetContainingClass that says which classes virtuals
+      //    this method is coming from.
+      mirror::Class* referring_class = referrer->GetDeclaringClass();
+      uint16_t method_type_idx = referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
+      mirror::Class* method_reference_class = class_linker->ResolveType(method_type_idx, referrer);
+      if (UNLIKELY(method_reference_class == nullptr)) {
+        // Bad type idx.
+        CHECK(self->IsExceptionPending());
+        return nullptr;
+      } else if (!method_reference_class->IsInterface()) {
+        // It is not an interface.
+        mirror::Class* super_class = referring_class->GetSuperClass();
+        uint16_t vtable_index = resolved_method->GetMethodIndex();
+        if (access_check) {
+          // Check existence of super class.
+          if (super_class == nullptr || !super_class->HasVTable() ||
+              vtable_index >= static_cast<uint32_t>(super_class->GetVTableLength())) {
+            // Behavior to agree with that of the verifier.
+            ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(),
+                                   resolved_method->GetName(), resolved_method->GetSignature());
+            return nullptr;  // Failure.
+          }
+        }
+        DCHECK(super_class != nullptr);
+        DCHECK(super_class->HasVTable());
+        return super_class->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
+      } else {
+        // It is an interface.
+        if (access_check) {
+          if (!method_reference_class->IsAssignableFrom((*this_object)->GetClass())) {
+            ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(resolved_method,
+                                                                    method_reference_class,
+                                                                    *this_object,
+                                                                    referrer);
+            return nullptr;  // Failure.
+          }
+        }
+        // TODO We can do better than this for a (compiled) fastpath.
+        ArtMethod* result = method_reference_class->FindVirtualMethodForInterfaceSuper(
+            resolved_method, class_linker->GetImagePointerSize());
+        // Throw an NSME if nullptr;
+        if (result == nullptr) {
           ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(),
                                  resolved_method->GetName(), resolved_method->GetSignature());
-          return nullptr;  // Failure.
         }
-      } else {
-        // Super class must exist.
-        DCHECK(super_class != nullptr);
+        return result;
       }
-      DCHECK(super_class->HasVTable());
-      return super_class->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
     }
     case kInterface: {
       uint32_t imt_index = resolved_method->GetDexMethodIndex() % mirror::Class::kImtSize;
@@ -576,8 +609,9 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
   if (UNLIKELY(this_object == nullptr && type != kStatic)) {
     return nullptr;
   }
+  mirror::Class* referring_class = referrer->GetDeclaringClass();
   ArtMethod* resolved_method =
-      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedMethod(method_idx, sizeof(void*));
+      referring_class->GetDexCache()->GetResolvedMethod(method_idx, sizeof(void*));
   if (UNLIKELY(resolved_method == nullptr)) {
     return nullptr;
   }
@@ -588,7 +622,6 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
       return nullptr;
     }
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-    mirror::Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
                  !referring_class->CanAccessMember(methods_class,
                                                    resolved_method->GetAccessFlags()))) {
@@ -601,12 +634,25 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
   } else if (type == kStatic || type == kDirect) {
     return resolved_method;
   } else if (type == kSuper) {
-    mirror::Class* super_class = referrer->GetDeclaringClass()->GetSuperClass();
-    if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
-      // The super class does not have the method.
+    // TODO This lookup is rather slow.
+    uint16_t method_type_idx = referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
+    mirror::Class* method_reference_class =
+        referring_class->GetDexCache()->GetResolvedType(method_type_idx);
+    if (method_reference_class == nullptr) {
+      // Need to do full type resolution...
       return nullptr;
+    } else if (!method_reference_class->IsInterface()) {
+      // It is not an interface.
+      mirror::Class* super_class = referrer->GetDeclaringClass()->GetSuperClass();
+      if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
+        // The super class does not have the method.
+        return nullptr;
+      }
+      return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), sizeof(void*));
+    } else {
+      return method_reference_class->FindVirtualMethodForInterfaceSuper(
+          resolved_method, sizeof(void*));
     }
-    return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), sizeof(void*));
   } else {
     DCHECK(type == kVirtual);
     return this_object->GetClass()->GetVTableEntry(

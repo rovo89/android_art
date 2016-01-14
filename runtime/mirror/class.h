@@ -848,6 +848,11 @@ class MANAGED Class FINAL : public Object {
   ArtMethod* FindVirtualMethodForSuper(ArtMethod* method, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Given a method from some implementor of this interface, return the specific implementation
+  // method for this class.
+  ArtMethod* FindVirtualMethodForInterfaceSuper(ArtMethod* method, size_t pointer_size)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
@@ -1058,7 +1063,7 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   pid_t GetClinitThreadId() SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(IsIdxLoaded() || IsErroneous());
+    DCHECK(IsIdxLoaded() || IsErroneous()) << PrettyClass(this);
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_));
   }
 
