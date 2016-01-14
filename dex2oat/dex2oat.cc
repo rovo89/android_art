@@ -520,6 +520,7 @@ class Dex2Oat FINAL {
       compiled_methods_filename_(nullptr),
       app_image_(false),
       boot_image_(false),
+      multi_image_(false),
       is_host_(false),
       image_writer_(nullptr),
       driver_(nullptr),
@@ -660,7 +661,7 @@ class Dex2Oat FINAL {
     }
   }
 
-  void ProcessOptions(ParserOptions* parser_options, bool multi_image) {
+  void ProcessOptions(ParserOptions* parser_options) {
     boot_image_ = !image_filenames_.empty();
     app_image_ = app_image_fd_ != -1 || !app_image_file_name_.empty();
 
@@ -851,86 +852,17 @@ class Dex2Oat FINAL {
 
     compiler_options_->verbose_methods_ = verbose_methods_.empty() ? nullptr : &verbose_methods_;
 
-    if (!IsBootImage() && multi_image) {
+    if (!IsBootImage() && multi_image_) {
       Usage("--multi-image can only be used when creating boot images");
     }
-    if (IsBootImage() && multi_image && image_filenames_.size() > 1) {
+    if (IsBootImage() && multi_image_ && image_filenames_.size() > 1) {
       Usage("--multi-image cannot be used with multiple image names");
     }
 
     // For now, if we're on the host and compile the boot image, *always* use multiple image files.
     if (!kIsTargetBuild && IsBootImage()) {
       if (image_filenames_.size() == 1) {
-        multi_image = true;
-      }
-    }
-
-    if (IsBootImage() && multi_image) {
-      // Expand the oat and image filenames.
-      std::string base_oat = oat_filenames_[0];
-      size_t last_oat_slash = base_oat.rfind('/');
-      if (last_oat_slash == std::string::npos) {
-        Usage("--multi-image used with unusable oat filename %s", base_oat.c_str());
-      }
-      // We also need to honor path components that were encoded through '@'. Otherwise the loading
-      // code won't be able to find the images.
-      if (base_oat.find('@', last_oat_slash) != std::string::npos) {
-        last_oat_slash = base_oat.rfind('@');
-      }
-      base_oat = base_oat.substr(0, last_oat_slash + 1);
-
-      std::string base_img = image_filenames_[0];
-      size_t last_img_slash = base_img.rfind('/');
-      if (last_img_slash == std::string::npos) {
-        Usage("--multi-image used with unusable image filename %s", base_img.c_str());
-      }
-      // We also need to honor path components that were encoded through '@'. Otherwise the loading
-      // code won't be able to find the images.
-      if (base_img.find('@', last_img_slash) != std::string::npos) {
-        last_img_slash = base_img.rfind('@');
-      }
-
-      // Get the prefix, which is the primary image name (without path components). Strip the
-      // extension.
-      std::string prefix = base_img.substr(last_img_slash + 1);
-      if (prefix.rfind('.') != std::string::npos) {
-        prefix = prefix.substr(0, prefix.rfind('.'));
-      }
-      if (!prefix.empty()) {
-        prefix = prefix + "-";
-      }
-
-      base_img = base_img.substr(0, last_img_slash + 1);
-
-      // Note: we have some special case here for our testing. We have to inject the differentiating
-      //       parts for the different core images.
-      std::string infix;  // Empty infix by default.
-      {
-        // Check the first name.
-        std::string dex_file = oat_filenames_[0];
-        size_t last_dex_slash = dex_file.rfind('/');
-        if (last_dex_slash != std::string::npos) {
-          dex_file = dex_file.substr(last_dex_slash + 1);
-        }
-        size_t last_dex_dot = dex_file.rfind('.');
-        if (last_dex_dot != std::string::npos) {
-          dex_file = dex_file.substr(0, last_dex_dot);
-        }
-        if (StartsWith(dex_file, "core-")) {
-          infix = dex_file.substr(strlen("core"));
-        }
-      }
-
-      // Now create the other names. Use a counted loop to skip the first one.
-      for (size_t i = 1; i < dex_locations_.size(); ++i) {
-        // TODO: Make everything properly std::string.
-        std::string image_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".art");
-        char_backing_storage_.push_back(base_img + image_name);
-        image_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
-
-        std::string oat_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".oat");
-        char_backing_storage_.push_back(base_oat + oat_name);
-        oat_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
+        multi_image_ = true;
       }
     }
 
@@ -941,6 +873,74 @@ class Dex2Oat FINAL {
 
     // Fill some values into the key-value store for the oat header.
     key_value_store_.reset(new SafeMap<std::string, std::string>());
+  }
+
+  void ExpandOatAndImageFilenames() {
+    std::string base_oat = oat_filenames_[0];
+    size_t last_oat_slash = base_oat.rfind('/');
+    if (last_oat_slash == std::string::npos) {
+      Usage("--multi-image used with unusable oat filename %s", base_oat.c_str());
+    }
+    // We also need to honor path components that were encoded through '@'. Otherwise the loading
+    // code won't be able to find the images.
+    if (base_oat.find('@', last_oat_slash) != std::string::npos) {
+      last_oat_slash = base_oat.rfind('@');
+    }
+    base_oat = base_oat.substr(0, last_oat_slash + 1);
+
+    std::string base_img = image_filenames_[0];
+    size_t last_img_slash = base_img.rfind('/');
+    if (last_img_slash == std::string::npos) {
+      Usage("--multi-image used with unusable image filename %s", base_img.c_str());
+    }
+    // We also need to honor path components that were encoded through '@'. Otherwise the loading
+    // code won't be able to find the images.
+    if (base_img.find('@', last_img_slash) != std::string::npos) {
+      last_img_slash = base_img.rfind('@');
+    }
+
+    // Get the prefix, which is the primary image name (without path components). Strip the
+    // extension.
+    std::string prefix = base_img.substr(last_img_slash + 1);
+    if (prefix.rfind('.') != std::string::npos) {
+      prefix = prefix.substr(0, prefix.rfind('.'));
+    }
+    if (!prefix.empty()) {
+      prefix = prefix + "-";
+    }
+
+    base_img = base_img.substr(0, last_img_slash + 1);
+
+    // Note: we have some special case here for our testing. We have to inject the differentiating
+    //       parts for the different core images.
+    std::string infix;  // Empty infix by default.
+    {
+      // Check the first name.
+      std::string dex_file = oat_filenames_[0];
+      size_t last_dex_slash = dex_file.rfind('/');
+      if (last_dex_slash != std::string::npos) {
+        dex_file = dex_file.substr(last_dex_slash + 1);
+      }
+      size_t last_dex_dot = dex_file.rfind('.');
+      if (last_dex_dot != std::string::npos) {
+        dex_file = dex_file.substr(0, last_dex_dot);
+      }
+      if (StartsWith(dex_file, "core-")) {
+        infix = dex_file.substr(strlen("core"));
+      }
+    }
+
+    // Now create the other names. Use a counted loop to skip the first one.
+    for (size_t i = 1; i < dex_locations_.size(); ++i) {
+      // TODO: Make everything properly std::string.
+      std::string image_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".art");
+      char_backing_storage_.push_back(base_img + image_name);
+      image_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
+
+      std::string oat_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".oat");
+      char_backing_storage_.push_back(base_oat + oat_name);
+      oat_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
+    }
   }
 
   // Modify the input string in the following way:
@@ -1013,8 +1013,6 @@ class Dex2Oat FINAL {
 
     std::unique_ptr<ParserOptions> parser_options(new ParserOptions());
     compiler_options_.reset(new CompilerOptions());
-
-    bool multi_image = false;
 
     for (int i = 0; i < argc; i++) {
       const StringPiece option(argv[i]);
@@ -1115,7 +1113,7 @@ class Dex2Oat FINAL {
         gLogVerbosity.compiler = false;
         Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods_);
       } else if (option == "--multi-image") {
-        multi_image = true;
+        multi_image_ = true;
       } else if (option.starts_with("--no-inline-from=")) {
         no_inline_from_string_ = option.substr(strlen("--no-inline-from=")).data();
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
@@ -1123,7 +1121,7 @@ class Dex2Oat FINAL {
       }
     }
 
-    ProcessOptions(parser_options.get(), multi_image);
+    ProcessOptions(parser_options.get());
 
     // Insert some compiler things.
     InsertCompileOptions(argc, argv);
@@ -1132,6 +1130,11 @@ class Dex2Oat FINAL {
   // Check whether the oat output files are writable, and open them for later. Also open a swap
   // file, if a name is given.
   bool OpenFile() {
+    // Expand oat and image filenames for multi image.
+    if (IsBootImage() && multi_image_) {
+      ExpandOatAndImageFilenames();
+    }
+
     bool create_file = oat_fd_ == -1;  // as opposed to using open file descriptor
     if (create_file) {
       for (const char* oat_filename : oat_filenames_) {
@@ -1185,6 +1188,22 @@ class Dex2Oat FINAL {
                                       // released immediately.
       unlink(swap_file_name_.c_str());
     }
+
+    // If we use a swap file, ensure we are above the threshold to make it necessary.
+    if (swap_fd_ != -1) {
+      if (!UseSwap(IsBootImage(), dex_files_)) {
+        close(swap_fd_);
+        swap_fd_ = -1;
+        VLOG(compiler) << "Decided to run without swap.";
+      } else {
+        LOG(INFO) << "Large app, accepted running with swap.";
+      }
+    }
+    // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
+
+    // Organize inputs, handling multi-dex and multiple oat file outputs.
+    CreateDexOatMappings();
+
     return true;
   }
 
@@ -1247,6 +1266,21 @@ class Dex2Oat FINAL {
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     if (boot_image_filename_.empty()) {
       dex_files_ = class_linker->GetBootClassPath();
+      // Prune invalid dex locations.
+      for (size_t i = 0; i < dex_locations_.size(); i++) {
+        const char* dex_location = dex_locations_[i];
+        bool contains = false;
+        for (const DexFile* dex_file : dex_files_) {
+          if (strcmp(dex_location, dex_file->GetLocation().c_str()) == 0) {
+            contains = true;
+            break;
+          }
+        }
+        if (!contains) {
+          dex_locations_.erase(dex_locations_.begin() + i);
+          i--;
+        }
+      }
     } else {
       TimingLogger::ScopedTiming t_dex("Opening dex files", timings_);
       if (dex_filenames_.empty()) {
@@ -1297,18 +1331,6 @@ class Dex2Oat FINAL {
       dex_file->CreateTypeLookupTable();
     }
 
-    // If we use a swap file, ensure we are above the threshold to make it necessary.
-    if (swap_fd_ != -1) {
-      if (!UseSwap(IsBootImage(), dex_files_)) {
-        close(swap_fd_);
-        swap_fd_ = -1;
-        VLOG(compiler) << "Decided to run without swap.";
-      } else {
-        LOG(INFO) << "Large app, accepted running with swap.";
-      }
-    }
-    // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
-
     /*
      * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
      * Don't bother to check if we're doing the image.
@@ -1328,16 +1350,11 @@ class Dex2Oat FINAL {
       }
     }
 
-    // Organize inputs, handling multi-dex and multiple oat file outputs.
-    CreateDexOatMappings();
-
     return true;
   }
 
   void CreateDexOatMappings() {
     if (oat_files_.size() > 1) {
-      // TODO: This needs to change, as it is not a stable mapping. If a dex file is missing,
-      //       the images will be out of whack. b/26317072
       size_t index = 0;
       for (size_t i = 0; i < oat_files_.size(); ++i) {
         std::vector<const DexFile*> dex_files;
@@ -1502,57 +1519,56 @@ class Dex2Oat FINAL {
     driver_->CompileAll(class_loader, dex_files_, timings_);
   }
 
-  // TODO: Update comments about how this works for multi image. b/26317072
-  // Notes on the interleaving of creating the image and oat file to
+  // Notes on the interleaving of creating the images and oat files to
   // ensure the references between the two are correct.
   //
   // Currently we have a memory layout that looks something like this:
   //
   // +--------------+
-  // | image        |
+  // | images       |
   // +--------------+
-  // | boot oat     |
+  // | oat files    |
   // +--------------+
   // | alloc spaces |
   // +--------------+
   //
-  // There are several constraints on the loading of the image and boot.oat.
+  // There are several constraints on the loading of the images and oat files.
   //
-  // 1. The image is expected to be loaded at an absolute address and
-  // contains Objects with absolute pointers within the image.
+  // 1. The images are expected to be loaded at an absolute address and
+  // contain Objects with absolute pointers within the images.
   //
-  // 2. There are absolute pointers from Methods in the image to their
-  // code in the oat.
+  // 2. There are absolute pointers from Methods in the images to their
+  // code in the oat files.
   //
-  // 3. There are absolute pointers from the code in the oat to Methods
-  // in the image.
+  // 3. There are absolute pointers from the code in the oat files to Methods
+  // in the images.
   //
-  // 4. There are absolute pointers from code in the oat to other code
-  // in the oat.
+  // 4. There are absolute pointers from code in the oat files to other code
+  // in the oat files.
   //
   // To get this all correct, we go through several steps.
   //
-  // 1. We prepare offsets for all data in the oat file and calculate
+  // 1. We prepare offsets for all data in the oat files and calculate
   // the oat data size and code size. During this stage, we also set
   // oat code offsets in methods for use by the image writer.
   //
-  // 2. We prepare offsets for the objects in the image and calculate
-  // the image size.
+  // 2. We prepare offsets for the objects in the images and calculate
+  // the image sizes.
   //
-  // 3. We create the oat file. Originally this was just our own proprietary
+  // 3. We create the oat files. Originally this was just our own proprietary
   // file but now it is contained within an ELF dynamic object (aka an .so
-  // file). Since we know the image size and oat data size and code size we
+  // file). Since we know the image sizes and oat data sizes and code sizes we
   // can prepare the ELF headers and we then know the ELF memory segment
   // layout and we can now resolve all references. The compiler provides
   // LinkerPatch information in each CompiledMethod and we resolve these,
   // using the layout information and image object locations provided by
   // image writer, as we're writing the method code.
   //
-  // 4. We create the image file. It needs to know where the oat file
-  // will be loaded after itself. Originally when oat file was simply
-  // memory mapped so we could predict where its contents were based
-  // on the file size. Now that it is an ELF file, we need to inspect
-  // the ELF file to understand the in memory segment layout including
+  // 4. We create the image files. They need to know where the oat files
+  // will be loaded after itself. Originally oat files were simply
+  // memory mapped so we could predict where their contents were based
+  // on the file size. Now that they are ELF files, we need to inspect
+  // the ELF files to understand the in memory segment layout including
   // where the oat header is located within.
   // TODO: We could just remember this information from step 3.
   //
@@ -1836,8 +1852,8 @@ class Dex2Oat FINAL {
     return result;
   }
 
-  static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
-                             const std::vector<const char*>& dex_locations,
+  static size_t OpenDexFiles(std::vector<const char*>& dex_filenames,
+                             std::vector<const char*>& dex_locations,
                              std::vector<std::unique_ptr<const DexFile>>* dex_files) {
     DCHECK(dex_files != nullptr) << "OpenDexFiles out-param is nullptr";
     size_t failure_count = 0;
@@ -1848,6 +1864,9 @@ class Dex2Oat FINAL {
       std::string error_msg;
       if (!OS::FileExists(dex_filename)) {
         LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
+        dex_filenames.erase(dex_filenames.begin() + i);
+        dex_locations.erase(dex_locations.begin() + i);
+        i--;
         continue;
       }
       if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
@@ -2277,6 +2296,7 @@ class Dex2Oat FINAL {
   std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
   bool app_image_;
   bool boot_image_;
+  bool multi_image_;
   bool is_host_;
   std::string android_root_;
   std::vector<const DexFile*> dex_files_;
@@ -2431,11 +2451,6 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  // Check early that the result of compilation can be written
-  if (!dex2oat.OpenFile()) {
-    return EXIT_FAILURE;
-  }
-
   // Print the complete line when any of the following is true:
   //   1) Debug build
   //   2) Compiling an image
@@ -2449,6 +2464,11 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (!dex2oat.Setup()) {
+    return EXIT_FAILURE;
+  }
+
+  // Check early that the result of compilation can be written
+  if (!dex2oat.OpenFile()) {
     dex2oat.EraseOatFiles();
     return EXIT_FAILURE;
   }
