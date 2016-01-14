@@ -30,6 +30,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   051-thread/thread_test.cc \
   117-nopatchoat/nopatchoat.cc \
   1337-gc-coverage/gc_coverage.cc \
+  136-daemon-jni-shutdown/daemon_jni_shutdown.cc \
   137-cfi/cfi.cc \
   139-register-natives/regnative.cc \
   141-class-unload/jni_unload.cc \
