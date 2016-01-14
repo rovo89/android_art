@@ -2424,7 +2424,7 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
 
   // Need a class loader.
   // Fake that we're a compiler.
-  jobject class_loader = class_linker->CreatePathClassLoader(self, class_path, /*parent*/nullptr);
+  jobject class_loader = class_linker->CreatePathClassLoader(self, class_path);
 
   // Use the class loader while dumping.
   StackHandleScope<1> scope(self);
