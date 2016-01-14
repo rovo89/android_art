@@ -104,6 +104,7 @@ struct InstrumentationListener {
                                         ArtMethod* caller,
                                         uint32_t dex_pc,
                                         ArtMethod* callee)
+      REQUIRES(Roles::uninterruptible_)
       SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 };
 
