@@ -49,8 +49,16 @@ static constexpr int kProtCode = PROT_READ | PROT_EXEC;
 
 JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
                                    size_t max_capacity,
+                                   bool generate_debug_info,
                                    std::string* error_msg) {
   CHECK_GE(max_capacity, initial_capacity);
+
+  // Generating debug information is mostly for using the 'perf' tool, which does
+  // not work with ashmem.
+  bool use_ashmem = !generate_debug_info;
+  // With 'perf', we want a 1-1 mapping between an address and a method.
+  bool garbage_collect_code = !generate_debug_info;
+
   // We need to have 32 bit offsets from method headers in code cache which point to things
   // in the data cache. If the maps are more than 4G apart, having multiple maps wouldn't work.
   // Ensure we're below 1 GB to be safe.
@@ -65,7 +73,7 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   std::string error_str;
   // Map name specific for android_os_Debug.cpp accounting.
   MemMap* data_map = MemMap::MapAnonymous(
-    "data-code-cache", nullptr, max_capacity, kProtAll, false, false, &error_str);
+      "data-code-cache", nullptr, max_capacity, kProtAll, false, false, &error_str, use_ashmem);
   if (data_map == nullptr) {
     std::ostringstream oss;
     oss << "Failed to create read write execute cache: " << error_str << " size=" << max_capacity;
@@ -84,7 +92,8 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   DCHECK_EQ(code_size + data_size, max_capacity);
   uint8_t* divider = data_map->Begin() + data_size;
 
-  MemMap* code_map = data_map->RemapAtEnd(divider, "jit-code-cache", kProtAll, &error_str);
+  MemMap* code_map =
+      data_map->RemapAtEnd(divider, "jit-code-cache", kProtAll, &error_str, use_ashmem);
   if (code_map == nullptr) {
     std::ostringstream oss;
     oss << "Failed to create read write execute cache: " << error_str << " size=" << max_capacity;
@@ -95,14 +104,16 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   data_size = initial_capacity / 2;
   code_size = initial_capacity - data_size;
   DCHECK_EQ(code_size + data_size, initial_capacity);
-  return new JitCodeCache(code_map, data_map, code_size, data_size, max_capacity);
+  return new JitCodeCache(
+      code_map, data_map, code_size, data_size, garbage_collect_code, max_capacity);
 }
 
 JitCodeCache::JitCodeCache(MemMap* code_map,
                            MemMap* data_map,
                            size_t initial_code_capacity,
                            size_t initial_data_capacity,
-                           size_t max_capacity)
+                           size_t max_capacity,
+                           bool garbage_collect_code)
     : lock_("Jit code cache", kJitCodeCacheLock),
       lock_cond_("Jit code cache variable", lock_),
       collection_in_progress_(false),
@@ -113,7 +124,8 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       code_end_(initial_code_capacity),
       data_end_(initial_data_capacity),
       has_done_one_collection_(false),
-      last_update_time_ns_(0) {
+      last_update_time_ns_(0),
+      garbage_collect_code_(garbage_collect_code) {
 
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
   data_mspace_ = create_mspace_with_base(data_map_->Begin(), data_end_, false /*locked*/);
@@ -516,7 +528,11 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   // we hold the lock.
   {
     MutexLock mu(self, lock_);
-    if (has_done_one_collection_ && IncreaseCodeCacheCapacity()) {
+    if (!garbage_collect_code_) {
+      IncreaseCodeCacheCapacity();
+      NotifyCollectionDone(self);
+      return;
+    } else if (has_done_one_collection_ && IncreaseCodeCacheCapacity()) {
       has_done_one_collection_ = false;
       NotifyCollectionDone(self);
       return;
@@ -728,6 +744,11 @@ void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSE
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
   DCHECK(info->IsMethodBeingCompiled());
   info->SetIsMethodBeingCompiled(false);
+}
+
+size_t JitCodeCache::GetMemorySizeOfCodePointer(const void* ptr) {
+  MutexLock mu(Thread::Current(), lock_);
+  return mspace_usable_size(reinterpret_cast<const void*>(FromCodeToAllocation(ptr)));
 }
 
 }  // namespace jit
