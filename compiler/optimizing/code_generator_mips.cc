@@ -605,9 +605,9 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
     // then swap the high 32 bits of the same FPR. mtc1 makes the high 32 bits of an FPR
     // unpredictable and the following mfch1 will fail.
     __ Mfc1(TMP, f1);
-    __ Mfhc1(AT, f1);
+    __ MoveFromFpuHigh(AT, f1);
     __ Mtc1(r2_l, f1);
-    __ Mthc1(r2_h, f1);
+    __ MoveToFpuHigh(r2_h, f1);
     __ Move(r2_l, TMP);
     __ Move(r2_h, AT);
   } else if (loc1.IsStackSlot() && loc2.IsStackSlot()) {
@@ -859,7 +859,7 @@ void CodeGeneratorMIPS::Move64(Location destination, Location source) {
       Register dst_low =  destination.AsRegisterPairLow<Register>();
       FRegister src = source.AsFpuRegister<FRegister>();
       __ Mfc1(dst_low, src);
-      __ Mfhc1(dst_high, src);
+      __ MoveFromFpuHigh(dst_high, src);
     } else {
       DCHECK(source.IsDoubleStackSlot()) << "Cannot move from " << source << " to " << destination;
       int32_t off = source.GetStackIndex();
@@ -872,7 +872,7 @@ void CodeGeneratorMIPS::Move64(Location destination, Location source) {
       Register src_high = source.AsRegisterPairHigh<Register>();
       Register src_low = source.AsRegisterPairLow<Register>();
       __ Mtc1(src_low, dst);
-      __ Mthc1(src_high, dst);
+      __ MoveToFpuHigh(src_high, dst);
     } else if (source.IsFpuRegister()) {
       __ MovD(destination.AsFpuRegister<FRegister>(), source.AsFpuRegister<FRegister>());
     } else {
@@ -3532,8 +3532,8 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
       // Need to move to FP regs since FP results are returned in core registers.
       __ Mtc1(locations->GetTemp(1).AsRegister<Register>(),
               locations->Out().AsFpuRegister<FRegister>());
-      __ Mthc1(locations->GetTemp(2).AsRegister<Register>(),
-               locations->Out().AsFpuRegister<FRegister>());
+      __ MoveToFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
+                       locations->Out().AsFpuRegister<FRegister>());
     }
   } else {
     if (!Primitive::IsFloatingPointType(type)) {
@@ -3653,8 +3653,8 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
       // Pass FP parameters in core registers.
       __ Mfc1(locations->GetTemp(1).AsRegister<Register>(),
               locations->InAt(1).AsFpuRegister<FRegister>());
-      __ Mfhc1(locations->GetTemp(2).AsRegister<Register>(),
-               locations->InAt(1).AsFpuRegister<FRegister>());
+      __ MoveFromFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
+                         locations->InAt(1).AsFpuRegister<FRegister>());
     }
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pA64Store),
                             instruction,

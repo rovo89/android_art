@@ -43,12 +43,16 @@ ArenaAllocator* IntrinsicCodeGeneratorMIPS::GetAllocator() {
   return codegen_->GetGraph()->GetArena();
 }
 
-inline bool IntrinsicCodeGeneratorMIPS::IsR2OrNewer() {
+inline bool IntrinsicCodeGeneratorMIPS::IsR2OrNewer() const {
   return codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
 }
 
-inline bool IntrinsicCodeGeneratorMIPS::IsR6() {
+inline bool IntrinsicCodeGeneratorMIPS::IsR6() const {
   return codegen_->GetInstructionSetFeatures().IsR6();
+}
+
+inline bool IntrinsicCodeGeneratorMIPS::Is32BitFPU() const {
+  return codegen_->GetInstructionSetFeatures().Is32BitFloatingPoint();
 }
 
 #define __ codegen->GetAssembler()->
@@ -162,7 +166,7 @@ static void MoveFPToInt(LocationSummary* locations, bool is64bit, MipsAssembler*
     Register out_hi = locations->Out().AsRegisterPairHigh<Register>();
 
     __ Mfc1(out_lo, in);
-    __ Mfhc1(out_hi, in);
+    __ MoveFromFpuHigh(out_hi, in);
   } else {
     Register out = locations->Out().AsRegister<Register>();
 
@@ -204,7 +208,7 @@ static void MoveIntToFP(LocationSummary* locations, bool is64bit, MipsAssembler*
     Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
 
     __ Mtc1(in_lo, out);
-    __ Mthc1(in_hi, out);
+    __ MoveToFpuHigh(in_hi, out);
   } else {
     Register in = locations->InAt(0).AsRegister<Register>();
 
