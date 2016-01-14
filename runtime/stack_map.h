@@ -1139,7 +1139,6 @@ class CodeInfo {
   DexRegisterMap GetDexRegisterMapOf(StackMap stack_map,
                                      const StackMapEncoding& encoding,
                                      uint32_t number_of_dex_registers) const {
-
     if (!stack_map.HasDexRegisterMap(encoding)) {
       return DexRegisterMap();
     } else {
