@@ -4010,8 +4010,10 @@ class HRem : public HBinaryOperation {
 
 class HDivZeroCheck : public HExpression<1> {
  public:
+  // `HDivZeroCheck` can trigger GC, as it may call the `ArithmeticException`
+  // constructor.
   HDivZeroCheck(HInstruction* value, uint32_t dex_pc)
-      : HExpression(value->GetType(), SideEffects::None(), dex_pc) {
+      : HExpression(value->GetType(), SideEffects::CanTriggerGC(), dex_pc) {
     SetRawInputAt(0, value);
   }
 
