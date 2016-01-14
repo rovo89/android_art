@@ -122,8 +122,10 @@ class CompilerDriver {
       return true;
     }
     auto it1 = dex_file_oat_filename_map_->find(d1);
+    DCHECK(it1 != dex_file_oat_filename_map_->end());
     auto it2 = dex_file_oat_filename_map_->find(d2);
-    return it1 == it2;
+    DCHECK(it2 != dex_file_oat_filename_map_->end());
+    return it1->second == it2->second;
   }
 
   void CompileAll(jobject class_loader,
