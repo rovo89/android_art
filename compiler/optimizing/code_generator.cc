@@ -142,23 +142,6 @@ size_t CodeGenerator::GetCachePointerOffset(uint32_t index) {
   return pointer_size * index;
 }
 
-void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
-  Initialize();
-  if (!is_leaf) {
-    MarkNotLeaf();
-  }
-  const bool is_64_bit = Is64BitInstructionSet(GetInstructionSet());
-  InitializeCodeGeneration(GetGraph()->GetNumberOfLocalVRegs()
-                             + GetGraph()->GetTemporariesVRegSlots()
-                             + 1 /* filler */,
-                           0, /* the baseline compiler does not have live registers at slow path */
-                           0, /* the baseline compiler does not have live registers at slow path */
-                           GetGraph()->GetMaximumNumberOfOutVRegs()
-                             + (is_64_bit ? 2 : 1) /* current method */,
-                           GetGraph()->GetBlocks());
-  CompileInternal(allocator, /* is_baseline */ true);
-}
-
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
   DCHECK_EQ((*block_order_)[current_block_index_], current);
   return GetNextBlockToEmit() == FirstNonEmptyBlock(next);
@@ -220,8 +203,12 @@ void CodeGenerator::GenerateSlowPaths() {
   current_slow_path_ = nullptr;
 }
 
-void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) {
-  is_baseline_ = is_baseline;
+void CodeGenerator::Compile(CodeAllocator* allocator) {
+  // The register allocator already called `InitializeCodeGeneration`,
+  // where the frame size has been computed.
+  DCHECK(block_order_ != nullptr);
+  Initialize();
+
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   DCHECK_EQ(current_block_index_, 0u);
 
@@ -242,9 +229,6 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       DisassemblyScope disassembly_scope(current, *this);
-      if (is_baseline) {
-        InitLocationsBaseline(current);
-      }
       DCHECK(CheckTypeConsistency(current));
       current->Accept(instruction_visitor);
     }
@@ -254,20 +238,12 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
 
   // Emit catch stack maps at the end of the stack map stream as expected by the
   // runtime exception handler.
-  if (!is_baseline && graph_->HasTryCatch()) {
+  if (graph_->HasTryCatch()) {
     RecordCatchBlockInfo();
   }
 
   // Finalize instructions in assember;
   Finalize(allocator);
-}
-
-void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
-  // The register allocator already called `InitializeCodeGeneration`,
-  // where the frame size has been computed.
-  DCHECK(block_order_ != nullptr);
-  Initialize();
-  CompileInternal(allocator, /* is_baseline */ false);
 }
 
 void CodeGenerator::Finalize(CodeAllocator* allocator) {
@@ -280,29 +256,6 @@ void CodeGenerator::Finalize(CodeAllocator* allocator) {
 
 void CodeGenerator::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches ATTRIBUTE_UNUSED) {
   // No linker patches by default.
-}
-
-size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
-  for (size_t i = 0; i < length; ++i) {
-    if (!array[i]) {
-      array[i] = true;
-      return i;
-    }
-  }
-  LOG(FATAL) << "Could not find a register in baseline register allocator";
-  UNREACHABLE();
-}
-
-size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t length) {
-  for (size_t i = 0; i < length - 1; i += 2) {
-    if (!array[i] && !array[i + 1]) {
-      array[i] = true;
-      array[i + 1] = true;
-      return i;
-    }
-  }
-  LOG(FATAL) << "Could not find a register in baseline register allocator";
-  UNREACHABLE();
 }
 
 void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
@@ -592,123 +545,6 @@ void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
   }
 }
 
-void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
-  LocationSummary* locations = instruction->GetLocations();
-  if (locations == nullptr) return;
-
-  for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
-    blocked_core_registers_[i] = false;
-  }
-
-  for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
-    blocked_fpu_registers_[i] = false;
-  }
-
-  for (size_t i = 0, e = number_of_register_pairs_; i < e; ++i) {
-    blocked_register_pairs_[i] = false;
-  }
-
-  // Mark all fixed input, temp and output registers as used.
-  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
-    BlockIfInRegister(locations->InAt(i));
-  }
-
-  for (size_t i = 0, e = locations->GetTempCount(); i < e; ++i) {
-    Location loc = locations->GetTemp(i);
-    BlockIfInRegister(loc);
-  }
-  Location result_location = locations->Out();
-  if (locations->OutputCanOverlapWithInputs()) {
-    BlockIfInRegister(result_location, /* is_out */ true);
-  }
-
-  SetupBlockedRegisters(/* is_baseline */ true);
-
-  // Allocate all unallocated input locations.
-  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
-    Location loc = locations->InAt(i);
-    HInstruction* input = instruction->InputAt(i);
-    if (loc.IsUnallocated()) {
-      if ((loc.GetPolicy() == Location::kRequiresRegister)
-          || (loc.GetPolicy() == Location::kRequiresFpuRegister)) {
-        loc = AllocateFreeRegister(input->GetType());
-      } else {
-        DCHECK_EQ(loc.GetPolicy(), Location::kAny);
-        HLoadLocal* load = input->AsLoadLocal();
-        if (load != nullptr) {
-          loc = GetStackLocation(load);
-        } else {
-          loc = AllocateFreeRegister(input->GetType());
-        }
-      }
-      locations->SetInAt(i, loc);
-    }
-  }
-
-  // Allocate all unallocated temp locations.
-  for (size_t i = 0, e = locations->GetTempCount(); i < e; ++i) {
-    Location loc = locations->GetTemp(i);
-    if (loc.IsUnallocated()) {
-      switch (loc.GetPolicy()) {
-        case Location::kRequiresRegister:
-          // Allocate a core register (large enough to fit a 32-bit integer).
-          loc = AllocateFreeRegister(Primitive::kPrimInt);
-          break;
-
-        case Location::kRequiresFpuRegister:
-          // Allocate a core register (large enough to fit a 64-bit double).
-          loc = AllocateFreeRegister(Primitive::kPrimDouble);
-          break;
-
-        default:
-          LOG(FATAL) << "Unexpected policy for temporary location "
-                     << loc.GetPolicy();
-      }
-      locations->SetTempAt(i, loc);
-    }
-  }
-  if (result_location.IsUnallocated()) {
-    switch (result_location.GetPolicy()) {
-      case Location::kAny:
-      case Location::kRequiresRegister:
-      case Location::kRequiresFpuRegister:
-        result_location = AllocateFreeRegister(instruction->GetType());
-        break;
-      case Location::kSameAsFirstInput:
-        result_location = locations->InAt(0);
-        break;
-    }
-    locations->UpdateOut(result_location);
-  }
-}
-
-void CodeGenerator::InitLocationsBaseline(HInstruction* instruction) {
-  AllocateLocations(instruction);
-  if (instruction->GetLocations() == nullptr) {
-    if (instruction->IsTemporary()) {
-      HInstruction* previous = instruction->GetPrevious();
-      Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-      Move(previous, temp_location, instruction);
-    }
-    return;
-  }
-  AllocateRegistersLocally(instruction);
-  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
-    Location location = instruction->GetLocations()->InAt(i);
-    HInstruction* input = instruction->InputAt(i);
-    if (location.IsValid()) {
-      // Move the input to the desired location.
-      if (input->GetNext()->IsTemporary()) {
-        // If the input was stored in a temporary, use that temporary to
-        // perform the move.
-        Move(input->GetNext(), location, instruction);
-      } else {
-        Move(input, location, instruction);
-      }
-    }
-  }
-}
-
 void CodeGenerator::AllocateLocations(HInstruction* instruction) {
   instruction->Accept(GetLocationBuilder());
   DCHECK(CheckTypeConsistency(instruction));
@@ -787,132 +623,6 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
     default:
       return nullptr;
   }
-}
-
-void CodeGenerator::BuildNativeGCMap(
-    ArenaVector<uint8_t>* data, const CompilerDriver& compiler_driver) const {
-  const std::vector<uint8_t>& gc_map_raw =
-      compiler_driver.GetVerifiedMethod(&GetGraph()->GetDexFile(), GetGraph()->GetMethodIdx())
-          ->GetDexGcMap();
-  verifier::DexPcToReferenceMap dex_gc_map(&(gc_map_raw)[0]);
-
-  uint32_t max_native_offset = stack_map_stream_.ComputeMaxNativePcOffset();
-
-  size_t num_stack_maps = stack_map_stream_.GetNumberOfStackMaps();
-  GcMapBuilder builder(data, num_stack_maps, max_native_offset, dex_gc_map.RegWidth());
-  for (size_t i = 0; i != num_stack_maps; ++i) {
-    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
-    uint32_t native_offset = stack_map_entry.native_pc_offset;
-    uint32_t dex_pc = stack_map_entry.dex_pc;
-    const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
-    CHECK(references != nullptr) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
-    builder.AddEntry(native_offset, references);
-  }
-}
-
-void CodeGenerator::BuildMappingTable(ArenaVector<uint8_t>* data) const {
-  uint32_t pc2dex_data_size = 0u;
-  uint32_t pc2dex_entries = stack_map_stream_.GetNumberOfStackMaps();
-  uint32_t pc2dex_offset = 0u;
-  int32_t pc2dex_dalvik_offset = 0;
-  uint32_t dex2pc_data_size = 0u;
-  uint32_t dex2pc_entries = 0u;
-  uint32_t dex2pc_offset = 0u;
-  int32_t dex2pc_dalvik_offset = 0;
-
-  for (size_t i = 0; i < pc2dex_entries; i++) {
-    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
-    pc2dex_data_size += UnsignedLeb128Size(stack_map_entry.native_pc_offset - pc2dex_offset);
-    pc2dex_data_size += SignedLeb128Size(stack_map_entry.dex_pc - pc2dex_dalvik_offset);
-    pc2dex_offset = stack_map_entry.native_pc_offset;
-    pc2dex_dalvik_offset = stack_map_entry.dex_pc;
-  }
-
-  // Walk over the blocks and find which ones correspond to catch block entries.
-  for (HBasicBlock* block : graph_->GetBlocks()) {
-    if (block->IsCatchBlock()) {
-      intptr_t native_pc = GetAddressOf(block);
-      ++dex2pc_entries;
-      dex2pc_data_size += UnsignedLeb128Size(native_pc - dex2pc_offset);
-      dex2pc_data_size += SignedLeb128Size(block->GetDexPc() - dex2pc_dalvik_offset);
-      dex2pc_offset = native_pc;
-      dex2pc_dalvik_offset = block->GetDexPc();
-    }
-  }
-
-  uint32_t total_entries = pc2dex_entries + dex2pc_entries;
-  uint32_t hdr_data_size = UnsignedLeb128Size(total_entries) + UnsignedLeb128Size(pc2dex_entries);
-  uint32_t data_size = hdr_data_size + pc2dex_data_size + dex2pc_data_size;
-  data->resize(data_size);
-
-  uint8_t* data_ptr = &(*data)[0];
-  uint8_t* write_pos = data_ptr;
-
-  write_pos = EncodeUnsignedLeb128(write_pos, total_entries);
-  write_pos = EncodeUnsignedLeb128(write_pos, pc2dex_entries);
-  DCHECK_EQ(static_cast<size_t>(write_pos - data_ptr), hdr_data_size);
-  uint8_t* write_pos2 = write_pos + pc2dex_data_size;
-
-  pc2dex_offset = 0u;
-  pc2dex_dalvik_offset = 0u;
-  dex2pc_offset = 0u;
-  dex2pc_dalvik_offset = 0u;
-
-  for (size_t i = 0; i < pc2dex_entries; i++) {
-    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
-    DCHECK(pc2dex_offset <= stack_map_entry.native_pc_offset);
-    write_pos = EncodeUnsignedLeb128(write_pos, stack_map_entry.native_pc_offset - pc2dex_offset);
-    write_pos = EncodeSignedLeb128(write_pos, stack_map_entry.dex_pc - pc2dex_dalvik_offset);
-    pc2dex_offset = stack_map_entry.native_pc_offset;
-    pc2dex_dalvik_offset = stack_map_entry.dex_pc;
-  }
-
-  for (HBasicBlock* block : graph_->GetBlocks()) {
-    if (block->IsCatchBlock()) {
-      intptr_t native_pc = GetAddressOf(block);
-      write_pos2 = EncodeUnsignedLeb128(write_pos2, native_pc - dex2pc_offset);
-      write_pos2 = EncodeSignedLeb128(write_pos2, block->GetDexPc() - dex2pc_dalvik_offset);
-      dex2pc_offset = native_pc;
-      dex2pc_dalvik_offset = block->GetDexPc();
-    }
-  }
-
-
-  DCHECK_EQ(static_cast<size_t>(write_pos - data_ptr), hdr_data_size + pc2dex_data_size);
-  DCHECK_EQ(static_cast<size_t>(write_pos2 - data_ptr), data_size);
-
-  if (kIsDebugBuild) {
-    // Verify the encoded table holds the expected data.
-    MappingTable table(data_ptr);
-    CHECK_EQ(table.TotalSize(), total_entries);
-    CHECK_EQ(table.PcToDexSize(), pc2dex_entries);
-    auto it = table.PcToDexBegin();
-    auto it2 = table.DexToPcBegin();
-    for (size_t i = 0; i < pc2dex_entries; i++) {
-      const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
-      CHECK_EQ(stack_map_entry.native_pc_offset, it.NativePcOffset());
-      CHECK_EQ(stack_map_entry.dex_pc, it.DexPc());
-      ++it;
-    }
-    for (HBasicBlock* block : graph_->GetBlocks()) {
-      if (block->IsCatchBlock()) {
-        CHECK_EQ(GetAddressOf(block), it2.NativePcOffset());
-        CHECK_EQ(block->GetDexPc(), it2.DexPc());
-        ++it2;
-      }
-    }
-    CHECK(it == table.PcToDexEnd());
-    CHECK(it2 == table.DexToPcEnd());
-  }
-}
-
-void CodeGenerator::BuildVMapTable(ArenaVector<uint8_t>* data) const {
-  Leb128Encoder<ArenaVector<uint8_t>> vmap_encoder(data);
-  // We currently don't use callee-saved registers.
-  size_t size = 0 + 1 /* marker */ + 0;
-  vmap_encoder.Reserve(size + 1u);  // All values are likely to be one byte in ULEB128 (<128).
-  vmap_encoder.PushBackUnsigned(size);
-  vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
 }
 
 size_t CodeGenerator::ComputeStackMapsSize() {

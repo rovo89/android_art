@@ -359,9 +359,7 @@ class CodeGeneratorX86 : public CodeGenerator {
     return GetLabelOf(block)->Position();
   }
 
-  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE;
-
-  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  void SetupBlockedRegisters() const OVERRIDE;
 
   Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 

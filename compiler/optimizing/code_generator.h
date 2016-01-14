@@ -158,10 +158,8 @@ class FieldAccessCallingConvention {
 
 class CodeGenerator {
  public:
-  // Compiles the graph to executable instructions. Returns whether the compilation
-  // succeeded.
-  void CompileBaseline(CodeAllocator* allocator, bool is_leaf = false);
-  void CompileOptimized(CodeAllocator* allocator);
+  // Compiles the graph to executable instructions.
+  void Compile(CodeAllocator* allocator);
   static CodeGenerator* Create(HGraph* graph,
                                InstructionSet instruction_set,
                                const InstructionSetFeatures& isa_features,
@@ -214,7 +212,7 @@ class CodeGenerator {
 
   size_t GetNumberOfCoreRegisters() const { return number_of_core_registers_; }
   size_t GetNumberOfFloatingPointRegisters() const { return number_of_fpu_registers_; }
-  virtual void SetupBlockedRegisters(bool is_baseline) const = 0;
+  virtual void SetupBlockedRegisters() const = 0;
 
   virtual void ComputeSpillMask() {
     core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
@@ -290,16 +288,8 @@ class CodeGenerator {
     slow_paths_.push_back(slow_path);
   }
 
-  void BuildMappingTable(ArenaVector<uint8_t>* vector) const;
-  void BuildVMapTable(ArenaVector<uint8_t>* vector) const;
-  void BuildNativeGCMap(
-      ArenaVector<uint8_t>* vector, const CompilerDriver& compiler_driver) const;
   void BuildStackMaps(MemoryRegion region);
   size_t ComputeStackMapsSize();
-
-  bool IsBaseline() const {
-    return is_baseline_;
-  }
 
   bool IsLeafMethod() const {
     return is_leaf_;
@@ -489,7 +479,6 @@ class CodeGenerator {
         fpu_callee_save_mask_(fpu_callee_save_mask),
         stack_map_stream_(graph->GetArena()),
         block_order_(nullptr),
-        is_baseline_(false),
         disasm_info_(nullptr),
         stats_(stats),
         graph_(graph),
@@ -501,15 +490,6 @@ class CodeGenerator {
         requires_current_method_(false) {
     slow_paths_.reserve(8);
   }
-
-  // Register allocation logic.
-  void AllocateRegistersLocally(HInstruction* instruction) const;
-
-  // Backend specific implementation for allocating a register.
-  virtual Location AllocateFreeRegister(Primitive::Type type) const = 0;
-
-  static size_t FindFreeEntry(bool* array, size_t length);
-  static size_t FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t length);
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
@@ -593,16 +573,11 @@ class CodeGenerator {
   // The order to use for code generation.
   const ArenaVector<HBasicBlock*>* block_order_;
 
-  // Whether we are using baseline.
-  bool is_baseline_;
-
   DisassemblyInformation* disasm_info_;
 
  private:
-  void InitLocationsBaseline(HInstruction* instruction);
   size_t GetStackOffsetOfSavedRegister(size_t index);
   void GenerateSlowPaths();
-  void CompileInternal(CodeAllocator* allocator, bool is_baseline);
   void BlockIfInRegister(Location location, bool is_out = false) const;
   void EmitEnvironment(HEnvironment* environment, SlowPathCode* slow_path);
 
