@@ -771,6 +771,22 @@ void Mips64Assembler::RoundWD(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xc);
 }
 
+void Mips64Assembler::TruncLS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x9);
+}
+
+void Mips64Assembler::TruncLD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x9);
+}
+
+void Mips64Assembler::TruncWS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xd);
+}
+
+void Mips64Assembler::TruncWD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xd);
+}
+
 void Mips64Assembler::CeilLS(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xa);
 }

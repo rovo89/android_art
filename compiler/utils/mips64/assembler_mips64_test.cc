@@ -527,6 +527,22 @@ TEST_F(AssemblerMIPS64Test, CvtSW) {
   DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtsw, "cvt.s.w ${reg1}, ${reg2}"), "cvt.s.w");
 }
 
+TEST_F(AssemblerMIPS64Test, TruncWS) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::TruncWS, "trunc.w.s ${reg1}, ${reg2}"), "trunc.w.s");
+}
+
+TEST_F(AssemblerMIPS64Test, TruncWD) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::TruncWD, "trunc.w.d ${reg1}, ${reg2}"), "trunc.w.d");
+}
+
+TEST_F(AssemblerMIPS64Test, TruncLS) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::TruncLS, "trunc.l.s ${reg1}, ${reg2}"), "trunc.l.s");
+}
+
+TEST_F(AssemblerMIPS64Test, TruncLD) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::TruncLD, "trunc.l.d ${reg1}, ${reg2}"), "trunc.l.d");
+}
+
 ////////////////
 // CALL / JMP //
 ////////////////

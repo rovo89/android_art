@@ -4804,6 +4804,7 @@ void LocationsBuilderMIPS::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type input_type = conversion->GetInputType();
   Primitive::Type result_type = conversion->GetResultType();
   DCHECK_NE(input_type, result_type);
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
 
   if ((input_type == Primitive::kPrimNot) || (input_type == Primitive::kPrimVoid) ||
       (result_type == Primitive::kPrimNot) || (result_type == Primitive::kPrimVoid)) {
@@ -4811,8 +4812,9 @@ void LocationsBuilderMIPS::VisitTypeConversion(HTypeConversion* conversion) {
   }
 
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
-  if ((Primitive::IsFloatingPointType(result_type) && input_type == Primitive::kPrimLong) ||
-      (Primitive::IsIntegralType(result_type) && Primitive::IsFloatingPointType(input_type))) {
+  if (!isR6 &&
+      ((Primitive::IsFloatingPointType(result_type) && input_type == Primitive::kPrimLong) ||
+       (result_type == Primitive::kPrimLong && Primitive::IsFloatingPointType(input_type)))) {
     call_kind = LocationSummary::kCall;
   }
 
@@ -4850,6 +4852,8 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   bool has_sign_extension = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+  bool fpu_32bit = codegen_->GetInstructionSetFeatures().Is32BitFloatingPoint();
 
   DCHECK_NE(input_type, result_type);
 
@@ -4895,7 +4899,37 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
                    << " to " << result_type;
     }
   } else if (Primitive::IsFloatingPointType(result_type) && Primitive::IsIntegralType(input_type)) {
-    if (input_type != Primitive::kPrimLong) {
+    if (input_type == Primitive::kPrimLong) {
+      if (isR6) {
+        // cvt.s.l/cvt.d.l requires MIPSR2+ with FR=1. MIPS32R6 is implemented as a secondary
+        // architecture on top of MIPS64R6, which has FR=1, and therefore can use the instruction.
+        Register src_high = locations->InAt(0).AsRegisterPairHigh<Register>();
+        Register src_low = locations->InAt(0).AsRegisterPairLow<Register>();
+        FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+        __ Mtc1(src_low, FTMP);
+        __ Mthc1(src_high, FTMP);
+        if (result_type == Primitive::kPrimFloat) {
+          __ Cvtsl(dst, FTMP);
+        } else {
+          __ Cvtdl(dst, FTMP);
+        }
+      } else {
+        int32_t entry_offset = (result_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pL2f)
+                                                                      : QUICK_ENTRY_POINT(pL2d);
+        bool direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickL2f)
+                                                             : IsDirectEntrypoint(kQuickL2d);
+        codegen_->InvokeRuntime(entry_offset,
+                                conversion,
+                                conversion->GetDexPc(),
+                                nullptr,
+                                direct);
+        if (result_type == Primitive::kPrimFloat) {
+          CheckEntrypointTypes<kQuickL2f, float, int64_t>();
+        } else {
+          CheckEntrypointTypes<kQuickL2d, double, int64_t>();
+        }
+      }
+    } else {
       Register src = locations->InAt(0).AsRegister<Register>();
       FRegister dst = locations->Out().AsFpuRegister<FRegister>();
       __ Mtc1(src, FTMP);
@@ -4904,54 +4938,168 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
       } else {
         __ Cvtdw(dst, FTMP);
       }
-    } else {
-      int32_t entry_offset = (result_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pL2f)
-                                                                    : QUICK_ENTRY_POINT(pL2d);
-      bool direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickL2f)
-                                                           : IsDirectEntrypoint(kQuickL2d);
-      codegen_->InvokeRuntime(entry_offset,
-                              conversion,
-                              conversion->GetDexPc(),
-                              nullptr,
-                              direct);
-      if (result_type == Primitive::kPrimFloat) {
-        CheckEntrypointTypes<kQuickL2f, float, int64_t>();
-      } else {
-        CheckEntrypointTypes<kQuickL2d, double, int64_t>();
-      }
     }
   } else if (Primitive::IsIntegralType(result_type) && Primitive::IsFloatingPointType(input_type)) {
     CHECK(result_type == Primitive::kPrimInt || result_type == Primitive::kPrimLong);
-    int32_t entry_offset;
-    bool direct;
-    if (result_type != Primitive::kPrimLong) {
-      entry_offset = (input_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pF2iz)
-                                                           : QUICK_ENTRY_POINT(pD2iz);
-      direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickF2iz)
-                                                      : IsDirectEntrypoint(kQuickD2iz);
-    } else {
-      entry_offset = (input_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pF2l)
-                                                           : QUICK_ENTRY_POINT(pD2l);
-      direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickF2l)
-                                                      : IsDirectEntrypoint(kQuickD2l);
-    }
-    codegen_->InvokeRuntime(entry_offset,
-                            conversion,
-                            conversion->GetDexPc(),
-                            nullptr,
-                            direct);
-    if (result_type != Primitive::kPrimLong) {
-      if (input_type == Primitive::kPrimFloat) {
-        CheckEntrypointTypes<kQuickF2iz, int32_t, float>();
+    if (result_type == Primitive::kPrimLong) {
+      if (isR6) {
+        // trunc.l.s/trunc.l.d requires MIPSR2+ with FR=1. MIPS32R6 is implemented as a secondary
+        // architecture on top of MIPS64R6, which has FR=1, and therefore can use the instruction.
+        FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
+        Register dst_high = locations->Out().AsRegisterPairHigh<Register>();
+        Register dst_low = locations->Out().AsRegisterPairLow<Register>();
+        MipsLabel truncate;
+        MipsLabel done;
+
+        // When NAN2008=0 (R2 and before), the truncate instruction produces the maximum positive
+        // value when the input is either a NaN or is outside of the range of the output type
+        // after the truncation. IOW, the three special cases (NaN, too small, too big) produce
+        // the same result.
+        //
+        // When NAN2008=1 (R6), the truncate instruction caps the output at the minimum/maximum
+        // value of the output type if the input is outside of the range after the truncation or
+        // produces 0 when the input is a NaN. IOW, the three special cases produce three distinct
+        // results. This matches the desired float/double-to-int/long conversion exactly.
+        //
+        // So, NAN2008 affects handling of negative values and NaNs by the truncate instruction.
+        //
+        // The following code supports both NAN2008=0 and NAN2008=1 behaviors of the truncate
+        // instruction, the reason being that the emulator implements NAN2008=0 on MIPS64R6,
+        // even though it must be NAN2008=1 on R6.
+        //
+        // The code takes care of the different behaviors by first comparing the input to the
+        // minimum output value (-2**-63 for truncating to long, -2**-31 for truncating to int).
+        // If the input is greater than or equal to the minimum, it procedes to the truncate
+        // instruction, which will handle such an input the same way irrespective of NAN2008.
+        // Otherwise the input is compared to itself to determine whether it is a NaN or not
+        // in order to return either zero or the minimum value.
+        //
+        // TODO: simplify this when the emulator correctly implements NAN2008=1 behavior of the
+        // truncate instruction for MIPS64R6.
+        if (input_type == Primitive::kPrimFloat) {
+          uint32_t min_val = bit_cast<uint32_t, float>(std::numeric_limits<int64_t>::min());
+          __ LoadConst32(TMP, min_val);
+          __ Mtc1(TMP, FTMP);
+          __ CmpLeS(FTMP, FTMP, src);
+        } else {
+          uint64_t min_val = bit_cast<uint64_t, double>(std::numeric_limits<int64_t>::min());
+          __ LoadConst32(TMP, High32Bits(min_val));
+          __ Mtc1(ZERO, FTMP);
+          __ Mthc1(TMP, FTMP);
+          __ CmpLeD(FTMP, FTMP, src);
+        }
+
+        __ Bc1nez(FTMP, &truncate);
+
+        if (input_type == Primitive::kPrimFloat) {
+          __ CmpEqS(FTMP, src, src);
+        } else {
+          __ CmpEqD(FTMP, src, src);
+        }
+        __ Move(dst_low, ZERO);
+        __ LoadConst32(dst_high, std::numeric_limits<int32_t>::min());
+        __ Mfc1(TMP, FTMP);
+        __ And(dst_high, dst_high, TMP);
+
+        __ B(&done);
+
+        __ Bind(&truncate);
+
+        if (input_type == Primitive::kPrimFloat) {
+          __ TruncLS(FTMP, src);
+        } else {
+          __ TruncLD(FTMP, src);
+        }
+        __ Mfc1(dst_low, FTMP);
+        __ Mfhc1(dst_high, FTMP);
+
+        __ Bind(&done);
       } else {
-        CheckEntrypointTypes<kQuickD2iz, int32_t, double>();
+        int32_t entry_offset = (input_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pF2l)
+                                                                     : QUICK_ENTRY_POINT(pD2l);
+        bool direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickF2l)
+                                                             : IsDirectEntrypoint(kQuickD2l);
+        codegen_->InvokeRuntime(entry_offset, conversion, conversion->GetDexPc(), nullptr, direct);
+        if (input_type == Primitive::kPrimFloat) {
+          CheckEntrypointTypes<kQuickF2l, int64_t, float>();
+        } else {
+          CheckEntrypointTypes<kQuickD2l, int64_t, double>();
+        }
       }
     } else {
+      FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
+      Register dst = locations->Out().AsRegister<Register>();
+      MipsLabel truncate;
+      MipsLabel done;
+
+      // The following code supports both NAN2008=0 and NAN2008=1 behaviors of the truncate
+      // instruction, the reason being that the emulator implements NAN2008=0 on MIPS64R6,
+      // even though it must be NAN2008=1 on R6.
+      //
+      // For details see the large comment above for the truncation of float/double to long on R6.
+      //
+      // TODO: simplify this when the emulator correctly implements NAN2008=1 behavior of the
+      // truncate instruction for MIPS64R6.
       if (input_type == Primitive::kPrimFloat) {
-        CheckEntrypointTypes<kQuickF2l, int64_t, float>();
+        uint32_t min_val = bit_cast<uint32_t, float>(std::numeric_limits<int32_t>::min());
+        __ LoadConst32(TMP, min_val);
+        __ Mtc1(TMP, FTMP);
       } else {
-        CheckEntrypointTypes<kQuickD2l, int64_t, double>();
+        uint64_t min_val = bit_cast<uint64_t, double>(std::numeric_limits<int32_t>::min());
+        __ LoadConst32(TMP, High32Bits(min_val));
+        __ Mtc1(ZERO, FTMP);
+        if (fpu_32bit) {
+          __ Mtc1(TMP, static_cast<FRegister>(FTMP + 1));
+        } else {
+          __ Mthc1(TMP, FTMP);
+        }
       }
+
+      if (isR6) {
+        if (input_type == Primitive::kPrimFloat) {
+          __ CmpLeS(FTMP, FTMP, src);
+        } else {
+          __ CmpLeD(FTMP, FTMP, src);
+        }
+        __ Bc1nez(FTMP, &truncate);
+
+        if (input_type == Primitive::kPrimFloat) {
+          __ CmpEqS(FTMP, src, src);
+        } else {
+          __ CmpEqD(FTMP, src, src);
+        }
+        __ LoadConst32(dst, std::numeric_limits<int32_t>::min());
+        __ Mfc1(TMP, FTMP);
+        __ And(dst, dst, TMP);
+      } else {
+        if (input_type == Primitive::kPrimFloat) {
+          __ ColeS(0, FTMP, src);
+        } else {
+          __ ColeD(0, FTMP, src);
+        }
+        __ Bc1t(0, &truncate);
+
+        if (input_type == Primitive::kPrimFloat) {
+          __ CeqS(0, src, src);
+        } else {
+          __ CeqD(0, src, src);
+        }
+        __ LoadConst32(dst, std::numeric_limits<int32_t>::min());
+        __ Movf(dst, ZERO, 0);
+      }
+
+      __ B(&done);
+
+      __ Bind(&truncate);
+
+      if (input_type == Primitive::kPrimFloat) {
+        __ TruncWS(FTMP, src);
+      } else {
+        __ TruncWD(FTMP, src);
+      }
+      __ Mfc1(dst, FTMP);
+
+      __ Bind(&done);
     }
   } else if (Primitive::IsFloatingPointType(result_type) &&
              Primitive::IsFloatingPointType(input_type)) {

@@ -265,10 +265,16 @@ class MipsAssembler FINAL : public Assembler {
   void Movf(Register rd, Register rs, int cc);  // R2
   void Movt(Register rd, Register rs, int cc);  // R2
 
+  void TruncLS(FRegister fd, FRegister fs);  // R2+, FR=1
+  void TruncLD(FRegister fd, FRegister fs);  // R2+, FR=1
+  void TruncWS(FRegister fd, FRegister fs);
+  void TruncWD(FRegister fd, FRegister fs);
   void Cvtsw(FRegister fd, FRegister fs);
   void Cvtdw(FRegister fd, FRegister fs);
   void Cvtsd(FRegister fd, FRegister fs);
   void Cvtds(FRegister fd, FRegister fs);
+  void Cvtsl(FRegister fd, FRegister fs);  // R2+, FR=1
+  void Cvtdl(FRegister fd, FRegister fs);  // R2+, FR=1
 
   void Mfc1(Register rt, FRegister fs);
   void Mtc1(Register rt, FRegister fs);
