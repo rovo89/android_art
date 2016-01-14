@@ -53,7 +53,10 @@ class JitCodeCache {
 
   // Create the code cache with a code + data capacity equal to "capacity", error message is passed
   // in the out arg error_msg.
-  static JitCodeCache* Create(size_t initial_capacity, size_t max_capacity, std::string* error_msg);
+  static JitCodeCache* Create(size_t initial_capacity,
+                              size_t max_capacity,
+                              bool generate_debug_info,
+                              std::string* error_msg);
 
   // Number of bytes allocated in the code cache.
   size_t CodeCacheSize() REQUIRES(!lock_);
@@ -159,13 +162,16 @@ class JitCodeCache {
     return current_capacity_;
   }
 
+  size_t GetMemorySizeOfCodePointer(const void* ptr) REQUIRES(!lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
                MemMap* data_map,
                size_t initial_code_capacity,
                size_t initial_data_capacity,
-               size_t max_capacity);
+               size_t max_capacity,
+               bool garbage_collect_code);
 
   // Internal version of 'CommitCode' that will not retry if the
   // allocation fails. Return null if the allocation fails.
@@ -251,6 +257,9 @@ class JitCodeCache {
   // Last time the the code_cache was updated.
   // It is atomic to avoid locking when reading it.
   Atomic<uint64_t> last_update_time_ns_;
+
+  // Whether we can do garbage collection.
+  const bool garbage_collect_code_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };

@@ -22,6 +22,7 @@
 #include "base/stringpiece.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
+#include "base/unix_file/fd_file.h"
 #include "compiler_callbacks.h"
 #include "dex/pass_manager.h"
 #include "dex/quick_compiler_callbacks.h"
@@ -42,11 +43,12 @@ JitCompiler* JitCompiler::Create() {
   return new JitCompiler();
 }
 
-extern "C" void* jit_load(CompilerCallbacks** callbacks) {
+extern "C" void* jit_load(CompilerCallbacks** callbacks, bool* generate_debug_info) {
   VLOG(jit) << "loading jit compiler";
   auto* const jit_compiler = JitCompiler::Create();
   CHECK(jit_compiler != nullptr);
   *callbacks = jit_compiler->GetCompilerCallbacks();
+  *generate_debug_info = jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo();
   VLOG(jit) << "Done loading jit compiler";
   return jit_compiler;
 }
@@ -160,9 +162,28 @@ JitCompiler::JitCompiler() : total_time_(0) {
   // Disable dedupe so we can remove compiled methods.
   compiler_driver_->SetDedupeEnabled(false);
   compiler_driver_->SetSupportBootImageFixup(false);
+
+  if (compiler_options_->GetGenerateDebugInfo()) {
+#ifdef __ANDROID__
+    const char* prefix = GetAndroidData();
+#else
+    const char* prefix = "/tmp";
+#endif
+    DCHECK_EQ(compiler_driver_->GetThreadCount(), 1u)
+        << "Generating debug info only works with one compiler thread";
+    std::string perf_filename = std::string(prefix) + "/perf-" + std::to_string(getpid()) + ".map";
+    perf_file_.reset(OS::CreateEmptyFileWriteOnly(perf_filename.c_str()));
+    if (perf_file_ == nullptr) {
+      LOG(FATAL) << "Could not create perf file at " << perf_filename;
+    }
+  }
 }
 
 JitCompiler::~JitCompiler() {
+  if (perf_file_ != nullptr) {
+    UNUSED(perf_file_->Flush());
+    UNUSED(perf_file_->Close());
+  }
 }
 
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
@@ -188,6 +209,20 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
     ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
     JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
     success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile);
+    if (success && compiler_options_->GetGenerateDebugInfo()) {
+      const void* ptr = method_to_compile->GetEntryPointFromQuickCompiledCode();
+      std::ostringstream stream;
+      stream << std::hex
+             << reinterpret_cast<uintptr_t>(ptr)
+             << " "
+             << code_cache->GetMemorySizeOfCodePointer(ptr)
+             << " "
+             << PrettyMethod(method_to_compile)
+             << std::endl;
+      std::string str = stream.str();
+      bool res = perf_file_->WriteFully(str.c_str(), str.size());
+      CHECK(res);
+    }
   }
 
   // Trim maps to reduce memory usage.
