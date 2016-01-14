@@ -221,18 +221,22 @@ void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor*
   CodeInfo code_info = handler_method_header_->GetOptimizedCodeInfo();
   StackMapEncoding encoding = code_info.ExtractEncoding();
 
+  // Find stack map of the catch block.
+  StackMap catch_stack_map = code_info.GetCatchStackMapForDexPc(GetHandlerDexPc(), encoding);
+  DCHECK(catch_stack_map.IsValid());
+  DexRegisterMap catch_vreg_map =
+      code_info.GetDexRegisterMapOf(catch_stack_map, encoding, number_of_vregs);
+  if (!catch_vreg_map.IsValid()) {
+    return;
+  }
+
   // Find stack map of the throwing instruction.
   StackMap throw_stack_map =
       code_info.GetStackMapForNativePcOffset(stack_visitor->GetNativePcOffset(), encoding);
   DCHECK(throw_stack_map.IsValid());
   DexRegisterMap throw_vreg_map =
       code_info.GetDexRegisterMapOf(throw_stack_map, encoding, number_of_vregs);
-
-  // Find stack map of the catch block.
-  StackMap catch_stack_map = code_info.GetCatchStackMapForDexPc(GetHandlerDexPc(), encoding);
-  DCHECK(catch_stack_map.IsValid());
-  DexRegisterMap catch_vreg_map =
-      code_info.GetDexRegisterMapOf(catch_stack_map, encoding, number_of_vregs);
+  DCHECK(throw_vreg_map.IsValid());
 
   // Copy values between them.
   for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
@@ -386,6 +390,10 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                              encoding,
                                              number_of_vregs)
         : code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
+
+    if (!vreg_map.IsValid()) {
+      return;
+    }
 
     for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
       if (updated_vregs != nullptr && updated_vregs[vreg]) {

@@ -473,6 +473,9 @@ class DexRegisterLocationCatalog {
 class DexRegisterMap {
  public:
   explicit DexRegisterMap(MemoryRegion region) : region_(region) {}
+  DexRegisterMap() {}
+
+  bool IsValid() const { return region_.pointer() != nullptr; }
 
   // Get the surface kind of Dex register `dex_register_number`.
   DexRegisterLocation::Kind GetLocationKind(uint16_t dex_register_number,
@@ -1136,11 +1139,15 @@ class CodeInfo {
   DexRegisterMap GetDexRegisterMapOf(StackMap stack_map,
                                      const StackMapEncoding& encoding,
                                      uint32_t number_of_dex_registers) const {
-    DCHECK(stack_map.HasDexRegisterMap(encoding));
-    uint32_t offset = GetDexRegisterMapsOffset(encoding)
-                      + stack_map.GetDexRegisterMapOffset(encoding);
-    size_t size = ComputeDexRegisterMapSizeOf(offset, number_of_dex_registers);
-    return DexRegisterMap(region_.Subregion(offset, size));
+
+    if (!stack_map.HasDexRegisterMap(encoding)) {
+      return DexRegisterMap();
+    } else {
+      uint32_t offset = GetDexRegisterMapsOffset(encoding)
+                        + stack_map.GetDexRegisterMapOffset(encoding);
+      size_t size = ComputeDexRegisterMapSizeOf(offset, number_of_dex_registers);
+      return DexRegisterMap(region_.Subregion(offset, size));
+    }
   }
 
   // Return the `DexRegisterMap` pointed by `inline_info` at depth `depth`.
@@ -1148,11 +1155,14 @@ class CodeInfo {
                                           InlineInfo inline_info,
                                           const StackMapEncoding& encoding,
                                           uint32_t number_of_dex_registers) const {
-    DCHECK(inline_info.HasDexRegisterMapAtDepth(depth));
-    uint32_t offset = GetDexRegisterMapsOffset(encoding)
-                      + inline_info.GetDexRegisterMapOffsetAtDepth(depth);
-    size_t size = ComputeDexRegisterMapSizeOf(offset, number_of_dex_registers);
-    return DexRegisterMap(region_.Subregion(offset, size));
+    if (!inline_info.HasDexRegisterMapAtDepth(depth)) {
+      return DexRegisterMap();
+    } else {
+      uint32_t offset = GetDexRegisterMapsOffset(encoding)
+                        + inline_info.GetDexRegisterMapOffsetAtDepth(depth);
+      size_t size = ComputeDexRegisterMapSizeOf(offset, number_of_dex_registers);
+      return DexRegisterMap(region_.Subregion(offset, size));
+    }
   }
 
   InlineInfo GetInlineInfoOf(StackMap stack_map, const StackMapEncoding& encoding) const {
