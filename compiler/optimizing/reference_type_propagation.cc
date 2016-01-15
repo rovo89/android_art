@@ -58,7 +58,6 @@ class RTPVisitor : public HGraphDelegateVisitor {
   void VisitCheckCast(HCheckCast* instr) OVERRIDE;
   void VisitBoundType(HBoundType* instr) OVERRIDE;
   void VisitNullCheck(HNullCheck* instr) OVERRIDE;
-  void VisitFakeString(HFakeString* instr) OVERRIDE;
   void UpdateReferenceTypeInfo(HInstruction* instr,
                                uint16_t type_idx,
                                const DexFile& dex_file,
@@ -566,10 +565,6 @@ void RTPVisitor::VisitNullCheck(HNullCheck* instr) {
   if (parent_rti.IsValid()) {
     instr->SetReferenceTypeInfo(parent_rti);
   }
-}
-
-void RTPVisitor::VisitFakeString(HFakeString* instr) {
-  instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(string_class_handle_, /* is_exact */ true));
 }
 
 void RTPVisitor::VisitBoundType(HBoundType* instr) {

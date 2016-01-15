@@ -113,13 +113,13 @@ public class Main {
   }
 
   /// CHECK-START: java.lang.String Main.knownTestWithLoadedClass() register (after)
-  /// CHECK-NOT: LoadClass
+  /// CHECK-NOT: CheckCast
   public static String knownTestWithLoadedClass() {
     return (String)$inline$getString();
   }
 
   /// CHECK-START: Itf Main.knownTestWithUnloadedClass() register (after)
-  /// CHECK: LoadClass
+  /// CHECK: CheckCast
   public static Itf knownTestWithUnloadedClass() {
     return (Itf)$inline$getString();
   }
