@@ -7147,9 +7147,8 @@ constvalop_long_to_double:
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH r1, 1                         @ r1<- field byte offset
+    EXPORT_PC
     GET_VREG r0, r2                     @ r0<- object we're operating on
-    cmp     r0, #0                      @ check object for null
-    beq     common_errNullObject        @ object was null
     bl      artIGetObjectFromMterp      @ (obj, offset)
     ldr     r3, [rSELF, #THREAD_EXCEPTION_OFFSET]
     ubfx    r2, rINST, #8, #4           @ r2<- A
