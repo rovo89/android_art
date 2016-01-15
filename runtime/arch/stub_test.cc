@@ -378,8 +378,8 @@ class StubTest : public CommonRuntimeTest {
           "memory");  // clobber.
 #elif defined(__mips__) && defined(__LP64__)
     __asm__ __volatile__ (
-        // Spill a0-a7 and t0-t3 which we say we don't clobber. May contain args.
-        "daddiu $sp, $sp, -96\n\t"
+        // Spill a0-a7 which we say we don't clobber. May contain args.
+        "daddiu $sp, $sp, -64\n\t"
         "sd $a0, 0($sp)\n\t"
         "sd $a1, 8($sp)\n\t"
         "sd $a2, 16($sp)\n\t"
@@ -388,10 +388,6 @@ class StubTest : public CommonRuntimeTest {
         "sd $a5, 40($sp)\n\t"
         "sd $a6, 48($sp)\n\t"
         "sd $a7, 56($sp)\n\t"
-        "sd $t0, 64($sp)\n\t"
-        "sd $t1, 72($sp)\n\t"
-        "sd $t2, 80($sp)\n\t"
-        "sd $t3, 88($sp)\n\t"
 
         "daddiu $sp, $sp, -16\n\t"  // Reserve stack space, 16B aligned.
         "sd %[referrer], 0($sp)\n\t"
@@ -427,18 +423,16 @@ class StubTest : public CommonRuntimeTest {
         "ld $a5, 40($sp)\n\t"
         "ld $a6, 48($sp)\n\t"
         "ld $a7, 56($sp)\n\t"
-        "ld $t0, 64($sp)\n\t"
-        "ld $t1, 72($sp)\n\t"
-        "ld $t2, 80($sp)\n\t"
-        "ld $t3, 88($sp)\n\t"
-        "daddiu $sp, $sp, 96\n\t"
+        "daddiu $sp, $sp, 64\n\t"
 
         "move %[result], $v0\n\t"   // Store the call result.
         : [result] "=r" (result)
         : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
           [referrer] "r"(referrer), [hidden] "r"(hidden)
-        : "at", "v0", "v1", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
-          "t8", "t9", "k0", "k1", "fp", "ra",
+        // Instead aliases t0-t3, register names $12-$15 has been used in the clobber list because
+        // t0-t3 are ambiguous.
+        : "at", "v0", "v1", "$12", "$13", "$14", "$15", "s0", "s1", "s2", "s3", "s4", "s5", "s6",
+          "s7", "t8", "t9", "k0", "k1", "fp", "ra",
           "$f0", "$f1", "$f2", "$f3", "$f4", "$f5", "$f6", "$f7", "$f8", "$f9", "$f10", "$f11",
           "$f12", "$f13", "$f14", "$f15", "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22",
           "$f23", "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",
