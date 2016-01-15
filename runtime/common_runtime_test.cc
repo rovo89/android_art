@@ -117,14 +117,15 @@ void ScratchFile::Unlink() {
 
 static bool unstarted_initialized_ = false;
 
-CommonRuntimeTest::CommonRuntimeTest() {}
-CommonRuntimeTest::~CommonRuntimeTest() {
+CommonRuntimeTestImpl::CommonRuntimeTestImpl() {}
+
+CommonRuntimeTestImpl::~CommonRuntimeTestImpl() {
   // Ensure the dex files are cleaned up before the runtime.
   loaded_dex_files_.clear();
   runtime_.reset();
 }
 
-void CommonRuntimeTest::SetUpAndroidRoot() {
+void CommonRuntimeTestImpl::SetUpAndroidRoot() {
   if (IsHost()) {
     // $ANDROID_ROOT is set on the device, but not necessarily on the host.
     // But it needs to be set so that icu4c can find its locale data.
@@ -166,7 +167,7 @@ void CommonRuntimeTest::SetUpAndroidRoot() {
   }
 }
 
-void CommonRuntimeTest::SetUpAndroidData(std::string& android_data) {
+void CommonRuntimeTestImpl::SetUpAndroidData(std::string& android_data) {
   // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of dalvik-cache
   if (IsHost()) {
     const char* tmpdir = getenv("TMPDIR");
@@ -185,7 +186,8 @@ void CommonRuntimeTest::SetUpAndroidData(std::string& android_data) {
   setenv("ANDROID_DATA", android_data.c_str(), 1);
 }
 
-void CommonRuntimeTest::TearDownAndroidData(const std::string& android_data, bool fail_on_error) {
+void CommonRuntimeTestImpl::TearDownAndroidData(const std::string& android_data,
+                                                bool fail_on_error) {
   if (fail_on_error) {
     ASSERT_EQ(rmdir(android_data.c_str()), 0);
   } else {
@@ -235,13 +237,13 @@ static std::string GetAndroidToolsDir(const std::string& subdir1,
   return founddir;
 }
 
-std::string CommonRuntimeTest::GetAndroidHostToolsDir() {
+std::string CommonRuntimeTestImpl::GetAndroidHostToolsDir() {
   return GetAndroidToolsDir("prebuilts/gcc/linux-x86/host",
                             "x86_64-linux-glibc2.15",
                             "x86_64-linux");
 }
 
-std::string CommonRuntimeTest::GetAndroidTargetToolsDir(InstructionSet isa) {
+std::string CommonRuntimeTestImpl::GetAndroidTargetToolsDir(InstructionSet isa) {
   switch (isa) {
     case kArm:
     case kThumb2:
@@ -269,15 +271,16 @@ std::string CommonRuntimeTest::GetAndroidTargetToolsDir(InstructionSet isa) {
   return "";
 }
 
-std::string CommonRuntimeTest::GetCoreArtLocation() {
+std::string CommonRuntimeTestImpl::GetCoreArtLocation() {
   return GetCoreFileLocation("art");
 }
 
-std::string CommonRuntimeTest::GetCoreOatLocation() {
+std::string CommonRuntimeTestImpl::GetCoreOatLocation() {
   return GetCoreFileLocation("oat");
 }
 
-std::unique_ptr<const DexFile> CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
+std::unique_ptr<const DexFile> CommonRuntimeTestImpl::LoadExpectSingleDexFile(
+    const char* location) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
   MemMap::Init();
@@ -290,7 +293,7 @@ std::unique_ptr<const DexFile> CommonRuntimeTest::LoadExpectSingleDexFile(const 
   }
 }
 
-void CommonRuntimeTest::SetUp() {
+void CommonRuntimeTestImpl::SetUp() {
   SetUpAndroidRoot();
   SetUpAndroidData(android_data_);
   dalvik_cache_.append(android_data_.c_str());
@@ -345,7 +348,7 @@ void CommonRuntimeTest::SetUp() {
   FinalizeSetup();
 }
 
-void CommonRuntimeTest::FinalizeSetup() {
+void CommonRuntimeTestImpl::FinalizeSetup() {
   // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
   // set up.
   if (!unstarted_initialized_) {
@@ -369,7 +372,7 @@ void CommonRuntimeTest::FinalizeSetup() {
   runtime_->GetHeap()->SetMinIntervalHomogeneousSpaceCompactionByOom(0U);
 }
 
-void CommonRuntimeTest::ClearDirectory(const char* dirpath) {
+void CommonRuntimeTestImpl::ClearDirectory(const char* dirpath) {
   ASSERT_TRUE(dirpath != nullptr);
   DIR* dir = opendir(dirpath);
   ASSERT_TRUE(dir != nullptr);
@@ -396,7 +399,7 @@ void CommonRuntimeTest::ClearDirectory(const char* dirpath) {
   closedir(dir);
 }
 
-void CommonRuntimeTest::TearDown() {
+void CommonRuntimeTestImpl::TearDown() {
   const char* android_data = getenv("ANDROID_DATA");
   ASSERT_TRUE(android_data != nullptr);
   ClearDirectory(dalvik_cache_.c_str());
@@ -453,12 +456,12 @@ static std::string GetDexFileName(const std::string& jar_prefix, bool host) {
   return StringPrintf("%s/framework/%s%s.jar", path.c_str(), jar_prefix.c_str(), suffix.c_str());
 }
 
-std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
+std::vector<std::string> CommonRuntimeTestImpl::GetLibCoreDexFileNames() {
   return std::vector<std::string>({GetDexFileName("core-oj", IsHost()),
                                    GetDexFileName("core-libart", IsHost())});
 }
 
-std::string CommonRuntimeTest::GetTestAndroidRoot() {
+std::string CommonRuntimeTestImpl::GetTestAndroidRoot() {
   if (IsHost()) {
     const char* host_dir = getenv("ANDROID_HOST_OUT");
     CHECK(host_dir != nullptr);
@@ -478,7 +481,7 @@ std::string CommonRuntimeTest::GetTestAndroidRoot() {
 #define ART_TARGET_NATIVETEST_DIR_STRING ""
 #endif
 
-std::string CommonRuntimeTest::GetTestDexFileName(const char* name) {
+std::string CommonRuntimeTestImpl::GetTestDexFileName(const char* name) {
   CHECK(name != nullptr);
   std::string filename;
   if (IsHost()) {
@@ -493,7 +496,8 @@ std::string CommonRuntimeTest::GetTestDexFileName(const char* name) {
   return filename;
 }
 
-std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
+std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTestImpl::OpenTestDexFiles(
+    const char* name) {
   std::string filename = GetTestDexFileName(name);
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
@@ -506,13 +510,13 @@ std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(
   return dex_files;
 }
 
-std::unique_ptr<const DexFile> CommonRuntimeTest::OpenTestDexFile(const char* name) {
+std::unique_ptr<const DexFile> CommonRuntimeTestImpl::OpenTestDexFile(const char* name) {
   std::vector<std::unique_ptr<const DexFile>> vector = OpenTestDexFiles(name);
   EXPECT_EQ(1U, vector.size());
   return std::move(vector[0]);
 }
 
-std::vector<const DexFile*> CommonRuntimeTest::GetDexFiles(jobject jclass_loader) {
+std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_loader) {
   std::vector<const DexFile*> ret;
 
   ScopedObjectAccess soa(Thread::Current());
@@ -572,7 +576,7 @@ std::vector<const DexFile*> CommonRuntimeTest::GetDexFiles(jobject jclass_loader
   return ret;
 }
 
-const DexFile* CommonRuntimeTest::GetFirstDexFile(jobject jclass_loader) {
+const DexFile* CommonRuntimeTestImpl::GetFirstDexFile(jobject jclass_loader) {
   std::vector<const DexFile*> tmp(GetDexFiles(jclass_loader));
   DCHECK(!tmp.empty());
   const DexFile* ret = tmp[0];
@@ -580,7 +584,7 @@ const DexFile* CommonRuntimeTest::GetFirstDexFile(jobject jclass_loader) {
   return ret;
 }
 
-jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
+jobject CommonRuntimeTestImpl::LoadDex(const char* dex_name) {
   std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name);
   std::vector<const DexFile*> class_path;
   CHECK_NE(0U, dex_files.size());
@@ -596,7 +600,7 @@ jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
   return class_loader;
 }
 
-std::string CommonRuntimeTest::GetCoreFileLocation(const char* suffix) {
+std::string CommonRuntimeTestImpl::GetCoreFileLocation(const char* suffix) {
   CHECK(suffix != nullptr);
 
   std::string location;
