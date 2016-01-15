@@ -1243,26 +1243,8 @@ class DebugLineWriter {
   std::vector<uintptr_t> debug_line_patches;
 };
 
-// Get all types loaded by the runtime.
-static std::vector<mirror::Class*> GetLoadedRuntimeTypes() SHARED_REQUIRES(Locks::mutator_lock_) {
-  std::vector<mirror::Class*> result;
-  class CollectClasses : public ClassVisitor {
-   public:
-    virtual bool Visit(mirror::Class* klass) {
-      classes_->push_back(klass);
-      return true;
-    }
-    std::vector<mirror::Class*>* classes_;
-  };
-  CollectClasses visitor;
-  visitor.classes_ = &result;
-  Runtime::Current()->GetClassLinker()->VisitClasses(&visitor);
-  return result;
-}
-
 template<typename ElfTypes>
 static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
-                               bool write_loaded_runtime_types,
                                const ArrayRef<const MethodDebugInfo>& method_infos) {
   // Group the methods into compilation units based on source file.
   std::vector<CompilationUnit> compilation_units;
@@ -1291,18 +1273,11 @@ static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
   }
 
   // Write .debug_info section.
-  if (!compilation_units.empty() || write_loaded_runtime_types) {
+  if (!compilation_units.empty()) {
     DebugInfoWriter<ElfTypes> info_writer(builder);
     info_writer.Start();
     for (const auto& compilation_unit : compilation_units) {
       info_writer.WriteCompilationUnit(compilation_unit);
-    }
-    if (write_loaded_runtime_types) {
-      Thread* self = Thread::Current();
-      // The lock prevents the classes being moved by the GC.
-      ReaderMutexLock mu(self, *Locks::mutator_lock_);
-      std::vector<mirror::Class*> types = GetLoadedRuntimeTypes();
-      info_writer.WriteTypes(ArrayRef<mirror::Class*>(types.data(), types.size()));
     }
     info_writer.End();
   }
@@ -1370,7 +1345,6 @@ void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
 
 template <typename ElfTypes>
 void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
-                    bool write_loaded_runtime_types,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     CFIFormat cfi_format) {
   // Add methods to .symtab.
@@ -1378,7 +1352,7 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
   // Generate CFI (stack unwinding information).
   WriteCFISection(builder, method_infos, cfi_format);
   // Write DWARF .debug_* sections.
-  WriteDebugSections(builder, write_loaded_runtime_types, method_infos);
+  WriteDebugSections(builder, method_infos);
 }
 
 template <typename ElfTypes>
@@ -1391,7 +1365,6 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForMethodInternal(
   std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
   builder->Start();
   WriteDebugInfo(builder.get(),
-                 false,
                  ArrayRef<const MethodDebugInfo>(&method_info, 1),
                  DW_DEBUG_FRAME_FORMAT);
   builder->End();
@@ -1413,8 +1386,8 @@ ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const dwarf::MethodDebugInfo&
 }
 
 template <typename ElfTypes>
-static ArrayRef<const uint8_t> WriteDebugElfFileForClassInternal(const InstructionSet isa,
-                                                                 mirror::Class* type)
+static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
+    const InstructionSet isa, const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   std::vector<uint8_t> buffer;
   buffer.reserve(KB);
@@ -1424,7 +1397,7 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForClassInternal(const Instructi
 
   DebugInfoWriter<ElfTypes> info_writer(builder.get());
   info_writer.Start();
-  info_writer.WriteTypes(ArrayRef<mirror::Class*>(&type, 1));
+  info_writer.WriteTypes(types);
   info_writer.End();
 
   builder->End();
@@ -1436,23 +1409,22 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForClassInternal(const Instructi
   return ArrayRef<const uint8_t>(result, buffer.size());
 }
 
-ArrayRef<const uint8_t> WriteDebugElfFileForClass(const InstructionSet isa, mirror::Class* type) {
+ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
+                                                    const ArrayRef<mirror::Class*>& types) {
   if (Is64BitInstructionSet(isa)) {
-    return WriteDebugElfFileForClassInternal<ElfTypes64>(isa, type);
+    return WriteDebugElfFileForClassesInternal<ElfTypes64>(isa, types);
   } else {
-    return WriteDebugElfFileForClassInternal<ElfTypes32>(isa, type);
+    return WriteDebugElfFileForClassesInternal<ElfTypes32>(isa, types);
   }
 }
 
 // Explicit instantiations
 template void WriteDebugInfo<ElfTypes32>(
     ElfBuilder<ElfTypes32>* builder,
-    bool write_loaded_runtime_types,
     const ArrayRef<const MethodDebugInfo>& method_infos,
     CFIFormat cfi_format);
 template void WriteDebugInfo<ElfTypes64>(
     ElfBuilder<ElfTypes64>* builder,
-    bool write_loaded_runtime_types,
     const ArrayRef<const MethodDebugInfo>& method_infos,
     CFIFormat cfi_format);
 
