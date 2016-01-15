@@ -258,6 +258,12 @@
           "dalvik.system.JniTest#testPassingLongs",
           "dalvik.system.JniTest#testPassingObjectReferences",
           "dalvik.system.JniTest#testPassingShorts",
-          "dalvik.system.JniTest#testPassingThis"]
+          "dalvik.system.JniTest#testPassingThis",
+          "libcore.util.NativeAllocationRegistryTest#testBadSize",
+          "libcore.util.NativeAllocationRegistryTest#testNativeAllocationAllocatorAndNoSharedRegistry",
+          "libcore.util.NativeAllocationRegistryTest#testNativeAllocationAllocatorAndSharedRegistry",
+          "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndNoSharedRegistry",
+          "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndSharedRegistry",
+          "libcore.util.NativeAllocationRegistryTest#testNullArguments"]
 }
 ]
