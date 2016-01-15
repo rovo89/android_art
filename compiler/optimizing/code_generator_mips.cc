@@ -4357,19 +4357,34 @@ void LocationsBuilderMIPS::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  if (instruction->IsStringAlloc()) {
+    locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
+  } else {
+    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  }
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
 }
 
 void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
-  codegen_->InvokeRuntime(
-      GetThreadOffset<kMipsWordSize>(instruction->GetEntrypoint()).Int32Value(),
-      instruction,
-      instruction->GetDexPc(),
-      nullptr,
-      IsDirectEntrypoint(kQuickAllocObjectWithAccessCheck));
-  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+  if (instruction->IsStringAlloc()) {
+    // String is allocated through StringFactory. Call NewEmptyString entry point.
+    Register temp = instruction->GetLocations()->GetTemp(0).AsRegister<Register>();
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsWordSize);
+    __ LoadFromOffset(kLoadWord, temp, TR, QUICK_ENTRY_POINT(pNewEmptyString));
+    __ LoadFromOffset(kLoadWord, T9, temp, code_offset.Int32Value());
+    __ Jalr(T9);
+    __ Nop();
+    codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  } else {
+    codegen_->InvokeRuntime(
+        GetThreadOffset<kMipsWordSize>(instruction->GetEntrypoint()).Int32Value(),
+        instruction,
+        instruction->GetDexPc(),
+        nullptr,
+        IsDirectEntrypoint(kQuickAllocObjectWithAccessCheck));
+    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+  }
 }
 
 void LocationsBuilderMIPS::VisitNot(HNot* instruction) {
@@ -5220,18 +5235,6 @@ void LocationsBuilderMIPS::VisitAboveOrEqual(HAboveOrEqual* comp) {
 
 void InstructionCodeGeneratorMIPS::VisitAboveOrEqual(HAboveOrEqual* comp) {
   HandleCondition(comp);
-}
-
-void LocationsBuilderMIPS::VisitFakeString(HFakeString* instruction) {
-  DCHECK(codegen_->IsBaseline());
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetOut(Location::ConstantLocation(GetGraph()->GetNullConstant()));
-}
-
-void InstructionCodeGeneratorMIPS::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
-  DCHECK(codegen_->IsBaseline());
-  // Will be generated at use site.
 }
 
 void LocationsBuilderMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr) {

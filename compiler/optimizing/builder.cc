@@ -1271,42 +1271,12 @@ bool HGraphBuilder::HandleStringInit(HInvoke* invoke,
 
   // Add move-result for StringFactory method.
   uint32_t orig_this_reg = is_range ? register_index : args[0];
-  HInstruction* fake_string = LoadLocal(orig_this_reg, Primitive::kPrimNot, invoke->GetDexPc());
-  invoke->SetArgumentAt(argument_index, fake_string);
+  HInstruction* new_instance = LoadLocal(orig_this_reg, Primitive::kPrimNot, invoke->GetDexPc());
+  invoke->SetArgumentAt(argument_index, new_instance);
   current_block_->AddInstruction(invoke);
-  PotentiallySimplifyFakeString(orig_this_reg, invoke->GetDexPc(), invoke);
 
   latest_result_ = invoke;
-
   return true;
-}
-
-void HGraphBuilder::PotentiallySimplifyFakeString(uint16_t original_dex_register,
-                                                  uint32_t dex_pc,
-                                                  HInvoke* actual_string) {
-  if (!graph_->IsDebuggable()) {
-    // Notify that we cannot compile with baseline. The dex registers aliasing
-    // with `original_dex_register` will be handled when we optimize
-    // (see HInstructionSimplifer::VisitFakeString).
-    can_use_baseline_for_string_init_ = false;
-    return;
-  }
-  const VerifiedMethod* verified_method =
-      compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
-  if (verified_method != nullptr) {
-    UpdateLocal(original_dex_register, actual_string, dex_pc);
-    const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
-        verified_method->GetStringInitPcRegMap();
-    auto map_it = string_init_map.find(dex_pc);
-    if (map_it != string_init_map.end()) {
-      for (uint32_t reg : map_it->second) {
-        HInstruction* load_local = LoadLocal(original_dex_register, Primitive::kPrimNot, dex_pc);
-        UpdateLocal(reg, load_local, dex_pc);
-      }
-    }
-  } else {
-    can_use_baseline_for_string_init_ = false;
-  }
 }
 
 static Primitive::Type GetFieldAccessType(const DexFile& dex_file, uint16_t field_index) {
@@ -2698,18 +2668,10 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::NEW_INSTANCE: {
-      uint16_t type_index = instruction.VRegB_21c();
-      if (compiler_driver_->IsStringTypeIndex(type_index, dex_file_)) {
-        int32_t register_index = instruction.VRegA();
-        HFakeString* fake_string = new (arena_) HFakeString(dex_pc);
-        current_block_->AddInstruction(fake_string);
-        UpdateLocal(register_index, fake_string, dex_pc);
-      } else {
-        if (!BuildNewInstance(type_index, dex_pc)) {
-          return false;
-        }
-        UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction(), dex_pc);
+      if (!BuildNewInstance(instruction.VRegB_21c(), dex_pc)) {
+        return false;
       }
+      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction(), dex_pc);
       break;
     }
 
