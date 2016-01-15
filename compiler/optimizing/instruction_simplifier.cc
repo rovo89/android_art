@@ -77,7 +77,6 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void VisitUShr(HUShr* instruction) OVERRIDE;
   void VisitXor(HXor* instruction) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
-  void VisitFakeString(HFakeString* fake_string) OVERRIDE;
   void VisitInvoke(HInvoke* invoke) OVERRIDE;
   void VisitDeoptimize(HDeoptimize* deoptimize) OVERRIDE;
 
@@ -1177,48 +1176,6 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
   }
 
   TryReplaceWithRotate(instruction);
-}
-
-void InstructionSimplifierVisitor::VisitFakeString(HFakeString* instruction) {
-  HInstruction* actual_string = nullptr;
-
-  // Find the string we need to replace this instruction with. The actual string is
-  // the return value of a StringFactory call.
-  for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
-    HInstruction* use = it.Current()->GetUser();
-    if (use->IsInvokeStaticOrDirect()
-        && use->AsInvokeStaticOrDirect()->IsStringFactoryFor(instruction)) {
-      use->AsInvokeStaticOrDirect()->RemoveFakeStringArgumentAsLastInput();
-      actual_string = use;
-      break;
-    }
-  }
-
-  // Check that there is no other instruction that thinks it is the factory for that string.
-  if (kIsDebugBuild) {
-    CHECK(actual_string != nullptr);
-    for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
-      HInstruction* use = it.Current()->GetUser();
-      if (use->IsInvokeStaticOrDirect()) {
-        CHECK(!use->AsInvokeStaticOrDirect()->IsStringFactoryFor(instruction));
-      }
-    }
-  }
-
-  // We need to remove any environment uses of the fake string that are not dominated by
-  // `actual_string` to null.
-  for (HUseIterator<HEnvironment*> it(instruction->GetEnvUses()); !it.Done(); it.Advance()) {
-    HEnvironment* environment = it.Current()->GetUser();
-    if (!actual_string->StrictlyDominates(environment->GetHolder())) {
-      environment->RemoveAsUserOfInput(it.Current()->GetIndex());
-      environment->SetRawEnvAt(it.Current()->GetIndex(), nullptr);
-    }
-  }
-
-  // Only uses dominated by `actual_string` must remain. We can safely replace and remove
-  // `instruction`.
-  instruction->ReplaceWith(actual_string);
-  instruction->GetBlock()->RemoveInstruction(instruction);
 }
 
 void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {

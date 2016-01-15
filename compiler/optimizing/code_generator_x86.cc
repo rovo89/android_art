@@ -3943,20 +3943,33 @@ void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   locations->SetOut(Location::RegisterLocation(EAX));
-  InvokeRuntimeCallingConvention calling_convention;
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  if (instruction->IsStringAlloc()) {
+    locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
+  } else {
+    InvokeRuntimeCallingConvention calling_convention;
+    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
-                          instruction,
-                          instruction->GetDexPc(),
-                          nullptr);
-  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
-  DCHECK(!codegen_->IsLeafMethod());
+  if (instruction->IsStringAlloc()) {
+    // String is allocated through StringFactory. Call NewEmptyString entry point.
+    Register temp = instruction->GetLocations()->GetTemp(0).AsRegister<Register>();
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize);
+    __ fs()->movl(temp, Address::Absolute(QUICK_ENTRY_POINT(pNewEmptyString)));
+    __ call(Address(temp, code_offset.Int32Value()));
+    codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  } else {
+    codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                            instruction,
+                            instruction->GetDexPc(),
+                            nullptr);
+    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+    DCHECK(!codegen_->IsLeafMethod());
+  }
 }
 
 void LocationsBuilderX86::VisitNewArray(HNewArray* instruction) {
@@ -6753,18 +6766,6 @@ void LocationsBuilderX86::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSE
 void InstructionCodeGeneratorX86::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, this should be removed during prepare for register allocator.
   LOG(FATAL) << "Unreachable";
-}
-
-void LocationsBuilderX86::VisitFakeString(HFakeString* instruction) {
-  DCHECK(codegen_->IsBaseline());
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetOut(Location::ConstantLocation(GetGraph()->GetNullConstant()));
-}
-
-void InstructionCodeGeneratorX86::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
-  DCHECK(codegen_->IsBaseline());
-  // Will be generated at use site.
 }
 
 // Simple implementation of packed switch - generate cascaded compare/jumps.

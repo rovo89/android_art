@@ -1032,13 +1032,6 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
   Primitive::Type type = instruction->GetType();
   DCHECK_NE(type, Primitive::kPrimVoid);
 
-  if (instruction->IsFakeString()) {
-    // The fake string is an alias for null.
-    DCHECK(IsBaseline());
-    instruction = locations->Out().GetConstant();
-    DCHECK(instruction->IsNullConstant()) << instruction->DebugName();
-  }
-
   if (instruction->IsCurrentMethod()) {
     MoveLocation(location,
                  Location::DoubleStackSlot(kCurrentMethodStackOffset),
@@ -4061,19 +4054,33 @@ void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  if (instruction->IsStringAlloc()) {
+    locations->AddTemp(LocationFrom(kArtMethodRegister));
+  } else {
+    locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  }
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
 }
 
 void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) {
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
-                          instruction,
-                          instruction->GetDexPc(),
-                          nullptr);
-  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+  if (instruction->IsStringAlloc()) {
+    // String is allocated through StringFactory. Call NewEmptyString entry point.
+    Location temp = instruction->GetLocations()->GetTemp(0);
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
+    __ Ldr(XRegisterFrom(temp), MemOperand(tr, QUICK_ENTRY_POINT(pNewEmptyString)));
+    __ Ldr(lr, MemOperand(XRegisterFrom(temp), code_offset.Int32Value()));
+    __ Blr(lr);
+    codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  } else {
+    codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                            instruction,
+                            instruction->GetDexPc(),
+                            nullptr);
+    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+  }
 }
 
 void LocationsBuilderARM64::VisitNot(HNot* instruction) {
@@ -4557,18 +4564,6 @@ void LocationsBuilderARM64::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNU
 void InstructionCodeGeneratorARM64::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, this should be removed during prepare for register allocator.
   LOG(FATAL) << "Unreachable";
-}
-
-void LocationsBuilderARM64::VisitFakeString(HFakeString* instruction) {
-  DCHECK(codegen_->IsBaseline());
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetOut(Location::ConstantLocation(GetGraph()->GetNullConstant()));
-}
-
-void InstructionCodeGeneratorARM64::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
-  DCHECK(codegen_->IsBaseline());
-  // Will be generated at use site.
 }
 
 // Simple implementation of packed switch - generate cascaded compare/jumps.

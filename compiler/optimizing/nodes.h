@@ -44,7 +44,6 @@ class HBasicBlock;
 class HCurrentMethod;
 class HDoubleConstant;
 class HEnvironment;
-class HFakeString;
 class HFloatConstant;
 class HGraphBuilder;
 class HGraphVisitor;
@@ -1166,7 +1165,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(DoubleConstant, Constant)                                           \
   M(Equal, Condition)                                                   \
   M(Exit, Instruction)                                                  \
-  M(FakeString, Instruction)                                            \
   M(FloatConstant, Constant)                                            \
   M(Goto, Instruction)                                                  \
   M(GreaterThan, Condition)                                             \
@@ -3265,6 +3263,61 @@ class HDoubleConstant : public HConstant {
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
 };
 
+class HNewInstance : public HExpression<2> {
+ public:
+  HNewInstance(HInstruction* cls,
+               HCurrentMethod* current_method,
+               uint32_t dex_pc,
+               uint16_t type_index,
+               const DexFile& dex_file,
+               bool can_throw,
+               bool finalizable,
+               QuickEntrypointEnum entrypoint)
+      : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
+        type_index_(type_index),
+        dex_file_(dex_file),
+        can_throw_(can_throw),
+        finalizable_(finalizable),
+        entrypoint_(entrypoint) {
+    SetRawInputAt(0, cls);
+    SetRawInputAt(1, current_method);
+  }
+
+  uint16_t GetTypeIndex() const { return type_index_; }
+  const DexFile& GetDexFile() const { return dex_file_; }
+
+  // Calls runtime so needs an environment.
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+
+  // It may throw when called on type that's not instantiable/accessible.
+  // It can throw OOME.
+  // TODO: distinguish between the two cases so we can for example allow allocation elimination.
+  bool CanThrow() const OVERRIDE { return can_throw_ || true; }
+
+  bool IsFinalizable() const { return finalizable_; }
+
+  bool CanBeNull() const OVERRIDE { return false; }
+
+  QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
+
+  void SetEntrypoint(QuickEntrypointEnum entrypoint) {
+    entrypoint_ = entrypoint;
+  }
+
+  bool IsStringAlloc() const;
+
+  DECLARE_INSTRUCTION(NewInstance);
+
+ private:
+  const uint16_t type_index_;
+  const DexFile& dex_file_;
+  const bool can_throw_;
+  const bool finalizable_;
+  QuickEntrypointEnum entrypoint_;
+
+  DISALLOW_COPY_AND_ASSIGN(HNewInstance);
+};
+
 enum class Intrinsics {
 #define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
   k ## Name,
@@ -3558,10 +3611,9 @@ class HInvokeStaticOrDirect : public HInvoke {
 
   // Get the index of the special input, if any.
   //
-  // If the invoke IsStringInit(), it initially has a HFakeString special argument
-  // which is removed by the instruction simplifier; if the invoke HasCurrentMethodInput(),
-  // the "special input" is the current method pointer; otherwise there may be one
-  // platform-specific special input, such as PC-relative addressing base.
+  // If the invoke HasCurrentMethodInput(), the "special input" is the current
+  // method pointer; otherwise there may be one platform-specific special input,
+  // such as PC-relative addressing base.
   uint32_t GetSpecialInputIndex() const { return GetNumberOfArguments(); }
 
   InvokeType GetOptimizedInvokeType() const { return optimized_invoke_type_; }
@@ -3635,20 +3687,18 @@ class HInvokeStaticOrDirect : public HInvoke {
     DCHECK(!IsStaticWithExplicitClinitCheck());
   }
 
-  bool IsStringFactoryFor(HFakeString* str) const {
-    if (!IsStringInit()) return false;
-    DCHECK(!HasCurrentMethodInput());
-    if (InputCount() == (number_of_arguments_)) return false;
-    return InputAt(InputCount() - 1)->AsFakeString() == str;
+  HNewInstance* GetThisArgumentOfStringInit() const {
+    DCHECK(IsStringInit());
+    size_t index = InputCount() - 1;
+    DCHECK(InputAt(index)->IsNewInstance());
+    return InputAt(index)->AsNewInstance();
   }
 
-  void RemoveFakeStringArgumentAsLastInput() {
+  void RemoveThisArgumentOfStringInit() {
     DCHECK(IsStringInit());
-    size_t last_input_index = InputCount() - 1;
-    HInstruction* last_input = InputAt(last_input_index);
-    DCHECK(last_input != nullptr);
-    DCHECK(last_input->IsFakeString()) << last_input->DebugName();
-    RemoveAsUserOfInput(last_input_index);
+    size_t index = InputCount() - 1;
+    DCHECK(InputAt(index)->IsNewInstance());
+    RemoveAsUserOfInput(index);
     inputs_.pop_back();
   }
 
@@ -3754,59 +3804,6 @@ class HInvokeInterface : public HInvoke {
   const uint32_t imt_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);
-};
-
-class HNewInstance : public HExpression<2> {
- public:
-  HNewInstance(HInstruction* cls,
-               HCurrentMethod* current_method,
-               uint32_t dex_pc,
-               uint16_t type_index,
-               const DexFile& dex_file,
-               bool can_throw,
-               bool finalizable,
-               QuickEntrypointEnum entrypoint)
-      : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
-        type_index_(type_index),
-        dex_file_(dex_file),
-        can_throw_(can_throw),
-        finalizable_(finalizable),
-        entrypoint_(entrypoint) {
-    SetRawInputAt(0, cls);
-    SetRawInputAt(1, current_method);
-  }
-
-  uint16_t GetTypeIndex() const { return type_index_; }
-  const DexFile& GetDexFile() const { return dex_file_; }
-
-  // Calls runtime so needs an environment.
-  bool NeedsEnvironment() const OVERRIDE { return true; }
-
-  // It may throw when called on type that's not instantiable/accessible.
-  // It can throw OOME.
-  // TODO: distinguish between the two cases so we can for example allow allocation elimination.
-  bool CanThrow() const OVERRIDE { return can_throw_ || true; }
-
-  bool IsFinalizable() const { return finalizable_; }
-
-  bool CanBeNull() const OVERRIDE { return false; }
-
-  QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
-
-  void SetEntrypoint(QuickEntrypointEnum entrypoint) {
-    entrypoint_ = entrypoint;
-  }
-
-  DECLARE_INSTRUCTION(NewInstance);
-
- private:
-  const uint16_t type_index_;
-  const DexFile& dex_file_;
-  const bool can_throw_;
-  const bool finalizable_;
-  QuickEntrypointEnum entrypoint_;
-
-  DISALLOW_COPY_AND_ASSIGN(HNewInstance);
 };
 
 class HNeg : public HUnaryOperation {
@@ -5587,26 +5584,6 @@ class HMonitorOperation : public HTemplateInstruction<1> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HMonitorOperation);
-};
-
-/**
- * A HInstruction used as a marker for the replacement of new + <init>
- * of a String to a call to a StringFactory. Only baseline will see
- * the node at code generation, where it will be be treated as null.
- * When compiling non-baseline, `HFakeString` instructions are being removed
- * in the instruction simplifier.
- */
-class HFakeString : public HTemplateInstruction<0> {
- public:
-  explicit HFakeString(uint32_t dex_pc = kNoDexPc)
-      : HTemplateInstruction(SideEffects::None(), dex_pc) {}
-
-  Primitive::Type GetType() const OVERRIDE { return Primitive::kPrimNot; }
-
-  DECLARE_INSTRUCTION(FakeString);
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(HFakeString);
 };
 
 class MoveOperands : public ArenaObject<kArenaAllocMoveOperands> {
