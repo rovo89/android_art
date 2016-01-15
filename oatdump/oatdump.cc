@@ -395,6 +395,9 @@ class OatDumper {
     os << "MAGIC:\n";
     os << oat_header.GetMagic() << "\n\n";
 
+    os << "LOCATION:\n";
+    os << oat_file_.GetLocation() << "\n\n";
+
     os << "CHECKSUM:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetChecksum());
 
