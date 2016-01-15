@@ -674,9 +674,7 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
   size_t profile_info_size = RoundUp(
       sizeof(ProfilingInfo) + sizeof(InlineCache) * entries.size(),
       sizeof(void*));
-  ScopedThreadSuspension sts(self, kSuspended);
   MutexLock mu(self, lock_);
-  WaitForPotentialCollectionToComplete(self);
 
   // Check whether some other thread has concurrently created it.
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
