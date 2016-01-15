@@ -125,6 +125,14 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
     });
   }
 
+  void Clear() {
+    num_entries_ = 0;
+    for (size_t i = 0; i < num_buckets_; ++i) {
+      buckets_[i] = nullptr;
+    }
+    buckets_owned_.SetInitialBits(num_buckets_);
+  }
+
   // Updates this set by intersecting with instructions in a predecessor's set.
   void IntersectWith(ValueSet* predecessor) {
     if (IsEmpty()) {
@@ -191,14 +199,6 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
     return clone_iterator;
   }
 
-  void Clear() {
-    num_entries_ = 0;
-    for (size_t i = 0; i < num_buckets_; ++i) {
-      buckets_[i] = nullptr;
-    }
-    buckets_owned_.SetInitialBits(num_buckets_);
-  }
-
   // Iterates over buckets with impure instructions (even indices) and deletes
   // the ones on which 'cond' returns true.
   template<typename Functor>
@@ -261,11 +261,14 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
     }
   }
 
-  // Generates a hash code for an instruction. Pure instructions are put into
-  // odd buckets to speed up deletion.
+  // Generates a hash code for an instruction.
   size_t HashCode(HInstruction* instruction) const {
     size_t hash_code = instruction->ComputeHashCode();
-    if (instruction->GetSideEffects().HasDependencies()) {
+    // Pure instructions are put into odd buckets to speed up deletion. Note that in the
+    // case of irreducible loops, we don't put pure instructions in odd buckets, as we
+    // need to delete them when entering the loop.
+    if (instruction->GetSideEffects().HasDependencies() ||
+        instruction->GetBlock()->GetGraph()->HasIrreducibleLoops()) {
       return (hash_code << 1) | 0;
     } else {
       return (hash_code << 1) | 1;
@@ -360,8 +363,14 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     }
     if (!set->IsEmpty()) {
       if (block->IsLoopHeader()) {
-        DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
-        set->Kill(side_effects_.GetLoopEffects(block));
+        if (block->GetLoopInformation()->IsIrreducible()) {
+          // To satisfy our linear scan algorithm, no instruction should flow in an irreducible
+          // loop header.
+          set->Clear();
+        } else {
+          DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
+          set->Kill(side_effects_.GetLoopEffects(block));
+        }
       } else if (predecessors.size() > 1) {
         for (HBasicBlock* predecessor : predecessors) {
           set->IntersectWith(sets_[predecessor->GetBlockId()]);

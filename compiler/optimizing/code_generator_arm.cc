@@ -6225,8 +6225,16 @@ void CodeGeneratorARM::GenerateReadBarrierForRootSlow(HInstruction* instruction,
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method) {
-  if (desired_dispatch_info.code_ptr_location ==
-      HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative) {
+  HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
+  // We disable pc-relative load when there is an irreducible loop, as the optimization
+  // is incompatible with it.
+  if (GetGraph()->HasIrreducibleLoops() &&
+      (dispatch_info.method_load_kind ==
+          HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative)) {
+    dispatch_info.method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
+  }
+
+  if (dispatch_info.code_ptr_location == HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative) {
     const DexFile& outer_dex_file = GetGraph()->GetDexFile();
     if (&outer_dex_file != target_method.dex_file) {
       // Calls across dex files are more likely to exceed the available BL range,
@@ -6237,14 +6245,14 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOr
           ? HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup
           : HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
       return HInvokeStaticOrDirect::DispatchInfo {
-        desired_dispatch_info.method_load_kind,
+        dispatch_info.method_load_kind,
         code_ptr_location,
-        desired_dispatch_info.method_load_data,
+        dispatch_info.method_load_data,
         0u
       };
     }
   }
-  return desired_dispatch_info;
+  return dispatch_info;
 }
 
 Register CodeGeneratorARM::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,

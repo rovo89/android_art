@@ -117,7 +117,7 @@ inline bool IsRemoved(HInstruction* instruction) {
 inline void TransformToSsa(HGraph* graph) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScopeCollection handles(soa.Self());
-  EXPECT_EQ(graph->TryBuildingSsa(&handles), kBuildSsaSuccess);
+  EXPECT_EQ(graph->TryBuildingSsa(&handles), kAnalysisSuccess);
 }
 
 }  // namespace art

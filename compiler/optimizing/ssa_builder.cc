@@ -68,7 +68,7 @@ void SsaBuilder::FixNullConstantType() {
       // should be replaced with a null constant.
       // Both type propagation and redundant phi elimination ensure `int_operand`
       // can only be the 0 constant.
-      DCHECK(int_operand->IsIntConstant());
+      DCHECK(int_operand->IsIntConstant()) << int_operand->DebugName();
       DCHECK_EQ(0, int_operand->AsIntConstant()->GetValue());
       equality_instr->ReplaceInput(GetGraph()->GetNullConstant(), int_operand == right ? 1 : 0);
     }
@@ -422,7 +422,7 @@ bool SsaBuilder::FixAmbiguousArrayOps() {
   return true;
 }
 
-BuildSsaResult SsaBuilder::BuildSsa() {
+GraphAnalysisResult SsaBuilder::BuildSsa() {
   // 1) Visit in reverse post order. We need to have all predecessors of a block
   // visited (with the exception of loops) in order to create the right environment
   // for that block. For loops, we create phis whose inputs will be set in 2).
@@ -462,7 +462,7 @@ BuildSsaResult SsaBuilder::BuildSsa() {
   // computed the type of the array input, the ambiguity can be resolved and the
   // correct equivalents kept.
   if (!FixAmbiguousArrayOps()) {
-    return kBuildSsaFailAmbiguousArrayOp;
+    return kAnalysisFailAmbiguousArrayOp;
   }
 
   // 8) Mark dead phis. This will mark phis which are not used by instructions
@@ -497,7 +497,7 @@ BuildSsaResult SsaBuilder::BuildSsa() {
     }
   }
 
-  return kBuildSsaSuccess;
+  return kAnalysisSuccess;
 }
 
 ArenaVector<HInstruction*>* SsaBuilder::GetLocalsFor(HBasicBlock* block) {

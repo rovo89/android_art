@@ -145,6 +145,11 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
 };
 
 void PcRelativeFixups::Run() {
+  if (graph_->HasIrreducibleLoops()) {
+    // Do not run this optimization, as irreducible loops do not work with an instruction
+    // that can be live-in at the irreducible loop header.
+    return;
+  }
   PCRelativeHandlerVisitor visitor(graph_);
   visitor.VisitInsertionOrder();
   visitor.MoveBaseIfNeeded();

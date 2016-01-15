@@ -154,6 +154,7 @@ void SsaRedundantPhiElimination::Run() {
     cycle_worklist.push_back(phi);
     visited_phis_in_cycle.insert(phi->GetId());
     bool catch_phi_in_cycle = phi->IsCatchPhi();
+    bool irreducible_loop_phi_in_cycle = phi->IsIrreducibleLoopHeaderPhi();
 
     // First do a simple loop over inputs and check if they are all the same.
     for (size_t j = 0; j < phi->InputCount(); ++j) {
@@ -187,6 +188,7 @@ void SsaRedundantPhiElimination::Run() {
               cycle_worklist.push_back(input->AsPhi());
               visited_phis_in_cycle.insert(input->GetId());
               catch_phi_in_cycle |= input->AsPhi()->IsCatchPhi();
+              irreducible_loop_phi_in_cycle |= input->IsIrreducibleLoopHeaderPhi();
             } else {
               // Already visited, nothing to do.
             }
@@ -203,6 +205,15 @@ void SsaRedundantPhiElimination::Run() {
     }
 
     if (candidate == nullptr) {
+      continue;
+    }
+
+    if (irreducible_loop_phi_in_cycle && !candidate->IsConstant()) {
+      // For irreducible loops, we need to keep the phis to satisfy our linear scan
+      // algorithm.
+      // There is one exception for constants, as the type propagation requires redundant
+      // cyclic phis of a constant to be removed. This is ok for the linear scan as it
+      // has to deal with constants anyway, and they can trivially be rematerialized.
       continue;
     }
 

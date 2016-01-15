@@ -582,9 +582,22 @@ class LSEVisitor : public HGraphVisitor {
     DCHECK(block->IsLoopHeader());
     int block_id = block->GetBlockId();
     ArenaVector<HInstruction*>& heap_values = heap_values_for_[block_id];
+
+    // Don't eliminate loads in irreducible loops. This is safe for singletons, because
+    // they are always used by the non-eliminated loop-phi.
+    if (block->GetLoopInformation()->IsIrreducible()) {
+      if (kIsDebugBuild) {
+        for (size_t i = 0; i < heap_values.size(); i++) {
+          DCHECK_EQ(heap_values[i], kUnknownHeapValue);
+        }
+      }
+      return;
+    }
+
     HBasicBlock* pre_header = block->GetLoopInformation()->GetPreHeader();
     ArenaVector<HInstruction*>& pre_header_heap_values =
         heap_values_for_[pre_header->GetBlockId()];
+
     // Inherit the values from pre-header.
     for (size_t i = 0; i < heap_values.size(); i++) {
       heap_values[i] = pre_header_heap_values[i];
