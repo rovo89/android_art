@@ -114,16 +114,16 @@ class Writer {
     data_->insert(data_->end(), value, value + strlen(value) + 1);
   }
 
-  void PushData(const void* ptr, size_t num_bytes) {
-    const char* p = reinterpret_cast<const char*>(ptr);
-    data_->insert(data_->end(), p, p + num_bytes);
+  void PushData(const uint8_t* ptr, size_t num_bytes) {
+    data_->insert(data_->end(), ptr, ptr + num_bytes);
   }
 
-  template<typename Vector2>
-  void PushData(const Vector2& buffer) {
-    static_assert(std::is_same<typename std::add_const<typename Vector::value_type>::type,
-                               const uint8_t>::value, "Invalid value type");
-    data_->insert(data_->end(), buffer.begin(), buffer.end());
+  void PushData(const char* ptr, size_t num_bytes) {
+    data_->insert(data_->end(), ptr, ptr + num_bytes);
+  }
+
+  void PushData(const Vector* buffer) {
+    data_->insert(data_->end(), buffer->begin(), buffer->end());
   }
 
   void UpdateUint32(size_t offset, uint32_t value) {
