@@ -240,6 +240,7 @@ TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS := \
   961-default-iface-resolution-generated \
   964-default-iface-init-generated \
   968-default-partial-compile-generated \
+  969-iface-super \
   970-iface-super-resolution-generated \
   971-iface-super-partial-compile-generated
 
