@@ -546,10 +546,13 @@ TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS := \
 # Tests that should fail in the read barrier configuration with the Optimizing compiler.
 # 484: Baker's fast path based read barrier compiler instrumentation generates code containing
 #      more parallel moves on x86, thus some Checker assertions may fail.
+# 527: On ARM64, the read barrier instrumentation does not support the HArm64IntermediateAddress
+#      instruction yet (b/26601270).
 # 537: Expects an array copy to be intrinsified on x86-64, but calling-on-slowpath intrinsics are
 #      not yet handled in the read barrier configuration.
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
   484-checker-register-hints \
+  527-checker-array-access-split \
   537-checker-arraycopy
 
 # Tests that should fail in the read barrier configuration with JIT.

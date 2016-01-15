@@ -30,6 +30,15 @@ void InstructionSimplifierArm64Visitor::TryExtractArrayAccessAddress(HInstructio
                                                                      HInstruction* array,
                                                                      HInstruction* index,
                                                                      int access_size) {
+  if (kEmitCompilerReadBarrier) {
+    // The read barrier instrumentation does not support the
+    // HArm64IntermediateAddress instruction yet.
+    //
+    // TODO: Handle this case properly in the ARM64 code generator and
+    // re-enable this optimization; otherwise, remove this TODO.
+    // b/26601270
+    return;
+  }
   if (index->IsConstant() ||
       (index->IsBoundsCheck() && index->AsBoundsCheck()->GetIndex()->IsConstant())) {
     // When the index is a constant all the addressing can be fitted in the
