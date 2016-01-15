@@ -1386,7 +1386,6 @@ class Dex2Oat FINAL {
 
     // Handle and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = nullptr;
-    jobject class_path_class_loader = nullptr;
     Thread* self = Thread::Current();
 
     if (!boot_image_filename_.empty()) {
@@ -1401,12 +1400,10 @@ class Dex2Oat FINAL {
       key_value_store_->Put(OatHeader::kClassPathKey,
                             OatFile::EncodeDexFileDependencies(class_path_files));
 
-      class_path_class_loader = class_linker->CreatePathClassLoader(self,
-                                                                    class_path_files,
-                                                                    nullptr);
+      // Then the dex files we'll compile. Thus we'll resolve the class-path first.
+      class_path_files.insert(class_path_files.end(), dex_files_.begin(), dex_files_.end());
 
-      // Class path loader as parent so that we'll resolve there first.
-      class_loader = class_linker->CreatePathClassLoader(self, dex_files_, class_path_class_loader);
+      class_loader = class_linker->CreatePathClassLoader(self, class_path_files);
     }
 
     // Find the dex file we should not inline from.
