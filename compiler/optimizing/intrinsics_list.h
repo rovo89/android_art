@@ -28,12 +28,14 @@
   V(FloatIntBitsToFloat, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerReverse, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerReverseBytes, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(IntegerBitCount, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerNumberOfLeadingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerNumberOfTrailingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerRotateRight, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerRotateLeft, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongReverse, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongReverseBytes, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(LongBitCount, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongNumberOfLeadingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongNumberOfTrailingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongRotateRight, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \

@@ -176,6 +176,16 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       }
 
     // Misc data processing.
+    case kIntrinsicBitCount:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerBitCount;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongBitCount;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
     case kIntrinsicNumberOfLeadingZeros:
       switch (GetType(method.d.data, true)) {
         case Primitive::kPrimInt:

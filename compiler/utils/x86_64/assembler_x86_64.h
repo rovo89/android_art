@@ -647,6 +647,11 @@ class X86_64Assembler FINAL : public Assembler {
   void bsrq(CpuRegister dst, CpuRegister src);
   void bsrq(CpuRegister dst, const Address& src);
 
+  void popcntl(CpuRegister dst, CpuRegister src);
+  void popcntl(CpuRegister dst, const Address& src);
+  void popcntq(CpuRegister dst, CpuRegister src);
+  void popcntq(CpuRegister dst, const Address& src);
+
   void rorl(CpuRegister reg, const Immediate& imm);
   void rorl(CpuRegister operand, CpuRegister shifter);
   void roll(CpuRegister reg, const Immediate& imm);

@@ -27,7 +27,7 @@ TEST(X86_64InstructionSetFeaturesTest, X86Features) {
   ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_64_features->GetInstructionSet(), kX86_64);
   EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
-  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add",
+  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add,-popcnt",
                x86_64_features->GetFeatureString().c_str());
   EXPECT_EQ(x86_64_features->AsBitmap(), 1U);
 }
