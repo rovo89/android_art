@@ -93,7 +93,7 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
       // in the heap causing corruption since this field would get swept.
       if (collector_->IsMarkedHeapReference(referent_addr)) {
         if (!preserving_references_ ||
-           (LIKELY(!reference->IsFinalizerReferenceInstance()) && !reference->IsEnqueued())) {
+           (LIKELY(!reference->IsFinalizerReferenceInstance()) && reference->IsUnprocessed())) {
           return referent_addr->AsMirrorPtr();
         }
       }
@@ -275,7 +275,7 @@ bool ReferenceProcessor::MakeCircularListIfUnenqueued(mirror::FinalizerReference
   // GC queues, but since we hold the lock finalizer_reference_queue_ lock it also prevents this
   // race.
   MutexLock mu2(self, *Locks::reference_queue_finalizer_references_lock_);
-  if (!reference->IsEnqueued()) {
+  if (reference->IsUnprocessed()) {
     CHECK(reference->IsFinalizerReferenceInstance());
     reference->SetPendingNext(reference);
     return true;
