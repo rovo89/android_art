@@ -64,9 +64,15 @@
 
 .end method
 
-# Test deoptimization between String's allocation and initialization.
+# Test deoptimization between String's allocation and initialization. When not
+# compiling --debuggable, the NewInstance will be optimized out.
 
 ## CHECK-START: int TestCase.deoptimizeNewInstance(int[], byte[]) register (after)
+## CHECK:         <<Null:l\d+>>   NullConstant
+## CHECK:                         Deoptimize env:[[<<Null>>,{{.*]]}}
+## CHECK:                         InvokeStaticOrDirect method_name:java.lang.String.<init>
+
+## CHECK-START-DEBUGGABLE: int TestCase.deoptimizeNewInstance(int[], byte[]) register (after)
 ## CHECK:         <<String:l\d+>> NewInstance
 ## CHECK:                         Deoptimize env:[[<<String>>,{{.*]]}}
 ## CHECK:                         InvokeStaticOrDirect method_name:java.lang.String.<init>
@@ -96,5 +102,25 @@
    add-int/2addr v2, v1
 
    return v2
+
+.end method
+
+# Test that a redundant NewInstance is removed if not used and not compiling
+# --debuggable.
+
+## CHECK-START: java.lang.String TestCase.removeNewInstance(byte[]) register (after)
+## CHECK-NOT:     NewInstance
+## CHECK-NOT:     LoadClass
+
+## CHECK-START-DEBUGGABLE: java.lang.String TestCase.removeNewInstance(byte[]) register (after)
+## CHECK:         NewInstance
+
+.method public static removeNewInstance([B)Ljava/lang/String;
+   .registers 5
+
+   new-instance v0, Ljava/lang/String;
+   const-string v1, "UTF8"
+   invoke-direct {v0, p0, v1}, Ljava/lang/String;-><init>([BLjava/lang/String;)V
+   return-object v0
 
 .end method
