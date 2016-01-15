@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+// Stored as a complex annotation Calendars(Calendar,Calendar)
+// followed by a Calendar in the binary.
+// In other words { Calendars([C,C]), C }
+//
+// Note that trying to do {C,Calendars,C} or similar
+// is illegal by the JLS.
+@Calendar(dayOfMonth="afirst")
+@Calendars ({
+  @Calendar(dayOfMonth="zsecond"),
+  @Calendar(dayOfMonth="athird", hour=23)
+})
+// @Calendar(dayOfMonth="zlast")  // Leave for future ordering test
+public class UserComplex {
+
 }
