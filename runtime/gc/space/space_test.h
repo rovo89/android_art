@@ -33,12 +33,10 @@ namespace art {
 namespace gc {
 namespace space {
 
-class SpaceTest : public CommonRuntimeTest {
+template <class Super>
+class SpaceTest : public Super {
  public:
-  jobject byte_array_class_;
-
-  SpaceTest() : byte_array_class_(nullptr) {
-  }
+  jobject byte_array_class_ = nullptr;
 
   void AddSpace(ContinuousSpace* space, bool revoke = true) {
     Heap* heap = Runtime::Current()->GetHeap();
@@ -62,13 +60,19 @@ class SpaceTest : public CommonRuntimeTest {
     return reinterpret_cast<mirror::Class*>(self->DecodeJObject(byte_array_class_));
   }
 
-  mirror::Object* Alloc(space::MallocSpace* alloc_space, Thread* self, size_t bytes,
-                        size_t* bytes_allocated, size_t* usable_size,
+  mirror::Object* Alloc(space::MallocSpace* alloc_space,
+                        Thread* self,
+                        size_t bytes,
+                        size_t* bytes_allocated,
+                        size_t* usable_size,
                         size_t* bytes_tl_bulk_allocated)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> byte_array_class(hs.NewHandle(GetByteArrayClass(self)));
-    mirror::Object* obj = alloc_space->Alloc(self, bytes, bytes_allocated, usable_size,
+    mirror::Object* obj = alloc_space->Alloc(self,
+                                             bytes,
+                                             bytes_allocated,
+                                             usable_size,
                                              bytes_tl_bulk_allocated);
     if (obj != nullptr) {
       InstallClass(obj, byte_array_class.Get(), bytes);
@@ -76,8 +80,11 @@ class SpaceTest : public CommonRuntimeTest {
     return obj;
   }
 
-  mirror::Object* AllocWithGrowth(space::MallocSpace* alloc_space, Thread* self, size_t bytes,
-                                  size_t* bytes_allocated, size_t* usable_size,
+  mirror::Object* AllocWithGrowth(space::MallocSpace* alloc_space,
+                                  Thread* self,
+                                  size_t bytes,
+                                  size_t* bytes_allocated,
+                                  size_t* usable_size,
                                   size_t* bytes_tl_bulk_allocated)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self);
@@ -117,10 +124,6 @@ class SpaceTest : public CommonRuntimeTest {
 
   typedef MallocSpace* (*CreateSpaceFn)(const std::string& name, size_t initial_size, size_t growth_limit,
                                         size_t capacity, uint8_t* requested_begin);
-  void InitTestBody(CreateSpaceFn create_space);
-  void ZygoteSpaceTestBody(CreateSpaceFn create_space);
-  void AllocAndFreeTestBody(CreateSpaceFn create_space);
-  void AllocAndFreeListTestBody(CreateSpaceFn create_space);
 
   void SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t object_size,
                                            int round, size_t growth_limit);
@@ -132,278 +135,11 @@ static inline size_t test_rand(size_t* seed) {
   return *seed;
 }
 
-void SpaceTest::InitTestBody(CreateSpaceFn create_space) {
-  // This will lead to error messages in the log.
-  ScopedLogSeverity sls(LogSeverity::FATAL);
-
-  {
-    // Init < max == growth
-    std::unique_ptr<Space> space(create_space("test", 16 * MB, 32 * MB, 32 * MB, nullptr));
-    EXPECT_TRUE(space.get() != nullptr);
-  }
-  {
-    // Init == max == growth
-    std::unique_ptr<Space> space(create_space("test", 16 * MB, 16 * MB, 16 * MB, nullptr));
-    EXPECT_TRUE(space.get() != nullptr);
-  }
-  {
-    // Init > max == growth
-    std::unique_ptr<Space> space(create_space("test", 32 * MB, 16 * MB, 16 * MB, nullptr));
-    EXPECT_TRUE(space.get() == nullptr);
-  }
-  {
-    // Growth == init < max
-    std::unique_ptr<Space> space(create_space("test", 16 * MB, 16 * MB, 32 * MB, nullptr));
-    EXPECT_TRUE(space.get() != nullptr);
-  }
-  {
-    // Growth < init < max
-    std::unique_ptr<Space> space(create_space("test", 16 * MB, 8 * MB, 32 * MB, nullptr));
-    EXPECT_TRUE(space.get() == nullptr);
-  }
-  {
-    // Init < growth < max
-    std::unique_ptr<Space> space(create_space("test", 8 * MB, 16 * MB, 32 * MB, nullptr));
-    EXPECT_TRUE(space.get() != nullptr);
-  }
-  {
-    // Init < max < growth
-    std::unique_ptr<Space> space(create_space("test", 8 * MB, 32 * MB, 16 * MB, nullptr));
-    EXPECT_TRUE(space.get() == nullptr);
-  }
-}
-
-// TODO: This test is not very good, we should improve it.
-// The test should do more allocations before the creation of the ZygoteSpace, and then do
-// allocations after the ZygoteSpace is created. The test should also do some GCs to ensure that
-// the GC works with the ZygoteSpace.
-void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
-  size_t dummy;
-  MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, nullptr));
-  ASSERT_TRUE(space != nullptr);
-
-  // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddSpace(space);
-  Thread* self = Thread::Current();
-  ScopedObjectAccess soa(self);
-
-  // Succeeds, fits without adjusting the footprint limit.
-  size_t ptr1_bytes_allocated, ptr1_usable_size, ptr1_bytes_tl_bulk_allocated;
-  StackHandleScope<3> hs(soa.Self());
-  MutableHandle<mirror::Object> ptr1(
-      hs.NewHandle(Alloc(space, self, 1 * MB, &ptr1_bytes_allocated, &ptr1_usable_size,
-                         &ptr1_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr1.Get() != nullptr);
-  EXPECT_LE(1U * MB, ptr1_bytes_allocated);
-  EXPECT_LE(1U * MB, ptr1_usable_size);
-  EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
-  EXPECT_EQ(ptr1_bytes_tl_bulk_allocated, ptr1_bytes_allocated);
-
-  // Fails, requires a higher footprint limit.
-  mirror::Object* ptr2 = Alloc(space, self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr2 == nullptr);
-
-  // Succeeds, adjusts the footprint.
-  size_t ptr3_bytes_allocated, ptr3_usable_size, ptr3_bytes_tl_bulk_allocated;
-  MutableHandle<mirror::Object> ptr3(
-      hs.NewHandle(AllocWithGrowth(space, self, 8 * MB, &ptr3_bytes_allocated, &ptr3_usable_size,
-                                   &ptr3_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr3.Get() != nullptr);
-  EXPECT_LE(8U * MB, ptr3_bytes_allocated);
-  EXPECT_LE(8U * MB, ptr3_usable_size);
-  EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
-  EXPECT_EQ(ptr3_bytes_tl_bulk_allocated, ptr3_bytes_allocated);
-
-  // Fails, requires a higher footprint limit.
-  mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr4 == nullptr);
-
-  // Also fails, requires a higher allowed footprint.
-  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr5 == nullptr);
-
-  // Release some memory.
-  size_t free3 = space->AllocationSize(ptr3.Get(), nullptr);
-  EXPECT_EQ(free3, ptr3_bytes_allocated);
-  EXPECT_EQ(free3, space->Free(self, ptr3.Assign(nullptr)));
-  EXPECT_LE(8U * MB, free3);
-
-  // Succeeds, now that memory has been freed.
-  size_t ptr6_bytes_allocated, ptr6_usable_size, ptr6_bytes_tl_bulk_allocated;
-  Handle<mirror::Object> ptr6(
-      hs.NewHandle(AllocWithGrowth(space, self, 9 * MB, &ptr6_bytes_allocated, &ptr6_usable_size,
-                                   &ptr6_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr6.Get() != nullptr);
-  EXPECT_LE(9U * MB, ptr6_bytes_allocated);
-  EXPECT_LE(9U * MB, ptr6_usable_size);
-  EXPECT_LE(ptr6_usable_size, ptr6_bytes_allocated);
-  EXPECT_EQ(ptr6_bytes_tl_bulk_allocated, ptr6_bytes_allocated);
-
-  // Final clean up.
-  size_t free1 = space->AllocationSize(ptr1.Get(), nullptr);
-  space->Free(self, ptr1.Assign(nullptr));
-  EXPECT_LE(1U * MB, free1);
-
-  // Make sure that the zygote space isn't directly at the start of the space.
-  EXPECT_TRUE(space->Alloc(self, 1U * MB, &dummy, nullptr, &dummy) != nullptr);
-
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  space::Space* old_space = space;
-  heap->RemoveSpace(old_space);
-  heap->RevokeAllThreadLocalBuffers();
-  space::ZygoteSpace* zygote_space = space->CreateZygoteSpace("alloc space",
-                                                              heap->IsLowMemoryMode(),
-                                                              &space);
-  delete old_space;
-  // Add the zygote space.
-  AddSpace(zygote_space, false);
-
-  // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddSpace(space, false);
-
-  // Succeeds, fits without adjusting the footprint limit.
-  ptr1.Assign(Alloc(space, self, 1 * MB, &ptr1_bytes_allocated, &ptr1_usable_size,
-                    &ptr1_bytes_tl_bulk_allocated));
-  EXPECT_TRUE(ptr1.Get() != nullptr);
-  EXPECT_LE(1U * MB, ptr1_bytes_allocated);
-  EXPECT_LE(1U * MB, ptr1_usable_size);
-  EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
-  EXPECT_EQ(ptr1_bytes_tl_bulk_allocated, ptr1_bytes_allocated);
-
-  // Fails, requires a higher footprint limit.
-  ptr2 = Alloc(space, self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr2 == nullptr);
-
-  // Succeeds, adjusts the footprint.
-  ptr3.Assign(AllocWithGrowth(space, self, 2 * MB, &ptr3_bytes_allocated, &ptr3_usable_size,
-                              &ptr3_bytes_tl_bulk_allocated));
-  EXPECT_TRUE(ptr3.Get() != nullptr);
-  EXPECT_LE(2U * MB, ptr3_bytes_allocated);
-  EXPECT_LE(2U * MB, ptr3_usable_size);
-  EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
-  EXPECT_EQ(ptr3_bytes_tl_bulk_allocated, ptr3_bytes_allocated);
-  space->Free(self, ptr3.Assign(nullptr));
-
-  // Final clean up.
-  free1 = space->AllocationSize(ptr1.Get(), nullptr);
-  space->Free(self, ptr1.Assign(nullptr));
-  EXPECT_LE(1U * MB, free1);
-}
-
-void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
-  size_t dummy = 0;
-  MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, nullptr));
-  ASSERT_TRUE(space != nullptr);
-  Thread* self = Thread::Current();
-  ScopedObjectAccess soa(self);
-
-  // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddSpace(space);
-
-  // Succeeds, fits without adjusting the footprint limit.
-  size_t ptr1_bytes_allocated, ptr1_usable_size, ptr1_bytes_tl_bulk_allocated;
-  StackHandleScope<3> hs(soa.Self());
-  MutableHandle<mirror::Object> ptr1(
-      hs.NewHandle(Alloc(space, self, 1 * MB, &ptr1_bytes_allocated, &ptr1_usable_size,
-                         &ptr1_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr1.Get() != nullptr);
-  EXPECT_LE(1U * MB, ptr1_bytes_allocated);
-  EXPECT_LE(1U * MB, ptr1_usable_size);
-  EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
-  EXPECT_EQ(ptr1_bytes_tl_bulk_allocated, ptr1_bytes_allocated);
-
-  // Fails, requires a higher footprint limit.
-  mirror::Object* ptr2 = Alloc(space, self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr2 == nullptr);
-
-  // Succeeds, adjusts the footprint.
-  size_t ptr3_bytes_allocated, ptr3_usable_size, ptr3_bytes_tl_bulk_allocated;
-  MutableHandle<mirror::Object> ptr3(
-      hs.NewHandle(AllocWithGrowth(space, self, 8 * MB, &ptr3_bytes_allocated, &ptr3_usable_size,
-                                   &ptr3_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr3.Get() != nullptr);
-  EXPECT_LE(8U * MB, ptr3_bytes_allocated);
-  EXPECT_LE(8U * MB, ptr3_usable_size);
-  EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
-  EXPECT_EQ(ptr3_bytes_tl_bulk_allocated, ptr3_bytes_allocated);
-
-  // Fails, requires a higher footprint limit.
-  mirror::Object* ptr4 = Alloc(space, self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr4 == nullptr);
-
-  // Also fails, requires a higher allowed footprint.
-  mirror::Object* ptr5 = AllocWithGrowth(space, self, 8 * MB, &dummy, nullptr, &dummy);
-  EXPECT_TRUE(ptr5 == nullptr);
-
-  // Release some memory.
-  size_t free3 = space->AllocationSize(ptr3.Get(), nullptr);
-  EXPECT_EQ(free3, ptr3_bytes_allocated);
-  space->Free(self, ptr3.Assign(nullptr));
-  EXPECT_LE(8U * MB, free3);
-
-  // Succeeds, now that memory has been freed.
-  size_t ptr6_bytes_allocated, ptr6_usable_size, ptr6_bytes_tl_bulk_allocated;
-  Handle<mirror::Object> ptr6(
-      hs.NewHandle(AllocWithGrowth(space, self, 9 * MB, &ptr6_bytes_allocated, &ptr6_usable_size,
-                                   &ptr6_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr6.Get() != nullptr);
-  EXPECT_LE(9U * MB, ptr6_bytes_allocated);
-  EXPECT_LE(9U * MB, ptr6_usable_size);
-  EXPECT_LE(ptr6_usable_size, ptr6_bytes_allocated);
-  EXPECT_EQ(ptr6_bytes_tl_bulk_allocated, ptr6_bytes_allocated);
-
-  // Final clean up.
-  size_t free1 = space->AllocationSize(ptr1.Get(), nullptr);
-  space->Free(self, ptr1.Assign(nullptr));
-  EXPECT_LE(1U * MB, free1);
-}
-
-void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
-  MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, nullptr));
-  ASSERT_TRUE(space != nullptr);
-
-  // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddSpace(space);
-  Thread* self = Thread::Current();
-  ScopedObjectAccess soa(self);
-
-  // Succeeds, fits without adjusting the max allowed footprint.
-  mirror::Object* lots_of_objects[1024];
-  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    size_t allocation_size, usable_size, bytes_tl_bulk_allocated;
-    size_t size_of_zero_length_byte_array = SizeOfZeroLengthByteArray();
-    lots_of_objects[i] = Alloc(space, self, size_of_zero_length_byte_array, &allocation_size,
-                               &usable_size, &bytes_tl_bulk_allocated);
-    EXPECT_TRUE(lots_of_objects[i] != nullptr);
-    size_t computed_usable_size;
-    EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i], &computed_usable_size));
-    EXPECT_EQ(usable_size, computed_usable_size);
-    EXPECT_TRUE(bytes_tl_bulk_allocated == 0 ||
-                bytes_tl_bulk_allocated >= allocation_size);
-  }
-
-  // Release memory.
-  space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
-
-  // Succeeds, fits by adjusting the max allowed footprint.
-  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    size_t allocation_size, usable_size, bytes_tl_bulk_allocated;
-    lots_of_objects[i] = AllocWithGrowth(space, self, 1024, &allocation_size, &usable_size,
-                                         &bytes_tl_bulk_allocated);
-    EXPECT_TRUE(lots_of_objects[i] != nullptr);
-    size_t computed_usable_size;
-    EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i], &computed_usable_size));
-    EXPECT_EQ(usable_size, computed_usable_size);
-    EXPECT_TRUE(bytes_tl_bulk_allocated == 0 ||
-                bytes_tl_bulk_allocated >= allocation_size);
-  }
-
-  // Release memory.
-  space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
-}
-
-void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t object_size,
-                                                    int round, size_t growth_limit) {
+template <class Super>
+void SpaceTest<Super>::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space,
+                                                           intptr_t object_size,
+                                                           int round,
+                                                           size_t growth_limit) {
   if (((object_size > 0 && object_size >= static_cast<intptr_t>(growth_limit))) ||
       ((object_size < 0 && -object_size >= static_cast<intptr_t>(growth_limit)))) {
     // No allocation can succeed
@@ -576,7 +312,9 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
   EXPECT_LE(space->Size(), growth_limit);
 }
 
-void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, CreateSpaceFn create_space) {
+template <class Super>
+void SpaceTest<Super>::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size,
+                                                             CreateSpaceFn create_space) {
   if (object_size < SizeOfZeroLengthByteArray()) {
     // Too small for the object layout/model.
     return;
@@ -614,25 +352,8 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, Create
     SizeFootPrintGrowthLimitAndTrimDriver(-size, spaceFn); \
   }
 
-#define TEST_SPACE_CREATE_FN_BASE(spaceName, spaceFn) \
-  class spaceName##BaseTest : public SpaceTest { \
-  }; \
-  \
-  TEST_F(spaceName##BaseTest, Init) { \
-    InitTestBody(spaceFn); \
-  } \
-  TEST_F(spaceName##BaseTest, ZygoteSpace) { \
-    ZygoteSpaceTestBody(spaceFn); \
-  } \
-  TEST_F(spaceName##BaseTest, AllocAndFree) { \
-    AllocAndFreeTestBody(spaceFn); \
-  } \
-  TEST_F(spaceName##BaseTest, AllocAndFreeList) { \
-    AllocAndFreeListTestBody(spaceFn); \
-  }
-
 #define TEST_SPACE_CREATE_FN_STATIC(spaceName, spaceFn) \
-  class spaceName##StaticTest : public SpaceTest { \
+  class spaceName##StaticTest : public SpaceTest<CommonRuntimeTest> { \
   }; \
   \
   TEST_SizeFootPrintGrowthLimitAndTrimStatic(12B, spaceName, spaceFn, 12) \
@@ -648,7 +369,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, Create
   TEST_SizeFootPrintGrowthLimitAndTrimStatic(8MB, spaceName, spaceFn, 8 * MB)
 
 #define TEST_SPACE_CREATE_FN_RANDOM(spaceName, spaceFn) \
-  class spaceName##RandomTest : public SpaceTest { \
+  class spaceName##RandomTest : public SpaceTest<CommonRuntimeTest> { \
   }; \
   \
   TEST_SizeFootPrintGrowthLimitAndTrimRandom(16B, spaceName, spaceFn, 16) \

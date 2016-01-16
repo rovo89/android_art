@@ -22,7 +22,7 @@ namespace art {
 namespace gc {
 namespace space {
 
-class LargeObjectSpaceTest : public SpaceTest {
+class LargeObjectSpaceTest : public SpaceTest<CommonRuntimeTest> {
  public:
   void LargeObjectTest();
 
