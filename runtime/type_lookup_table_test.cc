@@ -25,10 +25,10 @@
 
 namespace art {
 
-class TypeLookupTableTest : public CommonRuntimeTest {
- public:
-  size_t kDexNoIndex = DexFile::kDexNoIndex;  // Make copy to prevent linking errors.
-};
+static const size_t kDexNoIndex = DexFile::kDexNoIndex;  // Make copy to prevent linking errors.
+
+using DescriptorClassDefIdxPair = std::pair<const char*, uint32_t>;
+class TypeLookupTableTest : public CommonRuntimeTestWithParam<DescriptorClassDefIdxPair> {};
 
 TEST_F(TypeLookupTableTest, CreateLookupTable) {
   ScopedObjectAccess soa(Thread::Current());
@@ -39,48 +39,28 @@ TEST_F(TypeLookupTableTest, CreateLookupTable) {
   ASSERT_EQ(32U, table->RawDataLength());
 }
 
-TEST_F(TypeLookupTableTest, FindNonExistingClassWithoutCollisions) {
+TEST_P(TypeLookupTableTest, Find) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<const DexFile> dex_file(OpenTestDexFile("Lookup"));
   std::unique_ptr<TypeLookupTable> table(TypeLookupTable::Create(*dex_file));
   ASSERT_NE(nullptr, table.get());
-  const char* descriptor = "LBA;";
+  auto pair = GetParam();
+  const char* descriptor = pair.first;
   size_t hash = ComputeModifiedUtf8Hash(descriptor);
   uint32_t class_def_idx = table->Lookup(descriptor, hash);
-  ASSERT_EQ(kDexNoIndex, class_def_idx);
+  ASSERT_EQ(pair.second, class_def_idx);
 }
 
-TEST_F(TypeLookupTableTest, FindNonExistingClassWithCollisions) {
-  ScopedObjectAccess soa(Thread::Current());
-  std::unique_ptr<const DexFile> dex_file(OpenTestDexFile("Lookup"));
-  std::unique_ptr<TypeLookupTable> table(TypeLookupTable::Create(*dex_file));
-  ASSERT_NE(nullptr, table.get());
-  const char* descriptor = "LDA;";
-  size_t hash = ComputeModifiedUtf8Hash(descriptor);
-  uint32_t class_def_idx = table->Lookup(descriptor, hash);
-  ASSERT_EQ(kDexNoIndex, class_def_idx);
-}
-
-TEST_F(TypeLookupTableTest, FindClassNoCollisions) {
-  ScopedObjectAccess soa(Thread::Current());
-  std::unique_ptr<const DexFile> dex_file(OpenTestDexFile("Lookup"));
-  std::unique_ptr<TypeLookupTable> table(TypeLookupTable::Create(*dex_file));
-  ASSERT_NE(nullptr, table.get());
-  const char* descriptor = "LC;";
-  size_t hash = ComputeModifiedUtf8Hash(descriptor);
-  uint32_t class_def_idx = table->Lookup(descriptor, hash);
-  ASSERT_EQ(2U, class_def_idx);
-}
-
-TEST_F(TypeLookupTableTest, FindClassWithCollisions) {
-  ScopedObjectAccess soa(Thread::Current());
-  std::unique_ptr<const DexFile> dex_file(OpenTestDexFile("Lookup"));
-  std::unique_ptr<TypeLookupTable> table(TypeLookupTable::Create(*dex_file));
-  ASSERT_NE(nullptr, table.get());
-  const char* descriptor = "LAB;";
-  size_t hash = ComputeModifiedUtf8Hash(descriptor);
-  uint32_t class_def_idx = table->Lookup(descriptor, hash);
-  ASSERT_EQ(1U, class_def_idx);
-}
-
+INSTANTIATE_TEST_CASE_P(FindNonExistingClassWithoutCollisions,
+                        TypeLookupTableTest,
+                        testing::Values(DescriptorClassDefIdxPair("LAB;", 1U)));
+INSTANTIATE_TEST_CASE_P(FindNonExistingClassWithCollisions,
+                        TypeLookupTableTest,
+                        testing::Values(DescriptorClassDefIdxPair("LDA;", kDexNoIndex)));
+INSTANTIATE_TEST_CASE_P(FindClassNoCollisions,
+                        TypeLookupTableTest,
+                        testing::Values(DescriptorClassDefIdxPair("LC;", 2U)));
+INSTANTIATE_TEST_CASE_P(FindClassWithCollisions,
+                        TypeLookupTableTest,
+                        testing::Values(DescriptorClassDefIdxPair("LAB;", 1U)));
 }  // namespace art

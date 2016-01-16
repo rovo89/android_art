@@ -64,8 +64,10 @@ class ScratchFile {
   std::unique_ptr<File> file_;
 };
 
-class CommonRuntimeTest : public testing::Test {
+class CommonRuntimeTestImpl {
  public:
+  CommonRuntimeTestImpl();
+  virtual ~CommonRuntimeTestImpl();
   static void SetUpAndroidRoot();
 
   // Note: setting up ANDROID_DATA may create a temporary directory. If this is used in a
@@ -74,19 +76,25 @@ class CommonRuntimeTest : public testing::Test {
 
   static void TearDownAndroidData(const std::string& android_data, bool fail_on_error);
 
-  CommonRuntimeTest();
-  ~CommonRuntimeTest();
-
   // Gets the paths of the libcore dex files.
   static std::vector<std::string> GetLibCoreDexFileNames();
 
   // Returns bin directory which contains host's prebuild tools.
   static std::string GetAndroidHostToolsDir();
 
-  // Returns bin directory which contains target's prebuild tools.
+  // Returns bin directory wahich contains target's prebuild tools.
   static std::string GetAndroidTargetToolsDir(InstructionSet isa);
 
  protected:
+  // Allow subclases such as CommonCompilerTest to add extra options.
+  virtual void SetUpRuntimeOptions(RuntimeOptions* options ATTRIBUTE_UNUSED) {}
+
+  // Called before the runtime is created.
+  virtual void PreRuntimeCreate() {}
+
+  // Called after the runtime is created.
+  virtual void PostRuntimeCreate() {}
+
   static bool IsHost() {
     return !kIsTargetBuild;
   }
@@ -99,24 +107,7 @@ class CommonRuntimeTest : public testing::Test {
 
   std::unique_ptr<const DexFile> LoadExpectSingleDexFile(const char* location);
 
-  virtual void SetUp();
-
-  // Allow subclases such as CommonCompilerTest to add extra options.
-  virtual void SetUpRuntimeOptions(RuntimeOptions* options ATTRIBUTE_UNUSED) {}
-
   void ClearDirectory(const char* dirpath);
-
-  virtual void TearDown();
-
-  // Called before the runtime is created.
-  virtual void PreRuntimeCreate() {}
-
-  // Called after the runtime is created.
-  virtual void PostRuntimeCreate() {}
-
-  // Called to finish up runtime creation and filling test fields. By default runs root
-  // initializers, initialize well-known classes, and creates the heap thread pool.
-  virtual void FinalizeSetup();
 
   std::string GetTestAndroidRoot();
 
@@ -150,11 +141,44 @@ class CommonRuntimeTest : public testing::Test {
 
   std::unique_ptr<CompilerCallbacks> callbacks_;
 
+  void SetUp();
+
+  void TearDown();
+
+  void FinalizeSetup();
+
  private:
   static std::string GetCoreFileLocation(const char* suffix);
 
   std::vector<std::unique_ptr<const DexFile>> loaded_dex_files_;
 };
+
+template <typename TestType>
+class CommonRuntimeTestBase : public TestType, public CommonRuntimeTestImpl {
+ public:
+  CommonRuntimeTestBase() {}
+  virtual ~CommonRuntimeTestBase() {}
+
+ protected:
+  virtual void SetUp() {
+    CommonRuntimeTestImpl::SetUp();
+  }
+
+  virtual void TearDown() {
+    CommonRuntimeTestImpl::TearDown();
+  }
+
+  // Called to finish up runtime creation and filling test fields. By default runs root
+  // initializers, initialize well-known classes, and creates the heap thread pool.
+  virtual void FinalizeSetup() {
+    CommonRuntimeTestImpl::FinalizeSetup();
+  }
+};
+
+using CommonRuntimeTest = CommonRuntimeTestBase<testing::Test>;
+
+template <typename Param>
+using CommonRuntimeTestWithParam = CommonRuntimeTestBase<testing::TestWithParam<Param>>;
 
 // Sets a CheckJni abort hook to catch failures. Note that this will cause CheckJNI to carry on
 // rather than aborting, so be careful!
