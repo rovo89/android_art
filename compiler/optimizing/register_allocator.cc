@@ -72,8 +72,7 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
   float_spill_slots_.reserve(kDefaultNumberOfSpillSlots);
   double_spill_slots_.reserve(kDefaultNumberOfSpillSlots);
 
-  static constexpr bool kIsBaseline = false;
-  codegen->SetupBlockedRegisters(kIsBaseline);
+  codegen->SetupBlockedRegisters();
   physical_core_register_intervals_.resize(codegen->GetNumberOfCoreRegisters(), nullptr);
   physical_fp_register_intervals_.resize(codegen->GetNumberOfFloatingPointRegisters(), nullptr);
   // Always reserve for the current method and the graph's max out registers.

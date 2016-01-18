@@ -1112,7 +1112,7 @@ void CodeGeneratorARM64::MarkGCCard(Register object, Register value, bool value_
   }
 }
 
-void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline) const {
+void CodeGeneratorARM64::SetupBlockedRegisters() const {
   // Blocked core registers:
   //      lr        : Runtime reserved.
   //      tr        : Runtime reserved.
@@ -1133,37 +1133,14 @@ void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline) const {
     blocked_fpu_registers_[reserved_fp_registers.PopLowestIndex().code()] = true;
   }
 
-  if (is_baseline) {
-    CPURegList reserved_core_baseline_registers = callee_saved_core_registers;
-    while (!reserved_core_baseline_registers.IsEmpty()) {
-      blocked_core_registers_[reserved_core_baseline_registers.PopLowestIndex().code()] = true;
-    }
-  }
-
-  if (is_baseline || GetGraph()->IsDebuggable()) {
+  if (GetGraph()->IsDebuggable()) {
     // Stubs do not save callee-save floating point registers. If the graph
     // is debuggable, we need to deal with these registers differently. For
     // now, just block them.
-    CPURegList reserved_fp_baseline_registers = callee_saved_fp_registers;
-    while (!reserved_fp_baseline_registers.IsEmpty()) {
-      blocked_fpu_registers_[reserved_fp_baseline_registers.PopLowestIndex().code()] = true;
+    CPURegList reserved_fp_registers_debuggable = callee_saved_fp_registers;
+    while (!reserved_fp_registers_debuggable.IsEmpty()) {
+      blocked_fpu_registers_[reserved_fp_registers_debuggable.PopLowestIndex().code()] = true;
     }
-  }
-}
-
-Location CodeGeneratorARM64::AllocateFreeRegister(Primitive::Type type) const {
-  if (type == Primitive::kPrimVoid) {
-    LOG(FATAL) << "Unreachable type " << type;
-  }
-
-  if (Primitive::IsFloatingPointType(type)) {
-    ssize_t reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfAllocatableFPRegisters);
-    DCHECK_NE(reg, -1);
-    return Location::FpuRegisterLocation(reg);
-  } else {
-    ssize_t reg = FindFreeEntry(blocked_core_registers_, kNumberOfAllocatableRegisters);
-    DCHECK_NE(reg, -1);
-    return Location::RegisterLocation(reg);
   }
 }
 
@@ -3464,9 +3441,9 @@ void LocationsBuilderARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
   if (intrinsic.TryDispatch(invoke)) {
@@ -3714,9 +3691,9 @@ vixl::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateMethodCodeLiteral(
 
 
 void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;

@@ -979,7 +979,7 @@ void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object, GpuRegister value) {
   __ Bind(&done);
 }
 
-void CodeGeneratorMIPS64::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) const {
+void CodeGeneratorMIPS64::SetupBlockedRegisters() const {
   // ZERO, K0, K1, GP, SP, RA are always reserved and can't be allocated.
   blocked_core_registers_[ZERO] = true;
   blocked_core_registers_[K0] = true;
@@ -1003,28 +1003,13 @@ void CodeGeneratorMIPS64::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSE
 
   // TODO: review; anything else?
 
-  // TODO: make these two for's conditional on is_baseline once
-  // all the issues with register saving/restoring are sorted out.
+  // TODO: remove once all the issues with register saving/restoring are sorted out.
   for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
     blocked_core_registers_[kCoreCalleeSaves[i]] = true;
   }
 
   for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
     blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
-  }
-}
-
-Location CodeGeneratorMIPS64::AllocateFreeRegister(Primitive::Type type) const {
-  if (type == Primitive::kPrimVoid) {
-    LOG(FATAL) << "Unreachable type " << type;
-  }
-
-  if (Primitive::IsFloatingPointType(type)) {
-    size_t reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfFpuRegisters);
-    return Location::FpuRegisterLocation(reg);
-  } else {
-    size_t reg = FindFreeEntry(blocked_core_registers_, kNumberOfGpuRegisters);
-    return Location::RegisterLocation(reg);
   }
 }
 
@@ -3031,9 +3016,9 @@ void LocationsBuilderMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderMIPS64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
@@ -3182,9 +3167,9 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
 }
 
 void InstructionCodeGeneratorMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
