@@ -16,6 +16,8 @@
 
 #include "java_lang_Class.h"
 
+#include <iostream>
+
 #include "art_field-inl.h"
 #include "class_linker.h"
 #include "common_throws.h"
@@ -303,7 +305,10 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
       // We log the error for this specific case, as the user might just swallow the exception.
       // This helps diagnose crashes when applications rely on the String#value field being
       // there.
-      LOG(ERROR) << "The String#value field is not present on Android versions >= 6.0";
+      // Also print on the error stream to test it through run-test.
+      std::string message("The String#value field is not present on Android versions >= 6.0");
+      LOG(ERROR) << message;
+      std::cerr << message << std::endl;
     }
     // We may have a pending exception if we failed to resolve.
     if (!soa.Self()->IsExceptionPending()) {
