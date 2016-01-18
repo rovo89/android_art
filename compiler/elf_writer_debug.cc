@@ -653,6 +653,21 @@ class DebugInfoWriter {
             info_.EndTag();  // DW_TAG_member.
           }
 
+          if (type->IsStringClass()) {
+            // Emit debug info about an artifical class member for java.lang.String which represents
+            // the first element of the data stored in a string instance. Consumers of the debug
+            // info will be able to read the content of java.lang.String based on the count (real
+            // field) and based on the location of this data member.
+            info_.StartTag(DW_TAG_member);
+            WriteName("value");
+            // We don't support fields with C like array types so we just say its type is java char.
+            WriteLazyType("C");  // char.
+            info_.WriteUdata(DW_AT_data_member_location,
+                             mirror::String::ValueOffset().Uint32Value());
+            info_.WriteSdata(DW_AT_accessibility, DW_ACCESS_private);
+            info_.EndTag();  // DW_TAG_member.
+          }
+
           EndClassTag(desc);
         }
       }
@@ -883,6 +898,8 @@ class DebugInfoWriter {
         info_.EndTag();
       } else {
         // Primitive types.
+        DCHECK_EQ(desc.size(), 1u);
+
         const char* name;
         uint32_t encoding;
         uint32_t byte_size;
