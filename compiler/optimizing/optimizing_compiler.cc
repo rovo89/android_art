@@ -127,7 +127,7 @@ class PassObserver : public ValueObject {
         timing_logger_enabled_(compiler_driver->GetDumpPasses()),
         timing_logger_(timing_logger_enabled_ ? GetMethodName() : "", true, true),
         disasm_info_(graph->GetArena()),
-        visualizer_enabled_(!compiler_driver->GetDumpCfgFileName().empty()),
+        visualizer_enabled_(!compiler_driver->GetCompilerOptions().GetDumpCfgFileName().empty()),
         visualizer_(visualizer_output, graph, *codegen),
         graph_in_bad_state_(false) {
     if (timing_logger_enabled_ || visualizer_enabled_) {
@@ -358,13 +358,13 @@ void OptimizingCompiler::Init() {
   // Enable C1visualizer output. Must be done in Init() because the compiler
   // driver is not fully initialized when passed to the compiler's constructor.
   CompilerDriver* driver = GetCompilerDriver();
-  const std::string cfg_file_name = driver->GetDumpCfgFileName();
+  const std::string cfg_file_name = driver->GetCompilerOptions().GetDumpCfgFileName();
   if (!cfg_file_name.empty()) {
     CHECK_EQ(driver->GetThreadCount(), 1U)
       << "Graph visualizer requires the compiler to run single-threaded. "
       << "Invoke the compiler with '-j1'.";
     std::ios_base::openmode cfg_file_mode =
-        driver->GetDumpCfgAppend() ? std::ofstream::app : std::ofstream::out;
+        driver->GetCompilerOptions().GetDumpCfgAppend() ? std::ofstream::app : std::ofstream::out;
     visualizer_output_.reset(new std::ofstream(cfg_file_name, cfg_file_mode));
   }
   if (driver->GetDumpStats()) {

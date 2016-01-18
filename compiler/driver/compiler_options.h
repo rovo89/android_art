@@ -83,7 +83,9 @@ class CompilerOptions FINAL {
                   bool compile_pic,
                   const std::vector<std::string>* verbose_methods,
                   std::ostream* init_failure_output,
-                  bool abort_on_hard_verifier_failure);
+                  bool abort_on_hard_verifier_failure,
+                  const std::string& dump_cfg_file_name,
+                  bool dump_cfg_append);
 
   CompilerFilter GetCompilerFilter() const {
     return compiler_filter_;
@@ -224,6 +226,14 @@ class CompilerOptions FINAL {
 
   bool ParseCompilerOption(const StringPiece& option, UsageFn Usage);
 
+  const std::string& GetDumpCfgFileName() const {
+    return dump_cfg_file_name_;
+  }
+
+  bool GetDumpCfgAppend() const {
+    return dump_cfg_append_;
+  }
+
  private:
   void ParseDumpInitFailures(const StringPiece& option, UsageFn Usage);
   void ParsePassOptions(const StringPiece& option, UsageFn Usage);
@@ -272,6 +282,9 @@ class CompilerOptions FINAL {
 
   // Log initialization of initialization failures to this stream if not null.
   std::unique_ptr<std::ostream> init_failure_output_;
+
+  std::string dump_cfg_file_name_;
+  bool dump_cfg_append_;
 
   friend class Dex2Oat;
 
