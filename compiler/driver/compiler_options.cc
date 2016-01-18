@@ -44,7 +44,9 @@ CompilerOptions::CompilerOptions()
       verbose_methods_(nullptr),
       pass_manager_options_(),
       abort_on_hard_verifier_failure_(false),
-      init_failure_output_(nullptr) {
+      init_failure_output_(nullptr),
+      dump_cfg_file_name_(""),
+      dump_cfg_append_(false) {
 }
 
 CompilerOptions::~CompilerOptions() {
@@ -71,7 +73,9 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
                                  bool compile_pic,
                                  const std::vector<std::string>* verbose_methods,
                                  std::ostream* init_failure_output,
-                                 bool abort_on_hard_verifier_failure
+                                 bool abort_on_hard_verifier_failure,
+                                 const std::string& dump_cfg_file_name,
+                                 bool dump_cfg_append
                                  ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -94,7 +98,9 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
     verbose_methods_(verbose_methods),
     pass_manager_options_(),
     abort_on_hard_verifier_failure_(abort_on_hard_verifier_failure),
-    init_failure_output_(init_failure_output) {
+    init_failure_output_(init_failure_output),
+    dump_cfg_file_name_(dump_cfg_file_name),
+    dump_cfg_append_(dump_cfg_append) {
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {
@@ -238,6 +244,10 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     ParsePassOptions(option, Usage);
   } else if (option.starts_with("--dump-init-failures=")) {
     ParseDumpInitFailures(option, Usage);
+  } else if (option.starts_with("--dump-cfg=")) {
+    dump_cfg_file_name_ = option.substr(strlen("--dump-cfg=")).data();
+  } else if (option.starts_with("--dump-cfg-append")) {
+    dump_cfg_append_ = true;
   } else {
     // Option not recognized.
     return false;

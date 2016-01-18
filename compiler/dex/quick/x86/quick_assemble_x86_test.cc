@@ -52,6 +52,8 @@ class QuickAssembleX86TestBase : public testing::Test {
         false,
         nullptr,
         nullptr,
+        false,
+        "",
         false));
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
     method_inliner_map_.reset(new DexFileToMethodInlinerMap());
@@ -68,8 +70,6 @@ class QuickAssembleX86TestBase : public testing::Test {
         nullptr,
         0,
         false,
-        false,
-        "",
         false,
         0,
         -1,

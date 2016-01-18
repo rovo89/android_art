@@ -528,7 +528,6 @@ class Dex2Oat FINAL {
       dump_passes_(false),
       dump_timing_(false),
       dump_slow_timing_(kIsDebugBuild),
-      dump_cfg_append_(false),
       swap_fd_(-1),
       app_image_fd_(kInvalidImageFd),
       timings_(timings) {}
@@ -1093,10 +1092,6 @@ class Dex2Oat FINAL {
         dump_timing_ = true;
       } else if (option == "--dump-passes") {
         dump_passes_ = true;
-      } else if (option.starts_with("--dump-cfg=")) {
-        dump_cfg_file_name_ = option.substr(strlen("--dump-cfg=")).data();
-      } else if (option.starts_with("--dump-cfg-append")) {
-        dump_cfg_append_ = true;
       } else if (option == "--dump-stats") {
         dump_stats_ = true;
       } else if (option.starts_with("--swap-file=")) {
@@ -1509,8 +1504,6 @@ class Dex2Oat FINAL {
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
-                                     dump_cfg_file_name_,
-                                     dump_cfg_append_,
                                      compiler_phases_timings_.get(),
                                      swap_fd_,
                                      &dex_file_oat_filename_map_,
@@ -2312,8 +2305,6 @@ class Dex2Oat FINAL {
   bool dump_passes_;
   bool dump_timing_;
   bool dump_slow_timing_;
-  std::string dump_cfg_file_name_;
-  bool dump_cfg_append_;
   std::string swap_file_name_;
   int swap_fd_;
   std::string app_image_file_name_;

@@ -345,7 +345,6 @@ CompilerDriver::CompilerDriver(
     std::unordered_set<std::string>* compiled_classes,
     std::unordered_set<std::string>* compiled_methods,
     size_t thread_count, bool dump_stats, bool dump_passes,
-    const std::string& dump_cfg_file_name, bool dump_cfg_append,
     CumulativeLogger* timer, int swap_fd,
     const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map,
     const ProfileCompilationInfo* profile_compilation_info)
@@ -370,8 +369,6 @@ CompilerDriver::CompilerDriver(
       stats_(new AOTCompilationStats),
       dump_stats_(dump_stats),
       dump_passes_(dump_passes),
-      dump_cfg_file_name_(dump_cfg_file_name),
-      dump_cfg_append_(dump_cfg_append),
       timings_logger_(timer),
       compiler_context_(nullptr),
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
