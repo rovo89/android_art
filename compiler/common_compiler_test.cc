@@ -204,8 +204,6 @@ void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind, InstructionSe
                                             2,
                                             true,
                                             true,
-                                            "",
-                                            false,
                                             timer_.get(),
                                             -1,
                                             /* dex_to_oat_map */ nullptr,

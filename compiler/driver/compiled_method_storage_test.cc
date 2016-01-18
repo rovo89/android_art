@@ -41,8 +41,6 @@ TEST(CompiledMethodStorage, Deduplicate) {
                         1u,
                         false,
                         false,
-                        "",
-                        false,
                         nullptr,
                         -1,
                         nullptr,
