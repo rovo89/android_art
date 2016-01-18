@@ -32,13 +32,13 @@ struct MethodDebugInfo;
 
 template <typename ElfTypes>
 void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
-                    bool write_loaded_runtime_types,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     CFIFormat cfi_format);
 
 ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const dwarf::MethodDebugInfo& method_info);
 
-ArrayRef<const uint8_t> WriteDebugElfFileForClass(const InstructionSet isa, mirror::Class* type)
+ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
+                                                    const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
 }  // namespace dwarf
