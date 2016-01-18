@@ -27,7 +27,9 @@
   description: "TimeoutException on host-{x86,x86-64}-concurrent-collector",
   result: EXEC_FAILED,
   modes: [host],
-  names: ["libcore.java.util.zip.GZIPOutputStreamTest#testSyncFlushEnabled",
+  names: ["libcore.java.util.zip.DeflaterOutputStreamTest#testSyncFlushDisabled",
+          "libcore.java.util.zip.GZIPOutputStreamTest#testSyncFlushEnabled",
+          "libcore.java.util.zip.OldAndroidGZIPStreamTest#testGZIPStream",
           "libcore.java.util.zip.ZipFileTest#testZipFileWithLotsOfEntries",
           "libcore.java.util.zip.ZipInputStreamTest#testLongMessage"],
   bug: 26507762
