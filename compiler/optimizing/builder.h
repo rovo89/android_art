@@ -56,7 +56,6 @@ class HGraphBuilder : public ValueObject {
         return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])),
         code_start_(nullptr),
         latest_result_(nullptr),
-        can_use_baseline_for_string_init_(true),
         compilation_stats_(compiler_stats),
         interpreter_metadata_(interpreter_metadata),
         dex_cache_(dex_cache) {}
@@ -77,17 +76,12 @@ class HGraphBuilder : public ValueObject {
         return_type_(return_type),
         code_start_(nullptr),
         latest_result_(nullptr),
-        can_use_baseline_for_string_init_(true),
         compilation_stats_(nullptr),
         interpreter_metadata_(nullptr),
         null_dex_cache_(),
         dex_cache_(null_dex_cache_) {}
 
   bool BuildGraph(const DexFile::CodeItem& code);
-
-  bool CanUseBaselineForStringInit() const {
-    return can_use_baseline_for_string_init_;
-  }
 
   static constexpr const char* kBuilderPassName = "builder";
 
@@ -362,11 +356,6 @@ class HGraphBuilder : public ValueObject {
   // The last invoke or fill-new-array being built. Only to be
   // used by move-result instructions.
   HInstruction* latest_result_;
-
-  // We need to know whether we have built a graph that has calls to StringFactory
-  // and hasn't gone through the verifier. If the following flag is `false`, then
-  // we cannot compile with baseline.
-  bool can_use_baseline_for_string_init_;
 
   OptimizingCompilerStats* compilation_stats_;
 

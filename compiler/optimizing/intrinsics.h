@@ -85,9 +85,9 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
                             InvokeDexCallingConventionVisitor* calling_convention_visitor) {
     if (kIsDebugBuild && invoke->IsInvokeStaticOrDirect()) {
       HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
-      // When we do not run baseline, explicit clinit checks triggered by static
-      // invokes must have been pruned by art::PrepareForRegisterAllocation.
-      DCHECK(codegen->IsBaseline() || !invoke_static_or_direct->IsStaticWithExplicitClinitCheck());
+      // Explicit clinit checks triggered by static invokes must have been
+      // pruned by art::PrepareForRegisterAllocation.
+      DCHECK(!invoke_static_or_direct->IsStaticWithExplicitClinitCheck());
     }
 
     if (invoke->GetNumberOfArguments() == 0) {

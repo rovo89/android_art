@@ -47,9 +47,7 @@ static bool ExpectedPairLayout(Location location) {
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = R0;
 
-// We unconditionally allocate R5 to ensure we can do long operations
-// with baseline.
-static constexpr Register kCoreSavedRegisterForBaseline = R5;
+static constexpr Register kCoreAlwaysSpillRegister = R5;
 static constexpr Register kCoreCalleeSaves[] =
     { R5, R6, R7, R8, R10, R11, LR };
 static constexpr SRegister kFpuCalleeSaves[] =
@@ -833,58 +831,7 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
   CodeGenerator::Finalize(allocator);
 }
 
-Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
-  switch (type) {
-    case Primitive::kPrimLong: {
-      size_t reg = FindFreeEntry(blocked_register_pairs_, kNumberOfRegisterPairs);
-      ArmManagedRegister pair =
-          ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
-      DCHECK(!blocked_core_registers_[pair.AsRegisterPairLow()]);
-      DCHECK(!blocked_core_registers_[pair.AsRegisterPairHigh()]);
-
-      blocked_core_registers_[pair.AsRegisterPairLow()] = true;
-      blocked_core_registers_[pair.AsRegisterPairHigh()] = true;
-      UpdateBlockedPairRegisters();
-      return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
-    }
-
-    case Primitive::kPrimByte:
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      int reg = FindFreeEntry(blocked_core_registers_, kNumberOfCoreRegisters);
-      // Block all register pairs that contain `reg`.
-      for (int i = 0; i < kNumberOfRegisterPairs; i++) {
-        ArmManagedRegister current =
-            ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
-        if (current.AsRegisterPairLow() == reg || current.AsRegisterPairHigh() == reg) {
-          blocked_register_pairs_[i] = true;
-        }
-      }
-      return Location::RegisterLocation(reg);
-    }
-
-    case Primitive::kPrimFloat: {
-      int reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfSRegisters);
-      return Location::FpuRegisterLocation(reg);
-    }
-
-    case Primitive::kPrimDouble: {
-      int reg = FindTwoFreeConsecutiveAlignedEntries(blocked_fpu_registers_, kNumberOfSRegisters);
-      DCHECK_EQ(reg % 2, 0);
-      return Location::FpuRegisterPairLocation(reg, reg + 1);
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << type;
-  }
-
-  return Location::NoLocation();
-}
-
-void CodeGeneratorARM::SetupBlockedRegisters(bool is_baseline) const {
+void CodeGeneratorARM::SetupBlockedRegisters() const {
   // Don't allocate the dalvik style register pair passing.
   blocked_register_pairs_[R1_R2] = true;
 
@@ -899,15 +846,7 @@ void CodeGeneratorARM::SetupBlockedRegisters(bool is_baseline) const {
   // Reserve temp register.
   blocked_core_registers_[IP] = true;
 
-  if (is_baseline) {
-    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-      blocked_core_registers_[kCoreCalleeSaves[i]] = true;
-    }
-
-    blocked_core_registers_[kCoreSavedRegisterForBaseline] = false;
-  }
-
-  if (is_baseline || GetGraph()->IsDebuggable()) {
+  if (GetGraph()->IsDebuggable()) {
     // Stubs do not save callee-save floating point registers. If the graph
     // is debuggable, we need to deal with these registers differently. For
     // now, just block them.
@@ -937,11 +876,10 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
 
 void CodeGeneratorARM::ComputeSpillMask() {
   core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
-  // Save one extra register for baseline. Note that on thumb2, there is no easy
-  // instruction to restore just the PC, so this actually helps both baseline
-  // and non-baseline to save and restore at least two registers at entry and exit.
-  core_spill_mask_ |= (1 << kCoreSavedRegisterForBaseline);
   DCHECK_NE(core_spill_mask_, 0u) << "At least the return address register must be saved";
+  // There is no easy instruction to restore just the PC on thumb2. We spill and
+  // restore another arbitrary register.
+  core_spill_mask_ |= (1 << kCoreAlwaysSpillRegister);
   fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
   // We use vpush and vpop for saving and restoring floating point registers, which take
   // a SRegister and the number of registers to save/restore after that SRegister. We
@@ -1984,9 +1922,9 @@ void InstructionCodeGeneratorARM::VisitInvokeUnresolved(HInvokeUnresolved* invok
 }
 
 void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
                                          codegen_->GetAssembler(),
@@ -2016,9 +1954,9 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM* codegen)
 }
 
 void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
