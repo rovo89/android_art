@@ -28,6 +28,8 @@
 #include "dex/quick_compiler_callbacks.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
+#include "elf_writer_debug.h"
+#include "jit/debugger_interface.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "oat_file-inl.h"
@@ -63,6 +65,16 @@ extern "C" bool jit_compile_method(void* handle, ArtMethod* method, Thread* self
   auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
   DCHECK(jit_compiler != nullptr);
   return jit_compiler->CompileMethod(self, method);
+}
+
+extern "C" void jit_type_loaded(void* handle, mirror::Class* type)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
+  DCHECK(jit_compiler != nullptr);
+  if (jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo()) {
+    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFileForClass(kRuntimeISA, type);
+    CreateJITCodeEntry(std::unique_ptr<const uint8_t[]>(elf_file.data()), elf_file.size());
+  }
 }
 
 // Callers of this method assume it has NO_RETURN.
