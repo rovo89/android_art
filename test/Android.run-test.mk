@@ -270,16 +270,6 @@ endif
 
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
 
-# 143-string-value tests for a LOG(E) tag, which is only supported on host.
-TEST_ART_BROKEN_TARGET_RUN_TESTS := \
-  143-string-value \
-
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_TARGET_RUN_TESTS), $(ALL_ADDRESS_SIZES))
-
-TEST_ART_BROKEN_TARGET_RUN_TESTS :=
-
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat \
