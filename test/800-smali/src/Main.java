@@ -143,6 +143,8 @@ public class Main {
                 new IncompatibleClassChangeError(), null));
         testCases.add(new TestCase("b/26143249", "B26143249", "run", null,
                 new AbstractMethodError(), null));
+        testCases.add(new TestCase("b/26579108", "B26579108", "run", null, new VerifyError(),
+                null));
     }
 
     public void runTests() {
@@ -188,8 +190,7 @@ public class Main {
                 if (tc.expectedException != null) {
                     errorReturn = new IllegalStateException("Expected an exception in test " +
                                                             tc.testName);
-                }
-                if (tc.expectedReturn == null && retValue != null) {
+                } else if (tc.expectedReturn == null && retValue != null) {
                     errorReturn = new IllegalStateException("Expected a null result in test " +
                                                             tc.testName);
                 } else if (tc.expectedReturn != null &&
