@@ -75,6 +75,7 @@ PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
 ANDROID_ROOT=$PROG_DIR/..
 LIBDIR=$(find_libdir)
 LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
+DEBUG_OPTION=""
 
 DELETE_ANDROID_DATA=false
 # If ANDROID_DATA is the system ANDROID_DATA or is not set, use our own,
@@ -87,6 +88,7 @@ fi
 
 if [ z"$PERF" != z ]; then
   invoke_with="perf record -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
+  DEBUG_OPTION="-Xcompiler-option --generate-debug-info"
 fi
 
 # We use the PIC core image to work with perf.
@@ -99,7 +101,7 @@ ANDROID_DATA=$ANDROID_DATA \
     -XXlib:$LIBART \
     -Xnorelocate \
     -Ximage:$ANDROID_ROOT/framework/core-optimizing-pic.art \
-    -Xcompiler-option --generate-debug-info \
+    $DEBUG_OPTION \
     "$@"
 
 EXIT_STATUS=$?
