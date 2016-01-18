@@ -57,9 +57,5 @@ public class Main {
         }
       }
     }
-
-    {
-      c.getMethod("catchNewInstance").invoke(null, (Object[]) null);
-    }
   }
 }
