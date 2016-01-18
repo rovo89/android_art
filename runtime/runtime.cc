@@ -1881,6 +1881,9 @@ void Runtime::CreateJit() {
     jit_->CreateInstrumentationCache(jit_options_->GetCompileThreshold(),
                                      jit_options_->GetWarmupThreshold());
     jit_->CreateThreadPool();
+
+    // Notify native debugger about the classes already loaded before the creation of the jit.
+    jit_->DumpTypeInfoForLoadedTypes(GetClassLinker());
   } else {
     LOG(WARNING) << "Failed to create JIT " << error_msg;
   }

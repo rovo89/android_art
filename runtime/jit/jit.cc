@@ -127,11 +127,11 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = "JIT couldn't find jit_compile_method entry point";
     return false;
   }
-  jit_type_loaded_ = reinterpret_cast<void (*)(void*, mirror::Class*)>(
-      dlsym(jit_library_handle_, "jit_type_loaded"));
-  if (jit_type_loaded_ == nullptr) {
+  jit_types_loaded_ = reinterpret_cast<void (*)(void*, mirror::Class**, size_t)>(
+      dlsym(jit_library_handle_, "jit_types_loaded"));
+  if (jit_types_loaded_ == nullptr) {
     dlclose(jit_library_handle_);
-    *error_msg = "JIT couldn't find jit_type_loaded entry point";
+    *error_msg = "JIT couldn't find jit_types_loaded entry point";
     return false;
   }
   CompilerCallbacks* callbacks = nullptr;
@@ -224,8 +224,26 @@ void Jit::CreateInstrumentationCache(size_t compile_threshold, size_t warmup_thr
 void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr && jit->generate_debug_info_) {
-    DCHECK(jit->jit_type_loaded_ != nullptr);
-    jit->jit_type_loaded_(jit->jit_compiler_handle_, type);
+    DCHECK(jit->jit_types_loaded_ != nullptr);
+    jit->jit_types_loaded_(jit->jit_compiler_handle_, &type, 1);
+  }
+}
+
+void Jit::DumpTypeInfoForLoadedTypes(ClassLinker* linker) {
+  struct CollectClasses : public ClassVisitor {
+    bool Visit(mirror::Class* klass) override {
+      classes_.push_back(klass);
+      return true;
+    }
+    std::vector<mirror::Class*> classes_;
+  };
+
+  if (generate_debug_info_) {
+    ScopedObjectAccess so(Thread::Current());
+
+    CollectClasses visitor;
+    linker->VisitClasses(&visitor);
+    jit_types_loaded_(jit_compiler_handle_, visitor.classes_.data(), visitor.classes_.size());
   }
 }
 
