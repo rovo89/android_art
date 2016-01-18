@@ -82,6 +82,10 @@ class Jit {
   static void NewTypeLoadedIfUsingJit(mirror::Class* type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // If debug info generation is turned on then write the type information for types already loaded
+  // into the specified class linker to the jit debug interface,
+  void DumpTypeInfoForLoadedTypes(ClassLinker* linker);
+
  private:
   Jit();
   bool LoadCompiler(std::string* error_msg);
@@ -92,7 +96,7 @@ class Jit {
   void* (*jit_load_)(CompilerCallbacks**, bool*);
   void (*jit_unload_)(void*);
   bool (*jit_compile_method_)(void*, ArtMethod*, Thread*);
-  void (*jit_type_loaded_)(void*, mirror::Class*);
+  void (*jit_types_loaded_)(void*, mirror::Class**, size_t count);
 
   // Performance monitoring.
   bool dump_info_on_shutdown_;
