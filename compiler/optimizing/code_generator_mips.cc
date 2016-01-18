@@ -1042,7 +1042,7 @@ void CodeGeneratorMIPS::MarkGCCard(Register object, Register value) {
   __ Bind(&done);
 }
 
-void CodeGeneratorMIPS::SetupBlockedRegisters(bool is_baseline) const {
+void CodeGeneratorMIPS::SetupBlockedRegisters() const {
   // Don't allocate the dalvik style register pair passing.
   blocked_register_pairs_[A1_A2] = true;
 
@@ -1072,16 +1072,6 @@ void CodeGeneratorMIPS::SetupBlockedRegisters(bool is_baseline) const {
     blocked_fpu_registers_[i] = true;
   }
 
-  if (is_baseline) {
-    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-      blocked_core_registers_[kCoreCalleeSaves[i]] = true;
-    }
-
-    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
-      blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
-    }
-  }
-
   UpdateBlockedPairRegisters();
 }
 
@@ -1094,52 +1084,6 @@ void CodeGeneratorMIPS::UpdateBlockedPairRegisters() const {
       blocked_register_pairs_[i] = true;
     }
   }
-}
-
-Location CodeGeneratorMIPS::AllocateFreeRegister(Primitive::Type type) const {
-  switch (type) {
-    case Primitive::kPrimLong: {
-      size_t reg = FindFreeEntry(blocked_register_pairs_, kNumberOfRegisterPairs);
-      MipsManagedRegister pair =
-          MipsManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
-      DCHECK(!blocked_core_registers_[pair.AsRegisterPairLow()]);
-      DCHECK(!blocked_core_registers_[pair.AsRegisterPairHigh()]);
-
-      blocked_core_registers_[pair.AsRegisterPairLow()] = true;
-      blocked_core_registers_[pair.AsRegisterPairHigh()] = true;
-      UpdateBlockedPairRegisters();
-      return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
-    }
-
-    case Primitive::kPrimByte:
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      int reg = FindFreeEntry(blocked_core_registers_, kNumberOfCoreRegisters);
-      // Block all register pairs that contain `reg`.
-      for (int i = 0; i < kNumberOfRegisterPairs; i++) {
-        MipsManagedRegister current =
-            MipsManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
-        if (current.AsRegisterPairLow() == reg || current.AsRegisterPairHigh() == reg) {
-          blocked_register_pairs_[i] = true;
-        }
-      }
-      return Location::RegisterLocation(reg);
-    }
-
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      int reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfFRegisters);
-      return Location::FpuRegisterLocation(reg);
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << type;
-  }
-
-  UNREACHABLE();
 }
 
 size_t CodeGeneratorMIPS::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
@@ -3835,9 +3779,9 @@ void LocationsBuilderMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderMIPS intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
@@ -3973,9 +3917,9 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
 }
 
 void InstructionCodeGeneratorMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;

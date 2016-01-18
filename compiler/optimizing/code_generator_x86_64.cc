@@ -1002,47 +1002,12 @@ InstructionCodeGeneratorX86_64::InstructionCodeGeneratorX86_64(HGraph* graph,
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
-Location CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type) const {
-  switch (type) {
-    case Primitive::kPrimLong:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      size_t reg = FindFreeEntry(blocked_core_registers_, kNumberOfCpuRegisters);
-      return Location::RegisterLocation(reg);
-    }
-
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      size_t reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfFloatRegisters);
-      return Location::FpuRegisterLocation(reg);
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << type;
-  }
-
-  return Location::NoLocation();
-}
-
-void CodeGeneratorX86_64::SetupBlockedRegisters(bool is_baseline) const {
+void CodeGeneratorX86_64::SetupBlockedRegisters() const {
   // Stack register is always reserved.
   blocked_core_registers_[RSP] = true;
 
   // Block the register used as TMP.
   blocked_core_registers_[TMP] = true;
-
-  if (is_baseline) {
-    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-      blocked_core_registers_[kCoreCalleeSaves[i]] = true;
-    }
-    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
-      blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
-    }
-  }
 }
 
 static dwarf::Reg DWARFReg(Register reg) {
@@ -2161,9 +2126,9 @@ void InstructionCodeGeneratorX86_64::VisitInvokeUnresolved(HInvokeUnresolved* in
 }
 
 void LocationsBuilderX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderX86_64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
@@ -2183,9 +2148,9 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86_64* codeg
 }
 
 void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;

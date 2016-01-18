@@ -290,10 +290,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   // Register allocation.
 
-  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE;
-  // AllocateFreeRegister() is only used when allocating registers locally
-  // during CompileBaseline().
-  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  void SetupBlockedRegisters() const OVERRIDE;
 
   Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 

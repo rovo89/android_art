@@ -817,64 +817,12 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
-Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type) const {
-  switch (type) {
-    case Primitive::kPrimLong: {
-      size_t reg = FindFreeEntry(blocked_register_pairs_, kNumberOfRegisterPairs);
-      X86ManagedRegister pair =
-          X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
-      DCHECK(!blocked_core_registers_[pair.AsRegisterPairLow()]);
-      DCHECK(!blocked_core_registers_[pair.AsRegisterPairHigh()]);
-      blocked_core_registers_[pair.AsRegisterPairLow()] = true;
-      blocked_core_registers_[pair.AsRegisterPairHigh()] = true;
-      UpdateBlockedPairRegisters();
-      return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
-    }
-
-    case Primitive::kPrimByte:
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      Register reg = static_cast<Register>(
-          FindFreeEntry(blocked_core_registers_, kNumberOfCpuRegisters));
-      // Block all register pairs that contain `reg`.
-      for (int i = 0; i < kNumberOfRegisterPairs; i++) {
-        X86ManagedRegister current =
-            X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
-        if (current.AsRegisterPairLow() == reg || current.AsRegisterPairHigh() == reg) {
-          blocked_register_pairs_[i] = true;
-        }
-      }
-      return Location::RegisterLocation(reg);
-    }
-
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      return Location::FpuRegisterLocation(
-          FindFreeEntry(blocked_fpu_registers_, kNumberOfXmmRegisters));
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << type;
-  }
-
-  return Location::NoLocation();
-}
-
-void CodeGeneratorX86::SetupBlockedRegisters(bool is_baseline) const {
+void CodeGeneratorX86::SetupBlockedRegisters() const {
   // Don't allocate the dalvik style register pair passing.
   blocked_register_pairs_[ECX_EDX] = true;
 
   // Stack register is always reserved.
   blocked_core_registers_[ESP] = true;
-
-  if (is_baseline) {
-    blocked_core_registers_[EBP] = true;
-    blocked_core_registers_[ESI] = true;
-    blocked_core_registers_[EDI] = true;
-  }
 
   UpdateBlockedPairRegisters();
 }
@@ -1981,9 +1929,9 @@ void InstructionCodeGeneratorX86::VisitInvokeUnresolved(HInvokeUnresolved* invok
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
@@ -1999,17 +1947,6 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
   if (invoke->HasPcRelativeDexCache()) {
     invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::RequiresRegister());
   }
-
-  if (codegen_->IsBaseline()) {
-    // Baseline does not have enough registers if the current method also
-    // needs a register. We therefore do not require a register for it, and let
-    // the code generation of the invoke handle it.
-    LocationSummary* locations = invoke->GetLocations();
-    Location location = locations->InAt(invoke->GetSpecialInputIndex());
-    if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
-      locations->SetInAt(invoke->GetSpecialInputIndex(), Location::NoLocation());
-    }
-  }
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86* codegen) {
@@ -2022,9 +1959,9 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86* codegen)
 }
 
 void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // When we do not run baseline, explicit clinit checks triggered by static
-  // invokes must have been pruned by art::PrepareForRegisterAllocation.
-  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
@@ -4286,7 +4223,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       if (current_method.IsRegister()) {
         method_reg = current_method.AsRegister<Register>();
       } else {
-        DCHECK(IsBaseline() || invoke->GetLocations()->Intrinsified());
+        DCHECK(invoke->GetLocations()->Intrinsified());
         DCHECK(!current_method.IsValid());
         method_reg = reg;
         __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
@@ -5076,11 +5013,6 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
 }
 
 void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
-  // This location builder might end up asking to up to four registers, which is
-  // not currently possible for baseline. The situation in which we need four
-  // registers cannot be met by baseline though, because it has not run any
-  // optimization.
-
   Primitive::Type value_type = instruction->GetComponentType();
 
   bool needs_write_barrier =

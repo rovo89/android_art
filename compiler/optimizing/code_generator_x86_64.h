@@ -347,8 +347,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE;
-  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  void SetupBlockedRegisters() const OVERRIDE;
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
   void Finalize(CodeAllocator* allocator) OVERRIDE;
