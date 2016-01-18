@@ -117,8 +117,6 @@ class OatTest : public CommonCompilerTest {
                                               2,
                                               true,
                                               true,
-                                              "",
-                                              false,
                                               timer_.get(),
                                               -1,
                                               nullptr,

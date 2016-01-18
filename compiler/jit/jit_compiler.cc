@@ -97,7 +97,9 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* pic */ true,  // TODO: Support non-PIC in optimizing.
       /* verbose_methods */ nullptr,
       /* init_failure_output */ nullptr,
-      /* abort_on_hard_verifier_failure */ false));
+      /* abort_on_hard_verifier_failure */ false,
+      /* dump_cfg_file_name */ "",
+      /* dump_cfg_append */ false));
   for (const std::string& argument : Runtime::Current()->GetCompilerOptions()) {
     compiler_options_->ParseCompilerOption(argument, Usage);
   }
@@ -153,8 +155,6 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* thread_count */ 1,
       /* dump_stats */ false,
       /* dump_passes */ false,
-      /* dump_cfg_file_name */ "",
-      /* dump_cfg_append */ false,
       cumulative_logger_.get(),
       /* swap_fd */ -1,
       /* dex to oat map */ nullptr,
