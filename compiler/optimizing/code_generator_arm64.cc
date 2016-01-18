@@ -93,6 +93,24 @@ inline Condition ARM64Condition(IfCondition cond) {
   UNREACHABLE();
 }
 
+inline Condition ARM64FPCondition(IfCondition cond, bool gt_bias) {
+  // The ARM64 condition codes can express all the necessary branches, see the
+  // "Meaning (floating-point)" column in the table C1-1 in the ARMv8 reference manual.
+  // There is no dex instruction or HIR that would need the missing conditions
+  // "equal or unordered" or "not equal".
+  switch (cond) {
+    case kCondEQ: return eq;
+    case kCondNE: return ne /* unordered */;
+    case kCondLT: return gt_bias ? cc : lt /* unordered */;
+    case kCondLE: return gt_bias ? ls : le /* unordered */;
+    case kCondGT: return gt_bias ? hi /* unordered */ : gt;
+    case kCondGE: return gt_bias ? cs /* unordered */ : ge;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+  }
+}
+
 Location ARM64ReturnLocation(Primitive::Type return_type) {
   // Note that in practice, `LocationFrom(x0)` and `LocationFrom(w0)` create the
   // same Location object, and so do `LocationFrom(d0)` and `LocationFrom(s0)`,
@@ -2381,12 +2399,8 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
       } else {
         __ Fcmp(left, InputFPRegisterAt(compare, 1));
       }
-      if (compare->IsGtBias()) {
-        __ Cset(result, ne);
-      } else {
-        __ Csetm(result, ne);
-      }
-      __ Cneg(result, result, compare->IsGtBias() ? mi : gt);
+      __ Cset(result, ne);
+      __ Cneg(result, result, ARM64FPCondition(kCondLT, compare->IsGtBias()));
       break;
     }
     default:
@@ -2422,7 +2436,6 @@ void InstructionCodeGeneratorARM64::HandleCondition(HCondition* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register res = RegisterFrom(locations->Out(), instruction->GetType());
   IfCondition if_cond = instruction->GetCondition();
-  Condition arm64_cond = ARM64Condition(if_cond);
 
   if (Primitive::IsFloatingPointType(instruction->InputAt(0)->GetType())) {
     FPRegister lhs = InputFPRegisterAt(instruction, 0);
@@ -2433,20 +2446,13 @@ void InstructionCodeGeneratorARM64::HandleCondition(HCondition* instruction) {
     } else {
       __ Fcmp(lhs, InputFPRegisterAt(instruction, 1));
     }
-    __ Cset(res, arm64_cond);
-    if (instruction->IsFPConditionTrueIfNaN()) {
-      // res = IsUnordered(arm64_cond) ? 1 : res  <=>  res = IsNotUnordered(arm64_cond) ? res : 1
-      __ Csel(res, res, Operand(1), vc);  // VC for "not unordered".
-    } else if (instruction->IsFPConditionFalseIfNaN()) {
-      // res = IsUnordered(arm64_cond) ? 0 : res  <=>  res = IsNotUnordered(arm64_cond) ? res : 0
-      __ Csel(res, res, Operand(0), vc);  // VC for "not unordered".
-    }
+    __ Cset(res, ARM64FPCondition(if_cond, instruction->IsGtBias()));
   } else {
     // Integer cases.
     Register lhs = InputRegisterAt(instruction, 0);
     Operand rhs = InputOperandAt(instruction, 1);
     __ Cmp(lhs, rhs);
-    __ Cset(res, arm64_cond);
+    __ Cset(res, ARM64Condition(if_cond));
   }
 }
 
@@ -2816,15 +2822,11 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
       } else {
         __ Fcmp(lhs, InputFPRegisterAt(condition, 1));
       }
-      if (condition->IsFPConditionTrueIfNaN()) {
-        __ B(vs, true_target == nullptr ? &fallthrough_target : true_target);
-      } else if (condition->IsFPConditionFalseIfNaN()) {
-        __ B(vs, false_target == nullptr ? &fallthrough_target : false_target);
-      }
       if (true_target == nullptr) {
-        __ B(ARM64Condition(condition->GetOppositeCondition()), false_target);
+        IfCondition opposite_condition = condition->GetOppositeCondition();
+        __ B(ARM64FPCondition(opposite_condition, condition->IsGtBias()), false_target);
       } else {
-        __ B(ARM64Condition(condition->GetCondition()), true_target);
+        __ B(ARM64FPCondition(condition->GetCondition(), condition->IsGtBias()), true_target);
       }
     } else {
       // Integer cases.

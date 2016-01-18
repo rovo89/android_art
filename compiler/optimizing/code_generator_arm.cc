@@ -728,6 +728,24 @@ inline Condition ARMUnsignedCondition(IfCondition cond) {
   UNREACHABLE();
 }
 
+inline Condition ARMFPCondition(IfCondition cond, bool gt_bias) {
+  // The ARM condition codes can express all the necessary branches, see the
+  // "Meaning (floating-point)" column in the table A8-1 of the ARMv7 reference manual.
+  // There is no dex instruction or HIR that would need the missing conditions
+  // "equal or unordered" or "not equal".
+  switch (cond) {
+    case kCondEQ: return EQ;
+    case kCondNE: return NE /* unordered */;
+    case kCondLT: return gt_bias ? CC : LT /* unordered */;
+    case kCondLE: return gt_bias ? LS : LE /* unordered */;
+    case kCondGT: return gt_bias ? HI /* unordered */ : GT;
+    case kCondGE: return gt_bias ? CS /* unordered */ : GE;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+  }
+}
+
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
   stream << Register(reg);
 }
@@ -1416,15 +1434,9 @@ void InstructionCodeGeneratorARM::VisitExit(HExit* exit ATTRIBUTE_UNUSED) {
 
 void InstructionCodeGeneratorARM::GenerateFPJumps(HCondition* cond,
                                                   Label* true_label,
-                                                  Label* false_label) {
+                                                  Label* false_label ATTRIBUTE_UNUSED) {
   __ vmstat();  // transfer FP status register to ARM APSR.
-  // TODO: merge into a single branch (except "equal or unordered" and "not equal")
-  if (cond->IsFPConditionTrueIfNaN()) {
-    __ b(true_label, VS);  // VS for unordered.
-  } else if (cond->IsFPConditionFalseIfNaN()) {
-    __ b(false_label, VS);  // VS for unordered.
-  }
-  __ b(true_label, ARMCondition(cond->GetCondition()));
+  __ b(true_label, ARMFPCondition(cond->GetCondition(), cond->IsGtBias()));
 }
 
 void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
@@ -3803,6 +3815,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
 
   Label less, greater, done;
   Primitive::Type type = compare->InputAt(0)->GetType();
+  Condition less_cond;
   switch (type) {
     case Primitive::kPrimLong: {
       __ cmp(left.AsRegisterPairHigh<Register>(),
@@ -3813,6 +3826,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
       __ LoadImmediate(out, 0);
       __ cmp(left.AsRegisterPairLow<Register>(),
              ShifterOperand(right.AsRegisterPairLow<Register>()));  // Unsigned compare.
+      less_cond = LO;
       break;
     }
     case Primitive::kPrimFloat:
@@ -3825,14 +3839,15 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
                  FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
       }
       __ vmstat();  // transfer FP status register to ARM APSR.
-      __ b(compare->IsGtBias() ? &greater : &less, VS);  // VS for unordered.
+      less_cond = ARMFPCondition(kCondLT, compare->IsGtBias());
       break;
     }
     default:
       LOG(FATAL) << "Unexpected compare type " << type;
+      UNREACHABLE();
   }
   __ b(&done, EQ);
-  __ b(&less, LO);  // LO is for both: unsigned compare for longs and 'less than' for floats.
+  __ b(&less, less_cond);
 
   __ Bind(&greater);
   __ LoadImmediate(out, 1);
