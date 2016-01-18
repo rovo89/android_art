@@ -356,12 +356,12 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
       compare, invoke_instruction->GetDexPc());
   // TODO: Extend reference type propagation to understand the guard.
   if (cursor != nullptr) {
-    bb_cursor->InsertInstructionAfter(load_class, cursor);
+    bb_cursor->InsertInstructionAfter(field_get, cursor);
   } else {
-    bb_cursor->InsertInstructionBefore(load_class, bb_cursor->GetFirstInstruction());
+    bb_cursor->InsertInstructionBefore(field_get, bb_cursor->GetFirstInstruction());
   }
-  bb_cursor->InsertInstructionAfter(field_get, load_class);
-  bb_cursor->InsertInstructionAfter(compare, field_get);
+  bb_cursor->InsertInstructionAfter(load_class, field_get);
+  bb_cursor->InsertInstructionAfter(compare, load_class);
   bb_cursor->InsertInstructionAfter(deoptimize, compare);
   deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
 
