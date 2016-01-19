@@ -86,12 +86,14 @@ void ProfileSaver::Run() {
 }
 
 bool ProfileSaver::ProcessProfilingInfo() {
-  VLOG(profiler) << "Initiating save profiling information to: " << output_filename_;
+  VLOG(profiler) << "Save profiling information to: " << output_filename_;
 
   uint64_t last_update_time_ns = jit_code_cache_->GetLastUpdateTimeNs();
   if (last_update_time_ns - code_cache_last_update_time_ns_
-      > kMinimumTimeBetweenCodeCacheUpdatesNs) {
-    VLOG(profiler) << "Not enough time has passed since the last code cache update.";
+      < kMinimumTimeBetweenCodeCacheUpdatesNs) {
+    VLOG(profiler) << "Not enough time has passed since the last code cache update."
+        << "Last update: " << last_update_time_ns
+        << " Last save: " << code_cache_last_update_time_ns_;
     return false;
   }
 

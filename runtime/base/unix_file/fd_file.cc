@@ -316,4 +316,21 @@ void FdFile::MarkUnchecked() {
   guard_state_ = GuardState::kNoCheck;
 }
 
+bool FdFile::ClearContent() {
+  if (SetLength(0) < 0) {
+    PLOG(art::ERROR) << "Failed to reset the length";
+    return false;
+  }
+  return ResetOffset();
+}
+
+bool FdFile::ResetOffset() {
+  off_t rc =  TEMP_FAILURE_RETRY(lseek(fd_, 0, SEEK_SET));
+  if (rc == static_cast<off_t>(-1)) {
+    PLOG(art::ERROR) << "Failed to reset the offset";
+    return false;
+  }
+  return true;
+}
+
 }  // namespace unix_file
