@@ -4663,13 +4663,13 @@ void LocationsBuilderX86_64::VisitArraySet(HArraySet* instruction) {
 
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
-  bool may_need_runtime_call = instruction->NeedsTypeCheck();
+  bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
   bool object_array_set_with_read_barrier =
       kEmitCompilerReadBarrier && (value_type == Primitive::kPrimNot);
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
       instruction,
-      (may_need_runtime_call || object_array_set_with_read_barrier) ?
+      (may_need_runtime_call_for_type_check || object_array_set_with_read_barrier) ?
           LocationSummary::kCallOnSlowPath :
           LocationSummary::kNoCall);
 
@@ -4698,7 +4698,7 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
   Location index = locations->InAt(1);
   Location value = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
-  bool may_need_runtime_call = instruction->NeedsTypeCheck();
+  bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
@@ -4750,7 +4750,7 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         __ movl(address, Immediate(0));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         DCHECK(!needs_write_barrier);
-        DCHECK(!may_need_runtime_call);
+        DCHECK(!may_need_runtime_call_for_type_check);
         break;
       }
 
@@ -4759,7 +4759,7 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
       NearLabel done, not_null, do_put;
       SlowPathCode* slow_path = nullptr;
       CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-      if (may_need_runtime_call) {
+      if (may_need_runtime_call_for_type_check) {
         slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathX86_64(instruction);
         codegen_->AddSlowPath(slow_path);
         if (instruction->GetValueCanBeNull()) {
@@ -4837,7 +4837,7 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
       } else {
         __ movl(address, register_value);
       }
-      if (!may_need_runtime_call) {
+      if (!may_need_runtime_call_for_type_check) {
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       }
 
@@ -5626,7 +5626,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck: {
       // Note that we indeed only call on slow path, but we always go
-      // into the slow path for the unresolved & interface check
+      // into the slow path for the unresolved and interface check
       // cases.
       //
       // We cannot directly call the InstanceofNonTrivial runtime
@@ -5857,8 +5857,8 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
 
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
-      // We always go into the type check slow path for the unresolved &
-      // interface check cases.
+      // We always go into the type check slow path for the unresolved
+      // and interface check cases.
       //
       // We cannot directly call the CheckCast runtime entry point
       // without resorting to a type checking slow path here (i.e. by
@@ -6120,6 +6120,8 @@ void InstructionCodeGeneratorX86_64::GenerateGcRootFieldLoad(HInstruction* instr
     // Plain GC root load with no read barrier.
     // /* GcRoot<mirror::Object> */ root = *(obj + offset)
     __ movl(root_reg, Address(obj, offset));
+    // Note that GC roots are not affected by heap poisoning, thus we
+    // do not have to unpoison `root_reg` here.
   }
 }
 
@@ -6182,7 +6184,9 @@ void CodeGeneratorX86_64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction
   // Note: the original implementation in ReadBarrier::Barrier is
   // slightly more complex as:
   // - it implements the load-load fence using a data dependency on
-  //   the high-bits of rb_state, which are expected to be all zeroes;
+  //   the high-bits of rb_state, which are expected to be all zeroes
+  //   (we use CodeGeneratorX86_64::GenerateMemoryBarrier instead
+  //   here, which is a no-op thanks to the x86-64 memory model);
   // - it performs additional checks that we do not do here for
   //   performance reasons.
 

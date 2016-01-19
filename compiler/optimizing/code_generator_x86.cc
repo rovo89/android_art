@@ -6009,7 +6009,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck: {
       // Note that we indeed only call on slow path, but we always go
-      // into the slow path for the unresolved & interface check
+      // into the slow path for the unresolved and interface check
       // cases.
       //
       // We cannot directly call the InstanceofNonTrivial runtime
@@ -6240,8 +6240,8 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
 
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
-      // We always go into the type check slow path for the unresolved &
-      // interface check cases.
+      // We always go into the type check slow path for the unresolved
+      // and interface check cases.
       //
       // We cannot directly call the CheckCast runtime entry point
       // without resorting to a type checking slow path here (i.e. by
@@ -6520,6 +6520,8 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(HInstruction* instruct
     // Plain GC root load with no read barrier.
     // /* GcRoot<mirror::Object> */ root = *(obj + offset)
     __ movl(root_reg, Address(obj, offset));
+    // Note that GC roots are not affected by heap poisoning, thus we
+    // do not have to unpoison `root_reg` here.
   }
 }
 
@@ -6582,7 +6584,9 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   // Note: the original implementation in ReadBarrier::Barrier is
   // slightly more complex as:
   // - it implements the load-load fence using a data dependency on
-  //   the high-bits of rb_state, which are expected to be all zeroes;
+  //   the high-bits of rb_state, which are expected to be all zeroes
+  //   (we use CodeGeneratorX86::GenerateMemoryBarrier instead here,
+  //   which is a no-op thanks to the x86 memory model);
   // - it performs additional checks that we do not do here for
   //   performance reasons.
 
