@@ -1602,6 +1602,69 @@ void IntrinsicCodeGeneratorARM64::VisitMathNextAfter(HInvoke* invoke) {
   GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickNextAfter);
 }
 
+void IntrinsicLocationsBuilderARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Location of char array data in string.
+  const uint32_t value_offset = mirror::String::ValueOffset().Uint32Value();
+
+  // void getCharsNoCheck(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  // Since getChars() calls getCharsNoCheck() - we use registers rather than constants.
+  Register srcObj = XRegisterFrom(locations->InAt(0));
+  Register srcBegin = XRegisterFrom(locations->InAt(1));
+  Register srcEnd = XRegisterFrom(locations->InAt(2));
+  Register dstObj = XRegisterFrom(locations->InAt(3));
+  Register dstBegin = XRegisterFrom(locations->InAt(4));
+
+  Register src_ptr = XRegisterFrom(locations->GetTemp(0));
+  Register src_ptr_end = XRegisterFrom(locations->GetTemp(1));
+
+  UseScratchRegisterScope temps(masm);
+  Register dst_ptr = temps.AcquireX();
+  Register tmp = temps.AcquireW();
+
+  // src range to copy.
+  __ Add(src_ptr, srcObj, Operand(value_offset));
+  __ Add(src_ptr_end, src_ptr, Operand(srcEnd, LSL, 1));
+  __ Add(src_ptr, src_ptr, Operand(srcBegin, LSL, 1));
+
+  // dst to be copied.
+  __ Add(dst_ptr, dstObj, Operand(data_offset));
+  __ Add(dst_ptr, dst_ptr, Operand(dstBegin, LSL, 1));
+
+  // Do the copy.
+  vixl::Label loop, done;
+  __ Bind(&loop);
+  __ Cmp(src_ptr, src_ptr_end);
+  __ B(&done, eq);
+  __ Ldrh(tmp, MemOperand(src_ptr, char_size, vixl::PostIndex));
+  __ Strh(tmp, MemOperand(dst_ptr, char_size, vixl::PostIndex));
+  __ B(&loop);
+  __ Bind(&done);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -1615,7 +1678,6 @@ UNIMPLEMENTED_INTRINSIC(LongBitCount)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 
 UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)

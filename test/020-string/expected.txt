@@ -5,3 +5,9 @@ Compare unicode: -65302
 Got expected exception
 subStr is 'uick brown fox jumps over the lazy '
 Indexes are: 0:-1:0:43:33:-1:18:13:13:-1:18:18:-1:13:-1:-1:-1
+Got expected exception
+Got expected exception
+Got expected exception
+Got expected exception
+Got expected exception
+llo And
