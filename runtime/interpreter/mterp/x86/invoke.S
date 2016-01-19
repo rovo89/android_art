@@ -1,0 +1,20 @@
+%default { "helper":"UndefinedInvokeHandler" }
+/*
+ * Generic invoke handler wrapper.
+ */
+    /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
+    /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
+    .extern $helper
+    EXPORT_PC
+    movl    rSELF, %ecx
+    movl    %ecx, OUT_ARG0(%esp)
+    leal    OFF_FP_SHADOWFRAME(rFP), %eax
+    movl    %eax, OUT_ARG1(%esp)
+    movl    rPC, OUT_ARG2(%esp)
+    REFRESH_INST ${opnum}
+    movl    rINST, OUT_ARG3(%esp)
+    call    $helper
+    testl   %eax, %eax
+    jz      MterpException
+    REFRESH_IBASE
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
