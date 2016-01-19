@@ -23,6 +23,7 @@
 
 #include "common_runtime_test.h"
 #include "compiler.h"
+#include "jit/offline_profiling_info.h"
 #include "oat_file.h"
 
 namespace art {
@@ -74,6 +75,8 @@ class CommonCompilerTest : public CommonRuntimeTest {
   // Get the set of compiled methods given to the compiler-driver in SetUp. Note: the compiler
   // driver assumes ownership of the set, so the test should properly release the set.
   virtual std::unordered_set<std::string>* GetCompiledMethods();
+
+  virtual ProfileCompilationInfo* GetProfileCompilationInfo();
 
   virtual void TearDown();
 

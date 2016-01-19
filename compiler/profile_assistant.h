@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "base/scoped_flock.h"
 #include "jit/offline_profiling_info.cc"
 
 namespace art {
@@ -52,7 +53,17 @@ class ProfileAssistant {
       const std::vector<std::string>& reference_profile_files,
       /*out*/ ProfileCompilationInfo** profile_compilation_info);
 
+  static bool ProcessProfiles(
+      const std::vector<uint32_t>& profile_files_fd_,
+      const std::vector<uint32_t>& reference_profile_files_fd_,
+      /*out*/ ProfileCompilationInfo** profile_compilation_info);
+
  private:
+  static bool ProcessProfilesInternal(
+      const std::vector<ScopedFlock>& profile_files,
+      const std::vector<ScopedFlock>& reference_profile_files,
+      /*out*/ ProfileCompilationInfo** profile_compilation_info);
+
   DISALLOW_COPY_AND_ASSIGN(ProfileAssistant);
 };
 

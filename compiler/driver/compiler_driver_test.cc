@@ -31,6 +31,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "handle_scope-inl.h"
+#include "jit/offline_profiling_info.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -238,6 +239,94 @@ TEST_F(CompilerDriverMethodsTest, Selection) {
     }
   }
   EXPECT_TRUE(expected->empty());
+}
+
+class CompilerDriverProfileTest : public CompilerDriverTest {
+ protected:
+  ProfileCompilationInfo* GetProfileCompilationInfo() OVERRIDE {
+    ScopedObjectAccess soa(Thread::Current());
+    std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles("ProfileTestMultiDex");
+
+    ProfileCompilationInfo info;
+    for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
+      std::cout << std::string(dex_file->GetLocation());
+      profile_info_.AddData(dex_file->GetLocation(), dex_file->GetLocationChecksum(), 1);
+      profile_info_.AddData(dex_file->GetLocation(), dex_file->GetLocationChecksum(), 2);
+    }
+    return &profile_info_;
+  }
+
+  std::unordered_set<std::string> GetExpectedMethodsForClass(const std::string& clazz) {
+    if (clazz == "Main") {
+      return std::unordered_set<std::string>({
+          "java.lang.String Main.getA()",
+          "java.lang.String Main.getB()"});
+    } else if (clazz == "Second") {
+      return std::unordered_set<std::string>({
+          "java.lang.String Second.getX()",
+          "java.lang.String Second.getY()"});
+    } else {
+      return std::unordered_set<std::string>();
+    }
+  }
+
+  void CheckCompiledMethods(jobject class_loader,
+                            const std::string& clazz,
+                            const std::unordered_set<std::string>& expected_methods) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> h_loader(hs.NewHandle(
+        reinterpret_cast<mirror::ClassLoader*>(self->DecodeJObject(class_loader))));
+    mirror::Class* klass = class_linker->FindClass(self, clazz.c_str(), h_loader);
+    ASSERT_NE(klass, nullptr);
+
+    const auto pointer_size = class_linker->GetImagePointerSize();
+    size_t number_of_compiled_methods = 0;
+    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+      std::string name = PrettyMethod(&m, true);
+      const void* code = m.GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
+      ASSERT_NE(code, nullptr);
+      if (expected_methods.find(name) != expected_methods.end()) {
+        number_of_compiled_methods++;
+        EXPECT_FALSE(class_linker->IsQuickToInterpreterBridge(code));
+      } else {
+        EXPECT_TRUE(class_linker->IsQuickToInterpreterBridge(code));
+      }
+    }
+    EXPECT_EQ(expected_methods.size(), number_of_compiled_methods);
+  }
+
+ private:
+  ProfileCompilationInfo profile_info_;
+};
+
+TEST_F(CompilerDriverProfileTest, ProfileGuidedCompilation) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING_WITH_QUICK();
+  TEST_DISABLED_FOR_READ_BARRIER_WITH_QUICK();
+  TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS();
+  Thread* self = Thread::Current();
+  jobject class_loader;
+  {
+    ScopedObjectAccess soa(self);
+    class_loader = LoadDex("ProfileTestMultiDex");
+  }
+  ASSERT_NE(class_loader, nullptr);
+
+  // Need to enable dex-file writability. Methods rejected to be compiled will run through the
+  // dex-to-dex compiler.
+  ProfileCompilationInfo info;
+  for (const DexFile* dex_file : GetDexFiles(class_loader)) {
+    ASSERT_TRUE(dex_file->EnableWrite());
+  }
+
+  CompileAll(class_loader);
+
+  std::unordered_set<std::string> m = GetExpectedMethodsForClass("Main");
+  std::unordered_set<std::string> s = GetExpectedMethodsForClass("Second");
+  CheckCompiledMethods(class_loader, "LMain;", m);
+  CheckCompiledMethods(class_loader, "LSecond;", s);
 }
 
 // TODO: need check-cast test (when stub complete & we can throw/catch
