@@ -20,8 +20,8 @@ set -e
 # Use classes that are compiled with ecj that exposes an invokeinterface
 # issue when interfaces override methods in Object
 if [ ${USE_JACK} = "true" ]; then
-  ${JILL} classes --output classes.jack
-  ${JACK} --import classes.jack --output-dex .
+  jar cf classes.jill.jar -C classes .
+  ${JACK} --import classes.jill.jar --output-dex .
 else
   ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
 fi

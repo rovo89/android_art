@@ -23,8 +23,8 @@ mkdir classes
 ${JAVAC} -source 1.4 -target 1.4 -d classes `find src -name '*.java'`
 
 if [ ${USE_JACK} = "true" ]; then
-  ${JILL} classes --output classes.jack
-  ${JACK} --import classes.jack --output-dex .
+  jar cf classes.jill.jar -C classes .
+  ${JACK} --import classes.jill.jar --output-dex .
 else
   # Suppress stderr to keep the inner class warnings out of the expected output.
   ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes 2>/dev/null
