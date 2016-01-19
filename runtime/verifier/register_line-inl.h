@@ -147,6 +147,9 @@ inline bool RegisterLine::VerifyRegisterType(MethodVerifier* verifier, uint32_t 
     if (!check_type.IsNonZeroReferenceTypes() || !src_type.IsNonZeroReferenceTypes()) {
       // Hard fail if one of the types is primitive, since they are concretely known.
       fail_type = VERIFY_ERROR_BAD_CLASS_HARD;
+    } else if (check_type.IsUninitializedTypes() || src_type.IsUninitializedTypes()) {
+      // Hard fail for uninitialized types, which don't match anything but themselves.
+      fail_type = VERIFY_ERROR_BAD_CLASS_HARD;
     } else if (check_type.IsUnresolvedTypes() || src_type.IsUnresolvedTypes()) {
       fail_type = VERIFY_ERROR_NO_CLASS;
     } else {
