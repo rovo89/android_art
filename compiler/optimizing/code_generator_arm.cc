@@ -5483,7 +5483,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck: {
       // Note that we indeed only call on slow path, but we always go
-      // into the slow path for the unresolved & interface check
+      // into the slow path for the unresolved and interface check
       // cases.
       //
       // We cannot directly call the InstanceofNonTrivial runtime
@@ -5693,8 +5693,8 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
 
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
-      // We always go into the type check slow path for the unresolved &
-      // interface check cases.
+      // We always go into the type check slow path for the unresolved
+      // and interface check cases.
       //
       // We cannot directly call the CheckCast runtime entry point
       // without resorting to a type checking slow path here (i.e. by
@@ -5980,6 +5980,7 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
           new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, root, root);
       codegen_->AddSlowPath(slow_path);
 
+      // IP = Thread::Current()->GetIsGcMarking()
       __ LoadFromOffset(
           kLoadWord, IP, TR, Thread::IsGcMarkingOffset<kArmWordSize>().Int32Value());
       __ CompareAndBranchIfNonZero(IP, slow_path->GetEntryLabel());
@@ -6058,11 +6059,8 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   //   }
   //
   // Note: the original implementation in ReadBarrier::Barrier is
-  // slightly more complex as:
-  // - it implements the load-load fence using a data dependency on
-  //   the high-bits of rb_state, which are expected to be all zeroes;
-  // - it performs additional checks that we do not do here for
-  //   performance reasons.
+  // slightly more complex as it performs additional checks that we do
+  // not do here for performance reasons.
 
   Register ref_reg = ref.AsRegister<Register>();
   Register temp_reg = temp.AsRegister<Register>();

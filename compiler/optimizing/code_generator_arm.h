@@ -442,7 +442,7 @@ class CodeGeneratorARM : public CodeGenerator {
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
   void GenerateFieldLoadWithBakerReadBarrier(HInstruction* instruction,
-                                             Location out,
+                                             Location ref,
                                              Register obj,
                                              uint32_t offset,
                                              Location temp,
@@ -450,7 +450,7 @@ class CodeGeneratorARM : public CodeGenerator {
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference array load when Baker's read barriers are used.
   void GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
-                                             Location out,
+                                             Location ref,
                                              Register obj,
                                              uint32_t data_offset,
                                              Location index,
