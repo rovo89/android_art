@@ -125,7 +125,8 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       data_end_(initial_data_capacity),
       has_done_one_collection_(false),
       last_update_time_ns_(0),
-      garbage_collect_code_(garbage_collect_code) {
+      garbage_collect_code_(garbage_collect_code),
+      number_of_compilations_(0) {
 
   DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
@@ -322,6 +323,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
 
     __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
                             reinterpret_cast<char*>(code_ptr + code_size));
+    number_of_compilations_++;
   }
   // We need to update the entry point in the runnable state for the instrumentation.
   {
@@ -345,6 +347,11 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   }
 
   return reinterpret_cast<uint8_t*>(method_header);
+}
+
+size_t JitCodeCache::NumberOfCompilations() {
+  MutexLock mu(Thread::Current(), lock_);
+  return number_of_compilations_;
 }
 
 size_t JitCodeCache::CodeCacheSize() {
