@@ -1194,15 +1194,18 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
   if (equals_referrers_class != nullptr) {
     *equals_referrers_class = (method_id.class_idx_ == type_idx);
   }
-  mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
-  if (referrer_class == nullptr) {
-    stats_->TypeNeedsAccessCheck();
-    return false;  // Incomplete referrer knowledge needs access check.
+  bool is_accessible = resolved_class->IsPublic();  // Public classes are always accessible.
+  if (!is_accessible) {
+    mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
+    if (referrer_class == nullptr) {
+      stats_->TypeNeedsAccessCheck();
+      return false;  // Incomplete referrer knowledge needs access check.
+    }
+    // Perform access check, will return true if access is ok or false if we're going to have to
+    // check this at runtime (for example for class loaders).
+    is_accessible = referrer_class->CanAccess(resolved_class);
   }
-  // Perform access check, will return true if access is ok or false if we're going to have to
-  // check this at runtime (for example for class loaders).
-  bool result = referrer_class->CanAccess(resolved_class);
-  if (result) {
+  if (is_accessible) {
     stats_->TypeDoesntNeedAccessCheck();
     if (type_known_final != nullptr) {
       *type_known_final = resolved_class->IsFinal() && !resolved_class->IsArrayClass();
@@ -1213,7 +1216,7 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
   } else {
     stats_->TypeNeedsAccessCheck();
   }
-  return result;
+  return is_accessible;
 }
 
 bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
@@ -1233,14 +1236,18 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
   }
   *finalizable = resolved_class->IsFinalizable();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
-  mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
-  if (referrer_class == nullptr) {
-    stats_->TypeNeedsAccessCheck();
-    return false;  // Incomplete referrer knowledge needs access check.
+  bool is_accessible = resolved_class->IsPublic();  // Public classes are always accessible.
+  if (!is_accessible) {
+    mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
+    if (referrer_class == nullptr) {
+      stats_->TypeNeedsAccessCheck();
+      return false;  // Incomplete referrer knowledge needs access check.
+    }
+    // Perform access and instantiable checks, will return true if access is ok or false if we're
+    // going to have to check this at runtime (for example for class loaders).
+    is_accessible = referrer_class->CanAccess(resolved_class);
   }
-  // Perform access and instantiable checks, will return true if access is ok or false if we're
-  // going to have to check this at runtime (for example for class loaders).
-  bool result = referrer_class->CanAccess(resolved_class) && resolved_class->IsInstantiable();
+  bool result = is_accessible && resolved_class->IsInstantiable();
   if (result) {
     stats_->TypeDoesntNeedAccessCheck();
   } else {
