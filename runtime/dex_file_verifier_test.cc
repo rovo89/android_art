@@ -686,31 +686,6 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsIgnoredOK) {
 // Set of dex files for interface method tests. As it's not as easy to mutate method names, it's
 // just easier to break up bad cases.
 
-// Interface with an instance constructor.
-//
-// .class public interface LInterfaceMethodFlags;
-// .super Ljava/lang/Object;
-//
-// .method public static constructor <clinit>()V
-// .registers 1
-//     return-void
-// .end method
-//
-// .method public constructor <init>()V
-// .registers 1
-//     return-void
-// .end method
-static const char kMethodFlagsInterfaceWithInit[] =
-    "ZGV4CjAzNQDRNt+hZ6X3I+xe66iVlCW7h9I38HmN4SvUAQAAcAAAAHhWNBIAAAAAAAAAAEwBAAAF"
-    "AAAAcAAAAAMAAACEAAAAAQAAAJAAAAAAAAAAAAAAAAIAAACcAAAAAQAAAKwAAAAIAQAAzAAAAMwA"
-    "AADWAAAA3gAAAPYAAAAKAQAAAgAAAAMAAAAEAAAABAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAQAA"
-    "AAAAAAABAgAAAQAAAAAAAAD/////AAAAADoBAAAAAAAACDxjbGluaXQ+AAY8aW5pdD4AFkxJbnRl"
-    "cmZhY2VNZXRob2RGbGFnczsAEkxqYXZhL2xhbmcvT2JqZWN0OwABVgAAAAAAAAAAAQAAAAAAAAAA"
-    "AAAAAQAAAA4AAAABAAEAAAAAAAAAAAABAAAADgAAAAIAAImABJQCAYGABKgCAAALAAAAAAAAAAEA"
-    "AAAAAAAAAQAAAAUAAABwAAAAAgAAAAMAAACEAAAAAwAAAAEAAACQAAAABQAAAAIAAACcAAAABgAA"
-    "AAEAAACsAAAAAiAAAAUAAADMAAAAAxAAAAEAAAAQAQAAASAAAAIAAAAUAQAAACAAAAEAAAA6AQAA"
-    "ABAAAAEAAABMAQAA";
-
 // Standard interface. Use declared-synchronized again for 3B encoding.
 //
 // .class public interface LInterfaceMethodFlags;
@@ -751,13 +726,6 @@ static uint32_t ApplyMaskShifted(uint32_t src_value, uint32_t mask) {
 }
 
 TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
-  // Reject interface with <init>.
-  VerifyModification(
-      kMethodFlagsInterfaceWithInit,
-      "method_flags_interface_with_init",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) {},
-      "Non-clinit interface method 1 should not have code");
-
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_ok",
