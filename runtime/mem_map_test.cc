@@ -271,8 +271,8 @@ TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
         break;
       }
     }
-    ASSERT_GE(reinterpret_cast<uintptr_t>(map->End()), 2u * GB);
     ASSERT_TRUE(map.get() != nullptr) << error_msg;
+    ASSERT_GE(reinterpret_cast<uintptr_t>(map->End()), 2u * GB);
     ASSERT_TRUE(error_msg.empty());
     ASSERT_EQ(BaseBegin(map.get()), reinterpret_cast<void*>(start_addr));
   }
