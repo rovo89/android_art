@@ -1094,11 +1094,11 @@ class DexFile {
   int32_t GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns false if there is no debugging information or if it can not be decoded.
+  // Returns false if there is no debugging information or if it cannot be decoded.
   bool DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                             DexDebugNewLocalCb local_cb, void* context) const;
 
-  // Returns false if there is no debugging information or if it can not be decoded.
+  // Returns false if there is no debugging information or if it cannot be decoded.
   bool DecodeDebugPositionInfo(const CodeItem* code_item, DexDebugNewPositionCb position_cb,
                                void* context) const;
 

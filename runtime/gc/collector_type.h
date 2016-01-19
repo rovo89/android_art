@@ -34,7 +34,7 @@ enum CollectorType {
   kCollectorTypeSS,
   // A generational variant of kCollectorTypeSS.
   kCollectorTypeGSS,
-  // Mark compact colector.
+  // Mark compact collector.
   kCollectorTypeMC,
   // Heap trimming collector, doesn't do any actual collecting.
   kCollectorTypeHeapTrim,
