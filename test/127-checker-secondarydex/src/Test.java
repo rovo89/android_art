@@ -23,8 +23,12 @@ public class Test extends Super {
         System.out.println("Test");
     }
 
-    /// CHECK-START: java.lang.String Test.toString() ssa_builder (after)
-    /// CHECK:         LoadClass needs_access_check:false klass:java.lang.String
+    /// CHECK-START: java.lang.Integer Test.toInteger() ssa_builder (after)
+    /// CHECK:         LoadClass needs_access_check:false klass:java.lang.Integer
+
+    public Integer toInteger() {
+        return new Integer(42);
+    }
 
     public String toString() {
         return new String("Test");

@@ -592,6 +592,10 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   //
   // (at this point the ArtMethod has already been replaced,
   // so we just need to fix-up the arguments)
+  //
+  // Note that FindMethodFromCode in entrypoint_utils-inl.h was also special-cased
+  // to handle the compiler optimization of replacing `this` with null without
+  // throwing NullPointerException.
   uint32_t string_init_vreg_this = is_range ? vregC : arg[0];
   if (UNLIKELY(string_init)) {
     DCHECK_GT(num_regs, 0u);  // As the method is an instance method, there should be at least 1.
