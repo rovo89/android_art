@@ -193,10 +193,10 @@ inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
       return nullptr;
     }
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    // Pass in false since the object can not be finalizable.
+    // Pass in false since the object cannot be finalizable.
     return klass->Alloc<kInstrumented, false>(self, heap->GetCurrentAllocator());
   }
-  // Pass in false since the object can not be finalizable.
+  // Pass in false since the object cannot be finalizable.
   return klass->Alloc<kInstrumented, false>(self, allocator_type);
 }
 
@@ -207,7 +207,7 @@ inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
                                                       Thread* self,
                                                       gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
-  // Pass in false since the object can not be finalizable.
+  // Pass in false since the object cannot be finalizable.
   return klass->Alloc<kInstrumented, false>(self, allocator_type);
 }
 
