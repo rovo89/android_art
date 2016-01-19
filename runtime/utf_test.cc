@@ -353,7 +353,7 @@ TEST_F(UtfTest, ExhaustiveBidirectionalCodePointCheck) {
     if (codePoint <= 0xffff) {
       if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
         // According to the Unicode standard, no character will ever
-        // be assigned to these code points, and they can not be encoded
+        // be assigned to these code points, and they cannot be encoded
         // into either utf-16 or utf-8.
         continue;
       }

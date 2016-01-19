@@ -29,7 +29,7 @@ class Reg {
   // TODO: Arm S0–S31 register mapping is obsolescent.
   //   We should use VFP-v3/Neon D0-D31 mapping instead.
   //   However, D0 is aliased to pair of S0 and S1, so using that
-  //   mapping we can not easily say S0 is spilled and S1 is not.
+  //   mapping we cannot easily say S0 is spilled and S1 is not.
   //   There are ways around this in DWARF but they are complex.
   //   It would be much simpler to always spill whole D registers.
   //   Arm64 mapping is correct since we already do this there.

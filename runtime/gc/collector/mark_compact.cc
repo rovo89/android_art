@@ -180,7 +180,7 @@ void MarkCompact::MarkingPhase() {
   t.NewTiming("ProcessCards");
   // Process dirty cards and add dirty cards to mod-union tables.
   heap_->ProcessCards(GetTimings(), false, false, true);
-  // Clear the whole card table since we can not Get any additional dirty cards during the
+  // Clear the whole card table since we cannot get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
   t.NewTiming("ClearCardTable");
   heap_->GetCardTable()->ClearCardTable();

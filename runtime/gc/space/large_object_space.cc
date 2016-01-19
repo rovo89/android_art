@@ -521,7 +521,7 @@ mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* byt
   num_bytes_allocated_ += allocation_size;
   total_bytes_allocated_ += allocation_size;
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(GetAddressForAllocationInfo(new_info));
-  // We always put our object at the start of the free block, there can not be another free block
+  // We always put our object at the start of the free block, there cannot be another free block
   // before it.
   if (kIsDebugBuild) {
     mprotect(obj, allocation_size, PROT_READ | PROT_WRITE);

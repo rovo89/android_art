@@ -86,7 +86,7 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
     // it to the mutator as long as the GC is not preserving references.
     if (LIKELY(collector_ != nullptr)) {
       // If it's null it means not marked, but it could become marked if the referent is reachable
-      // by finalizer referents. So we can not return in this case and must block. Otherwise, we
+      // by finalizer referents. So we cannot return in this case and must block. Otherwise, we
       // can return it to the mutator as long as the GC is not preserving references, in which
       // case only black nodes can be safely returned. If the GC is preserving references, the
       // mutator could take a white field from a grey or white node and move it somewhere else

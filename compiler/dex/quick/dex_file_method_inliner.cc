@@ -110,9 +110,9 @@ static_assert(kIntrinsicIsStatic[kIntrinsicAbsLong], "AbsLong must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsFloat], "AbsFloat must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsDouble], "AbsDouble must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxInt], "MinMaxInt must be static");
-static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxLong], "MinMaxLong_must_be_static");
-static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], "MinMaxFloat_must_be_static");
-static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], "MinMaxDouble_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxLong], "MinMaxLong must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], "MinMaxFloat must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], "MinMaxDouble must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicCos], "Cos must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicSin], "Sin must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAcos], "Acos must be static");
@@ -153,7 +153,7 @@ static_assert(kIntrinsicIsStatic[kIntrinsicCurrentThread], "CurrentThread must b
 static_assert(kIntrinsicIsStatic[kIntrinsicPeek], "Peek must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicPoke], "Poke must be static");
 static_assert(!kIntrinsicIsStatic[kIntrinsicCas], "Cas must not be static");
-static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], "UnsafeGet_must_not_be_static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], "UnsafeGet must not be static");
 static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafePut], "UnsafePut must not be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
               "SystemArrayCopyCharArray must be static");
