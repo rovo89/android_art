@@ -70,6 +70,7 @@ $$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TARGET_JACK_CLASSPATH_DEPE
 	$(hide) DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	  SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
 	  DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
+	  JACK_VERSION=$(JACK_DEFAULT_VERSION) \
 	  JACK=$(abspath $(JACK)) \
 	  JACK_CLASSPATH=$(TARGET_JACK_CLASSPATH) \
 	  JILL_JAR=$(abspath $(JILL_JAR)) \
@@ -967,6 +968,7 @@ $$(run_test_rule_name): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(HOST_OUT_EXECUTABLES
 	    JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	    SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
 	    DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
+	    JACK_VERSION=$(JACK_DEFAULT_VERSION) \
 	    JACK=$(abspath $(JACK)) \
 	    JACK_CLASSPATH=$$(PRIVATE_JACK_CLASSPATH) \
 	    JILL_JAR=$(abspath $(JILL_JAR)) \
