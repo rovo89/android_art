@@ -23,6 +23,9 @@ public class Test extends Super {
         System.out.println("Test");
     }
 
+    /// CHECK-START: java.lang.String Test.toString() ssa_builder (after)
+    /// CHECK:         LoadClass needs_access_check:false klass:java.lang.String
+
     public String toString() {
         return new String("Test");
     }
