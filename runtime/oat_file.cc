@@ -627,7 +627,7 @@ void DlOpenOatFile::PreSetup(const std::string& elf_filename) {
 
   if (dl_iterate_phdr(dl_iterate_context::callback, &context) == 0) {
     PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
-    LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
+    LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but cannot find its mmaps.";
   }
 #endif
 }

@@ -212,7 +212,7 @@ static void WriteCIE(InstructionSet isa,
     case kNone:
       break;
   }
-  LOG(FATAL) << "Can not write CIE frame for ISA " << isa;
+  LOG(FATAL) << "Cannot write CIE frame for ISA " << isa;
   UNREACHABLE();
 }
 

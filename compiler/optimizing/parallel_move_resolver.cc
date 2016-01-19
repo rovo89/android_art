@@ -504,7 +504,7 @@ void ParallelMoveResolverNoSwap::PerformMove(size_t index) {
 void ParallelMoveResolverNoSwap::UpdateMoveSource(Location from, Location to) {
   // This function is used to reduce the dependencies in the graph after
   // (from -> to) has been performed. Since we ensure there is no move with the same
-  // destination, (to -> X) can not be blocked while (from -> X) might still be
+  // destination, (to -> X) cannot be blocked while (from -> X) might still be
   // blocked. Consider for example the moves (0 -> 1) (1 -> 2) (1 -> 3). After
   // (1 -> 2) has been performed, the moves left are (0 -> 1) and (1 -> 3). There is
   // a dependency between the two. If we update the source location from 1 to 2, we

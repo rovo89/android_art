@@ -79,7 +79,7 @@ public class Main {
 
     private static void testUnloadClass(Constructor constructor) throws Exception {
         WeakReference<Class> klass = setUpUnloadClass(constructor);
-        // No strong refernces to class loader, should get unloaded.
+        // No strong references to class loader, should get unloaded.
         Runtime.getRuntime().gc();
         WeakReference<Class> klass2 = setUpUnloadClass(constructor);
         Runtime.getRuntime().gc();
@@ -91,7 +91,7 @@ public class Main {
     private static void testUnloadLoader(Constructor constructor)
         throws Exception {
       WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor, true);
-      // No strong refernces to class loader, should get unloaded.
+      // No strong references to class loader, should get unloaded.
       Runtime.getRuntime().gc();
       // If the weak reference is cleared, then it was unloaded.
       System.out.println(loader.get());
@@ -109,7 +109,7 @@ public class Main {
 
     private static void testLoadAndUnloadLibrary(Constructor constructor) throws Exception {
         WeakReference<ClassLoader> loader = setUpLoadLibrary(constructor);
-        // No strong refernces to class loader, should get unloaded.
+        // No strong references to class loader, should get unloaded.
         Runtime.getRuntime().gc();
         // If the weak reference is cleared, then it was unloaded.
         System.out.println(loader.get());

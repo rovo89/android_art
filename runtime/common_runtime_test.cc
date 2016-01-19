@@ -232,7 +232,7 @@ static std::string GetAndroidToolsDir(const std::string& subdir1,
   }
 
   if (founddir.empty()) {
-    ADD_FAILURE() << "Can not find Android tools directory.";
+    ADD_FAILURE() << "Cannot find Android tools directory.";
   }
   return founddir;
 }
