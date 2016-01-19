@@ -1076,7 +1076,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       pc_rel_temp_(nullptr),
       dex_cache_arrays_min_offset_(std::numeric_limits<uint32_t>::max()),
       cfi_(&last_lir_insn_,
-           cu->compiler_driver->GetCompilerOptions().GetGenerateDebugInfo(),
+           cu->compiler_driver->GetCompilerOptions().GenerateAnyDebugInfo(),
            arena),
       in_to_reg_storage_mapping_(arena) {
   switch_tables_.reserve(4);
