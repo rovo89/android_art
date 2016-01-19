@@ -89,7 +89,6 @@ namespace space {
   class RegionSpace;
   class RosAllocSpace;
   class Space;
-  class SpaceTest;
   class ZygoteSpace;
 }  // namespace space
 
@@ -1335,7 +1334,6 @@ class Heap {
   friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;
-  friend class space::SpaceTest;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

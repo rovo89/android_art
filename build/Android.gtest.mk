@@ -194,13 +194,12 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/gc/collector/immune_spaces_test.cc \
   runtime/gc/heap_test.cc \
   runtime/gc/reference_queue_test.cc \
-  runtime/gc/space/dlmalloc_space_base_test.cc \
   runtime/gc/space/dlmalloc_space_static_test.cc \
   runtime/gc/space/dlmalloc_space_random_test.cc \
-  runtime/gc/space/rosalloc_space_base_test.cc \
+  runtime/gc/space/large_object_space_test.cc \
   runtime/gc/space/rosalloc_space_static_test.cc \
   runtime/gc/space/rosalloc_space_random_test.cc \
-  runtime/gc/space/large_object_space_test.cc \
+  runtime/gc/space/space_create_test.cc \
   runtime/gc/task_processor_test.cc \
   runtime/gtest_test.cc \
   runtime/handle_scope_test.cc \
