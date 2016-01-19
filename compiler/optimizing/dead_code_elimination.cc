@@ -89,15 +89,18 @@ void HDeadCodeElimination::MaybeRecordDeadBlock(HBasicBlock* block) {
 }
 
 void HDeadCodeElimination::RemoveDeadBlocks() {
+  if (graph_->HasIrreducibleLoops()) {
+    // Do not eliminate dead blocks if the graph has irreducible loops. We could
+    // support it, but that would require changes in our loop representation to handle
+    // multiple entry points. We decided it was not worth the complexity.
+    return;
+  }
   // Classify blocks as reachable/unreachable.
   ArenaAllocator* allocator = graph_->GetArena();
   ArenaBitVector live_blocks(allocator, graph_->GetBlocks().size(), false);
 
   MarkReachableBlocks(graph_, &live_blocks);
   bool removed_one_or_more_blocks = false;
-  // If the graph has irreducible loops we need to reset all graph analysis we have done
-  // before: the irreducible loop can be turned into a reducible one.
-  // For simplicity, we do the full computation regardless of the type of the loops.
   bool rerun_dominance_and_loop_analysis = false;
 
   // Remove all dead blocks. Iterate in post order because removal needs the
@@ -105,9 +108,6 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   // inside out.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block  = it.Current();
-    if (block->IsLoopHeader() && block->GetLoopInformation()->IsIrreducible()) {
-      rerun_dominance_and_loop_analysis = true;
-    }
     int id = block->GetBlockId();
     if (!live_blocks.IsBitSet(id)) {
       MaybeRecordDeadBlock(block);
