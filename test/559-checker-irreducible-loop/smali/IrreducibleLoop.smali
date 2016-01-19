@@ -91,9 +91,7 @@
    goto :other_loop_entry
 .end method
 
-# Check that if a irreducible loop entry is dead, the loop can become
-# natural.
-# We start with:
+# Check that dce does not apply for irreducible loops.
 #
 #        entry
 #       /    \
@@ -106,18 +104,8 @@
 ## CHECK-START: int IrreducibleLoop.dce(int) dead_code_elimination (before)
 ## CHECK: irreducible:true
 
-# And end with:
-#
-#        entry
-#       /
-#      /
-# loop_entry
-#    /    \-
-#  exit    \-
-#           other_loop_entry
-
 ## CHECK-START: int IrreducibleLoop.dce(int) dead_code_elimination (after)
-## CHECK-NOT: irreducible:true
+## CHECK: irreducible:true
 .method public static dce(I)I
    .registers 3
    const/16 v0, 42

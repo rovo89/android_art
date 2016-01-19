@@ -484,6 +484,18 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
         loop_information->GetPreHeader()->GetSuccessors().size()));
   }
 
+  if (loop_information->GetSuspendCheck() == nullptr) {
+    AddError(StringPrintf(
+        "Loop with header %d does not have a suspend check.",
+        loop_header->GetBlockId()));
+  }
+
+  if (loop_information->GetSuspendCheck() != loop_header->GetFirstInstructionDisregardMoves()) {
+    AddError(StringPrintf(
+        "Loop header %d does not have the loop suspend check as the first instruction.",
+        loop_header->GetBlockId()));
+  }
+
   // Ensure the loop header has only one incoming branch and the remaining
   // predecessors are back edges.
   size_t num_preds = loop_header->GetPredecessors().size();
@@ -587,6 +599,14 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
                             use->GetId(),
                             use->GetBlock()->GetBlockId()));
     }
+  }
+
+  if (instruction->NeedsEnvironment() && !instruction->HasEnvironment()) {
+    AddError(StringPrintf("Instruction %s:%d in block %d requires an environment "
+                          "but does not have one.",
+                          instruction->DebugName(),
+                          instruction->GetId(),
+                          current_block_->GetBlockId()));
   }
 
   // Ensure an instruction having an environment is dominated by the

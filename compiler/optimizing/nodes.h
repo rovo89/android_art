@@ -860,6 +860,8 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   HInstruction* GetLastPhi() const { return phis_.last_instruction_; }
   const HInstructionList& GetPhis() const { return phis_; }
 
+  HInstruction* GetFirstInstructionDisregardMoves() const;
+
   void AddSuccessor(HBasicBlock* block) {
     successors_.push_back(block);
     block->predecessors_.push_back(this);
