@@ -180,7 +180,7 @@ TEST_F(ProfileAssistantTest, DoNotAdviseCompilation) {
   SetupProfile("p2", 2, kNumberOfMethodsToSkipCompilation, profile2, &info2);
 
   // We should not advise compilation.
-  ProfileCompilationInfo* result;
+  ProfileCompilationInfo* result = nullptr;
   ASSERT_TRUE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
   ASSERT_TRUE(result == nullptr);
 
@@ -221,7 +221,7 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfProfiles) {
   SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, profile2, &info2);
 
   // We should fail processing.
-  ProfileCompilationInfo* result;
+  ProfileCompilationInfo* result = nullptr;
   ASSERT_FALSE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
   ASSERT_TRUE(result == nullptr);
 
@@ -258,7 +258,7 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfReferenceProfiles) {
   SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, reference_profile, &reference_info);
 
   // We should not advise compilation.
-  ProfileCompilationInfo* result;
+  ProfileCompilationInfo* result = nullptr;
   ASSERT_TRUE(profile1.GetFile()->ResetOffset());
   ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
   ASSERT_FALSE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
