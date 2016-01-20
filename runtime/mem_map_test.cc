@@ -251,6 +251,10 @@ TEST_F(MemMapTest, RemapAtEnd32bit) {
 #endif
 
 TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
+  // Some MIPS32 hardware (namely the Creator Ci20 development board)
+  // cannot allocate in the 2GB-4GB region.
+  TEST_DISABLED_FOR_MIPS();
+
   CommonInit();
   // This test may not work under valgrind.
   if (RUNNING_ON_MEMORY_TOOL == 0) {
