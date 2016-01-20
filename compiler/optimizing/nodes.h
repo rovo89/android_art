@@ -3689,19 +3689,13 @@ class HInvokeStaticOrDirect : public HInvoke {
     DCHECK(!IsStaticWithExplicitClinitCheck());
   }
 
-  HNewInstance* GetThisArgumentOfStringInit() const {
+  HInstruction* GetAndRemoveThisArgumentOfStringInit() {
     DCHECK(IsStringInit());
     size_t index = InputCount() - 1;
-    DCHECK(InputAt(index)->IsNewInstance());
-    return InputAt(index)->AsNewInstance();
-  }
-
-  void RemoveThisArgumentOfStringInit() {
-    DCHECK(IsStringInit());
-    size_t index = InputCount() - 1;
-    DCHECK(InputAt(index)->IsNewInstance());
+    HInstruction* input = InputAt(index);
     RemoveAsUserOfInput(index);
     inputs_.pop_back();
+    return input;
   }
 
   // Is this a call to a static method whose declaring class has an
