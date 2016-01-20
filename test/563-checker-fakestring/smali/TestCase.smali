@@ -128,11 +128,14 @@
 # Test that the compiler does not assume that the first argument of String.<init>
 # is a NewInstance by inserting an irreducible loop between them (b/26676472).
 
-## CHECK-START-DEBUGGABLE: java.lang.String TestCase.thisNotNewInstance(byte[], boolean) register (after)
+# We verify the type of the input instruction (Phi) in debuggable mode, because
+# it is eliminated by later stages of SsaBuilder otherwise.
+
+## CHECK-START-DEBUGGABLE: java.lang.String TestCase.thisNotNewInstance1(byte[], boolean) register (after)
 ## CHECK-DAG:                   InvokeStaticOrDirect env:[[<<Phi:l\d+>>,{{.*]]}}
 ## CHECK-DAG:     <<Phi>>       Phi
 
-.method public static thisNotNewInstance([BZ)Ljava/lang/String;
+.method public static thisNotNewInstance1([BZ)Ljava/lang/String;
    .registers 5
 
    new-instance v0, Ljava/lang/String;
@@ -144,6 +147,31 @@
    xor-int p1, p1, v1
    :loop_entry
    if-eqz p1, :string_init
+   goto :loop_header
+
+   :string_init
+   const-string v1, "UTF8"
+   invoke-direct {v0, p0, v1}, Ljava/lang/String;-><init>([BLjava/lang/String;)V
+   return-object v0
+
+.end method
+
+## CHECK-START-DEBUGGABLE: java.lang.String TestCase.thisNotNewInstance2(byte[], boolean) register (after)
+## CHECK-DAG:                   InvokeStaticOrDirect env:[[<<Phi:l\d+>>,{{.*]]}}
+## CHECK-DAG:     <<Phi>>       Phi
+
+.method public static thisNotNewInstance2([BZ)Ljava/lang/String;
+   .registers 5
+
+   new-instance v0, Ljava/lang/String;
+
+   # Irreducible loop
+   if-eqz p1, :loop_entry
+   :loop_header
+   if-eqz p1, :string_init
+   :loop_entry
+   const v1, 0x1
+   xor-int p1, p1, v1
    goto :loop_header
 
    :string_init
