@@ -164,7 +164,7 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges1) {
 
   // Ensure there is only one back edge.
   ASSERT_EQ(if_block->GetPredecessors().size(), 2u);
-  ASSERT_EQ(if_block->GetPredecessors()[0], entry_block->GetSingleSuccessor());
+  ASSERT_EQ(if_block->GetPredecessors()[0], entry_block);
   ASSERT_NE(if_block->GetPredecessors()[1], if_block);
 
   // Ensure the new block is the back edge.
@@ -199,7 +199,7 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges2) {
 
   // Ensure there is only one back edge.
   ASSERT_EQ(if_block->GetPredecessors().size(), 2u);
-  ASSERT_EQ(if_block->GetPredecessors()[0], entry_block->GetSingleSuccessor());
+  ASSERT_EQ(if_block->GetPredecessors()[0], entry_block);
   ASSERT_NE(if_block->GetPredecessors()[1], if_block);
 
   // Ensure the new block is the back edge.
