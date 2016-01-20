@@ -21,7 +21,7 @@
 
 ## CHECK-START: int SsaBuilder.testSimplifyCatchBlock(int, int, int) ssa_builder (after)
 
-## CHECK:      name             "B0"
+## CHECK:      name             "B1"
 ## CHECK-NEXT: from_bci
 ## CHECK-NEXT: to_bci
 ## CHECK-NEXT: predecessors
@@ -39,12 +39,15 @@
 ## CHECK:      name             "<<BExtracted>>"
 ## CHECK-NEXT: from_bci
 ## CHECK-NEXT: to_bci
-## CHECK-NEXT: predecessors     "B0" "<<BCatch>>"
+## CHECK-NEXT: predecessors     "B1" "<<BCatch>>"
 ## CHECK-NOT:  flags            "catch_block"
 ## CHECK:      Add
 
 .method public static testSimplifyCatchBlock(III)I
     .registers 4
+    # Avoid entry block be a pre header, which leads to
+    # the cfg simplifier to add a synthesized block.
+    goto :catch_all
 
     :catch_all
     add-int/2addr p0, p1
