@@ -31,6 +31,7 @@ bool ProfileAssistant::ProcessProfilesInternal(
   DCHECK(!profile_files.empty());
   DCHECK(!reference_profile_files.empty() ||
       (profile_files.size() == reference_profile_files.size()));
+
   std::vector<ProfileCompilationInfo> new_info(profile_files.size());
   bool should_compile = false;
   // Read the main profile files.
@@ -44,7 +45,6 @@ bool ProfileAssistant::ProcessProfilesInternal(
   }
 
   if (!should_compile) {
-    *profile_compilation_info = nullptr;
     return true;
   }
 
@@ -124,6 +124,8 @@ bool ProfileAssistant::ProcessProfiles(
         const std::vector<uint32_t>& profile_files_fd,
         const std::vector<uint32_t>& reference_profile_files_fd,
         /*out*/ ProfileCompilationInfo** profile_compilation_info) {
+  *profile_compilation_info = nullptr;
+
   std::string error;
   ScopedCollectionFlock profile_files_flocks(profile_files_fd.size());
   if (!profile_files_flocks.Init(profile_files_fd, &error)) {
@@ -145,6 +147,8 @@ bool ProfileAssistant::ProcessProfiles(
         const std::vector<std::string>& profile_files,
         const std::vector<std::string>& reference_profile_files,
         /*out*/ ProfileCompilationInfo** profile_compilation_info) {
+  *profile_compilation_info = nullptr;
+
   std::string error;
   ScopedCollectionFlock profile_files_flocks(profile_files.size());
   if (!profile_files_flocks.Init(profile_files, &error)) {
