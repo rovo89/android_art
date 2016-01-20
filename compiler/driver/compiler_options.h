@@ -85,7 +85,8 @@ class CompilerOptions FINAL {
                   std::ostream* init_failure_output,
                   bool abort_on_hard_verifier_failure,
                   const std::string& dump_cfg_file_name,
-                  bool dump_cfg_append);
+                  bool dump_cfg_append,
+                  bool force_determinism);
 
   CompilerFilter GetCompilerFilter() const {
     return compiler_filter_;
@@ -234,6 +235,10 @@ class CompilerOptions FINAL {
     return dump_cfg_append_;
   }
 
+  bool IsForceDeterminism() const {
+    return force_determinism_;
+  }
+
  private:
   void ParseDumpInitFailures(const StringPiece& option, UsageFn Usage);
   void ParsePassOptions(const StringPiece& option, UsageFn Usage);
@@ -285,6 +290,10 @@ class CompilerOptions FINAL {
 
   std::string dump_cfg_file_name_;
   bool dump_cfg_append_;
+
+  // Whether the compiler should trade performance for determinism to guarantee exactly reproducable
+  // outcomes.
+  bool force_determinism_;
 
   friend class Dex2Oat;
 

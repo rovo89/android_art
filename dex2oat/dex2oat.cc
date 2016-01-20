@@ -554,7 +554,8 @@ class Dex2Oat FINAL {
       dump_slow_timing_(kIsDebugBuild),
       swap_fd_(-1),
       app_image_fd_(kInvalidFd),
-      timings_(timings) {}
+      timings_(timings),
+      force_determinism_(false) {}
 
   ~Dex2Oat() {
     // Log completion time before deleting the runtime_, because this accesses
@@ -916,6 +917,12 @@ class Dex2Oat FINAL {
 
     // Fill some values into the key-value store for the oat header.
     key_value_store_.reset(new SafeMap<std::string, std::string>());
+
+    // Automatically force determinism for the boot image in a host build.
+    if (!kIsTargetBuild && IsBootImage()) {
+      force_determinism_ = true;
+    }
+    compiler_options_->force_determinism_ = force_determinism_;
   }
 
   void ExpandOatAndImageFilenames() {
@@ -1159,6 +1166,8 @@ class Dex2Oat FINAL {
         multi_image_ = true;
       } else if (option.starts_with("--no-inline-from=")) {
         no_inline_from_string_ = option.substr(strlen("--no-inline-from=")).data();
+      } else if (option == "--force-determinism") {
+        force_determinism_ = true;
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
         Usage("Unknown argument %s", option.data());
       }
@@ -2105,6 +2114,21 @@ class Dex2Oat FINAL {
     // foreground collector by default for dex2oat.
     raw_options.push_back(std::make_pair("-XX:DisableHSpaceCompactForOOM", nullptr));
 
+    // If we're asked to be deterministic, ensure non-concurrent GC for determinism. Also
+    // force the free-list implementation for large objects.
+    if (compiler_options_->IsForceDeterminism()) {
+      raw_options.push_back(std::make_pair("-Xgc:nonconcurrent", nullptr));
+      raw_options.push_back(std::make_pair("-XX:LargeObjectSpace=freelist", nullptr));
+
+      // We also need to turn off the nonmoving space. For that, we need to disable HSpace
+      // compaction (done above) and ensure that neither foreground nor background collectors
+      // are concurrent.
+      raw_options.push_back(std::make_pair("-XX:BackgroundGC=nonconcurrent", nullptr));
+
+      // To make identity hashcode deterministic, set a known seed.
+      mirror::Object::SetHashCodeSeed(987654321U);
+    }
+
     if (!Runtime::ParseOptions(raw_options, false, runtime_options)) {
       LOG(ERROR) << "Failed to parse runtime options";
       return false;
@@ -2405,6 +2429,9 @@ class Dex2Oat FINAL {
 
   // Backing storage.
   std::vector<std::string> char_backing_storage_;
+
+  // See CompilerOptions.force_determinism_.
+  bool force_determinism_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };

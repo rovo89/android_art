@@ -114,6 +114,9 @@ static constexpr size_t kDefaultAllocationStackSize = 8 * MB /
 // timeout on how long we wait for finalizers to run. b/21544853
 static constexpr uint64_t kNativeAllocationFinalizeTimeout = MsToNs(250u);
 
+// For deterministic compilation, we need the heap to be at a well-known address.
+static constexpr uint32_t kAllocSpaceBeginForDeterministicAoT = 0x40000000;
+
 Heap::Heap(size_t initial_size,
            size_t growth_limit,
            size_t min_free,
@@ -352,6 +355,11 @@ Heap::Heap(size_t initial_size,
   }
   std::unique_ptr<MemMap> main_mem_map_1;
   std::unique_ptr<MemMap> main_mem_map_2;
+
+  // Gross hack to make dex2oat deterministic.
+  if (requested_alloc_space_begin == nullptr && Runtime::Current()->IsAotCompiler()) {
+    requested_alloc_space_begin = reinterpret_cast<uint8_t*>(kAllocSpaceBeginForDeterministicAoT);
+  }
   uint8_t* request_begin = requested_alloc_space_begin;
   if (request_begin != nullptr && separate_non_moving_space) {
     request_begin += non_moving_space_capacity;

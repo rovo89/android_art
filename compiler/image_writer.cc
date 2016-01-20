@@ -1866,6 +1866,9 @@ void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
   orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this, oat_filename));
   FixupClassVisitor visitor(this, copy);
   static_cast<mirror::Object*>(orig)->VisitReferences(visitor, visitor);
+
+  // Remove the clinitThreadId. This is required for image determinism.
+  copy->SetClinitThreadId(static_cast<pid_t>(0));
 }
 
 void ImageWriter::FixupObject(Object* orig, Object* copy) {
@@ -1993,6 +1996,10 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
       mirror::DexCache::SetElementPtrSize(copy_fields, i, copy, target_ptr_size_);
     }
   }
+
+  // Remove the DexFile pointers. They will be fixed up when the runtime loads the oat file. Leaving
+  // compiler pointers in here will make the output non-deterministic.
+  copy_dex_cache->SetDexFile(nullptr);
 }
 
 const uint8_t* ImageWriter::GetOatAddress(OatAddress type) const {

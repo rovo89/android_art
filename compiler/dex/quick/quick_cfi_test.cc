@@ -71,6 +71,7 @@ class QuickCFITest : public CFITest {
       nullptr,
       false,
       "",
+      false,
       false);
     VerificationResults verification_results(&compiler_options);
     DexFileToMethodInlinerMap method_inliner_map;

@@ -46,7 +46,8 @@ CompilerOptions::CompilerOptions()
       abort_on_hard_verifier_failure_(false),
       init_failure_output_(nullptr),
       dump_cfg_file_name_(""),
-      dump_cfg_append_(false) {
+      dump_cfg_append_(false),
+      force_determinism_(false) {
 }
 
 CompilerOptions::~CompilerOptions() {
@@ -75,7 +76,8 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
                                  std::ostream* init_failure_output,
                                  bool abort_on_hard_verifier_failure,
                                  const std::string& dump_cfg_file_name,
-                                 bool dump_cfg_append
+                                 bool dump_cfg_append,
+                                 bool force_determinism
                                  ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -100,7 +102,8 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
     abort_on_hard_verifier_failure_(abort_on_hard_verifier_failure),
     init_failure_output_(init_failure_output),
     dump_cfg_file_name_(dump_cfg_file_name),
-    dump_cfg_append_(dump_cfg_append) {
+    dump_cfg_append_(dump_cfg_append),
+    force_determinism_(force_determinism) {
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {

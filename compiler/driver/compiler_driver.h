@@ -411,7 +411,7 @@ class CompilerDriver {
   }
 
   size_t GetThreadCount() const {
-    return thread_count_;
+    return parallel_thread_count_;
   }
 
   bool GetDumpStats() const {
@@ -550,8 +550,9 @@ class CompilerDriver {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                  ThreadPool* thread_pool, TimingLogger* timings)
+  void PreCompile(jobject class_loader,
+                  const std::vector<const DexFile*>& dex_files,
+                  TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
 
   void LoadImageClasses(TimingLogger* timings) REQUIRES(!Locks::mutator_lock_);
@@ -559,48 +560,70 @@ class CompilerDriver {
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
-  void Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               ThreadPool* thread_pool, TimingLogger* timings)
+  void Resolve(jobject class_loader,
+               const std::vector<const DexFile*>& dex_files,
+               TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
-  void ResolveDexFile(jobject class_loader, const DexFile& dex_file,
+  void ResolveDexFile(jobject class_loader,
+                      const DexFile& dex_file,
                       const std::vector<const DexFile*>& dex_files,
-                      ThreadPool* thread_pool, TimingLogger* timings)
+                      ThreadPool* thread_pool,
+                      size_t thread_count,
+                      TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
-  void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-              ThreadPool* thread_pool, TimingLogger* timings);
-  void VerifyDexFile(jobject class_loader, const DexFile& dex_file,
+  void Verify(jobject class_loader,
+              const std::vector<const DexFile*>& dex_files,
+              TimingLogger* timings);
+  void VerifyDexFile(jobject class_loader,
+                     const DexFile& dex_file,
                      const std::vector<const DexFile*>& dex_files,
-                     ThreadPool* thread_pool, TimingLogger* timings)
+                     ThreadPool* thread_pool,
+                     size_t thread_count,
+                     TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
-  void SetVerified(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                   ThreadPool* thread_pool, TimingLogger* timings);
-  void SetVerifiedDexFile(jobject class_loader, const DexFile& dex_file,
+  void SetVerified(jobject class_loader,
+                   const std::vector<const DexFile*>& dex_files,
+                   TimingLogger* timings);
+  void SetVerifiedDexFile(jobject class_loader,
+                          const DexFile& dex_file,
                           const std::vector<const DexFile*>& dex_files,
-                          ThreadPool* thread_pool, TimingLogger* timings)
+                          ThreadPool* thread_pool,
+                          size_t thread_count,
+                          TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
-  void InitializeClasses(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                         ThreadPool* thread_pool, TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
-  void InitializeClasses(jobject class_loader, const DexFile& dex_file,
+  void InitializeClasses(jobject class_loader,
                          const std::vector<const DexFile*>& dex_files,
-                         ThreadPool* thread_pool, TimingLogger* timings)
+                         TimingLogger* timings)
+      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
+  void InitializeClasses(jobject class_loader,
+                         const DexFile& dex_file,
+                         const std::vector<const DexFile*>& dex_files,
+                         TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
 
   void UpdateImageClasses(TimingLogger* timings) REQUIRES(!Locks::mutator_lock_);
   static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               ThreadPool* thread_pool, TimingLogger* timings);
-  void CompileDexFile(jobject class_loader, const DexFile& dex_file,
+  void Compile(jobject class_loader,
+               const std::vector<const DexFile*>& dex_files,
+               TimingLogger* timings);
+  void CompileDexFile(jobject class_loader,
+                      const DexFile& dex_file,
                       const std::vector<const DexFile*>& dex_files,
-                      ThreadPool* thread_pool, TimingLogger* timings)
+                      ThreadPool* thread_pool,
+                      size_t thread_count,
+                      TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
   bool MayInlineInternal(const DexFile* inlined_from, const DexFile* inlined_into) const;
+
+  void InitializeThreadPools();
+  void FreeThreadPools();
+  void CheckThreadPools();
 
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
@@ -652,7 +675,12 @@ class CompilerDriver {
 
   bool had_hard_verifier_failure_;
 
-  size_t thread_count_;
+  // A thread pool that can (potentially) run tasks in parallel.
+  std::unique_ptr<ThreadPool> parallel_thread_pool_;
+  size_t parallel_thread_count_;
+
+  // A thread pool that guarantees running single-threaded on the main thread.
+  std::unique_ptr<ThreadPool> single_thread_pool_;
 
   class AOTCompilationStats;
   std::unique_ptr<AOTCompilationStats> stats_;
