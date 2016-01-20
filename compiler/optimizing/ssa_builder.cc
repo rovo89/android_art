@@ -934,7 +934,7 @@ void SsaBuilder::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
     if (arg_this->IsNewInstance()) {
       uninitialized_strings_.push_back(arg_this->AsNewInstance());
     } else {
-      DCHECK(arg_this->IsIrreducibleLoopHeaderPhi());
+      DCHECK(arg_this->IsPhi());
       // NewInstance is not the direct input of the StringFactory call. It might
       // be redundant but optimizing this case is not worth the effort.
     }

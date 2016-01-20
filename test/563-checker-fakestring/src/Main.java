@@ -65,7 +65,14 @@ public class Main {
     }
 
     {
-      Method m = c.getMethod("thisNotNewInstance", byte[].class, boolean.class);
+      Method m = c.getMethod("thisNotNewInstance1", byte[].class, boolean.class);
+      String result = (String) m.invoke(null, new Object[] { testData, true });
+      assertEqual(testString, result);
+      result = (String) m.invoke(null, new Object[] { testData, false });
+      assertEqual(testString, result);
+    }
+    {
+      Method m = c.getMethod("thisNotNewInstance2", byte[].class, boolean.class);
       String result = (String) m.invoke(null, new Object[] { testData, true });
       assertEqual(testString, result);
       result = (String) m.invoke(null, new Object[] { testData, false });
