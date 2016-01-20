@@ -38,6 +38,7 @@
 #include "oat_file-inl.h"
 #include "oat_writer.h"
 #include "scoped_thread_state_change.h"
+#include "utils/test_dex_file_builder.h"
 
 namespace art {
 
@@ -127,23 +128,74 @@ class OatTest : public CommonCompilerTest {
                 const std::vector<const DexFile*>& dex_files,
                 SafeMap<std::string, std::string>& key_value_store) {
     TimingLogger timings("WriteElf", false, false);
-    OatWriter oat_writer(dex_files,
-                         42U,
-                         4096U,
-                         0,
-                         compiler_driver_.get(),
-                         nullptr,
-                         /*compiling_boot_image*/false,
-                         &timings,
-                         &key_value_store);
+    OatWriter oat_writer(/*compiling_boot_image*/false, &timings);
+    for (const DexFile* dex_file : dex_files) {
+      ArrayRef<const uint8_t> raw_dex_file(
+          reinterpret_cast<const uint8_t*>(&dex_file->GetHeader()),
+          dex_file->GetHeader().file_size_);
+      if (!oat_writer.AddRawDexFileSource(raw_dex_file,
+                                          dex_file->GetLocation().c_str(),
+                                          dex_file->GetLocationChecksum())) {
+        return false;
+      }
+    }
+    return DoWriteElf(file, oat_writer, key_value_store);
+  }
+
+  bool WriteElf(File* file,
+                const std::vector<const char*>& dex_filenames,
+                SafeMap<std::string, std::string>& key_value_store) {
+    TimingLogger timings("WriteElf", false, false);
+    OatWriter oat_writer(/*compiling_boot_image*/false, &timings);
+    for (const char* dex_filename : dex_filenames) {
+      if (!oat_writer.AddDexFileSource(dex_filename, dex_filename)) {
+        return false;
+      }
+    }
+    return DoWriteElf(file, oat_writer, key_value_store);
+  }
+
+  bool WriteElf(File* file,
+                ScopedFd&& zip_fd,
+                const char* location,
+                SafeMap<std::string, std::string>& key_value_store) {
+    TimingLogger timings("WriteElf", false, false);
+    OatWriter oat_writer(/*compiling_boot_image*/false, &timings);
+    if (!oat_writer.AddZippedDexFilesSource(std::move(zip_fd), location)) {
+      return false;
+    }
+    return DoWriteElf(file, oat_writer, key_value_store);
+  }
+
+  bool DoWriteElf(File* file,
+                  OatWriter& oat_writer,
+                  SafeMap<std::string, std::string>& key_value_store) {
     std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
         compiler_driver_->GetInstructionSet(),
         &compiler_driver_->GetCompilerOptions(),
         file);
-
     elf_writer->Start();
-
     OutputStream* rodata = elf_writer->StartRoData();
+    std::unique_ptr<MemMap> opened_dex_files_map;
+    std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
+    if (!oat_writer.WriteAndOpenDexFiles(rodata,
+                                         file,
+                                         compiler_driver_->GetInstructionSet(),
+                                         compiler_driver_->GetInstructionSetFeatures(),
+                                         &key_value_store,
+                                         &opened_dex_files_map,
+                                         &opened_dex_files)) {
+      return false;
+    }
+    Runtime* runtime = Runtime::Current();
+    ClassLinker* const class_linker = runtime->GetClassLinker();
+    std::vector<const DexFile*> dex_files;
+    for (const std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
+      dex_files.push_back(dex_file.get());
+      ScopedObjectAccess soa(Thread::Current());
+      class_linker->RegisterDexFile(*dex_file, runtime->GetLinearAlloc());
+    }
+    oat_writer.PrepareLayout(compiler_driver_.get(), nullptr, dex_files);
     if (!oat_writer.WriteRodata(rodata)) {
       return false;
     }
@@ -155,6 +207,10 @@ class OatTest : public CommonCompilerTest {
     }
     elf_writer->EndText(text);
 
+    if (!oat_writer.WriteHeader(elf_writer->GetStream(), 42U, 4096U, 0)) {
+      return false;
+    }
+
     elf_writer->SetBssSize(oat_writer.GetBssSize());
     elf_writer->WriteDynamicSection();
     elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
@@ -165,6 +221,117 @@ class OatTest : public CommonCompilerTest {
 
   std::unique_ptr<const InstructionSetFeatures> insn_features_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
+};
+
+class ZipBuilder {
+ public:
+  explicit ZipBuilder(File* zip_file) : zip_file_(zip_file) { }
+
+  bool AddFile(const char* location, const void* data, size_t size) {
+    off_t offset = lseek(zip_file_->Fd(), 0, SEEK_CUR);
+    if (offset == static_cast<off_t>(-1)) {
+      return false;
+    }
+
+    ZipFileHeader file_header;
+    file_header.crc32 = crc32(0u, reinterpret_cast<const Bytef*>(data), size);
+    file_header.compressed_size = size;
+    file_header.uncompressed_size = size;
+    file_header.filename_length = strlen(location);
+
+    if (!zip_file_->WriteFully(&file_header, sizeof(file_header)) ||
+        !zip_file_->WriteFully(location, file_header.filename_length) ||
+        !zip_file_->WriteFully(data, size)) {
+      return false;
+    }
+
+    CentralDirectoryFileHeader cdfh;
+    cdfh.crc32 = file_header.crc32;
+    cdfh.compressed_size = size;
+    cdfh.uncompressed_size = size;
+    cdfh.filename_length = file_header.filename_length;
+    cdfh.relative_offset_of_local_file_header = offset;
+    file_data_.push_back(FileData { cdfh, location });
+    return true;
+  }
+
+  bool Finish() {
+    off_t offset = lseek(zip_file_->Fd(), 0, SEEK_CUR);
+    if (offset == static_cast<off_t>(-1)) {
+      return false;
+    }
+
+    size_t central_directory_size = 0u;
+    for (const FileData& file_data : file_data_) {
+      if (!zip_file_->WriteFully(&file_data.cdfh, sizeof(file_data.cdfh)) ||
+          !zip_file_->WriteFully(file_data.location, file_data.cdfh.filename_length)) {
+        return false;
+      }
+      central_directory_size += sizeof(file_data.cdfh) + file_data.cdfh.filename_length;
+    }
+    EndOfCentralDirectoryRecord eocd_record;
+    eocd_record.number_of_central_directory_records_on_this_disk = file_data_.size();
+    eocd_record.total_number_of_central_directory_records = file_data_.size();
+    eocd_record.size_of_central_directory = central_directory_size;
+    eocd_record.offset_of_start_of_central_directory = offset;
+    return
+        zip_file_->WriteFully(&eocd_record, sizeof(eocd_record)) &&
+        zip_file_->Flush() == 0;
+  }
+
+ private:
+  struct PACKED(1) ZipFileHeader {
+    uint32_t signature = 0x04034b50;
+    uint16_t version_needed_to_extract = 10;
+    uint16_t general_purpose_bit_flag = 0;
+    uint16_t compression_method = 0;            // 0 = store only.
+    uint16_t file_last_modification_time = 0u;
+    uint16_t file_last_modification_date = 0u;
+    uint32_t crc32;
+    uint32_t compressed_size;
+    uint32_t uncompressed_size;
+    uint16_t filename_length;
+    uint16_t extra_field_length = 0u;           // No extra fields.
+  };
+
+  struct PACKED(1) CentralDirectoryFileHeader {
+    uint32_t signature = 0x02014b50;
+    uint16_t version_made_by = 10;
+    uint16_t version_needed_to_extract = 10;
+    uint16_t general_purpose_bit_flag = 0;
+    uint16_t compression_method = 0;            // 0 = store only.
+    uint16_t file_last_modification_time = 0u;
+    uint16_t file_last_modification_date = 0u;
+    uint32_t crc32;
+    uint32_t compressed_size;
+    uint32_t uncompressed_size;
+    uint16_t filename_length;
+    uint16_t extra_field_length = 0u;           // No extra fields.
+    uint16_t file_comment_length = 0u;          // No file comment.
+    uint16_t disk_number_where_file_starts = 0u;
+    uint16_t internal_file_attributes = 0u;
+    uint32_t external_file_attributes = 0u;
+    uint32_t relative_offset_of_local_file_header;
+  };
+
+  struct PACKED(1) EndOfCentralDirectoryRecord {
+    uint32_t signature = 0x06054b50;
+    uint16_t number_of_this_disk = 0u;
+    uint16_t disk_where_central_directory_starts = 0u;
+    uint16_t number_of_central_directory_records_on_this_disk;
+    uint16_t total_number_of_central_directory_records;
+    uint32_t size_of_central_directory;
+    uint32_t offset_of_start_of_central_directory;
+    uint16_t comment_length = 0u;               // No file comment.
+  };
+
+  struct FileData {
+    CentralDirectoryFileHeader cdfh;
+    const char* location;
+  };
+
+  File* zip_file_;
+  std::vector<FileData> file_data_;
 };
 
 TEST_F(OatTest, WriteRead) {
@@ -325,6 +492,191 @@ TEST_F(OatTest, EmptyTextSection) {
                                                   &error_msg));
   ASSERT_TRUE(oat_file != nullptr);
   EXPECT_LT(static_cast<size_t>(oat_file->Size()), static_cast<size_t>(tmp.GetFile()->GetLength()));
+}
+
+TEST_F(OatTest, DexFileInput) {
+  TimingLogger timings("OatTest::DexFileInput", false, false);
+
+  std::vector<const char*> input_filenames;
+
+  ScratchFile dex_file1;
+  TestDexFileBuilder builder1;
+  builder1.AddField("Lsome.TestClass;", "int", "someField");
+  builder1.AddMethod("Lsome.TestClass;", "()I", "foo");
+  std::unique_ptr<const DexFile> dex_file1_data = builder1.Build(dex_file1.GetFilename());
+  bool success = dex_file1.GetFile()->WriteFully(&dex_file1_data->GetHeader(),
+                                                 dex_file1_data->GetHeader().file_size_);
+  ASSERT_TRUE(success);
+  success = dex_file1.GetFile()->Flush() == 0;
+  ASSERT_TRUE(success);
+  input_filenames.push_back(dex_file1.GetFilename().c_str());
+
+  ScratchFile dex_file2;
+  TestDexFileBuilder builder2;
+  builder2.AddField("Land.AnotherTestClass;", "boolean", "someOtherField");
+  builder2.AddMethod("Land.AnotherTestClass;", "()J", "bar");
+  std::unique_ptr<const DexFile> dex_file2_data = builder2.Build(dex_file2.GetFilename());
+  success = dex_file2.GetFile()->WriteFully(&dex_file2_data->GetHeader(),
+                                            dex_file2_data->GetHeader().file_size_);
+  ASSERT_TRUE(success);
+  success = dex_file2.GetFile()->Flush() == 0;
+  ASSERT_TRUE(success);
+  input_filenames.push_back(dex_file2.GetFilename().c_str());
+
+  ScratchFile oat_file;
+  SafeMap<std::string, std::string> key_value_store;
+  key_value_store.Put(OatHeader::kImageLocationKey, "test.art");
+  success = WriteElf(oat_file.GetFile(), input_filenames, key_value_store);
+  ASSERT_TRUE(success);
+
+  std::string error_msg;
+  std::unique_ptr<OatFile> opened_oat_file(OatFile::Open(oat_file.GetFilename(),
+                                                         oat_file.GetFilename(),
+                                                         nullptr,
+                                                         nullptr,
+                                                         false,
+                                                         nullptr,
+                                                         &error_msg));
+  ASSERT_TRUE(opened_oat_file != nullptr);
+  ASSERT_EQ(2u, opened_oat_file->GetOatDexFiles().size());
+  std::unique_ptr<const DexFile> opened_dex_file1 =
+      opened_oat_file->GetOatDexFiles()[0]->OpenDexFile(&error_msg);
+  std::unique_ptr<const DexFile> opened_dex_file2 =
+      opened_oat_file->GetOatDexFiles()[1]->OpenDexFile(&error_msg);
+
+  ASSERT_EQ(dex_file1_data->GetHeader().file_size_, opened_dex_file1->GetHeader().file_size_);
+  ASSERT_EQ(0, memcmp(&dex_file1_data->GetHeader(),
+                      &opened_dex_file1->GetHeader(),
+                      dex_file1_data->GetHeader().file_size_));
+  ASSERT_EQ(dex_file1_data->GetLocation(), opened_dex_file1->GetLocation());
+
+  ASSERT_EQ(dex_file2_data->GetHeader().file_size_, opened_dex_file2->GetHeader().file_size_);
+  ASSERT_EQ(0, memcmp(&dex_file2_data->GetHeader(),
+                      &opened_dex_file2->GetHeader(),
+                      dex_file2_data->GetHeader().file_size_));
+  ASSERT_EQ(dex_file2_data->GetLocation(), opened_dex_file2->GetLocation());
+}
+
+TEST_F(OatTest, ZipFileInput) {
+  TimingLogger timings("OatTest::DexFileInput", false, false);
+
+  ScratchFile zip_file;
+  ZipBuilder zip_builder(zip_file.GetFile());
+
+  ScratchFile dex_file1;
+  TestDexFileBuilder builder1;
+  builder1.AddField("Lsome.TestClass;", "long", "someField");
+  builder1.AddMethod("Lsome.TestClass;", "()D", "foo");
+  std::unique_ptr<const DexFile> dex_file1_data = builder1.Build(dex_file1.GetFilename());
+  bool success = dex_file1.GetFile()->WriteFully(&dex_file1_data->GetHeader(),
+                                                 dex_file1_data->GetHeader().file_size_);
+  ASSERT_TRUE(success);
+  success = dex_file1.GetFile()->Flush() == 0;
+  ASSERT_TRUE(success);
+  success = zip_builder.AddFile("classes.dex",
+                                &dex_file1_data->GetHeader(),
+                                dex_file1_data->GetHeader().file_size_);
+  ASSERT_TRUE(success);
+
+  ScratchFile dex_file2;
+  TestDexFileBuilder builder2;
+  builder2.AddField("Land.AnotherTestClass;", "boolean", "someOtherField");
+  builder2.AddMethod("Land.AnotherTestClass;", "()J", "bar");
+  std::unique_ptr<const DexFile> dex_file2_data = builder2.Build(dex_file2.GetFilename());
+  success = dex_file2.GetFile()->WriteFully(&dex_file2_data->GetHeader(),
+                                            dex_file2_data->GetHeader().file_size_);
+  ASSERT_TRUE(success);
+  success = dex_file2.GetFile()->Flush() == 0;
+  ASSERT_TRUE(success);
+  success = zip_builder.AddFile("classes2.dex",
+                                &dex_file2_data->GetHeader(),
+                                dex_file2_data->GetHeader().file_size_);
+  ASSERT_TRUE(success);
+
+  success = zip_builder.Finish();
+  ASSERT_TRUE(success) << strerror(errno);
+
+  SafeMap<std::string, std::string> key_value_store;
+  key_value_store.Put(OatHeader::kImageLocationKey, "test.art");
+  {
+    // Test using the AddDexFileSource() interface with the zip file.
+    std::vector<const char*> input_filenames { zip_file.GetFilename().c_str() };  // NOLINT [readability/braces] [4]
+
+    ScratchFile oat_file;
+    success = WriteElf(oat_file.GetFile(), input_filenames, key_value_store);
+    ASSERT_TRUE(success);
+
+    std::string error_msg;
+    std::unique_ptr<OatFile> opened_oat_file(OatFile::Open(oat_file.GetFilename(),
+                                                           oat_file.GetFilename(),
+                                                           nullptr,
+                                                           nullptr,
+                                                           false,
+                                                           nullptr,
+                                                           &error_msg));
+    ASSERT_TRUE(opened_oat_file != nullptr);
+    ASSERT_EQ(2u, opened_oat_file->GetOatDexFiles().size());
+    std::unique_ptr<const DexFile> opened_dex_file1 =
+        opened_oat_file->GetOatDexFiles()[0]->OpenDexFile(&error_msg);
+    std::unique_ptr<const DexFile> opened_dex_file2 =
+        opened_oat_file->GetOatDexFiles()[1]->OpenDexFile(&error_msg);
+
+    ASSERT_EQ(dex_file1_data->GetHeader().file_size_, opened_dex_file1->GetHeader().file_size_);
+    ASSERT_EQ(0, memcmp(&dex_file1_data->GetHeader(),
+                        &opened_dex_file1->GetHeader(),
+                        dex_file1_data->GetHeader().file_size_));
+    ASSERT_EQ(DexFile::GetMultiDexLocation(0, zip_file.GetFilename().c_str()),
+              opened_dex_file1->GetLocation());
+
+    ASSERT_EQ(dex_file2_data->GetHeader().file_size_, opened_dex_file2->GetHeader().file_size_);
+    ASSERT_EQ(0, memcmp(&dex_file2_data->GetHeader(),
+                        &opened_dex_file2->GetHeader(),
+                        dex_file2_data->GetHeader().file_size_));
+    ASSERT_EQ(DexFile::GetMultiDexLocation(1, zip_file.GetFilename().c_str()),
+              opened_dex_file2->GetLocation());
+  }
+
+  {
+    // Test using the AddZipDexFileSource() interface with the zip file handle.
+    ScopedFd zip_fd(dup(zip_file.GetFd()));
+    ASSERT_NE(-1, zip_fd.get());
+
+    ScratchFile oat_file;
+    success = WriteElf(oat_file.GetFile(),
+                       std::move(zip_fd),
+                       zip_file.GetFilename().c_str(),
+                       key_value_store);
+    ASSERT_TRUE(success);
+
+    std::string error_msg;
+    std::unique_ptr<OatFile> opened_oat_file(OatFile::Open(oat_file.GetFilename(),
+                                                           oat_file.GetFilename(),
+                                                           nullptr,
+                                                           nullptr,
+                                                           false,
+                                                           nullptr,
+                                                           &error_msg));
+    ASSERT_TRUE(opened_oat_file != nullptr);
+    ASSERT_EQ(2u, opened_oat_file->GetOatDexFiles().size());
+    std::unique_ptr<const DexFile> opened_dex_file1 =
+        opened_oat_file->GetOatDexFiles()[0]->OpenDexFile(&error_msg);
+    std::unique_ptr<const DexFile> opened_dex_file2 =
+        opened_oat_file->GetOatDexFiles()[1]->OpenDexFile(&error_msg);
+
+    ASSERT_EQ(dex_file1_data->GetHeader().file_size_, opened_dex_file1->GetHeader().file_size_);
+    ASSERT_EQ(0, memcmp(&dex_file1_data->GetHeader(),
+                        &opened_dex_file1->GetHeader(),
+                        dex_file1_data->GetHeader().file_size_));
+    ASSERT_EQ(DexFile::GetMultiDexLocation(0, zip_file.GetFilename().c_str()),
+              opened_dex_file1->GetLocation());
+
+    ASSERT_EQ(dex_file2_data->GetHeader().file_size_, opened_dex_file2->GetHeader().file_size_);
+    ASSERT_EQ(0, memcmp(&dex_file2_data->GetHeader(),
+                        &opened_dex_file2->GetHeader(),
+                        dex_file2_data->GetHeader().file_size_));
+    ASSERT_EQ(DexFile::GetMultiDexLocation(1, zip_file.GetFilename().c_str()),
+              opened_dex_file2->GetLocation());
+  }
 }
 
 }  // namespace art
