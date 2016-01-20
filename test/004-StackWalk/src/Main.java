@@ -2,14 +2,14 @@ public class Main {
   public Main() {
   }
 
+  boolean doThrow = false;
+
   int $noinline$f() throws Exception {
     g(1);
     g(2);
 
-    // This loop currently defeats inlining of `f`.
-    for (int i = 0; i < 10; i++) {
-      Thread.sleep(0);
-    }
+    // This currently defeats inlining of `f`.
+    if (doThrow) { throw new Error(); }
     return 0;
   }
 
