@@ -1115,7 +1115,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, BacktraceMap* existing_map, co
   BacktraceMap* map = existing_map;
   std::unique_ptr<BacktraceMap> tmp_map;
   if (map == nullptr) {
-    tmp_map.reset(BacktraceMap::Create(tid));
+    tmp_map.reset(BacktraceMap::Create(getpid()));
     map = tmp_map.get();
   }
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid, map));
