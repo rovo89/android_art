@@ -1,0 +1,4 @@
+Main$DefaultInterface is default = yes
+Main$RegularInterface is default = no
+Main$ImplementsWithDefault is default = yes
+Main$ImplementsWithRegular is default = no
