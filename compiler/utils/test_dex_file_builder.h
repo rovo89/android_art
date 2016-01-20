@@ -21,7 +21,6 @@
 #include <set>
 #include <map>
 #include <vector>
-#include <zlib.h>
 
 #include "base/bit_utils.h"
 #include "base/logging.h"
@@ -162,6 +161,7 @@ class TestDexFileBuilder {
     uint32_t total_size = data_section_offset + data_section_size;
 
     dex_file_data_.resize(total_size);
+    std::memcpy(&dex_file_data_[0], header_data.data, sizeof(DexFile::Header));
 
     for (const auto& entry : strings_) {
       CHECK_LT(entry.first.size(), 128u);
@@ -210,12 +210,7 @@ class TestDexFileBuilder {
       Write32(raw_offset + 4u, GetStringIdx(entry.first.name));
     }
 
-    // Leave signature as zeros.
-
-    header->file_size_ = dex_file_data_.size();
-    size_t skip = sizeof(header->magic_) + sizeof(header->checksum_);
-    header->checksum_ = adler32(0u, dex_file_data_.data() + skip, dex_file_data_.size() - skip);
-    std::memcpy(&dex_file_data_[0], header_data.data, sizeof(DexFile::Header));
+    // Leave checksum and signature as zeros.
 
     std::string error_msg;
     std::unique_ptr<const DexFile> dex_file(DexFile::Open(

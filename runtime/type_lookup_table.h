@@ -60,7 +60,7 @@ class TypeLookupTable {
   }
 
   // Method creates lookup table for dex file
-  static TypeLookupTable* Create(const DexFile& dex_file, uint8_t* storage = nullptr);
+  static TypeLookupTable* Create(const DexFile& dex_file);
 
   // Method opens lookup table from binary data. Lookup table does not owns binary data.
   static TypeLookupTable* Open(const uint8_t* raw_data, const DexFile& dex_file);
@@ -75,9 +75,6 @@ class TypeLookupTable {
 
   // Method returns length of binary data for the specified dex file.
   static uint32_t RawDataLength(const DexFile& dex_file);
-
-  // Method returns length of binary data for the specified number of class definitions.
-  static uint32_t RawDataLength(uint32_t num_class_defs);
 
  private:
    /**
@@ -112,11 +109,8 @@ class TypeLookupTable {
     }
   };
 
-  static uint32_t CalculateMask(uint32_t num_class_defs);
-  static bool SupportedSize(uint32_t num_class_defs);
-
   // Construct from a dex file.
-  explicit TypeLookupTable(const DexFile& dex_file, uint8_t* storage);
+  explicit TypeLookupTable(const DexFile& dex_file);
 
   // Construct from a dex file with existing data.
   TypeLookupTable(const uint8_t* raw_data, const DexFile& dex_file);

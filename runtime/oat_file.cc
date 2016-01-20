@@ -46,7 +46,6 @@
 #include "oat_file_manager.h"
 #include "os.h"
 #include "runtime.h"
-#include "type_lookup_table.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "vmap_table.h"
@@ -267,15 +266,16 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
                                 i);
       return false;
     }
-    if (UNLIKELY(static_cast<size_t>(End() - oat) < dex_file_location_size)) {
+
+    const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
+    oat += dex_file_location_size;
+    if (UNLIKELY(oat > End())) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu with truncated dex file "
                                     "location",
                                 GetLocation().c_str(),
                                 i);
       return false;
     }
-    const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
-    oat += dex_file_location_size;
 
     std::string dex_file_location = ResolveRelativeEncodedDexLocation(
         abs_dex_location,
@@ -318,17 +318,6 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
                                 Size());
       return false;
     }
-    if (UNLIKELY(Size() - dex_file_offset < sizeof(DexFile::Header))) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with dex file "
-                                    "offset %u of %zu but the size of dex file header is %zu",
-                                GetLocation().c_str(),
-                                i,
-                                dex_file_location.c_str(),
-                                dex_file_offset,
-                                Size(),
-                                sizeof(DexFile::Header));
-      return false;
-    }
 
     const uint8_t* dex_file_pointer = Begin() + dex_file_offset;
     if (UNLIKELY(!DexFile::IsMagicValid(dex_file_pointer))) {
@@ -350,75 +339,34 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
       return false;
     }
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
-    if (Size() - dex_file_offset < header->file_size_) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with dex file "
-                                    "offset %u and size %u truncated at %zu",
-                                GetLocation().c_str(),
-                                i,
-                                dex_file_location.c_str(),
-                                dex_file_offset,
-                                header->file_size_,
-                                Size());
-      return false;
-    }
 
-    uint32_t class_offsets_offset;
-    if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &class_offsets_offset))) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' truncated "
-                                    "after class offsets offset",
-                                GetLocation().c_str(),
-                                i,
+    if (UNLIKELY(oat > End())) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
+                                "lookup table offset", GetLocation().c_str(), i,
                                 dex_file_location.c_str());
       return false;
     }
-    if (UNLIKELY(class_offsets_offset > Size()) ||
-        UNLIKELY((Size() - class_offsets_offset) / sizeof(uint32_t) < header->class_defs_size_)) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with truncated "
-                                    "class offsets, offset %u of %zu, class defs %u",
-                                GetLocation().c_str(),
-                                i,
-                                dex_file_location.c_str(),
-                                class_offsets_offset,
-                                Size(),
-                                header->class_defs_size_);
-      return false;
-    }
-    if (UNLIKELY(!IsAligned<alignof(uint32_t)>(class_offsets_offset))) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with unaligned "
-                                    "class offsets, offset %u",
-                                GetLocation().c_str(),
-                                i,
-                                dex_file_location.c_str(),
-                                class_offsets_offset);
-      return false;
-    }
-    const uint32_t* class_offsets_pointer =
-        reinterpret_cast<const uint32_t*>(Begin() + class_offsets_offset);
-
-    uint32_t lookup_table_offset;
-    if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &lookup_table_offset))) {
-      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' truncated "
-                                    "after lookup table offset",
-                                GetLocation().c_str(),
-                                i,
+    uint32_t lookup_table_offset = *reinterpret_cast<const uint32_t*>(oat);
+    oat += sizeof(lookup_table_offset);
+    if (Begin() + lookup_table_offset > End()) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
+                                "lookup table", GetLocation().c_str(), i,
                                 dex_file_location.c_str());
       return false;
     }
     const uint8_t* lookup_table_data = lookup_table_offset != 0u
         ? Begin() + lookup_table_offset
         : nullptr;
-    if (lookup_table_offset != 0u &&
-        (UNLIKELY(lookup_table_offset > Size()) ||
-            UNLIKELY(Size() - lookup_table_offset <
-                     TypeLookupTable::RawDataLength(header->class_defs_size_)))) {
+
+    const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
+
+    oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
+    if (UNLIKELY(oat > End())) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with truncated "
-                                    "type lookup table, offset %u of %zu, class defs %u",
+                                    "method offsets",
                                 GetLocation().c_str(),
                                 i,
-                                dex_file_location.c_str(),
-                                lookup_table_offset,
-                                Size(),
-                                header->class_defs_size_);
+                                dex_file_location.c_str());
       return false;
     }
 
@@ -450,7 +398,7 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
                                               dex_file_checksum,
                                               dex_file_pointer,
                                               lookup_table_data,
-                                              class_offsets_pointer,
+                                              methods_offsets_pointer,
                                               current_dex_cache_arrays);
     oat_dex_files_storage_.push_back(oat_dex_file);
 
