@@ -274,8 +274,7 @@ LIBART_TARGET_SRC_FILES_arm64 := \
   arch/arm64/fault_handler_arm64.cc
 
 LIBART_SRC_FILES_x86 := \
-  interpreter/mterp/mterp.cc \
-  interpreter/mterp/out/mterp_x86.S \
+  interpreter/mterp/mterp_stub.cc \
   arch/x86/context_x86.cc \
   arch/x86/entrypoints_init_x86.cc \
   arch/x86/jni_entrypoints_x86.S \
