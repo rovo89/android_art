@@ -126,8 +126,6 @@ class MemMap {
     return name_;
   }
 
-  bool Sync();
-
   bool Protect(int prot);
 
   void MadviseDontNeedAndZero();

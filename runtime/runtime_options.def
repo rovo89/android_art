@@ -117,8 +117,8 @@ RUNTIME_OPTIONS_KEY (ExperimentalFlags,   Experimental,     ExperimentalFlags::k
 
 // Not parse-able from command line, but can be provided explicitly.
 // (Do not add anything here that is defined in ParsedOptions::MakeParser)
-RUNTIME_OPTIONS_KEY (std::vector<std::unique_ptr<const DexFile>>*, \
-                                          BootClassPathDexList)
+RUNTIME_OPTIONS_KEY (const std::vector<const DexFile*>*, \
+                                          BootClassPathDexList)  // TODO: make unique_ptr
 RUNTIME_OPTIONS_KEY (InstructionSet,      ImageInstructionSet,            kRuntimeISA)
 RUNTIME_OPTIONS_KEY (CompilerCallbacks*,  CompilerCallbacksPtr)  // TDOO: make unique_ptr
 RUNTIME_OPTIONS_KEY (bool (*)(),          HookIsSensitiveThread)

@@ -583,10 +583,6 @@ void MemMap::MadviseDontNeedAndZero() {
   }
 }
 
-bool MemMap::Sync() {
-  return msync(BaseBegin(), BaseSize(), MS_SYNC) == 0;
-}
-
 bool MemMap::Protect(int prot) {
   if (base_begin_ == nullptr && base_size_ == 0) {
     prot_ = prot;

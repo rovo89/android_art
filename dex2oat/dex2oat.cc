@@ -503,10 +503,6 @@ class Dex2Oat FINAL {
       compiler_kind_(Compiler::kOptimizing),
       instruction_set_(kRuntimeISA),
       // Take the default set of instruction features from the build.
-      image_file_location_oat_checksum_(0),
-      image_file_location_oat_data_begin_(0),
-      image_patch_delta_(0),
-      key_value_store_(nullptr),
       verification_results_(nullptr),
       method_inliner_map_(),
       runtime_(nullptr),
@@ -526,14 +522,8 @@ class Dex2Oat FINAL {
       boot_image_(false),
       multi_image_(false),
       is_host_(false),
-      class_loader_(nullptr),
-      elf_writers_(),
-      oat_writers_(),
-      rodata_(),
       image_writer_(nullptr),
       driver_(nullptr),
-      opened_dex_files_maps_(),
-      opened_dex_files_(),
       dump_stats_(false),
       dump_passes_(false),
       dump_timing_(false),
@@ -544,6 +534,11 @@ class Dex2Oat FINAL {
       timings_(timings) {}
 
   ~Dex2Oat() {
+    // Free opened dex files before deleting the runtime_, because ~DexFile
+    // uses MemMap, which is shut down by ~Runtime.
+    class_path_files_.clear();
+    opened_dex_files_.clear();
+
     // Log completion time before deleting the runtime_, because this accesses
     // the runtime.
     LogCompletionTime();
@@ -555,9 +550,6 @@ class Dex2Oat FINAL {
       image_writer_.release();
       for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files_) {
         dex_file.release();
-      }
-      for (std::unique_ptr<MemMap>& map : opened_dex_files_maps_) {
-        map.release();
       }
       for (std::unique_ptr<File>& oat_file : oat_files_) {
         oat_file.release();
@@ -1138,9 +1130,6 @@ class Dex2Oat FINAL {
   // Check whether the oat output files are writable, and open them for later. Also open a swap
   // file, if a name is given.
   bool OpenFile() {
-    // Prune non-existent dex files now so that we don't create empty oat files for multi-image.
-    PruneNonExistentDexFiles();
-
     // Expand oat and image filenames for multi image.
     if (IsBootImage() && multi_image_) {
       ExpandOatAndImageFilenames();
@@ -1212,6 +1201,9 @@ class Dex2Oat FINAL {
     }
     // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
 
+    // Organize inputs, handling multi-dex and multiple oat file outputs.
+    CreateDexOatMappings();
+
     return true;
   }
 
@@ -1254,135 +1246,89 @@ class Dex2Oat FINAL {
       return false;
     }
 
-    CreateOatWriters();
-    if (!AddDexFileSources()) {
-      return false;
-    }
-
-    if (IsBootImage() && image_filenames_.size() > 1) {
-      // If we're compiling the boot image, store the boot classpath into the Key-Value store.
-      // We need this for the multi-image case.
-      key_value_store_->Put(OatHeader::kBootClassPath, GetMultiImageBootClassPath());
-    }
-
-    if (!IsBootImage()) {
-      // When compiling an app, create the runtime early to retrieve
-      // the image location key needed for the oat header.
-      if (!CreateRuntime(std::move(runtime_options))) {
-        return false;
-      }
-
-      {
-        TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
-        std::vector<gc::space::ImageSpace*> image_spaces =
-            Runtime::Current()->GetHeap()->GetBootImageSpaces();
-        image_file_location_oat_checksum_ = image_spaces[0]->GetImageHeader().GetOatChecksum();
-        image_file_location_oat_data_begin_ =
-            reinterpret_cast<uintptr_t>(image_spaces[0]->GetImageHeader().GetOatDataBegin());
-        image_patch_delta_ = image_spaces[0]->GetImageHeader().GetPatchDelta();
-        // Store the boot image filename(s).
-        std::vector<std::string> image_filenames;
-        for (const gc::space::ImageSpace* image_space : image_spaces) {
-          image_filenames.push_back(image_space->GetImageFilename());
-        }
-        std::string image_file_location = Join(image_filenames, ':');
-        if (!image_file_location.empty()) {
-          key_value_store_->Put(OatHeader::kImageLocationKey, image_file_location);
-        }
-      }
-
-      // Open dex files for class path.
-      const std::vector<std::string> class_path_locations =
-          GetClassPathLocations(runtime_->GetClassPathString());
-      OpenClassPathFiles(class_path_locations, &class_path_files_);
-
-      // Store the classpath we have right now.
-      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
-      key_value_store_->Put(OatHeader::kClassPathKey,
-                            OatFile::EncodeDexFileDependencies(class_path_files));
-    }
-
-    // Now that we have finalized key_value_store_, start writing the oat file.
     {
-      TimingLogger::ScopedTiming t_dex("Writing and opening dex files", timings_);
-      rodata_.reserve(oat_writers_.size());
-      for (size_t i = 0, size = oat_writers_.size(); i != size; ++i) {
-        rodata_.push_back(elf_writers_[i]->StartRoData());
-        // Unzip or copy dex files straight to the oat file.
-        std::unique_ptr<MemMap> opened_dex_files_map;
-        std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
-        if (!oat_writers_[i]->WriteAndOpenDexFiles(rodata_.back(),
-                                                   oat_files_[i].get(),
-                                                   instruction_set_,
-                                                   instruction_set_features_.get(),
-                                                   key_value_store_.get(),
-                                                   &opened_dex_files_map,
-                                                   &opened_dex_files)) {
-          return false;
-        }
-        dex_files_per_oat_file_.push_back(MakeNonOwningPointerVector(opened_dex_files));
-        if (opened_dex_files_map != nullptr) {
-          opened_dex_files_maps_.push_back(std::move(opened_dex_files_map));
-          for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
-            dex_file_oat_filename_map_.emplace(dex_file.get(), oat_filenames_[i]);
-            opened_dex_files_.push_back(std::move(dex_file));
-          }
-        } else {
-          DCHECK(opened_dex_files.empty());
-        }
-      }
-    }
-
-    dex_files_ = MakeNonOwningPointerVector(opened_dex_files_);
-    if (IsBootImage()) {
-      // For boot image, pass opened dex files to the Runtime::Create().
-      // Note: Runtime acquires ownership of these dex files.
-      runtime_options.Set(RuntimeArgumentMap::BootClassPathDexList, &opened_dex_files_);
+      TimingLogger::ScopedTiming t_runtime("Create runtime", timings_);
       if (!CreateRuntime(std::move(runtime_options))) {
         return false;
       }
     }
 
+    // Runtime::Create acquired the mutator_lock_ that is normally given away when we
+    // Runtime::Start, give it away now so that we don't starve GC.
+    Thread* self = Thread::Current();
+    self->TransitionFromRunnableToSuspended(kNative);
     // If we're doing the image, override the compiler filter to force full compilation. Must be
     // done ahead of WellKnownClasses::Init that causes verification.  Note: doesn't force
     // compilation of class initializers.
     // Whilst we're in native take the opportunity to initialize well known classes.
-    Thread* self = Thread::Current();
     WellKnownClasses::Init(self->GetJniEnv());
 
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-    if (!IsBootImage()) {
+    if (boot_image_filename_.empty()) {
+      dex_files_ = class_linker->GetBootClassPath();
+      // Prune invalid dex locations.
+      for (size_t i = 0; i < dex_locations_.size(); i++) {
+        const char* dex_location = dex_locations_[i];
+        bool contains = false;
+        for (const DexFile* dex_file : dex_files_) {
+          if (strcmp(dex_location, dex_file->GetLocation().c_str()) == 0) {
+            contains = true;
+            break;
+          }
+        }
+        if (!contains) {
+          dex_locations_.erase(dex_locations_.begin() + i);
+          i--;
+        }
+      }
+    } else {
+      TimingLogger::ScopedTiming t_dex("Opening dex files", timings_);
+      if (dex_filenames_.empty()) {
+        ATRACE_BEGIN("Opening zip archive from file descriptor");
+        std::string error_msg;
+        std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd_,
+                                                                       zip_location_.c_str(),
+                                                                       &error_msg));
+        if (zip_archive.get() == nullptr) {
+          LOG(ERROR) << "Failed to open zip from file descriptor for '" << zip_location_ << "': "
+              << error_msg;
+          return false;
+        }
+        if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location_, &error_msg, &opened_dex_files_)) {
+          LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location_
+              << "': " << error_msg;
+          return false;
+        }
+        for (auto& dex_file : opened_dex_files_) {
+          dex_files_.push_back(dex_file.get());
+        }
+        ATRACE_END();
+      } else {
+        size_t failure_count = OpenDexFiles(dex_filenames_, dex_locations_, &opened_dex_files_);
+        if (failure_count > 0) {
+          LOG(ERROR) << "Failed to open some dex files: " << failure_count;
+          return false;
+        }
+        for (auto& dex_file : opened_dex_files_) {
+          dex_files_.push_back(dex_file.get());
+        }
+      }
+
       constexpr bool kSaveDexInput = false;
       if (kSaveDexInput) {
         SaveDexInput();
       }
-
-      // Handle and ClassLoader creation needs to come after Runtime::Create.
-      ScopedObjectAccess soa(self);
-
-      // Classpath: first the class-path given.
-      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
-
-      // Then the dex files we'll compile. Thus we'll resolve the class-path first.
-      class_path_files.insert(class_path_files.end(), dex_files_.begin(), dex_files_.end());
-
-      class_loader_ = class_linker->CreatePathClassLoader(self, class_path_files);
     }
-
-    // Ensure opened dex files are writable for dex-to-dex transformations.
-    for (const std::unique_ptr<MemMap>& map : opened_dex_files_maps_) {
-      if (!map->Protect(PROT_READ | PROT_WRITE)) {
-        PLOG(ERROR) << "Failed to make .dex files writeable.";
-        return false;
-      }
-    }
-
-    // Ensure that the dex caches stay live since we don't want class unloading
-    // to occur during compilation.
+    // Ensure opened dex files are writable for dex-to-dex transformations. Also ensure that
+    // the dex caches stay live since we don't want class unloading to occur during compilation.
     for (const auto& dex_file : dex_files_) {
+      if (!dex_file->EnableWrite()) {
+        PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
+      }
       ScopedObjectAccess soa(self);
       dex_caches_.push_back(soa.AddLocalReference<jobject>(
           class_linker->RegisterDexFile(*dex_file, Runtime::Current()->GetLinearAlloc())));
+      dex_file->CreateTypeLookupTable();
     }
 
     /*
@@ -1407,10 +1353,58 @@ class Dex2Oat FINAL {
     return true;
   }
 
+  void CreateDexOatMappings() {
+    if (oat_files_.size() > 1) {
+      size_t index = 0;
+      for (size_t i = 0; i < oat_files_.size(); ++i) {
+        std::vector<const DexFile*> dex_files;
+        if (index < dex_files_.size()) {
+          dex_files.push_back(dex_files_[index]);
+          dex_file_oat_filename_map_.emplace(dex_files_[index], oat_filenames_[i]);
+          index++;
+          while (index < dex_files_.size() &&
+              (dex_files_[index]->GetBaseLocation() == dex_files_[index - 1]->GetBaseLocation())) {
+            dex_file_oat_filename_map_.emplace(dex_files_[index], oat_filenames_[i]);
+            dex_files.push_back(dex_files_[index]);
+            index++;
+          }
+        }
+        dex_files_per_oat_file_.push_back(std::move(dex_files));
+      }
+    } else {
+      dex_files_per_oat_file_.push_back(dex_files_);
+      for (const DexFile* dex_file : dex_files_) {
+        dex_file_oat_filename_map_.emplace(dex_file, oat_filenames_[0]);
+      }
+    }
+  }
+
   // Create and invoke the compiler driver. This will compile all the dex files.
   void Compile() {
     TimingLogger::ScopedTiming t("dex2oat Compile", timings_);
     compiler_phases_timings_.reset(new CumulativeLogger("compilation times"));
+
+    // Handle and ClassLoader creation needs to come after Runtime::Create
+    jobject class_loader = nullptr;
+    Thread* self = Thread::Current();
+
+    if (!boot_image_filename_.empty()) {
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      OpenClassPathFiles(runtime_->GetClassPathString(), dex_files_, &class_path_files_);
+      ScopedObjectAccess soa(self);
+
+      // Classpath: first the class-path given.
+      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
+
+      // Store the classpath we have right now.
+      key_value_store_->Put(OatHeader::kClassPathKey,
+                            OatFile::EncodeDexFileDependencies(class_path_files));
+
+      // Then the dex files we'll compile. Thus we'll resolve the class-path first.
+      class_path_files.insert(class_path_files.end(), dex_files_.begin(), dex_files_.end());
+
+      class_loader = class_linker->CreatePathClassLoader(self, class_path_files);
+    }
 
     // Find the dex file we should not inline from.
 
@@ -1459,6 +1453,49 @@ class Dex2Oat FINAL {
       }
     }
 
+    if (IsBootImage() && image_filenames_.size() > 1) {
+      // If we're compiling the boot image, store the boot classpath into the Key-Value store. If
+      // the image filename was adapted (e.g., for our tests), we need to change this here, too, but
+      // need to strip all path components (they will be re-established when loading).
+      // We need this for the multi-image case.
+      std::ostringstream bootcp_oss;
+      bool first_bootcp = true;
+      for (size_t i = 0; i < dex_locations_.size(); ++i) {
+        if (!first_bootcp) {
+          bootcp_oss << ":";
+        }
+
+        std::string dex_loc = dex_locations_[i];
+        std::string image_filename = image_filenames_[i];
+
+        // Use the dex_loc path, but the image_filename name (without path elements).
+        size_t dex_last_slash = dex_loc.rfind('/');
+
+        // npos is max(size_t). That makes this a bit ugly.
+        size_t image_last_slash = image_filename.rfind('/');
+        size_t image_last_at = image_filename.rfind('@');
+        size_t image_last_sep = (image_last_slash == std::string::npos)
+                                    ? image_last_at
+                                    : (image_last_at == std::string::npos)
+                                          ? std::string::npos
+                                          : std::max(image_last_slash, image_last_at);
+        // Note: whenever image_last_sep == npos, +1 overflow means using the full string.
+
+        if (dex_last_slash == std::string::npos) {
+          dex_loc = image_filename.substr(image_last_sep + 1);
+        } else {
+          dex_loc = dex_loc.substr(0, dex_last_slash + 1) +
+              image_filename.substr(image_last_sep + 1);
+        }
+
+        // Image filenames already end with .art, no need to replace.
+
+        bootcp_oss << dex_loc;
+        first_bootcp = false;
+      }
+      key_value_store_->Put(OatHeader::kBootClassPath, bootcp_oss.str());
+    }
+
     driver_.reset(new CompilerDriver(compiler_options_.get(),
                                      verification_results_.get(),
                                      &method_inliner_map_,
@@ -1479,7 +1516,7 @@ class Dex2Oat FINAL {
                                      &dex_file_oat_filename_map_,
                                      profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
-    driver_->CompileAll(class_loader_, dex_files_, timings_);
+    driver_->CompileAll(class_loader, dex_files_, timings_);
   }
 
   // Notes on the interleaving of creating the images and oat files to
@@ -1547,18 +1584,19 @@ class Dex2Oat FINAL {
   // ImageWriter, if necessary.
   // Note: Flushing (and closing) the file is the caller's responsibility, except for the failure
   //       case (when the file will be explicitly erased).
-  bool WriteOatFiles() {
+  bool CreateOatFiles() {
+    CHECK(key_value_store_.get() != nullptr);
+
     TimingLogger::ScopedTiming t("dex2oat Oat", timings_);
 
-    // Sync the data to the file, in case we did dex2dex transformations.
-    for (const std::unique_ptr<MemMap>& map : opened_dex_files_maps_) {
-      if (!map->Sync()) {
-        PLOG(ERROR) << "Failed to Sync() dex2dex output. Map: " << map->GetName();
-        return false;
-      }
-    }
+    std::vector<std::unique_ptr<OatWriter>> oat_writers;
+    {
+      TimingLogger::ScopedTiming t2("dex2oat OatWriter", timings_);
+      std::string image_file_location;
+      uint32_t image_file_location_oat_checksum = 0;
+      uintptr_t image_file_location_oat_data_begin = 0;
+      int32_t image_patch_delta = 0;
 
-    if (IsImage()) {
       if (app_image_ && image_base_ == 0) {
         std::vector<gc::space::ImageSpace*> image_spaces =
             Runtime::Current()->GetHeap()->GetBootImageSpaces();
@@ -1570,15 +1608,47 @@ class Dex2Oat FINAL {
         VLOG(compiler) << "App image base=" << reinterpret_cast<void*>(image_base_);
       }
 
-      image_writer_.reset(new ImageWriter(*driver_,
-                                          image_base_,
-                                          compiler_options_->GetCompilePic(),
-                                          IsAppImage(),
-                                          image_storage_mode_,
-                                          oat_filenames_,
-                                          dex_file_oat_filename_map_));
+      if (IsImage()) {
+        PrepareImageWriter(image_base_);
+      }
 
-      // We need to prepare method offsets in the image address space for direct method patching.
+      if (!IsBootImage()) {
+        TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
+        std::vector<gc::space::ImageSpace*> image_spaces =
+            Runtime::Current()->GetHeap()->GetBootImageSpaces();
+        image_file_location_oat_checksum = image_spaces[0]->GetImageHeader().GetOatChecksum();
+        image_file_location_oat_data_begin =
+            reinterpret_cast<uintptr_t>(image_spaces[0]->GetImageHeader().GetOatDataBegin());
+        image_patch_delta = image_spaces[0]->GetImageHeader().GetPatchDelta();
+        std::vector<std::string> image_filenames;
+        for (const gc::space::ImageSpace* image_space : image_spaces) {
+          image_filenames.push_back(image_space->GetImageFilename());
+        }
+        image_file_location = Join(image_filenames, ':');
+      }
+
+      if (!image_file_location.empty()) {
+        key_value_store_->Put(OatHeader::kImageLocationKey, image_file_location);
+      }
+
+      for (size_t i = 0; i < oat_files_.size(); ++i) {
+        std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
+        std::unique_ptr<OatWriter> oat_writer(new OatWriter(dex_files,
+                                                            image_file_location_oat_checksum,
+                                                            image_file_location_oat_data_begin,
+                                                            image_patch_delta,
+                                                            driver_.get(),
+                                                            image_writer_.get(),
+                                                            IsBootImage(),
+                                                            timings_,
+                                                            key_value_store_.get()));
+        oat_writers.push_back(std::move(oat_writer));
+      }
+    }
+
+    if (IsImage()) {
+      // The OatWriter constructor has already updated offsets in methods and we need to
+      // prepare method offsets in the image address space for direct method patching.
       TimingLogger::ScopedTiming t2("dex2oat Prepare image address space", timings_);
       if (!image_writer_->PrepareImageAddressSpace()) {
         LOG(ERROR) << "Failed to prepare image address space.";
@@ -1588,22 +1658,20 @@ class Dex2Oat FINAL {
 
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
-      for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
+      for (size_t i = 0; i < oat_files_.size(); ++i) {
         std::unique_ptr<File>& oat_file = oat_files_[i];
-        std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
-        std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
+        std::unique_ptr<OatWriter>& oat_writer = oat_writers[i];
+        std::unique_ptr<ElfWriter> elf_writer =
+            CreateElfWriterQuick(instruction_set_, compiler_options_.get(), oat_file.get());
 
-        std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
-        oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files);
+        elf_writer->Start();
 
-        OutputStream*& rodata = rodata_[i];
-        DCHECK(rodata != nullptr);
+        OutputStream* rodata = elf_writer->StartRoData();
         if (!oat_writer->WriteRodata(rodata)) {
           LOG(ERROR) << "Failed to write .rodata section to the ELF file " << oat_file->GetPath();
           return false;
         }
         elf_writer->EndRoData(rodata);
-        rodata = nullptr;
 
         OutputStream* text = elf_writer->StartText();
         if (!oat_writer->WriteCode(text)) {
@@ -1611,14 +1679,6 @@ class Dex2Oat FINAL {
           return false;
         }
         elf_writer->EndText(text);
-
-        if (!oat_writer->WriteHeader(elf_writer->GetStream(),
-                                     image_file_location_oat_checksum_,
-                                     image_file_location_oat_data_begin_,
-                                     image_patch_delta_)) {
-          LOG(ERROR) << "Failed to write oat header to the ELF file " << oat_file->GetPath();
-          return false;
-        }
 
         elf_writer->SetBssSize(oat_writer->GetBssSize());
         elf_writer->WriteDynamicSection();
@@ -1645,9 +1705,6 @@ class Dex2Oat FINAL {
         }
 
         VLOG(compiler) << "Oat file written successfully: " << oat_filenames_[i];
-
-        oat_writer.reset();
-        elf_writer.reset();
       }
     }
 
@@ -1795,78 +1852,65 @@ class Dex2Oat FINAL {
     return result;
   }
 
-  std::string GetMultiImageBootClassPath() {
-    DCHECK(IsBootImage());
-    DCHECK_GT(oat_filenames_.size(), 1u);
-    // If the image filename was adapted (e.g., for our tests), we need to change this here,
-    // too, but need to strip all path components (they will be re-established when loading).
-    std::ostringstream bootcp_oss;
-    bool first_bootcp = true;
-    for (size_t i = 0; i < dex_locations_.size(); ++i) {
-      if (!first_bootcp) {
-        bootcp_oss << ":";
+  static size_t OpenDexFiles(std::vector<const char*>& dex_filenames,
+                             std::vector<const char*>& dex_locations,
+                             std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+    DCHECK(dex_files != nullptr) << "OpenDexFiles out-param is nullptr";
+    size_t failure_count = 0;
+    for (size_t i = 0; i < dex_filenames.size(); i++) {
+      const char* dex_filename = dex_filenames[i];
+      const char* dex_location = dex_locations[i];
+      ATRACE_BEGIN(StringPrintf("Opening dex file '%s'", dex_filenames[i]).c_str());
+      std::string error_msg;
+      if (!OS::FileExists(dex_filename)) {
+        LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
+        dex_filenames.erase(dex_filenames.begin() + i);
+        dex_locations.erase(dex_locations.begin() + i);
+        i--;
+        continue;
       }
-
-      std::string dex_loc = dex_locations_[i];
-      std::string image_filename = image_filenames_[i];
-
-      // Use the dex_loc path, but the image_filename name (without path elements).
-      size_t dex_last_slash = dex_loc.rfind('/');
-
-      // npos is max(size_t). That makes this a bit ugly.
-      size_t image_last_slash = image_filename.rfind('/');
-      size_t image_last_at = image_filename.rfind('@');
-      size_t image_last_sep = (image_last_slash == std::string::npos)
-                                  ? image_last_at
-                                  : (image_last_at == std::string::npos)
-                                        ? std::string::npos
-                                        : std::max(image_last_slash, image_last_at);
-      // Note: whenever image_last_sep == npos, +1 overflow means using the full string.
-
-      if (dex_last_slash == std::string::npos) {
-        dex_loc = image_filename.substr(image_last_sep + 1);
-      } else {
-        dex_loc = dex_loc.substr(0, dex_last_slash + 1) +
-            image_filename.substr(image_last_sep + 1);
+      if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
+        LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
+        ++failure_count;
       }
-
-      // Image filenames already end with .art, no need to replace.
-
-      bootcp_oss << dex_loc;
-      first_bootcp = false;
+      ATRACE_END();
     }
-    return bootcp_oss.str();
+    return failure_count;
   }
 
-  std::vector<std::string> GetClassPathLocations(const std::string& class_path) {
-    // This function is used only for apps and for an app we have exactly one oat file.
-    DCHECK(!IsBootImage());
-    DCHECK_EQ(oat_writers_.size(), 1u);
-    std::vector<std::string> dex_files_canonical_locations;
-    for (const char* location : oat_writers_[0]->GetSourceLocations()) {
-      dex_files_canonical_locations.push_back(DexFile::GetDexCanonicalLocation(location));
+  // Returns true if dex_files has a dex with the named location. We compare canonical locations,
+  // so that relative and absolute paths will match. Not caching for the dex_files isn't very
+  // efficient, but under normal circumstances the list is neither large nor is this part too
+  // sensitive.
+  static bool DexFilesContains(const std::vector<const DexFile*>& dex_files,
+                               const std::string& location) {
+    std::string canonical_location(DexFile::GetDexCanonicalLocation(location.c_str()));
+    for (size_t i = 0; i < dex_files.size(); ++i) {
+      if (DexFile::GetDexCanonicalLocation(dex_files[i]->GetLocation().c_str()) ==
+          canonical_location) {
+        return true;
+      }
     }
-
-    std::vector<std::string> parsed;
-    Split(class_path, ':', &parsed);
-    auto kept_it = std::remove_if(parsed.begin(),
-                                  parsed.end(),
-                                  [dex_files_canonical_locations](const std::string& location) {
-      return ContainsElement(dex_files_canonical_locations,
-                             DexFile::GetDexCanonicalLocation(location.c_str()));
-    });
-    parsed.erase(kept_it, parsed.end());
-    return parsed;
+    return false;
   }
 
-  // Opens requested class path files and appends them to opened_dex_files.
-  static void OpenClassPathFiles(const std::vector<std::string>& class_path_locations,
+  // Appends to opened_dex_files any elements of class_path that dex_files
+  // doesn't already contain. This will open those dex files as necessary.
+  static void OpenClassPathFiles(const std::string& class_path,
+                                 std::vector<const DexFile*> dex_files,
                                  std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
     DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles out-param is nullptr";
-    for (const std::string& location : class_path_locations) {
+    std::vector<std::string> parsed;
+    Split(class_path, ':', &parsed);
+    // Take Locks::mutator_lock_ so that lock ordering on the ClassLinker::dex_lock_ is maintained.
+    ScopedObjectAccess soa(Thread::Current());
+    for (size_t i = 0; i < parsed.size(); ++i) {
+      if (DexFilesContains(dex_files, parsed[i])) {
+        continue;
+      }
       std::string error_msg;
-      if (!DexFile::Open(location.c_str(), location.c_str(), &error_msg, opened_dex_files)) {
-        LOG(WARNING) << "Failed to open dex file '" << location << "': " << error_msg;
+      if (!DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg, opened_dex_files)) {
+        LOG(WARNING) << "Failed to open dex file '" << parsed[i] << "': " << error_msg;
       }
     }
   }
@@ -1941,63 +1985,6 @@ class Dex2Oat FINAL {
     return true;
   }
 
-  void PruneNonExistentDexFiles() {
-    DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
-    size_t kept = 0u;
-    for (size_t i = 0, size = dex_filenames_.size(); i != size; ++i) {
-      if (!OS::FileExists(dex_filenames_[i])) {
-        LOG(WARNING) << "Skipping non-existent dex file '" << dex_filenames_[i] << "'";
-      } else {
-        dex_filenames_[kept] = dex_filenames_[i];
-        dex_locations_[kept] = dex_locations_[i];
-        ++kept;
-      }
-    }
-    dex_filenames_.resize(kept);
-    dex_locations_.resize(kept);
-  }
-
-  bool AddDexFileSources() {
-    TimingLogger::ScopedTiming t2("AddDexFileSources", timings_);
-    if (zip_fd_ != -1) {
-      DCHECK_EQ(oat_writers_.size(), 1u);
-      if (!oat_writers_[0]->AddZippedDexFilesSource(ScopedFd(zip_fd_), zip_location_.c_str())) {
-        return false;
-      }
-    } else if (oat_writers_.size() > 1u) {
-      // Multi-image.
-      DCHECK_EQ(oat_writers_.size(), dex_filenames_.size());
-      DCHECK_EQ(oat_writers_.size(), dex_locations_.size());
-      for (size_t i = 0, size = oat_writers_.size(); i != size; ++i) {
-        if (!oat_writers_[i]->AddDexFileSource(dex_filenames_[i], dex_locations_[i])) {
-          return false;
-        }
-      }
-    } else {
-      DCHECK_EQ(oat_writers_.size(), 1u);
-      DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
-      DCHECK_NE(dex_filenames_.size(), 0u);
-      for (size_t i = 0; i != dex_filenames_.size(); ++i) {
-        if (!oat_writers_[0]->AddDexFileSource(dex_filenames_[i], dex_locations_[i])) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  void CreateOatWriters() {
-    TimingLogger::ScopedTiming t2("CreateOatWriters", timings_);
-    elf_writers_.reserve(oat_files_.size());
-    oat_writers_.reserve(oat_files_.size());
-    for (const std::unique_ptr<File>& oat_file : oat_files_) {
-      elf_writers_.emplace_back(
-          CreateElfWriterQuick(instruction_set_, compiler_options_.get(), oat_file.get()));
-      elf_writers_.back()->Start();
-      oat_writers_.emplace_back(new OatWriter(IsBootImage(), timings_));
-    }
-  }
-
   void SaveDexInput() {
     for (size_t i = 0; i < dex_files_.size(); ++i) {
       const DexFile* dex_file = dex_files_[i];
@@ -2057,8 +2044,8 @@ class Dex2Oat FINAL {
   }
 
   // Create a runtime necessary for compilation.
-  bool CreateRuntime(RuntimeArgumentMap&& runtime_options) {
-    TimingLogger::ScopedTiming t_runtime("Create runtime", timings_);
+  bool CreateRuntime(RuntimeArgumentMap&& runtime_options)
+      SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!Runtime::Create(std::move(runtime_options))) {
       LOG(ERROR) << "Failed to create runtime";
       return false;
@@ -2079,12 +2066,18 @@ class Dex2Oat FINAL {
 
     runtime_->GetClassLinker()->RunRootClinits();
 
-    // Runtime::Create acquired the mutator_lock_ that is normally given away when we
-    // Runtime::Start, give it away now so that we don't starve GC.
-    Thread* self = Thread::Current();
-    self->TransitionFromRunnableToSuspended(kNative);
-
     return true;
+  }
+
+  void PrepareImageWriter(uintptr_t image_base) {
+    DCHECK(IsImage());
+    image_writer_.reset(new ImageWriter(*driver_,
+                                        image_base,
+                                        compiler_options_->GetCompilePic(),
+                                        IsAppImage(),
+                                        image_storage_mode_,
+                                        oat_filenames_,
+                                        dex_file_oat_filename_map_));
   }
 
   // Let the ImageWriter write the image files. If we do not compile PIC, also fix up the oat files.
@@ -2263,9 +2256,6 @@ class Dex2Oat FINAL {
   InstructionSet instruction_set_;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;
 
-  uint32_t image_file_location_oat_checksum_;
-  uintptr_t image_file_location_oat_data_begin_;
-  int32_t image_patch_delta_;
   std::unique_ptr<SafeMap<std::string, std::string> > key_value_store_;
 
   std::unique_ptr<VerificationResults> verification_results_;
@@ -2273,10 +2263,10 @@ class Dex2Oat FINAL {
   DexFileToMethodInlinerMap method_inliner_map_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
 
-  std::unique_ptr<Runtime> runtime_;
-
   // Ownership for the class path files.
   std::vector<std::unique_ptr<const DexFile>> class_path_files_;
+
+  std::unique_ptr<Runtime> runtime_;
 
   size_t thread_count_;
   uint64_t start_ns_;
@@ -2312,16 +2302,10 @@ class Dex2Oat FINAL {
   std::vector<const DexFile*> dex_files_;
   std::string no_inline_from_string_;
   std::vector<jobject> dex_caches_;
-  jobject class_loader_;
+  std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
-  std::vector<std::unique_ptr<ElfWriter>> elf_writers_;
-  std::vector<std::unique_ptr<OatWriter>> oat_writers_;
-  std::vector<OutputStream*> rodata_;
   std::unique_ptr<ImageWriter> image_writer_;
   std::unique_ptr<CompilerDriver> driver_;
-
-  std::vector<std::unique_ptr<MemMap>> opened_dex_files_maps_;
-  std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
   std::vector<std::string> verbose_methods_;
   bool dump_stats_;
@@ -2371,7 +2355,7 @@ static void b13564922() {
 static int CompileImage(Dex2Oat& dex2oat) {
   dex2oat.Compile();
 
-  if (!dex2oat.WriteOatFiles()) {
+  if (!dex2oat.CreateOatFiles()) {
     dex2oat.EraseOatFiles();
     return EXIT_FAILURE;
   }
@@ -2410,7 +2394,7 @@ static int CompileImage(Dex2Oat& dex2oat) {
 static int CompileApp(Dex2Oat& dex2oat) {
   dex2oat.Compile();
 
-  if (!dex2oat.WriteOatFiles()) {
+  if (!dex2oat.CreateOatFiles()) {
     dex2oat.EraseOatFiles();
     return EXIT_FAILURE;
   }
@@ -2467,11 +2451,6 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  // Check early that the result of compilation can be written
-  if (!dex2oat.OpenFile()) {
-    return EXIT_FAILURE;
-  }
-
   // Print the complete line when any of the following is true:
   //   1) Debug build
   //   2) Compiling an image
@@ -2485,6 +2464,11 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (!dex2oat.Setup()) {
+    return EXIT_FAILURE;
+  }
+
+  // Check early that the result of compilation can be written
+  if (!dex2oat.OpenFile()) {
     dex2oat.EraseOatFiles();
     return EXIT_FAILURE;
   }
