@@ -927,16 +927,21 @@ void SsaBuilder::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   if (invoke->IsStringInit()) {
     // This is a StringFactory call which acts as a String constructor. Its
     // result replaces the empty String pre-allocated by NewInstance.
-    HNewInstance* new_instance = invoke->GetThisArgumentOfStringInit();
-    invoke->RemoveThisArgumentOfStringInit();
+    HInstruction* arg_this = invoke->GetAndRemoveThisArgumentOfStringInit();
 
     // Replacing the NewInstance might render it redundant. Keep a list of these
     // to be visited once it is clear whether it is has remaining uses.
-    uninitialized_strings_.push_back(new_instance);
+    if (arg_this->IsNewInstance()) {
+      uninitialized_strings_.push_back(arg_this->AsNewInstance());
+    } else {
+      DCHECK(arg_this->IsIrreducibleLoopHeaderPhi());
+      // NewInstance is not the direct input of the StringFactory call. It might
+      // be redundant but optimizing this case is not worth the effort.
+    }
 
-    // Walk over all vregs and replace any occurrence of `new_instance` with `invoke`.
+    // Walk over all vregs and replace any occurrence of `arg_this` with `invoke`.
     for (size_t vreg = 0, e = current_locals_->size(); vreg < e; ++vreg) {
-      if ((*current_locals_)[vreg] == new_instance) {
+      if ((*current_locals_)[vreg] == arg_this) {
         (*current_locals_)[vreg] = invoke;
       }
     }
