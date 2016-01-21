@@ -6449,6 +6449,33 @@ Literal* CodeGeneratorARM::DeduplicateMethodCodeLiteral(MethodReference target_m
   return DeduplicateMethodLiteral(target_method, &call_patches_);
 }
 
+void LocationsBuilderARM::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
+  locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
+                     Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+  LocationSummary* locations = instr->GetLocations();
+  Register res = locations->Out().AsRegister<Register>();
+  Register accumulator = locations->InAt(HMultiplyAccumulate::kInputAccumulatorIndex)
+                                      .AsRegister<Register>();
+  Register mul_left = locations->InAt(HMultiplyAccumulate::kInputMulLeftIndex)
+                                  .AsRegister<Register>();
+  Register mul_right = locations->InAt(HMultiplyAccumulate::kInputMulRightIndex)
+                                    .AsRegister<Register>();
+
+  if (instr->GetOpKind() == HInstruction::kAdd) {
+    __ mla(res, mul_left, mul_right, accumulator);
+  } else {
+    __ mls(res, mul_left, mul_right, accumulator);
+  }
+}
+
 void LocationsBuilderARM::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, this should be removed during prepare for register allocator.
   LOG(FATAL) << "Unreachable";
