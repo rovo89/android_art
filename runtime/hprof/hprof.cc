@@ -419,18 +419,13 @@ class Hprof : public SingleRootVisitor {
   Hprof(const char* output_filename, int fd, bool direct_to_ddms)
       : filename_(output_filename),
         fd_(fd),
-        direct_to_ddms_(direct_to_ddms),
-        start_ns_(NanoTime()),
-        output_(nullptr),
-        current_heap_(HPROF_HEAP_DEFAULT),
-        objects_in_segment_(0),
-        next_string_id_(0x400000),
-        next_class_serial_number_(1) {
+        direct_to_ddms_(direct_to_ddms) {
     LOG(INFO) << "hprof: heap dump \"" << filename_ << "\" starting...";
   }
 
   void Dump()
-    REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !Locks::alloc_tracker_lock_) {
+    REQUIRES(Locks::mutator_lock_)
+    REQUIRES(!Locks::heap_bitmap_lock_, !Locks::alloc_tracker_lock_) {
     {
       MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
       if (Runtime::Current()->GetHeap()->IsAllocTrackingEnabled()) {
@@ -462,10 +457,11 @@ class Hprof : public SingleRootVisitor {
     }
 
     if (okay) {
-      uint64_t duration = NanoTime() - start_ns_;
-      LOG(INFO) << "hprof: heap dump completed ("
-          << PrettySize(RoundUp(overall_size, 1024))
-          << ") in " << PrettyDuration(duration);
+      const uint64_t duration = NanoTime() - start_ns_;
+      LOG(INFO) << "hprof: heap dump completed (" << PrettySize(RoundUp(overall_size, KB))
+                << ") in " << PrettyDuration(duration)
+                << " objects " << total_objects_
+                << " objects with stack traces " << total_objects_with_stack_trace_;
     }
   }
 
@@ -855,7 +851,7 @@ class Hprof : public SingleRootVisitor {
     }
     CHECK_EQ(traces_.size(), next_trace_sn - kHprofNullStackTrace - 1);
     CHECK_EQ(frames_.size(), next_frame_id);
-    VLOG(heap) << "hprof: found " << count << " objects with allocation stack traces";
+    total_objects_with_stack_trace_ = count;
   }
 
   // If direct_to_ddms_ is set, "filename_" and "fd" will be ignored.
@@ -865,16 +861,19 @@ class Hprof : public SingleRootVisitor {
   int fd_;
   bool direct_to_ddms_;
 
-  uint64_t start_ns_;
+  uint64_t start_ns_ = NanoTime();
 
-  EndianOutput* output_;
+  EndianOutput* output_ = nullptr;
 
-  HprofHeapId current_heap_;  // Which heap we're currently dumping.
-  size_t objects_in_segment_;
+  HprofHeapId current_heap_ = HPROF_HEAP_DEFAULT;  // Which heap we're currently dumping.
+  size_t objects_in_segment_ = 0;
 
-  HprofStringId next_string_id_;
+  size_t total_objects_ = 0u;
+  size_t total_objects_with_stack_trace_ = 0u;
+
+  HprofStringId next_string_id_ = 0x400000;
   SafeMap<std::string, HprofStringId> strings_;
-  HprofClassSerialNumber next_class_serial_number_;
+  HprofClassSerialNumber next_class_serial_number_ = 1;
   SafeMap<mirror::Class*, HprofClassSerialNumber> classes_;
 
   std::unordered_map<const gc::AllocRecordStackTrace*, HprofStackTraceSerialNumber,
@@ -1063,6 +1062,8 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
   if (obj->IsClass() && obj->AsClass()->IsRetired()) {
     return;
   }
+
+  ++total_objects_;
 
   GcRootVisitor visitor(this);
   obj->VisitReferences(visitor, VoidFunctor());
