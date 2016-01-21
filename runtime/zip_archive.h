@@ -63,9 +63,7 @@ class ZipArchive {
 
   ZipEntry* Find(const char* name, std::string* error_msg) const;
 
-  ~ZipArchive() {
-    CloseArchive(handle_);
-  }
+  ~ZipArchive();
 
  private:
   explicit ZipArchive(ZipArchiveHandle handle) : handle_(handle) {}

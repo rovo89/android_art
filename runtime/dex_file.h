@@ -1157,7 +1157,7 @@ class DexFile {
     return lookup_table_.get();
   }
 
-  void CreateTypeLookupTable() const;
+  void CreateTypeLookupTable(uint8_t* storage = nullptr) const;
 
  private:
   // Opens a .dex file
