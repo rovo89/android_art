@@ -276,7 +276,7 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
    */
 #if defined(__linux__)
   hostent he;
-  char auxBuf[128];
+  char auxBuf[256];
   int error;
   int cc = gethostbyname_r(options->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
   if (cc != 0) {
