@@ -186,6 +186,22 @@ void X86Assembler::bsrl(Register dst, const Address& src) {
   EmitOperand(dst, src);
 }
 
+void X86Assembler::popcntl(Register dst, Register src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF3);
+  EmitUint8(0x0F);
+  EmitUint8(0xB8);
+  EmitRegisterOperand(dst, src);
+}
+
+void X86Assembler::popcntl(Register dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF3);
+  EmitUint8(0x0F);
+  EmitUint8(0xB8);
+  EmitOperand(dst, src);
+}
+
 void X86Assembler::movzxb(Register dst, ByteRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);

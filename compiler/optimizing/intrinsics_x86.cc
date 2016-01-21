@@ -2303,6 +2303,81 @@ void IntrinsicCodeGeneratorX86::VisitLongReverse(HInvoke* invoke) {
   SwapBits(reg_high, temp, 4, 0x0f0f0f0f, assembler);
 }
 
+static void CreateBitCountLocations(
+    ArenaAllocator* arena, CodeGeneratorX86* codegen, HInvoke* invoke, bool is_long) {
+  if (!codegen->GetInstructionSetFeatures().HasPopCnt()) {
+    // Do nothing if there is no popcnt support. This results in generating
+    // a call for the intrinsic rather than direct code.
+    return;
+  }
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  if (is_long) {
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+  } else {
+    locations->SetInAt(0, Location::Any());
+  }
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenBitCount(X86Assembler* assembler, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  Register out = locations->Out().AsRegister<Register>();
+
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    value = is_long
+        ? POPCOUNT(static_cast<uint64_t>(value))
+        : POPCOUNT(static_cast<uint32_t>(value));
+    if (value == 0) {
+      __ xorl(out, out);
+    } else {
+      __ movl(out, Immediate(value));
+    }
+    return;
+  }
+
+  // Handle the non-constant cases.
+  if (!is_long) {
+    if (src.IsRegister()) {
+      __ popcntl(out, src.AsRegister<Register>());
+    } else {
+      DCHECK(src.IsStackSlot());
+      __ popcntl(out, Address(ESP, src.GetStackIndex()));
+    }
+    return;
+  }
+
+  // The 64-bit case needs to worry about both parts of the register.
+  DCHECK(src.IsRegisterPair());
+  Register src_lo = src.AsRegisterPairLow<Register>();
+  Register src_hi = src.AsRegisterPairHigh<Register>();
+  Register temp = locations->GetTemp(0).AsRegister<Register>();
+  __ popcntl(temp, src_lo);
+  __ popcntl(out, src_hi);
+  __ addl(out, temp);
+}
+
+void IntrinsicLocationsBuilderX86::VisitIntegerBitCount(HInvoke* invoke) {
+  CreateBitCountLocations(arena_, codegen_, invoke, /* is_long */ false);
+}
+
+void IntrinsicCodeGeneratorX86::VisitIntegerBitCount(HInvoke* invoke) {
+  GenBitCount(GetAssembler(), invoke, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86::VisitLongBitCount(HInvoke* invoke) {
+  CreateBitCountLocations(arena_, codegen_, invoke, /* is_long */ true);
+}
+
+void IntrinsicCodeGeneratorX86::VisitLongBitCount(HInvoke* invoke) {
+  GenBitCount(GetAssembler(), invoke, /* is_long */ true);
+}
+
 static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, bool is_long) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
@@ -2518,10 +2593,8 @@ void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongBitCount)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
