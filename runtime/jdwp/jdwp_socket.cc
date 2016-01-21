@@ -276,7 +276,12 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
    */
 #if defined(__linux__)
   hostent he;
-  char auxBuf[256];
+  // The size of the work buffer used in the gethostbyname_r call
+  // below. It used to be 128, but this was not enough on some
+  // configurations (maybe because of IPv6?), causing failures in JDWP
+  // host testing; thus it was increased to 256.
+  static constexpr size_t kAuxBufSize = 256;
+  char auxBuf[kAuxBufSize];
   int error;
   int cc = gethostbyname_r(options->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
   if (cc != 0) {
@@ -298,7 +303,8 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
 
   addr.addrInet.sin_port = htons(options->port);
 
-  LOG(INFO) << "Connecting out to " << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port);
+  LOG(INFO) << "Connecting out to " << inet_ntoa(addr.addrInet.sin_addr) << ":"
+            << ntohs(addr.addrInet.sin_port);
 
   /*
    * Create a socket.
@@ -313,13 +319,15 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
    * Try to connect.
    */
   if (connect(clientSock, &addr.addrPlain, sizeof(addr)) != 0) {
-    PLOG(ERROR) << "Unable to connect to " << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port);
+    PLOG(ERROR) << "Unable to connect to " << inet_ntoa(addr.addrInet.sin_addr) << ":"
+                << ntohs(addr.addrInet.sin_port);
     close(clientSock);
     clientSock = -1;
     return false;
   }
 
-  LOG(INFO) << "Connection established to " << options->host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
+  LOG(INFO) << "Connection established to " << options->host << " ("
+            << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
   SetAwaitingHandshake(true);
   input_count_ = 0;
 
@@ -438,7 +446,8 @@ bool JdwpSocketState::ProcessIncoming() {
         }
       }
       if (clientSock >= 0 && FD_ISSET(clientSock, &readfds)) {
-        readCount = read(clientSock, input_buffer_ + input_count_, sizeof(input_buffer_) - input_count_);
+        readCount =
+            read(clientSock, input_buffer_ + input_count_, sizeof(input_buffer_) - input_count_);
         if (readCount < 0) {
           /* read failed */
           if (errno != EINTR) {
@@ -479,7 +488,8 @@ bool JdwpSocketState::ProcessIncoming() {
     errno = 0;
     int cc = TEMP_FAILURE_RETRY(write(clientSock, input_buffer_, kMagicHandshakeLen));
     if (cc != kMagicHandshakeLen) {
-      PLOG(ERROR) << "Failed writing handshake bytes (" << cc << " of " << kMagicHandshakeLen << ")";
+      PLOG(ERROR) << "Failed writing handshake bytes ("
+                  << cc << " of " << kMagicHandshakeLen << ")";
       goto fail;
     }
 
