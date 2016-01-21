@@ -37,7 +37,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
     : received_method_enter_event(false), received_method_exit_event(false),
       received_method_unwind_event(false), received_dex_pc_moved_event(false),
       received_field_read_event(false), received_field_written_event(false),
-      received_exception_caught_event(false), received_backward_branch_event(false),
+      received_exception_caught_event(false), received_branch_event(false),
       received_invoke_virtual_or_interface_event(false) {}
 
   virtual ~TestInstrumentationListener() {}
@@ -100,11 +100,12 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
     received_exception_caught_event = true;
   }
 
-  void BackwardBranch(Thread* thread ATTRIBUTE_UNUSED,
-                      ArtMethod* method ATTRIBUTE_UNUSED,
-                      int32_t dex_pc_offset ATTRIBUTE_UNUSED)
+  void Branch(Thread* thread ATTRIBUTE_UNUSED,
+              ArtMethod* method ATTRIBUTE_UNUSED,
+              uint32_t dex_pc ATTRIBUTE_UNUSED,
+              int32_t dex_pc_offset ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
-    received_backward_branch_event = true;
+    received_branch_event = true;
   }
 
   void InvokeVirtualOrInterface(Thread* thread ATTRIBUTE_UNUSED,
@@ -124,7 +125,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
     received_field_read_event = false;
     received_field_written_event = false;
     received_exception_caught_event = false;
-    received_backward_branch_event = false;
+    received_branch_event = false;
     received_invoke_virtual_or_interface_event = false;
   }
 
@@ -135,7 +136,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   bool received_field_read_event;
   bool received_field_written_event;
   bool received_exception_caught_event;
-  bool received_backward_branch_event;
+  bool received_branch_event;
   bool received_invoke_virtual_or_interface_event;
 
  private:
@@ -305,8 +306,8 @@ class InstrumentationTest : public CommonRuntimeTest {
         return instr->HasFieldWriteListeners();
       case instrumentation::Instrumentation::kExceptionCaught:
         return instr->HasExceptionCaughtListeners();
-      case instrumentation::Instrumentation::kBackwardBranch:
-        return instr->HasBackwardBranchListeners();
+      case instrumentation::Instrumentation::kBranch:
+        return instr->HasBranchListeners();
       case instrumentation::Instrumentation::kInvokeVirtualOrInterface:
         return instr->HasInvokeVirtualOrInterfaceListeners();
       default:
@@ -349,8 +350,8 @@ class InstrumentationTest : public CommonRuntimeTest {
         self->ClearException();
         break;
       }
-      case instrumentation::Instrumentation::kBackwardBranch:
-        instr->BackwardBranch(self, method, dex_pc);
+      case instrumentation::Instrumentation::kBranch:
+        instr->Branch(self, method, dex_pc, -1);
         break;
       case instrumentation::Instrumentation::kInvokeVirtualOrInterface:
         instr->InvokeVirtualOrInterface(self, obj, method, dex_pc, method);
@@ -378,8 +379,8 @@ class InstrumentationTest : public CommonRuntimeTest {
         return listener.received_field_written_event;
       case instrumentation::Instrumentation::kExceptionCaught:
         return listener.received_exception_caught_event;
-      case instrumentation::Instrumentation::kBackwardBranch:
-        return listener.received_backward_branch_event;
+      case instrumentation::Instrumentation::kBranch:
+        return listener.received_branch_event;
       case instrumentation::Instrumentation::kInvokeVirtualOrInterface:
         return listener.received_invoke_virtual_or_interface_event;
       default:
@@ -441,8 +442,8 @@ TEST_F(InstrumentationTest, ExceptionCaughtEvent) {
   TestEvent(instrumentation::Instrumentation::kExceptionCaught);
 }
 
-TEST_F(InstrumentationTest, BackwardBranchEvent) {
-  TestEvent(instrumentation::Instrumentation::kBackwardBranch);
+TEST_F(InstrumentationTest, BranchEvent) {
+  TestEvent(instrumentation::Instrumentation::kBranch);
 }
 
 TEST_F(InstrumentationTest, InvokeVirtualOrInterfaceEvent) {

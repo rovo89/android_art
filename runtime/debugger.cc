@@ -230,11 +230,11 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
     Dbg::PostException(exception_object);
   }
 
-  // We only care about how many backward branches were executed in the Jit.
-  void BackwardBranch(Thread* /*thread*/, ArtMethod* method, int32_t dex_pc_offset)
+  // We only care about branches in the Jit.
+  void Branch(Thread* /*thread*/, ArtMethod* method, uint32_t dex_pc, int32_t dex_pc_offset)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
-    LOG(ERROR) << "Unexpected backward branch event in debugger " << PrettyMethod(method)
-               << " " << dex_pc_offset;
+    LOG(ERROR) << "Unexpected branch event in debugger " << PrettyMethod(method)
+               << " " << dex_pc << ", " << dex_pc_offset;
   }
 
   // We only care about invokes in the Jit.

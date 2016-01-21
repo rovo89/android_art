@@ -165,11 +165,14 @@ void JitInstrumentationListener::MethodEntered(Thread* thread,
   instrumentation_cache_->AddSamples(thread, method, 1);
 }
 
-void JitInstrumentationListener::BackwardBranch(Thread* thread,
-                                                ArtMethod* method,
-                                                int32_t dex_pc_offset) {
-  CHECK_LE(dex_pc_offset, 0);
-  instrumentation_cache_->AddSamples(thread, method, 1);
+void JitInstrumentationListener::Branch(Thread* thread,
+                                        ArtMethod* method,
+                                        uint32_t dex_pc,
+                                        int32_t dex_pc_offset) {
+  if (dex_pc_offset < 0) {
+    // Increment method hotness if it is a backward branch.
+    instrumentation_cache_->AddSamples(thread, method, 1);
+  }
 }
 
 void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,

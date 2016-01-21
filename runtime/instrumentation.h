@@ -94,8 +94,11 @@ struct InstrumentationListener {
   virtual void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
       SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 
-  // Call-back for when we get a backward branch.
-  virtual void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
+  // Call-back for when we execute a branch.
+  virtual void Branch(Thread* thread,
+                      ArtMethod* method,
+                      uint32_t dex_pc,
+                      int32_t dex_pc_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 
   // Call-back for when we get an invokevirtual or an invokeinterface.
@@ -122,7 +125,7 @@ class Instrumentation {
     kFieldRead = 0x10,
     kFieldWritten = 0x20,
     kExceptionCaught = 0x40,
-    kBackwardBranch = 0x80,
+    kBranch = 0x80,
     kInvokeVirtualOrInterface = 0x100,
   };
 
@@ -276,8 +279,8 @@ class Instrumentation {
     return have_exception_caught_listeners_;
   }
 
-  bool HasBackwardBranchListeners() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return have_backward_branch_listeners_;
+  bool HasBranchListeners() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return have_branch_listeners_;
   }
 
   bool HasInvokeVirtualOrInterfaceListeners() const SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -324,11 +327,11 @@ class Instrumentation {
     }
   }
 
-  // Inform listeners that a backward branch has been taken (only supported by the interpreter).
-  void BackwardBranch(Thread* thread, ArtMethod* method, int32_t offset) const
+  // Inform listeners that a branch has been taken (only supported by the interpreter).
+  void Branch(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t offset) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (UNLIKELY(HasBackwardBranchListeners())) {
-      BackwardBranchImpl(thread, method, offset);
+    if (UNLIKELY(HasBranchListeners())) {
+      BranchImpl(thread, method, dex_pc, offset);
     }
   }
 
@@ -442,7 +445,7 @@ class Instrumentation {
   void DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
                            ArtMethod* method, uint32_t dex_pc) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void BackwardBranchImpl(Thread* thread, ArtMethod* method, int32_t offset) const
+  void BranchImpl(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t offset) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   void InvokeVirtualOrInterfaceImpl(Thread* thread,
                                     mirror::Object* this_object,
@@ -513,8 +516,8 @@ class Instrumentation {
   // Do we have any exception caught listeners? Short-cut to avoid taking the instrumentation_lock_.
   bool have_exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
-  // Do we have any backward branch listeners? Short-cut to avoid taking the instrumentation_lock_.
-  bool have_backward_branch_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  // Do we have any branch listeners? Short-cut to avoid taking the instrumentation_lock_.
+  bool have_branch_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any invoke listeners? Short-cut to avoid taking the instrumentation_lock_.
   bool have_invoke_virtual_or_interface_listeners_ GUARDED_BY(Locks::mutator_lock_);
@@ -537,7 +540,7 @@ class Instrumentation {
   std::list<InstrumentationListener*> method_entry_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_exit_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
-  std::list<InstrumentationListener*> backward_branch_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> branch_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> invoke_virtual_or_interface_listeners_
       GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
