@@ -100,12 +100,6 @@ class ElfBuilder FINAL {
       header_.sh_entsize = entsize;
     }
 
-    ~Section() OVERRIDE {
-      if (started_) {
-        CHECK(finished_);
-      }
-    }
-
     // Start writing of this section.
     void Start() {
       CHECK(!started_);
