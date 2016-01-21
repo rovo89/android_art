@@ -133,4 +133,8 @@ ZipEntry* ZipArchive::Find(const char* name, std::string* error_msg) const {
   return new ZipEntry(handle_, zip_entry.release());
 }
 
+ZipArchive::~ZipArchive() {
+  CloseArchive(handle_);
+}
+
 }  // namespace art
