@@ -938,6 +938,11 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         load = true;
         break;
+      case 0xB8:
+        opcode1 = "popcnt";
+        has_modrm = true;
+        load = true;
+        break;
       case 0xBE:
         opcode1 = "movsxb";
         has_modrm = true;

@@ -2368,6 +2368,70 @@ void IntrinsicCodeGeneratorX86_64::VisitLongReverse(HInvoke* invoke) {
   SwapBits64(reg, temp1, temp2, 4, INT64_C(0x0f0f0f0f0f0f0f0f), assembler);
 }
 
+static void CreateBitCountLocations(
+    ArenaAllocator* arena, CodeGeneratorX86_64* codegen, HInvoke* invoke) {
+  if (!codegen->GetInstructionSetFeatures().HasPopCnt()) {
+    // Do nothing if there is no popcnt support. This results in generating
+    // a call for the intrinsic rather than direct code.
+    return;
+  }
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::Any());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenBitCount(X86_64Assembler* assembler, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    value = is_long
+        ? POPCOUNT(static_cast<uint64_t>(value))
+        : POPCOUNT(static_cast<uint32_t>(value));
+    if (value == 0) {
+      __ xorl(out, out);
+    } else {
+      __ movl(out, Immediate(value));
+    }
+    return;
+  }
+
+  if (src.IsRegister()) {
+    if (is_long) {
+      __ popcntq(out, src.AsRegister<CpuRegister>());
+    } else {
+      __ popcntl(out, src.AsRegister<CpuRegister>());
+    }
+  } else if (is_long) {
+    DCHECK(src.IsDoubleStackSlot());
+    __ popcntq(out, Address(CpuRegister(RSP), src.GetStackIndex()));
+  } else {
+    DCHECK(src.IsStackSlot());
+    __ popcntl(out, Address(CpuRegister(RSP), src.GetStackIndex()));
+  }
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerBitCount(HInvoke* invoke) {
+  CreateBitCountLocations(arena_, codegen_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerBitCount(HInvoke* invoke) {
+  GenBitCount(GetAssembler(), invoke, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongBitCount(HInvoke* invoke) {
+  CreateBitCountLocations(arena_, codegen_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongBitCount(HInvoke* invoke) {
+  GenBitCount(GetAssembler(), invoke, /* is_long */ true);
+}
+
 static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
