@@ -78,7 +78,7 @@ Instrumentation::Instrumentation()
       have_field_read_listeners_(false),
       have_field_write_listeners_(false),
       have_exception_caught_listeners_(false),
-      have_backward_branch_listeners_(false),
+      have_branch_listeners_(false),
       have_invoke_virtual_or_interface_listeners_(false),
       deoptimized_methods_lock_("deoptimized methods lock"),
       deoptimization_enabled_(false),
@@ -431,11 +431,11 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
                            method_unwind_listeners_,
                            listener,
                            &have_method_unwind_listeners_);
-  PotentiallyAddListenerTo(kBackwardBranch,
+  PotentiallyAddListenerTo(kBranch,
                            events,
-                           backward_branch_listeners_,
+                           branch_listeners_,
                            listener,
-                           &have_backward_branch_listeners_);
+                           &have_branch_listeners_);
   PotentiallyAddListenerTo(kInvokeVirtualOrInterface,
                            events,
                            invoke_virtual_or_interface_listeners_,
@@ -508,11 +508,11 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
                                 method_unwind_listeners_,
                                 listener,
                                 &have_method_unwind_listeners_);
-  PotentiallyRemoveListenerFrom(kBackwardBranch,
+  PotentiallyRemoveListenerFrom(kBranch,
                                 events,
-                                backward_branch_listeners_,
+                                branch_listeners_,
                                 listener,
-                                &have_backward_branch_listeners_);
+                                &have_branch_listeners_);
   PotentiallyRemoveListenerFrom(kInvokeVirtualOrInterface,
                                 events,
                                 invoke_virtual_or_interface_listeners_,
@@ -917,11 +917,13 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
   }
 }
 
-void Instrumentation::BackwardBranchImpl(Thread* thread, ArtMethod* method,
-                                         int32_t offset) const {
-  for (InstrumentationListener* listener : backward_branch_listeners_) {
+void Instrumentation::BranchImpl(Thread* thread,
+                                 ArtMethod* method,
+                                 uint32_t dex_pc,
+                                 int32_t offset) const {
+  for (InstrumentationListener* listener : branch_listeners_) {
     if (listener != nullptr) {
-      listener->BackwardBranch(thread, method, offset);
+      listener->Branch(thread, method, dex_pc, offset);
     }
   }
 }

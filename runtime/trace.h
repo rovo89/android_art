@@ -164,7 +164,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
   void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
-  void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
+  void Branch(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t dex_pc_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
   void InvokeVirtualOrInterface(Thread* thread,
                                 mirror::Object* this_object,

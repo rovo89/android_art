@@ -815,10 +815,10 @@ void Trace::ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 
-void Trace::BackwardBranch(Thread* /*thread*/, ArtMethod* method,
-                           int32_t /*dex_pc_offset*/)
+void Trace::Branch(Thread* /*thread*/, ArtMethod* method,
+                   uint32_t /*dex_pc*/, int32_t /*dex_pc_offset*/)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-  LOG(ERROR) << "Unexpected backward branch event in tracing" << PrettyMethod(method);
+  LOG(ERROR) << "Unexpected branch event in tracing" << PrettyMethod(method);
 }
 
 void Trace::InvokeVirtualOrInterface(Thread*,
