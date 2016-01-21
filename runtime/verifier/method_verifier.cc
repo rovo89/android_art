@@ -2735,7 +2735,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       bool is_super = (inst->Opcode() == Instruction::INVOKE_SUPER ||
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
-      ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL, is_range, is_super);
+      MethodType type = is_super ? METHOD_SUPER : METHOD_VIRTUAL;
+      ArtMethod* called_method = VerifyInvocationArgs(inst, type, is_range);
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
         size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
@@ -2768,7 +2769,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (inst->Opcode() == Instruction::INVOKE_DIRECT_RANGE);
-      ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_DIRECT, is_range, false);
+      ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_DIRECT, is_range);
       const char* return_type_descriptor;
       bool is_constructor;
       const RegType* return_type = nullptr;
@@ -2848,7 +2849,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE: {
         bool is_range = (inst->Opcode() == Instruction::INVOKE_STATIC_RANGE);
-        ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_STATIC, is_range, false);
+        ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_STATIC, is_range);
         const char* descriptor;
         if (called_method == nullptr) {
           uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
@@ -2870,7 +2871,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_INTERFACE_RANGE: {
       bool is_range =  (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE);
-      ArtMethod* abs_method = VerifyInvocationArgs(inst, METHOD_INTERFACE, is_range, false);
+      ArtMethod* abs_method = VerifyInvocationArgs(inst, METHOD_INTERFACE, is_range);
       if (abs_method != nullptr) {
         mirror::Class* called_interface = abs_method->GetDeclaringClass();
         if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
@@ -3639,9 +3640,8 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
-// TODO Maybe I should just add a METHOD_SUPER to MethodType?
 ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
-    uint32_t dex_method_idx, MethodType method_type, bool is_super) {
+    uint32_t dex_method_idx, MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (klass_type.IsConflict()) {
@@ -3668,9 +3668,10 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
       res_method = klass->FindDirectMethod(name, signature, pointer_size);
     } else if (method_type == METHOD_INTERFACE) {
       res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
-    } else if (is_super && klass->IsInterface()) {
+    } else if (method_type == METHOD_SUPER && klass->IsInterface()) {
       res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
     } else {
+      DCHECK(method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER);
       res_method = klass->FindVirtualMethod(name, signature, pointer_size);
     }
     if (res_method != nullptr) {
@@ -3679,7 +3680,9 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
       // If a virtual or interface method wasn't found with the expected type, look in
       // the direct methods. This can happen when the wrong invoke type is used or when
       // a class has changed, and will be flagged as an error in later checks.
-      if (method_type == METHOD_INTERFACE || method_type == METHOD_VIRTUAL) {
+      if (method_type == METHOD_INTERFACE ||
+          method_type == METHOD_VIRTUAL ||
+          method_type == METHOD_SUPER) {
         res_method = klass->FindDirectMethod(name, signature, pointer_size);
       }
       if (res_method == nullptr) {
@@ -3742,7 +3745,7 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     return res_method;
   }
   // Check that invoke-virtual and invoke-super are not used on private methods of the same class.
-  if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
+  if (res_method->IsPrivate() && (method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-super/virtual can't be used on private method "
                                       << PrettyMethod(res_method);
     return nullptr;
@@ -3751,7 +3754,9 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   // target method.
   if ((method_type == METHOD_DIRECT && (!res_method->IsDirect() || res_method->IsStatic())) ||
       (method_type == METHOD_STATIC && !res_method->IsStatic()) ||
-      ((method_type == METHOD_VIRTUAL || method_type == METHOD_INTERFACE) && res_method->IsDirect())
+      ((method_type == METHOD_SUPER ||
+        method_type == METHOD_VIRTUAL ||
+        method_type == METHOD_INTERFACE) && res_method->IsDirect())
       ) {
     Fail(VERIFY_ERROR_CLASS_CHANGE) << "invoke type (" << method_type << ") does not match method "
                                        " type of " << PrettyMethod(res_method);
@@ -3937,12 +3942,12 @@ class MethodParamListDescriptorIterator {
 };
 
 ArtMethod* MethodVerifier::VerifyInvocationArgs(
-    const Instruction* inst, MethodType method_type, bool is_range, bool is_super) {
+    const Instruction* inst, MethodType method_type, bool is_range) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
 
-  ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type, is_super);
+  ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type);
   if (res_method == nullptr) {  // error or class is unresolved
     // Check what we can statically.
     if (!have_pending_hard_failure_) {
@@ -3953,8 +3958,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
 
   // If we're using invoke-super(method), make sure that the executing method's class' superclass
   // has a vtable entry for the target method. Or the target is on a interface.
-  if (is_super) {
-    DCHECK(method_type == METHOD_VIRTUAL);
+  if (method_type == METHOD_SUPER) {
     if (res_method->GetDeclaringClass()->IsInterface()) {
       // TODO Fill in this part. Verify what we can...
       if (Runtime::Current()->IsAotCompiler()) {
