@@ -57,7 +57,8 @@ enum MethodType {
   METHOD_UNKNOWN  = 0,
   METHOD_DIRECT,      // <init>, private
   METHOD_STATIC,      // static
-  METHOD_VIRTUAL,     // virtual, super
+  METHOD_VIRTUAL,     // virtual
+  METHOD_SUPER,       // super
   METHOD_INTERFACE    // interface
 };
 std::ostream& operator<<(std::ostream& os, const MethodType& rhs);
@@ -654,7 +655,7 @@ class MethodVerifier {
    * the referrer can access the resolved method.
    * Does not throw exceptions.
    */
-  ArtMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type, bool is_super)
+  ArtMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
@@ -679,9 +680,7 @@ class MethodVerifier {
    * Returns the resolved method on success, null on failure (with *failure
    * set appropriately).
    */
-  ArtMethod* VerifyInvocationArgs(const Instruction* inst,
-                                          MethodType method_type,
-                                          bool is_range, bool is_super)
+  ArtMethod* VerifyInvocationArgs(const Instruction* inst, MethodType method_type, bool is_range)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Similar checks to the above, but on the proto. Will be used when the method cannot be
