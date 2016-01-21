@@ -22,16 +22,16 @@
 
 namespace art {
 
-// An arbitrary value to throttle save requests. Set to 500ms for now.
+// An arbitrary value to throttle save requests. Set to 2s for now.
 static constexpr const uint64_t kMilisecondsToNano = 1000000;
-static constexpr const uint64_t kMinimumTimeBetweenCodeCacheUpdatesNs = 500 * kMilisecondsToNano;
+static constexpr const uint64_t kMinimumTimeBetweenCodeCacheUpdatesNs = 2000 * kMilisecondsToNano;
 
 // TODO: read the constants from ProfileOptions,
 // Add a random delay each time we go to sleep so that we don't hammer the CPU
 // with all profile savers running at the same time.
-static constexpr const uint64_t kRandomDelayMaxMs = 10 * 1000;  // 10 seconds
-static constexpr const uint64_t kMaxBackoffMs = 4 * 60 * 1000;  // 4 minutes
-static constexpr const uint64_t kSavePeriodMs = 4 * 1000;  // 4 seconds
+static constexpr const uint64_t kRandomDelayMaxMs = 20 * 1000;  // 20 seconds
+static constexpr const uint64_t kMaxBackoffMs = 5 * 60 * 1000;  // 5 minutes
+static constexpr const uint64_t kSavePeriodMs = 10 * 1000;  // 10 seconds
 static constexpr const double kBackoffCoef = 1.5;
 
 static constexpr const uint32_t kMinimumNrOrMethodsToSave = 10;
