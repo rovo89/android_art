@@ -190,7 +190,7 @@ static constexpr uint32_t kDumpWaitTimeout = kIsTargetBuild ? 10000 : 20000;
 class DumpCheckpoint FINAL : public Closure {
  public:
   explicit DumpCheckpoint(std::ostream* os)
-      : os_(os), barrier_(0), backtrace_map_(BacktraceMap::Create(GetTid())) {}
+      : os_(os), barrier_(0), backtrace_map_(BacktraceMap::Create(getpid())) {}
 
   void Run(Thread* thread) OVERRIDE {
     // Note thread and self may not be equal if thread was already suspended at the point of the
