@@ -687,8 +687,8 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
   return nullptr;
 }
 
-void DexFile::CreateTypeLookupTable() const {
-  lookup_table_.reset(TypeLookupTable::Create(*this));
+void DexFile::CreateTypeLookupTable(uint8_t* storage) const {
+  lookup_table_.reset(TypeLookupTable::Create(*this, storage));
 }
 
 // Given a signature place the type ids into the given vector

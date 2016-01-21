@@ -95,25 +95,37 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
 
       t.NewTiming("WriteElf");
       SafeMap<std::string, std::string> key_value_store;
-      OatWriter oat_writer(class_linker->GetBootClassPath(),
-                           0,
-                           0,
-                           0,
-                           compiler_driver_.get(),
-                           writer.get(),
-                           /*compiling_boot_image*/true,
-                           &timings,
-                           &key_value_store);
+      const std::vector<const DexFile*>& dex_files = class_linker->GetBootClassPath();
       std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
           compiler_driver_->GetInstructionSet(),
           &compiler_driver_->GetCompilerOptions(),
           oat_file.GetFile());
-      bool success = writer->PrepareImageAddressSpace();
-      ASSERT_TRUE(success);
-
       elf_writer->Start();
-
+      OatWriter oat_writer(/*compiling_boot_image*/true, &timings);
       OutputStream* rodata = elf_writer->StartRoData();
+      for (const DexFile* dex_file : dex_files) {
+        ArrayRef<const uint8_t> raw_dex_file(
+            reinterpret_cast<const uint8_t*>(&dex_file->GetHeader()),
+            dex_file->GetHeader().file_size_);
+        oat_writer.AddRawDexFileSource(raw_dex_file,
+                                       dex_file->GetLocation().c_str(),
+                                       dex_file->GetLocationChecksum());
+      }
+      std::unique_ptr<MemMap> opened_dex_files_map;
+      std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
+      bool dex_files_ok = oat_writer.WriteAndOpenDexFiles(
+          rodata,
+          oat_file.GetFile(),
+          compiler_driver_->GetInstructionSet(),
+          compiler_driver_->GetInstructionSetFeatures(),
+          &key_value_store,
+          &opened_dex_files_map,
+          &opened_dex_files);
+      ASSERT_TRUE(dex_files_ok);
+      oat_writer.PrepareLayout(compiler_driver_.get(), writer.get(), dex_files);
+      bool image_space_ok = writer->PrepareImageAddressSpace();
+      ASSERT_TRUE(image_space_ok);
+
       bool rodata_ok = oat_writer.WriteRodata(rodata);
       ASSERT_TRUE(rodata_ok);
       elf_writer->EndRoData(rodata);
@@ -123,12 +135,15 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       ASSERT_TRUE(text_ok);
       elf_writer->EndText(text);
 
+      bool header_ok = oat_writer.WriteHeader(elf_writer->GetStream(), 0u, 0u, 0u);
+      ASSERT_TRUE(header_ok);
+
       elf_writer->SetBssSize(oat_writer.GetBssSize());
       elf_writer->WriteDynamicSection();
       elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
       elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
 
-      success = elf_writer->End();
+      bool success = elf_writer->End();
 
       ASSERT_TRUE(success);
     }
