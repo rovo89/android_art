@@ -39,6 +39,7 @@ static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicFloatCvt
     true,   // kIntrinsicReverseBits
     true,   // kIntrinsicReverseBytes
+    true,   // kIntrinsicBitCount
     true,   // kIntrinsicNumberOfLeadingZeros
     true,   // kIntrinsicNumberOfTrailingZeros
     true,   // kIntrinsicRotateRight
@@ -99,6 +100,7 @@ static_assert(kIntrinsicIsStatic[kIntrinsicDoubleCvt], "DoubleCvt must be static
 static_assert(kIntrinsicIsStatic[kIntrinsicFloatCvt], "FloatCvt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBits], "ReverseBits must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBytes], "ReverseBytes must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicBitCount], "BitCount must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfLeadingZeros],
               "NumberOfLeadingZeros must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfTrailingZeros],
@@ -293,6 +295,7 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "putObjectVolatile",     // kNameCachePutObjectVolatile
     "putOrderedObject",      // kNameCachePutOrderedObject
     "arraycopy",             // kNameCacheArrayCopy
+    "bitCount",              // kNameCacheBitCount
     "numberOfLeadingZeros",  // kNameCacheNumberOfLeadingZeros
     "numberOfTrailingZeros",  // kNameCacheNumberOfTrailingZeros
     "rotateRight",           // kNameCacheRotateRight
@@ -447,6 +450,8 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangInteger, Reverse, I_I, kIntrinsicReverseBits, k32),
     INTRINSIC(JavaLangLong, Reverse, J_J, kIntrinsicReverseBits, k64),
 
+    INTRINSIC(JavaLangInteger, BitCount, I_I, kIntrinsicBitCount, k32),
+    INTRINSIC(JavaLangLong, BitCount, J_I, kIntrinsicBitCount, k64),
     INTRINSIC(JavaLangInteger, NumberOfLeadingZeros, I_I, kIntrinsicNumberOfLeadingZeros, k32),
     INTRINSIC(JavaLangLong, NumberOfLeadingZeros, J_I, kIntrinsicNumberOfLeadingZeros, k64),
     INTRINSIC(JavaLangInteger, NumberOfTrailingZeros, I_I, kIntrinsicNumberOfTrailingZeros, k32),
@@ -745,6 +750,7 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
                                           intrinsic.d.data & kIntrinsicFlagIsOrdered);
     case kIntrinsicSystemArrayCopyCharArray:
       return backend->GenInlinedArrayCopyCharArray(info);
+    case kIntrinsicBitCount:
     case kIntrinsicNumberOfLeadingZeros:
     case kIntrinsicNumberOfTrailingZeros:
     case kIntrinsicRotateRight:

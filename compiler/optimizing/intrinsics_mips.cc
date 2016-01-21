@@ -935,6 +935,9 @@ void IntrinsicLocationsBuilderMIPS::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUS
 void IntrinsicCodeGeneratorMIPS::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
+UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(LongBitCount)
+
 UNIMPLEMENTED_INTRINSIC(MathAbsDouble)
 UNIMPLEMENTED_INTRINSIC(MathAbsFloat)
 UNIMPLEMENTED_INTRINSIC(MathAbsInt)

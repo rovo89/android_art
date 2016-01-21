@@ -1333,6 +1333,44 @@ TEST_F(AssemblerX86_64Test, BsrqAddress) {
   DriverStr(expected, "bsrq_address");
 }
 
+TEST_F(AssemblerX86_64Test, Popcntl) {
+  DriverStr(Repeatrr(&x86_64::X86_64Assembler::popcntl, "popcntl %{reg2}, %{reg1}"), "popcntl");
+}
+
+TEST_F(AssemblerX86_64Test, PopcntlAddress) {
+  GetAssembler()->popcntl(x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->popcntl(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->popcntl(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  const char* expected =
+    "popcntl 0xc(%RDI,%RBX,4), %R10d\n"
+    "popcntl 0xc(%R10,%RBX,4), %edi\n"
+    "popcntl 0xc(%RDI,%R9,4), %edi\n";
+
+  DriverStr(expected, "popcntl_address");
+}
+
+TEST_F(AssemblerX86_64Test, Popcntq) {
+  DriverStr(RepeatRR(&x86_64::X86_64Assembler::popcntq, "popcntq %{reg2}, %{reg1}"), "popcntq");
+}
+
+TEST_F(AssemblerX86_64Test, PopcntqAddress) {
+  GetAssembler()->popcntq(x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->popcntq(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->popcntq(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  const char* expected =
+    "popcntq 0xc(%RDI,%RBX,4), %R10\n"
+    "popcntq 0xc(%R10,%RBX,4), %RDI\n"
+    "popcntq 0xc(%RDI,%R9,4), %RDI\n";
+
+  DriverStr(expected, "popcntq_address");
+}
+
 /////////////////
 // Near labels //
 /////////////////
