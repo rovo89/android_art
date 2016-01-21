@@ -70,7 +70,7 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
   void DexPcMoved(Thread* /*self*/, mirror::Object* /*this_object*/,
                   ArtMethod* /*method*/, uint32_t /*new_dex_pc*/) OVERRIDE { }
 
-  void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
+  void Branch(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t dex_pc_offset)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
   void InvokeVirtualOrInterface(Thread* thread,
@@ -84,7 +84,7 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 
   static constexpr uint32_t kJitEvents =
       instrumentation::Instrumentation::kMethodEntered |
-      instrumentation::Instrumentation::kBackwardBranch |
+      instrumentation::Instrumentation::kBranch |
       instrumentation::Instrumentation::kInvokeVirtualOrInterface;
 
  private:
