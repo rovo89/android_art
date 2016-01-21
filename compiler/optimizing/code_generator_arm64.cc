@@ -2820,7 +2820,8 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
         non_fallthrough_target = true_target;
       }
 
-      if ((arm64_cond != gt && arm64_cond != le) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
+      if ((arm64_cond == eq || arm64_cond == ne || arm64_cond == lt || arm64_cond == ge) &&
+          rhs.IsImmediate() && (rhs.immediate() == 0)) {
         switch (arm64_cond) {
           case eq:
             __ Cbz(lhs, non_fallthrough_target);
