@@ -260,6 +260,19 @@ TEST_F(AssemblerX86Test, BsrlAddress) {
   DriverStr(expected, "bsrl_address");
 }
 
+TEST_F(AssemblerX86Test, Popcntl) {
+  DriverStr(RepeatRR(&x86::X86Assembler::popcntl, "popcntl %{reg2}, %{reg1}"), "popcntl");
+}
+
+TEST_F(AssemblerX86Test, PopcntlAddress) {
+  GetAssembler()->popcntl(x86::Register(x86::EDI), x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+  const char* expected =
+    "popcntl 0xc(%EDI,%EBX,4), %EDI\n";
+
+  DriverStr(expected, "popcntl_address");
+}
+
 // Rorl only allows CL as the shift count.
 std::string rorl_fn(AssemblerX86Test::Base* assembler_test, x86::X86Assembler* assembler) {
   std::ostringstream str;
