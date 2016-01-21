@@ -1724,6 +1724,9 @@ void IntrinsicLocationsBuilderMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UN
 void IntrinsicCodeGeneratorMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
+UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(LongBitCount)
+
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
 

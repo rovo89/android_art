@@ -1577,10 +1577,12 @@ void IntrinsicLocationsBuilderARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 void IntrinsicCodeGeneratorARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
+UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
 UNIMPLEMENTED_INTRINSIC(IntegerReverse)
 UNIMPLEMENTED_INTRINSIC(IntegerReverseBytes)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
+UNIMPLEMENTED_INTRINSIC(LongBitCount)
 UNIMPLEMENTED_INTRINSIC(LongReverse)
 UNIMPLEMENTED_INTRINSIC(LongReverseBytes)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)

@@ -1464,8 +1464,10 @@ void IntrinsicLocationsBuilderARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNU
 void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
+UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
+UNIMPLEMENTED_INTRINSIC(LongBitCount)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)

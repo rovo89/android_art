@@ -27,7 +27,7 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromDefaultVariant) {
   ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_features->GetInstructionSet(), kX86);
   EXPECT_TRUE(x86_features->Equals(x86_features.get()));
-  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add",
+  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add,-popcnt",
                x86_features->GetFeatureString().c_str());
   EXPECT_EQ(x86_features->AsBitmap(), 1U);
 }
@@ -40,7 +40,7 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromAtomVariant) {
   ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_features->GetInstructionSet(), kX86);
   EXPECT_TRUE(x86_features->Equals(x86_features.get()));
-  EXPECT_STREQ("smp,ssse3,-sse4.1,-sse4.2,-avx,-avx2,lock_add",
+  EXPECT_STREQ("smp,ssse3,-sse4.1,-sse4.2,-avx,-avx2,lock_add,-popcnt",
                x86_features->GetFeatureString().c_str());
   EXPECT_EQ(x86_features->AsBitmap(), 67U);
 
@@ -50,7 +50,7 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromAtomVariant) {
   ASSERT_TRUE(x86_default_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_default_features->GetInstructionSet(), kX86);
   EXPECT_TRUE(x86_default_features->Equals(x86_default_features.get()));
-  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add",
+  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add,-popcnt",
                x86_default_features->GetFeatureString().c_str());
   EXPECT_EQ(x86_default_features->AsBitmap(), 1U);
 
@@ -60,7 +60,7 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromAtomVariant) {
   ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_64_features->GetInstructionSet(), kX86_64);
   EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
-  EXPECT_STREQ("smp,ssse3,-sse4.1,-sse4.2,-avx,-avx2,lock_add",
+  EXPECT_STREQ("smp,ssse3,-sse4.1,-sse4.2,-avx,-avx2,lock_add,-popcnt",
                x86_64_features->GetFeatureString().c_str());
   EXPECT_EQ(x86_64_features->AsBitmap(), 67U);
 
@@ -77,9 +77,9 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromSilvermontVariant) {
   ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_features->GetInstructionSet(), kX86);
   EXPECT_TRUE(x86_features->Equals(x86_features.get()));
-  EXPECT_STREQ("smp,ssse3,sse4.1,sse4.2,-avx,-avx2,lock_add",
+  EXPECT_STREQ("smp,ssse3,sse4.1,sse4.2,-avx,-avx2,lock_add,popcnt",
                x86_features->GetFeatureString().c_str());
-  EXPECT_EQ(x86_features->AsBitmap(), 79U);
+  EXPECT_EQ(x86_features->AsBitmap(), 207U);
 
   // Build features for a 32-bit x86 default processor.
   std::unique_ptr<const InstructionSetFeatures> x86_default_features(
@@ -87,7 +87,7 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromSilvermontVariant) {
   ASSERT_TRUE(x86_default_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_default_features->GetInstructionSet(), kX86);
   EXPECT_TRUE(x86_default_features->Equals(x86_default_features.get()));
-  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add",
+  EXPECT_STREQ("smp,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-lock_add,-popcnt",
                x86_default_features->GetFeatureString().c_str());
   EXPECT_EQ(x86_default_features->AsBitmap(), 1U);
 
@@ -97,9 +97,9 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromSilvermontVariant) {
   ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
   EXPECT_EQ(x86_64_features->GetInstructionSet(), kX86_64);
   EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
-  EXPECT_STREQ("smp,ssse3,sse4.1,sse4.2,-avx,-avx2,lock_add",
+  EXPECT_STREQ("smp,ssse3,sse4.1,sse4.2,-avx,-avx2,lock_add,popcnt",
                x86_64_features->GetFeatureString().c_str());
-  EXPECT_EQ(x86_64_features->AsBitmap(), 79U);
+  EXPECT_EQ(x86_64_features->AsBitmap(), 207U);
 
   EXPECT_FALSE(x86_64_features->Equals(x86_features.get()));
   EXPECT_FALSE(x86_64_features->Equals(x86_default_features.get()));

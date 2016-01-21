@@ -224,6 +224,7 @@ class DexFileMethodInliner {
       kNameCachePutObjectVolatile,
       kNameCachePutOrderedObject,
       kNameCacheArrayCopy,
+      kNameCacheBitCount,
       kNameCacheNumberOfLeadingZeros,
       kNameCacheNumberOfTrailingZeros,
       kNameCacheRotateRight,
