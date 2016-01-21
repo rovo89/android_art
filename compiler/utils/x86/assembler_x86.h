@@ -330,10 +330,14 @@ class X86Assembler FINAL : public Assembler {
   void movntl(const Address& dst, Register src);
 
   void bswapl(Register dst);
+
   void bsfl(Register dst, Register src);
   void bsfl(Register dst, const Address& src);
   void bsrl(Register dst, Register src);
   void bsrl(Register dst, const Address& src);
+
+  void popcntl(Register dst, Register src);
+  void popcntl(Register dst, const Address& src);
 
   void rorl(Register reg, const Immediate& imm);
   void rorl(Register operand, Register shifter);
