@@ -32,7 +32,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wredundant-decls"
-#include "../../bionic/libc/upstream-dlmalloc/malloc.h"
+#include "../../external/dlmalloc/malloc.h"
 #pragma GCC diagnostic pop
 
 #ifdef __ANDROID__
