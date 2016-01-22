@@ -150,8 +150,11 @@ const X86InstructionSetFeatures* X86InstructionSetFeatures::FromCppDefines(bool 
   // No #define for memory synchronization preference.
   const bool prefers_locked_add = false;
 
-  // No #define for popcnt.
+#ifndef __POPCNT__
   const bool has_POPCNT = false;
+#else
+  const bool has_POPCNT = true;
+#endif
 
   if (x86_64) {
     return new X86_64InstructionSetFeatures(smp, has_SSSE3, has_SSE4_1, has_SSE4_2, has_AVX,
