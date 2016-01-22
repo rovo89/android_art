@@ -621,6 +621,11 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS :=
 
+# Test is flaky b/26733951.
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+    $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),961-default-iface-resolution-generated,$(ALL_ADDRESS_SIZES))
+
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
 $(foreach target, $(TARGET_TYPES), \
