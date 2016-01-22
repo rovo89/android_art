@@ -958,30 +958,40 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     }
 
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
-    InvokeType invoke_type = it.GetMethodInvokeType(dex_file_->GetClassDef(class_def_index_));
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(
         Thread::Current(), *dex_file_)));
-    ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
-        *dex_file_,
-        it.GetMemberIndex(),
-        dex_cache,
-        ScopedNullHandle<mirror::ClassLoader>(),
-        nullptr,
-        invoke_type);
-    if (method == nullptr) {
-      LOG(INTERNAL_FATAL) << "Unexpected failure to resolve a method: "
-                          << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
-      soa.Self()->AssertPendingException();
-      mirror::Throwable* exc = soa.Self()->GetException();
-      std::string dump = exc->Dump();
-      LOG(FATAL) << dump;
-      UNREACHABLE();
+    ArtMethod* method;
+    if (writer_->HasBootImage()) {
+      const InvokeType invoke_type = it.GetMethodInvokeType(
+          dex_file_->GetClassDef(class_def_index_));
+      method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          *dex_file_,
+          it.GetMemberIndex(),
+          dex_cache,
+          ScopedNullHandle<mirror::ClassLoader>(),
+          nullptr,
+          invoke_type);
+      if (method == nullptr) {
+        LOG(INTERNAL_FATAL) << "Unexpected failure to resolve a method: "
+            << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
+        soa.Self()->AssertPendingException();
+        mirror::Throwable* exc = soa.Self()->GetException();
+        std::string dump = exc->Dump();
+        LOG(FATAL) << dump;
+        UNREACHABLE();
+      }
+    } else {
+      // Should already have been resolved by the compiler, just peek into the dex cache.
+      // It may not be resolved if the class failed to verify, in this case, don't set the
+      // entrypoint. This is not fatal since the dex cache will contain a resolution method.
+      method = dex_cache->GetResolvedMethod(it.GetMemberIndex(), linker->GetImagePointerSize());
     }
-
-    if (compiled_method != nullptr && compiled_method->GetQuickCode().size() != 0) {
+    if (method != nullptr &&
+        compiled_method != nullptr &&
+        compiled_method->GetQuickCode().size() != 0) {
       method->SetEntryPointFromQuickCompiledCodePtrSize(
           reinterpret_cast<void*>(offsets.code_offset_), pointer_size_);
     }
@@ -1467,7 +1477,7 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
     } while (false)
 
   VISIT(InitCodeMethodVisitor);
-  if (compiler_driver_->IsBootImage()) {
+  if (HasImage()) {
     VISIT(InitImageMethodVisitor);
   }
 

@@ -63,7 +63,10 @@ class MANAGED ClassLoader : public Object {
  private:
   // Visit instance fields of the class loader as well as its associated classes.
   // Null class loader is handled by ClassLinker::VisitClassRoots.
-  template <VerifyObjectFlags kVerifyFlags, typename Visitor>
+  template <bool kVisitClasses,
+            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            typename Visitor>
   void VisitReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);

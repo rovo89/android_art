@@ -616,6 +616,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
         log_verbosity.threads = true;
       } else if (verbose_options[j] == "verifier") {
         log_verbosity.verifier = true;
+      } else if (verbose_options[j] == "image") {
+        log_verbosity.image = true;
       } else {
         return Result::Usage(std::string("Unknown -verbose option ") + verbose_options[j]);
       }

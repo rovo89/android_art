@@ -25,6 +25,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "jni.h"
 
 namespace art {
 
@@ -101,6 +102,8 @@ class OatFileManager {
   std::vector<std::unique_ptr<const DexFile>> OpenDexFilesFromOat(
       const char* dex_location,
       const char* oat_location,
+      jobject class_loader,
+      jobjectArray dex_elements,
       /*out*/ const OatFile** out_oat_file,
       /*out*/ std::vector<std::string>* error_msgs)
       REQUIRES(!Locks::oat_file_manager_lock_, !Locks::mutator_lock_);
