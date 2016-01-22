@@ -689,6 +689,10 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   void Add(HBasicBlock* block);
   void Remove(HBasicBlock* block);
 
+  void ClearAllBlocks() {
+    blocks_.ClearAllBits();
+  }
+
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);
