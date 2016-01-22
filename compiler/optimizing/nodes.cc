@@ -288,9 +288,10 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
 
   // Make sure the loop has only one pre header. This simplifies SSA building by having
   // to just look at the pre header to know which locals are initialized at entry of the
-  // loop.
+  // loop. Also, don't allow the entry block to be a pre header: this simplifies inlining
+  // this graph.
   size_t number_of_incomings = header->GetPredecessors().size() - info->NumberOfBackEdges();
-  if (number_of_incomings != 1) {
+  if (number_of_incomings != 1 || (GetEntryBlock()->GetSingleSuccessor() == header)) {
     HBasicBlock* pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(pre_header);
     pre_header->AddInstruction(new (arena_) HGoto(header->GetDexPc()));
@@ -1837,6 +1838,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     DCHECK(GetBlocks()[0]->IsEntryBlock());
     DCHECK(GetBlocks()[2]->IsExitBlock());
     DCHECK(!body->IsExitBlock());
+    DCHECK(!body->IsInLoop());
     HInstruction* last = body->GetLastInstruction();
 
     invoke->GetBlock()->instructions_.AddAfter(invoke, body->GetInstructions());
@@ -1895,7 +1897,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     // Update the meta information surrounding blocks:
     // (1) the graph they are now in,
     // (2) the reverse post order of that graph,
-    // (3) the potential loop information they are now in,
+    // (3) their potential loop information, inner and outer,
     // (4) try block membership.
     // Note that we do not need to update catch phi inputs because they
     // correspond to the register file of the outer method which the inlinee
@@ -1924,15 +1926,24 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
       HBasicBlock* current = it.Current();
       if (current != exit_block_ && current != entry_block_ && current != first) {
-        DCHECK(!current->IsInLoop());
         DCHECK(current->GetTryCatchInformation() == nullptr);
         DCHECK(current->GetGraph() == this);
         current->SetGraph(outer_graph);
         outer_graph->AddBlock(current);
         outer_graph->reverse_post_order_[++index_of_at] = current;
-        if (loop_info != nullptr) {
+        if (!current->IsInLoop()) {
           current->SetLoopInformation(loop_info);
-          for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
+        } else if (current->IsLoopHeader()) {
+          // Clear the information of which blocks are contained in that loop. Since the
+          // information is stored as a bit vector based on block ids, we have to update
+          // it, as those block ids were specific to the callee graph and we are now adding
+          // these blocks to the caller graph.
+          current->GetLoopInformation()->ClearAllBlocks();
+        }
+        if (current->IsInLoop()) {
+          for (HLoopInformationOutwardIterator loop_it(*current);
+               !loop_it.Done();
+               loop_it.Advance()) {
             loop_it.Current()->Add(current);
           }
         }
@@ -1945,7 +1956,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     outer_graph->AddBlock(to);
     outer_graph->reverse_post_order_[++index_of_at] = to;
     if (loop_info != nullptr) {
-      to->SetLoopInformation(loop_info);
+      if (!to->IsInLoop()) {
+        to->SetLoopInformation(loop_info);
+      }
       for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
         loop_it.Current()->Add(to);
       }
