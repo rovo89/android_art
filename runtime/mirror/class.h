@@ -706,6 +706,10 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetMethodsPtr()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static MemberOffset MethodsOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Class, methods_));
+  }
+
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1357,6 +1361,8 @@ class MANAGED Class FINAL : public Object {
   // The slice methods_ [copied_methods_offset_, |methods_|) are the methods that are copied from
   // interfaces such as miranda or default methods. These are copied for resolution purposes as this
   // class is where they are (logically) declared as far as the virtual dispatch is concerned.
+  //
+  // Note that this field is used by the native debugger as the unique identifier for the type.
   uint64_t methods_;
 
   // Static fields length-prefixed array.

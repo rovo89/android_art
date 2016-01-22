@@ -18,9 +18,11 @@
 
 #include <unordered_set>
 #include <vector>
+#include <cstdio>
 
 #include "base/casts.h"
 #include "base/stl_util.h"
+#include "linear_alloc.h"
 #include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
@@ -591,7 +593,7 @@ class DebugInfoWriter {
       info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
 
-      std::vector<uint8_t> count_expr_buffer;
+      std::vector<uint8_t> expr_buffer;
       for (mirror::Class* type : types) {
         if (type->IsPrimitive()) {
           // For primitive types the definition and the declaration is the same.
@@ -607,16 +609,33 @@ class DebugInfoWriter {
           info_.StartTag(DW_TAG_array_type);
           std::string descriptor_string;
           WriteLazyType(element_type->GetDescriptor(&descriptor_string));
+          WriteLinkageName(type);
           info_.WriteUdata(DW_AT_data_member_location, data_offset);
           info_.StartTag(DW_TAG_subrange_type);
-          Expression count_expr(&count_expr_buffer);
+          Expression count_expr(&expr_buffer);
           count_expr.WriteOpPushObjectAddress();
           count_expr.WriteOpPlusUconst(length_offset);
           count_expr.WriteOpDerefSize(4);  // Array length is always 32-bit wide.
           info_.WriteExprLoc(DW_AT_count, count_expr);
           info_.EndTag();  // DW_TAG_subrange_type.
           info_.EndTag();  // DW_TAG_array_type.
+        } else if (type->IsInterface()) {
+          // Skip.  Variables cannot have an interface as a dynamic type.
+          // We do not expose the interface information to the debugger in any way.
         } else {
+          // Declare base class.  We can not use the standard WriteLazyType
+          // since we want to avoid the DW_TAG_reference_tag wrapping.
+          mirror::Class* base_class = type->GetSuperClass();
+          size_t base_class_declaration_offset = 0;
+          if (base_class != nullptr) {
+            std::string tmp_storage;
+            const char* base_class_desc = base_class->GetDescriptor(&tmp_storage);
+            base_class_declaration_offset = StartClassTag(base_class_desc);
+            info_.WriteFlag(DW_AT_declaration, true);
+            WriteLinkageName(base_class);
+            EndClassTag(base_class_desc);
+          }
+
           std::string descriptor_string;
           const char* desc = type->GetDescriptor(&descriptor_string);
           StartClassTag(desc);
@@ -625,11 +644,40 @@ class DebugInfoWriter {
             info_.WriteUdata(DW_AT_byte_size, type->GetObjectSize());
           }
 
+          WriteLinkageName(type);
+
+          if (type->IsObjectClass()) {
+            // Generate artificial member which is used to get the dynamic type of variable.
+            // The run-time value of this field will correspond to linkage name of some type.
+            // We need to do it only once in j.l.Object since all other types inherit it.
+            info_.StartTag(DW_TAG_member);
+            WriteName(".dynamic_type");
+            WriteLazyType(sizeof(uintptr_t) == 8 ? "J" : "I");
+            info_.WriteFlag(DW_AT_artificial, true);
+            // Create DWARF expression to get the value of the methods_ field.
+            Expression expr(&expr_buffer);
+            // The address of the object has been implicitly pushed on the stack.
+            // Dereference the klass_ field of Object (32-bit; possibly poisoned).
+            DCHECK_EQ(type->ClassOffset().Uint32Value(), 0u);
+            DCHECK_EQ(sizeof(mirror::HeapReference<mirror::Class>), 4u);
+            expr.WriteOpDerefSize(4);
+            if (kPoisonHeapReferences) {
+              expr.WriteOpNeg();
+              // DWARF stack is pointer sized. Ensure that the high bits are clear.
+              expr.WriteOpConstu(0xFFFFFFFF);
+              expr.WriteOpAnd();
+            }
+            // Add offset to the methods_ field.
+            expr.WriteOpPlusUconst(mirror::Class::MethodsOffset().Uint32Value());
+            // Top of stack holds the location of the field now.
+            info_.WriteExprLoc(DW_AT_data_member_location, expr);
+            info_.EndTag();  // DW_TAG_member.
+          }
+
           // Base class.
-          mirror::Class* base_class = type->GetSuperClass();
           if (base_class != nullptr) {
             info_.StartTag(DW_TAG_inheritance);
-            WriteLazyType(base_class->GetDescriptor(&descriptor_string));
+            info_.WriteRef4(DW_AT_type, base_class_declaration_offset);
             info_.WriteUdata(DW_AT_data_member_location, 0);
             info_.WriteSdata(DW_AT_accessibility, DW_ACCESS_public);
             info_.EndTag();  // DW_TAG_inheritance.
@@ -682,6 +730,24 @@ class DebugInfoWriter {
           owner_->debug_abbrev_.Insert(debug_abbrev_.data(), debug_abbrev_.size());
       WriteDebugInfoCU(debug_abbrev_offset, info_, offset, &buffer, &owner_->debug_info_patches_);
       owner_->builder_->GetDebugInfo()->WriteFully(buffer.data(), buffer.size());
+    }
+
+    // Linkage name uniquely identifies type.
+    // It is used to determine the dynamic type of objects.
+    // We use the methods_ field of class since it is unique and it is not moved by the GC.
+    void WriteLinkageName(mirror::Class* type) SHARED_REQUIRES(Locks::mutator_lock_) {
+      auto* methods_ptr = type->GetMethodsPtr();
+      if (methods_ptr == nullptr) {
+        // Some types might have no methods.  Allocate empty array instead.
+        LinearAlloc* allocator = Runtime::Current()->GetLinearAlloc();
+        void* storage = allocator->Alloc(Thread::Current(), sizeof(LengthPrefixedArray<ArtMethod>));
+        methods_ptr = new (storage) LengthPrefixedArray<ArtMethod>(0);
+        type->SetMethodsPtr(methods_ptr, 0, 0);
+        DCHECK(type->GetMethodsPtr() != nullptr);
+      }
+      char name[32];
+      snprintf(name, sizeof(name), "0x%" PRIXPTR, reinterpret_cast<uintptr_t>(methods_ptr));
+      info_.WriteString(DW_AT_linkage_name, name);
     }
 
     // Write table into .debug_loc which describes location of dex register.
