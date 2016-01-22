@@ -25,6 +25,7 @@
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "dwarf/dedup_vector.h"
+#include "dwarf/expression.h"
 #include "dwarf/headers.h"
 #include "dwarf/method_debug_info.h"
 #include "dwarf/register.h"
@@ -498,8 +499,10 @@ class DebugInfoWriter {
         WriteName(dex->GetMethodName(dex_method));
         info_.WriteAddr(DW_AT_low_pc, text_address + mi->low_pc_);
         info_.WriteUdata(DW_AT_high_pc, dchecked_integral_cast<uint32_t>(mi->high_pc_-mi->low_pc_));
-        uint8_t frame_base[] = { DW_OP_call_frame_cfa };
-        info_.WriteExprLoc(DW_AT_frame_base, &frame_base, sizeof(frame_base));
+        std::vector<uint8_t> expr_buffer;
+        Expression expr(&expr_buffer);
+        expr.WriteOpCallFrameCfa();
+        info_.WriteExprLoc(DW_AT_frame_base, expr);
         WriteLazyType(dex->GetReturnTypeDescriptor(dex_proto));
 
         // Write parameters. DecodeDebugLocalInfo returns them as well, but it does not
@@ -588,6 +591,7 @@ class DebugInfoWriter {
       info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
 
+      std::vector<uint8_t> count_expr_buffer;
       for (mirror::Class* type : types) {
         if (type->IsPrimitive()) {
           // For primitive types the definition and the declaration is the same.
@@ -605,15 +609,11 @@ class DebugInfoWriter {
           WriteLazyType(element_type->GetDescriptor(&descriptor_string));
           info_.WriteUdata(DW_AT_data_member_location, data_offset);
           info_.StartTag(DW_TAG_subrange_type);
-          DCHECK_LT(length_offset, 32u);
-          uint8_t count[] = {
-            DW_OP_push_object_address,
-            static_cast<uint8_t>(DW_OP_lit0 + length_offset),
-            DW_OP_plus,
-            DW_OP_deref_size,
-            4  // Array length is always 32-bit wide.
-          };
-          info_.WriteExprLoc(DW_AT_count, &count, sizeof(count));
+          Expression count_expr(&count_expr_buffer);
+          count_expr.WriteOpPushObjectAddress();
+          count_expr.WriteOpPlusUconst(length_offset);
+          count_expr.WriteOpDerefSize(4);  // Array length is always 32-bit wide.
+          info_.WriteExprLoc(DW_AT_count, count_expr);
           info_.EndTag();  // DW_TAG_subrange_type.
           info_.EndTag();  // DW_TAG_array_type.
         } else {
@@ -713,12 +713,12 @@ class DebugInfoWriter {
       // Write .debug_loc entries.
       const InstructionSet isa = owner_->builder_->GetIsa();
       const bool is64bit = Is64BitInstructionSet(isa);
+      std::vector<uint8_t> expr_buffer;
       for (const VariableLocation& variable_location : variable_locations) {
         // Translate dex register location to DWARF expression.
         // Note that 64-bit value might be split to two distinct locations.
         // (for example, two 32-bit machine registers, or even stack and register)
-        uint8_t buffer[64];
-        uint8_t* pos = buffer;
+        Expression expr(&expr_buffer);
         DexRegisterLocation reg_lo = variable_location.reg_lo;
         DexRegisterLocation reg_hi = variable_location.reg_hi;
         for (int piece = 0; piece < (is64bitValue ? 2 : 1); piece++) {
@@ -727,15 +727,14 @@ class DebugInfoWriter {
           const int32_t value = reg_loc.GetValue();
           if (kind == Kind::kInStack) {
             const size_t frame_size = method_info->compiled_method_->GetFrameSizeInBytes();
-            *(pos++) = DW_OP_fbreg;
             // The stack offset is relative to SP. Make it relative to CFA.
-            pos = EncodeSignedLeb128(pos, value - frame_size);
+            expr.WriteOpFbreg(value - frame_size);
             if (piece == 0 && reg_hi.GetKind() == Kind::kInStack &&
                 reg_hi.GetValue() == value + 4) {
               break;  // the high word is correctly implied by the low word.
             }
           } else if (kind == Kind::kInRegister) {
-            pos = WriteOpReg(pos, GetDwarfCoreReg(isa, value).num());
+            expr.WriteOpReg(GetDwarfCoreReg(isa, value).num());
             if (piece == 0 && reg_hi.GetKind() == Kind::kInRegisterHigh &&
                 reg_hi.GetValue() == value) {
               break;  // the high word is correctly implied by the low word.
@@ -745,22 +744,21 @@ class DebugInfoWriter {
                 piece == 0 && reg_hi.GetKind() == Kind::kInFpuRegister &&
                 reg_hi.GetValue() == value + 1 && value % 2 == 0) {
               // Translate S register pair to D register (e.g. S4+S5 to D2).
-              pos = WriteOpReg(pos, Reg::ArmDp(value / 2).num());
+              expr.WriteOpReg(Reg::ArmDp(value / 2).num());
               break;
             }
             if (isa == kMips || isa == kMips64) {
               // TODO: Find what the DWARF floating point register numbers are on MIPS.
               break;
             }
-            pos = WriteOpReg(pos, GetDwarfFpReg(isa, value).num());
+            expr.WriteOpReg(GetDwarfFpReg(isa, value).num());
             if (piece == 0 && reg_hi.GetKind() == Kind::kInFpuRegisterHigh &&
                 reg_hi.GetValue() == reg_lo.GetValue()) {
               break;  // the high word is correctly implied by the low word.
             }
           } else if (kind == Kind::kConstant) {
-            *(pos++) = DW_OP_consts;
-            pos = EncodeSignedLeb128(pos, value);
-            *(pos++) = DW_OP_stack_value;
+            expr.WriteOpConsts(value);
+            expr.WriteOpStackValue();
           } else if (kind == Kind::kNone) {
             break;
           } else {
@@ -774,14 +772,11 @@ class DebugInfoWriter {
           if (is64bitValue) {
             // Write the marker which is needed by split 64-bit values.
             // This code is skipped by the special cases.
-            *(pos++) = DW_OP_piece;
-            pos = EncodeUnsignedLeb128(pos, 4);
+            expr.WriteOpPiece(4);
           }
         }
 
-        // Check that the buffer is large enough; keep half of it empty for safety.
-        DCHECK_LE(static_cast<size_t>(pos - buffer), sizeof(buffer) / 2);
-        if (pos > buffer) {
+        if (expr.size() > 0) {
           if (is64bit) {
             debug_loc.PushUint64(variable_location.low_pc - compilation_unit_low_pc);
             debug_loc.PushUint64(variable_location.high_pc - compilation_unit_low_pc);
@@ -790,8 +785,8 @@ class DebugInfoWriter {
             debug_loc.PushUint32(variable_location.high_pc - compilation_unit_low_pc);
           }
           // Write the expression.
-          debug_loc.PushUint16(pos - buffer);
-          debug_loc.PushData(buffer, pos - buffer);
+          debug_loc.PushUint16(expr.size());
+          debug_loc.PushData(expr.data());
         } else {
           // Do not generate .debug_loc if the location is not known.
         }
@@ -854,17 +849,6 @@ class DebugInfoWriter {
       if (name != nullptr) {
         info_.WriteStrp(DW_AT_name, owner_->WriteString(name));
       }
-    }
-
-    // Helper which writes DWARF expression referencing a register.
-    static uint8_t* WriteOpReg(uint8_t* buffer, uint32_t dwarf_reg_num) {
-      if (dwarf_reg_num < 32) {
-        *(buffer++) = DW_OP_reg0 + dwarf_reg_num;
-      } else {
-        *(buffer++) = DW_OP_regx;
-        buffer = EncodeUnsignedLeb128(buffer, dwarf_reg_num);
-      }
-      return buffer;
     }
 
     // Convert dex type descriptor to DWARF.

@@ -248,7 +248,7 @@ class DebugFrameOpCodeWriter : private Writer<Vector> {
     }
   }
 
-  void ALWAYS_INLINE DefCFAExpression(void * expr, int expr_size) {
+  void ALWAYS_INLINE DefCFAExpression(uint8_t* expr, int expr_size) {
     if (UNLIKELY(enabled_)) {
       ImplicitlyAdvancePC();
       uses_dwarf3_features_ = true;
@@ -258,7 +258,7 @@ class DebugFrameOpCodeWriter : private Writer<Vector> {
     }
   }
 
-  void ALWAYS_INLINE Expression(Reg reg, void * expr, int expr_size) {
+  void ALWAYS_INLINE Expression(Reg reg, uint8_t* expr, int expr_size) {
     if (UNLIKELY(enabled_)) {
       ImplicitlyAdvancePC();
       uses_dwarf3_features_ = true;
@@ -269,7 +269,7 @@ class DebugFrameOpCodeWriter : private Writer<Vector> {
     }
   }
 
-  void ALWAYS_INLINE ValExpression(Reg reg, void * expr, int expr_size) {
+  void ALWAYS_INLINE ValExpression(Reg reg, uint8_t* expr, int expr_size) {
     if (UNLIKELY(enabled_)) {
       ImplicitlyAdvancePC();
       uses_dwarf3_features_ = true;

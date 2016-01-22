@@ -70,7 +70,7 @@ void WriteCIE(bool is64bit,
       writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata4);  // R: Pointer encoding.
     }
   }
-  writer.PushData(*opcodes.data());
+  writer.PushData(opcodes.data());
   writer.Pad(is64bit ? 8 : 4);
   writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
 }
@@ -117,7 +117,7 @@ void WriteFDE(bool is64bit,
     writer.PushUint32(code_size);
   }
   writer.PushUleb128(0);  // Augmentation data size.
-  writer.PushData(opcodes);
+  writer.PushData(opcodes.data(), opcodes.size());
   writer.Pad(is64bit ? 8 : 4);
   writer.UpdateUint32(fde_header_start, writer.data()->size() - fde_header_start - 4);
 }
@@ -139,7 +139,7 @@ void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
   writer.PushUint8(entries.Is64bit() ? 8 : 4);
   size_t entries_offset = writer.data()->size();
   DCHECK_EQ(entries_offset, DebugInfoEntryWriter<Vector>::kCompilationUnitHeaderSize);
-  writer.PushData(*entries.data());
+  writer.PushData(entries.data());
   writer.UpdateUint32(start, writer.data()->size() - start - 4);
   // Copy patch locations and make them relative to .debug_info section.
   for (uintptr_t patch_location : entries.GetPatchLocations()) {
@@ -193,7 +193,7 @@ void WriteDebugLineTable(const std::vector<std::string>& include_directories,
   writer.PushUint8(0);  // Terminate file list.
   writer.UpdateUint32(header_length_pos, writer.data()->size() - header_length_pos - 4);
   size_t opcodes_offset = writer.data()->size();
-  writer.PushData(*opcodes.data());
+  writer.PushData(opcodes.data());
   writer.UpdateUint32(header_start, writer.data()->size() - header_start - 4);
   // Copy patch locations and make them relative to .debug_line section.
   for (uintptr_t patch_location : opcodes.GetPatchLocations()) {
