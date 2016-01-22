@@ -270,6 +270,7 @@ class MethodVerifier {
   ALWAYS_INLINE InstructionFlags& GetInstructionFlags(size_t index);
   mirror::ClassLoader* GetClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::DexCache* GetDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* GetMethod() const SHARED_REQUIRES(Locks::mutator_lock_);
   MethodReference GetMethodReference() const;
   uint32_t GetAccessFlags() const;
   bool HasCheckCasts() const;
