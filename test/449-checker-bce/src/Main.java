@@ -622,39 +622,28 @@ public class Main {
   static int[][] mA;
 
   /// CHECK-START: void Main.dynamicBCEAndIntrinsic(int) BCE (before)
-  //  Array references mA[i] and ..[j] both in inner loop.
-  /// CHECK-DAG:  <<Get1:l\d+>>  ArrayGet [<<Array1:l\d+>>,<<Bounds1:i\d+>>] loop:<<InnerLoop:B\d+>>
-  /// CHECK-DAG:  <<Array1>>     NullCheck [<<Field1:l\d+>>]                 loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Len1:i\d+>>  ArrayLength [<<Array1>>]                    loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Bounds1>>    BoundsCheck [<<Index1:i\d+>>,<<Len1>>]      loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Get2:i\d+>>  ArrayGet [<<Array2:l\d+>>,<<Bounds2:i\d+>>] loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Array2>>     NullCheck [<<Get1>>]                        loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Len2:i\d+>>  ArrayLength [<<Array2>>]                    loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Bounds2>>    BoundsCheck [<<Index2:i\d+>>,<<Len2>>]      loop:<<InnerLoop>>
-  /// CHECK-DAG:                 InvokeStaticOrDirect [<<Get2>>]             loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Index2>>     Phi                                         loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Index1>>     Phi                                         loop:<<OuterLoop:B\d+>>
-  /// CHECK-DAG:  <<Field1>>     StaticFieldGet                              loop:none
-  /// CHECK-EVAL: "<<InnerLoop>>" != "<<OuterLoop>>"
-  //
-  /// CHECK-START: void Main.dynamicBCEAndIntrinsic(int) BCE (after)
-  //  Array reference mA[i] hoisted to same level as deopt.
-  /// CHECK-DAG:                 Deoptimize                                  loop:<<OuterLoop:B\d+>>
-  /// CHECK-DAG:                 ArrayLength                                 loop:<<OuterLoop>>
-  /// CHECK-DAG:  <<Get1:l\d+>>  ArrayGet [<<Array1:l\d+>>,<<Index1:i\d+>>]  loop:<<OuterLoop>>
-  //  Array reference ..[j] still in inner loop, with a direct index.
-  /// CHECK-DAG:  <<Get2:i\d+>>  ArrayGet [<<Array2:l\d+>>,<<Index2:i\d+>>]  loop:<<InnerLoop:B\d+>>
-  /// CHECK-DAG:                 InvokeStaticOrDirect [<<Get2>>]             loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Index2>>     Phi                                         loop:<<InnerLoop>>
-  /// CHECK-DAG:  <<Index1>>     Phi                                         loop:<<OuterLoop>>
-  //  Synthetic phi.
-  /// CHECK-DAG:  <<Array2>>     Phi                                         loop:<<OuterLoop>>
-  /// CHECK-DAG:  <<Array1>>     StaticFieldGet                              loop:none
-  /// CHECK-EVAL: "<<InnerLoop>>" != "<<OuterLoop>>"
-  //
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: NullCheck
+  /// CHECK-DAG: ArrayLength
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-DAG: InvokeStaticOrDirect
+  /// CHECK-DAG: ArraySet
+
   /// CHECK-START: void Main.dynamicBCEAndIntrinsic(int) BCE (after)
   /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: ArrayLength
   /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArrayGet
+  /// CHECK-NOT: ArrayGet
+  /// CHECK-DAG: InvokeStaticOrDirect
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: Exit
+  /// CHECK-DAG: Deoptimize
+
   static void dynamicBCEAndIntrinsic(int n) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < n; j++) {

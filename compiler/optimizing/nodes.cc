@@ -2208,7 +2208,10 @@ void HInvoke::SetIntrinsic(Intrinsics intrinsic,
     SetSideEffects(GetSideEffects().Union(SideEffects::CanTriggerGC()));
   }
   // Adjust method's exception status from intrinsic table.
-  SetCanThrow(exceptions == kCanThrow);
+  switch (exceptions) {
+    case kNoThrow: SetCanThrow(false); break;
+    case kCanThrow: SetCanThrow(true); break;
+  }
 }
 
 bool HNewInstance::IsStringAlloc() const {
