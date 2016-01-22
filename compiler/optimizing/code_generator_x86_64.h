@@ -227,23 +227,29 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
   //   out <- *(out + offset)
   //
   // while honoring heap poisoning and/or read barriers (if any).
-  // Register `temp` is used when generating a read barrier.
+  //
+  // Location `maybe_temp` is used when generating a read barrier and
+  // shall be a register in that case; it may be an invalid location
+  // otherwise.
   void GenerateReferenceLoadOneRegister(HInstruction* instruction,
                                         Location out,
                                         uint32_t offset,
-                                        Location temp);
+                                        Location maybe_temp);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //
   //   out <- *(obj + offset)
   //
   // while honoring heap poisoning and/or read barriers (if any).
-  // Register `temp` is used when generating a Baker's read barrier.
+  //
+  // Location `maybe_temp` is used when generating a Baker's (fast
+  // path) read barrier and shall be a register in that case; it may
+  // be an invalid location otherwise.
   void GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
                                          Location out,
                                          Location obj,
                                          uint32_t offset,
-                                         Location temp);
+                                         Location maybe_temp);
   // Generate a GC root reference load:
   //
   //   root <- *(obj + offset)
