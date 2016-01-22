@@ -40,6 +40,9 @@ public class Main {
   /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse2>>
 
   public static void loop2(boolean incoming) {
+    // Add some code at entry to avoid having the entry block be a pre header.
+    // This avoids having to create a synthesized block.
+    System.out.println("Enter");
     while (true) {
       System.out.println("foo");
       while (incoming) {}
@@ -170,6 +173,9 @@ public class Main {
   /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse>>
 
   public static void loop9() {
+    // Add some code at entry to avoid having the entry block be a pre header.
+    // This avoids having to create a synthesized block.
+    System.out.println("Enter");
     while (Runtime.getRuntime() != null) {
       // 'incoming' must only have a use in the inner loop.
       boolean incoming = field;

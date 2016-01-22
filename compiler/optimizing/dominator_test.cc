@@ -133,8 +133,9 @@ TEST(OptimizerTest, CFG4) {
 
   const uint32_t dominators[] = {
       kInvalidBlockId,
-      0,
-      kInvalidBlockId
+      3,
+      kInvalidBlockId,
+      0
   };
 
   TestCode(data1, dominators, sizeof(dominators) / sizeof(int));
