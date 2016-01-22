@@ -1952,27 +1952,21 @@ void InstructionCodeGeneratorARM64::VisitArm64IntermediateAddress(
          Operand(InputOperandAt(instruction, 1)));
 }
 
-void LocationsBuilderARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+void LocationsBuilderARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
-  HInstruction* accumulator = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
-  if (instr->GetOpKind() == HInstruction::kSub &&
-      accumulator->IsConstant() &&
-      accumulator->AsConstant()->IsZero()) {
-    // Don't allocate register for Mneg instruction.
-  } else {
-    locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
-                       Location::RequiresRegister());
-  }
-  locations->SetInAt(HMultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
-  locations->SetInAt(HMultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
+  locations->SetInAt(HArm64MultiplyAccumulate::kInputAccumulatorIndex,
+                     Location::RequiresRegister());
+  locations->SetInAt(HArm64MultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
+  locations->SetInAt(HArm64MultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
-void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+void InstructionCodeGeneratorARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instr) {
   Register res = OutputRegister(instr);
-  Register mul_left = InputRegisterAt(instr, HMultiplyAccumulate::kInputMulLeftIndex);
-  Register mul_right = InputRegisterAt(instr, HMultiplyAccumulate::kInputMulRightIndex);
+  Register accumulator = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputAccumulatorIndex);
+  Register mul_left = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputMulLeftIndex);
+  Register mul_right = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputMulRightIndex);
 
   // Avoid emitting code that could trigger Cortex A53's erratum 835769.
   // This fixup should be carried out for all multiply-accumulate instructions:
@@ -1992,18 +1986,10 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
   }
 
   if (instr->GetOpKind() == HInstruction::kAdd) {
-    Register accumulator = InputRegisterAt(instr, HMultiplyAccumulate::kInputAccumulatorIndex);
     __ Madd(res, mul_left, mul_right, accumulator);
   } else {
     DCHECK(instr->GetOpKind() == HInstruction::kSub);
-    HInstruction* accum_instr = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
-    if (accum_instr->IsConstant() && accum_instr->AsConstant()->IsZero()) {
-      __ Mneg(res, mul_left, mul_right);
-    } else {
-      Register accumulator = InputRegisterAt(instr,
-                                             HMultiplyAccumulate::kInputAccumulatorIndex);
-      __ Msub(res, mul_left, mul_right, accumulator);
-    }
+    __ Msub(res, mul_left, mul_right, accumulator);
   }
 }
 

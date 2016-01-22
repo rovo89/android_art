@@ -143,9 +143,7 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	linker/arm64/relative_patcher_arm64.cc \
 	optimizing/code_generator_arm64.cc \
-	optimizing/instruction_simplifier_arm.cc \
 	optimizing/instruction_simplifier_arm64.cc \
-	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm64.cc \
 	utils/arm64/assembler_arm64.cc \
 	utils/arm64/managed_register_arm64.cc \
