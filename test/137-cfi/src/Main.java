@@ -34,19 +34,28 @@ public class Main implements Comparator<Main> {
 
   private boolean secondary;
 
+  private boolean full_signatures;
+
   private boolean passed;
 
-  public Main(boolean secondary) {
+  public Main(boolean secondary, boolean full_signatures) {
       this.secondary = secondary;
+      this.full_signatures = full_signatures;
   }
 
   public static void main(String[] args) throws Exception {
     System.loadLibrary(args[0]);
       boolean secondary = false;
-      if (args.length > 0 && args[args.length - 1].equals("--secondary")) {
+      boolean full_signatures = false;
+      for (String arg : args) {
+        if (arg.equals("--secondary")) {
           secondary = true;
+        }
+        if (arg.equals("--full-signatures")) {
+          full_signatures = true;
+        }
       }
-      new Main(secondary).run();
+      new Main(secondary, full_signatures).run();
   }
 
   private void run() {
@@ -96,7 +105,7 @@ public class Main implements Comparator<Main> {
               throw new RuntimeException(e);
           }
 
-          if (!unwindOtherProcess(pid)) {
+          if (!unwindOtherProcess(full_signatures, pid)) {
               System.out.println("Unwinding other process failed.");
           }
       } finally {
@@ -154,7 +163,7 @@ public class Main implements Comparator<Main> {
       if (b) {
           return sleep(2, b, 1.0);
       } else {
-          return unwindInProcess(1, b);
+          return unwindInProcess(full_signatures, 1, b);
       }
   }
 
@@ -162,6 +171,6 @@ public class Main implements Comparator<Main> {
 
   public native boolean sleep(int i, boolean b, double dummy);
 
-  public native boolean unwindInProcess(int i, boolean b);
-  public native boolean unwindOtherProcess(int pid);
+  public native boolean unwindInProcess(boolean full_signatures, int i, boolean b);
+  public native boolean unwindOtherProcess(boolean full_signatures, int pid);
 }
