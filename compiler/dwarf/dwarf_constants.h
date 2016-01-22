@@ -200,11 +200,11 @@ enum Attribute {
   DW_AT_data_bit_offset = 0x6b,
   DW_AT_const_expr = 0x6c,
   DW_AT_enum_class = 0x6d,
+  DW_AT_linkage_name = 0x6e,
 #ifdef INCLUDE_DWARF5_VALUES
   // Values to be added in Dwarf 5. Final value not yet specified. Values listed
   // may be different than other implementations. Use with caution.
   // TODO Update these values when Dwarf 5 is released.
-  DW_AT_linkage_name = 0x6e,
   DW_AT_call_site_value = 0x6f,
   DW_AT_call_site_data_value = 0x70,
   DW_AT_call_site_target = 0x71,
