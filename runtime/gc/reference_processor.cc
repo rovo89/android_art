@@ -277,11 +277,7 @@ bool ReferenceProcessor::MakeCircularListIfUnenqueued(mirror::FinalizerReference
   MutexLock mu2(self, *Locks::reference_queue_finalizer_references_lock_);
   if (!reference->IsEnqueued()) {
     CHECK(reference->IsFinalizerReferenceInstance());
-    if (Runtime::Current()->IsActiveTransaction()) {
-      reference->SetPendingNext<true>(reference);
-    } else {
-      reference->SetPendingNext<false>(reference);
-    }
+    reference->SetPendingNext(reference);
     return true;
   }
   return false;
