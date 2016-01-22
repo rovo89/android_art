@@ -1734,6 +1734,12 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   }
 }
 
+static bool IsMaterializableEntryBlockInstructionOfGraphWithIrreducibleLoop(
+    HInstruction* instruction) {
+  return instruction->GetBlock()->GetGraph()->HasIrreducibleLoops() &&
+         (instruction->IsConstant() || instruction->IsCurrentMethod());
+}
+
 void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
                                              HBasicBlock* from,
                                              HBasicBlock* to) const {
@@ -1750,7 +1756,19 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
     // Interval was not split.
     return;
   }
-  DCHECK(destination != nullptr && source != nullptr);
+
+  LiveInterval* parent = interval->GetParent();
+  HInstruction* defined_by = parent->GetDefinedBy();
+  if (destination == nullptr) {
+    // Our live_in fixed point calculation has found that the instruction is live
+    // in the `to` block because it will eventually enter an irreducible loop. Our
+    // live interval computation however does not compute a fixed point, and
+    // therefore will not have a location for that instruction for `to`.
+    // Because the instruction is a constant or the ArtMethod, we don't need to
+    // do anything: it will be materialized in the irreducible loop.
+    DCHECK(IsMaterializableEntryBlockInstructionOfGraphWithIrreducibleLoop(defined_by));
+    return;
+  }
 
   if (!destination->HasRegister()) {
     // Values are eagerly spilled. Spill slot already contains appropriate value.
@@ -1761,13 +1779,13 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
   // we need to put the moves at the entry of `to`.
   if (from->GetNormalSuccessors().size() == 1) {
     InsertParallelMoveAtExitOf(from,
-                               interval->GetParent()->GetDefinedBy(),
+                               defined_by,
                                source->ToLocation(),
                                destination->ToLocation());
   } else {
     DCHECK_EQ(to->GetPredecessors().size(), 1u);
     InsertParallelMoveAtEntryOf(to,
-                                interval->GetParent()->GetDefinedBy(),
+                                defined_by,
                                 source->ToLocation(),
                                 destination->ToLocation());
   }
