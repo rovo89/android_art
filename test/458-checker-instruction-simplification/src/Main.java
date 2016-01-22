@@ -1332,6 +1332,36 @@ public class Main {
     return ((d > 42.0) != false) ? 13 : 54;
   }
 
+  /// CHECK-START: int Main.intReverseCondition(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
+  /// CHECK-DAG:      <<LE>>            LessThanOrEqual [<<Const42>>,<<Arg>>]
+
+  /// CHECK-START: int Main.intReverseCondition(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
+  /// CHECK-DAG:      <<GE>>            GreaterThanOrEqual [<<Arg>>,<<Const42>>]
+
+  public static int intReverseCondition(int i) {
+    return (42 > i) ? 13 : 54;
+  }
+
+  /// CHECK-START: int Main.intReverseConditionNaN(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const42:d\d+>>  DoubleConstant 42
+  /// CHECK-DAG:      <<ResDouble>>     InvokeStaticOrDirect [<<Arg>>]
+  /// CHECK-DAG:      <<CMP>>           Compare [<<Const42>>,<<ResDouble>>]
+
+  /// CHECK-START: int Main.intReverseConditionNaN(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Const42:d\d+>>  DoubleConstant 42
+  /// CHECK-DAG:      <<ResDouble>>     InvokeStaticOrDirect [<<Arg>>]
+  /// CHECK-DAG:      <<EQ>>            Equal [<<ResDouble>>,<<Const42>>]
+
+  public static int intReverseConditionNaN(int i) {
+    return (42 != Math.sqrt(i)) ? 13 : 54;
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -1413,6 +1443,8 @@ public class Main {
     assertIntEquals(floatConditionNotEqualOne(43.0f), 13);
     assertIntEquals(doubleConditionEqualZero(6.0), 54);
     assertIntEquals(doubleConditionEqualZero(43.0), 13);
+    assertIntEquals(intReverseCondition(41), 13);
+    assertIntEquals(intReverseConditionNaN(-5), 13);
   }
 
   public static boolean booleanField;
