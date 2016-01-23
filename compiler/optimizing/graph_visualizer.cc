@@ -21,6 +21,7 @@
 #include <cctype>
 #include <sstream>
 
+#include "bounds_check_elimination.h"
 #include "code_generator.h"
 #include "dead_code_elimination.h"
 #include "disassembler.h"
@@ -505,6 +506,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     if (IsPass(LICM::kLoopInvariantCodeMotionPassName)
         || IsPass(HDeadCodeElimination::kFinalDeadCodeEliminationPassName)
         || IsPass(HDeadCodeElimination::kInitialDeadCodeEliminationPassName)
+        || IsPass(BoundsCheckElimination::kBoundsCheckEliminationPassName)
         || IsPass(SsaBuilder::kSsaBuilderPassName)) {
       HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
       if (info == nullptr) {
