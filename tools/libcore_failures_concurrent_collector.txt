@@ -34,5 +34,13 @@
           "libcore.java.util.zip.ZipFileTest#testZipFileWithLotsOfEntries",
           "libcore.java.util.zip.ZipInputStreamTest#testLongMessage"],
   bug: 26507762
+},
+{
+  description: "TimeoutException on hammerhead-concurrent-collector",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.icu.RelativeDateTimeFormatterTest#test_bug25821045",
+          "libcore.java.text.SimpleDateFormatTest#testLocales"],
+  bug: 26711853
 }
 ]
