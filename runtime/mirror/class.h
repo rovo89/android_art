@@ -494,10 +494,11 @@ class MANAGED Class FINAL : public Object {
         (IsAbstract() && IsArrayClass());
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsObjectArrayClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetComponentType<kVerifyFlags>() != nullptr &&
-        !GetComponentType<kVerifyFlags>()->IsPrimitive();
+    mirror::Class* const component_type = GetComponentType<kVerifyFlags, kReadBarrierOption>();
+    return component_type != nullptr && !component_type->IsPrimitive();
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -656,6 +657,8 @@ class MANAGED Class FINAL : public Object {
   // to themselves. Classes for primitive types may not assign to each other.
   ALWAYS_INLINE bool IsAssignableFrom(Class* src) SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE Class* GetSuperClass() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get first common super class. It will never return null.
@@ -791,6 +794,8 @@ class MANAGED Class FINAL : public Object {
   ArtMethod* GetVirtualMethodDuringLinking(size_t i, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE PointerArray* GetVTable() SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE PointerArray* GetVTableDuringLinking() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -941,6 +946,8 @@ class MANAGED Class FINAL : public Object {
 
   ALWAYS_INLINE int32_t GetIfTableCount() SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE IfTable* GetIfTable() SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetIfTable(IfTable* new_iftable) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1226,7 +1233,8 @@ class MANAGED Class FINAL : public Object {
 
   // Fix up all of the native pointers in the class by running them through the visitor. Only sets
   // the corresponding entry in dest if visitor(obj) != obj to prevent dirty memory. Dest should be
-  // initialized to a copy of *this to prevent issues.
+  // initialized to a copy of *this to prevent issues. Does not visit the ArtMethod and ArtField
+  // roots.
   template <typename Visitor>
   void FixupNativePointers(mirror::Class* dest, size_t pointer_size, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1277,7 +1285,10 @@ class MANAGED Class FINAL : public Object {
   static MemberOffset EmbeddedImTableOffset(size_t pointer_size);
   static MemberOffset EmbeddedVTableOffset(size_t pointer_size);
 
-  template <typename Visitor>
+  template <bool kVisitNativeRoots,
+            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            typename Visitor>
   void VisitReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 

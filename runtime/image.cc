@@ -35,8 +35,13 @@ ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t oat_data_begin,
                          uint32_t oat_data_end,
                          uint32_t oat_file_end,
+                         uint32_t boot_image_begin,
+                         uint32_t boot_image_size,
+                         uint32_t boot_oat_begin,
+                         uint32_t boot_oat_size,
                          uint32_t pointer_size,
                          bool compile_pic,
+                         bool is_pic,
                          StorageMode storage_mode,
                          size_t data_size)
   : image_begin_(image_begin),
@@ -46,10 +51,15 @@ ImageHeader::ImageHeader(uint32_t image_begin,
     oat_data_begin_(oat_data_begin),
     oat_data_end_(oat_data_end),
     oat_file_end_(oat_file_end),
+    boot_image_begin_(boot_image_begin),
+    boot_image_size_(boot_image_size),
+    boot_oat_begin_(boot_oat_begin),
+    boot_oat_size_(boot_oat_size),
     patch_delta_(0),
     image_roots_(image_roots),
     pointer_size_(pointer_size),
     compile_pic_(compile_pic),
+    is_pic_(is_pic),
     storage_mode_(storage_mode),
     data_size_(data_size) {
   CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
@@ -67,13 +77,21 @@ ImageHeader::ImageHeader(uint32_t image_begin,
 
 void ImageHeader::RelocateImage(off_t delta) {
   CHECK_ALIGNED(delta, kPageSize) << " patch delta must be page aligned";
-  image_begin_ += delta;
   oat_file_begin_ += delta;
   oat_data_begin_ += delta;
   oat_data_end_ += delta;
   oat_file_end_ += delta;
-  image_roots_ += delta;
   patch_delta_ += delta;
+  RelocateImageObjects(delta);
+  RelocateImageMethods(delta);
+}
+
+void ImageHeader::RelocateImageObjects(off_t delta) {
+  image_begin_ += delta;
+  image_roots_ += delta;
+}
+
+void ImageHeader::RelocateImageMethods(off_t delta) {
   for (size_t i = 0; i < kImageMethodsCount; ++i) {
     image_methods_[i] += delta;
   }

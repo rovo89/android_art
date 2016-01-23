@@ -190,6 +190,11 @@ class ArtField FINAL {
     return declaring_class_;
   }
 
+  // Update the declaring class with the passed in visitor. Does not use read barrier.
+  template <typename Visitor>
+  ALWAYS_INLINE void UpdateObjects(const Visitor& visitor)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   mirror::Class* ProxyFindSystemClass(const char* descriptor)
       SHARED_REQUIRES(Locks::mutator_lock_);

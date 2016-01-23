@@ -140,6 +140,7 @@ struct WellKnownClasses {
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
   static jfieldID dalvik_system_DexFile_cookie;
+  static jfieldID dalvik_system_DexFile_fileName;
   static jfieldID dalvik_system_DexPathList_dexElements;
   static jfieldID dalvik_system_DexPathList__Element_dexFile;
   static jfieldID dalvik_system_PathClassLoader_pathList;

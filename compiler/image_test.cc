@@ -155,7 +155,11 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   {
     std::vector<const char*> dup_oat_filename(1, dup_oat->GetPath().c_str());
     std::vector<const char*> dup_image_filename(1, image_file.GetFilename().c_str());
-    bool success_image = writer->Write(kInvalidImageFd, dup_image_filename, dup_oat_filename);
+    bool success_image = writer->Write(kInvalidFd,
+                                       dup_image_filename,
+                                       kInvalidFd,
+                                       dup_oat_filename,
+                                       dup_oat_filename[0]);
     ASSERT_TRUE(success_image);
     bool success_fixup = ElfWriter::Fixup(dup_oat.get(),
                                           writer->GetOatDataBegin(dup_oat_filename[0]));
@@ -292,11 +296,17 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
                              oat_data_begin,
                              oat_data_end,
                              oat_file_end,
+                             /*boot_image_begin*/0U,
+                             /*boot_image_size*/0U,
+                             /*boot_oat_begin*/0U,
+                             /*boot_oat_size_*/0U,
                              sizeof(void*),
                              /*compile_pic*/false,
+                             /*is_pic*/false,
                              ImageHeader::kDefaultStorageMode,
                              /*data_size*/0u);
     ASSERT_TRUE(image_header.IsValid());
+    ASSERT_TRUE(!image_header.IsAppImage());
 
     char* magic = const_cast<char*>(image_header.GetMagic());
     strcpy(magic, "");  // bad magic
