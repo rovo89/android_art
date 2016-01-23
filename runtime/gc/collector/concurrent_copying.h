@@ -57,7 +57,7 @@ class ConcurrentCopying : public GarbageCollector {
   // Enable the from-space bytes/objects check.
   static constexpr bool kEnableFromSpaceAccountingCheck = true;
   // Enable verbose mode.
-  static constexpr bool kVerboseMode = true;
+  static constexpr bool kVerboseMode = false;
 
   ConcurrentCopying(Heap* heap, const std::string& name_prefix = "");
   ~ConcurrentCopying();
