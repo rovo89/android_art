@@ -47,15 +47,11 @@ inline uint32_t Class::GetObjectSize() {
   return GetField32(ObjectSizeOffset());
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Class* Class::GetSuperClass() {
   // Can only get super class for loaded classes (hack for when runtime is
   // initializing)
-  DCHECK(IsLoaded<kVerifyFlags>() ||
-         IsErroneous<kVerifyFlags>() ||
-         !Runtime::Current()->IsStarted()) << IsLoaded();
-  return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(
-      OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
+  DCHECK(IsLoaded() || IsErroneous() || !Runtime::Current()->IsStarted()) << IsLoaded();
+  return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
 }
 
 inline ClassLoader* Class::GetClassLoader() {
@@ -230,12 +226,9 @@ inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, size_t pointer_size
   return &GetVirtualMethodsSliceUnchecked(pointer_size).At(i);
 }
 
-template<VerifyObjectFlags kVerifyFlags,
-         ReadBarrierOption kReadBarrierOption>
 inline PointerArray* Class::GetVTable() {
-  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
-  return GetFieldObject<PointerArray, kVerifyFlags, kReadBarrierOption>(
-      OFFSET_OF_OBJECT_MEMBER(Class, vtable_));
+  DCHECK(IsResolved() || IsErroneous());
+  return GetFieldObject<PointerArray>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_));
 }
 
 inline PointerArray* Class::GetVTableDuringLinking() {
@@ -506,11 +499,8 @@ inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* metho
   return FindVirtualMethodForVirtual(method, pointer_size);
 }
 
-template<VerifyObjectFlags kVerifyFlags,
-         ReadBarrierOption kReadBarrierOption>
 inline IfTable* Class::GetIfTable() {
-  return GetFieldObject<IfTable, kVerifyFlags, kReadBarrierOption>(
-      OFFSET_OF_OBJECT_MEMBER(Class, iftable_));
+  return GetFieldObject<IfTable>(OFFSET_OF_OBJECT_MEMBER(Class, iftable_));
 }
 
 inline int32_t Class::GetIfTableCount() {
@@ -526,7 +516,7 @@ inline void Class::SetIfTable(IfTable* new_iftable) {
 }
 
 inline LengthPrefixedArray<ArtField>* Class::GetIFieldsPtr() {
-  DCHECK(IsLoaded() || IsErroneous()) << GetStatus();
+  DCHECK(IsLoaded() || IsErroneous());
   return GetFieldPtr<LengthPrefixedArray<ArtField>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_));
 }
 
@@ -757,12 +747,9 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
   return size;
 }
 
-template <bool kVisitNativeRoots,
-          VerifyObjectFlags kVerifyFlags,
-          ReadBarrierOption kReadBarrierOption,
-          typename Visitor>
+template <typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
-  VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
+  VisitInstanceFieldsReferences(klass, visitor);
   // Right after a class is allocated, but not yet loaded
   // (kStatusNotReady, see ClassLinker::LoadClass()), GC may find it
   // and scan it. IsTemp() may call Class::GetAccessFlags() but may
@@ -770,16 +757,14 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
   // status is kStatusNotReady. To avoid it, rely on IsResolved()
   // only. This is fine because a temp class never goes into the
   // kStatusResolved state.
-  if (IsResolved<kVerifyFlags>()) {
+  if (IsResolved()) {
     // Temp classes don't ever populate imt/vtable or static fields and they are not even
     // allocated with the right size for those. Also, unresolved classes don't have fields
     // linked yet.
-    VisitStaticFieldsReferences<kVerifyFlags, kReadBarrierOption>(this, visitor);
+    VisitStaticFieldsReferences(this, visitor);
   }
-  if (kVisitNativeRoots) {
-    // Since this class is reachable, we must also visit the associated roots when we scan it.
-    VisitNativeRoots(visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
-  }
+  // Since this class is reachable, we must also visit the associated roots when we scan it.
+  VisitNativeRoots(visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
 }
 
 template<ReadBarrierOption kReadBarrierOption>

@@ -49,7 +49,7 @@ class ImageSpace;
 
 class ClassTable;
 
-static constexpr int kInvalidFd = -1;
+static constexpr int kInvalidImageFd = -1;
 
 // Write a Space built during compilation for use during execution.
 class ImageWriter FINAL {
@@ -103,15 +103,11 @@ class ImageWriter FINAL {
 
   uint8_t* GetOatFileBegin(const char* oat_filename) const;
 
-  // If image_fd is not kInvalidFd, then we use that for the image file. Otherwise we open
+  // If image_fd is not kInvalidImageFd, then we use that for the file. Otherwise we open
   // the names in image_filenames.
-  // If oat_fd is not kInvalidFd, then we use that for the oat file. Otherwise we open
-  // the names in oat_filenames.
   bool Write(int image_fd,
              const std::vector<const char*>& image_filenames,
-             int oat_fd,
-             const std::vector<const char*>& oat_filenames,
-             const std::string& oat_location)
+             const std::vector<const char*>& oat_filenames)
       REQUIRES(!Locks::mutator_lock_);
 
   uintptr_t GetOatDataBegin(const char* oat_filename) {
@@ -450,10 +446,6 @@ class ImageWriter FINAL {
   ImageInfo& GetImageInfo(const char* oat_filename);
   const ImageInfo& GetConstImageInfo(const char* oat_filename) const;
   const ImageInfo& GetImageInfo(size_t index) const;
-
-  // Find an already strong interned string in the other images or in the boot image. Used to
-  // remove duplicates in the multi image and app image case.
-  mirror::String* FindInternedString(mirror::String* string) SHARED_REQUIRES(Locks::mutator_lock_);
 
   const CompilerDriver& compiler_driver_;
 

@@ -23,12 +23,11 @@ public class Main {
     try {
       Class.forName("VerifyAPut1");
       throw new Error("expected verification error");
-    } catch (VerifyError e) { /* ignore */
-    } catch (Error e) { System.out.println(e.getClass() + " " + e.getClass().getClassLoader()); }
+    } catch (VerifyError e) { /* ignore */ }
+
     try {
       Class.forName("VerifyAPut2");
       throw new Error("expected verification error");
-    } catch (VerifyError e) { /* ignore */
-    } catch (Error e) { System.out.println(e.getClass() + " " + e.getClass().getClassLoader()); }
+    } catch (VerifyError e) { /* ignore */ }
   }
 }

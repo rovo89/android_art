@@ -1031,10 +1031,7 @@ inline bool Object::CasFieldStrongRelaxedObjectWithoutWriteBarrier(
   return success;
 }
 
-template<bool kIsStatic,
-         VerifyObjectFlags kVerifyFlags,
-         ReadBarrierOption kReadBarrierOption,
-         typename Visitor>
+template<bool kIsStatic, typename Visitor>
 inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) {
   if (!kIsStatic && (ref_offsets != mirror::Class::kClassWalkSuper)) {
     // Instance fields and not the slow-path.
@@ -1050,12 +1047,9 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
     // There is no reference offset bitmap. In the non-static case, walk up the class
     // inheritance hierarchy and find reference offsets the hard way. In the static case, just
     // consider this class.
-    for (mirror::Class* klass = kIsStatic
-            ? AsClass<kVerifyFlags, kReadBarrierOption>()
-            : GetClass<kVerifyFlags, kReadBarrierOption>();
-        klass != nullptr;
-        klass = kIsStatic ? nullptr : klass->GetSuperClass<kVerifyFlags, kReadBarrierOption>()) {
-      const size_t num_reference_fields =
+    for (mirror::Class* klass = kIsStatic ? AsClass() : GetClass(); klass != nullptr;
+        klass = kIsStatic ? nullptr : klass->GetSuperClass()) {
+      size_t num_reference_fields =
           kIsStatic ? klass->NumReferenceStaticFields() : klass->NumReferenceInstanceFields();
       if (num_reference_fields == 0u) {
         continue;
@@ -1078,54 +1072,49 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
   }
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
+template<typename Visitor>
 inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
-  VisitFieldsReferences<false, kVerifyFlags, kReadBarrierOption>(
-      klass->GetReferenceInstanceOffsets<kVerifyFlags>(), visitor);
+  VisitFieldsReferences<false>(klass->GetReferenceInstanceOffsets<kVerifyNone>(), visitor);
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
+template<typename Visitor>
 inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
   DCHECK(!klass->IsTemp());
-  klass->VisitFieldsReferences<true, kVerifyFlags, kReadBarrierOption>(0, visitor);
+  klass->VisitFieldsReferences<true>(0, visitor);
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsClassLoader() {
-  return GetClass<kVerifyFlags, kReadBarrierOption>()->IsClassLoaderClass();
+  return GetClass<kVerifyFlags>()->IsClassLoaderClass();
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+template<VerifyObjectFlags kVerifyFlags>
 inline mirror::ClassLoader* Object::AsClassLoader() {
-  DCHECK((IsClassLoader<kVerifyFlags, kReadBarrierOption>()));
+  DCHECK(IsClassLoader<kVerifyFlags>());
   return down_cast<mirror::ClassLoader*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsDexCache() {
-  return GetClass<kVerifyFlags, kReadBarrierOption>()->IsDexCacheClass();
+  return GetClass<kVerifyFlags>()->IsDexCacheClass();
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+template<VerifyObjectFlags kVerifyFlags>
 inline mirror::DexCache* Object::AsDexCache() {
-  DCHECK((IsDexCache<kVerifyFlags, kReadBarrierOption>()));
+  DCHECK(IsDexCache<kVerifyFlags>());
   return down_cast<mirror::DexCache*>(this);
 }
 
-template <bool kVisitNativeRoots,
-          VerifyObjectFlags kVerifyFlags,
-          ReadBarrierOption kReadBarrierOption,
-          typename Visitor,
-          typename JavaLangRefVisitor>
+template <VerifyObjectFlags kVerifyFlags, typename Visitor, typename JavaLangRefVisitor>
 inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
-  mirror::Class* klass = GetClass<kVerifyFlags, kReadBarrierOption>();
+  mirror::Class* klass = GetClass<kVerifyFlags>();
   visitor(this, ClassOffset(), false);
   const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
   if (LIKELY(class_flags == kClassFlagNormal)) {
     DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences(klass, visitor);
-    DCHECK((!klass->IsClassClass<kVerifyFlags, kReadBarrierOption>()));
+    DCHECK(!klass->IsClassClass());
     DCHECK(!klass->IsStringClass());
     DCHECK(!klass->IsClassLoaderClass());
     DCHECK(!klass->IsArrayClass());
@@ -1134,29 +1123,23 @@ inline void Object::VisitReferences(const Visitor& visitor,
       DCHECK(!klass->IsStringClass());
       if (class_flags == kClassFlagClass) {
         DCHECK(klass->IsClassClass());
-        AsClass<kVerifyNone>()->VisitReferences<kVisitNativeRoots,
-                                                kVerifyFlags,
-                                                kReadBarrierOption>(klass, visitor);
+        AsClass<kVerifyNone>()->VisitReferences(klass, visitor);
       } else if (class_flags == kClassFlagObjectArray) {
-        DCHECK((klass->IsObjectArrayClass<kVerifyFlags, kReadBarrierOption>()));
+        DCHECK(klass->IsObjectArrayClass());
         AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences(visitor);
       } else if ((class_flags & kClassFlagReference) != 0) {
         VisitInstanceFieldsReferences(klass, visitor);
         ref_visitor(klass, AsReference());
       } else if (class_flags == kClassFlagDexCache) {
-        mirror::DexCache* const dex_cache = AsDexCache<kVerifyFlags, kReadBarrierOption>();
-        dex_cache->VisitReferences<kVisitNativeRoots,
-                                   kVerifyFlags,
-                                   kReadBarrierOption>(klass, visitor);
+        mirror::DexCache* const dex_cache = AsDexCache<kVerifyFlags>();
+        dex_cache->VisitReferences<kVerifyFlags>(klass, visitor);
       } else {
-        mirror::ClassLoader* const class_loader = AsClassLoader<kVerifyFlags, kReadBarrierOption>();
-        class_loader->VisitReferences<kVisitNativeRoots,
-                                      kVerifyFlags,
-                                      kReadBarrierOption>(klass, visitor);
+        mirror::ClassLoader* const class_loader = AsClassLoader<kVerifyFlags>();
+        class_loader->VisitReferences<kVerifyFlags>(klass, visitor);
       }
     } else if (kIsDebugBuild) {
-      CHECK((!klass->IsClassClass<kVerifyFlags, kReadBarrierOption>()));
-      CHECK((!klass->IsObjectArrayClass<kVerifyFlags, kReadBarrierOption>()));
+      CHECK(!klass->IsClassClass());
+      CHECK(!klass->IsObjectArrayClass());
       // String still has instance fields for reflection purposes but these don't exist in
       // actual string instances.
       if (!klass->IsStringClass()) {
@@ -1164,7 +1147,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
         mirror::Class* super_class = klass;
         do {
           total_reference_instance_fields += super_class->NumReferenceInstanceFields();
-          super_class = super_class->GetSuperClass<kVerifyFlags, kReadBarrierOption>();
+          super_class = super_class->GetSuperClass();
         } while (super_class != nullptr);
         // The only reference field should be the object's class. This field is handled at the
         // beginning of the function.

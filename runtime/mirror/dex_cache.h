@@ -137,38 +137,16 @@ class MANAGED DexCache FINAL : public Object {
     return GetFieldPtr<GcRoot<String>*>(StringsOffset());
   }
 
-  void SetStrings(GcRoot<String>* strings) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetFieldPtr<false>(StringsOffset(), strings);
-  }
-
   GcRoot<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldPtr<GcRoot<Class>*>(ResolvedTypesOffset());
-  }
-
-  void SetResolvedTypes(GcRoot<Class>* resolved_types)
-      ALWAYS_INLINE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetFieldPtr<false>(ResolvedTypesOffset(), resolved_types);
   }
 
   ArtMethod** GetResolvedMethods() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldPtr<ArtMethod**>(ResolvedMethodsOffset());
   }
 
-  void SetResolvedMethods(ArtMethod** resolved_methods)
-      ALWAYS_INLINE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetFieldPtr<false>(ResolvedMethodsOffset(), resolved_methods);
-  }
-
   ArtField** GetResolvedFields() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldPtr<ArtField**>(ResolvedFieldsOffset());
-  }
-
-  void SetResolvedFields(ArtField** resolved_fields)
-      ALWAYS_INLINE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetFieldPtr<false>(ResolvedFieldsOffset(), resolved_fields);
   }
 
   size_t NumStrings() SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -208,10 +186,7 @@ class MANAGED DexCache FINAL : public Object {
 
  private:
   // Visit instance fields of the dex cache as well as its associated arrays.
-  template <bool kVisitNativeRoots,
-            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
-            typename Visitor>
+  template <VerifyObjectFlags kVerifyFlags, typename Visitor>
   void VisitReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 

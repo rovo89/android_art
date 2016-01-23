@@ -55,13 +55,13 @@ inline ObjectArray<T>* ObjectArray<T>::Alloc(Thread* self, Class* object_array_c
                Runtime::Current()->GetHeap()->GetCurrentAllocator());
 }
 
-template<class T> template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+template<class T>
 inline T* ObjectArray<T>::Get(int32_t i) {
   if (!CheckIsValidIndex(i)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return nullptr;
   }
-  return GetFieldObject<T, kVerifyFlags, kReadBarrierOption>(OffsetOfElement(i));
+  return GetFieldObject<T>(OffsetOfElement(i));
 }
 
 template<class T> template<VerifyObjectFlags kVerifyFlags>
