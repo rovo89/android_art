@@ -1097,7 +1097,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   if (GetHeap()->HasBootImageSpace()) {
     ATRACE_BEGIN("InitFromImage");
     std::string error_msg;
-    bool result = class_linker_->InitFromBootImage(&error_msg);
+    bool result = class_linker_->InitFromImage(&error_msg);
     ATRACE_END();
     if (!result) {
       LOG(ERROR) << "Could not initialize from image: " << error_msg;
