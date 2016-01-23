@@ -51,10 +51,10 @@ void DexCache::Init(const DexFile* dex_file,
 
   SetDexFile(dex_file);
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
-  SetStrings(strings);
-  SetResolvedTypes(resolved_types);
-  SetResolvedMethods(resolved_methods);
-  SetResolvedFields(resolved_fields);
+  SetField64<false>(StringsOffset(), reinterpret_cast<uintptr_t>(strings));
+  SetField64<false>(ResolvedTypesOffset(), reinterpret_cast<uintptr_t>(resolved_types));
+  SetField64<false>(ResolvedMethodsOffset(), reinterpret_cast<uintptr_t>(resolved_methods));
+  SetField64<false>(ResolvedFieldsOffset(), reinterpret_cast<uintptr_t>(resolved_fields));
   SetField32<false>(NumStringsOffset(), num_strings);
   SetField32<false>(NumResolvedTypesOffset(), num_resolved_types);
   SetField32<false>(NumResolvedMethodsOffset(), num_resolved_methods);

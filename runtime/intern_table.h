@@ -84,22 +84,10 @@ class InternTable {
   bool ContainsWeak(mirror::String* s) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::intern_table_lock_);
 
-  // Lookup a strong intern, returns null if not found.
-  mirror::String* LookupStrong(Thread* self, mirror::String* s)
-      REQUIRES(!Locks::intern_table_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Lookup a weak intern, returns null if not found.
-  mirror::String* LookupWeak(Thread* self, mirror::String* s)
-      REQUIRES(!Locks::intern_table_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Total number of interned strings.
   size_t Size() const REQUIRES(!Locks::intern_table_lock_);
-
   // Total number of weakly live interned strings.
   size_t StrongSize() const REQUIRES(!Locks::intern_table_lock_);
-
   // Total number of strongly live interned strings.
   size_t WeakSize() const REQUIRES(!Locks::intern_table_lock_);
 
@@ -198,9 +186,9 @@ class InternTable {
   mirror::String* Insert(mirror::String* s, bool is_strong, bool holding_locks)
       REQUIRES(!Locks::intern_table_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::String* LookupStrongLocked(mirror::String* s)
+  mirror::String* LookupStrong(mirror::String* s)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  mirror::String* LookupWeakLocked(mirror::String* s)
+  mirror::String* LookupWeak(mirror::String* s)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
   mirror::String* InsertStrong(mirror::String* s)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);

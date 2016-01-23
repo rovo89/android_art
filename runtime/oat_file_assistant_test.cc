@@ -996,8 +996,6 @@ class RaceGenerateTask : public Task {
     dex_files = Runtime::Current()->GetOatFileManager().OpenDexFilesFromOat(
         dex_location_.c_str(),
         oat_location_.c_str(),
-        /*class_loader*/nullptr,
-        /*dex_elements*/nullptr,
         &oat_file,
         &error_msgs);
     CHECK(!dex_files.empty()) << Join(error_msgs, '\n');

@@ -37,7 +37,7 @@ inline mirror::Class* ArtField::GetDeclaringClass() {
   GcRootSource gc_root_source(this);
   mirror::Class* result = declaring_class_.Read(&gc_root_source);
   DCHECK(result != nullptr);
-  DCHECK(result->IsLoaded() || result->IsErroneous()) << result->GetStatus();
+  DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
@@ -332,15 +332,6 @@ inline mirror::String* ArtField::GetStringName(Thread* self, bool resolve) {
 template<typename RootVisitorType>
 inline void ArtField::VisitRoots(RootVisitorType& visitor) {
   visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
-}
-
-template <typename Visitor>
-inline void ArtField::UpdateObjects(const Visitor& visitor) {
-  mirror::Class* old_class = DeclaringClassRoot().Read<kWithoutReadBarrier>();
-  mirror::Class* new_class = visitor(old_class);
-  if (old_class != new_class) {
-    SetDeclaringClass(new_class);
-  }
 }
 
 }  // namespace art

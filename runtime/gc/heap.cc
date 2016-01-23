@@ -273,11 +273,10 @@ Heap::Heap(size_t initial_size,
       std::string& image_name = image_file_names[index];
       ATRACE_BEGIN("ImageSpace::Create");
       std::string error_msg;
-      space::ImageSpace* boot_image_space = space::ImageSpace::CreateBootImage(
-          image_name.c_str(),
-          image_instruction_set,
-          index > 0,
-          &error_msg);
+      space::ImageSpace* boot_image_space = space::ImageSpace::Create(image_name.c_str(),
+                                                                      image_instruction_set,
+                                                                      index > 0,
+                                                                      &error_msg);
       ATRACE_END();
       if (boot_image_space != nullptr) {
         AddSpace(boot_image_space);
@@ -376,13 +375,12 @@ Heap::Heap(size_t initial_size,
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   if (foreground_collector_type_ != kCollectorTypeCC) {
-    if (separate_non_moving_space || !is_zygote) {
+    if (separate_non_moving_space) {
       main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0], request_begin,
                                                         capacity_, &error_str));
     } else {
-      // If no separate non-moving space and we are the zygote, the main space must come right
-      // after the image space to avoid a gap. This is required since we want the zygote space to
-      // be adjacent to the image space.
+      // If no separate non-moving space, the main space must come
+      // right after the image space to avoid a gap.
       main_mem_map_1.reset(MemMap::MapAnonymous(kMemMapSpaceName[0], request_begin, capacity_,
                                                 PROT_READ | PROT_WRITE, true, false,
                                                 &error_str));
@@ -490,15 +488,7 @@ Heap::Heap(size_t initial_size,
   ATRACE_END();
   // Allocate the card table.
   ATRACE_BEGIN("Create card table");
-  // We currently don't support dynamically resizing the card table.
-  // Since we don't know where in the low_4gb the app image will be located, make the card table
-  // cover the whole low_4gb. TODO: Extend the card table in AddSpace.
-  UNUSED(heap_capacity);
-  // Start at 64 KB, we can be sure there are no spaces mapped this low since the address range is
-  // reserved by the kernel.
-  static constexpr size_t kMinHeapAddress = 4 * KB;
-  card_table_.reset(accounting::CardTable::Create(reinterpret_cast<uint8_t*>(kMinHeapAddress),
-                                                  4 * GB - kMinHeapAddress));
+  card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
   CHECK(card_table_.get() != nullptr) << "Failed to create card table";
   ATRACE_END();
   if (foreground_collector_type_ == kCollectorTypeCC && kUseTableLookupReadBarrier) {
@@ -1257,6 +1247,10 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
     return result;
   }
   return FindDiscontinuousSpaceFromObject(obj, fail_ok);
+}
+
+std::vector<space::ImageSpace*> Heap::GetBootImageSpaces() const {
+  return boot_image_spaces_;
 }
 
 void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type) {
@@ -3197,13 +3191,7 @@ void Heap::ProcessCards(TimingLogger* timings,
     } else if (process_alloc_space_cards) {
       TimingLogger::ScopedTiming t2("AllocSpaceClearCards", timings);
       if (clear_alloc_space_cards) {
-        uint8_t* end = space->End();
-        if (space->IsImageSpace()) {
-          // Image space end is the end of the mirror objects, it is not necessarily page or card
-          // aligned. Align up so that the check in ClearCardRange does not fail.
-          end = AlignUp(end, accounting::CardTable::kCardSize);
-        }
-        card_table_->ClearCardRange(space->Begin(), end);
+        card_table_->ClearCardRange(space->Begin(), space->End());
       } else {
         // No mod union table for the AllocSpace. Age the cards so that the GC knows that these
         // cards were dirty before the GC started.
@@ -3996,44 +3984,6 @@ void Heap::DisableGCForShutdown() {
   CHECK(Runtime::Current()->IsShuttingDown(self));
   MutexLock mu(self, *gc_complete_lock_);
   gc_disabled_for_shutdown_ = true;
-}
-
-bool Heap::ObjectIsInBootImageSpace(mirror::Object* obj) const {
-  for (gc::space::ImageSpace* space : boot_image_spaces_) {
-    if (space->HasAddress(obj)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void Heap::GetBootImagesSize(uint32_t* boot_image_begin,
-                             uint32_t* boot_image_end,
-                             uint32_t* boot_oat_begin,
-                             uint32_t* boot_oat_end) {
-  DCHECK(boot_image_begin != nullptr);
-  DCHECK(boot_image_end != nullptr);
-  DCHECK(boot_oat_begin != nullptr);
-  DCHECK(boot_oat_end != nullptr);
-  *boot_image_begin = 0u;
-  *boot_image_end = 0u;
-  *boot_oat_begin = 0u;
-  *boot_oat_end = 0u;
-  for (gc::space::ImageSpace* space_ : GetBootImageSpaces()) {
-    const uint32_t image_begin = PointerToLowMemUInt32(space_->Begin());
-    const uint32_t image_size = space_->GetImageHeader().GetImageSize();
-    if (*boot_image_begin == 0 || image_begin < *boot_image_begin) {
-      *boot_image_begin = image_begin;
-    }
-    *boot_image_end = std::max(*boot_image_end, image_begin + image_size);
-    const OatFile* boot_oat_file = space_->GetOatFile();
-    const uint32_t oat_begin = PointerToLowMemUInt32(boot_oat_file->Begin());
-    const uint32_t oat_size = boot_oat_file->Size();
-    if (*boot_oat_begin == 0 || oat_begin < *boot_oat_begin) {
-      *boot_oat_begin = oat_begin;
-    }
-    *boot_oat_end = std::max(*boot_oat_end, oat_begin + oat_size);
-  }
 }
 
 }  // namespace gc

@@ -40,16 +40,6 @@ bool ClassTable::Contains(mirror::Class* klass) {
   return false;
 }
 
-mirror::Class* ClassTable::LookupByDescriptor(mirror::Class* klass) {
-  for (ClassSet& class_set : classes_) {
-    auto it = class_set.Find(GcRoot<mirror::Class>(klass));
-    if (it != class_set.end()) {
-      return it->Read();
-    }
-  }
-  return nullptr;
-}
-
 mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash) {
   // Should only be updating latest table.
   auto existing_it = classes_.back().FindWithHash(descriptor, hash);
@@ -181,14 +171,6 @@ size_t ClassTable::ReadFromMemory(uint8_t* ptr) {
   size_t read_count = 0;
   classes_.insert(classes_.begin(), ClassSet(ptr, /*make copy*/false, &read_count));
   return read_count;
-}
-
-void ClassTable::SetClassLoader(mirror::ClassLoader* class_loader) {
-  for (const ClassSet& class_set : classes_) {
-    for (const GcRoot<mirror::Class>& root : class_set) {
-      root.Read()->SetClassLoader(class_loader);
-    }
-  }
 }
 
 }  // namespace art
