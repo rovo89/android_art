@@ -467,43 +467,6 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
   }
 }
 
-template <typename Visitor>
-inline void ArtMethod::UpdateObjectsForImageRelocation(const Visitor& visitor) {
-  mirror::Class* old_class = GetDeclaringClassNoBarrier();
-  mirror::Class* new_class = visitor(old_class);
-  if (old_class != new_class) {
-    SetDeclaringClass(new_class);
-  }
-  ArtMethod** old_methods = GetDexCacheResolvedMethods(sizeof(void*));
-  ArtMethod** new_methods = visitor(old_methods);
-  if (old_methods != new_methods) {
-    SetDexCacheResolvedMethods(new_methods, sizeof(void*));
-  }
-  GcRoot<mirror::Class>* old_types = GetDexCacheResolvedTypes(sizeof(void*));
-  GcRoot<mirror::Class>* new_types = visitor(old_types);
-  if (old_types != new_types) {
-    SetDexCacheResolvedTypes(new_types, sizeof(void*));
-  }
-}
-
-template <typename Visitor>
-inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor) {
-  if (IsNative()) {
-    const void* old_native_code = GetEntryPointFromJni();
-    const void* new_native_code = visitor(old_native_code);
-    if (old_native_code != new_native_code) {
-      SetEntryPointFromJni(new_native_code);
-    }
-  } else {
-    DCHECK(GetEntryPointFromJni() == nullptr);
-  }
-  const void* old_code = GetEntryPointFromQuickCompiledCode();
-  const void* new_code = visitor(old_code);
-  if (old_code != new_code) {
-    SetEntryPointFromQuickCompiledCode(new_code);
-  }
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_ART_METHOD_INL_H_
