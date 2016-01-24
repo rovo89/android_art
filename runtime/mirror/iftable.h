@@ -34,8 +34,11 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
   ALWAYS_INLINE void SetInterface(int32_t i, Class* interface)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   PointerArray* GetMethodArray(int32_t i) SHARED_REQUIRES(Locks::mutator_lock_) {
-    auto* method_array = down_cast<PointerArray*>(Get((i * kMax) + kMethodArray));
+    auto* method_array = down_cast<PointerArray*>(Get<kVerifyFlags, kReadBarrierOption>(
+        (i * kMax) + kMethodArray));
     DCHECK(method_array != nullptr);
     return method_array;
   }
