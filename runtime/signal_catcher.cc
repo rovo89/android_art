@@ -211,6 +211,7 @@ void* SignalCatcher::Run(void* arg) {
   SignalSet signals;
   signals.Add(SIGQUIT);
   signals.Add(SIGUSR1);
+  signals.Add(SIGSTKFLT);
 
   while (true) {
     int signal_number = signal_catcher->WaitForSignal(self, signals);
@@ -225,6 +226,8 @@ void* SignalCatcher::Run(void* arg) {
       break;
     case SIGUSR1:
       signal_catcher->HandleSigUsr1();
+      break;
+    case SIGSTKFLT:
       break;
     default:
       LOG(ERROR) << "Unexpected signal %d" << signal_number;
