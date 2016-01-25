@@ -36,7 +36,7 @@ static void art_heap_usage_error(const char* function, void* p);
 #pragma GCC diagnostic ignored "-Wredundant-decls"
 #pragma GCC diagnostic ignored "-Wempty-body"
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#include "../../../bionic/libc/upstream-dlmalloc/malloc.c"
+#include "../../../external/dlmalloc/malloc.c"
 #pragma GCC diagnostic pop
 
 static void* art_heap_morecore(void* m, intptr_t increment) {
