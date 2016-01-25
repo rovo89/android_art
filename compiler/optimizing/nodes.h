@@ -1259,6 +1259,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
 #define FOR_EACH_CONCRETE_INSTRUCTION_X86(M)                            \
   M(X86ComputeBaseMethodAddress, Instruction)                           \
   M(X86LoadFromConstantTable, Instruction)                              \
+  M(X86FPNeg, Instruction)                                              \
   M(X86PackedSwitch, Instruction)
 #endif
 
