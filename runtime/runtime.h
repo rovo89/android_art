@@ -366,7 +366,7 @@ class Runtime {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  ArtMethod* GetResolutionMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* GetResolutionMethod();
 
   bool HasResolutionMethod() const {
     return resolution_method_ != nullptr;
@@ -377,8 +377,8 @@ class Runtime {
   ArtMethod* CreateResolutionMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime imt conflicts.
-  ArtMethod* GetImtConflictMethod() SHARED_REQUIRES(Locks::mutator_lock_);
-  ArtMethod* GetImtUnimplementedMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* GetImtConflictMethod();
+  ArtMethod* GetImtUnimplementedMethod();
 
   bool HasImtConflictMethod() const {
     return imt_conflict_method_ != nullptr;

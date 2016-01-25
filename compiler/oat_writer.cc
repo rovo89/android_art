@@ -725,8 +725,18 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
 
       // Deduplicate code arrays if we are not producing debuggable code.
       bool deduped = false;
+      MethodReference method_ref(dex_file_, it.GetMemberIndex());
+      auto method_lb = writer_->method_offset_map_.map.lower_bound(method_ref);
       if (debuggable_) {
-        quick_code_offset = NewQuickCodeOffset(compiled_method, it, thumb_offset);
+        if (method_lb != writer_->method_offset_map_.map.end() &&
+            !writer_->method_offset_map_.map.key_comp()(method_ref, method_lb->first)) {
+          // Duplicate methods, we want the same code for both of them so that the oat writer puts
+          // the same code in both ArtMethods so that we do not get different oat code at runtime.
+          quick_code_offset = method_lb->second;
+          deduped = true;
+        } else {
+          quick_code_offset = NewQuickCodeOffset(compiled_method, it, thumb_offset);
+        }
       } else {
         auto lb = dedupe_map_.lower_bound(compiled_method);
         if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(compiled_method, lb->first)) {
@@ -739,14 +749,12 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       }
 
       if (code_size != 0) {
-        MethodReference method_ref(dex_file_, it.GetMemberIndex());
-        auto method_lb = writer_->method_offset_map_.map.lower_bound(method_ref);
         if (method_lb != writer_->method_offset_map_.map.end() &&
             !writer_->method_offset_map_.map.key_comp()(method_ref, method_lb->first)) {
           // TODO: Should this be a hard failure?
           LOG(WARNING) << "Multiple definitions of "
               << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file)
-              << ((method_lb->second != quick_code_offset) ? "; OFFSET MISMATCH" : "");
+              << " offsets " << method_lb->second << " " << quick_code_offset;
         } else {
           writer_->method_offset_map_.map.PutBefore(method_lb, method_ref, quick_code_offset);
         }
@@ -958,30 +966,40 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     }
 
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
-    InvokeType invoke_type = it.GetMethodInvokeType(dex_file_->GetClassDef(class_def_index_));
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(
         Thread::Current(), *dex_file_)));
-    ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
-        *dex_file_,
-        it.GetMemberIndex(),
-        dex_cache,
-        ScopedNullHandle<mirror::ClassLoader>(),
-        nullptr,
-        invoke_type);
-    if (method == nullptr) {
-      LOG(INTERNAL_FATAL) << "Unexpected failure to resolve a method: "
-                          << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
-      soa.Self()->AssertPendingException();
-      mirror::Throwable* exc = soa.Self()->GetException();
-      std::string dump = exc->Dump();
-      LOG(FATAL) << dump;
-      UNREACHABLE();
+    ArtMethod* method;
+    if (writer_->HasBootImage()) {
+      const InvokeType invoke_type = it.GetMethodInvokeType(
+          dex_file_->GetClassDef(class_def_index_));
+      method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          *dex_file_,
+          it.GetMemberIndex(),
+          dex_cache,
+          ScopedNullHandle<mirror::ClassLoader>(),
+          nullptr,
+          invoke_type);
+      if (method == nullptr) {
+        LOG(INTERNAL_FATAL) << "Unexpected failure to resolve a method: "
+            << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
+        soa.Self()->AssertPendingException();
+        mirror::Throwable* exc = soa.Self()->GetException();
+        std::string dump = exc->Dump();
+        LOG(FATAL) << dump;
+        UNREACHABLE();
+      }
+    } else {
+      // Should already have been resolved by the compiler, just peek into the dex cache.
+      // It may not be resolved if the class failed to verify, in this case, don't set the
+      // entrypoint. This is not fatal since the dex cache will contain a resolution method.
+      method = dex_cache->GetResolvedMethod(it.GetMemberIndex(), linker->GetImagePointerSize());
     }
-
-    if (compiled_method != nullptr && compiled_method->GetQuickCode().size() != 0) {
+    if (method != nullptr &&
+        compiled_method != nullptr &&
+        compiled_method->GetQuickCode().size() != 0) {
       method->SetEntryPointFromQuickCompiledCodePtrSize(
           reinterpret_cast<void*>(offsets.code_offset_), pointer_size_);
     }
@@ -1467,7 +1485,7 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
     } while (false)
 
   VISIT(InitCodeMethodVisitor);
-  if (compiler_driver_->IsBootImage()) {
+  if (HasImage()) {
     VISIT(InitImageMethodVisitor);
   }
 

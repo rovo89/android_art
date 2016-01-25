@@ -37,7 +37,9 @@ class MANAGED ObjectArray: public Array {
   static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  T* Get(int32_t i) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  ALWAYS_INLINE T* Get(int32_t i) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns true if the object can be stored into the array. If not, throws
   // an ArrayStoreException and returns false.

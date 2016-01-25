@@ -167,8 +167,12 @@ inline bool SpaceBitmap<kAlignment>::Modify(const mirror::Object* obj) {
   uintptr_t* address = &bitmap_begin_[index];
   uintptr_t old_word = *address;
   if (kSetBit) {
+    // Check the bit before setting the word incase we are trying to mark a read only bitmap
+    // like an image space bitmap. This bitmap is mapped as read only and will fault if we
+    // attempt to change any words. Since all of the objects are marked, this will never
+    // occur if we check before setting the bit. This also prevents dirty pages that would
+    // occur if the bitmap was read write and we did not check the bit.
     if ((old_word & mask) == 0) {
-      // Avoid dirtying the page if possible.
       *address = old_word | mask;
     }
   } else {

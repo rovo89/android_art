@@ -86,12 +86,22 @@ void InternTable::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
-mirror::String* InternTable::LookupStrong(mirror::String* s) {
-  return strong_interns_.Find(s);
+mirror::String* InternTable::LookupWeak(Thread* self, mirror::String* s) {
+  MutexLock mu(self, *Locks::intern_table_lock_);
+  return LookupWeakLocked(s);
 }
 
-mirror::String* InternTable::LookupWeak(mirror::String* s) {
+mirror::String* InternTable::LookupStrong(Thread* self, mirror::String* s) {
+  MutexLock mu(self, *Locks::intern_table_lock_);
+  return LookupStrongLocked(s);
+}
+
+mirror::String* InternTable::LookupWeakLocked(mirror::String* s) {
   return weak_interns_.Find(s);
+}
+
+mirror::String* InternTable::LookupStrongLocked(mirror::String* s) {
+  return strong_interns_.Find(s);
 }
 
 void InternTable::AddNewTable() {
@@ -169,7 +179,7 @@ void InternTable::AddImagesStringsToTable(const std::vector<gc::space::ImageSpac
         for (size_t j = 0; j < num_strings; ++j) {
           mirror::String* image_string = dex_cache->GetResolvedString(j);
           if (image_string != nullptr) {
-            mirror::String* found = LookupStrong(image_string);
+            mirror::String* found = LookupStrongLocked(image_string);
             if (found == nullptr) {
               InsertStrong(image_string);
             } else {
@@ -250,7 +260,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
       }
     }
     // Check the strong table for a match.
-    mirror::String* strong = LookupStrong(s);
+    mirror::String* strong = LookupStrongLocked(s);
     if (strong != nullptr) {
       return strong;
     }
@@ -272,7 +282,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
     CHECK(self->GetWeakRefAccessEnabled());
   }
   // There is no match in the strong table, check the weak table.
-  mirror::String* weak = LookupWeak(s);
+  mirror::String* weak = LookupWeakLocked(s);
   if (weak != nullptr) {
     if (is_strong) {
       // A match was found in the weak table. Promote to the strong table.
@@ -317,8 +327,7 @@ mirror::String* InternTable::InternWeak(mirror::String* s) {
 }
 
 bool InternTable::ContainsWeak(mirror::String* s) {
-  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  return LookupWeak(s) == s;
+  return LookupWeak(Thread::Current(), s) == s;
 }
 
 void InternTable::SweepInternTableWeaks(IsMarkedVisitor* visitor) {
