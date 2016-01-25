@@ -274,8 +274,6 @@ define build-libart-compiler
     endif
   endif
 
-  LOCAL_STATIC_LIBRARIES += liblzma
-
   LOCAL_MODULE_TAGS := optional
   ifeq ($$(art_static_or_shared), static)
     LOCAL_MODULE_CLASS := STATIC_LIBRARIES

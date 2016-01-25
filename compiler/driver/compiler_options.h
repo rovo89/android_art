@@ -51,7 +51,6 @@ class CompilerOptions FINAL {
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
   static const bool kDefaultNativeDebuggable = false;
   static const bool kDefaultGenerateDebugInfo = false;
-  static const bool kDefaultGenerateMiniDebugInfo = false;
   static const bool kDefaultIncludePatchInformation = false;
   static const size_t kDefaultInlineDepthLimit = 3;
   static const size_t kDefaultInlineMaxCodeUnits = 32;
@@ -171,18 +170,8 @@ class CompilerOptions FINAL {
     return native_debuggable_;
   }
 
-  // This flag controls whether the compiler collects debugging information.
-  // The other flags control how the information is written to disk.
-  bool GenerateAnyDebugInfo() const {
-    return GetGenerateDebugInfo() || GetGenerateMiniDebugInfo();
-  }
-
   bool GetGenerateDebugInfo() const {
     return generate_debug_info_;
-  }
-
-  bool GetGenerateMiniDebugInfo() const {
-    return generate_mini_debug_info_;
   }
 
   bool GetImplicitNullChecks() const {
@@ -277,7 +266,6 @@ class CompilerOptions FINAL {
   bool debuggable_;
   bool native_debuggable_;
   bool generate_debug_info_;
-  bool generate_mini_debug_info_;
   bool implicit_null_checks_;
   bool implicit_so_checks_;
   bool implicit_suspend_checks_;
