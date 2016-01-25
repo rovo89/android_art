@@ -164,14 +164,18 @@ class MANAGED LOCKABLE Object {
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ObjectArray<T>* AsObjectArray() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ClassLoader* AsClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   DexCache* AsDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -456,6 +460,13 @@ class MANAGED LOCKABLE Object {
     SetFieldPtrWithSize<kTransactionActive, kCheckTransaction, kVerifyFlags>(
         field_offset, new_value, sizeof(void*));
   }
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
+  void SetFieldPtr64(MemberOffset field_offset, T new_value)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    SetFieldPtrWithSize<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+        field_offset, new_value, 8u);
+  }
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
@@ -475,7 +486,9 @@ class MANAGED LOCKABLE Object {
   }
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_REQUIRES(Locks::mutator_lock_).
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+  template <bool kVisitNativeRoots = true,
+            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor,
             typename JavaLangRefVisitor = VoidFunctor>
   void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
@@ -495,6 +508,11 @@ class MANAGED LOCKABLE Object {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, sizeof(void*));
   }
+  template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  T GetFieldPtr64(MemberOffset field_offset)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, 8u);
+  }
 
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   ALWAYS_INLINE T GetFieldPtrWithSize(MemberOffset field_offset, size_t pointer_size)
@@ -511,13 +529,20 @@ class MANAGED LOCKABLE Object {
   }
 
   // TODO: Fixme when anotatalysis works with visitors.
-  template<bool kIsStatic, typename Visitor>
+  template<bool kIsStatic,
+          VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+          ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+          typename Visitor>
   void VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) HOT_ATTR
       NO_THREAD_SAFETY_ANALYSIS;
-  template<typename Visitor>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+           typename Visitor>
   void VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor) HOT_ATTR
       SHARED_REQUIRES(Locks::mutator_lock_);
-  template<typename Visitor>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+           typename Visitor>
   void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) HOT_ATTR
       SHARED_REQUIRES(Locks::mutator_lock_);
 

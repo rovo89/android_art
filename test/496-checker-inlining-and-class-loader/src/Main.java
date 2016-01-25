@@ -16,6 +16,7 @@
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 class MyClassLoader extends ClassLoader {
@@ -30,18 +31,31 @@ class MyClassLoader extends ClassLoader {
     Object pathList = f.get(loader);
 
     // Some magic to get access to the dexField field of pathList.
+    // Need to make a copy of the dex elements since we don't want an app image with pre-resolved
+    // things.
     f = pathList.getClass().getDeclaredField("dexElements");
     f.setAccessible(true);
-    dexElements = (Object[]) f.get(pathList);
-    dexFileField = dexElements[0].getClass().getDeclaredField("dexFile");
-    dexFileField.setAccessible(true);
+    Object[] dexElements = (Object[]) f.get(pathList);
+    f = dexElements[0].getClass().getDeclaredField("dexFile");
+    f.setAccessible(true);
+    for (Object element : dexElements) {
+      Object dexFile = f.get(element);
+      // Make copy.
+      Field fileNameField = dexFile.getClass().getDeclaredField("mFileName");
+      fileNameField.setAccessible(true);
+      dexFiles.add(dexFile.getClass().getDeclaredConstructor(String.class).newInstance(
+        fileNameField.get(dexFile)));
+    }
   }
 
-  Object[] dexElements;
+  ArrayList<Object> dexFiles = new ArrayList<Object>();
   Field dexFileField;
 
   protected Class<?> loadClass(String className, boolean resolve) throws ClassNotFoundException {
-    System.out.println("Request for " + className);
+    // Other classes may also get loaded, ignore those.
+    if (className.equals("LoadedByMyClassLoader") || className.equals("FirstSeenByMyClassLoader")) {
+      System.out.println("Request for " + className);
+    }
 
     // We're only going to handle LoadedByMyClassLoader.
     if (className != "LoadedByMyClassLoader") {
@@ -50,13 +64,12 @@ class MyClassLoader extends ClassLoader {
 
     // Mimic what DexPathList.findClass is doing.
     try {
-      for (Object element : dexElements) {
-        Object dex = dexFileField.get(element);
-        Method method = dex.getClass().getDeclaredMethod(
+      for (Object dexFile : dexFiles) {
+        Method method = dexFile.getClass().getDeclaredMethod(
             "loadClassBinaryName", String.class, ClassLoader.class, List.class);
 
-        if (dex != null) {
-          Class clazz = (Class)method.invoke(dex, className, this, null);
+        if (dexFile != null) {
+          Class clazz = (Class)method.invoke(dexFile, className, this, null);
           if (clazz != null) {
             return clazz;
           }
