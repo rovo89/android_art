@@ -14,8 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Test with full DWARF debugging information.
-${RUN} "$@" -Xcompiler-option --generate-debug-info
-
-# Test with minimal compressed debugging information.
-${RUN} "$@" -Xcompiler-option --generate-mini-debug-info
+exec ${RUN} "$@" -Xcompiler-option --generate-debug-info

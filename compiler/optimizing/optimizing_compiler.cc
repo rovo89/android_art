@@ -676,7 +676,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     return nullptr;
   }
   codegen->GetAssembler()->cfi().SetEnabled(
-      compiler_driver->GetCompilerOptions().GenerateAnyDebugInfo());
+      compiler_driver->GetCompilerOptions().GetGenerateDebugInfo());
 
   PassObserver pass_observer(graph,
                              codegen.get(),
