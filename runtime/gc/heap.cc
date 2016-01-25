@@ -375,12 +375,15 @@ Heap::Heap(size_t initial_size,
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   if (foreground_collector_type_ != kCollectorTypeCC) {
-    if (separate_non_moving_space) {
-      main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0], request_begin,
-                                                        capacity_, &error_str));
+    if (separate_non_moving_space || !is_zygote) {
+      main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0],
+                                                        request_begin,
+                                                        capacity_,
+                                                        &error_str));
     } else {
-      // If no separate non-moving space, the main space must come
-      // right after the image space to avoid a gap.
+      // If no separate non-moving space and we are the zygote, the main space must come right
+      // after the image space to avoid a gap. This is required since we want the zygote space to
+      // be adjacent to the image space.
       main_mem_map_1.reset(MemMap::MapAnonymous(kMemMapSpaceName[0], request_begin, capacity_,
                                                 PROT_READ | PROT_WRITE, true, false,
                                                 &error_str));
