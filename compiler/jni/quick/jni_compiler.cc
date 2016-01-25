@@ -95,7 +95,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   // Assembler that holds generated instructions
   std::unique_ptr<Assembler> jni_asm(Assembler::Create(instruction_set, instruction_set_features));
-  jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GenerateAnyDebugInfo());
+  jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GetGenerateDebugInfo());
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target

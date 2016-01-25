@@ -40,11 +40,6 @@
 #include "stack_map.h"
 #include "utils.h"
 
-// liblzma.
-#include "XzEnc.h"
-#include "7zCrc.h"
-#include "XzCrc64.h"
-
 namespace art {
 namespace dwarf {
 
@@ -1410,76 +1405,6 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
   WriteDebugSections(builder, method_infos);
 }
 
-static void XzCompress(const std::vector<uint8_t>* src, std::vector<uint8_t>* dst) {
-  // Configure the compression library.
-  CrcGenerateTable();
-  Crc64GenerateTable();
-  CLzma2EncProps lzma2Props;
-  Lzma2EncProps_Init(&lzma2Props);
-  lzma2Props.lzmaProps.level = 1;  // Fast compression.
-  Lzma2EncProps_Normalize(&lzma2Props);
-  CXzProps props;
-  XzProps_Init(&props);
-  props.lzma2Props = &lzma2Props;
-  // Implement the required interface for communication (written in C so no virtual methods).
-  struct XzCallbacks : public ISeqInStream, public ISeqOutStream, public ICompressProgress {
-    static SRes ReadImpl(void* p, void* buf, size_t* size) {
-      auto* ctx = static_cast<XzCallbacks*>(reinterpret_cast<ISeqInStream*>(p));
-      *size = std::min(*size, ctx->src_->size() - ctx->src_pos_);
-      memcpy(buf, ctx->src_->data() + ctx->src_pos_, *size);
-      ctx->src_pos_ += *size;
-      return SZ_OK;
-    }
-    static size_t WriteImpl(void* p, const void* buf, size_t size) {
-      auto* ctx = static_cast<XzCallbacks*>(reinterpret_cast<ISeqOutStream*>(p));
-      const uint8_t* buffer = reinterpret_cast<const uint8_t*>(buf);
-      ctx->dst_->insert(ctx->dst_->end(), buffer, buffer + size);
-      return size;
-    }
-    static SRes ProgressImpl(void* , UInt64, UInt64) {
-      return SZ_OK;
-    }
-    size_t src_pos_;
-    const std::vector<uint8_t>* src_;
-    std::vector<uint8_t>* dst_;
-  };
-  XzCallbacks callbacks;
-  callbacks.Read = XzCallbacks::ReadImpl;
-  callbacks.Write = XzCallbacks::WriteImpl;
-  callbacks.Progress = XzCallbacks::ProgressImpl;
-  callbacks.src_pos_ = 0;
-  callbacks.src_ = src;
-  callbacks.dst_ = dst;
-  // Compress.
-  SRes res = Xz_Encode(&callbacks, &callbacks, &props, &callbacks);
-  CHECK_EQ(res, SZ_OK);
-}
-
-template <typename ElfTypes>
-void WriteMiniDebugInfo(ElfBuilder<ElfTypes>* parent_builder,
-                        const ArrayRef<const MethodDebugInfo>& method_infos) {
-  const InstructionSet isa = parent_builder->GetIsa();
-  std::vector<uint8_t> buffer;
-  buffer.reserve(KB);
-  VectorOutputStream out("Mini-debug-info ELF file", &buffer);
-  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
-  builder->Start();
-  // Write .rodata and .text as NOBITS sections.
-  // This allows tools to detect virtual address relocation of the parent ELF file.
-  builder->SetVirtualAddress(parent_builder->GetRoData()->GetAddress());
-  builder->GetRoData()->WriteNoBitsSection(parent_builder->GetRoData()->GetSize());
-  builder->SetVirtualAddress(parent_builder->GetText()->GetAddress());
-  builder->GetText()->WriteNoBitsSection(parent_builder->GetText()->GetSize());
-  WriteDebugSymbols(builder.get(), method_infos);
-  WriteCFISection(builder.get(), method_infos, DW_DEBUG_FRAME_FORMAT);
-  builder->End();
-  CHECK(builder->Good());
-  std::vector<uint8_t> compressed_buffer;
-  compressed_buffer.reserve(buffer.size() / 4);
-  XzCompress(&buffer, &compressed_buffer);
-  parent_builder->WriteSection(".gnu_debugdata", &compressed_buffer);
-}
-
 template <typename ElfTypes>
 static ArrayRef<const uint8_t> WriteDebugElfFileForMethodInternal(
     const dwarf::MethodDebugInfo& method_info) {
@@ -1552,12 +1477,6 @@ template void WriteDebugInfo<ElfTypes64>(
     ElfBuilder<ElfTypes64>* builder,
     const ArrayRef<const MethodDebugInfo>& method_infos,
     CFIFormat cfi_format);
-template void WriteMiniDebugInfo<ElfTypes32>(
-    ElfBuilder<ElfTypes32>* builder,
-    const ArrayRef<const MethodDebugInfo>& method_infos);
-template void WriteMiniDebugInfo<ElfTypes64>(
-    ElfBuilder<ElfTypes64>* builder,
-    const ArrayRef<const MethodDebugInfo>& method_infos);
 
 }  // namespace dwarf
 }  // namespace art

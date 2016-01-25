@@ -165,15 +165,10 @@ class ElfBuilder FINAL {
       }
     }
 
-    // Write this section as "NOBITS" section. (used for the .bss section)
-    // This means that the ELF file does not contain the initial data for this section
-    // and it will be zero-initialized when the ELF file is loaded in the running program.
-    void WriteNoBitsSection(Elf_Word size) {
-      DCHECK_NE(header_.sh_flags & SHF_ALLOC, 0u);
-      Start();
-      header_.sh_type = SHT_NOBITS;
+    // Set desired allocation size for .bss section.
+    void SetSize(Elf_Word size) {
+      CHECK_EQ(header_.sh_type, (Elf_Word)SHT_NOBITS);
       header_.sh_size = size;
-      End();
     }
 
     // This function always succeeds to simplify code.
@@ -349,12 +344,6 @@ class ElfBuilder FINAL {
     s->WriteFully(buffer->data(), buffer->size());
     s->End();
     other_sections_.push_back(std::move(s));
-  }
-
-  // Set where the next section will be allocated in the virtual address space.
-  void SetVirtualAddress(Elf_Addr address) {
-    DCHECK_GE(address, virtual_address_);
-    virtual_address_ = address;
   }
 
   void Start() {

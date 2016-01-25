@@ -137,7 +137,9 @@ template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::SetBssSize(size_t bss_size) {
   auto* bss = builder_->GetBss();
   if (bss_size != 0u) {
-    bss->WriteNoBitsSection(bss_size);
+    bss->Start();
+    bss->SetSize(bss_size);
+    bss->End();
   }
 }
 
@@ -150,12 +152,7 @@ template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
     const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
   if (compiler_options_->GetGenerateDebugInfo()) {
-    // Generate all the debug information we can.
     dwarf::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat);
-  }
-  if (compiler_options_->GetGenerateMiniDebugInfo()) {
-    // Generate only some information and compress it.
-    dwarf::WriteMiniDebugInfo(builder_.get(), method_infos);
   }
 }
 
