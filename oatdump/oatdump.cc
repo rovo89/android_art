@@ -142,7 +142,9 @@ class OatSymbolizer FINAL {
     text->End();
 
     if (oat_file_->BssSize() != 0) {
-      bss->WriteNoBitsSection(oat_file_->BssSize());
+      bss->Start();
+      bss->SetSize(oat_file_->BssSize());
+      bss->End();
     }
 
     builder_->WriteDynamicSection(elf_file->GetPath());
