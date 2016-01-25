@@ -1,1 +1,0 @@
-Test double-negated bitwise operations simplifications.
