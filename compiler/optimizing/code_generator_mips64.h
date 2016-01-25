@@ -227,7 +227,9 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
   void HandleBinaryOp(HBinaryOperation* operation);
   void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* operation);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
@@ -285,7 +287,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   Mips64Assembler* GetAssembler() OVERRIDE { return &assembler_; }
   const Mips64Assembler& GetAssembler() const OVERRIDE { return assembler_; }
 
-  void MarkGCCard(GpuRegister object, GpuRegister value);
+  void MarkGCCard(GpuRegister object, GpuRegister value, bool value_can_be_null);
 
   // Register allocation.
 
