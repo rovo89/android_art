@@ -1386,6 +1386,41 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
   __ j(final_condition, true_label);
 }
 
+void InstructionCodeGeneratorX86::GenerateFPCompare(Location lhs,
+                                                    Location rhs,
+                                                    HInstruction* insn,
+                                                    bool is_double) {
+  HX86LoadFromConstantTable* const_area = insn->InputAt(1)->AsX86LoadFromConstantTable();
+  if (is_double) {
+    if (rhs.IsFpuRegister()) {
+      __ ucomisd(lhs.AsFpuRegister<XmmRegister>(), rhs.AsFpuRegister<XmmRegister>());
+    } else if (const_area != nullptr) {
+      DCHECK(!const_area->NeedsMaterialization());
+      __ ucomisd(lhs.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(
+                   const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+    } else {
+      DCHECK(rhs.IsDoubleStackSlot());
+      __ ucomisd(lhs.AsFpuRegister<XmmRegister>(), Address(ESP, rhs.GetStackIndex()));
+    }
+    return;
+  }
+
+  if (rhs.IsFpuRegister()) {
+    __ ucomiss(lhs.AsFpuRegister<XmmRegister>(), rhs.AsFpuRegister<XmmRegister>());
+  } else if (const_area != nullptr) {
+    DCHECK(!const_area->NeedsMaterialization());
+    __ ucomiss(lhs.AsFpuRegister<XmmRegister>(),
+               codegen_->LiteralFloatAddress(
+                 const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                 const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+  } else {
+    DCHECK(rhs.IsStackSlot());
+    __ ucomiss(lhs.AsFpuRegister<XmmRegister>(), Address(ESP, rhs.GetStackIndex()));
+  }
+}
+
 template<class LabelType>
 void InstructionCodeGeneratorX86::GenerateCompareTestAndBranch(HCondition* condition,
                                                                LabelType* true_target_in,
@@ -1406,11 +1441,11 @@ void InstructionCodeGeneratorX86::GenerateCompareTestAndBranch(HCondition* condi
       GenerateLongComparesAndJumps(condition, true_target, false_target);
       break;
     case Primitive::kPrimFloat:
-      __ ucomiss(left.AsFpuRegister<XmmRegister>(), right.AsFpuRegister<XmmRegister>());
+      GenerateFPCompare(left, right, condition, false);
       GenerateFPJumps(condition, true_target, false_target);
       break;
     case Primitive::kPrimDouble:
-      __ ucomisd(left.AsFpuRegister<XmmRegister>(), right.AsFpuRegister<XmmRegister>());
+      GenerateFPCompare(left, right, condition, true);
       GenerateFPJumps(condition, true_target, false_target);
       break;
     default:
@@ -1636,7 +1671,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       if (cond->NeedsMaterialization()) {
         locations->SetOut(Location::RequiresRegister());
       }
@@ -1690,11 +1725,11 @@ void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
       GenerateLongComparesAndJumps(cond, &true_label, &false_label);
       break;
     case Primitive::kPrimFloat:
-      __ ucomiss(lhs.AsFpuRegister<XmmRegister>(), rhs.AsFpuRegister<XmmRegister>());
+      GenerateFPCompare(lhs, rhs, cond, false);
       GenerateFPJumps(cond, &true_label, &false_label);
       break;
     case Primitive::kPrimDouble:
-      __ ucomisd(lhs.AsFpuRegister<XmmRegister>(), rhs.AsFpuRegister<XmmRegister>());
+      GenerateFPCompare(lhs, rhs, cond, true);
       GenerateFPJumps(cond, &true_label, &false_label);
       break;
   }
@@ -2127,6 +2162,32 @@ void InstructionCodeGeneratorX86::VisitNeg(HNeg* neg) {
 
     default:
       LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();
+  }
+}
+
+void LocationsBuilderX86::VisitX86FPNeg(HX86FPNeg* neg) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
+  DCHECK(Primitive::IsFloatingPointType(neg->GetType()));
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+  locations->AddTemp(Location::RequiresFpuRegister());
+}
+
+void InstructionCodeGeneratorX86::VisitX86FPNeg(HX86FPNeg* neg) {
+  LocationSummary* locations = neg->GetLocations();
+  Location out = locations->Out();
+  DCHECK(locations->InAt(0).Equals(out));
+
+  Register constant_area = locations->InAt(1).AsRegister<Register>();
+  XmmRegister mask = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+  if (neg->GetType() == Primitive::kPrimFloat) {
+    __ movss(mask, codegen_->LiteralInt32Address(INT32_C(0x80000000), constant_area));
+    __ xorps(out.AsFpuRegister<XmmRegister>(), mask);
+  } else {
+     __ movsd(mask, codegen_->LiteralInt64Address(INT64_C(0x8000000000000000), constant_area));
+     __ xorpd(out.AsFpuRegister<XmmRegister>(), mask);
   }
 }
 
@@ -4012,7 +4073,7 @@ void LocationsBuilderX86::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -4073,12 +4134,12 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
       break;
     }
     case Primitive::kPrimFloat: {
-      __ ucomiss(left.AsFpuRegister<XmmRegister>(), right.AsFpuRegister<XmmRegister>());
+      GenerateFPCompare(left, right, compare, false);
       __ j(kUnordered, compare->IsGtBias() ? &greater : &less);
       break;
     }
     case Primitive::kPrimDouble: {
-      __ ucomisd(left.AsFpuRegister<XmmRegister>(), right.AsFpuRegister<XmmRegister>());
+      GenerateFPCompare(left, right, compare, true);
       __ j(kUnordered, compare->IsGtBias() ? &greater : &less);
       break;
     }

@@ -62,6 +62,25 @@ class HX86LoadFromConstantTable : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HX86LoadFromConstantTable);
 };
 
+// Version of HNeg with access to the constant table for FP types.
+class HX86FPNeg : public HExpression<2> {
+ public:
+  HX86FPNeg(Primitive::Type result_type,
+            HInstruction* input,
+            HX86ComputeBaseMethodAddress* method_base,
+            uint32_t dex_pc)
+      : HExpression(result_type, SideEffects::None(), dex_pc) {
+    DCHECK(Primitive::IsFloatingPointType(result_type));
+    SetRawInputAt(0, input);
+    SetRawInputAt(1, method_base);
+  }
+
+  DECLARE_INSTRUCTION(X86FPNeg);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HX86FPNeg);
+};
+
 // X86 version of HPackedSwitch that holds a pointer to the base method address.
 class HX86PackedSwitch : public HTemplateInstruction<2> {
  public:
