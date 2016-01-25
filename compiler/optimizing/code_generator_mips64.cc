@@ -964,11 +964,15 @@ Location CodeGeneratorMIPS64::GetStackLocation(HLoadLocal* load) const {
   return Location::NoLocation();
 }
 
-void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object, GpuRegister value) {
+void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object,
+                                     GpuRegister value,
+                                     bool value_can_be_null) {
   Mips64Label done;
   GpuRegister card = AT;
   GpuRegister temp = TMP;
-  __ Beqzc(value, &done);
+  if (value_can_be_null) {
+    __ Beqzc(value, &done);
+  }
   __ LoadFromOffset(kLoadDoubleword,
                     card,
                     TR,
@@ -976,7 +980,9 @@ void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object, GpuRegister value) {
   __ Dsrl(temp, object, gc::accounting::CardTable::kCardShift);
   __ Daddu(temp, card, temp);
   __ Sb(card, temp, 0);
-  __ Bind(&done);
+  if (value_can_be_null) {
+    __ Bind(&done);
+  }
 }
 
 void CodeGeneratorMIPS64::SetupBlockedRegisters() const {
@@ -1601,7 +1607,7 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         if (needs_write_barrier) {
           DCHECK_EQ(value_type, Primitive::kPrimNot);
-          codegen_->MarkGCCard(obj, value);
+          codegen_->MarkGCCard(obj, value, instruction->GetValueCanBeNull());
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
@@ -2827,7 +2833,8 @@ void LocationsBuilderMIPS64::HandleFieldSet(HInstruction* instruction,
 }
 
 void InstructionCodeGeneratorMIPS64::HandleFieldSet(HInstruction* instruction,
-                                                    const FieldInfo& field_info) {
+                                                    const FieldInfo& field_info,
+                                                    bool value_can_be_null) {
   Primitive::Type type = field_info.GetFieldType();
   LocationSummary* locations = instruction->GetLocations();
   GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
@@ -2869,7 +2876,7 @@ void InstructionCodeGeneratorMIPS64::HandleFieldSet(HInstruction* instruction,
   if (CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1))) {
     DCHECK(locations->InAt(1).IsRegister());
     GpuRegister src = locations->InAt(1).AsRegister<GpuRegister>();
-    codegen_->MarkGCCard(obj, src);
+    codegen_->MarkGCCard(obj, src, value_can_be_null);
   }
 }
 
@@ -2886,7 +2893,7 @@ void LocationsBuilderMIPS64::VisitInstanceFieldSet(HInstanceFieldSet* instructio
 }
 
 void InstructionCodeGeneratorMIPS64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo());
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
@@ -3810,7 +3817,7 @@ void LocationsBuilderMIPS64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo());
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderMIPS64::VisitUnresolvedInstanceFieldGet(
