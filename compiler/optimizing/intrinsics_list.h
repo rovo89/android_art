@@ -23,23 +23,35 @@
 
 #define INTRINSICS_LIST(V) \
   V(DoubleDoubleToRawLongBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(DoubleIsInfinite, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(DoubleIsNaN, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(DoubleLongBitsToDouble, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(FloatFloatToRawIntBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(FloatIsInfinite, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(FloatIsNaN, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(FloatIntBitsToFloat, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerReverse, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerReverseBytes, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerBitCount, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(IntegerCompare, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(IntegerHighestOneBit, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(IntegerLowestOneBit, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerNumberOfLeadingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerNumberOfTrailingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerRotateRight, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(IntegerRotateLeft, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(IntegerSignum, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongReverse, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongReverseBytes, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongBitCount, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(LongCompare, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(LongHighestOneBit, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(LongLowestOneBit, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongNumberOfLeadingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongNumberOfTrailingZeros, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongRotateRight, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(LongRotateLeft, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(LongSignum, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(ShortReverseBytes, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(MathAbsDouble, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(MathAbsFloat, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
