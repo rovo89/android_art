@@ -1141,7 +1141,8 @@ static void GenUnsafePut(LocationSummary* locations,
   }
 
   if (type == Primitive::kPrimNot) {
-    codegen->MarkGCCard(base, value);
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(base, value, value_can_be_null);
   }
 }
 
@@ -1286,6 +1287,12 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   DCHECK_NE(base, out);
   DCHECK_NE(offset, out);
   DCHECK_NE(expected, out);
+
+  if (type == Primitive::kPrimNot) {
+    // Mark card for object assuming new value is stored.
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(base, value, value_can_be_null);
+  }
 
   // do {
   //   tmp_value = [tmp_ptr] - expected;
