@@ -53,10 +53,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     BinaryFP(div);
   }
 
-  void VisitCompare(HCompare* compare) OVERRIDE {
-    BinaryFP(compare);
-  }
-
   void VisitReturn(HReturn* ret) OVERRIDE {
     HConstant* value = ret->InputAt(0)->AsConstant();
     if ((value != nullptr && Primitive::IsFloatingPointType(value->GetType()))) {
@@ -78,47 +74,8 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
 
   void BinaryFP(HBinaryOperation* bin) {
     HConstant* rhs = bin->InputAt(1)->AsConstant();
-    if (rhs != nullptr && Primitive::IsFloatingPointType(rhs->GetType())) {
+    if (rhs != nullptr && Primitive::IsFloatingPointType(bin->GetResultType())) {
       ReplaceInput(bin, rhs, 1, false);
-    }
-  }
-
-  void VisitEqual(HEqual* cond) OVERRIDE {
-    BinaryFP(cond);
-  }
-
-  void VisitNotEqual(HNotEqual* cond) OVERRIDE {
-    BinaryFP(cond);
-  }
-
-  void VisitLessThan(HLessThan* cond) OVERRIDE {
-    BinaryFP(cond);
-  }
-
-  void VisitLessThanOrEqual(HLessThanOrEqual* cond) OVERRIDE {
-    BinaryFP(cond);
-  }
-
-  void VisitGreaterThan(HGreaterThan* cond) OVERRIDE {
-    BinaryFP(cond);
-  }
-
-  void VisitGreaterThanOrEqual(HGreaterThanOrEqual* cond) OVERRIDE {
-    BinaryFP(cond);
-  }
-
-  void VisitNeg(HNeg* neg) OVERRIDE {
-    if (Primitive::IsFloatingPointType(neg->GetType())) {
-      // We need to replace the HNeg with a HX86FPNeg in order to address the constant area.
-      InitializePCRelativeBasePointer();
-      HGraph* graph = GetGraph();
-      HBasicBlock* block = neg->GetBlock();
-      HX86FPNeg* x86_fp_neg = new (graph->GetArena()) HX86FPNeg(
-          neg->GetType(),
-          neg->InputAt(0),
-          base_,
-          neg->GetDexPc());
-      block->ReplaceAndRemoveInstructionWith(neg, x86_fp_neg);
     }
   }
 
@@ -167,13 +124,11 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     // If this is an invoke-static/-direct with PC-relative dex cache array
     // addressing, we need the PC-relative address base.
     HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
-    bool base_added = false;
     if (invoke_static_or_direct != nullptr && invoke_static_or_direct->HasPcRelativeDexCache()) {
       InitializePCRelativeBasePointer();
       // Add the extra parameter base_.
       DCHECK(!invoke_static_or_direct->HasCurrentMethodInput());
       invoke_static_or_direct->AddSpecialInput(base_);
-      base_added = true;
     }
     // Ensure that we can load FP arguments from the constant area.
     for (size_t i = 0, e = invoke->InputCount(); i < e; i++) {
@@ -181,25 +136,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
       if (input != nullptr && Primitive::IsFloatingPointType(input->GetType())) {
         ReplaceInput(invoke, input, i, true);
       }
-    }
-
-    // These intrinsics need the constant area.
-    switch (invoke->GetIntrinsic()) {
-      case Intrinsics::kMathAbsDouble:
-      case Intrinsics::kMathAbsFloat:
-      case Intrinsics::kMathMaxDoubleDouble:
-      case Intrinsics::kMathMaxFloatFloat:
-      case Intrinsics::kMathMinDoubleDouble:
-      case Intrinsics::kMathMinFloatFloat:
-        if (!base_added) {
-          DCHECK(invoke_static_or_direct != nullptr);
-          DCHECK(!invoke_static_or_direct->HasCurrentMethodInput());
-          InitializePCRelativeBasePointer();
-          invoke_static_or_direct->AddSpecialInput(base_);
-        }
-        break;
-      default:
-        break;
     }
   }
 
