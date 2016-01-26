@@ -37,13 +37,21 @@ namespace {  // anonymous namespace
 static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicDoubleCvt
     true,   // kIntrinsicFloatCvt
+    true,   // kIntrinsicFloatIsInfinite
+    true,   // kIntrinsicDoubleIsInfinite
+    true,   // kIntrinsicFloatIsNaN
+    true,   // kIntrinsicDoubleIsNaN
     true,   // kIntrinsicReverseBits
     true,   // kIntrinsicReverseBytes
     true,   // kIntrinsicBitCount
+    true,   // kIntrinsicCompare,
+    true,   // kIntrinsicHighestOneBit
+    true,   // kIntrinsicLowestOneBit
     true,   // kIntrinsicNumberOfLeadingZeros
     true,   // kIntrinsicNumberOfTrailingZeros
     true,   // kIntrinsicRotateRight
     true,   // kIntrinsicRotateLeft
+    true,   // kIntrinsicSignum
     true,   // kIntrinsicAbsInt
     true,   // kIntrinsicAbsLong
     true,   // kIntrinsicAbsFloat
@@ -98,15 +106,23 @@ static_assert(arraysize(kIntrinsicIsStatic) == kInlineOpNop,
               "arraysize of kIntrinsicIsStatic unexpected");
 static_assert(kIntrinsicIsStatic[kIntrinsicDoubleCvt], "DoubleCvt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicFloatCvt], "FloatCvt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloatIsInfinite], "FloatIsInfinite must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicDoubleIsInfinite], "DoubleIsInfinite must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloatIsNaN], "FloatIsNaN must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicDoubleIsNaN], "DoubleIsNaN must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBits], "ReverseBits must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBytes], "ReverseBytes must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicBitCount], "BitCount must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicCompare], "Compare must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicHighestOneBit], "HighestOneBit must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicLowestOneBit], "LowestOneBit  must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfLeadingZeros],
               "NumberOfLeadingZeros must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfTrailingZeros],
               "NumberOfTrailingZeros must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicRotateRight], "RotateRight must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicRotateLeft], "RotateLeft must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicSignum], "Signum must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsInt], "AbsInt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsLong], "AbsLong must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsFloat], "AbsFloat must be static");
@@ -261,6 +277,8 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "equals",                // kNameCacheEquals
     "getCharsNoCheck",       // kNameCacheGetCharsNoCheck
     "isEmpty",               // kNameCacheIsEmpty
+    "isInfinite",            // kNameCacheIsInfinite
+    "isNaN",                 // kNameCacheIsNaN
     "indexOf",               // kNameCacheIndexOf
     "length",                // kNameCacheLength
     "<init>",                // kNameCacheInit
@@ -296,10 +314,14 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "putOrderedObject",      // kNameCachePutOrderedObject
     "arraycopy",             // kNameCacheArrayCopy
     "bitCount",              // kNameCacheBitCount
+    "compare",               // kNameCacheCompare
+    "highestOneBit",         // kNameCacheHighestOneBit
+    "lowestOneBit",          // kNameCacheLowestOneBit
     "numberOfLeadingZeros",  // kNameCacheNumberOfLeadingZeros
     "numberOfTrailingZeros",  // kNameCacheNumberOfTrailingZeros
     "rotateRight",           // kNameCacheRotateRight
     "rotateLeft",            // kNameCacheRotateLeft
+    "signum",                // kNameCacheSignum
 };
 
 const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
@@ -319,10 +341,14 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheFloat, 2, { kClassCacheFloat, kClassCacheFloat } },
     // kProtoCacheD_J
     { kClassCacheLong, 1, { kClassCacheDouble } },
+    // kProtoCacheD_Z
+    { kClassCacheBoolean, 1, { kClassCacheDouble } },
     // kProtoCacheJ_D
     { kClassCacheDouble, 1, { kClassCacheLong } },
     // kProtoCacheF_I
     { kClassCacheInt, 1, { kClassCacheFloat } },
+    // kProtoCacheF_Z
+    { kClassCacheBoolean, 1, { kClassCacheFloat } },
     // kProtoCacheI_F
     { kClassCacheFloat, 1, { kClassCacheInt } },
     // kProtoCacheII_I
@@ -351,6 +377,8 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheVoid, 2, { kClassCacheLong, kClassCacheInt } },
     // kProtoCacheJJ_J
     { kClassCacheLong, 2, { kClassCacheLong, kClassCacheLong } },
+    // kProtoCacheJJ_I
+    { kClassCacheInt, 2, { kClassCacheLong, kClassCacheLong } },
     // kProtoCacheJJ_V
     { kClassCacheVoid, 2, { kClassCacheLong, kClassCacheLong } },
     // kProtoCacheJS_V
@@ -444,6 +472,11 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangFloat, FloatToRawIntBits, F_I, kIntrinsicFloatCvt, 0),
     INTRINSIC(JavaLangFloat, IntBitsToFloat, I_F, kIntrinsicFloatCvt, kIntrinsicFlagToFloatingPoint),
 
+    INTRINSIC(JavaLangFloat, IsInfinite, F_Z, kIntrinsicFloatIsInfinite, 0),
+    INTRINSIC(JavaLangDouble, IsInfinite, D_Z, kIntrinsicDoubleIsInfinite, 0),
+    INTRINSIC(JavaLangFloat, IsNaN, F_Z, kIntrinsicFloatIsNaN, 0),
+    INTRINSIC(JavaLangDouble, IsNaN, D_Z, kIntrinsicDoubleIsNaN, 0),
+
     INTRINSIC(JavaLangInteger, ReverseBytes, I_I, kIntrinsicReverseBytes, k32),
     INTRINSIC(JavaLangLong, ReverseBytes, J_J, kIntrinsicReverseBytes, k64),
     INTRINSIC(JavaLangShort, ReverseBytes, S_S, kIntrinsicReverseBytes, kSignedHalf),
@@ -452,10 +485,18 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
     INTRINSIC(JavaLangInteger, BitCount, I_I, kIntrinsicBitCount, k32),
     INTRINSIC(JavaLangLong, BitCount, J_I, kIntrinsicBitCount, k64),
+    INTRINSIC(JavaLangInteger, Compare, II_I, kIntrinsicCompare, k32),
+    INTRINSIC(JavaLangLong, Compare, JJ_I, kIntrinsicCompare, k64),
+    INTRINSIC(JavaLangInteger, HighestOneBit, I_I, kIntrinsicHighestOneBit, k32),
+    INTRINSIC(JavaLangLong, HighestOneBit, J_J, kIntrinsicHighestOneBit, k64),
+    INTRINSIC(JavaLangInteger, LowestOneBit, I_I, kIntrinsicLowestOneBit, k32),
+    INTRINSIC(JavaLangLong, LowestOneBit, J_J, kIntrinsicLowestOneBit, k64),
     INTRINSIC(JavaLangInteger, NumberOfLeadingZeros, I_I, kIntrinsicNumberOfLeadingZeros, k32),
     INTRINSIC(JavaLangLong, NumberOfLeadingZeros, J_I, kIntrinsicNumberOfLeadingZeros, k64),
     INTRINSIC(JavaLangInteger, NumberOfTrailingZeros, I_I, kIntrinsicNumberOfTrailingZeros, k32),
     INTRINSIC(JavaLangLong, NumberOfTrailingZeros, J_I, kIntrinsicNumberOfTrailingZeros, k64),
+    INTRINSIC(JavaLangInteger, Signum, I_I, kIntrinsicSignum, k32),
+    INTRINSIC(JavaLangLong, Signum, J_I, kIntrinsicSignum, k64),
 
     INTRINSIC(JavaLangMath,       Abs, I_I, kIntrinsicAbsInt, 0),
     INTRINSIC(JavaLangStrictMath, Abs, I_I, kIntrinsicAbsInt, 0),
@@ -750,11 +791,19 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
                                           intrinsic.d.data & kIntrinsicFlagIsOrdered);
     case kIntrinsicSystemArrayCopyCharArray:
       return backend->GenInlinedArrayCopyCharArray(info);
+    case kIntrinsicFloatIsInfinite:
+    case kIntrinsicDoubleIsInfinite:
+    case kIntrinsicFloatIsNaN:
+    case kIntrinsicDoubleIsNaN:
     case kIntrinsicBitCount:
+    case kIntrinsicCompare:
+    case kIntrinsicHighestOneBit:
+    case kIntrinsicLowestOneBit:
     case kIntrinsicNumberOfLeadingZeros:
     case kIntrinsicNumberOfTrailingZeros:
     case kIntrinsicRotateRight:
     case kIntrinsicRotateLeft:
+    case kIntrinsicSignum:
     case kIntrinsicSystemArrayCopy:
       return false;   // not implemented in quick.
     default:

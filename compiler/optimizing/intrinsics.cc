@@ -131,6 +131,16 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       return ((method.d.data & kIntrinsicFlagToFloatingPoint) == 0) ?
           Intrinsics::kFloatFloatToRawIntBits : Intrinsics::kFloatIntBitsToFloat;
 
+    // Floating-point tests.
+    case kIntrinsicFloatIsInfinite:
+      return Intrinsics::kFloatIsInfinite;
+    case kIntrinsicDoubleIsInfinite:
+      return Intrinsics::kDoubleIsInfinite;
+    case kIntrinsicFloatIsNaN:
+      return Intrinsics::kFloatIsNaN;
+    case kIntrinsicDoubleIsNaN:
+      return Intrinsics::kDoubleIsNaN;
+
     // Bit manipulations.
     case kIntrinsicReverseBits:
       switch (GetType(method.d.data, true)) {
@@ -186,6 +196,36 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
+    case kIntrinsicCompare:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerCompare;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongCompare;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
+    case kIntrinsicHighestOneBit:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerHighestOneBit;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongHighestOneBit;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
+    case kIntrinsicLowestOneBit:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerLowestOneBit;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongLowestOneBit;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
     case kIntrinsicNumberOfLeadingZeros:
       switch (GetType(method.d.data, true)) {
         case Primitive::kPrimInt:
@@ -202,6 +242,16 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           return Intrinsics::kIntegerNumberOfTrailingZeros;
         case Primitive::kPrimLong:
           return Intrinsics::kLongNumberOfTrailingZeros;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
+    case kIntrinsicSignum:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerSignum;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongSignum;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
