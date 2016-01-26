@@ -2066,8 +2066,9 @@ mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref) {
 }
 
 void ConcurrentCopying::FinishPhase() {
+  Thread* const self = Thread::Current();
   {
-    MutexLock mu(Thread::Current(), mark_stack_lock_);
+    MutexLock mu(self, mark_stack_lock_);
     CHECK_EQ(pooled_mark_stacks_.size(), kMarkStackPoolSize);
   }
   region_space_ = nullptr;
@@ -2075,7 +2076,8 @@ void ConcurrentCopying::FinishPhase() {
     MutexLock mu(Thread::Current(), skipped_blocks_lock_);
     skipped_blocks_map_.clear();
   }
-  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(self, *Locks::mutator_lock_);
+  WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
   heap_->ClearMarkedObjects();
 }
 

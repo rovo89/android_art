@@ -308,7 +308,10 @@ class Heap {
   void ThreadFlipEnd(Thread* self) REQUIRES(!*thread_flip_lock_);
 
   // Clear all of the mark bits, doesn't clear bitmaps which have the same live bits as mark bits.
-  void ClearMarkedObjects() REQUIRES(Locks::heap_bitmap_lock_);
+  // Mutator lock is required for GetContinuousSpaces.
+  void ClearMarkedObjects()
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Initiates an explicit garbage collection.
   void CollectGarbage(bool clear_soft_references)
@@ -359,8 +362,12 @@ class Heap {
   // due to usage by tests.
   void SetSpaceAsDefault(space::ContinuousSpace* continuous_space)
       REQUIRES(!Locks::heap_bitmap_lock_);
-  void AddSpace(space::Space* space) REQUIRES(!Locks::heap_bitmap_lock_);
-  void RemoveSpace(space::Space* space) REQUIRES(!Locks::heap_bitmap_lock_);
+  void AddSpace(space::Space* space)
+      REQUIRES(!Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::mutator_lock_);
+  void RemoveSpace(space::Space* space)
+    REQUIRES(!Locks::heap_bitmap_lock_)
+    REQUIRES(Locks::mutator_lock_);
 
   // Set target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.setTargetHeapUtilization.
@@ -378,7 +385,13 @@ class Heap {
   void UpdateProcessState(ProcessState process_state)
       REQUIRES(!*pending_task_lock_, !*gc_complete_lock_);
 
-  const std::vector<space::ContinuousSpace*>& GetContinuousSpaces() const {
+  bool HaveContinuousSpaces() const NO_THREAD_SAFETY_ANALYSIS {
+    // No lock since vector empty is thread safe.
+    return !continuous_spaces_.empty();
+  }
+
+  const std::vector<space::ContinuousSpace*>& GetContinuousSpaces() const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return continuous_spaces_;
   }
 
@@ -518,10 +531,13 @@ class Heap {
   // get the space that corresponds to an object's address. Current implementation searches all
   // spaces in turn. If fail_ok is false then failing to find a space will cause an abort.
   // TODO: consider using faster data structure like binary tree.
-  space::ContinuousSpace* FindContinuousSpaceFromObject(const mirror::Object*, bool fail_ok) const;
+  space::ContinuousSpace* FindContinuousSpaceFromObject(const mirror::Object*, bool fail_ok) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
   space::DiscontinuousSpace* FindDiscontinuousSpaceFromObject(const mirror::Object*,
-                                                              bool fail_ok) const;
-  space::Space* FindSpaceFromObject(const mirror::Object*, bool fail_ok) const;
+                                                              bool fail_ok) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  space::Space* FindSpaceFromObject(const mirror::Object*, bool fail_ok) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os) REQUIRES(!*gc_complete_lock_);
 
@@ -577,7 +593,9 @@ class Heap {
       REQUIRES(Locks::heap_bitmap_lock_);
 
   // Unbind any bound bitmaps.
-  void UnBindBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
+  void UnBindBitmaps()
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the boot image spaces. There may be multiple boot image spaces.
   const std::vector<space::ImageSpace*>& GetBootImageSpaces() const {
@@ -604,7 +622,8 @@ class Heap {
   }
 
   // Return the corresponding rosalloc space.
-  space::RosAllocSpace* GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) const;
+  space::RosAllocSpace* GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   space::MallocSpace* GetNonMovingSpace() const {
     return non_moving_space_;
@@ -962,7 +981,8 @@ class Heap {
   void ProcessCards(TimingLogger* timings,
                     bool use_rem_sets,
                     bool process_alloc_space_cards,
-                    bool clear_alloc_space_cards);
+                    bool clear_alloc_space_cards)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
@@ -1005,10 +1025,10 @@ class Heap {
       REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_);
 
   // All-known continuous spaces, where objects lie within fixed bounds.
-  std::vector<space::ContinuousSpace*> continuous_spaces_;
+  std::vector<space::ContinuousSpace*> continuous_spaces_ GUARDED_BY(Locks::mutator_lock_);
 
   // All-known discontinuous spaces, where objects may be placed throughout virtual memory.
-  std::vector<space::DiscontinuousSpace*> discontinuous_spaces_;
+  std::vector<space::DiscontinuousSpace*> discontinuous_spaces_ GUARDED_BY(Locks::mutator_lock_);
 
   // All-known alloc spaces, where objects may be or have been allocated.
   std::vector<space::AllocSpace*> alloc_spaces_;

@@ -30,6 +30,7 @@
 #include "oat_file_assistant.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 
 namespace art {
 
@@ -376,7 +377,11 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
           std::string temp_error_msg;
           // Add image space has a race condition since other threads could be reading from the
           // spaces array.
-          runtime->GetHeap()->AddSpace(image_space.get());
+          {
+            ScopedThreadSuspension sts(self, kSuspended);
+            ScopedSuspendAll ssa("Add image space");
+            runtime->GetHeap()->AddSpace(image_space.get());
+          }
           added_image_space = true;
           if (!runtime->GetClassLinker()->AddImageSpace(image_space.get(),
                                                         h_loader,
@@ -386,7 +391,11 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
                                                         /*out*/&temp_error_msg)) {
             LOG(INFO) << "Failed to add image file " << temp_error_msg;
             dex_files.clear();
-            runtime->GetHeap()->RemoveSpace(image_space.get());
+            {
+              ScopedThreadSuspension sts(self, kSuspended);
+              ScopedSuspendAll ssa("Remove image space");
+              runtime->GetHeap()->RemoveSpace(image_space.get());
+            }
             added_image_space = false;
             // Non-fatal, don't update error_msg.
           }
