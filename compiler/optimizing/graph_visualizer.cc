@@ -505,6 +505,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     if (IsPass(LICM::kLoopInvariantCodeMotionPassName)
         || IsPass(HDeadCodeElimination::kFinalDeadCodeEliminationPassName)
         || IsPass(HDeadCodeElimination::kInitialDeadCodeEliminationPassName)
+        || IsPass(RegisterAllocator::kRegisterAllocatorPassName)
         || IsPass(SsaBuilder::kSsaBuilderPassName)) {
       HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
       if (info == nullptr) {
