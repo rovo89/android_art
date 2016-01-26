@@ -30,6 +30,7 @@
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "gc/accounting/space_bitmap-inl.h"
+#include "image-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "oat_file.h"
@@ -1032,11 +1033,12 @@ static bool RelocateInPlace(ImageHeader& image_header,
     bitmap->VisitMarkedRange(objects_begin, objects_end, fixup_object_visitor);
     FixupObjectAdapter fixup_adapter(boot_image, boot_oat, app_image, app_oat);
     // Fixup image roots.
-    CHECK(app_image.ContainsSource(reinterpret_cast<uintptr_t>(image_header.GetImageRoots())));
+    CHECK(app_image.ContainsSource(reinterpret_cast<uintptr_t>(
+        image_header.GetImageRoots<kWithoutReadBarrier>())));
     image_header.RelocateImageObjects(app_image.Delta());
     CHECK_EQ(image_header.GetImageBegin(), target_base);
     // Fix up dex cache DexFile pointers.
-    auto* dex_caches = image_header.GetImageRoot(ImageHeader::kDexCaches)->
+    auto* dex_caches = image_header.GetImageRoot<kWithoutReadBarrier>(ImageHeader::kDexCaches)->
         AsObjectArray<mirror::DexCache>();
     for (int32_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
       mirror::DexCache* dex_cache = dex_caches->Get(i);

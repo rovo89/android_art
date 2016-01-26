@@ -53,6 +53,7 @@
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "handle_scope-inl.h"
+#include "image-inl.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
