@@ -260,6 +260,7 @@
           "dalvik.system.JniTest#testPassingShorts",
           "dalvik.system.JniTest#testPassingThis",
           "libcore.util.NativeAllocationRegistryTest#testBadSize",
+          "libcore.util.NativeAllocationRegistryTest#testEarlyFree",
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationAllocatorAndNoSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationAllocatorAndSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndNoSharedRegistry",
