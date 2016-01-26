@@ -1467,7 +1467,9 @@ void MarkSweep::FinishPhase() {
   }
   CHECK(mark_stack_->IsEmpty());  // Ensure that the mark stack is empty.
   mark_stack_->Reset();
-  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  Thread* const self = Thread::Current();
+  ReaderMutexLock mu(self, *Locks::mutator_lock_);
+  WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
   heap_->ClearMarkedObjects();
 }
 

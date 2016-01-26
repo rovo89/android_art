@@ -247,7 +247,10 @@ size_t RosAllocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 size_t RosAllocSpace::Trim() {
   VLOG(heap) << "RosAllocSpace::Trim() ";
   {
-    MutexLock mu(Thread::Current(), lock_);
+    Thread* const self = Thread::Current();
+    // SOA required for Rosalloc::Trim() -> ArtRosAllocMoreCore() -> Heap::GetRosAllocSpace.
+    ScopedObjectAccess soa(self);
+    MutexLock mu(self, lock_);
     // Trim to release memory at the end of the space.
     rosalloc_->Trim();
   }
@@ -373,7 +376,8 @@ void RosAllocSpace::Clear() {
 namespace allocator {
 
 // Callback from rosalloc when it needs to increase the footprint.
-void* ArtRosAllocMoreCore(allocator::RosAlloc* rosalloc, intptr_t increment) {
+void* ArtRosAllocMoreCore(allocator::RosAlloc* rosalloc, intptr_t increment)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   Heap* heap = Runtime::Current()->GetHeap();
   art::gc::space::RosAllocSpace* rosalloc_space = heap->GetRosAllocSpace(rosalloc);
   DCHECK(rosalloc_space != nullptr);

@@ -22,6 +22,7 @@
 #include "mirror/array-inl.h"
 #include "space_bitmap-inl.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 
 namespace art {
 namespace gc {
@@ -184,7 +185,11 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   std::unique_ptr<space::DlMallocSpace> other_space(space::DlMallocSpace::Create(
       "other space", 128 * KB, 4 * MB, 4 * MB, nullptr, false));
   ASSERT_TRUE(other_space.get() != nullptr);
-  heap->AddSpace(other_space.get());
+  {
+    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedSuspendAll ssa("Add image space");
+    heap->AddSpace(other_space.get());
+  }
   std::unique_ptr<ModUnionTable> table(ModUnionTableFactory::Create(
       type, space, other_space.get()));
   ASSERT_TRUE(table.get() != nullptr);
@@ -253,6 +258,8 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   std::ostringstream oss2;
   table->Dump(oss2);
   // Remove the space we added so it doesn't persist to the next test.
+  ScopedThreadSuspension sts(self, kSuspended);
+  ScopedSuspendAll ssa("Add image space");
   heap->RemoveSpace(other_space.get());
 }
 

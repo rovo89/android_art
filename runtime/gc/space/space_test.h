@@ -27,6 +27,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
+#include "thread_list.h"
 #include "zygote_space.h"
 
 namespace art {
@@ -43,7 +44,11 @@ class SpaceTest : public Super {
     if (revoke) {
       heap->RevokeAllThreadLocalBuffers();
     }
-    heap->AddSpace(space);
+    {
+      ScopedThreadStateChange sts(Thread::Current(), kSuspended);
+      ScopedSuspendAll ssa("Add image space");
+      heap->AddSpace(space);
+    }
     heap->SetSpaceAsDefault(space);
   }
 

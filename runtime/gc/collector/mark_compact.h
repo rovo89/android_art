@@ -106,7 +106,7 @@ class MarkCompact : public GarbageCollector {
       REQUIRES(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
-  void Sweep(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
+  void Sweep(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
   void SweepLargeObjects(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
