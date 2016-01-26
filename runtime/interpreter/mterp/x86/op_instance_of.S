@@ -10,13 +10,13 @@
     movl    %eax, OUT_ARG0(%esp)
     movl    rINST, %eax                     # eax <- BA
     sarl    $$4, %eax                       # eax <- B
-    GET_VREG %ecx %eax                      # Get object
+    leal    VREG_ADDRESS(%eax), %ecx        # Get object address
     movl    %ecx, OUT_ARG1(%esp)
     movl    OFF_FP_METHOD(rFP),%eax
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpInstanceOf                 # (index, obj, method, self)
+    call    MterpInstanceOf                 # (index, &obj, method, self)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
