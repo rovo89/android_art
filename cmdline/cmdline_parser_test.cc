@@ -535,7 +535,7 @@ TEST_F(CmdlineParserTest, TestProfilerOptions) {
 
 /* -Xexperimental:_ */
 TEST_F(CmdlineParserTest, TestExperimentalFlags) {
-  // Off by default
+  // Default
   EXPECT_SINGLE_PARSE_DEFAULT_VALUE(ExperimentalFlags::kNone,
                                     "",
                                     M::Experimental);
@@ -547,16 +547,6 @@ TEST_F(CmdlineParserTest, TestExperimentalFlags) {
 
   // Enabled explicitly
   EXPECT_SINGLE_PARSE_VALUE(ExperimentalFlags::kLambdas,
-                            "-Xexperimental:lambdas",
-                            M::Experimental);
-  // Enabled explicitly
-  EXPECT_SINGLE_PARSE_VALUE(ExperimentalFlags::kDefaultMethods,
-                            "-Xexperimental:default-methods",
-                            M::Experimental);
-
-  // Enabled both
-  EXPECT_SINGLE_PARSE_VALUE(ExperimentalFlags::kDefaultMethods | ExperimentalFlags::kLambdas,
-                            "-Xexperimental:default-methods "
                             "-Xexperimental:lambdas",
                             M::Experimental);
 }
