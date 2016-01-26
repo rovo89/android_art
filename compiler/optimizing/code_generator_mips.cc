@@ -2245,13 +2245,13 @@ void LocationsBuilderMIPS::HandleCondition(HCondition* instruction) {
       locations->SetInAt(1, Location::RequiresFpuRegister());
       break;
   }
-  if (instruction->NeedsMaterialization()) {
+  if (!instruction->IsEmittedAtUseSite()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
 }
 
 void InstructionCodeGeneratorMIPS::HandleCondition(HCondition* instruction) {
-  if (!instruction->NeedsMaterialization()) {
+  if (instruction->IsEmittedAtUseSite()) {
     return;
   }
 

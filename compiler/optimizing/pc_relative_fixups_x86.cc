@@ -115,7 +115,10 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
   void ReplaceInput(HInstruction* insn, HConstant* value, int input_index, bool materialize) {
     InitializePCRelativeBasePointer();
     HX86LoadFromConstantTable* load_constant =
-        new (GetGraph()->GetArena()) HX86LoadFromConstantTable(base_, value, materialize);
+        new (GetGraph()->GetArena()) HX86LoadFromConstantTable(base_, value);
+    if (!materialize) {
+      load_constant->MarkEmittedAtUseSite();
+    }
     insn->GetBlock()->InsertInstructionBefore(load_constant, insn);
     insn->ReplaceInput(load_constant, input_index);
   }

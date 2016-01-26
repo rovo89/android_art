@@ -113,10 +113,6 @@ class UsePosition : public ArenaObject<kArenaAllocSsaLiveness> {
         input_index_(input_index),
         position_(position),
         next_(next) {
-    DCHECK((user == nullptr)
-        || user->IsPhi()
-        || (GetPosition() == user->GetLifetimePosition() + 1)
-        || (GetPosition() == user->GetLifetimePosition()));
     DCHECK(environment == nullptr || user == nullptr);
     DCHECK(next_ == nullptr || next->GetPosition() >= GetPosition());
   }
@@ -243,21 +239,30 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     AddRange(position, position + 1);
   }
 
+  // Record use of an input. The use will be recorded as an environment use if
+  // `environment` is not null and as register use otherwise. If `actual_user`
+  // is specified, the use will be recorded at `actual_user`'s lifetime position.
   void AddUse(HInstruction* instruction,
               HEnvironment* environment,
               size_t input_index,
+              HInstruction* actual_user = nullptr,
               bool keep_alive = false) {
-    // Set the use within the instruction.
     bool is_environment = (environment != nullptr);
-    size_t position = instruction->GetLifetimePosition() + 1;
     LocationSummary* locations = instruction->GetLocations();
+    if (actual_user == nullptr) {
+      actual_user = instruction;
+    }
+
+    // Set the use within the instruction.
+    size_t position = actual_user->GetLifetimePosition() + 1;
     if (!is_environment) {
       if (locations->IsFixedInput(input_index) || locations->OutputUsesSameAs(input_index)) {
         // For fixed inputs and output same as input, the register allocator
         // requires to have inputs die at the instruction, so that input moves use the
         // location of the input just before that instruction (and not potential moves due
         // to splitting).
-        position = instruction->GetLifetimePosition();
+        DCHECK_EQ(instruction, actual_user);
+        position = actual_user->GetLifetimePosition();
       } else if (!locations->InAt(input_index).IsValid()) {
         return;
       }
@@ -267,11 +272,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       AddBackEdgeUses(*instruction->GetBlock());
     }
 
-    DCHECK(position == instruction->GetLifetimePosition()
-           || position == instruction->GetLifetimePosition() + 1);
-
     if ((first_use_ != nullptr)
-        && (first_use_->GetUser() == instruction)
+        && (first_use_->GetUser() == actual_user)
         && (first_use_->GetPosition() < position)) {
       // The user uses the instruction multiple times, and one use dies before the other.
       // We update the use list so that the latter is first.
