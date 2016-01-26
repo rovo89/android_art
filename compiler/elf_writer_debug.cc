@@ -1158,9 +1158,13 @@ class DebugLineWriter {
         for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
           StackMap stack_map = code_info.GetStackMapAt(s, encoding);
           DCHECK(stack_map.IsValid());
-          const uint32_t pc = stack_map.GetNativePcOffset(encoding);
-          const int32_t dex = stack_map.GetDexPc(encoding);
-          src_mapping_table_from_stack_maps.push_back({pc, dex});
+          // Emit only locations where we have local-variable information.
+          // In particular, skip mappings inside the prologue.
+          if (stack_map.HasDexRegisterMap(encoding)) {
+            const uint32_t pc = stack_map.GetNativePcOffset(encoding);
+            const int32_t dex = stack_map.GetDexPc(encoding);
+            src_mapping_table_from_stack_maps.push_back({pc, dex});
+          }
         }
         std::sort(src_mapping_table_from_stack_maps.begin(),
                   src_mapping_table_from_stack_maps.end());
