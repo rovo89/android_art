@@ -74,8 +74,7 @@ class Handle : public ValueObject {
     return reference_;
   }
 
-  ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+  ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const {
     return reference_;
   }
 
