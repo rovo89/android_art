@@ -525,16 +525,19 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
+# Tests that should fail in the read barrier configuration with the interpreter.
+# 004: Occasional timeout: "TEST TIMED OUT!" (b/26786154).
+# 141: Occasional failures: "Aborted" (b/25866001).
+TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS := \
+  004-ThreadStress \
+  141-class-unload
 
 # Tests that should fail in the read barrier configuration with the default (Quick) compiler (AOT).
-# 004: Occasional timeout: "TEST TIMED OUT!" (b/26786154).
-# 137: Quick has no support for read barriers and punts to the
-#      interpreter, but CFI unwinding expects managed frames.
-# 554: Quick does not support JIT profiling.
+# Quick has no support for read barriers and punts to the interpreter, so this list is composed of
+# tests expected to fail with the interpreter, both on the concurrent collector and in general.
 TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS := \
-  004-ThreadStress \
-  137-cfi \
-  554-jit-profile-file
+  $(TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS) \
+  $(TEST_ART_BROKEN_INTERPRETER_RUN_TESTS)
 
 # Tests that should fail in the read barrier configuration with the Optimizing compiler (AOT).
 # 004: Occasional timeout: "TEST TIMED OUT!" (b/26786154).
@@ -560,6 +563,13 @@ TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS := \
   496-checker-inlining-and-class-loader
 
 ifeq ($(ART_USE_READ_BARRIER),true)
+  ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),interpreter,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
+        $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
+
   ifneq (,$(filter default,$(COMPILER_TYPES)))
     ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
         $(PREBUILD_TYPES),default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
