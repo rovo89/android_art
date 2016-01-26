@@ -135,7 +135,9 @@ class SemiSpace : public GarbageCollector {
       REQUIRES(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
-  virtual void Sweep(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
+  virtual void Sweep(bool swap_bitmaps)
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
   void SweepLargeObjects(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);

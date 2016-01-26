@@ -314,32 +314,33 @@ static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
   size_t largeObjectsSize = 0;
   size_t largeObjectsUsed = 0;
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  for (gc::space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
-    if (space->IsImageSpace()) {
-      // Currently don't include the image space.
-    } else if (space->IsZygoteSpace()) {
-      gc::space::ZygoteSpace* zygote_space = space->AsZygoteSpace();
-      zygoteSize += zygote_space->Size();
-      zygoteUsed += zygote_space->GetBytesAllocated();
-    } else if (space->IsMallocSpace()) {
-      // This is a malloc space.
-      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
-      allocSize += malloc_space->GetFootprint();
-      allocUsed += malloc_space->GetBytesAllocated();
-    } else if (space->IsBumpPointerSpace()) {
-      ScopedObjectAccess soa(env);
-      gc::space::BumpPointerSpace* bump_pointer_space = space->AsBumpPointerSpace();
-      allocSize += bump_pointer_space->Size();
-      allocUsed += bump_pointer_space->GetBytesAllocated();
+  {
+    ScopedObjectAccess soa(env);
+    for (gc::space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
+      if (space->IsImageSpace()) {
+        // Currently don't include the image space.
+      } else if (space->IsZygoteSpace()) {
+        gc::space::ZygoteSpace* zygote_space = space->AsZygoteSpace();
+        zygoteSize += zygote_space->Size();
+        zygoteUsed += zygote_space->GetBytesAllocated();
+      } else if (space->IsMallocSpace()) {
+        // This is a malloc space.
+        gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+        allocSize += malloc_space->GetFootprint();
+        allocUsed += malloc_space->GetBytesAllocated();
+      } else if (space->IsBumpPointerSpace()) {
+        gc::space::BumpPointerSpace* bump_pointer_space = space->AsBumpPointerSpace();
+        allocSize += bump_pointer_space->Size();
+        allocUsed += bump_pointer_space->GetBytesAllocated();
+      }
+    }
+    for (gc::space::DiscontinuousSpace* space : heap->GetDiscontinuousSpaces()) {
+      if (space->IsLargeObjectSpace()) {
+        largeObjectsSize += space->AsLargeObjectSpace()->GetBytesAllocated();
+        largeObjectsUsed += largeObjectsSize;
+      }
     }
   }
-  for (gc::space::DiscontinuousSpace* space : heap->GetDiscontinuousSpaces()) {
-    if (space->IsLargeObjectSpace()) {
-      largeObjectsSize += space->AsLargeObjectSpace()->GetBytesAllocated();
-      largeObjectsUsed += largeObjectsSize;
-    }
-  }
-
   size_t allocFree = allocSize - allocUsed;
   size_t zygoteFree = zygoteSize - zygoteUsed;
   size_t largeObjectsFree = largeObjectsSize - largeObjectsUsed;
