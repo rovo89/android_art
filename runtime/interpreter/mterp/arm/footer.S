@@ -150,12 +150,8 @@ MterpExceptionReturn:
     b MterpDone
 MterpReturn:
     ldr     r2, [rFP, #OFF_FP_RESULT_REGISTER]
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     str     r0, [r2]
     str     r1, [r2, #4]
-    mov     r0, rSELF
-    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    blne    MterpSuspendCheck                       @ (self)
     mov     r0, #1                                  @ signal return to caller.
 MterpDone:
     add     sp, sp, #4                              @ un-align 64

@@ -599,6 +599,10 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: arm/op_return_void.S */
     .extern MterpThreadFenceForConstructor
     bl      MterpThreadFenceForConstructor
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    mov     r0, rSELF
+    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    blne    MterpSuspendCheck                       @ (self)
     mov    r0, #0
     mov    r1, #0
     b      MterpReturn
@@ -615,6 +619,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA */
     .extern MterpThreadFenceForConstructor
     bl      MterpThreadFenceForConstructor
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    mov     r0, rSELF
+    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    blne    MterpSuspendCheck                       @ (self)
     mov     r2, rINST, lsr #8           @ r2<- AA
     GET_VREG r0, r2                     @ r0<- vAA
     mov     r1, #0
@@ -630,6 +638,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* return-wide vAA */
     .extern MterpThreadFenceForConstructor
     bl      MterpThreadFenceForConstructor
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    mov     r0, rSELF
+    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    blne    MterpSuspendCheck                       @ (self)
     mov     r2, rINST, lsr #8           @ r2<- AA
     add     r2, rFP, r2, lsl #2         @ r2<- &fp[AA]
     ldmia   r2, {r0-r1}                 @ r0/r1 <- vAA/vAA+1
@@ -648,6 +660,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA */
     .extern MterpThreadFenceForConstructor
     bl      MterpThreadFenceForConstructor
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    mov     r0, rSELF
+    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    blne    MterpSuspendCheck                       @ (self)
     mov     r2, rINST, lsr #8           @ r2<- AA
     GET_VREG r0, r2                     @ r0<- vAA
     mov     r1, #0
@@ -878,10 +894,10 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     FETCH    r0, 1                      @ r0<- BBBB
     mov      r1, rINST, lsr #8          @ r1<- AA
-    GET_VREG r1, r1                     @ r1<- object
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &object
     ldr      r2, [rFP, #OFF_FP_METHOD]  @ r2<- method
     mov      r3, rSELF                  @ r3<- self
-    bl       MterpCheckCast             @ (index, obj, method, self)
+    bl       MterpCheckCast             @ (index, &obj, method, self)
     PREFETCH_INST 2
     cmp      r0, #0
     bne      MterpPossibleException
@@ -903,12 +919,12 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     FETCH     r0, 1                     @ r0<- CCCC
     mov       r1, rINST, lsr #12        @ r1<- B
-    GET_VREG  r1, r1                    @ r1<- vB (object)
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &object
     ldr       r2, [rFP, #OFF_FP_METHOD] @ r2<- method
     mov       r3, rSELF                 @ r3<- self
     mov       r9, rINST, lsr #8         @ r9<- A+
     and       r9, r9, #15               @ r9<- A
-    bl        MterpInstanceOf           @ (index, obj, method, self)
+    bl        MterpInstanceOf           @ (index, &obj, method, self)
     ldr       r1, [rSELF, #THREAD_EXCEPTION_OFFSET]
     PREFETCH_INST 2
     cmp       r1, #0                    @ exception pending?
@@ -3385,6 +3401,10 @@ artMterpAsmInstructionStart = .L_op_nop
     .balign 128
 .L_op_return_void_no_barrier: /* 0x73 */
 /* File: arm/op_return_void_no_barrier.S */
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    mov     r0, rSELF
+    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    blne    MterpSuspendCheck                       @ (self)
     mov    r0, #0
     mov    r1, #0
     b      MterpReturn
@@ -12183,12 +12203,8 @@ MterpExceptionReturn:
     b MterpDone
 MterpReturn:
     ldr     r2, [rFP, #OFF_FP_RESULT_REGISTER]
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     str     r0, [r2]
     str     r1, [r2, #4]
-    mov     r0, rSELF
-    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    blne    MterpSuspendCheck                       @ (self)
     mov     r0, #1                                  @ signal return to caller.
 MterpDone:
     add     sp, sp, #4                              @ un-align 64

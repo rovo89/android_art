@@ -8,12 +8,12 @@
     EXPORT_PC
     FETCH     r0, 1                     @ r0<- CCCC
     mov       r1, rINST, lsr #12        @ r1<- B
-    GET_VREG  r1, r1                    @ r1<- vB (object)
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &object
     ldr       r2, [rFP, #OFF_FP_METHOD] @ r2<- method
     mov       r3, rSELF                 @ r3<- self
     mov       r9, rINST, lsr #8         @ r9<- A+
     and       r9, r9, #15               @ r9<- A
-    bl        MterpInstanceOf           @ (index, obj, method, self)
+    bl        MterpInstanceOf           @ (index, &obj, method, self)
     ldr       r1, [rSELF, #THREAD_EXCEPTION_OFFSET]
     PREFETCH_INST 2
     cmp       r1, #0                    @ exception pending?
