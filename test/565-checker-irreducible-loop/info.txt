@@ -1,2 +1,0 @@
-Regression test for optimizing in the presence of
-an irreducible loop.
