@@ -159,7 +159,7 @@ class ReferenceTypeInfo : ValueObject {
 
   static ReferenceTypeInfo CreateInvalid() { return ReferenceTypeInfo(); }
 
-  static bool IsValidHandle(TypeHandle handle) SHARED_REQUIRES(Locks::mutator_lock_) {
+  static bool IsValidHandle(TypeHandle handle) {
     return handle.GetReference() != nullptr;
   }
 

@@ -62,8 +62,7 @@ class PACKED(4) HandleScope {
   ALWAYS_INLINE mirror::Object* GetReference(size_t i) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE Handle<mirror::Object> GetHandle(size_t i)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE Handle<mirror::Object> GetHandle(size_t i);
 
   ALWAYS_INLINE MutableHandle<mirror::Object> GetMutableHandle(size_t i)
       SHARED_REQUIRES(Locks::mutator_lock_);
