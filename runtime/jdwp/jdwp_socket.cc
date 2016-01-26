@@ -37,22 +37,6 @@ namespace JDWP {
 static constexpr uint16_t kBasePort = 8000;
 static constexpr uint16_t kMaxPort = 8040;
 
-// Initial size of the work buffer used in gethostbyname_r.
-//
-// The call to gethostbyname_r below requires a user-allocated buffer,
-// the size of which depends on the system. The initial implementation
-// used to use a 128-byte buffer, but that was not enough on some
-// systems (maybe because of IPv6), causing failures in JDWP host
-// testing; thus it was increased to 256.
-//
-// However, we should not use a fixed size: gethostbyname_r's
-// documentation states that if the work buffer is too small (i.e. if
-// gethostbyname_r returns `ERANGE`), then the function should be
-// called again with a bigger buffer. Which we do now, starting with
-// an initial 256-byte buffer, and doubling it until gethostbyname_r
-// accepts this size.
-static constexpr size_t kInitialAuxBufSize = 256;
-
 /*
  * JDWP network state.
  *
@@ -291,8 +275,24 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
    * Start by resolving the host name.
    */
 #if defined(__linux__)
-  hostent he;
+  // Initial size of the work buffer used in gethostbyname_r.
+  //
+  // The call to gethostbyname_r below requires a user-allocated buffer,
+  // the size of which depends on the system. The initial implementation
+  // used to use a 128-byte buffer, but that was not enough on some
+  // systems (maybe because of IPv6), causing failures in JDWP host
+  // testing; thus it was increased to 256.
+  //
+  // However, we should not use a fixed size: gethostbyname_r's
+  // documentation states that if the work buffer is too small (i.e. if
+  // gethostbyname_r returns `ERANGE`), then the function should be
+  // called again with a bigger buffer. Which we do now, starting with
+  // an initial 256-byte buffer, and doubling it until gethostbyname_r
+  // accepts this size.
+  static constexpr size_t kInitialAuxBufSize = 256;
+
   std::vector<char> auxBuf(kInitialAuxBufSize);
+  hostent he;
   int error;
   int cc;
   while ((cc = gethostbyname_r(
