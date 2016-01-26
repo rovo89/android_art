@@ -42,13 +42,12 @@ pthread_t ProfileSaver::profiler_pthread_ = 0U;
 ProfileSaver::ProfileSaver(const std::string& output_filename,
                            jit::JitCodeCache* jit_code_cache,
                            const std::vector<std::string>& code_paths)
-    : output_filename_(output_filename),
-      jit_code_cache_(jit_code_cache),
-      tracked_dex_base_locations_(code_paths.begin(), code_paths.end()),
+    : jit_code_cache_(jit_code_cache),
       code_cache_last_update_time_ns_(0),
       shutting_down_(false),
       wait_lock_("ProfileSaver wait lock"),
       period_condition_("ProfileSaver period condition", wait_lock_) {
+  AddTrackedLocations(output_filename, code_paths);
 }
 
 void ProfileSaver::Run() {
@@ -86,8 +85,6 @@ void ProfileSaver::Run() {
 }
 
 bool ProfileSaver::ProcessProfilingInfo() {
-  VLOG(profiler) << "Save profiling information to: " << output_filename_;
-
   uint64_t last_update_time_ns = jit_code_cache_->GetLastUpdateTimeNs();
   if (last_update_time_ns - code_cache_last_update_time_ns_
       < kMinimumTimeBetweenCodeCacheUpdatesNs) {
@@ -99,18 +96,36 @@ bool ProfileSaver::ProcessProfilingInfo() {
 
   uint64_t start = NanoTime();
   code_cache_last_update_time_ns_ = last_update_time_ns;
-  std::vector<ArtMethod*> methods;
+  SafeMap<std::string, std::set<std::string>> tracked_locations;
   {
-    ScopedObjectAccess soa(Thread::Current());
-    jit_code_cache_->GetCompiledArtMethods(tracked_dex_base_locations_, methods);
+    // Make a copy so that we don't hold the lock while doing I/O.
+    MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+    tracked_locations = tracked_dex_base_locations_;
   }
-  if (methods.size() < kMinimumNrOrMethodsToSave) {
-    VLOG(profiler) << "Not enough information to save. Nr of methods: " << methods.size();
-    return false;
-  }
+  for (const auto& it : tracked_locations) {
+    if (ShuttingDown(Thread::Current())) {
+      return true;
+    }
+    const std::string& filename = it.first;
+    const std::set<std::string>& locations = it.second;
+    std::vector<ArtMethod*> methods;
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      jit_code_cache_->GetCompiledArtMethods(locations, methods);
+    }
+    if (methods.size() < kMinimumNrOrMethodsToSave) {
+      VLOG(profiler) << "Not enough information to save to: " << filename
+          <<" Nr of methods: " << methods.size();
+      return false;
+    }
 
-  ProfileCompilationInfo::SaveProfilingInfo(output_filename_, methods);
-  VLOG(profiler) << "Profile process time: " << PrettyDuration(NanoTime() - start);
+    if (!ProfileCompilationInfo::SaveProfilingInfo(filename, methods)) {
+      LOG(WARNING) << "Could not save profiling info to " << filename;
+      return false;
+    }
+
+    VLOG(profiler) << "Profile process time: " << PrettyDuration(NanoTime() - start);
+  }
   return true;
 }
 
@@ -137,9 +152,13 @@ void ProfileSaver::Start(const std::string& output_filename,
   DCHECK(jit_code_cache != nullptr);
 
   MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
-  // Don't start two profile saver threads.
   if (instance_ != nullptr) {
-    DCHECK(false) << "Tried to start two profile savers";
+    // If we already have an instance, make sure it uses the same jit_code_cache.
+    // This may be called multiple times via Runtime::registerAppInfo (e.g. for
+    // apps which share the same runtime).
+    DCHECK_EQ(instance_->jit_code_cache_, jit_code_cache);
+    // Add the code_paths to the tracked locations.
+    instance_->AddTrackedLocations(output_filename, code_paths);
     return;
   }
 
@@ -161,7 +180,7 @@ void ProfileSaver::Stop() {
 
   {
     MutexLock profiler_mutex(Thread::Current(), *Locks::profiler_lock_);
-    VLOG(profiler) << "Stopping profile saver thread for file: " << instance_->output_filename_;
+    VLOG(profiler) << "Stopping profile saver thread";
     profile_saver = instance_;
     profiler_pthread = profiler_pthread_;
     if (instance_ == nullptr) {
@@ -200,6 +219,17 @@ bool ProfileSaver::ShuttingDown(Thread* self) {
 bool ProfileSaver::IsStarted() {
   MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
   return instance_ != nullptr;
+}
+
+void ProfileSaver::AddTrackedLocations(const std::string& output_filename,
+                                       const std::vector<std::string>& code_paths) {
+  auto it = tracked_dex_base_locations_.find(output_filename);
+  if (it == tracked_dex_base_locations_.end()) {
+    tracked_dex_base_locations_.Put(output_filename,
+                                    std::set<std::string>(code_paths.begin(), code_paths.end()));
+  } else {
+    it->second.insert(code_paths.begin(), code_paths.end());
+  }
 }
 
 }   // namespace art
