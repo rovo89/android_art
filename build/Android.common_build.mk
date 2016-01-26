@@ -318,6 +318,10 @@ ifeq ($(ART_USE_READ_BARRIER),true)
   art_cflags += -DART_READ_BARRIER_TYPE_IS_$(ART_READ_BARRIER_TYPE)=1
   art_asflags += -DART_USE_READ_BARRIER=1
   art_asflags += -DART_READ_BARRIER_TYPE_IS_$(ART_READ_BARRIER_TYPE)=1
+
+  # Temporarily override -fstack-protector-strong with -fstack-protector to avoid a major
+  # slowdown with the read barrier config. b/26744236.
+  art_cflags += -fstack-protector
 endif
 
 ifeq ($(ART_USE_TLAB),true)
