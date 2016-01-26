@@ -801,6 +801,7 @@ bool Heap::IsCompilingBoot() const {
   if (!Runtime::Current()->IsAotCompiler()) {
     return false;
   }
+  ScopedObjectAccess soa(Thread::Current());
   for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace() || space->IsZygoteSpace()) {
       return false;
@@ -1381,15 +1382,18 @@ void Heap::TrimSpaces(Thread* self) {
   uint64_t total_alloc_space_allocated = 0;
   uint64_t total_alloc_space_size = 0;
   uint64_t managed_reclaimed = 0;
-  for (const auto& space : continuous_spaces_) {
-    if (space->IsMallocSpace()) {
-      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
-      if (malloc_space->IsRosAllocSpace() || !CareAboutPauseTimes()) {
-        // Don't trim dlmalloc spaces if we care about pauses since this can hold the space lock
-        // for a long period of time.
-        managed_reclaimed += malloc_space->Trim();
+  {
+    ScopedObjectAccess soa(self);
+    for (const auto& space : continuous_spaces_) {
+      if (space->IsMallocSpace()) {
+        gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+        if (malloc_space->IsRosAllocSpace() || !CareAboutPauseTimes()) {
+          // Don't trim dlmalloc spaces if we care about pauses since this can hold the space lock
+          // for a long period of time.
+          managed_reclaimed += malloc_space->Trim();
+        }
+        total_alloc_space_size += malloc_space->Size();
       }
-      total_alloc_space_size += malloc_space->Size();
     }
   }
   total_alloc_space_allocated = GetBytesAllocated();
@@ -1520,6 +1524,7 @@ std::string Heap::DumpSpaces() const {
 }
 
 void Heap::DumpSpaces(std::ostream& stream) const {
+  ScopedObjectAccess soa(Thread::Current());
   for (const auto& space : continuous_spaces_) {
     accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
     accounting::ContinuousSpaceBitmap* mark_bitmap = space->GetMarkBitmap();
@@ -1598,6 +1603,9 @@ void Heap::RecordFreeRevoke() {
 }
 
 space::RosAllocSpace* Heap::GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) const {
+  if (rosalloc_space_ != nullptr && rosalloc_space_->GetRosAlloc() == rosalloc) {
+    return rosalloc_space_;
+  }
   for (const auto& space : continuous_spaces_) {
     if (space->AsContinuousSpace()->IsRosAllocSpace()) {
       if (space->AsContinuousSpace()->AsRosAllocSpace()->GetRosAlloc() == rosalloc) {
@@ -3530,7 +3538,8 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
 
 void Heap::ClampGrowthLimit() {
   // Use heap bitmap lock to guard against races with BindLiveToMarkBitmap.
-  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  ScopedObjectAccess soa(Thread::Current());
+  WriterMutexLock mu(soa.Self(), *Locks::heap_bitmap_lock_);
   capacity_ = growth_limit_;
   for (const auto& space : continuous_spaces_) {
     if (space->IsMallocSpace()) {
@@ -3546,6 +3555,7 @@ void Heap::ClampGrowthLimit() {
 
 void Heap::ClearGrowthLimit() {
   growth_limit_ = capacity_;
+  ScopedObjectAccess soa(Thread::Current());
   for (const auto& space : continuous_spaces_) {
     if (space->IsMallocSpace()) {
       gc::space::MallocSpace* malloc_space = space->AsMallocSpace();

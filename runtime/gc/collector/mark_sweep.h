@@ -85,7 +85,7 @@ class MarkSweep : public GarbageCollector {
   void Init();
 
   // Find the default mark bitmap.
-  void FindDefaultSpaceBitmap();
+  void FindDefaultSpaceBitmap() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Marks all objects in the root set at the start of a garbage collection.
   void MarkRoots(Thread* self)

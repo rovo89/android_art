@@ -153,7 +153,9 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   void ResetCumulativeStatistics() REQUIRES(!pause_histogram_lock_);
   // Swap the live and mark bitmaps of spaces that are active for the collector. For partial GC,
   // this is the allocation space, for full GC then we swap the zygote bitmaps too.
-  void SwapBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
+  void SwapBitmaps()
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   uint64_t GetTotalPausedTimeNs() REQUIRES(!pause_histogram_lock_);
   int64_t GetTotalFreedBytes() const {
     return total_freed_bytes_;

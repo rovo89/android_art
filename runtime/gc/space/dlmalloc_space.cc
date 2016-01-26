@@ -319,7 +319,7 @@ void DlMallocSpace::LogFragmentationAllocFailure(std::ostream& os,
 namespace allocator {
 
 // Implement the dlmalloc morecore callback.
-void* ArtDlMallocMoreCore(void* mspace, intptr_t increment) {
+void* ArtDlMallocMoreCore(void* mspace, intptr_t increment) SHARED_REQUIRES(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   Heap* heap = runtime->GetHeap();
   ::art::gc::space::DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();

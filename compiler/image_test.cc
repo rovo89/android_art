@@ -181,7 +181,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
     ASSERT_NE(0U, bitmap_section.Size());
 
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    ASSERT_TRUE(!heap->GetContinuousSpaces().empty());
+    ASSERT_TRUE(heap->HaveContinuousSpaces());
     gc::space::ContinuousSpace* space = heap->GetNonMovingSpace();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != nullptr);
