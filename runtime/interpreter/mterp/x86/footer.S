@@ -169,12 +169,6 @@ MterpReturn:
     movl    OFF_FP_RESULT_REGISTER(rFP), %edx
     movl    %eax, (%edx)
     movl    %ecx, 4(%edx)
-    movl    rSELF, %eax
-    testl   $$(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
-    jz      1f
-    movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
-1:
     mov     $$1, %eax
 MterpDone:
     /* Restore callee save register */

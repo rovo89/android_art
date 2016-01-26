@@ -274,13 +274,15 @@ extern "C" bool MterpConstClass(uint32_t index, uint32_t tgt_vreg, ShadowFrame* 
   return false;
 }
 
-extern "C" bool MterpCheckCast(uint32_t index, Object* obj, art::ArtMethod* method,
-                               Thread* self)
+extern "C" bool MterpCheckCast(uint32_t index, StackReference<mirror::Object>* vreg_addr,
+                               art::ArtMethod* method, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   Class* c = ResolveVerifyAndClinit(index, method, self, false, false);
   if (UNLIKELY(c == nullptr)) {
     return true;
   }
+  // Must load obj from vreg following ResolveVerifyAndClinit due to moving gc.
+  Object* obj = vreg_addr->AsMirrorPtr();
   if (UNLIKELY(obj != nullptr && !obj->InstanceOf(c))) {
     ThrowClassCastException(c, obj->GetClass());
     return true;
@@ -288,13 +290,15 @@ extern "C" bool MterpCheckCast(uint32_t index, Object* obj, art::ArtMethod* meth
   return false;
 }
 
-extern "C" bool MterpInstanceOf(uint32_t index, Object* obj, art::ArtMethod* method,
-                                Thread* self)
+extern "C" bool MterpInstanceOf(uint32_t index, StackReference<mirror::Object>* vreg_addr,
+                                art::ArtMethod* method, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   Class* c = ResolveVerifyAndClinit(index, method, self, false, false);
   if (UNLIKELY(c == nullptr)) {
     return false;  // Caller will check for pending exception.  Return value unimportant.
   }
+  // Must load obj from vreg following ResolveVerifyAndClinit due to moving gc.
+  Object* obj = vreg_addr->AsMirrorPtr();
   return (obj != nullptr) && obj->InstanceOf(c);
 }
 
@@ -505,8 +509,7 @@ extern "C" int artSet64IndirectStaticFromMterp(uint32_t field_idx, ArtMethod* re
                                                uint64_t* new_value, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
-                                          sizeof(int64_t));
+  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != nullptr)) {
     // Compiled code can't use transactional mode.
     field->Set64<false>(field->GetDeclaringClass(), *new_value);
@@ -524,8 +527,7 @@ extern "C" int artSet64IndirectStaticFromMterp(uint32_t field_idx, ArtMethod* re
 extern "C" int artSet8InstanceFromMterp(uint32_t field_idx, mirror::Object* obj, uint8_t new_value,
                                         ArtMethod* referrer)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
-                                          sizeof(int8_t));
+  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int8_t));
   if (LIKELY(field != nullptr && obj != nullptr)) {
     Primitive::Type type = field->GetTypeAsPrimitiveType();
     if (type == Primitive::kPrimBoolean) {
@@ -582,7 +584,7 @@ extern "C" int artSet64InstanceFromMterp(uint32_t field_idx, mirror::Object* obj
 }
 
 extern "C" int artSetObjInstanceFromMterp(uint32_t field_idx, mirror::Object* obj,
-                                         mirror::Object* new_value, ArtMethod* referrer)
+                                          mirror::Object* new_value, ArtMethod* referrer)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
