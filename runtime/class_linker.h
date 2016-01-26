@@ -1063,8 +1063,8 @@ class ClassLinker {
   friend class ImageWriter;  // for GetClassRoots
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
   friend class JniInternalTest;  // for GetRuntimeQuickGenericJniStub
+  ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for DexLock, and RegisterDexFileLocked
   ART_FRIEND_TEST(mirror::DexCacheTest, Open);  // for AllocDexCache
-
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 
