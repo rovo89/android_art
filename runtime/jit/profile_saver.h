@@ -20,12 +20,14 @@
 #include "base/mutex.h"
 #include "jit_code_cache.h"
 #include "offline_profiling_info.h"
+#include "safe_map.h"
 
 namespace art {
 
 class ProfileSaver {
  public:
-  // Starts the profile saver thread.
+  // Starts the profile saver thread if not already started.
+  // If the saver is already running it adds (output_filename, code_paths) to its tracked locations.
   static void Start(const std::string& output_filename,
                     jit::JitCodeCache* jit_code_cache,
                     const std::vector<std::string>& code_paths)
@@ -58,14 +60,18 @@ class ProfileSaver {
   // Returns true if the saver is shutting down (ProfileSaver::Stop() has been called).
   bool ShuttingDown(Thread* self) REQUIRES(!Locks::profiler_lock_);
 
+  void AddTrackedLocations(const std::string& output_filename,
+                           const std::vector<std::string>& code_paths)
+      REQUIRES(Locks::profiler_lock_);
+
   // The only instance of the saver.
   static ProfileSaver* instance_ GUARDED_BY(Locks::profiler_lock_);
   // Profile saver thread.
   static pthread_t profiler_pthread_ GUARDED_BY(Locks::profiler_lock_);
 
-  const std::string output_filename_;
   jit::JitCodeCache* jit_code_cache_;
-  const std::set<const std::string> tracked_dex_base_locations_;
+  SafeMap<std::string, std::set<std::string>> tracked_dex_base_locations_
+      GUARDED_BY(Locks::profiler_lock_);
   uint64_t code_cache_last_update_time_ns_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
 
