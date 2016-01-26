@@ -155,6 +155,7 @@ class OatSymbolizer FINAL {
 
     strtab->Start();
     strtab->Write("");  // strtab should start with empty string.
+    AddTrampolineSymbols();
     Walk(&art::OatSymbolizer::AddSymbol);
     strtab->End();
 
@@ -165,6 +166,33 @@ class OatSymbolizer FINAL {
     builder_->End();
 
     return builder_->Good();
+  }
+
+  void AddTrampolineSymbol(const char* name, uint32_t code_offset) {
+    if (code_offset != 0) {
+      uint32_t name_offset = builder_->GetStrTab()->Write(name);
+      uint64_t symbol_value = code_offset - oat_file_->GetOatHeader().GetExecutableOffset();
+      builder_->GetSymTab()->Add(name_offset, builder_->GetText(), symbol_value,
+          /* is_relative */ true, /* size */ 0, STB_GLOBAL, STT_FUNC);
+    }
+  }
+
+  void AddTrampolineSymbols() {
+    const OatHeader& oat_header = oat_file_->GetOatHeader();
+    AddTrampolineSymbol("interpreterToInterpreterBridge",
+                        oat_header.GetInterpreterToInterpreterBridgeOffset());
+    AddTrampolineSymbol("interpreterToCompiledCodeBridge",
+                        oat_header.GetInterpreterToCompiledCodeBridgeOffset());
+    AddTrampolineSymbol("jniDlsymLookup",
+                        oat_header.GetJniDlsymLookupOffset());
+    AddTrampolineSymbol("quickGenericJniTrampoline",
+                        oat_header.GetQuickGenericJniTrampolineOffset());
+    AddTrampolineSymbol("quickImtConflictTrampoline",
+                        oat_header.GetQuickImtConflictTrampolineOffset());
+    AddTrampolineSymbol("quickResolutionTrampoline",
+                        oat_header.GetQuickResolutionTrampolineOffset());
+    AddTrampolineSymbol("quickToInterpreterBridge",
+                        oat_header.GetQuickToInterpreterBridgeOffset());
   }
 
   void Walk(Callback callback) {
