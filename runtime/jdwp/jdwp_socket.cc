@@ -30,12 +30,28 @@
 #include "base/stringprintf.h"
 #include "jdwp/jdwp_priv.h"
 
-#define kBasePort           8000
-#define kMaxPort            8040
-
 namespace art {
 
 namespace JDWP {
+
+static constexpr uint16_t kBasePort = 8000;
+static constexpr uint16_t kMaxPort = 8040;
+
+// Initial size of the work buffer used in gethostbyname_r.
+//
+// The call to gethostbyname_r below requires a user-allocated buffer,
+// the size of which depends on the system. The initial implementation
+// used to use a 128-byte buffer, but that was not enough on some
+// systems (maybe because of IPv6), causing failures in JDWP host
+// testing; thus it was increased to 256.
+//
+// However, we should not use a fixed size: gethostbyname_r's
+// documentation states that if the work buffer is too small (i.e. if
+// gethostbyname_r returns `ERANGE`), then the function should be
+// called again with a bigger buffer. Which we do now, starting with
+// an initial 256-byte buffer, and doubling it until gethostbyname_r
+// accepts this size.
+static constexpr size_t kInitialAuxBufSize = 256;
 
 /*
  * JDWP network state.
@@ -276,15 +292,16 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
    */
 #if defined(__linux__)
   hostent he;
-  // The size of the work buffer used in the gethostbyname_r call
-  // below. It used to be 128, but this was not enough on some
-  // configurations (maybe because of IPv6?), causing failures in JDWP
-  // host testing; thus it was increased to 256.
-  static constexpr size_t kAuxBufSize = 256;
-  char auxBuf[kAuxBufSize];
+  std::vector<char> auxBuf(kInitialAuxBufSize);
   int error;
-  int cc = gethostbyname_r(options->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
-  if (cc != 0) {
+  int cc;
+  while ((cc = gethostbyname_r(
+             options->host.c_str(), &he, auxBuf.data(), auxBuf.size(), &pEntry, &error))
+         == ERANGE) {
+    // The work buffer `auxBuf` is too small; enlarge it.
+    auxBuf.resize(auxBuf.size() * 2);
+  }
+  if (cc != 0 || pEntry == nullptr) {
     LOG(WARNING) << "gethostbyname_r('" << options->host << "') failed: " << hstrerror(error);
     return false;
   }
