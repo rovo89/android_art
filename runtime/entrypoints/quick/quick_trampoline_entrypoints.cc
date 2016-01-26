@@ -1779,8 +1779,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
 
   void FinalizeHandleScope(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  StackReference<mirror::Object>* GetFirstHandleScopeEntry()
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+  StackReference<mirror::Object>* GetFirstHandleScopeEntry() {
     return handle_scope_->GetHandle(0).GetReference();
   }
 
