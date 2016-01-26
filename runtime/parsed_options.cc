@@ -565,13 +565,6 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     args.Set(M::HeapGrowthLimit, args.GetOrDefault(M::MemoryMaximumSize));
   }
 
-  if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kDefaultMethods) {
-    LOG(WARNING) << "Default method support has been enabled. The verifier will be less strict "
-                 << "in some cases. All existing invoke opcodes have an unstable updated "
-                 << "specification and are nearly guaranteed to change over time. Do not attempt "
-                 << "to write shipping code against the invoke opcodes with this flag.";
-  }
-
   if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kLambdas) {
     LOG(WARNING) << "Experimental lambdas have been enabled. All lambda opcodes have "
                  << "an unstable specification and are nearly guaranteed to change over time. "
@@ -698,8 +691,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
   UsageMessage(stream, "  -Xno-dex-file-fallback "
                        "(Don't fall back to dex files without oat files)\n");
-  UsageMessage(stream, "  -Xexperimental:{lambdas,default-methods} "
-                       "(Enable new experimental dalvik opcodes and semantics, off by default)\n");
+  UsageMessage(stream, "  -Xexperimental:lambdas "
+                       "(Enable new and experimental dalvik opcodes and semantics)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");

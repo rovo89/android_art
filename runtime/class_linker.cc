@@ -5973,15 +5973,6 @@ bool ClassLinker::LinkInterfaceMethods(
   Runtime* const runtime = Runtime::Current();
 
   const bool is_interface = klass->IsInterface();
-  // TODO It might in the future prove useful to make interfaces have full iftables, allowing a
-  // faster invoke-super implementation in the interpreter/across dex-files.
-  // We will just skip doing any of this on non-debug builds for speed.
-  if (is_interface &&
-      !kIsDebugBuild &&
-      !runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods)) {
-    return true;
-  }
-
   const bool has_superclass = klass->HasSuperClass();
   const bool fill_tables = !is_interface;
   const size_t super_ifcount = has_superclass ? klass->GetSuperClass()->GetIfTableCount() : 0U;
