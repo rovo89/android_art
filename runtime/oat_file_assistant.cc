@@ -1026,7 +1026,7 @@ gc::space::ImageSpace* OatFileAssistant::OpenImageSpace(const OatFile* oat_file)
   gc::space::ImageSpace* ret = gc::space::ImageSpace::CreateFromAppImage(art_file.c_str(),
                                                                          oat_file,
                                                                          &error_msg);
-  if (ret == nullptr) {
+  if (ret == nullptr && (VLOG_IS_ON(image) || OS::FileExists(art_file.c_str()))) {
     LOG(INFO) << "Failed to open app image " << art_file.c_str() << " " << error_msg;
   }
   return ret;
