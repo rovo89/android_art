@@ -2582,7 +2582,8 @@ bool CompilerDriver::MayInlineInternal(const DexFile* inlined_from,
                                        const DexFile* inlined_into) const {
   // We're not allowed to inline across dex files if we're the no-inline-from dex file.
   if (inlined_from != inlined_into &&
-      compiler_options_->GetNoInlineFromDexFile() == inlined_from) {
+      compiler_options_->GetNoInlineFromDexFile() != nullptr &&
+      ContainsElement(*compiler_options_->GetNoInlineFromDexFile(), inlined_from)) {
     return false;
   }
 
