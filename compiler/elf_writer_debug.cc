@@ -16,6 +16,7 @@
 
 #include "elf_writer_debug.h"
 
+#include <algorithm>
 #include <unordered_set>
 #include <vector>
 #include <cstdio>
@@ -227,7 +228,8 @@ static void WriteCIE(InstructionSet isa,
 template<typename ElfTypes>
 void WriteCFISection(ElfBuilder<ElfTypes>* builder,
                      const ArrayRef<const MethodDebugInfo>& method_infos,
-                     CFIFormat format) {
+                     CFIFormat format,
+                     bool write_oat_patches) {
   CHECK(format == DW_DEBUG_FRAME_FORMAT || format == DW_EH_FRAME_FORMAT);
   typedef typename ElfTypes::Addr Elf_Addr;
 
@@ -242,6 +244,24 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   } else {
     patch_locations.reserve(method_infos.size());
   }
+
+  // The methods can be written any order.
+  // Let's therefore sort them in the lexicographical order of the opcodes.
+  // This has no effect on its own. However, if the final .debug_frame section is
+  // compressed it reduces the size since similar opcodes sequences are grouped.
+  std::vector<const MethodDebugInfo*> sorted_method_infos;
+  sorted_method_infos.reserve(method_infos.size());
+  for (size_t i = 0; i < method_infos.size(); i++) {
+    sorted_method_infos.push_back(&method_infos[i]);
+  }
+  std::sort(
+      sorted_method_infos.begin(),
+      sorted_method_infos.end(),
+      [](const MethodDebugInfo* lhs, const MethodDebugInfo* rhs) {
+        ArrayRef<const uint8_t> l = lhs->compiled_method_->GetCFIInfo();
+        ArrayRef<const uint8_t> r = rhs->compiled_method_->GetCFIInfo();
+        return std::lexicographical_compare(l.begin(), l.end(), r.begin(), r.end());
+      });
 
   // Write .eh_frame/.debug_frame section.
   auto* cfi_section = (format == DW_DEBUG_FRAME_FORMAT
@@ -261,11 +281,11 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
     cfi_section->WriteFully(buffer.data(), buffer.size());
     buffer_address += buffer.size();
     buffer.clear();
-    for (const MethodDebugInfo& mi : method_infos) {
-      if (!mi.deduped_) {  // Only one FDE per unique address.
-        ArrayRef<const uint8_t> opcodes = mi.compiled_method_->GetCFIInfo();
+    for (const MethodDebugInfo* mi : sorted_method_infos) {
+      if (!mi->deduped_) {  // Only one FDE per unique address.
+        ArrayRef<const uint8_t> opcodes = mi->compiled_method_->GetCFIInfo();
         if (!opcodes.empty()) {
-          const Elf_Addr code_address = text_address + mi.low_pc_;
+          const Elf_Addr code_address = text_address + mi->low_pc_;
           if (format == DW_EH_FRAME_FORMAT) {
             binary_search_table.push_back(
                 dchecked_integral_cast<uint32_t>(code_address));
@@ -273,7 +293,7 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
                 dchecked_integral_cast<uint32_t>(buffer_address));
           }
           WriteFDE(is64bit, cfi_address, cie_address,
-                   code_address, mi.high_pc_ - mi.low_pc_,
+                   code_address, mi->high_pc_ - mi->low_pc_,
                    opcodes, format, buffer_address, &buffer,
                    &patch_locations);
           cfi_section->WriteFully(buffer.data(), buffer.size());
@@ -314,8 +334,10 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
     header_section->WriteFully(binary_search_table.data(), binary_search_table.size());
     header_section->End();
   } else {
-    builder->WritePatches(".debug_frame.oat_patches",
-                          ArrayRef<const uintptr_t>(patch_locations));
+    if (write_oat_patches) {
+      builder->WritePatches(".debug_frame.oat_patches",
+                            ArrayRef<const uintptr_t>(patch_locations));
+    }
   }
 }
 
@@ -1422,7 +1444,7 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
   // Add methods to .symtab.
   WriteDebugSymbols(builder, method_infos, true /* with_signature */);
   // Generate CFI (stack unwinding information).
-  WriteCFISection(builder, method_infos, cfi_format);
+  WriteCFISection(builder, method_infos, cfi_format, true /* write_oat_patches */);
   // Write DWARF .debug_* sections.
   WriteDebugSections(builder, method_infos);
 }
@@ -1488,7 +1510,7 @@ void WriteMiniDebugInfo(ElfBuilder<ElfTypes>* parent_builder,
   builder->SetVirtualAddress(parent_builder->GetText()->GetAddress());
   builder->GetText()->WriteNoBitsSection(parent_builder->GetText()->GetSize());
   WriteDebugSymbols(builder.get(), method_infos, false /* with_signature */);
-  WriteCFISection(builder.get(), method_infos, DW_DEBUG_FRAME_FORMAT);
+  WriteCFISection(builder.get(), method_infos, DW_DEBUG_FRAME_FORMAT, false /* write_oat_paches */);
   builder->End();
   CHECK(builder->Good());
   std::vector<uint8_t> compressed_buffer;
