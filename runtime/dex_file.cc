@@ -195,6 +195,30 @@ bool DexFile::DisableWrite() const {
   }
 }
 
+std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
+                                             const std::string& location,
+                                             uint32_t location_checksum,
+                                             const OatDexFile* oat_dex_file,
+                                             bool verify,
+                                             std::string* error_msg) {
+  std::unique_ptr<const DexFile> dex_file = OpenMemory(base,
+                                                       size,
+                                                       location,
+                                                       location_checksum,
+                                                       nullptr,
+                                                       oat_dex_file,
+                                                       error_msg);
+  if (verify && !DexFileVerifier::Verify(dex_file.get(),
+                                         dex_file->Begin(),
+                                         dex_file->Size(),
+                                         location.c_str(),
+                                         error_msg)) {
+    return nullptr;
+  }
+
+  return dex_file;
+}
+
 std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, bool verify,
                                                  std::string* error_msg) {
   CHECK(location != nullptr);
