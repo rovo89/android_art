@@ -318,6 +318,11 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --no-generate-debug-info: Do not generate debug information for native debugging.");
   UsageError("");
+  UsageError("  --generate-mini-debug-info: Generate minimal amount of LZMA-compressed");
+  UsageError("      debug information necessary to print backtraces. (disabled by default)");
+  UsageError("");
+  UsageError("  --no-generate-mini-debug-info: Do do generated backtrace info.");
+  UsageError("");
   UsageError("  --debuggable: Produce code debuggable with Java debugger.");
   UsageError("");
   UsageError("  --native-debuggable: Produce code debuggable with native debugger (like LLDB).");
