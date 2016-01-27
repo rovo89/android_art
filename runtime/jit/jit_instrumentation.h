@@ -101,6 +101,11 @@ class JitInstrumentationCache {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateThreadPool();
   void DeleteThreadPool(Thread* self);
+
+  size_t HotMethodThreshold() const {
+    return hot_method_threshold_;
+  }
+
   // Wait until there is no more pending compilation tasks.
   void WaitForCompilationToFinish(Thread* self);
 
