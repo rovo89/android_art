@@ -191,10 +191,11 @@ class MANAGED DexCache FINAL : public Object {
     return GetFieldPtr<const DexFile*>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_));
   }
 
-  void SetDexFile(const DexFile* dex_file) SHARED_REQUIRES(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    return SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
+  void SetDexFile(const DexFile* dex_file) SHARED_REQUIRES(Locks::mutator_lock_) {
+    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
   }
+
+  void SetLocation(mirror::String* location) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // NOTE: Get/SetElementPtrSize() are intended for working with ArtMethod** and ArtField**
   // provided by GetResolvedMethods/Fields() and ArtMethod::GetDexCacheResolvedMethods(),
