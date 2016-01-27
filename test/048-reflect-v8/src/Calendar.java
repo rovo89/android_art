@@ -14,14 +14,19 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Repeatable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+// This is a plain old non-1.8 annotation. At runtime we can see that it has a
+// "Repeatable" annotation if we query with getDeclaredAnnotation(Repeatable.class)
+@Retention(RetentionPolicy.RUNTIME)
+@Repeatable(Calendars.class)
+@Inherited  // note: container must also be @Inherited by JLS.
+public @interface Calendar {
+    String dayOfMonth() default "unspecified_month";
+    String dayOfWeek() default "unspecified_week";
+    int hour() default 6;
 }
+
