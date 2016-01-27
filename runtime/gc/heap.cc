@@ -347,7 +347,7 @@ Heap::Heap(size_t initial_size,
   bool separate_non_moving_space = is_zygote ||
       support_homogeneous_space_compaction || IsMovingGc(foreground_collector_type_) ||
       IsMovingGc(background_collector_type_);
-  if (foreground_collector_type == kCollectorTypeGSS) {
+  if (foreground_collector_type_ == kCollectorTypeGSS) {
     separate_non_moving_space = false;
   }
   std::unique_ptr<MemMap> main_mem_map_1;
@@ -2346,6 +2346,9 @@ void Heap::PreZygoteFork() {
     // We still want to GC in case there is some unreachable non moving objects that could cause a
     // suboptimal bin packing when we compact the zygote space.
     CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
+    // Trim the pages at the end of the non moving space. Trim while not holding zygote lock since
+    // the trim process may require locking the mutator lock.
+    non_moving_space_->Trim();
   }
   Thread* self = Thread::Current();
   MutexLock mu(self, zygote_creation_lock_);
@@ -2356,8 +2359,6 @@ void Heap::PreZygoteFork() {
   Runtime::Current()->GetInternTable()->AddNewTable();
   Runtime::Current()->GetClassLinker()->MoveClassTableToPreZygote();
   VLOG(heap) << "Starting PreZygoteFork";
-  // Trim the pages at the end of the non moving space.
-  non_moving_space_->Trim();
   // The end of the non-moving space may be protected, unprotect it so that we can copy the zygote
   // there.
   non_moving_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
