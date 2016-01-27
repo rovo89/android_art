@@ -77,6 +77,9 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
+ 0.4 Pending
+   Show registered native allocations for heap dumps that support it.
+
  0.3 Dec 15, 2015
    Fix page loading performance by showing a limited number of entries by default.
    Fix mismatch between overview and "roots" totals.
