@@ -14,14 +14,10 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+// This calendar subsumes anything else we would've normally gotten from the subclass.
+@Calendar(dayOfMonth="sub2")
+public class UserSub2
+  extends User
+  implements IFaceA, IFaceSimple {
+
 }
