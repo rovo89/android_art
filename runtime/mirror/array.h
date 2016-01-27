@@ -187,8 +187,11 @@ class PointerArray : public Array {
   T GetElementPtrSize(uint32_t idx, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template<bool kTransactionActive = false, bool kUnchecked = false>
+  void SetElementPtrSize(uint32_t idx, uint64_t element, size_t ptr_size)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   template<bool kTransactionActive = false, bool kUnchecked = false, typename T>
-  void SetElementPtrSize(uint32_t idx, T element, size_t ptr_size)
+  void SetElementPtrSize(uint32_t idx, T* element, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Fixup the pointers in the dest arrays by passing our pointers through the visitor. Only copies
