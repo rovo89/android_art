@@ -35,7 +35,7 @@
 #include "elf_file.h"
 #include "elf_file_impl.h"
 #include "gc/space/image_space.h"
-#include "image.h"
+#include "image-inl.h"
 #include "mirror/abstract_method.h"
 #include "mirror/object-inl.h"
 #include "mirror/method.h"

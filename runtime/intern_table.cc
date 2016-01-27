@@ -22,6 +22,7 @@
 #include "gc/collector/garbage_collector.h"
 #include "gc/space/image_space.h"
 #include "gc/weak_root_state.h"
+#include "image-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
