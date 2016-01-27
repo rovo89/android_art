@@ -178,7 +178,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
 
   if (compiler_options_->GetGenerateDebugInfo()) {
 #ifdef __ANDROID__
-    const char* prefix = GetAndroidData();
+    const char* prefix = "/data/misc/trace";
 #else
     const char* prefix = "/tmp";
 #endif
@@ -187,7 +187,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
     std::string perf_filename = std::string(prefix) + "/perf-" + std::to_string(getpid()) + ".map";
     perf_file_.reset(OS::CreateEmptyFileWriteOnly(perf_filename.c_str()));
     if (perf_file_ == nullptr) {
-      LOG(FATAL) << "Could not create perf file at " << perf_filename;
+      LOG(ERROR) << "Could not create perf file at " << perf_filename <<
+                    " Are you on a user build? Perf only works on userdebug/eng builds";
     }
   }
 }
@@ -222,7 +223,7 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
     ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
     JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
     success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile);
-    if (success && compiler_options_->GetGenerateDebugInfo()) {
+    if (success && perf_file_ != nullptr) {
       const void* ptr = method_to_compile->GetEntryPointFromQuickCompiledCode();
       std::ostringstream stream;
       stream << std::hex
