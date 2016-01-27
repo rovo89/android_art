@@ -20,6 +20,7 @@ import com.android.tools.perflib.heap.ArrayInstance;
 import com.android.tools.perflib.heap.ClassInstance;
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Instance;
+import com.android.tools.perflib.heap.Heap;
 import com.android.tools.perflib.heap.Type;
 import java.awt.image.BufferedImage;
 
@@ -31,7 +32,7 @@ class InstanceUtils {
    * Returns true if the given instance is an instance of a class with the
    * given name.
    */
-  public static boolean isInstanceOfClass(Instance inst, String className) {
+  private static boolean isInstanceOfClass(Instance inst, String className) {
     ClassObj cls = (inst == null) ? null : inst.getClassObj();
     return (cls != null && className.equals(cls.getClassName()));
   }
@@ -118,12 +119,12 @@ class InstanceUtils {
       return null;
     }
 
-    Integer width = getIntField(inst, "mWidth");
+    Integer width = getIntField(inst, "mWidth", null);
     if (width == null) {
       return null;
     }
 
-    Integer height = getIntField(inst, "mHeight");
+    Integer height = getIntField(inst, "mHeight", null);
     if (height == null) {
       return null;
     }
@@ -186,23 +187,29 @@ class InstanceUtils {
   /**
    * Read an int field of an instance.
    * The field is assumed to be an int type.
-   * Returns null if the field value is not an int or could not be read.
+   * Returns <code>def</code> if the field value is not an int or could not be
+   * read.
    */
-  private static Integer getIntField(Instance inst, String fieldName) {
+  private static Integer getIntField(Instance inst, String fieldName, Integer def) {
     Object value = getField(inst, fieldName);
     if (!(value instanceof Integer)) {
-      return null;
+      return def;
     }
     return (Integer)value;
   }
 
   /**
-   * Read an int field of an instance, returning a default value if the field
-   * was not an int or could not be read.
+   * Read a long field of an instance.
+   * The field is assumed to be a long type.
+   * Returns <code>def</code> if the field value is not an long or could not
+   * be read.
    */
-  private static int getIntField(Instance inst, String fieldName, int def) {
-    Integer value = getIntField(inst, fieldName);
-    return value == null ? def : value;
+  private static Long getLongField(Instance inst, String fieldName, Long def) {
+    Object value = getField(inst, fieldName);
+    if (!(value instanceof Long)) {
+      return def;
+    }
+    return (Long)value;
   }
 
   /**
@@ -277,5 +284,74 @@ class InstanceUtils {
       }
     }
     return null;
+  }
+
+  public static class NativeAllocation {
+    public long size;
+    public Heap heap;
+    public long pointer;
+    public Instance referent;
+
+    public NativeAllocation(long size, Heap heap, long pointer, Instance referent) {
+      this.size = size;
+      this.heap = heap;
+      this.pointer = pointer;
+      this.referent = referent;
+    }
+  }
+
+  /**
+   * Assuming inst represents a NativeAllocation, return information about the
+   * native allocation. Returns null if the given instance doesn't represent a
+   * native allocation.
+   */
+  public static NativeAllocation getNativeAllocation(Instance inst) {
+    if (!isInstanceOfClass(inst, "libcore.util.NativeAllocationRegistry$CleanerThunk")) {
+      return null;
+    }
+
+    Long pointer = InstanceUtils.getLongField(inst, "nativePtr", null);
+    if (pointer == null) {
+      return null;
+    }
+
+    // Search for the registry field of inst.
+    // Note: We know inst as an instance of ClassInstance because we already
+    // read the nativePtr field from it.
+    Instance registry = null;
+    for (ClassInstance.FieldValue field : ((ClassInstance)inst).getValues()) {
+      Object fieldValue = field.getValue();
+      if (fieldValue instanceof Instance) {
+        Instance fieldInst = (Instance)fieldValue;
+        if (isInstanceOfClass(fieldInst, "libcore.util.NativeAllocationRegistry")) {
+          registry = fieldInst;
+          break;
+        }
+      }
+    }
+
+    if (registry == null) {
+      return null;
+    }
+
+    Long size = InstanceUtils.getLongField(registry, "size", null);
+    if (size == null) {
+      return null;
+    }
+
+    Instance referent = null;
+    for (Instance ref : inst.getHardReferences()) {
+      if (isInstanceOfClass(ref, "sun.misc.Cleaner")) {
+        referent = InstanceUtils.getReferent(ref);
+        if (referent != null) {
+          break;
+        }
+      }
+    }
+
+    if (referent == null) {
+      return null;
+    }
+    return new NativeAllocation(size, inst.getHeap(), pointer, referent);
   }
 }

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import libcore.util.NativeAllocationRegistry;
 
 /**
  * Program used to create a heap dump for test purposes.
@@ -47,6 +48,9 @@ public class Main {
       for (int i = 0; i < N; i++) {
         bigArray[i] = (byte)((i*i) & 0xFF);
       }
+
+      NativeAllocationRegistry registry = new NativeAllocationRegistry(0x12345, 42);
+      registry.registerNativeAllocation(anObject, 0xABCDABCD);
     }
   }
 
