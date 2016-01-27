@@ -40,6 +40,31 @@ class ReferenceTypePropagation : public HOptimization {
   static constexpr const char* kReferenceTypePropagationPassName = "reference_type_propagation";
 
  private:
+  class HandleCache {
+   public:
+    explicit HandleCache(StackHandleScopeCollection* handles) : handles_(handles) { }
+
+    template <typename T>
+    MutableHandle<T> NewHandle(T* object) SHARED_REQUIRES(Locks::mutator_lock_) {
+      return handles_->NewHandle(object);
+    }
+
+    ReferenceTypeInfo::TypeHandle GetObjectClassHandle();
+    ReferenceTypeInfo::TypeHandle GetClassClassHandle();
+    ReferenceTypeInfo::TypeHandle GetStringClassHandle();
+    ReferenceTypeInfo::TypeHandle GetThrowableClassHandle();
+
+   private:
+    StackHandleScopeCollection* handles_;
+
+    ReferenceTypeInfo::TypeHandle object_class_handle_;
+    ReferenceTypeInfo::TypeHandle class_class_handle_;
+    ReferenceTypeInfo::TypeHandle string_class_handle_;
+    ReferenceTypeInfo::TypeHandle throwable_class_handle_;
+  };
+
+  class RTPVisitor;
+
   void VisitPhi(HPhi* phi);
   void VisitBasicBlock(HBasicBlock* block);
   void UpdateBoundType(HBoundType* bound_type) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -53,19 +78,18 @@ class ReferenceTypePropagation : public HOptimization {
   bool UpdateNullability(HInstruction* instr);
   bool UpdateReferenceTypeInfo(HInstruction* instr);
 
+  static void UpdateArrayGet(HArrayGet* instr, HandleCache* handle_cache)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void ValidateTypes();
 
-  StackHandleScopeCollection* handles_;
+  HandleCache handle_cache_;
 
   ArenaVector<HInstruction*> worklist_;
 
-  ReferenceTypeInfo::TypeHandle object_class_handle_;
-  ReferenceTypeInfo::TypeHandle class_class_handle_;
-  ReferenceTypeInfo::TypeHandle string_class_handle_;
-  ReferenceTypeInfo::TypeHandle throwable_class_handle_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
