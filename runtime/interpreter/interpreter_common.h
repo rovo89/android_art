@@ -980,6 +980,9 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
   return branch_offset <= 0;
 }
 
+void ArtInterpreterToCompiledCodeBridge(Thread* self, const DexFile::CodeItem* code_item,
+                                        ShadowFrame* shadow_frame, JValue* result);
+
 // Explicitly instantiate all DoInvoke functions.
 #define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range, _do_check)                      \
   template SHARED_REQUIRES(Locks::mutator_lock_)                                     \
