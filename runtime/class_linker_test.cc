@@ -1201,4 +1201,42 @@ TEST_F(ClassLinkerTest, IsBootStrapClassLoaded) {
   EXPECT_FALSE(statics.Get()->IsBootStrapClassLoaded());
 }
 
+// Regression test for b/26799552.
+TEST_F(ClassLinkerTest, RegisterDexFileName) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  MutableHandle<mirror::DexCache> dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
+  {
+    ReaderMutexLock mu(soa.Self(), *class_linker->DexLock());
+    for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
+      dex_cache.Assign(down_cast<mirror::DexCache*>(soa.Self()->DecodeJObject(data.weak_root)));
+      if (dex_cache.Get() != nullptr) {
+        break;
+      }
+    }
+    ASSERT_TRUE(dex_cache.Get() != nullptr);
+  }
+  // Make a copy of the dex cache and change the name.
+  dex_cache.Assign(dex_cache->Clone(soa.Self())->AsDexCache());
+  const uint16_t data[] = { 0x20AC, 0x20A1 };
+  Handle<mirror::String> location(hs.NewHandle(mirror::String::AllocFromUtf16(soa.Self(),
+                                                                              arraysize(data),
+                                                                              data)));
+  dex_cache->SetLocation(location.Get());
+  const DexFile* old_dex_file = dex_cache->GetDexFile();
+
+  DexFile* dex_file = new DexFile(old_dex_file->Begin(),
+                                  old_dex_file->Size(),
+                                  location->ToModifiedUtf8(),
+                                  0u,
+                                  nullptr,
+                                  nullptr);
+  {
+    WriterMutexLock mu(soa.Self(), *class_linker->DexLock());
+    // Check that inserting with a UTF16 name works.
+    class_linker->RegisterDexFileLocked(*dex_file, dex_cache);
+  }
+}
+
 }  // namespace art

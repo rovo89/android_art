@@ -1260,6 +1260,7 @@ class DexFile {
   mutable std::unique_ptr<TypeLookupTable> lookup_table_;
 
   friend class DexFileVerifierTest;
+  ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for constructor
 };
 
 struct DexFileReference {
