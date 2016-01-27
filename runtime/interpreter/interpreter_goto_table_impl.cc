@@ -21,6 +21,7 @@
 #include "base/stl_util.h"  // MakeUnique
 #include "experimental_flags.h"
 #include "interpreter_common.h"
+#include "jit/jit.h"
 #include "safe_math.h"
 
 #include <memory>  // std::unique_ptr
@@ -183,9 +184,25 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       self->AssertNoPendingException();
     }
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    ArtMethod *method = shadow_frame.GetMethod();
+
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                        shadow_frame.GetMethod(), 0);
+                                        method, 0);
+    }
+
+    if (UNLIKELY(Runtime::Current()->GetJit() != nullptr &&
+                 Runtime::Current()->GetJit()->JitAtFirstUse() &&
+                 method->HasAnyCompiledCode())) {
+      JValue result;
+
+      // Pop the shadow frame before calling into compiled code.
+      self->PopShadowFrame();
+      ArtInterpreterToCompiledCodeBridge(self, code_item, &shadow_frame, &result);
+      // Push the shadow frame back as the caller will expect it.
+      self->PushShadowFrame(&shadow_frame);
+
+      return result;
     }
   }
 

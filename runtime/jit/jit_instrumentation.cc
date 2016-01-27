@@ -162,6 +162,14 @@ void JitInstrumentationListener::MethodEntered(Thread* thread,
                                                mirror::Object* /*this_object*/,
                                                ArtMethod* method,
                                                uint32_t /*dex_pc*/) {
+  if (UNLIKELY(Runtime::Current()->GetJit()->JitAtFirstUse())) {
+    // The compiler requires a ProfilingInfo object.
+    ProfilingInfo::Create(thread, method, /* retry_allocation */ true);
+    JitCompileTask compile_task(method, JitCompileTask::kCompile);
+    compile_task.Run(thread);
+    return;
+  }
+
   instrumentation_cache_->AddSamples(thread, method, 1);
 }
 
