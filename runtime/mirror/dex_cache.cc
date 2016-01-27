@@ -50,7 +50,7 @@ void DexCache::Init(const DexFile* dex_file,
   CHECK_EQ(num_resolved_fields != 0u, resolved_fields != nullptr);
 
   SetDexFile(dex_file);
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
+  SetLocation(location);
   SetStrings(strings);
   SetResolvedTypes(resolved_types);
   SetResolvedMethods(resolved_methods);
@@ -77,6 +77,10 @@ void DexCache::Fixup(ArtMethod* trampoline, size_t pointer_size) {
       SetElementPtrSize(resolved_methods, i, trampoline, pointer_size);
     }
   }
+}
+
+void DexCache::SetLocation(mirror::String* location) {
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
 }
 
 }  // namespace mirror

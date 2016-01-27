@@ -2926,19 +2926,19 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   CHECK(dex_cache.Get() != nullptr) << dex_file.GetLocation();
   // For app images, the dex cache location may be a suffix of the dex file location since the
   // dex file location is an absolute path.
-  const size_t dex_cache_length = dex_cache->GetLocation()->GetLength();
+  const std::string dex_cache_location = dex_cache->GetLocation()->ToModifiedUtf8();
+  const size_t dex_cache_length = dex_cache_location.length();
   CHECK_GT(dex_cache_length, 0u) << dex_file.GetLocation();
   std::string dex_file_location = dex_file.GetLocation();
   CHECK_GE(dex_file_location.length(), dex_cache_length)
-      << dex_cache->GetLocation()->ToModifiedUtf8() << " " << dex_file.GetLocation();
+      << dex_cache_location << " " << dex_file.GetLocation();
   // Take suffix.
   const std::string dex_file_suffix = dex_file_location.substr(
       dex_file_location.length() - dex_cache_length,
       dex_cache_length);
   // Example dex_cache location is SettingsProvider.apk and
   // dex file location is /system/priv-app/SettingsProvider/SettingsProvider.apk
-  CHECK(dex_cache->GetLocation()->Equals(dex_file_suffix))
-      << dex_cache->GetLocation()->ToModifiedUtf8() << " " << dex_file.GetLocation();
+  CHECK_EQ(dex_cache_location, dex_file_suffix);
   // Clean up pass to remove null dex caches.
   // Null dex caches can occur due to class unloading and we are lazily removing null entries.
   JavaVMExt* const vm = self->GetJniEnv()->vm;
