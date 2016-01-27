@@ -73,7 +73,7 @@ class CompilerOptions FINAL {
                   size_t num_dex_methods_threshold,
                   size_t inline_depth_limit,
                   size_t inline_max_code_units,
-                  const DexFile* no_inline_from,
+                  const std::vector<const DexFile*>* no_inline_from,
                   bool include_patch_information,
                   double top_k_profile_threshold,
                   bool debuggable,
@@ -231,7 +231,7 @@ class CompilerOptions FINAL {
     return abort_on_hard_verifier_failure_;
   }
 
-  const DexFile* GetNoInlineFromDexFile() const {
+  const std::vector<const DexFile*>* GetNoInlineFromDexFile() const {
     return no_inline_from_;
   }
 
@@ -268,8 +268,10 @@ class CompilerOptions FINAL {
   size_t inline_depth_limit_;
   size_t inline_max_code_units_;
 
-  // A dex file from which we should not inline code.
-  const DexFile* no_inline_from_;
+  // Dex files from which we should not inline code.
+  // This is usually a very short list (i.e. a single dex file), so we
+  // prefer vector<> over a lookup-oriented container, such as set<>.
+  const std::vector<const DexFile*>* no_inline_from_;
 
   bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.

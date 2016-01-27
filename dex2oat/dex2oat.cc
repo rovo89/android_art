@@ -553,6 +553,7 @@ class Dex2Oat FINAL {
       driver_(nullptr),
       opened_dex_files_maps_(),
       opened_dex_files_(),
+      no_inline_from_dex_files_(),
       dump_stats_(false),
       dump_passes_(false),
       dump_timing_(false),
@@ -1457,14 +1458,18 @@ class Dex2Oat FINAL {
     TimingLogger::ScopedTiming t("dex2oat Compile", timings_);
     compiler_phases_timings_.reset(new CumulativeLogger("compilation times"));
 
-    // Find the dex file we should not inline from.
+    // Find the dex files we should not inline from.
+
+    std::vector<std::string> no_inline_filters;
+    Split(no_inline_from_string_, ',', &no_inline_filters);
 
     // For now, on the host always have core-oj removed.
-    if (!kIsTargetBuild && no_inline_from_string_.empty()) {
-      no_inline_from_string_ = "core-oj";
+    const std::string core_oj = "core-oj";
+    if (!kIsTargetBuild && !ContainsElement(no_inline_filters, core_oj)) {
+      no_inline_filters.push_back(core_oj);
     }
 
-    if (!no_inline_from_string_.empty()) {
+    if (!no_inline_filters.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
       std::vector<const std::vector<const DexFile*>*> dex_file_vectors = {
@@ -1473,34 +1478,30 @@ class Dex2Oat FINAL {
           &dex_files_
       };
       for (const std::vector<const DexFile*>* dex_file_vector : dex_file_vectors) {
-        if (dex_file_vector == nullptr) {
-          continue;
-        }
-
-        bool found = false;
-
         for (const DexFile* dex_file : *dex_file_vector) {
-          // Try the complete location first.
-          found = no_inline_from_string_ == dex_file->GetLocation();
-          // The try just the name.
-          if (!found) {
-            size_t last_slash = dex_file->GetLocation().rfind('/');
-            if (last_slash != std::string::npos) {
-              found = StartsWith(dex_file->GetLocation().substr(last_slash + 1),
-                                 no_inline_from_string_.c_str());
+          for (const std::string& filter : no_inline_filters) {
+            // Use dex_file->GetLocation() rather than dex_file->GetBaseLocation(). This
+            // allows tests to specify <test-dexfile>:classes2.dex if needed but if the
+            // base location passes the StartsWith() test, so do all extra locations.
+            std::string dex_location = dex_file->GetLocation();
+            if (filter.find('/') == std::string::npos) {
+              // The filter does not contain the path. Remove the path from dex_location as well.
+              size_t last_slash = dex_file->GetLocation().rfind('/');
+              if (last_slash != std::string::npos) {
+                dex_location = dex_location.substr(last_slash + 1);
+              }
+            }
+
+            if (StartsWith(dex_location, filter.c_str())) {
+              VLOG(compiler) << "Disabling inlining from " << dex_file->GetLocation();
+              no_inline_from_dex_files_.push_back(dex_file);
+              break;
             }
           }
-
-          if (found) {
-            VLOG(compiler) << "Disabling inlining from " << dex_file->GetLocation();
-            compiler_options_->no_inline_from_ = dex_file;
-            break;
-          }
         }
-
-        if (found) {
-          break;
-        }
+      }
+      if (!no_inline_from_dex_files_.empty()) {
+        compiler_options_->no_inline_from_ = &no_inline_from_dex_files_;
       }
     }
 
@@ -2388,6 +2389,8 @@ class Dex2Oat FINAL {
 
   std::vector<std::unique_ptr<MemMap>> opened_dex_files_maps_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
+
+  std::vector<const DexFile*> no_inline_from_dex_files_;
 
   std::vector<std::string> verbose_methods_;
   bool dump_stats_;
