@@ -541,6 +541,7 @@ else
 
     cd $ANDROID_BUILD_TOP
 
+    rm -rf ${DEX_LOCATION}/dalvik-cache/
     $mkdir_cmdline || exit 1
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
 
