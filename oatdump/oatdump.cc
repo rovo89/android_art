@@ -40,7 +40,7 @@
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
-#include "image.h"
+#include "image-inl.h"
 #include "indenter.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
