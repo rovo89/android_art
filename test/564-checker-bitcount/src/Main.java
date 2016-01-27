@@ -16,24 +16,20 @@
 
 public class Main {
 
-  // TODO: make this work when b/26700769 is done.
-  //
+  // TODO: make something like this work when b/26700769 is done.
   // CHECK-START-X86_64: int Main.bits32(int) disassembly (after)
   // CHECK-DAG: popcnt
-  //
-  // CHECK-START-X86_64: int Main.bits32(int) disassembly (after)
-  // CHECK-NOT: call
+
+  /// CHECK-START: int Main.bits32(int) intrinsics_recognition (after)
+  /// CHECK-DAG: <<Result:i\d+>> InvokeStaticOrDirect intrinsic:IntegerBitCount
+  /// CHECK-DAG:                 Return [<<Result>>]
   private static int bits32(int x) {
     return Integer.bitCount(x);
   }
 
-  // TODO: make this work when b/26700769 is done.
-  //
-  // CHECK-START-X86_64: int Main.bits64(long) disassembly (after)
-  // CHECK-DAG: popcnt
-  //
-  // CHECK-START-X86_64: int Main.bits64(long) disassembly (after)
-  // CHECK-NOT: call
+  /// CHECK-START: int Main.bits64(long) intrinsics_recognition (after)
+  /// CHECK-DAG: <<Result:i\d+>> InvokeStaticOrDirect intrinsic:LongBitCount
+  /// CHECK-DAG:                 Return [<<Result>>]
   private static int bits64(long x) {
     return Long.bitCount(x);
   }
