@@ -157,7 +157,7 @@ inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSliceUnchecked(size_t pointe
 
 inline LengthPrefixedArray<ArtMethod>* Class::GetMethodsPtr() {
   return reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
-      GetField64(OFFSET_OF_OBJECT_MEMBER(Class, methods_)));
+      static_cast<uintptr_t>(GetField64(OFFSET_OF_OBJECT_MEMBER(Class, methods_))));
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -208,7 +208,7 @@ inline void Class::SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_me
 
 inline void Class::SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods) {
   SetField64<false>(OFFSET_OF_OBJECT_MEMBER(Class, methods_),
-                    reinterpret_cast<uint64_t>(new_methods));
+                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(new_methods)));
 }
 
 template<VerifyObjectFlags kVerifyFlags>
