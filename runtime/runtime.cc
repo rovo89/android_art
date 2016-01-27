@@ -71,7 +71,7 @@
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "handle_scope-inl.h"
-#include "image.h"
+#include "image-inl.h"
 #include "instrumentation.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"

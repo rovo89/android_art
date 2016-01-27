@@ -212,8 +212,11 @@ class PACKED(4) ImageHeader {
     return GetImageSection(kSectionArtMethods);
   }
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* GetImageRoot(ImageRoot image_root) const
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::ObjectArray<mirror::Object>* GetImageRoots() const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
