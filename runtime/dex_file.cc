@@ -242,7 +242,24 @@ const DexFile* DexFile::OpenMemory(const std::string& location,
                     location,
                     location_checksum,
                     mem_map,
-                    nullptr,
+                    (OatDexFile*) nullptr,
+                    error_msg);
+}
+
+const DexFile* DexFile::OpenMemory(const byte* base,
+                                   size_t size,
+                                   const std::string& location,
+                                   uint32_t location_checksum,
+                                   MemMap* mem_map,
+                                   const OatFile* oat_file,
+                                   std::string* error_msg) {
+  CHECK(oat_file == nullptr);
+  return OpenMemory(base,
+                    size,
+                    location,
+                    location_checksum,
+                    mem_map,
+                    (OatDexFile*) nullptr,
                     error_msg);
 }
 

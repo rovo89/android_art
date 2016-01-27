@@ -42,6 +42,7 @@ namespace mirror {
 }  // namespace mirror
 class ClassLinker;
 class MemMap;
+class OatFile;
 class OatDexFile;
 class Signature;
 template<class T> class Handle;
@@ -929,6 +930,15 @@ class DexFile {
                                    uint32_t location_checksum,
                                    MemMap* mem_map,
                                    const OatDexFile* oat_dex_file,
+                                   std::string* error_msg);
+
+  // Never called, only exists for compatibility with some weird APK protection software
+  static const DexFile* OpenMemory(const byte* dex_file,
+                                   size_t size,
+                                   const std::string& location,
+                                   uint32_t location_checksum,
+                                   MemMap* mem_map,
+                                   const OatFile* oat_file,
                                    std::string* error_msg);
 
   DexFile(const byte* base, size_t size,
