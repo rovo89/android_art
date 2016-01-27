@@ -417,9 +417,8 @@ class DexFile {
                                              const std::string& location,
                                              uint32_t location_checksum,
                                              const OatDexFile* oat_dex_file,
-                                             std::string* error_msg) {
-    return OpenMemory(base, size, location, location_checksum, nullptr, oat_dex_file, error_msg);
-  }
+                                             bool verify,
+                                             std::string* error_msg);
 
   // Open all classesXXX.dex files from a zip archive.
   static bool OpenFromZip(const ZipArchive& zip_archive, const std::string& location,

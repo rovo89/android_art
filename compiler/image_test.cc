@@ -119,6 +119,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
           compiler_driver_->GetInstructionSet(),
           compiler_driver_->GetInstructionSetFeatures(),
           &key_value_store,
+          /* verify */ false,           // Dex files may be dex-to-dex-ed, don't verify.
           &opened_dex_files_map,
           &opened_dex_files);
       ASSERT_TRUE(dex_files_ok);
