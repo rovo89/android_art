@@ -101,7 +101,12 @@ static bool IsPicImage() {
 }
 #endif
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindInProcess(JNIEnv*, jobject, jint, jboolean) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindInProcess(
+    JNIEnv*,
+    jobject,
+    jboolean full_signatrues,
+    jint,
+    jboolean) {
 #if __linux__
   if (IsPicImage()) {
     LOG(INFO) << "Image is pic, in-process unwinding check bypassed.";
@@ -122,14 +127,21 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindInProcess(JNIEnv*, jobject
   // We cannot really parse an exact stack, as the optimizing compiler may inline some functions.
   // This is also risky, as deduping might play a trick on us, so the test needs to make sure that
   // only unique functions are being expected.
+  // "mini-debug-info" does not include parameters to save space.
   std::vector<std::string> seq = {
       "Java_Main_unwindInProcess",                   // This function.
-      "boolean Main.unwindInProcess(int, boolean)",  // The corresponding Java native method frame.
+      "Main.unwindInProcess",                        // The corresponding Java native method frame.
+      "int java.util.Arrays.binarySearch(java.lang.Object[], int, int, java.lang.Object, java.util.Comparator)",  // Framework method.
+      "Main.main"                                    // The Java entry method.
+  };
+  std::vector<std::string> full_seq = {
+      "Java_Main_unwindInProcess",                   // This function.
+      "boolean Main.unwindInProcess(boolean, int, boolean)",  // The corresponding Java native method frame.
       "int java.util.Arrays.binarySearch(java.lang.Object[], int, int, java.lang.Object, java.util.Comparator)",  // Framework method.
       "void Main.main(java.lang.String[])"           // The Java entry method.
   };
 
-  bool result = CheckStack(bt.get(), seq);
+  bool result = CheckStack(bt.get(), full_signatrues ? full_seq : seq);
   if (!kCauseSegfault) {
     return result ? JNI_TRUE : JNI_FALSE;
   } else {
@@ -178,7 +190,11 @@ int wait_for_sigstop(pid_t tid, int* total_sleep_time_usec, bool* detach_failed 
 }
 #endif
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobject, jint pid_int) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(
+    JNIEnv*,
+    jobject,
+    jboolean full_signatrues,
+    jint pid_int) {
 #if __linux__
   // TODO: What to do on Valgrind?
   pid_t pid = static_cast<pid_t>(pid_int);
@@ -214,7 +230,17 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
 
   if (result) {
     // See comment in unwindInProcess for non-exact stack matching.
+    // "mini-debug-info" does not include parameters to save space.
     std::vector<std::string> seq = {
+        // "Java_Main_sleep",                        // The sleep function being executed in the
+                                                     // other runtime.
+                                                     // Note: For some reason, the name isn't
+                                                     // resolved, so don't look for it right now.
+        "Main.sleep",                                // The corresponding Java native method frame.
+        "int java.util.Arrays.binarySearch(java.lang.Object[], int, int, java.lang.Object, java.util.Comparator)",  // Framework method.
+        "Main.main"                                  // The Java entry method.
+    };
+    std::vector<std::string> full_seq = {
         // "Java_Main_sleep",                        // The sleep function being executed in the
                                                      // other runtime.
                                                      // Note: For some reason, the name isn't
@@ -224,7 +250,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
         "void Main.main(java.lang.String[])"         // The Java entry method.
     };
 
-    result = CheckStack(bt.get(), seq);
+    result = CheckStack(bt.get(), full_signatrues ? full_seq : seq);
   }
 
   if (ptrace(PTRACE_DETACH, pid, 0, 0) != 0) {

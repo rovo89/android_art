@@ -74,6 +74,14 @@ while true; do
         fi
         ARGS="${ARGS} $1"
         shift
+    elif [ "x$1" = "x--args" ]; then
+        shift
+        if [ "x$1" = "x" ]; then
+            echo "$0 missing argument to --args" 1>&2
+            exit 1
+        fi
+        ARGS="${ARGS} $1"
+        shift
     elif [ "x$1" = "x-Xcompiler-option" ]; then
         shift
         option="$1"

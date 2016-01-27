@@ -1343,8 +1343,9 @@ static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
 }
 
 template <typename ElfTypes>
-void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
-                       const ArrayRef<const MethodDebugInfo>& method_infos) {
+static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
+                              const ArrayRef<const MethodDebugInfo>& method_infos,
+                              bool with_signature) {
   bool generated_mapping_symbol = false;
   auto* strtab = builder->GetStrTab();
   auto* symtab = builder->GetSymTab();
@@ -1364,22 +1365,31 @@ void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
 
   strtab->Start();
   strtab->Write("");  // strtab should start with empty string.
+  std::string last_name;
+  size_t last_name_offset = 0;
   for (const MethodDebugInfo& info : method_infos) {
     if (info.deduped_) {
       continue;  // Add symbol only for the first instance.
     }
-    std::string name = PrettyMethod(info.dex_method_index_, *info.dex_file_, true);
+    std::string name = PrettyMethod(info.dex_method_index_, *info.dex_file_, with_signature);
     if (deduped_addresses.find(info.low_pc_) != deduped_addresses.end()) {
       name += " [DEDUPED]";
     }
+    // If we write method names without signature, we might see the same name multiple times.
+    size_t name_offset = (name == last_name ? last_name_offset : strtab->Write(name));
 
     const auto* text = builder->GetText()->Exists() ? builder->GetText() : nullptr;
     const bool is_relative = (text != nullptr);
     uint32_t low_pc = info.low_pc_;
     // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
     low_pc += info.compiled_method_->CodeDelta();
-    symtab->Add(strtab->Write(name), text, low_pc,
-                is_relative, info.high_pc_ - info.low_pc_, STB_GLOBAL, STT_FUNC);
+    symtab->Add(name_offset,
+                text,
+                low_pc,
+                is_relative,
+                info.high_pc_ - info.low_pc_,
+                STB_GLOBAL,
+                STT_FUNC);
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
     // instructions, so that disassembler tools can correctly disassemble.
@@ -1392,6 +1402,9 @@ void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
         generated_mapping_symbol = true;
       }
     }
+
+    last_name = std::move(name);
+    last_name_offset = name_offset;
   }
   strtab->End();
 
@@ -1407,7 +1420,7 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     CFIFormat cfi_format) {
   // Add methods to .symtab.
-  WriteDebugSymbols(builder, method_infos);
+  WriteDebugSymbols(builder, method_infos, true /* with_signature */);
   // Generate CFI (stack unwinding information).
   WriteCFISection(builder, method_infos, cfi_format);
   // Write DWARF .debug_* sections.
@@ -1474,7 +1487,7 @@ void WriteMiniDebugInfo(ElfBuilder<ElfTypes>* parent_builder,
   builder->GetRoData()->WriteNoBitsSection(parent_builder->GetRoData()->GetSize());
   builder->SetVirtualAddress(parent_builder->GetText()->GetAddress());
   builder->GetText()->WriteNoBitsSection(parent_builder->GetText()->GetSize());
-  WriteDebugSymbols(builder.get(), method_infos);
+  WriteDebugSymbols(builder.get(), method_infos, false /* with_signature */);
   WriteCFISection(builder.get(), method_infos, DW_DEBUG_FRAME_FORMAT);
   builder->End();
   CHECK(builder->Good());
