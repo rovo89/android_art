@@ -1351,6 +1351,7 @@ class Dex2Oat FINAL {
                                                    instruction_set_,
                                                    instruction_set_features_.get(),
                                                    key_value_store_.get(),
+                                                   /* verify */ true,
                                                    &opened_dex_files_map,
                                                    &opened_dex_files)) {
           return false;

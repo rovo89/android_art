@@ -397,6 +397,7 @@ bool OatWriter::WriteAndOpenDexFiles(
     InstructionSet instruction_set,
     const InstructionSetFeatures* instruction_set_features,
     SafeMap<std::string, std::string>* key_value_store,
+    bool verify,
     /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
   CHECK(write_state_ == WriteState::kAddingDexFileSources);
@@ -424,7 +425,7 @@ bool OatWriter::WriteAndOpenDexFiles(
   }
   if (!WriteOatDexFiles(rodata) ||
       !ExtendForTypeLookupTables(rodata, file, size_after_type_lookup_tables) ||
-      !OpenDexFiles(file, &dex_files_map, &dex_files) ||
+      !OpenDexFiles(file, verify, &dex_files_map, &dex_files) ||
       !WriteTypeLookupTables(dex_files_map.get(), dex_files)) {
     return false;
   }
@@ -2143,6 +2144,7 @@ bool OatWriter::ExtendForTypeLookupTables(OutputStream* rodata, File* file, size
 
 bool OatWriter::OpenDexFiles(
     File* file,
+    bool verify,
     /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
   TimingLogger::ScopedTiming split("OpenDexFiles", timings_);
@@ -2201,9 +2203,11 @@ bool OatWriter::OpenDexFiles(
                                          oat_dex_file.GetLocation(),
                                          oat_dex_file.dex_file_location_checksum_,
                                          /* oat_dex_file */ nullptr,
+                                         verify,
                                          &error_msg));
     if (dex_files.back() == nullptr) {
-      LOG(ERROR) << "Failed to open dex file from oat file. File:" << oat_dex_file.GetLocation();
+      LOG(ERROR) << "Failed to open dex file from oat file. File: " << oat_dex_file.GetLocation()
+                 << " Error: " << error_msg;
       return false;
     }
   }

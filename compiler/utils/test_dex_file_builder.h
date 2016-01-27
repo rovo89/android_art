@@ -89,11 +89,12 @@ class TestDexFileBuilder {
     DexFile::Header* header = reinterpret_cast<DexFile::Header*>(&header_data.data);
     std::copy_n(DexFile::kDexMagic, 4u, header->magic_);
     std::copy_n(DexFile::kDexMagicVersion, 4u, header->magic_ + 4u);
-    header->header_size_ = sizeof(header);
+    header->header_size_ = sizeof(DexFile::Header);
     header->endian_tag_ = DexFile::kDexEndianConstant;
     header->link_size_ = 0u;  // Unused.
     header->link_off_ = 0u;  // Unused.
-    header->map_off_ = 0u;  // Unused.
+    header->map_off_ = 0u;  // Unused. TODO: This is wrong. Dex files created by this builder
+                            //               cannot be verified. b/26808512
 
     uint32_t data_section_size = 0u;
 
@@ -213,13 +214,22 @@ class TestDexFileBuilder {
     // Leave signature as zeros.
 
     header->file_size_ = dex_file_data_.size();
+
+    // Write the complete header early, as part of it needs to be checksummed.
+    std::memcpy(&dex_file_data_[0], header_data.data, sizeof(DexFile::Header));
+
+    // Checksum starts after the checksum field.
     size_t skip = sizeof(header->magic_) + sizeof(header->checksum_);
-    header->checksum_ = adler32(0u, dex_file_data_.data() + skip, dex_file_data_.size() - skip);
+    header->checksum_ = adler32(adler32(0L, Z_NULL, 0),
+                                dex_file_data_.data() + skip,
+                                dex_file_data_.size() - skip);
+
+    // Write the complete header again, just simpler that way.
     std::memcpy(&dex_file_data_[0], header_data.data, sizeof(DexFile::Header));
 
     std::string error_msg;
     std::unique_ptr<const DexFile> dex_file(DexFile::Open(
-        &dex_file_data_[0], dex_file_data_.size(), dex_location, 0u, nullptr, &error_msg));
+        &dex_file_data_[0], dex_file_data_.size(), dex_location, 0u, nullptr, false, &error_msg));
     CHECK(dex_file != nullptr) << error_msg;
     return dex_file;
   }

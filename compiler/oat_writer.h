@@ -139,12 +139,15 @@ class OatWriter {
       CreateTypeLookupTable create_type_lookup_table = CreateTypeLookupTable::kDefault);
   dchecked_vector<const char*> GetSourceLocations() const;
 
-  // Write raw dex files to the .rodata section and open them from the oat file.
+  // Write raw dex files to the .rodata section and open them from the oat file. The verify
+  // setting dictates whether the dex file verifier should check the dex files. This is generally
+  // the case, and should only be false for tests.
   bool WriteAndOpenDexFiles(OutputStream* rodata,
                             File* file,
                             InstructionSet instruction_set,
                             const InstructionSetFeatures* instruction_set_features,
                             SafeMap<std::string, std::string>* key_value_store,
+                            bool verify,
                             /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
                             /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
   // Prepare layout of remaining data.
@@ -258,6 +261,7 @@ class OatWriter {
   bool WriteOatDexFiles(OutputStream* rodata);
   bool ExtendForTypeLookupTables(OutputStream* rodata, File* file, size_t offset);
   bool OpenDexFiles(File* file,
+                    bool verify,
                     /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
                     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
   bool WriteTypeLookupTables(MemMap* opened_dex_files_map,
