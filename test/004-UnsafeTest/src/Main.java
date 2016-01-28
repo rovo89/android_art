@@ -110,23 +110,35 @@ public class Main {
     check(unsafe.getObject(t, objectOffset), objectValue, "Unsafe.getObject(Object, long)");
 
     if (unsafe.compareAndSwapInt(t, intOffset, 0, 1)) {
-        System.out.println("Unexpectedly succeeding compareAndSwap...");
+      System.out.println("Unexpectedly succeeding compareAndSwapInt(t, intOffset, 0, 1)");
     }
     if (!unsafe.compareAndSwapInt(t, intOffset, intValue, 0)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwap...");
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSwapInt(t, intOffset, intValue, 0)");
     }
     if (!unsafe.compareAndSwapInt(t, intOffset, 0, 1)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwap...");
+      System.out.println("Unexpectedly not succeeding compareAndSwapInt(t, intOffset, 0, 1)");
+    }
+    // Exercise sun.misc.Unsafe.compareAndSwapInt using the same
+    // integer (1) for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSwapInt(t, intOffset, 1, 1)) {
+      System.out.println("Unexpectedly not succeeding compareAndSwapInt(t, intOffset, 1, 1)");
     }
 
     if (unsafe.compareAndSwapLong(t, longOffset, 0, 1)) {
-        System.out.println("Unexpectedly succeeding compareAndSwapLong...");
+      System.out.println("Unexpectedly succeeding compareAndSwapLong(t, longOffset, 0, 1)");
     }
     if (!unsafe.compareAndSwapLong(t, longOffset, longValue, 0)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapLong...");
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSwapLong(t, longOffset, longValue, 0)");
     }
     if (!unsafe.compareAndSwapLong(t, longOffset, 0, 1)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapLong...");
+      System.out.println("Unexpectedly not succeeding compareAndSwapLong(t, longOffset, 0, 1)");
+    }
+    // Exercise sun.misc.Unsafe.compareAndSwapLong using the same
+    // integer (1) for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSwapLong(t, longOffset, 1, 1)) {
+      System.out.println("Unexpectedly not succeeding compareAndSwapLong(t, longOffset, 1, 1)");
     }
 
     // We do not use `null` as argument to sun.misc.Unsafe.compareAndSwapObject
@@ -135,31 +147,41 @@ public class Main {
     // references).  This way, when heap poisoning is enabled, we can
     // better exercise its implementation within that method.
     if (unsafe.compareAndSwapObject(t, objectOffset, new Object(), new Object())) {
-        System.out.println("Unexpectedly succeeding compareAndSwapObject...");
+      System.out.println("Unexpectedly succeeding " +
+          "compareAndSwapObject(t, objectOffset, new Object(), new Object())");
     }
     Object objectValue2 = new Object();
     if (!unsafe.compareAndSwapObject(t, objectOffset, objectValue, objectValue2)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapObject...");
+      System.out.println("Unexpectedly not succeeding " +
+          "compareAndSwapObject(t, objectOffset, objectValue, objectValue2)");
     }
     Object objectValue3 = new Object();
     if (!unsafe.compareAndSwapObject(t, objectOffset, objectValue2, objectValue3)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapObject...");
+      System.out.println("Unexpectedly not succeeding " +
+          "compareAndSwapObject(t, objectOffset, objectValue2, objectValue3)");
     }
-
+    // Exercise sun.misc.Unsafe.compareAndSwapObject using the same
+    // object (`objectValue3`) for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSwapObject(t, objectOffset, objectValue3, objectValue3)) {
+      System.out.println("Unexpectedly not succeeding " +
+          "compareAndSwapObject(t, objectOffset, objectValue3, objectValue3)");
+    }
     // Exercise sun.misc.Unsafe.compareAndSwapObject using the same
     // object (`t`) for the `obj` and `newValue` arguments.
     if (!unsafe.compareAndSwapObject(t, objectOffset, objectValue3, t)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapObject...");
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSwapObject(t, objectOffset, objectValue3, t)");
     }
     // Exercise sun.misc.Unsafe.compareAndSwapObject using the same
     // object (`t`) for the `obj`, `expectedValue` and `newValue` arguments.
     if (!unsafe.compareAndSwapObject(t, objectOffset, t, t)) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapObject...");
+      System.out.println("Unexpectedly not succeeding compareAndSwapObject(t, objectOffset, t, t)");
     }
     // Exercise sun.misc.Unsafe.compareAndSwapObject using the same
     // object (`t`) for the `obj` and `expectedValue` arguments.
     if (!unsafe.compareAndSwapObject(t, objectOffset, t, new Object())) {
-        System.out.println("Unexpectedly not succeeding compareAndSwapObject...");
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSwapObject(t, objectOffset, t, new Object())");
     }
   }
 

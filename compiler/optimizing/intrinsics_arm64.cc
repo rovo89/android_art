@@ -986,7 +986,9 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
                codegen_);
 }
 
-static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena,
+                                       HInvoke* invoke,
+                                       Primitive::Type type) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
@@ -996,7 +998,12 @@ static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetInAt(3, Location::RequiresRegister());
   locations->SetInAt(4, Location::RequiresRegister());
 
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  // If heap poisoning is enabled, we don't want the unpoisoning
+  // operations to potentially clobber the output.
+  Location::OutputOverlap overlaps = (kPoisonHeapReferences && type == Primitive::kPrimNot)
+      ? Location::kOutputOverlap
+      : Location::kNoOutputOverlap;
+  locations->SetOut(Location::RequiresRegister(), overlaps);
 }
 
 static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorARM64* codegen) {
@@ -1027,7 +1034,12 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
 
   if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
     codegen->GetAssembler()->PoisonHeapReference(expected);
-    codegen->GetAssembler()->PoisonHeapReference(value);
+    if (value.Is(expected)) {
+      // Do not poison `value`, as it is the same register as
+      // `expected`, which has just been poisoned.
+    } else {
+      codegen->GetAssembler()->PoisonHeapReference(value);
+    }
   }
 
   // do {
@@ -1077,16 +1089,21 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   __ Cset(out, eq);
 
   if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
-    codegen->GetAssembler()->UnpoisonHeapReference(value);
     codegen->GetAssembler()->UnpoisonHeapReference(expected);
+    if (value.Is(expected)) {
+      // Do not unpoison `value`, as it is the same register as
+      // `expected`, which has just been unpoisoned.
+    } else {
+      codegen->GetAssembler()->UnpoisonHeapReference(value);
+    }
   }
 }
 
 void IntrinsicLocationsBuilderARM64::VisitUnsafeCASInt(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(arena_, invoke);
+  CreateIntIntIntIntIntToInt(arena_, invoke, Primitive::kPrimInt);
 }
 void IntrinsicLocationsBuilderARM64::VisitUnsafeCASLong(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(arena_, invoke);
+  CreateIntIntIntIntIntToInt(arena_, invoke, Primitive::kPrimLong);
 }
 void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic is missing a read barrier, and
@@ -1094,16 +1111,12 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
   // Turn it off temporarily as a quick fix, until the read barrier is
   // implemented (see TODO in GenCAS below).
   //
-  // Also, the UnsafeCASObject intrinsic does not always work when heap
-  // poisoning is enabled (it breaks run-test 004-UnsafeTest); turn it
-  // off temporarily as a quick fix (b/26204023).
-  //
-  // TODO(rpl): Fix these two issues and re-enable this intrinsic.
-  if (kEmitCompilerReadBarrier || kPoisonHeapReferences) {
+  // TODO(rpl): Fix this issue and re-enable this intrinsic with read barriers.
+  if (kEmitCompilerReadBarrier) {
     return;
   }
 
-  CreateIntIntIntIntIntToInt(arena_, invoke);
+  CreateIntIntIntIntIntToInt(arena_, invoke, Primitive::kPrimNot);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafeCASInt(HInvoke* invoke) {
