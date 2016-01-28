@@ -6253,15 +6253,7 @@ bool ClassLinker::LinkInterfaceMethods(
           }  // case kAbstractFound
         }
         if (LIKELY(fill_tables)) {
-          if (current_method != nullptr) {
-            // We found a default method implementation. Record it in the iftable and IMT.
-            method_array->SetElementPtrSize(j, current_method, image_pointer_size_);
-            SetIMTRef(unimplemented_method,
-                      imt_conflict_method,
-                      image_pointer_size_,
-                      current_method,
-                      /*out*/imt_ptr);
-          } else if (!super_interface) {
+          if (current_method == nullptr && !super_interface) {
             // We could not find an implementation for this method and since it is a brand new
             // interface we searched the entire vtable (and all default methods) for an
             // implementation but couldn't find one. We therefore need to make a miranda method.
@@ -6277,7 +6269,17 @@ bool ClassLinker::LinkInterfaceMethods(
               new(miranda_method) ArtMethod(interface_method, image_pointer_size_);
               miranda_methods.push_back(miranda_method);
             }
-            method_array->SetElementPtrSize(j, miranda_method, image_pointer_size_);
+            current_method = miranda_method;
+          }
+
+          if (current_method != nullptr) {
+            // We found a default method implementation. Record it in the iftable and IMT.
+            method_array->SetElementPtrSize(j, current_method, image_pointer_size_);
+            SetIMTRef(unimplemented_method,
+                      imt_conflict_method,
+                      image_pointer_size_,
+                      current_method,
+                      /*out*/imt_ptr);
           }
         }
       }  // For each method in interface end.
