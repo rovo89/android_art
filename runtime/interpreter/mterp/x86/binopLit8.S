@@ -12,7 +12,7 @@
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     $instr                                  # ex: addl %ecx,%eax
-    SET_VREG $result rINST
+    SET_VREG $result, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

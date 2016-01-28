@@ -8,7 +8,7 @@
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $$0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $$4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $$2, %eax                       # assume not taken

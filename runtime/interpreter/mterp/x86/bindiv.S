@@ -6,8 +6,8 @@
     /* div/rem vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
     mov     rIBASE, LOCAL0(%esp)
     testl   %ecx, %ecx
     je      common_errDivideByZero
@@ -43,6 +43,6 @@
     xorl    %edx, %edx                      # Clear %edx before divide
     div     %cx
 .L${opcode}_finish:
-    SET_VREG $result rINST
+    SET_VREG $result, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

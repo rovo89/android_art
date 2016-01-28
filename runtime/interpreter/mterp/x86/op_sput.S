@@ -9,13 +9,13 @@
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref BBBB
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl    rINST, OUT_ARG1(%esp)           # fp[AA]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG2(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    $helper
+    call    SYMBOL($helper)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE

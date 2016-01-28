@@ -11,7 +11,7 @@
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpCheckCast                  # (index, &obj, method, self)
+    call    SYMBOL(MterpCheckCast)          # (index, &obj, method, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpPossibleException

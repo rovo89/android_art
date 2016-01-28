@@ -31,5 +31,5 @@
 .L${opcode}_less:
     decl    %eax
 .L${opcode}_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

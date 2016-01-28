@@ -15,6 +15,6 @@
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(${opnum}*${handler_size_bytes})

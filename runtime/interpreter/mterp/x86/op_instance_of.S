@@ -16,11 +16,11 @@
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpInstanceOf                 # (index, &obj, method, self)
+    call    SYMBOL(MterpInstanceOf)         # (index, &obj, method, self)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     andb    $$0xf, rINSTbl                  # rINSTbl <- A
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
