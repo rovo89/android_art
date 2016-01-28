@@ -276,6 +276,11 @@ bool ImageWriter::Write(int image_fd,
     if (image_fd != kInvalidFd) {
       if (strlen(image_filename) == 0u) {
         image_file.reset(new File(image_fd, unix_file::kCheckSafeUsage));
+        // Empty the file in case it already exists.
+        if (image_file != nullptr) {
+          TEMP_FAILURE_RETRY(image_file->SetLength(0));
+          TEMP_FAILURE_RETRY(image_file->Flush());
+        }
       } else {
         LOG(ERROR) << "image fd " << image_fd << " name " << image_filename;
       }
