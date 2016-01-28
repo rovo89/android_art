@@ -381,17 +381,24 @@ inline T PointerArray::GetElementPtrSize(uint32_t idx, size_t ptr_size) {
   return (T)static_cast<uintptr_t>(AsIntArray()->GetWithoutChecks(idx));
 }
 
-template<bool kTransactionActive, bool kUnchecked, typename T>
-inline void PointerArray::SetElementPtrSize(uint32_t idx, T element, size_t ptr_size) {
+template<bool kTransactionActive, bool kUnchecked>
+inline void PointerArray::SetElementPtrSize(uint32_t idx, uint64_t element, size_t ptr_size) {
   if (ptr_size == 8) {
     (kUnchecked ? down_cast<LongArray*>(static_cast<Object*>(this)) : AsLongArray())->
-        SetWithoutChecks<kTransactionActive>(idx, (uint64_t)(element));
+        SetWithoutChecks<kTransactionActive>(idx, element);
   } else {
     DCHECK_EQ(ptr_size, 4u);
-    DCHECK_LE((uintptr_t)element, 0xFFFFFFFFu);
+    DCHECK_LE(element, static_cast<uint64_t>(0xFFFFFFFFu));
     (kUnchecked ? down_cast<IntArray*>(static_cast<Object*>(this)) : AsIntArray())
-        ->SetWithoutChecks<kTransactionActive>(idx, static_cast<uint32_t>((uintptr_t)element));
+        ->SetWithoutChecks<kTransactionActive>(idx, static_cast<uint32_t>(element));
   }
+}
+
+template<bool kTransactionActive, bool kUnchecked, typename T>
+inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, size_t ptr_size) {
+  SetElementPtrSize<kTransactionActive, kUnchecked>(idx,
+                                                    reinterpret_cast<uintptr_t>(element),
+                                                    ptr_size);
 }
 
 template <typename Visitor>
