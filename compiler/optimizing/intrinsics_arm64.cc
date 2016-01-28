@@ -275,6 +275,45 @@ void IntrinsicCodeGeneratorARM64::VisitShortReverseBytes(HInvoke* invoke) {
   GenReverseBytes(invoke->GetLocations(), Primitive::kPrimShort, GetVIXLAssembler());
 }
 
+static void CreateIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+static void GenCompare(LocationSummary* locations, bool is_long, vixl::MacroAssembler* masm) {
+  Location op1 = locations->InAt(0);
+  Location op2 = locations->InAt(1);
+  Location out = locations->Out();
+
+  Register op1_reg = is_long ? XRegisterFrom(op1) : WRegisterFrom(op1);
+  Register op2_reg = is_long ? XRegisterFrom(op2) : WRegisterFrom(op2);
+  Register out_reg = WRegisterFrom(out);
+
+  __ Cmp(op1_reg, op2_reg);
+  __ Cset(out_reg, gt);           // out == +1 if GT or 0 otherwise
+  __ Cinv(out_reg, out_reg, lt);  // out == -1 if LT or unchanged otherwise
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerCompare(HInvoke* invoke) {
+  CreateIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerCompare(HInvoke* invoke) {
+  GenCompare(invoke->GetLocations(), /* is_long */ false, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongCompare(HInvoke* invoke) {
+  CreateIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongCompare(HInvoke* invoke) {
+  GenCompare(invoke->GetLocations(), /* is_long */ true,  GetVIXLAssembler());
+}
+
 static void GenNumberOfLeadingZeros(LocationSummary* locations,
                                     Primitive::Type type,
                                     vixl::MacroAssembler* masm) {
@@ -502,15 +541,6 @@ static void GenMinMax(LocationSummary* locations,
 
   __ Cmp(op1_reg, op2_reg);
   __ Csel(out_reg, op1_reg, op2_reg, is_min ? lt : gt);
-}
-
-static void CreateIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
-  LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathMinIntInt(HInvoke* invoke) {
@@ -1507,8 +1537,6 @@ UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
 UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
 
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
 UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
