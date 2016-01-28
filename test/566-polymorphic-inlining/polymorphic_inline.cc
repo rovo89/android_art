@@ -29,6 +29,8 @@ static void do_checks(jclass cls, const char* method_name) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
   ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, sizeof(void*));
+  jit->CompileMethod(method, soa.Self());
+
   OatQuickMethodHeader* header = OatQuickMethodHeader::FromEntryPoint(
       method->GetEntryPointFromQuickCompiledCode());
   CHECK(code_cache->ContainsPc(header->GetCode()));
