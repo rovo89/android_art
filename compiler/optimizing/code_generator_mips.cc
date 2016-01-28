@@ -614,6 +614,31 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
     Exchange(loc1.GetStackIndex(), loc2.GetStackIndex(), /* double_slot */ false);
   } else if (loc1.IsDoubleStackSlot() && loc2.IsDoubleStackSlot()) {
     Exchange(loc1.GetStackIndex(), loc2.GetStackIndex(), /* double_slot */ true);
+  } else if ((loc1.IsRegister() && loc2.IsStackSlot()) ||
+             (loc1.IsStackSlot() && loc2.IsRegister())) {
+    Register reg = loc1.IsRegister() ? loc1.AsRegister<Register>()
+                                     : loc2.AsRegister<Register>();
+    intptr_t offset = loc1.IsStackSlot() ? loc1.GetStackIndex()
+                                         : loc2.GetStackIndex();
+    __ Move(TMP, reg);
+    __ LoadFromOffset(kLoadWord, reg, SP, offset);
+    __ StoreToOffset(kStoreWord, TMP, SP, offset);
+  } else if ((loc1.IsRegisterPair() && loc2.IsDoubleStackSlot()) ||
+             (loc1.IsDoubleStackSlot() && loc2.IsRegisterPair())) {
+    Register reg_l = loc1.IsRegisterPair() ? loc1.AsRegisterPairLow<Register>()
+                                           : loc2.AsRegisterPairLow<Register>();
+    Register reg_h = loc1.IsRegisterPair() ? loc1.AsRegisterPairHigh<Register>()
+                                           : loc2.AsRegisterPairHigh<Register>();
+    intptr_t offset_l = loc1.IsDoubleStackSlot() ? loc1.GetStackIndex()
+                                                 : loc2.GetStackIndex();
+    intptr_t offset_h = loc1.IsDoubleStackSlot() ? loc1.GetHighStackIndex(kMipsWordSize)
+                                                 : loc2.GetHighStackIndex(kMipsWordSize);
+    __ Move(TMP, reg_l);
+    __ Move(AT, reg_h);
+    __ LoadFromOffset(kLoadWord, reg_l, SP, offset_l);
+    __ LoadFromOffset(kLoadWord, reg_h, SP, offset_h);
+    __ StoreToOffset(kStoreWord, TMP, SP, offset_l);
+    __ StoreToOffset(kStoreWord, AT, SP, offset_h);
   } else {
     LOG(FATAL) << "Swap between " << loc1 << " and " << loc2 << " is unsupported";
   }
