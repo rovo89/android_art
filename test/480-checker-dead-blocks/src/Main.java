@@ -56,6 +56,8 @@ public class Main {
       z = x + y;
     } else {
       z = x - y;
+      // Prevent HSelect simplification by having a branch with multiple instructions.
+      System.nanoTime();
     }
     return z;
   }
@@ -86,6 +88,8 @@ public class Main {
       z = x + y;
     } else {
       z = x - y;
+      // Prevent HSelect simplification by having a branch with multiple instructions.
+      System.nanoTime();
     }
     return z;
   }
