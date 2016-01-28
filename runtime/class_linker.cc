@@ -164,10 +164,12 @@ void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c, bool wrap_in_no_cla
   if (!runtime->IsAotCompiler()) {  // Give info if this occurs at runtime.
     std::string extra;
     if (c->GetVerifyError() != nullptr) {
-      mirror::Class* descr_from = c->GetVerifyError()->IsClass()
-                                      ? c->GetVerifyError()->AsClass()
-                                      : c->GetVerifyError()->GetClass();
-      extra = PrettyDescriptor(descr_from);
+      mirror::Object* verify_error = c->GetVerifyError();
+      if (verify_error->IsClass()) {
+        extra = PrettyDescriptor(verify_error->AsClass());
+      } else {
+        extra = verify_error->AsThrowable()->Dump();
+      }
     }
     LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c) << ": " << extra;
   }
