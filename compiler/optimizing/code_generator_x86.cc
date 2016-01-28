@@ -1628,7 +1628,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
-      if (cond->NeedsMaterialization()) {
+      if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister());
       }
       break;
@@ -1637,7 +1637,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       locations->SetInAt(1, Location::RequiresFpuRegister());
-      if (cond->NeedsMaterialization()) {
+      if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister());
       }
       break;
@@ -1645,7 +1645,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
     default:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::Any());
-      if (cond->NeedsMaterialization()) {
+      if (!cond->IsEmittedAtUseSite()) {
         // We need a byte register.
         locations->SetOut(Location::RegisterLocation(ECX));
       }
@@ -1654,7 +1654,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
 }
 
 void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
-  if (!cond->NeedsMaterialization()) {
+  if (cond->IsEmittedAtUseSite()) {
     return;
   }
 
@@ -2657,7 +2657,11 @@ void LocationsBuilderX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::Any());
+      if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
+        DCHECK(add->InputAt(1)->IsEmittedAtUseSite());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2721,7 +2725,7 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
         __ addss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ addss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
                    const_area->GetConstant()->AsFloatConstant()->GetValue(),
@@ -2738,7 +2742,7 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
         __ addsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ addsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
                    const_area->GetConstant()->AsDoubleConstant()->GetValue(),
@@ -2769,7 +2773,11 @@ void LocationsBuilderX86::VisitSub(HSub* sub) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::Any());
+      if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
+        DCHECK(sub->InputAt(1)->IsEmittedAtUseSite());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2819,7 +2827,7 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
         __ subss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ subss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
                    const_area->GetConstant()->AsFloatConstant()->GetValue(),
@@ -2836,7 +2844,7 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
         __ subsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ subsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
                      const_area->GetConstant()->AsDoubleConstant()->GetValue(),
@@ -2879,7 +2887,11 @@ void LocationsBuilderX86::VisitMul(HMul* mul) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::Any());
+      if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
+        DCHECK(mul->InputAt(1)->IsEmittedAtUseSite());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -3000,7 +3012,7 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
         __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ mulss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
                      const_area->GetConstant()->AsFloatConstant()->GetValue(),
@@ -3018,7 +3030,7 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
         __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ mulsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
                      const_area->GetConstant()->AsDoubleConstant()->GetValue(),
@@ -3372,7 +3384,11 @@ void LocationsBuilderX86::VisitDiv(HDiv* div) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::Any());
+      if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
+        DCHECK(div->InputAt(1)->IsEmittedAtUseSite());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -3399,7 +3415,7 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
         __ divss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ divss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
                    const_area->GetConstant()->AsFloatConstant()->GetValue(),
@@ -3416,7 +3432,7 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
         __ divsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
         HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTable();
-        DCHECK(!const_area->NeedsMaterialization());
+        DCHECK(const_area->IsEmittedAtUseSite());
         __ divsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
                    const_area->GetConstant()->AsDoubleConstant()->GetValue(),
@@ -6865,7 +6881,7 @@ void LocationsBuilderX86::VisitX86LoadFromConstantTable(
   locations->SetInAt(1, Location::ConstantLocation(insn->GetConstant()));
 
   // If we don't need to be materialized, we only need the inputs to be set.
-  if (!insn->NeedsMaterialization()) {
+  if (insn->IsEmittedAtUseSite()) {
     return;
   }
 
@@ -6885,7 +6901,7 @@ void LocationsBuilderX86::VisitX86LoadFromConstantTable(
 }
 
 void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromConstantTable* insn) {
-  if (!insn->NeedsMaterialization()) {
+  if (insn->IsEmittedAtUseSite()) {
     return;
   }
 

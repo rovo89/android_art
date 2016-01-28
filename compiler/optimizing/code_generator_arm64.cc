@@ -2510,13 +2510,13 @@ void LocationsBuilderARM64::HandleCondition(HCondition* instruction) {
     locations->SetInAt(1, ARM64EncodableConstantOrRegister(instruction->InputAt(1), instruction));
   }
 
-  if (instruction->NeedsMaterialization()) {
+  if (!instruction->IsEmittedAtUseSite()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
 }
 
 void InstructionCodeGeneratorARM64::HandleCondition(HCondition* instruction) {
-  if (!instruction->NeedsMaterialization()) {
+  if (instruction->IsEmittedAtUseSite()) {
     return;
   }
 
