@@ -1533,6 +1533,14 @@ bool ClassLinker::AddImageSpace(
         }
       }
       if (!equal) {
+        VLOG(image) << "Image dex files " << image_dex_file_names.size();
+        for (mirror::String* name : image_dex_file_names) {
+          VLOG(image) << name->ToModifiedUtf8();
+        }
+        VLOG(image) << "Loader dex files " << loader_dex_file_names.size();
+        for (mirror::String* name : loader_dex_file_names) {
+          VLOG(image) << name->ToModifiedUtf8();
+        }
         *error_msg = "Rejecting application image due to class loader mismatch";
         return false;
       }
