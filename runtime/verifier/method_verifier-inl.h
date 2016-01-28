@@ -50,6 +50,10 @@ inline mirror::DexCache* MethodVerifier::GetDexCache() {
   return dex_cache_.Get();
 }
 
+inline ArtMethod* MethodVerifier::GetMethod() const {
+  return mirror_method_;
+}
+
 inline MethodReference MethodVerifier::GetMethodReference() const {
   return MethodReference(dex_file_, dex_method_idx_);
 }

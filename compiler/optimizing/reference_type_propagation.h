@@ -35,6 +35,9 @@ class ReferenceTypePropagation : public HOptimization {
                            StackHandleScopeCollection* handles,
                            const char* name = kReferenceTypePropagationPassName);
 
+  // Visit a single instruction.
+  void Visit(HInstruction* instruction);
+
   void Run() OVERRIDE;
 
   static constexpr const char* kReferenceTypePropagationPassName = "reference_type_propagation";

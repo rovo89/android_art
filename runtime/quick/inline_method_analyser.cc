@@ -71,14 +71,37 @@ static_assert(InlineMethodAnalyser::IGetVariant(Instruction::IGET_SHORT) ==
 // we need to be able to detect possibly inlined method, we pass a null inline method to indicate
 // we don't want to take unresolved methods and fields into account during analysis.
 bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
-                                             InlineMethod* method) {
+                                             InlineMethod* result) {
   DCHECK(verifier != nullptr);
   if (!Runtime::Current()->UseJit()) {
-    DCHECK_EQ(verifier->CanLoadClasses(), method != nullptr);
+    DCHECK_EQ(verifier->CanLoadClasses(), result != nullptr);
   }
+
+  // Note: verifier->GetMethod() may be null.
+  return AnalyseMethodCode(verifier->CodeItem(),
+                           verifier->GetMethodReference(),
+                           (verifier->GetAccessFlags() & kAccStatic) != 0u,
+                           verifier->GetMethod(),
+                           result);
+}
+
+bool InlineMethodAnalyser::AnalyseMethodCode(ArtMethod* method, InlineMethod* result) {
+  const DexFile::CodeItem* code_item = method->GetCodeItem();
+  if (code_item == nullptr) {
+    // Native or abstract.
+    return false;
+  }
+  return AnalyseMethodCode(
+      code_item, method->ToMethodReference(), method->IsStatic(), method, result);
+}
+
+bool InlineMethodAnalyser::AnalyseMethodCode(const DexFile::CodeItem* code_item,
+                                             const MethodReference& method_ref,
+                                             bool is_static,
+                                             ArtMethod* method,
+                                             InlineMethod* result) {
   // We currently support only plain return or 2-instruction methods.
 
-  const DexFile::CodeItem* code_item = verifier->CodeItem();
   DCHECK_NE(code_item->insns_size_in_code_units_, 0u);
   const Instruction* instruction = Instruction::At(code_item->insns_);
   Instruction::Code opcode = instruction->Opcode();
@@ -86,21 +109,21 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
   switch (opcode) {
     case Instruction::RETURN_VOID:
       if (method != nullptr) {
-        method->opcode = kInlineOpNop;
-        method->flags = kInlineSpecial;
-        method->d.data = 0u;
+        result->opcode = kInlineOpNop;
+        result->flags = kInlineSpecial;
+        result->d.data = 0u;
       }
       return true;
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
     case Instruction::RETURN_WIDE:
-      return AnalyseReturnMethod(code_item, method);
+      return AnalyseReturnMethod(code_item, result);
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16:
     case Instruction::CONST_HIGH16:
       // TODO: Support wide constants (RETURN_WIDE).
-      return AnalyseConstMethod(code_item, method);
+      return AnalyseConstMethod(code_item, result);
     case Instruction::IGET:
     case Instruction::IGET_OBJECT:
     case Instruction::IGET_BOOLEAN:
@@ -112,7 +135,7 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
     // case Instruction::IGET_QUICK:
     // case Instruction::IGET_WIDE_QUICK:
     // case Instruction::IGET_OBJECT_QUICK:
-      return AnalyseIGetMethod(verifier, method);
+      return AnalyseIGetMethod(code_item, method_ref, is_static, method, result);
     case Instruction::IPUT:
     case Instruction::IPUT_OBJECT:
     case Instruction::IPUT_BOOLEAN:
@@ -124,7 +147,7 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
     // case Instruction::IPUT_QUICK:
     // case Instruction::IPUT_WIDE_QUICK:
     // case Instruction::IPUT_OBJECT_QUICK:
-      return AnalyseIPutMethod(verifier, method);
+      return AnalyseIPutMethod(code_item, method_ref, is_static, method, result);
     default:
       return false;
   }
@@ -194,9 +217,11 @@ bool InlineMethodAnalyser::AnalyseConstMethod(const DexFile::CodeItem* code_item
   return true;
 }
 
-bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
+bool InlineMethodAnalyser::AnalyseIGetMethod(const DexFile::CodeItem* code_item,
+                                             const MethodReference& method_ref,
+                                             bool is_static,
+                                             ArtMethod* method,
                                              InlineMethod* result) {
-  const DexFile::CodeItem* code_item = verifier->CodeItem();
   const Instruction* instruction = Instruction::At(code_item->insns_);
   Instruction::Code opcode = instruction->Opcode();
   DCHECK(IsInstructionIGet(opcode));
@@ -227,10 +252,10 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
     return false;  // Not returning the value retrieved by IGET?
   }
 
-  if ((verifier->GetAccessFlags() & kAccStatic) != 0u || object_arg != 0u) {
+  if (is_static || object_arg != 0u) {
     // TODO: Implement inlining of IGET on non-"this" registers (needs correct stack trace for NPE).
     // Allow synthetic accessors. We don't care about losing their stack frame in NPE.
-    if (!IsSyntheticAccessor(verifier->GetMethodReference())) {
+    if (!IsSyntheticAccessor(method_ref)) {
       return false;
     }
   }
@@ -243,13 +268,13 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
 
   if (result != nullptr) {
     InlineIGetIPutData* data = &result->d.ifield_data;
-    if (!ComputeSpecialAccessorInfo(field_idx, false, verifier, data)) {
+    if (!ComputeSpecialAccessorInfo(method, field_idx, false, data)) {
       return false;
     }
     result->opcode = kInlineOpIGet;
     result->flags = kInlineSpecial;
     data->op_variant = IGetVariant(opcode);
-    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0u ? 1u : 0u;
+    data->method_is_static = is_static ? 1u : 0u;
     data->object_arg = object_arg;  // Allow IGET on any register, not just "this".
     data->src_arg = 0u;
     data->return_arg_plus1 = 0u;
@@ -257,9 +282,11 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
   return true;
 }
 
-bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
+bool InlineMethodAnalyser::AnalyseIPutMethod(const DexFile::CodeItem* code_item,
+                                             const MethodReference& method_ref,
+                                             bool is_static,
+                                             ArtMethod* method,
                                              InlineMethod* result) {
-  const DexFile::CodeItem* code_item = verifier->CodeItem();
   const Instruction* instruction = Instruction::At(code_item->insns_);
   Instruction::Code opcode = instruction->Opcode();
   DCHECK(IsInstructionIPut(opcode));
@@ -292,10 +319,10 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
   uint32_t object_arg = object_reg - arg_start;
   uint32_t src_arg = src_reg - arg_start;
 
-  if ((verifier->GetAccessFlags() & kAccStatic) != 0u || object_arg != 0u) {
+  if (is_static || object_arg != 0u) {
     // TODO: Implement inlining of IPUT on non-"this" registers (needs correct stack trace for NPE).
     // Allow synthetic accessors. We don't care about losing their stack frame in NPE.
-    if (!IsSyntheticAccessor(verifier->GetMethodReference())) {
+    if (!IsSyntheticAccessor(method_ref)) {
       return false;
     }
   }
@@ -310,13 +337,13 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
 
   if (result != nullptr) {
     InlineIGetIPutData* data = &result->d.ifield_data;
-    if (!ComputeSpecialAccessorInfo(field_idx, true, verifier, data)) {
+    if (!ComputeSpecialAccessorInfo(method, field_idx, true, data)) {
       return false;
     }
     result->opcode = kInlineOpIPut;
     result->flags = kInlineSpecial;
     data->op_variant = IPutVariant(opcode);
-    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0u ? 1u : 0u;
+    data->method_is_static = is_static ? 1u : 0u;
     data->object_arg = object_arg;  // Allow IPUT on any register, not just "this".
     data->src_arg = src_arg;
     data->return_arg_plus1 = return_arg_plus1;
@@ -324,15 +351,17 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
   return true;
 }
 
-bool InlineMethodAnalyser::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
-                                                      verifier::MethodVerifier* verifier,
+bool InlineMethodAnalyser::ComputeSpecialAccessorInfo(ArtMethod* method,
+                                                      uint32_t field_idx,
+                                                      bool is_put,
                                                       InlineIGetIPutData* result) {
-  mirror::DexCache* dex_cache = verifier->GetDexCache();
-  uint32_t method_idx = verifier->GetMethodReference().dex_method_index;
-  auto* cl = Runtime::Current()->GetClassLinker();
-  ArtMethod* method = dex_cache->GetResolvedMethod(method_idx, cl->GetImagePointerSize());
-  ArtField* field = cl->GetResolvedField(field_idx, dex_cache);
-  if (method == nullptr || field == nullptr || field->IsStatic()) {
+  if (method == nullptr) {
+    return false;
+  }
+  mirror::DexCache* dex_cache = method->GetDexCache();
+  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  ArtField* field = dex_cache->GetResolvedField(field_idx, pointer_size);
+  if (field == nullptr || field->IsStatic()) {
     return false;
   }
   mirror::Class* method_class = method->GetDeclaringClass();
