@@ -85,6 +85,11 @@ class HInliner : public HOptimization {
                          bool same_dex_file,
                          bool do_rtp = true);
 
+  HInstanceFieldGet* BuildGetReceiverClass(ClassLinker* class_linker,
+                                           HInstruction* receiver,
+                                           uint32_t dex_pc) const
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
   HGraph* const outermost_graph_;
   const DexCompilationUnit& outer_compilation_unit_;
   const DexCompilationUnit& caller_compilation_unit_;

@@ -1162,6 +1162,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(BoundsCheck, Instruction)                                           \
   M(BoundType, Instruction)                                             \
   M(CheckCast, Instruction)                                             \
+  M(ClassTableGet, Instruction)                                         \
   M(ClearException, Instruction)                                        \
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
@@ -2550,6 +2551,44 @@ class HCurrentMethod : public HExpression<0> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HCurrentMethod);
+};
+
+// Fetches an ArtMethod from the virtual table or the interface method table
+// of a class.
+class HClassTableGet : public HExpression<1> {
+ public:
+  enum TableKind {
+    kVTable,
+    kIMTable,
+  };
+  HClassTableGet(HInstruction* cls,
+                 Primitive::Type type,
+                 TableKind kind,
+                 size_t index,
+                 uint32_t dex_pc)
+      : HExpression(type, SideEffects::None(), dex_pc),
+        index_(index),
+        table_kind_(kind) {
+    SetRawInputAt(0, cls);
+  }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    return other->AsClassTableGet()->GetIndex() == index_ &&
+        other->AsClassTableGet()->GetTableKind() == table_kind_;
+  }
+
+  TableKind GetTableKind() const { return table_kind_; }
+  size_t GetIndex() const { return index_; }
+
+  DECLARE_INSTRUCTION(ClassTableGet);
+
+ private:
+  // The index of the ArtMethod in the table.
+  const size_t index_;
+  const TableKind table_kind_;
+
+  DISALLOW_COPY_AND_ASSIGN(HClassTableGet);
 };
 
 // PackedSwitch (jump table). A block ending with a PackedSwitch instruction will
