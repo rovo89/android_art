@@ -21,6 +21,8 @@
 #include "class_linker.h"
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
+#include "dex/verified_method.h"
+#include "dex/verification_results.h"
 #include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
@@ -32,13 +34,12 @@
 #include "optimizing_compiler.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
+#include "quick/inline_method_analyser.h"
 #include "sharpening.h"
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
-#include "dex/verified_method.h"
-#include "dex/verification_results.h"
 
 namespace art {
 
@@ -488,6 +489,11 @@ bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do
   // dex file here (though the transitivity of an inline chain would allow checking the calller).
   if (!compiler_driver_->MayInline(method->GetDexFile(),
                                    outer_compilation_unit_.GetDexFile())) {
+    if (TryPatternSubstitution(invoke_instruction, method, do_rtp)) {
+      VLOG(compiler) << "Successfully replaced pattern of invoke " << PrettyMethod(method);
+      MaybeRecordStat(kReplacedInvokeWithSimplePattern);
+      return true;
+    }
     VLOG(compiler) << "Won't inline " << PrettyMethod(method) << " in "
                    << outer_compilation_unit_.GetDexFile()->GetLocation() << " ("
                    << caller_compilation_unit_.GetDexFile()->GetLocation() << ") from "
@@ -559,6 +565,140 @@ bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do
   return true;
 }
 
+static HInstruction* GetInvokeInputForArgVRegIndex(HInvoke* invoke_instruction,
+                                                   size_t arg_vreg_index)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t input_index = 0;
+  for (size_t i = 0; i < arg_vreg_index; ++i, ++input_index) {
+    DCHECK_LT(input_index, invoke_instruction->GetNumberOfArguments());
+    if (Primitive::Is64BitType(invoke_instruction->InputAt(input_index)->GetType())) {
+      ++i;
+      DCHECK_NE(i, arg_vreg_index);
+    }
+  }
+  DCHECK_LT(input_index, invoke_instruction->GetNumberOfArguments());
+  return invoke_instruction->InputAt(input_index);
+}
+
+// Try to recognize known simple patterns and replace invoke call with appropriate instructions.
+bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
+                                      ArtMethod* resolved_method,
+                                      bool do_rtp) {
+  InlineMethod inline_method;
+  if (!InlineMethodAnalyser::AnalyseMethodCode(resolved_method, &inline_method)) {
+    return false;
+  }
+
+  HInstruction* return_replacement = nullptr;
+  switch (inline_method.opcode) {
+    case kInlineOpNop:
+      DCHECK_EQ(invoke_instruction->GetType(), Primitive::kPrimVoid);
+      break;
+    case kInlineOpReturnArg:
+      return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction,
+                                                         inline_method.d.return_data.arg);
+      break;
+    case kInlineOpNonWideConst:
+      if (resolved_method->GetShorty()[0] == 'L') {
+        DCHECK_EQ(inline_method.d.data, 0u);
+        return_replacement = graph_->GetNullConstant();
+      } else {
+        return_replacement = graph_->GetIntConstant(static_cast<int32_t>(inline_method.d.data));
+      }
+      break;
+    case kInlineOpIGet: {
+      const InlineIGetIPutData& data = inline_method.d.ifield_data;
+      if (data.method_is_static || data.object_arg != 0u) {
+        // TODO: Needs null check.
+        return false;
+      }
+      HInstruction* obj = GetInvokeInputForArgVRegIndex(invoke_instruction, data.object_arg);
+      HInstanceFieldGet* iget = CreateInstanceFieldGet(resolved_method, data.field_idx, obj);
+      DCHECK_EQ(iget->GetFieldOffset().Uint32Value(), data.field_offset);
+      DCHECK_EQ(iget->IsVolatile() ? 1u : 0u, data.is_volatile);
+      invoke_instruction->GetBlock()->InsertInstructionBefore(iget, invoke_instruction);
+      return_replacement = iget;
+      break;
+    }
+    case kInlineOpIPut: {
+      const InlineIGetIPutData& data = inline_method.d.ifield_data;
+      if (data.method_is_static || data.object_arg != 0u) {
+        // TODO: Needs null check.
+        return false;
+      }
+      HInstruction* obj = GetInvokeInputForArgVRegIndex(invoke_instruction, data.object_arg);
+      HInstruction* value = GetInvokeInputForArgVRegIndex(invoke_instruction, data.src_arg);
+      HInstanceFieldSet* iput = CreateInstanceFieldSet(resolved_method, data.field_idx, obj, value);
+      DCHECK_EQ(iput->GetFieldOffset().Uint32Value(), data.field_offset);
+      DCHECK_EQ(iput->IsVolatile() ? 1u : 0u, data.is_volatile);
+      invoke_instruction->GetBlock()->InsertInstructionBefore(iput, invoke_instruction);
+      if (data.return_arg_plus1 != 0u) {
+        size_t return_arg = data.return_arg_plus1 - 1u;
+        return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction, return_arg);
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+  }
+
+  if (return_replacement != nullptr) {
+    invoke_instruction->ReplaceWith(return_replacement);
+  }
+  invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
+
+  FixUpReturnReferenceType(resolved_method, invoke_instruction, return_replacement, do_rtp);
+  return true;
+}
+
+HInstanceFieldGet* HInliner::CreateInstanceFieldGet(ArtMethod* resolved_method,
+                                                    uint32_t field_index,
+                                                    HInstruction* obj)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
+  size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+  ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
+  DCHECK(resolved_field != nullptr);
+  HInstanceFieldGet* iget = new (graph_->GetArena()) HInstanceFieldGet(
+      obj,
+      resolved_field->GetTypeAsPrimitiveType(),
+      resolved_field->GetOffset(),
+      resolved_field->IsVolatile(),
+      field_index,
+      resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
+      *resolved_method->GetDexFile(),
+      dex_cache,
+      kNoDexPc);
+  if (iget->GetType() == Primitive::kPrimNot) {
+    ReferenceTypePropagation rtp(graph_, handles_);
+    rtp.Visit(iget);
+  }
+  return iget;
+}
+
+HInstanceFieldSet* HInliner::CreateInstanceFieldSet(ArtMethod* resolved_method,
+                                                    uint32_t field_index,
+                                                    HInstruction* obj,
+                                                    HInstruction* value)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
+  size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+  ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
+  DCHECK(resolved_field != nullptr);
+  HInstanceFieldSet* iput = new (graph_->GetArena()) HInstanceFieldSet(
+      obj,
+      value,
+      resolved_field->GetTypeAsPrimitiveType(),
+      resolved_field->GetOffset(),
+      resolved_field->IsVolatile(),
+      field_index,
+      resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
+      *resolved_method->GetDexFile(),
+      dex_cache,
+      kNoDexPc);
+  return iput;
+}
 bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                                  HInvoke* invoke_instruction,
                                  bool same_dex_file,
@@ -815,7 +955,14 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   if (return_replacement != nullptr) {
     DCHECK_EQ(graph_, return_replacement->GetBlock()->GetGraph());
   }
+  FixUpReturnReferenceType(resolved_method, invoke_instruction, return_replacement, do_rtp);
+  return true;
+}
 
+void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
+                                        HInvoke* invoke_instruction,
+                                        HInstruction* return_replacement,
+                                        bool do_rtp) {
   // Check the integrity of reference types and run another type propagation if needed.
   if (return_replacement != nullptr) {
     if (return_replacement->GetType() == Primitive::kPrimNot) {
@@ -849,8 +996,6 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       }
     }
   }
-
-  return true;
 }
 
 }  // namespace art
