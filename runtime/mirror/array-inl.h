@@ -396,7 +396,9 @@ inline void PointerArray::SetElementPtrSize(uint32_t idx, uint64_t element, size
 
 template<bool kTransactionActive, bool kUnchecked, typename T>
 inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, size_t ptr_size) {
-  SetElementPtrSize(idx, reinterpret_cast<uintptr_t>(element), ptr_size);
+  SetElementPtrSize<kTransactionActive, kUnchecked>(idx,
+                                                    reinterpret_cast<uintptr_t>(element),
+                                                    ptr_size);
 }
 
 template <typename Visitor>
