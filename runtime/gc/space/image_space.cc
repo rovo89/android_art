@@ -1041,7 +1041,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
     auto* dex_caches = image_header.GetImageRoot<kWithoutReadBarrier>(ImageHeader::kDexCaches)->
         AsObjectArray<mirror::DexCache>();
     for (int32_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
-      mirror::DexCache* dex_cache = dex_caches->Get(i);
+      mirror::DexCache* dex_cache = dex_caches->Get<kVerifyNone, kWithoutReadBarrier>(i);
       // Fix up dex cache pointers.
       GcRoot<mirror::String>* strings = dex_cache->GetStrings();
       if (strings != nullptr) {
@@ -1049,7 +1049,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
         if (strings != new_strings) {
           dex_cache->SetFieldPtr64<false>(mirror::DexCache::StringsOffset(), new_strings);
         }
-        dex_cache->FixupStrings(new_strings, fixup_adapter);
+        dex_cache->FixupStrings<kWithoutReadBarrier>(new_strings, fixup_adapter);
       }
       GcRoot<mirror::Class>* types = dex_cache->GetResolvedTypes();
       if (types != nullptr) {
@@ -1057,7 +1057,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
         if (types != new_types) {
           dex_cache->SetFieldPtr64<false>(mirror::DexCache::ResolvedTypesOffset(), new_types);
         }
-        dex_cache->FixupResolvedTypes(new_types, fixup_adapter);
+        dex_cache->FixupResolvedTypes<kWithoutReadBarrier>(new_types, fixup_adapter);
       }
       ArtMethod** methods = dex_cache->GetResolvedMethods();
       if (methods != nullptr) {

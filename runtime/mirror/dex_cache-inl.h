@@ -142,12 +142,11 @@ inline void DexCache::VisitReferences(mirror::Class* klass, const Visitor& visit
   }
 }
 
-template <typename Visitor>
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
 inline void DexCache::FixupStrings(GcRoot<mirror::String>* dest, const Visitor& visitor) {
   GcRoot<mirror::String>* src = GetStrings();
   for (size_t i = 0, count = NumStrings(); i < count; ++i) {
-    // TODO: Probably don't need read barrier for most callers.
-    mirror::String* source = src[i].Read();
+    mirror::String* source = src[i].Read<kReadBarrierOption>();
     mirror::String* new_source = visitor(source);
     if (source != new_source) {
       dest[i] = GcRoot<mirror::String>(new_source);
@@ -155,12 +154,11 @@ inline void DexCache::FixupStrings(GcRoot<mirror::String>* dest, const Visitor& 
   }
 }
 
-template <typename Visitor>
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
 inline void DexCache::FixupResolvedTypes(GcRoot<mirror::Class>* dest, const Visitor& visitor) {
   GcRoot<mirror::Class>* src = GetResolvedTypes();
   for (size_t i = 0, count = NumResolvedTypes(); i < count; ++i) {
-    // TODO: Probably don't need read barrier for most callers.
-    mirror::Class* source = src[i].Read();
+    mirror::Class* source = src[i].Read<kReadBarrierOption>();
     mirror::Class* new_source = visitor(source);
     if (source != new_source) {
       dest[i] = GcRoot<mirror::Class>(new_source);
