@@ -1654,7 +1654,7 @@ class ImageDumper {
       stats_.file_bytes = file->GetLength();
     }
     size_t header_bytes = sizeof(ImageHeader);
-    const auto& bitmap_section = image_header_.GetImageSection(ImageHeader::kSectionImageBitmap);
+    const auto& object_section = image_header_.GetImageSection(ImageHeader::kSectionObjects);
     const auto& field_section = image_header_.GetImageSection(ImageHeader::kSectionArtFields);
     const auto& method_section = image_header_.GetMethodsSection();
     const auto& dex_cache_arrays_section = image_header_.GetImageSection(
@@ -1663,17 +1663,46 @@ class ImageDumper {
         ImageHeader::kSectionInternedStrings);
     const auto& class_table_section = image_header_.GetImageSection(
         ImageHeader::kSectionClassTable);
+    const auto& bitmap_section = image_header_.GetImageSection(ImageHeader::kSectionImageBitmap);
+
     stats_.header_bytes = header_bytes;
-    stats_.alignment_bytes += RoundUp(header_bytes, kObjectAlignment) - header_bytes;
-    // Add padding between the field and method section.
-    // (Field section is 4-byte aligned, method section is 8-byte aligned on 64-bit targets.)
-    stats_.alignment_bytes += method_section.Offset() -
-        (field_section.Offset() + field_section.Size());
-    // Add padding between the dex cache arrays section and the intern table. (Dex cache
-    // arrays section is 4-byte aligned on 32-bit targets, intern table is 8-byte aligned.)
-    stats_.alignment_bytes += intern_section.Offset() -
-        (dex_cache_arrays_section.Offset() + dex_cache_arrays_section.Size());
-    stats_.alignment_bytes += bitmap_section.Offset() - image_header_.GetImageSize();
+
+    // Objects are kObjectAlignment-aligned.
+    // CHECK_EQ(RoundUp(header_bytes, kObjectAlignment), object_section.Offset());
+    if (object_section.Offset() > header_bytes) {
+      stats_.alignment_bytes += object_section.Offset() - header_bytes;
+    }
+
+    // Field section is 4-byte aligned.
+    constexpr size_t kFieldSectionAlignment = 4U;
+    uint32_t end_objects = object_section.Offset() + object_section.Size();
+    CHECK_EQ(RoundUp(end_objects, kFieldSectionAlignment), field_section.Offset());
+    stats_.alignment_bytes += field_section.Offset() - end_objects;
+
+    // Method section is 4/8 byte aligned depending on target. Just check for 4-byte alignment.
+    uint32_t end_fields = field_section.Offset() + field_section.Size();
+    CHECK_ALIGNED(method_section.Offset(), 4);
+    stats_.alignment_bytes += method_section.Offset() - end_fields;
+
+    // Dex cache arrays section is aligned depending on the target. Just check for 4-byte alignment.
+    uint32_t end_methods = method_section.Offset() + method_section.Size();
+    CHECK_ALIGNED(dex_cache_arrays_section.Offset(), 4);
+    stats_.alignment_bytes += dex_cache_arrays_section.Offset() - end_methods;
+
+    // Intern table is 8-byte aligned.
+    uint32_t end_caches = dex_cache_arrays_section.Offset() + dex_cache_arrays_section.Size();
+    CHECK_EQ(RoundUp(end_caches, 8U), intern_section.Offset());
+    stats_.alignment_bytes += intern_section.Offset() - end_caches;
+
+    // Add space between intern table and class table.
+    uint32_t end_intern = intern_section.Offset() + intern_section.Size();
+    stats_.alignment_bytes += class_table_section.Offset() - end_intern;
+
+    // Add space between class table and bitmap. Expect the bitmap to be page-aligned.
+    uint32_t end_ctable = class_table_section.Offset() + class_table_section.Size();
+    CHECK_ALIGNED(bitmap_section.Offset(), kPageSize);
+    stats_.alignment_bytes += bitmap_section.Offset() - end_ctable;
+
     stats_.bitmap_bytes += bitmap_section.Size();
     stats_.art_field_bytes += field_section.Size();
     stats_.art_method_bytes += method_section.Size();
