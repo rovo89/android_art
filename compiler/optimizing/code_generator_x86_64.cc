@@ -1638,13 +1638,13 @@ void LocationsBuilderX86_64::HandleCondition(HCondition* cond) {
       locations->SetInAt(1, Location::Any());
       break;
   }
-  if (cond->NeedsMaterialization()) {
+  if (!cond->IsEmittedAtUseSite()) {
     locations->SetOut(Location::RequiresRegister());
   }
 }
 
 void InstructionCodeGeneratorX86_64::HandleCondition(HCondition* cond) {
-  if (!cond->NeedsMaterialization()) {
+  if (cond->IsEmittedAtUseSite()) {
     return;
   }
 

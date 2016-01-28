@@ -278,9 +278,9 @@ TEST_F(LiveRangesTest, Loop1) {
   // Test for the phi.
   interval = liveness.GetInstructionFromSsaIndex(3)->GetLiveInterval();
   range = interval->GetFirstRange();
-  // Instruction is consumed by the if.
+  // Instruction is input of non-materialized Equal and hence live until If.
   ASSERT_EQ(14u, range->GetStart());
-  ASSERT_EQ(17u, range->GetEnd());
+  ASSERT_EQ(19u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 

@@ -1632,7 +1632,7 @@ void LocationsBuilderARM::HandleCondition(HCondition* cond) {
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
-      if (cond->NeedsMaterialization()) {
+      if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
       }
       break;
@@ -1641,7 +1641,7 @@ void LocationsBuilderARM::HandleCondition(HCondition* cond) {
     case Primitive::kPrimDouble:
       locations->SetInAt(0, Location::RequiresFpuRegister());
       locations->SetInAt(1, Location::RequiresFpuRegister());
-      if (cond->NeedsMaterialization()) {
+      if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       }
       break;
@@ -1649,14 +1649,14 @@ void LocationsBuilderARM::HandleCondition(HCondition* cond) {
     default:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
-      if (cond->NeedsMaterialization()) {
+      if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       }
   }
 }
 
 void InstructionCodeGeneratorARM::HandleCondition(HCondition* cond) {
-  if (!cond->NeedsMaterialization()) {
+  if (cond->IsEmittedAtUseSite()) {
     return;
   }
 

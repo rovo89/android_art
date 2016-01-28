@@ -96,7 +96,7 @@ void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long,
 }
 
 bool IsBooleanValueOrMaterializedCondition(HInstruction* cond_input) {
-  return !cond_input->IsCondition() || cond_input->AsCondition()->NeedsMaterialization();
+  return !cond_input->IsCondition() || !cond_input->IsEmittedAtUseSite();
 }
 
 }  // namespace art
