@@ -671,10 +671,10 @@ TEST_F(CodegenTest, NonMaterializedCondition) {
     then_block->AddInstruction(new (&allocator) HReturn(constant0));
     else_block->AddInstruction(new (&allocator) HReturn(constant1));
 
-    ASSERT_TRUE(equal->NeedsMaterialization());
+    ASSERT_FALSE(equal->IsEmittedAtUseSite());
     TransformToSsa(graph);
     PrepareForRegisterAllocation(graph).Run();
-    ASSERT_FALSE(equal->NeedsMaterialization());
+    ASSERT_TRUE(equal->IsEmittedAtUseSite());
 
     auto hook_before_codegen = [](HGraph* graph_in) {
       HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors()[0];
