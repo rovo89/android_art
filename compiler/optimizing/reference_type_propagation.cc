@@ -94,7 +94,6 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
     : HOptimization(graph, name),
       handle_cache_(handles),
       worklist_(graph->GetArena()->Adapter(kArenaAllocReferenceTypePropagation)) {
-  worklist_.reserve(kDefaultWorklistSize);
 }
 
 void ReferenceTypePropagation::ValidateTypes() {
@@ -125,7 +124,14 @@ void ReferenceTypePropagation::ValidateTypes() {
   }
 }
 
+void ReferenceTypePropagation::Visit(HInstruction* instruction) {
+  RTPVisitor visitor(graph_, &handle_cache_, &worklist_);
+  instruction->Accept(&visitor);
+}
+
 void ReferenceTypePropagation::Run() {
+  worklist_.reserve(kDefaultWorklistSize);
+
   // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
   // We take advantage of this order in `VisitBasicBlock`.

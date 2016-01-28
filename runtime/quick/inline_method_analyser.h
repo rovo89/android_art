@@ -188,7 +188,9 @@ class InlineMethodAnalyser {
    * @param method placeholder for the inline method data.
    * @return true if the method is a candidate for inlining, false otherwise.
    */
-  static bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* method)
+  static bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* result)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  static bool AnalyseMethodCode(ArtMethod* method, InlineMethod* result)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static constexpr bool IsInstructionIGet(Instruction::Code opcode) {
@@ -211,17 +213,32 @@ class InlineMethodAnalyser {
   static bool IsSyntheticAccessor(MethodReference ref);
 
  private:
+  static bool AnalyseMethodCode(const DexFile::CodeItem* code_item,
+                                const MethodReference& method_ref,
+                                bool is_static,
+                                ArtMethod* method,
+                                InlineMethod* result)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   static bool AnalyseReturnMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
   static bool AnalyseConstMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
-  static bool AnalyseIGetMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
+  static bool AnalyseIGetMethod(const DexFile::CodeItem* code_item,
+                                const MethodReference& method_ref,
+                                bool is_static,
+                                ArtMethod* method,
+                                InlineMethod* result)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  static bool AnalyseIPutMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
+  static bool AnalyseIPutMethod(const DexFile::CodeItem* code_item,
+                                const MethodReference& method_ref,
+                                bool is_static,
+                                ArtMethod* method,
+                                InlineMethod* result)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Can we fast path instance field access in a verified accessor?
   // If yes, computes field's offset and volatility and whether the method is static or not.
-  static bool ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
-                                         verifier::MethodVerifier* verifier,
+  static bool ComputeSpecialAccessorInfo(ArtMethod* method,
+                                         uint32_t field_idx,
+                                         bool is_put,
                                          InlineIGetIPutData* result)
       SHARED_REQUIRES(Locks::mutator_lock_);
 };

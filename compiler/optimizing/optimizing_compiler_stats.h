@@ -29,6 +29,7 @@ enum MethodCompilationStat {
   kAttemptCompilation = 0,
   kCompiled,
   kInlinedInvoke,
+  kReplacedInvokeWithSimplePattern,
   kInstructionSimplifications,
   kInstructionSimplificationsArch,
   kUnresolvedMethod,
@@ -97,6 +98,7 @@ class OptimizingCompilerStats {
       case kAttemptCompilation : name = "AttemptCompilation"; break;
       case kCompiled : name = "Compiled"; break;
       case kInlinedInvoke : name = "InlinedInvoke"; break;
+      case kReplacedInvokeWithSimplePattern: name = "ReplacedInvokeWithSimplePattern"; break;
       case kInstructionSimplifications: name = "InstructionSimplifications"; break;
       case kInstructionSimplificationsArch: name = "InstructionSimplificationsArch"; break;
       case kUnresolvedMethod : name = "UnresolvedMethod"; break;
