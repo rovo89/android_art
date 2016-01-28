@@ -380,6 +380,10 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("  --multi-image: specify that separate oat and image files be generated for each "
              "input dex file.");
   UsageError("");
+  UsageError("  --force-determinism: force the compiler to emit a deterministic output.");
+  UsageError("      This option is incompatible with read barriers (e.g., if dex2oat has been");
+  UsageError("      built with the environment variable `ART_USE_READ_BARRIER` set to `true`).");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -924,8 +928,11 @@ class Dex2Oat FINAL {
     // Fill some values into the key-value store for the oat header.
     key_value_store_.reset(new SafeMap<std::string, std::string>());
 
-    // Automatically force determinism for the boot image in a host build.
-    if (!kIsTargetBuild && IsBootImage()) {
+    // Automatically force determinism for the boot image in a host
+    // build, except when read barriers are enabled, as the former
+    // switches the GC to a non-concurrent one by passing the
+    // option `-Xgc:nonconcurrent` (see below).
+    if (!kIsTargetBuild && IsBootImage() && !kEmitCompilerReadBarrier) {
       force_determinism_ = true;
     }
     compiler_options_->force_determinism_ = force_determinism_;
@@ -1173,6 +1180,9 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--no-inline-from=")) {
         no_inline_from_string_ = option.substr(strlen("--no-inline-from=")).data();
       } else if (option == "--force-determinism") {
+        if (kEmitCompilerReadBarrier) {
+          Usage("Cannot use --force-determinism with read barriers");
+        }
         force_determinism_ = true;
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
         Usage("Unknown argument %s", option.data());
