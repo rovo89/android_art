@@ -112,7 +112,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* init_failure_output */ nullptr,
       /* abort_on_hard_verifier_failure */ false,
       /* dump_cfg_file_name */ "",
-      /* dump_cfg_append */ false));
+      /* dump_cfg_append */ false,
+      /* force_determinism */ false));
   for (const std::string& argument : Runtime::Current()->GetCompilerOptions()) {
     compiler_options_->ParseCompilerOption(argument, Usage);
   }
