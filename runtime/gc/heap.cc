@@ -357,7 +357,11 @@ Heap::Heap(size_t initial_size,
   std::unique_ptr<MemMap> main_mem_map_2;
 
   // Gross hack to make dex2oat deterministic.
-  if (requested_alloc_space_begin == nullptr && Runtime::Current()->IsAotCompiler()) {
+  if (foreground_collector_type_ == kCollectorTypeMS &&
+      requested_alloc_space_begin == nullptr &&
+      Runtime::Current()->IsAotCompiler()) {
+    // Currently only enabled for MS collector since that is what the deterministic dex2oat uses.
+    // b/26849108
     requested_alloc_space_begin = reinterpret_cast<uint8_t*>(kAllocSpaceBeginForDeterministicAoT);
   }
   uint8_t* request_begin = requested_alloc_space_begin;
