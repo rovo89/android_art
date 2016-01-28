@@ -22,6 +22,7 @@
 #include "object.h"
 #include "object_callbacks.h"
 #include "read_barrier_option.h"
+#include "runtime.h"
 #include "thread.h"
 
 namespace art {
@@ -80,9 +81,14 @@ class MANAGED Reference : public Object {
   Reference* GetPendingNext() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<Reference>(PendingNextOffset());
   }
-  template<bool kTransactionActive>
-  void SetPendingNext(Reference* pending_next) SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetFieldObject<kTransactionActive>(PendingNextOffset(), pending_next);
+
+  void SetPendingNext(Reference* pending_next)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (Runtime::Current()->IsActiveTransaction()) {
+      SetFieldObject<true>(PendingNextOffset(), pending_next);
+    } else {
+      SetFieldObject<false>(PendingNextOffset(), pending_next);
+    }
   }
 
   bool IsEnqueued() SHARED_REQUIRES(Locks::mutator_lock_) {
