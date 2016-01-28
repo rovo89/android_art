@@ -49,17 +49,9 @@ void ReferenceQueue::EnqueuePendingReference(mirror::Reference* ref) {
     list_ = ref;
   } else {
     mirror::Reference* head = list_->GetPendingNext();
-    if (Runtime::Current()->IsActiveTransaction()) {
-      ref->SetPendingNext<true>(head);
-    } else {
-      ref->SetPendingNext<false>(head);
-    }
+    ref->SetPendingNext(head);
   }
-  if (Runtime::Current()->IsActiveTransaction()) {
-    list_->SetPendingNext<true>(ref);
-  } else {
-    list_->SetPendingNext<false>(ref);
-  }
+  list_->SetPendingNext(ref);
 }
 
 mirror::Reference* ReferenceQueue::DequeuePendingReference() {
@@ -74,18 +66,10 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
     list_ = nullptr;
   } else {
     mirror::Reference* next = head->GetPendingNext();
-    if (Runtime::Current()->IsActiveTransaction()) {
-      list_->SetPendingNext<true>(next);
-    } else {
-      list_->SetPendingNext<false>(next);
-    }
+    list_->SetPendingNext(next);
     ref = head;
   }
-  if (Runtime::Current()->IsActiveTransaction()) {
-    ref->SetPendingNext<true>(nullptr);
-  } else {
-    ref->SetPendingNext<false>(nullptr);
-  }
+  ref->SetPendingNext(nullptr);
   Heap* heap = Runtime::Current()->GetHeap();
   if (kUseBakerOrBrooksReadBarrier && heap->CurrentCollectorType() == kCollectorTypeCC &&
       heap->ConcurrentCopyingCollector()->IsActive()) {
