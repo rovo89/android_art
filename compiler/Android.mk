@@ -66,7 +66,6 @@ LIBART_COMPILER_SRC_FILES := \
 	jit/jit_compiler.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
-	optimizing/boolean_simplifier.cc \
 	optimizing/bounds_check_elimination.cc \
 	optimizing/builder.cc \
 	optimizing/code_generator.cc \
@@ -94,6 +93,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/prepare_for_register_allocation.cc \
 	optimizing/reference_type_propagation.cc \
 	optimizing/register_allocator.cc \
+	optimizing/select_generator.cc \
 	optimizing/sharpening.cc \
 	optimizing/side_effects_analysis.cc \
 	optimizing/ssa_builder.cc \

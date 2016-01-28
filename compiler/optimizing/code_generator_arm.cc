@@ -1285,11 +1285,9 @@ void CodeGeneratorARM::MoveConstant(Location location, int32_t value) {
 }
 
 void CodeGeneratorARM::MoveLocation(Location dst, Location src, Primitive::Type dst_type) {
-  if (Primitive::Is64BitType(dst_type)) {
-    Move64(dst, src);
-  } else {
-    Move32(dst, src);
-  }
+  HParallelMove move(GetGraph()->GetArena());
+  move.AddMove(src, dst, dst_type, nullptr);
+  GetMoveResolver()->EmitNativeCode(&move);
 }
 
 void CodeGeneratorARM::AddLocationAsTemp(Location location, LocationSummary* locations) {
@@ -1610,6 +1608,32 @@ void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),
                         /* false_target */ nullptr);
+}
+
+void LocationsBuilderARM::VisitSelect(HSelect* select) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(1, Location::RequiresRegister());
+  }
+  if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
+    locations->SetInAt(2, Location::RequiresRegister());
+  }
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void InstructionCodeGeneratorARM::VisitSelect(HSelect* select) {
+  LocationSummary* locations = select->GetLocations();
+  Label false_target;
+  GenerateTestAndBranch(select,
+                        /* condition_input_index */ 2,
+                        /* true_target */ nullptr,
+                        &false_target);
+  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
+  __ Bind(&false_target);
 }
 
 void LocationsBuilderARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
@@ -4973,6 +4997,8 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
   if (source.IsRegister()) {
     if (destination.IsRegister()) {
       __ Mov(destination.AsRegister<Register>(), source.AsRegister<Register>());
+    } else if (destination.IsFpuRegister()) {
+      __ vmovsr(destination.AsFpuRegister<SRegister>(), source.AsRegister<Register>());
     } else {
       DCHECK(destination.IsStackSlot());
       __ StoreToOffset(kStoreWord, source.AsRegister<Register>(),
@@ -4990,7 +5016,9 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
     }
   } else if (source.IsFpuRegister()) {
-    if (destination.IsFpuRegister()) {
+    if (destination.IsRegister()) {
+      __ vmovrs(destination.AsRegister<Register>(), source.AsFpuRegister<SRegister>());
+    } else if (destination.IsFpuRegister()) {
       __ vmovs(destination.AsFpuRegister<SRegister>(), source.AsFpuRegister<SRegister>());
     } else {
       DCHECK(destination.IsStackSlot());
@@ -5014,6 +5042,10 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
     if (destination.IsRegisterPair()) {
       __ Mov(destination.AsRegisterPairLow<Register>(), source.AsRegisterPairLow<Register>());
       __ Mov(destination.AsRegisterPairHigh<Register>(), source.AsRegisterPairHigh<Register>());
+    } else if (destination.IsFpuRegisterPair()) {
+      __ vmovdrr(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
+                 source.AsRegisterPairLow<Register>(),
+                 source.AsRegisterPairHigh<Register>());
     } else {
       DCHECK(destination.IsDoubleStackSlot()) << destination;
       DCHECK(ExpectedPairLayout(source));
@@ -5021,7 +5053,11 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
           kStoreWordPair, source.AsRegisterPairLow<Register>(), SP, destination.GetStackIndex());
     }
   } else if (source.IsFpuRegisterPair()) {
-    if (destination.IsFpuRegisterPair()) {
+    if (destination.IsRegisterPair()) {
+      __ vmovrrd(destination.AsRegisterPairLow<Register>(),
+                 destination.AsRegisterPairHigh<Register>(),
+                 FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()));
+    } else if (destination.IsFpuRegisterPair()) {
       __ vmovd(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
                FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()));
     } else {

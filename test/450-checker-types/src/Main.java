@@ -275,23 +275,6 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.testNotInstanceOf_Inlined(java.lang.Object) inliner (after)
-  /// CHECK-DAG:     <<IOf:z\d+>>  InstanceOf
-  /// CHECK-DAG:     <<Not:z\d+>>  BooleanNot [<<IOf>>]
-  /// CHECK-DAG:                   If [<<Not>>]
-
-  /// CHECK-START: void Main.testNotInstanceOf_Inlined(java.lang.Object) instruction_simplifier_after_bce (before)
-  /// CHECK:         CheckCast
-  /// CHECK-NOT:     CheckCast
-
-  /// CHECK-START: void Main.testNotInstanceOf_Inlined(java.lang.Object) instruction_simplifier_after_bce (after)
-  /// CHECK-NOT:     CheckCast
-  public void testNotInstanceOf_Inlined(Object o) {
-    if ($inline$InstanceofSubclassC(o)) {
-      ((SubclassC)o).$noinline$g();
-    }
-  }
-
   /// CHECK-START: void Main.testInstanceOfKeep(java.lang.Object) instruction_simplifier (before)
   /// CHECK:         CheckCast
   /// CHECK:         CheckCast
