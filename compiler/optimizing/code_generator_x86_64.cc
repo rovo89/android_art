@@ -6447,8 +6447,17 @@ void InstructionCodeGeneratorX86_64::VisitPackedSwitch(HPackedSwitch* switch_ins
   __ jmp(temp_reg);
 }
 
+void CodeGeneratorX86_64::Load32BitValue(CpuRegister dest, int32_t value) {
+  if (value == 0) {
+    __ xorl(dest, dest);
+  } else {
+    __ movl(dest, Immediate(value));
+  }
+}
+
 void CodeGeneratorX86_64::Load64BitValue(CpuRegister dest, int64_t value) {
   if (value == 0) {
+    // Clears upper bits too.
     __ xorl(dest, dest);
   } else if (value > 0 && IsInt<32>(value)) {
     // We can use a 32 bit move, as it will zero-extend and is one byte shorter.
