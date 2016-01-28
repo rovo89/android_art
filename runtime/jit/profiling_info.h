@@ -68,8 +68,13 @@ class InlineCache {
     return !classes_[1].IsNull() && classes_[kIndividualCacheSize - 1].IsNull();
   }
 
- private:
+  mirror::Class* GetTypeAt(size_t i) const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return classes_[i].Read();
+  }
+
   static constexpr uint16_t kIndividualCacheSize = 5;
+
+ private:
   uint32_t dex_pc_;
   GcRoot<mirror::Class> classes_[kIndividualCacheSize];
 
