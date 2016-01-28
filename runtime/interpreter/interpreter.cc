@@ -336,11 +336,11 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
             return result_register;
           } else {
             // Mterp didn't like that instruction.  Single-step it with the reference interpreter.
-            JValue res = ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame,
+            result_register = ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame,
                                                                result_register, true);
             if (shadow_frame.GetDexPC() == DexFile::kDexNoIndex) {
               // Single-stepped a return or an exception not handled locally.  Return to caller.
-              return res;
+              return result_register;
             }
           }
         }
