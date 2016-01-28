@@ -296,9 +296,29 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   return false;
 }
 
+HInstanceFieldGet* HInliner::BuildGetReceiverClass(ClassLinker* class_linker,
+                                                   HInstruction* receiver,
+                                                   uint32_t dex_pc) const {
+  ArtField* field = class_linker->GetClassRoot(ClassLinker::kJavaLangObject)->GetInstanceField(0);
+  DCHECK_EQ(std::string(field->GetName()), "shadow$_klass_");
+  return new (graph_->GetArena()) HInstanceFieldGet(
+      receiver,
+      Primitive::kPrimNot,
+      field->GetOffset(),
+      field->IsVolatile(),
+      field->GetDexFieldIndex(),
+      field->GetDeclaringClass()->GetDexClassDefIndex(),
+      *field->GetDexFile(),
+      handles_->NewHandle(field->GetDexCache()),
+      dex_pc);
+}
+
 bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                                         ArtMethod* resolved_method,
                                         const InlineCache& ic) {
+  DCHECK(invoke_instruction->IsInvokeVirtual() || invoke_instruction->IsInvokeInterface())
+      << invoke_instruction->DebugName();
+
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
   uint32_t class_index = FindClassIndexIn(ic.GetMonomorphicType(), caller_dex_file);
   if (class_index == DexFile::kDexNoIndex) {
@@ -328,18 +348,8 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   }
 
   // We successfully inlined, now add a guard.
-  ArtField* field = class_linker->GetClassRoot(ClassLinker::kJavaLangObject)->GetInstanceField(0);
-  DCHECK_EQ(std::string(field->GetName()), "shadow$_klass_");
-  HInstanceFieldGet* field_get = new (graph_->GetArena()) HInstanceFieldGet(
-      receiver,
-      Primitive::kPrimNot,
-      field->GetOffset(),
-      field->IsVolatile(),
-      field->GetDexFieldIndex(),
-      field->GetDeclaringClass()->GetDexClassDefIndex(),
-      *field->GetDexFile(),
-      handles_->NewHandle(field->GetDexCache()),
-      invoke_instruction->GetDexPc());
+  HInstanceFieldGet* receiver_class = BuildGetReceiverClass(
+      class_linker, receiver, invoke_instruction->GetDexPc());
 
   bool is_referrer =
       (ic.GetMonomorphicType() == outermost_graph_->GetArtMethod()->GetDeclaringClass());
@@ -351,16 +361,16 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                                                                /* needs_access_check */ false,
                                                                /* is_in_dex_cache */ true);
 
-  HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, field_get);
+  HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
   HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
       compare, invoke_instruction->GetDexPc());
   // TODO: Extend reference type propagation to understand the guard.
   if (cursor != nullptr) {
-    bb_cursor->InsertInstructionAfter(field_get, cursor);
+    bb_cursor->InsertInstructionAfter(receiver_class, cursor);
   } else {
-    bb_cursor->InsertInstructionBefore(field_get, bb_cursor->GetFirstInstruction());
+    bb_cursor->InsertInstructionBefore(receiver_class, bb_cursor->GetFirstInstruction());
   }
-  bb_cursor->InsertInstructionAfter(load_class, field_get);
+  bb_cursor->InsertInstructionAfter(load_class, receiver_class);
   bb_cursor->InsertInstructionAfter(compare, load_class);
   bb_cursor->InsertInstructionAfter(deoptimize, compare);
   deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
@@ -374,13 +384,101 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   return true;
 }
 
-bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction ATTRIBUTE_UNUSED,
+bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                                         ArtMethod* resolved_method,
-                                        const InlineCache& ic ATTRIBUTE_UNUSED) {
-  // TODO
-  VLOG(compiler) << "Unimplemented polymorphic inlining for "
-                 << PrettyMethod(resolved_method);
-  return false;
+                                        const InlineCache& ic) {
+  DCHECK(invoke_instruction->IsInvokeVirtual() || invoke_instruction->IsInvokeInterface())
+      << invoke_instruction->DebugName();
+  // This optimization only works under JIT for now.
+  DCHECK(Runtime::Current()->UseJit());
+  if (graph_->GetInstructionSet() == kMips || graph_->GetInstructionSet() == kMips64) {
+    // TODO: Support HClassTableGet for mips and mips64.
+    return false;
+  }
+  ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
+  size_t pointer_size = class_linker->GetImagePointerSize();
+
+  DCHECK(resolved_method != nullptr);
+  ArtMethod* actual_method = nullptr;
+  // Check whether we are actually calling the same method among
+  // the different types seen.
+  for (size_t i = 0; i < InlineCache::kIndividualCacheSize; ++i) {
+    if (ic.GetTypeAt(i) == nullptr) {
+      break;
+    }
+    ArtMethod* new_method = nullptr;
+    if (invoke_instruction->IsInvokeInterface()) {
+      new_method = ic.GetTypeAt(i)->FindVirtualMethodForInterface(
+          resolved_method, pointer_size);
+    } else {
+      DCHECK(invoke_instruction->IsInvokeVirtual());
+      new_method = ic.GetTypeAt(i)->FindVirtualMethodForVirtual(
+          resolved_method, pointer_size);
+    }
+    if (actual_method == nullptr) {
+      actual_method = new_method;
+    } else if (actual_method != new_method) {
+      // Different methods, bailout.
+      return false;
+    }
+  }
+
+  HInstruction* receiver = invoke_instruction->InputAt(0);
+  HInstruction* cursor = invoke_instruction->GetPrevious();
+  HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
+
+  if (!TryInline(invoke_instruction, actual_method, /* do_rtp */ false)) {
+    return false;
+  }
+
+  // We successfully inlined, now add a guard.
+  HInstanceFieldGet* receiver_class = BuildGetReceiverClass(
+      class_linker, receiver, invoke_instruction->GetDexPc());
+
+  size_t method_offset = invoke_instruction->IsInvokeVirtual()
+      ? actual_method->GetVtableIndex()
+      : invoke_instruction->AsInvokeInterface()->GetImtIndex();
+
+  Primitive::Type type = Is64BitInstructionSet(graph_->GetInstructionSet())
+      ? Primitive::kPrimLong
+      : Primitive::kPrimInt;
+  HClassTableGet* class_table_get = new (graph_->GetArena()) HClassTableGet(
+      receiver_class,
+      type,
+      invoke_instruction->IsInvokeVirtual() ? HClassTableGet::kVTable : HClassTableGet::kIMTable,
+      method_offset,
+      invoke_instruction->GetDexPc());
+
+  HConstant* constant;
+  if (type == Primitive::kPrimLong) {
+    constant = graph_->GetLongConstant(
+        reinterpret_cast<intptr_t>(actual_method), invoke_instruction->GetDexPc());
+  } else {
+    constant = graph_->GetIntConstant(
+        reinterpret_cast<intptr_t>(actual_method), invoke_instruction->GetDexPc());
+  }
+
+  HNotEqual* compare = new (graph_->GetArena()) HNotEqual(class_table_get, constant);
+  HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
+      compare, invoke_instruction->GetDexPc());
+  // TODO: Extend reference type propagation to understand the guard.
+  if (cursor != nullptr) {
+    bb_cursor->InsertInstructionAfter(receiver_class, cursor);
+  } else {
+    bb_cursor->InsertInstructionBefore(receiver_class, bb_cursor->GetFirstInstruction());
+  }
+  bb_cursor->InsertInstructionAfter(class_table_get, receiver_class);
+  bb_cursor->InsertInstructionAfter(compare, class_table_get);
+  bb_cursor->InsertInstructionAfter(deoptimize, compare);
+  deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+
+  // Run type propagation to get the guard typed.
+  ReferenceTypePropagation rtp_fixup(graph_, handles_);
+  rtp_fixup.Run();
+
+  MaybeRecordStat(kInlinedPolymorphicCall);
+
+  return true;
 }
 
 bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {

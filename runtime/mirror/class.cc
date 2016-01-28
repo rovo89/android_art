@@ -457,6 +457,16 @@ ArtMethod* Class::FindDirectMethod(
   return nullptr;
 }
 
+ArtMethod* Class::FindDeclaredDirectMethodByName(const StringPiece& name, size_t pointer_size) {
+  for (auto& method : GetDirectMethods(pointer_size)) {
+    ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
+    if (name == np_method->GetName()) {
+      return &method;
+    }
+  }
+  return nullptr;
+}
+
 // TODO These should maybe be changed to be named FindOwnedVirtualMethod or something similar
 // because they do not only find 'declared' methods and will return copied methods. This behavior is
 // desired and correct but the naming can lead to confusion because in the java language declared
