@@ -259,6 +259,26 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     EXPECT_TRUE(odex_file->IsPic());
   }
 
+  void GenerateExtractOnlyOdexForTest(const std::string& dex_location,
+                                          const std::string& odex_location) {
+    std::vector<std::string> args;
+    args.push_back("--dex-file=" + dex_location);
+    args.push_back("--oat-file=" + odex_location);
+    args.push_back("--compiler-filter=verify-at-runtime");
+    std::string error_msg;
+    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+
+    // Verify the odex file was generated as expected.
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(
+        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
+        false, dex_location.c_str(), &error_msg));
+    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
+    EXPECT_TRUE(odex_file->IsExtractOnly());
+    EXPECT_EQ(odex_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0u);
+    EXPECT_EQ(odex_file->GetOatHeader().GetImageFileLocationOatDataBegin(), 0u);
+    EXPECT_EQ(odex_file->GetOatHeader().GetImagePatchDelta(), 0);
+}
+
  private:
   // Reserve memory around where the image will be loaded so other memory
   // won't conflict when it comes time to load the image.
@@ -483,6 +503,32 @@ TEST_F(OatFileAssistantTest, OatOutOfDate) {
   EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
+  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+}
+
+// Case: We have a DEX file and an extract-only ODEX file out of date relative
+//       to the DEX file.
+// Expect: The status is kDex2OatNeeded.
+TEST_F(OatFileAssistantTest, ExtractOnlyOdexOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/ExtractOnlyOdexOutOfDate.jar";
+  std::string odex_location = GetOdexDir() + "/ExtractOnlyOdexOutOfDate.odex";
+
+  // We create a dex, generate an oat for it, then overwrite the dex with a
+  // different dex to make the oat out of date.
+  Copy(GetDexSrc1(), dex_location);
+  GenerateExtractOnlyOdexForTest(dex_location.c_str(), odex_location.c_str());
+  Copy(GetDexSrc2(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, oat_file_assistant.GetDexOptNeeded());
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
+  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
@@ -768,6 +814,31 @@ TEST_F(OatFileAssistantTest, DexPicOdexNoOat) {
   // Create the dex and odex files
   Copy(GetDexSrc1(), dex_location);
   GeneratePicOdexForTest(dex_location, odex_location);
+
+  // Verify the status.
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
+
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
+  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
+  EXPECT_TRUE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileExists());
+  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+}
+
+// Case: We have a DEX file and a ExtractOnly ODEX file, but no OAT file.
+// Expect: The status is kNoDexOptNeeded, because ExtractOnly contains no code.
+TEST_F(OatFileAssistantTest, DexExtractOnlyOdexNoOat) {
+  std::string dex_location = GetScratchDir() + "/DexExtractOnlyOdexNoOat.jar";
+  std::string odex_location = GetOdexDir() + "/DexExtractOnlyOdexNoOat.odex";
+
+  // Create the dex and odex files
+  Copy(GetDexSrc1(), dex_location);
+  GenerateExtractOnlyOdexForTest(dex_location, odex_location);
 
   // Verify the status.
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);

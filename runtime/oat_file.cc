@@ -1221,6 +1221,10 @@ bool OatFile::IsDebuggable() const {
   return GetOatHeader().IsDebuggable();
 }
 
+bool OatFile::IsExtractOnly() const {
+  return GetOatHeader().IsExtractOnly();
+}
+
 static constexpr char kDexClassPathEncodingSeparator = '*';
 
 std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files) {
