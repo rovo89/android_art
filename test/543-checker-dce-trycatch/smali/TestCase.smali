@@ -15,6 +15,8 @@
 .class public LTestCase;
 .super Ljava/lang/Object;
 
+.field public static sField:I
+
 .method private static $inline$False()Z
     .registers 1
     const/4 v0, 0x0
@@ -240,24 +242,25 @@
     shr-int/2addr p2, p3
 
     :try_start
-    const v1, 0xa           # dead catch phi input, defined in entry block (HInstruction)
-    add-int v2, p0, p1      # dead catch phi input, defined in the dead block (HInstruction)
+    const v1, 0xa                  # dead catch phi input, defined in entry block (HInstruction)
+    add-int v2, p0, p1             # dead catch phi input, defined in the dead block (HInstruction)
     move v3, v2
     if-eqz v3, :define_phi
+    sput v3, LTestCase;->sField:I  # beat HSelect simplification (has side-effects, does not throw)
     const v3, 0xf
     :define_phi
-    # v3 = Phi [Add, 0xf]   # dead catch phi input, defined in the dead block (HPhi)
+    # v3 = Phi [Add, 0xf]          # dead catch phi input, defined in the dead block (HPhi)
     div-int/2addr p0, v2
 
     :else
-    const v1, 0xb           # live catch phi input
-    const v2, 0xc           # live catch phi input
-    const v3, 0x10          # live catch phi input
+    const v1, 0xb                  # live catch phi input
+    const v2, 0xc                  # live catch phi input
+    const v3, 0x10                 # live catch phi input
     div-int/2addr p0, p3
 
-    const v1, 0xd           # live catch phi input
-    const v2, 0xe           # live catch phi input
-    const v3, 0x11          # live catch phi input
+    const v1, 0xd                  # live catch phi input
+    const v2, 0xe                  # live catch phi input
+    const v3, 0x11                 # live catch phi input
     div-int/2addr p0, p1
     :try_end
     .catchall {:try_start .. :try_end} :catch_all

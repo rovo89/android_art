@@ -1011,6 +1011,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // Replace instruction `initial` with `replacement` within this block.
   void ReplaceAndRemoveInstructionWith(HInstruction* initial,
                                        HInstruction* replacement);
+  void MoveInstructionBefore(HInstruction* insn, HInstruction* cursor);
   void AddPhi(HPhi* phi);
   void InsertPhiAfter(HPhi* instruction, HPhi* cursor);
   // RemoveInstruction and RemovePhi delete a given instruction from the respective
@@ -1220,6 +1221,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(UnresolvedInstanceFieldSet, Instruction)                            \
   M(UnresolvedStaticFieldGet, Instruction)                              \
   M(UnresolvedStaticFieldSet, Instruction)                              \
+  M(Select, Instruction)                                                \
   M(StoreLocal, Instruction)                                            \
   M(Sub, BinaryOperation)                                               \
   M(SuspendCheck, Instruction)                                          \
@@ -5584,6 +5586,41 @@ class HMonitorOperation : public HTemplateInstruction<1> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HMonitorOperation);
+};
+
+class HSelect : public HExpression<3> {
+ public:
+  HSelect(HInstruction* condition,
+          HInstruction* true_value,
+          HInstruction* false_value,
+          uint32_t dex_pc)
+      : HExpression(HPhi::ToPhiType(true_value->GetType()), SideEffects::None(), dex_pc) {
+    DCHECK_EQ(HPhi::ToPhiType(true_value->GetType()), HPhi::ToPhiType(false_value->GetType()));
+
+    // First input must be `true_value` or `false_value` to allow codegens to
+    // use the SameAsFirstInput allocation policy. We make it `false_value`, so
+    // that architectures which implement HSelect as a conditional move also
+    // will not need to invert the condition.
+    SetRawInputAt(0, false_value);
+    SetRawInputAt(1, true_value);
+    SetRawInputAt(2, condition);
+  }
+
+  HInstruction* GetFalseValue() const { return InputAt(0); }
+  HInstruction* GetTrueValue() const { return InputAt(1); }
+  HInstruction* GetCondition() const { return InputAt(2); }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
+
+  bool CanBeNull() const OVERRIDE {
+    return GetTrueValue()->CanBeNull() || GetFalseValue()->CanBeNull();
+  }
+
+  DECLARE_INSTRUCTION(Select);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HSelect);
 };
 
 class MoveOperands : public ArenaObject<kArenaAllocMoveOperands> {

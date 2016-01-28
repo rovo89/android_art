@@ -2748,6 +2748,32 @@ void InstructionCodeGeneratorMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+void LocationsBuilderMIPS64::VisitSelect(HSelect* select) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(1, Location::RequiresRegister());
+  }
+  if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
+    locations->SetInAt(2, Location::RequiresRegister());
+  }
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void InstructionCodeGeneratorMIPS64::VisitSelect(HSelect* select) {
+  LocationSummary* locations = select->GetLocations();
+  Mips64Label false_target;
+  GenerateTestAndBranch(select,
+                        /* condition_input_index */ 2,
+                        /* true_target */ nullptr,
+                        &false_target);
+  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
+  __ Bind(&false_target);
+}
+
 void LocationsBuilderMIPS64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
   new (GetGraph()->GetArena()) LocationSummary(info);
 }
