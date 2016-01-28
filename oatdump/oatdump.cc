@@ -170,6 +170,8 @@ class OatSymbolizer FINAL {
     if (code_offset != 0) {
       uint32_t name_offset = builder_->GetStrTab()->Write(name);
       uint64_t symbol_value = code_offset - oat_file_->GetOatHeader().GetExecutableOffset();
+      // Specifying 0 as the symbol size means that the symbol lasts until the next symbol or until
+      // the end of the section in case of the last symbol.
       builder_->GetSymTab()->Add(name_offset, builder_->GetText(), symbol_value,
           /* is_relative */ true, /* size */ 0, STB_GLOBAL, STT_FUNC);
     }
