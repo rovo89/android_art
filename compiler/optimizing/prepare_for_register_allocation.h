@@ -42,7 +42,8 @@ class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
   void VisitNewInstance(HNewInstance* instruction) OVERRIDE;
 
-  bool CanMoveClinitCheck(HInstruction* input, HInstruction* user);
+  bool CanMoveClinitCheck(HInstruction* input, HInstruction* user) const;
+  bool CanEmitConditionAt(HCondition* condition, HInstruction* user) const;
 
   DISALLOW_COPY_AND_ASSIGN(PrepareForRegisterAllocation);
 };

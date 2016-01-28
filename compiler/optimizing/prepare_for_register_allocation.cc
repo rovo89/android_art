@@ -127,24 +127,25 @@ void PrepareForRegisterAllocation::VisitNewInstance(HNewInstance* instruction) {
   }
 }
 
-void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
-  bool needs_materialization = false;
-  if (!condition->GetUses().HasOnlyOneUse() || !condition->GetEnvUses().IsEmpty()) {
-    needs_materialization = true;
-  } else {
-    HInstruction* user = condition->GetUses().GetFirst()->GetUser();
-    if (!user->IsIf() && !user->IsDeoptimize()) {
-      needs_materialization = true;
-    } else {
-      // TODO: if there is no intervening instructions with side-effect between this condition
-      // and the If instruction, we should move the condition just before the If.
-      if (condition->GetNext() != user) {
-        needs_materialization = true;
-      }
-    }
+bool PrepareForRegisterAllocation::CanEmitConditionAt(HCondition* condition,
+                                                      HInstruction* user) const {
+  if (condition->GetNext() != user) {
+    return false;
   }
-  if (!needs_materialization) {
-    condition->ClearNeedsMaterialization();
+
+  if (user->IsIf() || user->IsDeoptimize()) {
+    return true;
+  }
+
+  return false;
+}
+
+void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
+  if (condition->HasOnlyOneNonEnvironmentUse()) {
+    HInstruction* user = condition->GetUses().GetFirst()->GetUser();
+    if (CanEmitConditionAt(condition, user)) {
+      condition->MarkEmittedAtUseSite();
+    }
   }
 }
 
@@ -165,7 +166,8 @@ void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDire
   }
 }
 
-bool PrepareForRegisterAllocation::CanMoveClinitCheck(HInstruction* input, HInstruction* user) {
+bool PrepareForRegisterAllocation::CanMoveClinitCheck(HInstruction* input,
+                                                      HInstruction* user) const {
   // Determine if input and user come from the same dex instruction, so that we can move
   // the clinit check responsibility from one to the other, i.e. from HClinitCheck (user)
   // to HLoadClass (input), or from HClinitCheck (input) to HInvokeStaticOrDirect (user).

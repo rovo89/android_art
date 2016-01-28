@@ -36,15 +36,11 @@ class HX86ComputeBaseMethodAddress : public HExpression<0> {
 class HX86LoadFromConstantTable : public HExpression<2> {
  public:
   HX86LoadFromConstantTable(HX86ComputeBaseMethodAddress* method_base,
-                            HConstant* constant,
-                            bool needs_materialization = true)
-      : HExpression(constant->GetType(), SideEffects::None(), kNoDexPc),
-        needs_materialization_(needs_materialization) {
+                            HConstant* constant)
+      : HExpression(constant->GetType(), SideEffects::None(), kNoDexPc) {
     SetRawInputAt(0, method_base);
     SetRawInputAt(1, constant);
   }
-
-  bool NeedsMaterialization() const { return needs_materialization_; }
 
   HX86ComputeBaseMethodAddress* GetBaseMethodAddress() const {
     return InputAt(0)->AsX86ComputeBaseMethodAddress();
@@ -57,8 +53,6 @@ class HX86LoadFromConstantTable : public HExpression<2> {
   DECLARE_INSTRUCTION(X86LoadFromConstantTable);
 
  private:
-  const bool needs_materialization_;
-
   DISALLOW_COPY_AND_ASSIGN(HX86LoadFromConstantTable);
 };
 
