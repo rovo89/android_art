@@ -5620,10 +5620,10 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
                                         k,
                                         iface,
                                         image_pointer_size_)) {
-          LOG(WARNING) << "Conflicting default method implementations found: "
-                       << PrettyMethod(current_method) << " and "
-                       << PrettyMethod(*out_default_method) << " in class "
-                       << PrettyClass(klass.Get()) << " conflict.";
+          VLOG(class_linker) << "Conflicting default method implementations found: "
+                             << PrettyMethod(current_method) << " and "
+                             << PrettyMethod(*out_default_method) << " in class "
+                             << PrettyClass(klass.Get()) << " conflict.";
           *out_default_method = nullptr;
           return DefaultMethodSearchResult::kDefaultConflict;
         } else {
