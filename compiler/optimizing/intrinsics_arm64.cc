@@ -1499,6 +1499,34 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromString(HInvoke* invoke
   __ Bind(slow_path->GetExitLabel());
 }
 
+static void GenSignum(LocationSummary* locations, bool is_long, vixl::MacroAssembler* masm) {
+  Location op1 = locations->InAt(0);
+  Location out = locations->Out();
+
+  Register op1_reg = is_long ? XRegisterFrom(op1) : WRegisterFrom(op1);
+  Register out_reg = WRegisterFrom(out);
+
+  __ Cmp(op1_reg, 0);
+  __ Cset(out_reg, gt);           // out == +1 if GT or 0 otherwise
+  __ Cinv(out_reg, out_reg, lt);  // out == -1 if LT or unchanged otherwise
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerSignum(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerSignum(HInvoke* invoke) {
+  GenSignum(invoke->GetLocations(), /* is_long */ false, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongSignum(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongSignum(HInvoke* invoke) {
+  GenSignum(invoke->GetLocations(), /* is_long */ true,  GetVIXLAssembler());
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -1541,8 +1569,6 @@ UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
 
 // Rotate operations are handled as HRor instructions.
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
