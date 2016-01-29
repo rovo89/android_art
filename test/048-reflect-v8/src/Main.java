@@ -14,14 +14,43 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
+
 public class Main {
+  interface DefaultInterface {
+    default void sayHi() {
+      System.out.println("hi default");
+    }
+  }
+
+  interface RegularInterface {
+    void sayHi();
+  }
+
+  class ImplementsWithDefault implements DefaultInterface {}
+  class ImplementsWithRegular implements RegularInterface {
+    public void sayHi() {
+      System.out.println("hello specific");
+    }
+  }
+
+  private static void printIsDefault(Class<?> klass) {
+    Method m;
+    try {
+      m = klass.getMethod("sayHi");
+    } catch (Throwable t) {
+      System.out.println(t);
+      return;
+    }
+
+    boolean isDefault = m.isDefault();
+    System.out.println(klass.getName() + " is default = " + (isDefault ? "yes" : "no"));
+  }
+
   public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
+    printIsDefault(DefaultInterface.class);
+    printIsDefault(RegularInterface.class);
+    printIsDefault(ImplementsWithDefault.class);
+    printIsDefault(ImplementsWithRegular.class);
   }
 }
