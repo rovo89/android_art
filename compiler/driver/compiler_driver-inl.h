@@ -305,11 +305,31 @@ inline int CompilerDriver::IsFastInvoke(
     MethodReference* target_method, const MethodReference* devirt_target,
     uintptr_t* direct_code, uintptr_t* direct_method) {
   // Don't try to fast-path if we don't understand the caller's class.
+  // Referrer_class is the class that this invoke is contained in.
   if (UNLIKELY(referrer_class == nullptr)) {
     return 0;
   }
-  mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-  if (UNLIKELY(!referrer_class->CanAccessResolvedMethod(methods_class, resolved_method,
+  StackHandleScope<2> hs(soa.Self());
+  // Methods_class is the class refered to by the class_idx field of the methodId the method_idx is
+  // pointing to.
+  // For example in
+  //   .class LABC;
+  //   .super LDEF;
+  //   .method hi()V
+  //     ...
+  //     invoke-super {p0}, LDEF;->hi()V
+  //     ...
+  //   .end method
+  // the referrer_class is 'ABC' and the methods_class is DEF. Note that the methods class is 'DEF'
+  // even if 'DEF' inherits the method from it's superclass.
+  Handle<mirror::Class> methods_class(hs.NewHandle(mUnit->GetClassLinker()->ResolveType(
+      *target_method->dex_file,
+      target_method->dex_file->GetMethodId(target_method->dex_method_index).class_idx_,
+      dex_cache,
+      class_loader)));
+  DCHECK(methods_class.Get() != nullptr);
+  mirror::Class* methods_declaring_class = resolved_method->GetDeclaringClass();
+  if (UNLIKELY(!referrer_class->CanAccessResolvedMethod(methods_declaring_class, resolved_method,
                                                         dex_cache.Get(),
                                                         target_method->dex_method_index))) {
     return 0;
@@ -318,18 +338,31 @@ inline int CompilerDriver::IsFastInvoke(
   // overridden (ie is final).
   const bool same_dex_file = target_method->dex_file == mUnit->GetDexFile();
   bool can_sharpen_virtual_based_on_type = same_dex_file &&
-      (*invoke_type == kVirtual) && (resolved_method->IsFinal() || methods_class->IsFinal());
+      (*invoke_type == kVirtual) && (resolved_method->IsFinal() ||
+                                     methods_declaring_class->IsFinal());
   // For invoke-super, ensure the vtable index will be correct to dispatch in the vtable of
   // the super class.
   const size_t pointer_size = InstructionSetPointerSize(GetInstructionSet());
-  bool can_sharpen_super_based_on_type = same_dex_file && (*invoke_type == kSuper) &&
-      (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
-      resolved_method->GetMethodIndex() < methods_class->GetVTableLength() &&
-      (methods_class->GetVTableEntry(
+  // TODO We should be able to sharpen if we are going into the boot image as well.
+  bool can_sharpen_super_based_on_type = same_dex_file &&
+      (*invoke_type == kSuper) &&
+      !methods_class->IsInterface() &&
+      (referrer_class != methods_declaring_class) &&
+      referrer_class->IsSubClass(methods_declaring_class) &&
+      resolved_method->GetMethodIndex() < methods_declaring_class->GetVTableLength() &&
+      (methods_declaring_class->GetVTableEntry(
           resolved_method->GetMethodIndex(), pointer_size) == resolved_method) &&
       resolved_method->IsInvokable();
+  // TODO We should be able to sharpen if we are going into the boot image as well.
+  bool can_sharpen_interface_super_based_on_type = same_dex_file &&
+      (*invoke_type == kSuper) &&
+      methods_class->IsInterface() &&
+      methods_class->IsAssignableFrom(referrer_class) &&
+      resolved_method->IsInvokable();
 
-  if (can_sharpen_virtual_based_on_type || can_sharpen_super_based_on_type) {
+  if (can_sharpen_virtual_based_on_type ||
+      can_sharpen_super_based_on_type ||
+      can_sharpen_interface_super_based_on_type) {
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's
     // dex cache, check that this resolved method is where we expect it.
     CHECK_EQ(target_method->dex_file, mUnit->GetDexFile());
@@ -363,7 +396,6 @@ inline int CompilerDriver::IsFastInvoke(
           *devirt_target->dex_file, devirt_target->dex_method_index, dex_cache, class_loader,
           nullptr, kVirtual);
     } else {
-      StackHandleScope<1> hs(soa.Self());
       auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
           *devirt_target->dex_file,
           class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()))));

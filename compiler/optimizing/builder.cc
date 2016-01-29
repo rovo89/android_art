@@ -798,7 +798,7 @@ static InvokeType GetInvokeTypeFromOpCode(Instruction::Code opcode) {
 
 ArtMethod* HGraphBuilder::ResolveMethod(uint16_t method_idx, InvokeType invoke_type) {
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<3> hs(soa.Self());
 
   ClassLinker* class_linker = dex_compilation_unit_->GetClassLinker();
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
@@ -833,31 +833,56 @@ ArtMethod* HGraphBuilder::ResolveMethod(uint16_t method_idx, InvokeType invoke_t
   }
 
   // We have to special case the invoke-super case, as ClassLinker::ResolveMethod does not.
-  // We need to look at the referrer's super class vtable.
+  // We need to look at the referrer's super class vtable. We need to do this to know if we need to
+  // make this an invoke-unresolved to handle cross-dex invokes or abstract super methods, both of
+  // which require runtime handling.
   if (invoke_type == kSuper) {
     if (compiling_class.Get() == nullptr) {
-      // Invoking a super method requires knowing the actual super class. If we did not resolve
-      // the compiling method's declaring class (which only happens for ahead of time compilation),
-      // bail out.
+      // We could not determine the method's class we need to wait until runtime.
       DCHECK(Runtime::Current()->IsAotCompiler());
       return nullptr;
     }
-    uint16_t vtable_index = resolved_method->GetMethodIndex();
-    ArtMethod* actual_method = compiling_class->GetSuperClass()->GetVTableEntry(
-        vtable_index, class_linker->GetImagePointerSize());
-    if (actual_method != resolved_method &&
-        !IsSameDexFile(*actual_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
-      // TODO: The actual method could still be referenced in the current dex file, so we
-      // could try locating it.
-      // TODO: Remove the dex_file restriction.
+    ArtMethod* current_method = graph_->GetArtMethod();
+    DCHECK(current_method != nullptr);
+    Handle<mirror::Class> methods_class(hs.NewHandle(
+        dex_compilation_unit_->GetClassLinker()->ResolveReferencedClassOfMethod(Thread::Current(),
+                                                                                method_idx,
+                                                                                current_method)));
+    if (methods_class.Get() == nullptr) {
+      // Invoking a super method requires knowing the actual super class. If we did not resolve
+      // the compiling method's declaring class (which only happens for ahead of time
+      // compilation), bail out.
+      DCHECK(Runtime::Current()->IsAotCompiler());
       return nullptr;
+    } else {
+      ArtMethod* actual_method;
+      if (methods_class->IsInterface()) {
+        actual_method = methods_class->FindVirtualMethodForInterfaceSuper(
+            resolved_method, class_linker->GetImagePointerSize());
+      } else {
+        uint16_t vtable_index = resolved_method->GetMethodIndex();
+        actual_method = compiling_class->GetSuperClass()->GetVTableEntry(
+            vtable_index, class_linker->GetImagePointerSize());
+      }
+      if (actual_method != resolved_method &&
+          !IsSameDexFile(*actual_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
+        // The back-end code generator relies on this check in order to ensure that it will not
+        // attempt to read the dex_cache with a dex_method_index that is not from the correct
+        // dex_file. If we didn't do this check then the dex_method_index will not be updated in the
+        // builder, which means that the code-generator (and compiler driver during sharpening and
+        // inliner, maybe) might invoke an incorrect method.
+        // TODO: The actual method could still be referenced in the current dex file, so we
+        //       could try locating it.
+        // TODO: Remove the dex_file restriction.
+        return nullptr;
+      }
+      if (!actual_method->IsInvokable()) {
+        // Fail if the actual method cannot be invoked. Otherwise, the runtime resolution stub
+        // could resolve the callee to the wrong method.
+        return nullptr;
+      }
+      resolved_method = actual_method;
     }
-    if (!actual_method->IsInvokable()) {
-      // Fail if the actual method cannot be invoked. Otherwise, the runtime resolution stub
-      // could resolve the callee to the wrong method.
-      return nullptr;
-    }
-    resolved_method = actual_method;
   }
 
   // Check for incompatible class changes. The class linker has a fast path for
@@ -923,7 +948,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
 
   ArtMethod* resolved_method = ResolveMethod(method_idx, invoke_type);
 
-  if (resolved_method == nullptr) {
+  if (UNLIKELY(resolved_method == nullptr)) {
     MaybeRecordStat(MethodCompilationStat::kUnresolvedMethod);
     HInvoke* invoke = new (arena_) HInvokeUnresolved(arena_,
                                                      number_of_arguments,
@@ -943,7 +968,6 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   // Potential class initialization check, in the case of a static method call.
   HClinitCheck* clinit_check = nullptr;
   HInvoke* invoke = nullptr;
-
   if (invoke_type == kDirect || invoke_type == kStatic || invoke_type == kSuper) {
     // By default, consider that the called method implicitly requires
     // an initialization check of its declaring method.

@@ -42,6 +42,12 @@ else
   HAS_SRC_MULTIDEX=false
 fi
 
+if [ -d smali-multidex ]; then
+  HAS_SMALI_MULTIDEX=true
+else
+  HAS_SMALI_MULTIDEX=false
+fi
+
 if [ -d src-ex ]; then
   HAS_SRC_EX=true
 else
@@ -73,6 +79,9 @@ while true; do
     shift
   elif [ "x$1" = "x--no-src-multidex" ]; then
     HAS_SRC_MULTIDEX=false
+    shift
+  elif [ "x$1" = "x--no-smali-multidex" ]; then
+    HAS_SMALI_MULTIDEX=false
     shift
   elif [ "x$1" = "x--no-src-ex" ]; then
     HAS_SRC_EX=false
@@ -171,6 +180,19 @@ if [ "${HAS_SMALI}" = "true" ]; then
   fi
 fi
 
+if [ "${HAS_SMALI_MULTIDEX}" = "true" ]; then
+  # Compile Smali classes
+  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
+
+  # Don't bother with dexmerger if we provide our own main function in a smali file.
+  if [ ${HAS_SRC_MULTIDEX} = "true" ]; then
+    ${DXMERGER} classes2.dex classes2.dex smali_classes2.dex
+  else
+    mv smali_classes2.dex classes2.dex
+  fi
+fi
+
+
 if [ ${HAS_SRC_EX} = "true" ]; then
   if [ ${USE_JACK} = "true" ]; then
       # Rename previous "classes.dex" so it is not overwritten.
@@ -198,7 +220,7 @@ if [ ${HAS_SRC_EX} = "true" ]; then
 fi
 
 # Create a single jar with two dex files for multidex.
-if [ ${HAS_SRC_MULTIDEX} = "true" ]; then
+if [ ${HAS_SRC_MULTIDEX} = "true" ] || [ ${HAS_SMALI_MULTIDEX} = "true" ]; then
   zip $TEST_NAME.jar classes.dex classes2.dex
 elif [ ${NEED_DEX} = "true" ]; then
   zip $TEST_NAME.jar classes.dex
