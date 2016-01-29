@@ -29,11 +29,18 @@ static void do_checks(jclass cls, const char* method_name) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
   ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, sizeof(void*));
-  jit->CompileMethod(method, soa.Self());
 
-  OatQuickMethodHeader* header = OatQuickMethodHeader::FromEntryPoint(
-      method->GetEntryPointFromQuickCompiledCode());
-  CHECK(code_cache->ContainsPc(header->GetCode()));
+  OatQuickMethodHeader* header = nullptr;
+  // Infinite loop... Test harness will have its own timeout.
+  while (true) {
+    header = OatQuickMethodHeader::FromEntryPoint(method->GetEntryPointFromQuickCompiledCode());
+    if (code_cache->ContainsPc(header->GetCode())) {
+      break;
+    } else {
+      // sleep one second to give time to the JIT compiler.
+      sleep(1);
+    }
+  }
 
   CodeInfo info = header->GetOptimizedCodeInfo();
   CHECK(info.HasInlineInfo());
@@ -42,6 +49,11 @@ static void do_checks(jclass cls, const char* method_name) {
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureJittedAndPolymorphicInline(JNIEnv*, jclass cls) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit == nullptr) {
+    return;
+  }
+
+  if (kIsDebugBuild) {
+    // A debug build might often compile the methods without profiling informations filled.
     return;
   }
 
