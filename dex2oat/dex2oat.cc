@@ -695,11 +695,6 @@ class Dex2Oat FINAL {
       Usage("Can't have both --image and (--app-image-fd or --app-image-file)");
     }
 
-    if (IsBootImage()) {
-      // We need the boot image to always be debuggable.
-      compiler_options_->debuggable_ = true;
-    }
-
     if (oat_filenames_.empty() && oat_fd_ == -1) {
       Usage("Output must be supplied with either --oat-file or --oat-fd");
     }
