@@ -26,6 +26,7 @@
 #include "stack.h"
 #include "unstarted_runtime.h"
 #include "mterp/mterp.h"
+#include "jit/jit.h"
 
 namespace art {
 namespace interpreter {
@@ -280,6 +281,33 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
                              ShadowFrame& shadow_frame, JValue result_register) {
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
+  if (LIKELY(shadow_frame.GetDexPC() == 0)) {  // Entering the method, but not via deoptimization.
+    if (kIsDebugBuild) {
+      self->AssertNoPendingException();
+    }
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    ArtMethod *method = shadow_frame.GetMethod();
+
+    if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
+      instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                        method, 0);
+    }
+
+    if (UNLIKELY(Runtime::Current()->GetJit() != nullptr &&
+                 Runtime::Current()->GetJit()->JitAtFirstUse() &&
+                 method->HasAnyCompiledCode())) {
+      JValue result;
+
+      // Pop the shadow frame before calling into compiled code.
+      self->PopShadowFrame();
+      ArtInterpreterToCompiledCodeBridge(self, code_item, &shadow_frame, &result);
+      // Push the shadow frame back as the caller will expect it.
+      self->PushShadowFrame(&shadow_frame);
+
+      return result;
+    }
+  }
+
   shadow_frame.GetMethod()->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
   bool transaction_active = Runtime::Current()->IsActiveTransaction();
