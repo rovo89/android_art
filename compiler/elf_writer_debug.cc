@@ -505,7 +505,7 @@ class DebugInfoWriter {
         // Enclose the method in correct class definition.
         if (last_dex_class_desc != dex_class_desc) {
           if (last_dex_class_desc != nullptr) {
-            EndClassTag(last_dex_class_desc);
+            EndClassTag();
           }
           // Write reference tag for the class we are about to declare.
           size_t reference_tag_offset = info_.StartTag(DW_TAG_reference_type);
@@ -601,11 +601,12 @@ class DebugInfoWriter {
         CHECK_EQ(info_.Depth(), start_depth);  // Balanced start/end.
       }
       if (last_dex_class_desc != nullptr) {
-        EndClassTag(last_dex_class_desc);
+        EndClassTag();
       }
-      CHECK_EQ(info_.Depth(), 1);
       FinishLazyTypes();
+      CloseNamespacesAboveDepth(0);
       info_.EndTag();  // DW_TAG_compile_unit
+      CHECK_EQ(info_.Depth(), 0);
       std::vector<uint8_t> buffer;
       buffer.reserve(info_.data()->size() + KB);
       const size_t offset = owner_->builder_->GetDebugInfo()->GetSize();
@@ -633,6 +634,7 @@ class DebugInfoWriter {
           uint32_t data_offset = mirror::Array::DataOffset(component_size).Uint32Value();
           uint32_t length_offset = mirror::Array::LengthOffset().Uint32Value();
 
+          CloseNamespacesAboveDepth(0);  // Declare in root namespace.
           info_.StartTag(DW_TAG_array_type);
           std::string descriptor_string;
           WriteLazyType(element_type->GetDescriptor(&descriptor_string));
@@ -660,7 +662,7 @@ class DebugInfoWriter {
             base_class_declaration_offset = StartClassTag(base_class_desc);
             info_.WriteFlag(DW_AT_declaration, true);
             WriteLinkageName(base_class);
-            EndClassTag(base_class_desc);
+            EndClassTag();
           }
 
           std::string descriptor_string;
@@ -743,13 +745,14 @@ class DebugInfoWriter {
             info_.EndTag();  // DW_TAG_member.
           }
 
-          EndClassTag(desc);
+          EndClassTag();
         }
       }
 
-      CHECK_EQ(info_.Depth(), 1);
       FinishLazyTypes();
+      CloseNamespacesAboveDepth(0);
       info_.EndTag();  // DW_TAG_compile_unit.
+      CHECK_EQ(info_.Depth(), 0);
       std::vector<uint8_t> buffer;
       buffer.reserve(info_.data()->size() + KB);
       const size_t offset = owner_->builder_->GetDebugInfo()->GetSize();
@@ -958,7 +961,7 @@ class DebugInfoWriter {
         // Class type. For example: Lpackage/name;
         size_t class_offset = StartClassTag(desc.c_str());
         info_.WriteFlag(DW_AT_declaration, true);
-        EndClassTag(desc.c_str());
+        EndClassTag();
         // Reference to the class type.
         offset = info_.StartTag(DW_TAG_reference_type);
         info_.WriteRef(DW_AT_type, class_offset);
@@ -966,6 +969,7 @@ class DebugInfoWriter {
       } else if (desc[0] == '[') {
         // Array type.
         size_t element_type = WriteTypeDeclaration(desc.substr(1));
+        CloseNamespacesAboveDepth(0);  // Declare in root namespace.
         size_t array_type = info_.StartTag(DW_TAG_array_type);
         info_.WriteFlag(DW_AT_declaration, true);
         info_.WriteRef(DW_AT_type, element_type);
@@ -1028,6 +1032,7 @@ class DebugInfoWriter {
           LOG(FATAL) << "Unknown dex type descriptor: \"" << desc << "\"";
           UNREACHABLE();
         }
+        CloseNamespacesAboveDepth(0);  // Declare in root namespace.
         offset = info_.StartTag(DW_TAG_base_type);
         WriteName(name);
         info_.WriteData1(DW_AT_encoding, encoding);
@@ -1042,29 +1047,47 @@ class DebugInfoWriter {
     // Start DW_TAG_class_type tag nested in DW_TAG_namespace tags.
     // Returns offset of the class tag in the compilation unit.
     size_t StartClassTag(const char* desc) {
-      DCHECK(desc != nullptr && desc[0] == 'L');
-      // Enclose the type in namespace tags.
-      const char* end;
-      for (desc = desc + 1; (end = strchr(desc, '/')) != nullptr; desc = end + 1) {
-        info_.StartTag(DW_TAG_namespace);
-        WriteName(std::string(desc, end - desc).c_str());
-      }
-      // Start the class tag.
+      std::string name = SetNamespaceForClass(desc);
       size_t offset = info_.StartTag(DW_TAG_class_type);
-      end = strchr(desc, ';');
-      CHECK(end != nullptr);
-      WriteName(std::string(desc, end - desc).c_str());
+      WriteName(name.c_str());
       return offset;
     }
 
-    void EndClassTag(const char* desc) {
-      DCHECK(desc != nullptr && desc[0] == 'L');
-      // End the class tag.
+    void EndClassTag() {
       info_.EndTag();
-      // Close namespace tags.
-      const char* end;
-      for (desc = desc + 1; (end = strchr(desc, '/')) != nullptr; desc = end + 1) {
+    }
+
+    // Set the current namespace nesting to one required by the given class.
+    // Returns the class name with namespaces, 'L', and ';' stripped.
+    std::string SetNamespaceForClass(const char* desc) {
+      DCHECK(desc != nullptr && desc[0] == 'L');
+      desc++;  // Skip the initial 'L'.
+      size_t depth = 0;
+      for (const char* end; (end = strchr(desc, '/')) != nullptr; desc = end + 1, ++depth) {
+        // Check whether the name at this depth is already what we need.
+        if (depth < current_namespace_.size()) {
+          const std::string& name = current_namespace_[depth];
+          if (name.compare(0, name.size(), desc, end - desc) == 0) {
+            continue;
+          }
+        }
+        // Otherwise we need to open a new namespace tag at this depth.
+        CloseNamespacesAboveDepth(depth);
+        info_.StartTag(DW_TAG_namespace);
+        std::string name(desc, end - desc);
+        WriteName(name.c_str());
+        current_namespace_.push_back(std::move(name));
+      }
+      CloseNamespacesAboveDepth(depth);
+      return std::string(desc, strchr(desc, ';') - desc);
+    }
+
+    // Close namespace tags to reach the given nesting depth.
+    void CloseNamespacesAboveDepth(size_t depth) {
+      DCHECK_LE(depth, current_namespace_.size());
+      while (current_namespace_.size() > depth) {
         info_.EndTag();
+        current_namespace_.pop_back();
       }
     }
 
@@ -1079,6 +1102,8 @@ class DebugInfoWriter {
     // 32-bit references which need to be resolved to a type later.
     // Given type may be used multiple times.  Therefore we need a multimap.
     std::multimap<std::string, size_t> lazy_types_;  // type_desc -> patch_offset.
+    // The current set of open namespace tags which are active and not closed yet.
+    std::vector<std::string> current_namespace_;
   };
 
  public:
