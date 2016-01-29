@@ -145,9 +145,9 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
       WriteBarrierField(obj, mirror::Object::ClassOffset(), klass);
     }
     pre_fence_visitor(obj, usable_size);
+    QuasiAtomic::ThreadFenceForConstructor();
     new_num_bytes_allocated = static_cast<size_t>(
-        num_bytes_allocated_.FetchAndAddSequentiallyConsistent(bytes_tl_bulk_allocated))
-        + bytes_tl_bulk_allocated;
+        num_bytes_allocated_.FetchAndAddRelaxed(bytes_tl_bulk_allocated)) + bytes_tl_bulk_allocated;
   }
   if (kIsDebugBuild && Runtime::Current()->IsStarted()) {
     CHECK_LE(obj->SizeOf(), usable_size);
