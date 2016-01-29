@@ -284,6 +284,15 @@ class ClassLinker {
 
   ArtMethod* GetResolvedMethod(uint32_t method_idx, ArtMethod* referrer)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // This returns the class referred to by GetMethodId(method_idx).class_idx_. This might be
+  // different then the declaring class of the resolved method due to copied
+  // miranda/default/conflict methods.
+  mirror::Class* ResolveReferencedClassOfMethod(Thread* self,
+                                                uint32_t method_idx,
+                                                ArtMethod* referrer)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_, !Roles::uninterruptible_);
   template <ResolveMode kResolveMode>
   ArtMethod* ResolveMethod(Thread* self, uint32_t method_idx, ArtMethod* referrer, InvokeType type)
       SHARED_REQUIRES(Locks::mutator_lock_)
