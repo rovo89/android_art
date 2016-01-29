@@ -441,11 +441,10 @@ class ClassLinker {
                                mirror::Class::Status& oat_file_class_status)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
-  void ResolveClassExceptionHandlerTypes(const DexFile& dex_file,
-                                         Handle<mirror::Class> klass)
+  void ResolveClassExceptionHandlerTypes(Handle<mirror::Class> klass)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
-  void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, ArtMethod* klass)
+  void ResolveMethodExceptionHandlerTypes(ArtMethod* klass)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
