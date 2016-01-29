@@ -1887,7 +1887,8 @@ void Runtime::CreateJit() {
   if (jit_.get() != nullptr) {
     compiler_callbacks_ = jit_->GetCompilerCallbacks();
     jit_->CreateInstrumentationCache(jit_options_->GetCompileThreshold(),
-                                     jit_options_->GetWarmupThreshold());
+                                     jit_options_->GetWarmupThreshold(),
+                                     jit_options_->GetOsrThreshold());
     jit_->CreateThreadPool();
 
     // Notify native debugger about the classes already loaded before the creation of the jit.

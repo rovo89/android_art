@@ -40,7 +40,7 @@
 
 namespace art {
 
-static constexpr bool kDebugStackWalk = false;
+static constexpr bool kDebugStackWalk = true;
 
 mirror::Object* ShadowFrame::GetThisObject() const {
   ArtMethod* m = GetMethod();

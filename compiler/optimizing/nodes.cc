@@ -647,6 +647,10 @@ void HLoopInformation::Populate() {
       header_->GetGraph()->SetHasIrreducibleLoops(true);
       PopulateIrreducibleRecursive(back_edge);
     } else {
+      if (header_->GetGraph()->IsCompilingOsr()) {
+        irreducible_ = true;
+        header_->GetGraph()->SetHasIrreducibleLoops(true);
+      }
       PopulateRecursive(back_edge);
     }
   }
