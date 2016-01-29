@@ -634,11 +634,11 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
     intptr_t offset_h = loc1.IsDoubleStackSlot() ? loc1.GetHighStackIndex(kMipsWordSize)
                                                  : loc2.GetHighStackIndex(kMipsWordSize);
     __ Move(TMP, reg_l);
-    __ Move(AT, reg_h);
     __ LoadFromOffset(kLoadWord, reg_l, SP, offset_l);
-    __ LoadFromOffset(kLoadWord, reg_h, SP, offset_h);
     __ StoreToOffset(kStoreWord, TMP, SP, offset_l);
-    __ StoreToOffset(kStoreWord, AT, SP, offset_h);
+    __ Move(TMP, reg_h);
+    __ LoadFromOffset(kLoadWord, reg_h, SP, offset_h);
+    __ StoreToOffset(kStoreWord, TMP, SP, offset_h);
   } else {
     LOG(FATAL) << "Swap between " << loc1 << " and " << loc2 << " is unsupported";
   }
