@@ -1036,8 +1036,15 @@ extern "C" const void* artQuickResolutionTrampoline(
       } else {
         DCHECK_EQ(invoke_type, kSuper);
         CHECK(caller != nullptr) << invoke_type;
-        called = caller->GetDeclaringClass()->GetSuperClass()->GetVTableEntry(
-            called->GetMethodIndex(), sizeof(void*));
+        // TODO Maybe put this into a mirror::Class function.
+        mirror::Class* ref_class = linker->ResolveReferencedClassOfMethod(
+            self, called_method.dex_method_index, caller);
+        if (ref_class->IsInterface()) {
+          called = ref_class->FindVirtualMethodForInterfaceSuper(called, sizeof(void*));
+        } else {
+          called = caller->GetDeclaringClass()->GetSuperClass()->GetVTableEntry(
+              called->GetMethodIndex(), sizeof(void*));
+        }
       }
 
       CHECK(called != nullptr) << PrettyMethod(orig_called) << " "
