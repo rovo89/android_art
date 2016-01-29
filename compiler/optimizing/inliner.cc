@@ -669,7 +669,9 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(ArtMethod* resolved_method,
       resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
       *resolved_method->GetDexFile(),
       dex_cache,
-      kNoDexPc);
+      // Read barrier generates a runtime call in slow path and we need a valid
+      // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
+      /* dex_pc */ 0);
   if (iget->GetType() == Primitive::kPrimNot) {
     ReferenceTypePropagation rtp(graph_, handles_);
     rtp.Visit(iget);
@@ -696,7 +698,9 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(ArtMethod* resolved_method,
       resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
       *resolved_method->GetDexFile(),
       dex_cache,
-      kNoDexPc);
+      // Read barrier generates a runtime call in slow path and we need a valid
+      // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
+      /* dex_pc */ 0);
   return iput;
 }
 bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
