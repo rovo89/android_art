@@ -266,5 +266,11 @@
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndNoSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNullArguments"]
+},
+{
+  description: "Expected to fail",
+  bug: 26869497,
+  result: EXEC_FAILED,
+  names: ["libcore.java.util.CalendarTest#testSetHourOfDayInEuropeLondon"]
 }
 ]
