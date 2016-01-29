@@ -123,7 +123,7 @@ class ImageWriter FINAL {
 
   // Update the oat size for the given oat file. This will make the oat_offset for the next oat
   // file valid.
-  void UpdateOatFile(const char* oat_filename);
+  void UpdateOatFile(File* oat_file, const char* oat_filename);
 
  private:
   bool AllocMemory();
