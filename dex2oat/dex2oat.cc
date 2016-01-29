@@ -928,14 +928,23 @@ class Dex2Oat FINAL {
     // Fill some values into the key-value store for the oat header.
     key_value_store_.reset(new SafeMap<std::string, std::string>());
 
-    // Automatically force determinism for the boot image in a host
-    // build, except when read barriers are enabled, as the former
-    // switches the GC to a non-concurrent one by passing the
-    // option `-Xgc:nonconcurrent` (see below).
-    if (!kIsTargetBuild && IsBootImage() && !kEmitCompilerReadBarrier) {
-      force_determinism_ = true;
+    // Automatically force determinism for the boot image in a host build if the default GC is CMS
+    // or MS and read barriers are not enabled, as the former switches the GC to a non-concurrent
+    // one by passing the option `-Xgc:nonconcurrent` (see below).
+    if (!kIsTargetBuild && IsBootImage()) {
+      if (SupportsDeterministicCompilation()) {
+        force_determinism_ = true;
+      } else {
+        LOG(WARNING) << "Deterministic compilation is disabled.";
+      }
     }
     compiler_options_->force_determinism_ = force_determinism_;
+  }
+
+  static bool SupportsDeterministicCompilation() {
+    return (gc::kCollectorTypeDefault == gc::kCollectorTypeCMS ||
+            gc::kCollectorTypeDefault == gc::kCollectorTypeMS) &&
+        !kEmitCompilerReadBarrier;
   }
 
   void ExpandOatAndImageFilenames() {
@@ -1180,8 +1189,8 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--no-inline-from=")) {
         no_inline_from_string_ = option.substr(strlen("--no-inline-from=")).data();
       } else if (option == "--force-determinism") {
-        if (kEmitCompilerReadBarrier) {
-          Usage("Cannot use --force-determinism with read barriers");
+        if (!SupportsDeterministicCompilation()) {
+          Usage("Cannot use --force-determinism with read barriers or non-CMS garbage collector");
         }
         force_determinism_ = true;
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
