@@ -278,6 +278,10 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
     return this->fetch_add(value, std::memory_order_seq_cst);  // Return old_value.
   }
 
+  T FetchAndAddRelaxed(const T value) {
+    return this->fetch_add(value, std::memory_order_relaxed);  // Return old_value.
+  }
+
   T FetchAndSubSequentiallyConsistent(const T value) {
     return this->fetch_sub(value, std::memory_order_seq_cst);  // Return old value.
   }
