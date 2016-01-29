@@ -80,6 +80,7 @@ class ReadBarrier {
   static void AssertToSpaceInvariant(GcRootSource* gc_root_source, mirror::Object* ref)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // ALWAYS_INLINE on this caused a performance regression b/26744236.
   static mirror::Object* Mark(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   static mirror::Object* WhitePtr() {
