@@ -478,8 +478,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   Address LiteralInt32Address(int32_t v);
   Address LiteralInt64Address(int64_t v);
 
-  // Load a 64 bit value into a register in the most efficient manner.
+  // Load a 32/64 bit value into a register in the most efficient manner.
+  void Load32BitValue(CpuRegister dest, int32_t value);
   void Load64BitValue(CpuRegister dest, int64_t value);
+
   Address LiteralCaseTable(HPackedSwitch* switch_instr);
 
   // Store a 64 bit value into a DoubleStackSlot in the most efficient manner.
