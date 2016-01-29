@@ -486,7 +486,7 @@ class DebugInfoWriter {
    public:
     explicit CompilationUnitWriter(DebugInfoWriter* owner)
       : owner_(owner),
-        info_(Is64BitInstructionSet(owner_->builder_->GetIsa()), &debug_abbrev_) {
+        info_(Is64BitInstructionSet(owner_->builder_->GetIsa()), &owner->debug_abbrev_) {
     }
 
     void Write(const CompilationUnit& compilation_unit) {
@@ -622,8 +622,8 @@ class DebugInfoWriter {
       std::vector<uint8_t> buffer;
       buffer.reserve(info_.data()->size() + KB);
       const size_t offset = owner_->builder_->GetDebugInfo()->GetSize();
-      const size_t debug_abbrev_offset =
-          owner_->debug_abbrev_.Insert(debug_abbrev_.data(), debug_abbrev_.size());
+      // All compilation units share single table which is at the start of .debug_abbrev.
+      const size_t debug_abbrev_offset = 0;
       WriteDebugInfoCU(debug_abbrev_offset, info_, offset, &buffer, &owner_->debug_info_patches_);
       owner_->builder_->GetDebugInfo()->WriteFully(buffer.data(), buffer.size());
     }
@@ -785,8 +785,8 @@ class DebugInfoWriter {
       std::vector<uint8_t> buffer;
       buffer.reserve(info_.data()->size() + KB);
       const size_t offset = owner_->builder_->GetDebugInfo()->GetSize();
-      const size_t debug_abbrev_offset =
-          owner_->debug_abbrev_.Insert(debug_abbrev_.data(), debug_abbrev_.size());
+      // All compilation units share single table which is at the start of .debug_abbrev.
+      const size_t debug_abbrev_offset = 0;
       WriteDebugInfoCU(debug_abbrev_offset, info_, offset, &buffer, &owner_->debug_info_patches_);
       owner_->builder_->GetDebugInfo()->WriteFully(buffer.data(), buffer.size());
     }
@@ -1118,8 +1118,6 @@ class DebugInfoWriter {
 
     // For access to the ELF sections.
     DebugInfoWriter<ElfTypes>* owner_;
-    // Debug abbrevs for this compilation unit only.
-    std::vector<uint8_t> debug_abbrev_;
     // Temporary buffer to create and store the entries.
     DebugInfoEntryWriter<> info_;
     // Cache of already translated type descriptors.
@@ -1132,7 +1130,9 @@ class DebugInfoWriter {
   };
 
  public:
-  explicit DebugInfoWriter(ElfBuilder<ElfTypes>* builder) : builder_(builder) {
+  explicit DebugInfoWriter(ElfBuilder<ElfTypes>* builder)
+      : builder_(builder),
+        debug_abbrev_(&debug_abbrev_buffer_) {
   }
 
   void Start() {
@@ -1153,7 +1153,7 @@ class DebugInfoWriter {
     builder_->GetDebugInfo()->End();
     builder_->WritePatches(".debug_info.oat_patches",
                            ArrayRef<const uintptr_t>(debug_info_patches_));
-    builder_->WriteSection(".debug_abbrev", &debug_abbrev_.Data());
+    builder_->WriteSection(".debug_abbrev", &debug_abbrev_buffer_);
     builder_->WriteSection(".debug_str", &debug_str_.Data());
     builder_->WriteSection(".debug_loc", &debug_loc_);
     builder_->WriteSection(".debug_ranges", &debug_ranges_);
@@ -1166,7 +1166,8 @@ class DebugInfoWriter {
 
   ElfBuilder<ElfTypes>* builder_;
   std::vector<uintptr_t> debug_info_patches_;
-  DedupVector debug_abbrev_;
+  std::vector<uint8_t> debug_abbrev_buffer_;
+  DebugAbbrevWriter<> debug_abbrev_;
   DedupVector debug_str_;
   std::vector<uint8_t> debug_loc_;
   std::vector<uint8_t> debug_ranges_;

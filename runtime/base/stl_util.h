@@ -156,6 +156,20 @@ struct CStringLess {
   }
 };
 
+// 32-bit FNV-1a hash function suitable for std::unordered_map.
+// It can be used with any container which works with range-based for loop.
+// See http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+template <typename Vector>
+struct FNVHash {
+  size_t operator()(const Vector& vector) const {
+    uint32_t hash = 2166136261u;
+    for (const auto& value : vector) {
+      hash = (hash ^ value) * 16777619u;
+    }
+    return hash;
+  }
+};
+
 // Use to suppress type deduction for a function argument.
 // See std::identity<> for more background:
 // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2005/n1856.html#20.2.2 - move/forward helpers
