@@ -1167,6 +1167,20 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
     return nullptr;
   }
 
+  if (oat_file != nullptr) {
+    // If we have an oat file, check the oat file checksum. The oat file is only non-null for the
+    // app image case. Otherwise, we open the oat file after the image and check the checksum there.
+    const uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
+    const uint32_t image_oat_checksum = image_header->GetOatChecksum();
+    if (oat_checksum != image_oat_checksum) {
+      *error_msg = StringPrintf("Oat checksum 0x%x does not match the image one 0x%x in image %s",
+                                oat_checksum,
+                                image_oat_checksum,
+                                image_filename);
+      return nullptr;
+    }
+  }
+
   if (VLOG_IS_ON(startup)) {
     LOG(INFO) << "Dumping image sections";
     for (size_t i = 0; i < ImageHeader::kSectionCount; ++i) {
