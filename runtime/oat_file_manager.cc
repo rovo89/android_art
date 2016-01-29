@@ -40,7 +40,7 @@ namespace art {
 static constexpr bool kDuplicateClassesCheck = kIsDebugBuild;
 
 // If true, then we attempt to load the application image if it exists.
-static constexpr bool kEnableAppImage = true;
+static constexpr bool kEnableAppImage = false;
 
 const OatFile* OatFileManager::RegisterOatFile(std::unique_ptr<const OatFile> oat_file) {
   WriterMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
