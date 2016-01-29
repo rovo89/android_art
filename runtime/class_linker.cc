@@ -3666,7 +3666,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
     }
     self->AssertNoPendingException();
     // Make sure all classes referenced by catch blocks are resolved.
-    ResolveClassExceptionHandlerTypes(dex_file, klass);
+    ResolveClassExceptionHandlerTypes(klass);
     if (verifier_failure == verifier::MethodVerifier::kNoFailure) {
       // Even though there were no verifier failures we need to respect whether the super-class and
       // super-default-interfaces were verified or requiring runtime reverification.
@@ -3802,17 +3802,16 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
   UNREACHABLE();
 }
 
-void ClassLinker::ResolveClassExceptionHandlerTypes(const DexFile& dex_file,
-                                                    Handle<mirror::Class> klass) {
+void ClassLinker::ResolveClassExceptionHandlerTypes(Handle<mirror::Class> klass) {
   for (ArtMethod& method : klass->GetMethods(image_pointer_size_)) {
-    ResolveMethodExceptionHandlerTypes(dex_file, &method);
+    ResolveMethodExceptionHandlerTypes(&method);
   }
 }
 
-void ClassLinker::ResolveMethodExceptionHandlerTypes(const DexFile& dex_file,
-                                                     ArtMethod* method) {
+void ClassLinker::ResolveMethodExceptionHandlerTypes(ArtMethod* method) {
   // similar to DexVerifier::ScanTryCatchBlocks and dex2oat's ResolveExceptionsForMethod.
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
+  const DexFile::CodeItem* code_item =
+      method->GetDexFile()->GetCodeItem(method->GetCodeItemOffset());
   if (code_item == nullptr) {
     return;  // native or abstract method
   }
