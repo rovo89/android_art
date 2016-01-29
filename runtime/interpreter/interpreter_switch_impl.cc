@@ -2383,7 +2383,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   } while (!interpret_one_instruction);
   // Record where we stopped.
   shadow_frame.SetDexPC(inst->GetDexPc(insns));
-  return JValue();
+  return result_register;
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteSwitchImpl.
