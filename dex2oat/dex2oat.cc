@@ -1709,7 +1709,10 @@ class Dex2Oat FINAL {
 
         if (IsImage()) {
           // Update oat estimates.
-          UpdateImageWriter(i);
+          DCHECK(image_writer_ != nullptr);
+          DCHECK_LT(i, oat_filenames_.size());
+
+          image_writer_->UpdateOatFile(oat_file.get(), oat_filenames_[i]);
         }
 
         VLOG(compiler) << "Oat file written successfully: " << oat_filenames_[i];
@@ -2349,14 +2352,6 @@ class Dex2Oat FINAL {
       return res;
     }
     return res.substr(0, penultimate_slash) + res.substr(last_slash);
-  }
-
-  // Update the estimate for the oat file with the given index.
-  void UpdateImageWriter(size_t index) {
-    DCHECK(image_writer_ != nullptr);
-    DCHECK_LT(index, oat_filenames_.size());
-
-    image_writer_->UpdateOatFile(oat_filenames_[index]);
   }
 
   std::unique_ptr<CompilerOptions> compiler_options_;

@@ -2274,12 +2274,11 @@ const ImageWriter::ImageInfo& ImageWriter::GetImageInfo(size_t index) const {
   return GetConstImageInfo(oat_filenames_[index]);
 }
 
-void ImageWriter::UpdateOatFile(const char* oat_filename) {
-  std::unique_ptr<File> oat_file(OS::OpenFileForReading(oat_filename));
+void ImageWriter::UpdateOatFile(File* oat_file, const char* oat_filename) {
   DCHECK(oat_file != nullptr);
   size_t oat_loaded_size = 0;
   size_t oat_data_offset = 0;
-  ElfWriter::GetOatElfInformation(oat_file.get(), &oat_loaded_size, &oat_data_offset);
+  ElfWriter::GetOatElfInformation(oat_file, &oat_loaded_size, &oat_data_offset);
 
   ImageInfo& cur_image_info = GetImageInfo(oat_filename);
 
