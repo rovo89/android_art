@@ -738,15 +738,8 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self) {
     return false;
   }
 
-  // Compiling requires a profiling info object to notify compilation. Create
-  // one if it hasn't been done before.
-  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
-  if (info == nullptr) {
-    ProfilingInfo::Create(self, method, /* retry_allocation */ true);
-  }
-
   MutexLock mu(self, lock_);
-  info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
   if (info == nullptr || info->IsMethodBeingCompiled()) {
     return false;
   }

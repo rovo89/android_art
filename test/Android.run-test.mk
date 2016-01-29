@@ -445,7 +445,6 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
 # also uses Generic JNI instead of the JNI compiler.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
-  566-polymorphic-inlining \
   137-cfi
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
