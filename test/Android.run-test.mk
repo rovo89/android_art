@@ -548,10 +548,8 @@ TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
   527-checker-array-access-split \
   537-checker-arraycopy
 
-# Tests that should fail in the read barrier configuration with JIT.
-# 496: Occasional timeout: "Fault message: timeout: the monitored command dumped core" (b/26786304).
-TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS := \
-  496-checker-inlining-and-class-loader
+# Tests that should fail in the read barrier configuration with JIT (Optimizing compiler).
+TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
