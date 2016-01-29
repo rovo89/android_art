@@ -2302,7 +2302,7 @@ static void SwapBits(CpuRegister reg, CpuRegister temp, int32_t shift, int32_t m
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitIntegerReverse(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  X86_64Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
   CpuRegister reg = locations->InAt(0).AsRegister<CpuRegister>();
@@ -2346,7 +2346,7 @@ static void SwapBits64(CpuRegister reg, CpuRegister temp, CpuRegister temp_mask,
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitLongReverse(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  X86_64Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
   CpuRegister reg = locations->InAt(0).AsRegister<CpuRegister>();
@@ -2382,7 +2382,10 @@ static void CreateBitCountLocations(
   locations->SetOut(Location::RequiresRegister());
 }
 
-static void GenBitCount(X86_64Assembler* assembler, HInvoke* invoke, bool is_long) {
+static void GenBitCount(X86_64Assembler* assembler,
+                        CodeGeneratorX86_64* codegen,
+                        HInvoke* invoke,
+                        bool is_long) {
   LocationSummary* locations = invoke->GetLocations();
   Location src = locations->InAt(0);
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
@@ -2393,11 +2396,7 @@ static void GenBitCount(X86_64Assembler* assembler, HInvoke* invoke, bool is_lon
     value = is_long
         ? POPCOUNT(static_cast<uint64_t>(value))
         : POPCOUNT(static_cast<uint32_t>(value));
-    if (value == 0) {
-      __ xorl(out, out);
-    } else {
-      __ movl(out, Immediate(value));
-    }
+    codegen->Load32BitValue(out, value);
     return;
   }
 
@@ -2421,7 +2420,7 @@ void IntrinsicLocationsBuilderX86_64::VisitIntegerBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitIntegerBitCount(HInvoke* invoke) {
-  GenBitCount(GetAssembler(), invoke, /* is_long */ false);
+  GenBitCount(GetAssembler(), codegen_, invoke, /* is_long */ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitLongBitCount(HInvoke* invoke) {
@@ -2429,7 +2428,190 @@ void IntrinsicLocationsBuilderX86_64::VisitLongBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitLongBitCount(HInvoke* invoke) {
-  GenBitCount(GetAssembler(), invoke, /* is_long */ true);
+  GenBitCount(GetAssembler(), codegen_, invoke, /* is_long */ true);
+}
+
+static void CreateCompareLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenCompare(X86_64Assembler* assembler, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  CpuRegister src1 = locations->InAt(0).AsRegister<CpuRegister>();
+  CpuRegister src2 = locations->InAt(1).AsRegister<CpuRegister>();
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  NearLabel is_lt, done;
+
+  __ xorl(out, out);
+
+  if (is_long) {
+    __ cmpq(src1, src2);
+  } else {
+    __ cmpl(src1, src2);
+  }
+  __ j(kEqual, &done);
+  __ j(kLess, &is_lt);
+
+  __ movl(out, Immediate(1));
+  __ jmp(&done);
+
+  __ Bind(&is_lt);
+  __ movl(out, Immediate(-1));
+
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerCompare(HInvoke* invoke) {
+  CreateCompareLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerCompare(HInvoke* invoke) {
+  GenCompare(GetAssembler(), invoke, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongCompare(HInvoke* invoke) {
+  CreateCompareLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongCompare(HInvoke* invoke) {
+  GenCompare(GetAssembler(), invoke, /* is_long */ true);
+}
+
+static void CreateOneBitLocations(ArenaAllocator* arena, HInvoke* invoke, bool is_high) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::Any());
+  locations->SetOut(Location::RequiresRegister());
+  locations->AddTemp(is_high ? Location::RegisterLocation(RCX)  // needs CL
+                             : Location::RequiresRegister());  // any will do
+}
+
+static void GenOneBit(X86_64Assembler* assembler,
+                      CodeGeneratorX86_64* codegen,
+                      HInvoke* invoke,
+                      bool is_high, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    if (value == 0) {
+      __ xorl(out, out);  // Clears upper bits too.
+      return;
+    }
+    // Nonzero value.
+    if (is_high) {
+      value = is_long ? 63 - CLZ(static_cast<uint64_t>(value))
+                      : 31 - CLZ(static_cast<uint32_t>(value));
+    } else {
+      value = is_long ? CTZ(static_cast<uint64_t>(value))
+                      : CTZ(static_cast<uint32_t>(value));
+    }
+    if (is_long) {
+      codegen->Load64BitValue(out, 1L << value);
+    } else {
+      codegen->Load32BitValue(out, 1 << value);
+    }
+    return;
+  }
+
+  // Handle the non-constant cases.
+  CpuRegister tmp = locations->GetTemp(0).AsRegister<CpuRegister>();
+  if (is_high) {
+    // Use architectural support: basically 1 << bsr.
+    if (src.IsRegister()) {
+      if (is_long) {
+        __ bsrq(tmp, src.AsRegister<CpuRegister>());
+      } else {
+        __ bsrl(tmp, src.AsRegister<CpuRegister>());
+      }
+    } else if (is_long) {
+      DCHECK(src.IsDoubleStackSlot());
+      __ bsrq(tmp, Address(CpuRegister(RSP), src.GetStackIndex()));
+    } else {
+      DCHECK(src.IsStackSlot());
+      __ bsrl(tmp, Address(CpuRegister(RSP), src.GetStackIndex()));
+    }
+    // BSR sets ZF if the input was zero.
+    NearLabel is_zero, done;
+    __ j(kEqual, &is_zero);
+    __ movl(out, Immediate(1));  // Clears upper bits too.
+    if (is_long) {
+      __ shlq(out, tmp);
+    } else {
+      __ shll(out, tmp);
+    }
+    __ jmp(&done);
+    __ Bind(&is_zero);
+    __ xorl(out, out);  // Clears upper bits too.
+    __ Bind(&done);
+  } else  {
+    // Copy input into temporary.
+    if (src.IsRegister()) {
+      if (is_long) {
+        __ movq(tmp, src.AsRegister<CpuRegister>());
+      } else {
+        __ movl(tmp, src.AsRegister<CpuRegister>());
+      }
+    } else if (is_long) {
+      DCHECK(src.IsDoubleStackSlot());
+      __ movq(tmp, Address(CpuRegister(RSP), src.GetStackIndex()));
+    } else {
+      DCHECK(src.IsStackSlot());
+      __ movl(tmp, Address(CpuRegister(RSP), src.GetStackIndex()));
+    }
+    // Do the bit twiddling: basically tmp & -tmp;
+    if (is_long) {
+      __ movq(out, tmp);
+      __ negq(tmp);
+      __ andq(out, tmp);
+    } else {
+      __ movl(out, tmp);
+      __ negl(tmp);
+      __ andl(out, tmp);
+    }
+  }
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerHighestOneBit(HInvoke* invoke) {
+  CreateOneBitLocations(arena_, invoke, /* is_high */ true);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerHighestOneBit(HInvoke* invoke) {
+  GenOneBit(GetAssembler(), codegen_, invoke, /* is_high */ true, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongHighestOneBit(HInvoke* invoke) {
+  CreateOneBitLocations(arena_, invoke, /* is_high */ true);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongHighestOneBit(HInvoke* invoke) {
+  GenOneBit(GetAssembler(), codegen_, invoke, /* is_high */ true, /* is_long */ true);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerLowestOneBit(HInvoke* invoke) {
+  CreateOneBitLocations(arena_, invoke, /* is_high */ false);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerLowestOneBit(HInvoke* invoke) {
+  GenOneBit(GetAssembler(), codegen_, invoke, /* is_high */ false, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongLowestOneBit(HInvoke* invoke) {
+  CreateOneBitLocations(arena_, invoke, /* is_high */ false);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongLowestOneBit(HInvoke* invoke) {
+  GenOneBit(GetAssembler(), codegen_, invoke, /* is_high */ false, /* is_long */ true);
 }
 
 static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -2440,7 +2622,9 @@ static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::RequiresRegister());
 }
 
-static void GenLeadingZeros(X86_64Assembler* assembler, HInvoke* invoke, bool is_long) {
+static void GenLeadingZeros(X86_64Assembler* assembler,
+                            CodeGeneratorX86_64* codegen,
+                            HInvoke* invoke, bool is_long) {
   LocationSummary* locations = invoke->GetLocations();
   Location src = locations->InAt(0);
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
@@ -2454,11 +2638,7 @@ static void GenLeadingZeros(X86_64Assembler* assembler, HInvoke* invoke, bool is
     } else {
       value = is_long ? CLZ(static_cast<uint64_t>(value)) : CLZ(static_cast<uint32_t>(value));
     }
-    if (value == 0) {
-      __ xorl(out, out);
-    } else {
-      __ movl(out, Immediate(value));
-    }
+    codegen->Load32BitValue(out, value);
     return;
   }
 
@@ -2497,8 +2677,7 @@ void IntrinsicLocationsBuilderX86_64::VisitIntegerNumberOfLeadingZeros(HInvoke* 
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenLeadingZeros(assembler, invoke, /* is_long */ false);
+  GenLeadingZeros(GetAssembler(), codegen_, invoke, /* is_long */ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
@@ -2506,8 +2685,7 @@ void IntrinsicLocationsBuilderX86_64::VisitLongNumberOfLeadingZeros(HInvoke* inv
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenLeadingZeros(assembler, invoke, /* is_long */ true);
+  GenLeadingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
 static void CreateTrailingZeroLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -2518,7 +2696,9 @@ static void CreateTrailingZeroLocations(ArenaAllocator* arena, HInvoke* invoke) 
   locations->SetOut(Location::RequiresRegister());
 }
 
-static void GenTrailingZeros(X86_64Assembler* assembler, HInvoke* invoke, bool is_long) {
+static void GenTrailingZeros(X86_64Assembler* assembler,
+                             CodeGeneratorX86_64* codegen,
+                             HInvoke* invoke, bool is_long) {
   LocationSummary* locations = invoke->GetLocations();
   Location src = locations->InAt(0);
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
@@ -2532,11 +2712,7 @@ static void GenTrailingZeros(X86_64Assembler* assembler, HInvoke* invoke, bool i
     } else {
       value = is_long ? CTZ(static_cast<uint64_t>(value)) : CTZ(static_cast<uint32_t>(value));
     }
-    if (value == 0) {
-      __ xorl(out, out);
-    } else {
-      __ movl(out, Immediate(value));
-    }
+    codegen->Load32BitValue(out, value);
     return;
   }
 
@@ -2570,8 +2746,7 @@ void IntrinsicLocationsBuilderX86_64::VisitIntegerNumberOfTrailingZeros(HInvoke*
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenTrailingZeros(assembler, invoke, /* is_long */ false);
+  GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
@@ -2579,8 +2754,75 @@ void IntrinsicLocationsBuilderX86_64::VisitLongNumberOfTrailingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
-  GenTrailingZeros(assembler, invoke, /* is_long */ true);
+  GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
+}
+
+static void CreateSignLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::Any());
+  locations->SetOut(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());  // Need a writeable register.
+}
+
+static void GenSign(X86_64Assembler* assembler,
+                    CodeGeneratorX86_64* codegen,
+                    HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    codegen->Load32BitValue(out, value == 0 ? 0 : (value > 0 ? 1 : -1));
+    return;
+  }
+
+  // Copy input into temporary.
+  CpuRegister tmp = locations->GetTemp(0).AsRegister<CpuRegister>();
+  if (src.IsRegister()) {
+    if (is_long) {
+      __ movq(tmp, src.AsRegister<CpuRegister>());
+    } else {
+      __ movl(tmp, src.AsRegister<CpuRegister>());
+    }
+  } else if (is_long) {
+    DCHECK(src.IsDoubleStackSlot());
+    __ movq(tmp, Address(CpuRegister(RSP), src.GetStackIndex()));
+  } else {
+    DCHECK(src.IsStackSlot());
+    __ movl(tmp, Address(CpuRegister(RSP), src.GetStackIndex()));
+  }
+
+  // Do the bit twiddling: basically tmp >> 63/31 | -tmp >>> 63/31 for long/int.
+  if (is_long) {
+    __ movq(out, tmp);
+    __ sarq(out, Immediate(63));
+    __ negq(tmp);
+    __ shrq(tmp, Immediate(63));
+    __ orq(out, tmp);
+  } else {
+    __ movl(out, tmp);
+    __ sarl(out, Immediate(31));
+    __ negl(tmp);
+    __ shrl(tmp, Immediate(31));
+    __ orl(out, tmp);
+  }
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerSignum(HInvoke* invoke) {
+  CreateSignLocations(arena_, invoke);
+}
+void IntrinsicCodeGeneratorX86_64::VisitIntegerSignum(HInvoke* invoke) {
+  GenSign(GetAssembler(), codegen_, invoke, /* is_long */ false);
+}
+void IntrinsicLocationsBuilderX86_64::VisitLongSignum(HInvoke* invoke) {
+  CreateSignLocations(arena_, invoke);
+}
+void IntrinsicCodeGeneratorX86_64::VisitLongSignum(HInvoke* invoke) {
+  GenSign(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
 // Unimplemented intrinsics.
@@ -2597,15 +2839,6 @@ UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
 UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
 
 // Rotate operations are handled as HRor instructions.
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
