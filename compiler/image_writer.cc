@@ -2276,10 +2276,10 @@ const ImageWriter::ImageInfo& ImageWriter::GetImageInfo(size_t index) const {
 
 void ImageWriter::UpdateOatFile(File* oat_file, const char* oat_filename) {
   DCHECK(oat_file != nullptr);
-  size_t oat_loaded_size = 0;
-  size_t oat_data_offset = 0;
-  ElfWriter::GetOatElfInformation(oat_file, &oat_loaded_size, &oat_data_offset);
-
+  if (compile_app_image_) {
+    CHECK_EQ(oat_filenames_.size(), 1u) << "App image should have no next image.";
+    return;
+  }
   ImageInfo& cur_image_info = GetImageInfo(oat_filename);
 
   // Update the oat_offset of the next image info.
@@ -2288,6 +2288,9 @@ void ImageWriter::UpdateOatFile(File* oat_file, const char* oat_filename) {
 
   it++;
   if (it != oat_filenames_.end()) {
+    size_t oat_loaded_size = 0;
+    size_t oat_data_offset = 0;
+    ElfWriter::GetOatElfInformation(oat_file, &oat_loaded_size, &oat_data_offset);
     // There is a following one.
     ImageInfo& next_image_info = GetImageInfo(*it);
     next_image_info.oat_offset_ = cur_image_info.oat_offset_ + oat_loaded_size;
