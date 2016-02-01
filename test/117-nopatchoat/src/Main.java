@@ -22,9 +22,9 @@ public class Main {
     // ANDROID_DATA has been relocated, since a non-relocated oat file always has a 0 delta.
     // Hitting this condition should be rare and ideally we would prevent it from happening but
     // there is no way to do so without major changes to the run-test framework.
-    boolean executable_correct = (isPic() ?
-        hasExecutableOat() == true :
-        hasExecutableOat() == (isDex2OatEnabled() || isRelocationDeltaZero()));
+    boolean executable_correct = (needsRelocation() ?
+        hasExecutableOat() == (isDex2OatEnabled() || isRelocationDeltaZero()) :
+        hasExecutableOat() == true);
 
     System.out.println(
         "dex2oat & patchoat are " + ((isDex2OatEnabled()) ? "enabled" : "disabled") +
@@ -49,7 +49,7 @@ public class Main {
 
   private native static boolean isDex2OatEnabled();
 
-  private native static boolean isPic();
+  private native static boolean needsRelocation();
 
   private native static boolean hasOatFile();
 
