@@ -388,6 +388,24 @@ int64_t GetFileSizeBytes(const std::string& filename);
 // Sleep forever and never come back.
 NO_RETURN void SleepForever();
 
+inline void FlushInstructionCache(char* begin, char* end) {
+  // Only use __builtin___clear_cache with Clang or with GCC >= 4.3.0
+  // (__builtin___clear_cache was introduced in GCC 4.3.0).
+#if defined(__clang__) || GCC_VERSION >= 40300
+  __builtin___clear_cache(begin, end);
+#else
+  // Only warn on non-Intel platforms, as x86 and x86-64 do not need
+  // cache flush instructions, as long as the "code uses the same
+  // linear address for modifying and fetching the instruction". See
+  // "Intel(R) 64 and IA-32 Architectures Software Developer's Manual
+  // Volume 3A: System Programming Guide, Part 1", section 11.6
+  // "Self-Modifying Code".
+#if !defined(__i386__) && !defined(__x86_64__)
+  UNIMPLEMENTED(WARNING) << "cache flush";
+#endif
+#endif
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
