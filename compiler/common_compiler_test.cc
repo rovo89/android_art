@@ -122,16 +122,7 @@ void CommonCompilerTest::MakeExecutable(const void* code_start, size_t code_leng
   int result = mprotect(reinterpret_cast<void*>(base), len, PROT_READ | PROT_WRITE | PROT_EXEC);
   CHECK_EQ(result, 0);
 
-  // Flush instruction cache
-  // Only uses __builtin___clear_cache if GCC >= 4.3.3
-#if GCC_VERSION >= 40303
-  __builtin___clear_cache(reinterpret_cast<void*>(base), reinterpret_cast<void*>(base + len));
-#else
-  // Only warn if not Intel as Intel doesn't have cache flush instructions.
-#if !defined(__i386__) && !defined(__x86_64__)
-  UNIMPLEMENTED(WARNING) << "cache flush";
-#endif
-#endif
+  FlushInstructionCache(reinterpret_cast<char*>(base), reinterpret_cast<char*>(base + len));
 }
 
 void CommonCompilerTest::MakeExecutable(mirror::ClassLoader* class_loader, const char* class_name) {
