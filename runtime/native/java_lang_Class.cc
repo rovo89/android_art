@@ -469,14 +469,21 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
   return soa.AddLocalReference<jobjectArray>(ret.Get());
 }
 
-static jobject Class_getDeclaredAnnotation(JNIEnv* env, jobject javaThis, jclass annotationType) {
+static jobject Class_getDeclaredAnnotation(JNIEnv* env, jobject javaThis, jclass annotationClass) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
+
+  // Handle public contract to throw NPE if the "annotationClass" argument was null.
+  if (UNLIKELY(annotationClass == nullptr)) {
+    ThrowNullPointerException("annotationClass");
+    return nullptr;
+  }
+
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
-  Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationClass)));
   return soa.AddLocalReference<jobject>(
       klass->GetDexFile().GetAnnotationForClass(klass, annotation_class));
 }
