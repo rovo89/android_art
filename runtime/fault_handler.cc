@@ -146,43 +146,13 @@ void FaultManager::Shutdown() {
   }
 }
 
-void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
-  // BE CAREFUL ALLOCATING HERE INCLUDING USING LOG(...)
-  //
-  // If malloc calls abort, it will be holding its lock.
-  // If the handler tries to call malloc, it will deadlock.
-  VLOG(signals) << "Handling fault";
-  if (IsInGeneratedCode(info, context, true)) {
-    VLOG(signals) << "in generated code, looking for handler";
-    for (const auto& handler : generated_code_handlers_) {
-      VLOG(signals) << "invoking Action on handler " << handler;
-      if (handler->Action(sig, info, context)) {
-#ifdef TEST_NESTED_SIGNAL
-        // In test mode we want to fall through to stack trace handler
-        // on every signal (in reality this will cause a crash on the first
-        // signal).
-        break;
-#else
-        // We have handled a signal so it's time to return from the
-        // signal handler to the appropriate place.
-        return;
-#endif
-      }
-    }
-  }
-
-  // We hit a signal we didn't handle.  This might be something for which
-  // we can give more information about so call all registered handlers to see
-  // if it is.
-
+bool FaultManager::HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* context) {
   Thread* self = Thread::Current();
 
-  // If ART is not running, or the thread is not attached to ART pass the
-  // signal on to the next handler in the chain.
-  if (self == nullptr || Runtime::Current() == nullptr || !Runtime::Current()->IsStarted()) {
-    InvokeUserSignalHandler(sig, info, context);
-    return;
-  }
+  DCHECK(self != nullptr);
+  DCHECK(Runtime::Current() != nullptr);
+  DCHECK(Runtime::Current()->IsStarted());
+
   // Now set up the nested signal handler.
 
   // TODO: add SIGSEGV back to the nested signals when we can handle running out stack gracefully.
@@ -231,6 +201,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
       break;
     }
   }
+
   if (success) {
     // Save the current state and call the handlers.  If anything causes a signal
     // our nested signal handler will be invoked and this will longjmp to the saved
@@ -247,7 +218,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
             }
           }
           fault_manager.Init();
-          return;
+          return true;
         }
       }
     } else {
@@ -265,6 +236,40 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
 
   // Now put the fault manager back in place.
   fault_manager.Init();
+  return false;
+}
+
+void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
+  // BE CAREFUL ALLOCATING HERE INCLUDING USING LOG(...)
+  //
+  // If malloc calls abort, it will be holding its lock.
+  // If the handler tries to call malloc, it will deadlock.
+  VLOG(signals) << "Handling fault";
+  if (IsInGeneratedCode(info, context, true)) {
+    VLOG(signals) << "in generated code, looking for handler";
+    for (const auto& handler : generated_code_handlers_) {
+      VLOG(signals) << "invoking Action on handler " << handler;
+      if (handler->Action(sig, info, context)) {
+#ifdef TEST_NESTED_SIGNAL
+        // In test mode we want to fall through to stack trace handler
+        // on every signal (in reality this will cause a crash on the first
+        // signal).
+        break;
+#else
+        // We have handled a signal so it's time to return from the
+        // signal handler to the appropriate place.
+        return;
+#endif
+      }
+    }
+
+    // We hit a signal we didn't handle.  This might be something for which
+    // we can give more information about so call all registered handlers to see
+    // if it is.
+    if (HandleFaultByOtherHandlers(sig, info, context)) {
+        return;
+    }
+  }
 
   // Set a breakpoint in this function to catch unhandled signals.
   art_sigsegv_fault();
