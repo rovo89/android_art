@@ -2076,7 +2076,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           } else if (reg_type.IsConflict()) {
             Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning register with conflict";
           } else if (reg_type.IsUninitializedTypes()) {
-            Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "returning uninitialized object '"
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning uninitialized object '"
                                               << reg_type << "'";
           } else if (!reg_type.IsReferenceTypes()) {
             // We really do expect a reference here.
@@ -2233,7 +2233,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       opcode_flags &= ~Instruction::kThrow;
       work_line_->PopMonitor(this, inst->VRegA_11x());
       break;
-
     case Instruction::CHECK_CAST:
     case Instruction::INSTANCE_OF: {
       /*
@@ -2278,6 +2277,14 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "check-cast on non-reference in v" << orig_type_reg;
         } else {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "instance-of on non-reference in v" << orig_type_reg;
+        }
+      } else if (orig_type.IsUninitializedTypes()) {
+        if (is_checkcast) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "check-cast on uninitialized reference in v"
+                                            << orig_type_reg;
+        } else {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "instance-of on uninitialized reference in v"
+                                            << orig_type_reg;
         }
       } else {
         if (is_checkcast) {
@@ -2373,8 +2380,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::THROW: {
       const RegType& res_type = work_line_->GetRegisterType(this, inst->VRegA_11x());
       if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(res_type)) {
-        Fail(res_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS : VERIFY_ERROR_BAD_CLASS_SOFT)
-            << "thrown class " << res_type << " not instanceof Throwable";
+        if (res_type.IsUninitializedTypes()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown exception not initialized";
+        } else {
+          Fail(res_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS : VERIFY_ERROR_BAD_CLASS_SOFT)
+                << "thrown class " << res_type << " not instanceof Throwable";
+        }
       }
       break;
     }
@@ -3596,6 +3607,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
           } else {
             const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
             if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
+              DCHECK(!exception.IsUninitializedTypes());  // Comes from dex, shouldn't be uninit.
               if (exception.IsUnresolvedTypes()) {
                 // We don't know enough about the type. Fail here and let runtime handle it.
                 Fail(VERIFY_ERROR_NO_CLASS) << "unresolved exception class " << exception;
@@ -3786,7 +3798,8 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
       CHECK(have_pending_hard_failure_);
       return nullptr;
     }
-    if (actual_arg_type.IsUninitializedReference()) {
+    bool is_init = false;
+    if (actual_arg_type.IsUninitializedTypes()) {
       if (res_method) {
         if (!res_method->IsConstructor()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
@@ -3800,8 +3813,12 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
           return nullptr;
         }
       }
+      is_init = true;
     }
-    if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
+    const RegType& adjusted_type = is_init
+                                       ? GetRegTypeCache()->FromUninitialized(actual_arg_type)
+                                       : actual_arg_type;
+    if (method_type != METHOD_INTERFACE && !adjusted_type.IsZero()) {
       const RegType* res_method_class;
       // Miranda methods have the declaring interface as their declaring class, not the abstract
       // class. It would be wrong to use this for the type check (interface type checks are
@@ -3819,10 +3836,12 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
             dex_file_->StringByTypeIdx(class_idx),
             false);
       }
-      if (!res_method_class->IsAssignableFrom(actual_arg_type)) {
-        Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS:
-            VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
-                << "' not instance of '" << *res_method_class << "'";
+      if (!res_method_class->IsAssignableFrom(adjusted_type)) {
+        Fail(adjusted_type.IsUnresolvedTypes()
+                 ? VERIFY_ERROR_NO_CLASS
+                 : VERIFY_ERROR_BAD_CLASS_SOFT)
+            << "'this' argument '" << actual_arg_type << "' not instance of '"
+            << *res_method_class << "'";
         // Continue on soft failures. We need to find possible hard failures to avoid problems in
         // the compiler.
         if (have_pending_hard_failure_) {
@@ -4083,7 +4102,8 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
    * For an interface class, we don't do the full interface merge (see JoinClass), so we can't do a
    * rigorous check here (which is okay since we have to do it at runtime).
    */
-  if (actual_arg_type.IsUninitializedReference() && !res_method->IsConstructor()) {
+  // Note: given an uninitialized type, this should always fail. Constructors aren't virtual.
+  if (actual_arg_type.IsUninitializedTypes() && !res_method->IsConstructor()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
     return nullptr;
   }
@@ -4093,8 +4113,11 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
     const RegType& res_method_class =
         FromClass(klass->GetDescriptor(&temp), klass, klass->CannotBeAssignedFromOtherTypes());
     if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
-      Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :
-          VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
+      Fail(actual_arg_type.IsUninitializedTypes()    // Just overcautious - should have never
+               ? VERIFY_ERROR_BAD_CLASS_HARD         // quickened this.
+               : actual_arg_type.IsUnresolvedTypes()
+                     ? VERIFY_ERROR_NO_CLASS
+                     : VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
           << "' not instance of '" << res_method_class << "'";
       return nullptr;
     }
@@ -4421,15 +4444,20 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
     const RegType& field_klass =
         FromClass(dex_file_->GetFieldDeclaringClassDescriptor(field_id),
                   klass, klass->CannotBeAssignedFromOtherTypes());
-    if (obj_type.IsUninitializedTypes() &&
-        (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
-            !field_klass.Equals(GetDeclaringClass()))) {
+    if (obj_type.IsUninitializedTypes()) {
       // Field accesses through uninitialized references are only allowable for constructors where
-      // the field is declared in this class
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
-                                        << " of a not fully initialized object within the context"
-                                        << " of " << PrettyMethod(dex_method_idx_, *dex_file_);
-      return nullptr;
+      // the field is declared in this class.
+      // Note: this IsConstructor check is technically redundant, as UninitializedThis should only
+      //       appear in constructors.
+      if (!obj_type.IsUninitializedThisReference() ||
+          !IsConstructor() ||
+          !field_klass.Equals(GetDeclaringClass())) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
+                                          << " of a not fully initialized object within the context"
+                                          << " of " << PrettyMethod(dex_method_idx_, *dex_file_);
+        return nullptr;
+      }
+      return field;
     } else if (!field_klass.IsAssignableFrom(obj_type)) {
       // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
       // of C1. For resolution to occur the declared class of the field must be compatible with
@@ -4452,7 +4480,18 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
     field = GetStaticField(field_idx);
   } else {
     const RegType& object_type = work_line_->GetRegisterType(this, inst->VRegB_22c());
-    field = GetInstanceField(object_type, field_idx);
+
+    // One is not allowed to access fields on uninitialized references, except to write to
+    // fields in the constructor (before calling another constructor).
+    // GetInstanceField does an assignability check which will fail for uninitialized types.
+    // We thus modify the type if the uninitialized reference is a "this" reference (this also
+    // checks at the same time that we're verifying a constructor).
+    bool should_adjust = (kAccType == FieldAccessType::kAccPut) &&
+                         object_type.IsUninitializedThisReference();
+    const RegType& adjusted_type = should_adjust
+                                       ? GetRegTypeCache()->FromUninitialized(object_type)
+                                       : object_type;
+    field = GetInstanceField(adjusted_type, field_idx);
     if (UNLIKELY(have_pending_hard_failure_)) {
       return;
     }
