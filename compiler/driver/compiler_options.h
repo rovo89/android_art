@@ -116,6 +116,10 @@ class CompilerOptions FINAL {
     return compiler_filter_ == CompilerOptions::kVerifyNone;
   }
 
+  bool IsExtractOnly() const {
+    return compiler_filter_ == CompilerOptions::kVerifyAtRuntime;
+  }
+
   size_t GetHugeMethodThreshold() const {
     return huge_method_threshold_;
   }
