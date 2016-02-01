@@ -46,7 +46,7 @@ class NoPatchoatTest {
     return oat_dex_file != nullptr && oat_dex_file->GetOatFile()->IsExecutable();
   }
 
-  static bool isPic(jclass cls) {
+  static bool needsRelocation(jclass cls) {
     const OatFile::OatDexFile* oat_dex_file = getOatDexFile(cls);
 
     if (oat_dex_file == nullptr) {
@@ -54,7 +54,7 @@ class NoPatchoatTest {
     }
 
     const OatFile* oat_file = oat_dex_file->GetOatFile();
-    return oat_file->IsPic();
+    return !oat_file->IsPic() && !oat_file->IsExtractOnly();
   }
 };
 
@@ -66,8 +66,8 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasExecutableOat(JNIEnv*, jclass
   return NoPatchoatTest::hasExecutableOat(cls);
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isPic(JNIEnv*, jclass cls) {
-  return NoPatchoatTest::isPic(cls);
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_needsRelocation(JNIEnv*, jclass cls) {
+  return NoPatchoatTest::needsRelocation(cls);
 }
 
 }  // namespace art
