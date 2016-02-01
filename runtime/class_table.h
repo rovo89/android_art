@@ -36,13 +36,6 @@ namespace mirror {
   class ClassLoader;
 }  // namespace mirror
 
-class ClassVisitor {
- public:
-  virtual ~ClassVisitor() {}
-  // Return true to continue visiting.
-  virtual bool Visit(mirror::Class* klass) = 0;
-};
-
 // Each loader has a ClassTable
 class ClassTable {
  public:
@@ -80,8 +73,9 @@ class ClassTable {
       NO_THREAD_SAFETY_ANALYSIS
       SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
-  // Return false if the callback told us to exit.
-  bool Visit(ClassVisitor* visitor)
+  // Stops visit if the visitor returns false.
+  template <typename Visitor>
+  bool Visit(Visitor& visitor)
       SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
   // Return the first class that matches the descriptor. Returns null if there are none.
@@ -117,11 +111,6 @@ class ClassTable {
   size_t ReadFromMemory(uint8_t* ptr)
       REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Change the class loader of all the contained classes.
-  void SetClassLoader(mirror::ClassLoader* class_loader)
-    REQUIRES(Locks::classlinker_classes_lock_)
-    SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   class ClassDescriptorHashEquals {
