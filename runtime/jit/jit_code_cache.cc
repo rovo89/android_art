@@ -321,8 +321,8 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
           code_size);
     }
 
-    __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
-                            reinterpret_cast<char*>(code_ptr + code_size));
+    FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
+                          reinterpret_cast<char*>(code_ptr + code_size));
     number_of_compilations_++;
   }
   // We need to update the entry point in the runnable state for the instrumentation.
