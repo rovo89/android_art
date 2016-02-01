@@ -35,18 +35,22 @@
 
 namespace unix_file {
 
-FdFile::FdFile() : guard_state_(GuardState::kClosed), fd_(-1), auto_close_(true) {
+FdFile::FdFile()
+    : guard_state_(GuardState::kClosed), fd_(-1), auto_close_(true), read_only_mode_(false) {
 }
 
 FdFile::FdFile(int fd, bool check_usage)
     : guard_state_(check_usage ? GuardState::kBase : GuardState::kNoCheck),
-      fd_(fd), auto_close_(true) {
+      fd_(fd), auto_close_(true), read_only_mode_(false) {
 }
 
 FdFile::FdFile(int fd, const std::string& path, bool check_usage)
+    : FdFile(fd, path, check_usage, false) {
+}
+
+FdFile::FdFile(int fd, const std::string& path, bool check_usage, bool read_only_mode)
     : guard_state_(check_usage ? GuardState::kBase : GuardState::kNoCheck),
-      fd_(fd), file_path_(path), auto_close_(true) {
-  CHECK_NE(0U, path.size());
+      fd_(fd), file_path_(path), auto_close_(true), read_only_mode_(read_only_mode) {
 }
 
 FdFile::~FdFile() {
@@ -99,6 +103,7 @@ bool FdFile::Open(const std::string& path, int flags) {
 
 bool FdFile::Open(const std::string& path, int flags, mode_t mode) {
   CHECK_EQ(fd_, -1) << path;
+  read_only_mode_ = (flags & O_RDONLY) != 0;
   fd_ = TEMP_FAILURE_RETRY(open(path.c_str(), flags, mode));
   if (fd_ == -1) {
     return false;
@@ -136,6 +141,7 @@ int FdFile::Close() {
 }
 
 int FdFile::Flush() {
+  DCHECK(!read_only_mode_);
 #ifdef __linux__
   int rc = TEMP_FAILURE_RETRY(fdatasync(fd_));
 #else
@@ -155,6 +161,7 @@ int64_t FdFile::Read(char* buf, int64_t byte_count, int64_t offset) const {
 }
 
 int FdFile::SetLength(int64_t new_length) {
+  DCHECK(!read_only_mode_);
 #ifdef __linux__
   int rc = TEMP_FAILURE_RETRY(ftruncate64(fd_, new_length));
 #else
@@ -171,6 +178,7 @@ int64_t FdFile::GetLength() const {
 }
 
 int64_t FdFile::Write(const char* buf, int64_t byte_count, int64_t offset) {
+  DCHECK(!read_only_mode_);
 #ifdef __linux__
   int rc = TEMP_FAILURE_RETRY(pwrite64(fd_, buf, byte_count, offset));
 #else
@@ -182,6 +190,14 @@ int64_t FdFile::Write(const char* buf, int64_t byte_count, int64_t offset) {
 
 int FdFile::Fd() const {
   return fd_;
+}
+
+bool FdFile::ReadOnlyMode() const {
+  return read_only_mode_;
+}
+
+bool FdFile::CheckUsage() const {
+  return guard_state_ != GuardState::kNoCheck;
 }
 
 bool FdFile::IsOpened() const {
@@ -219,6 +235,7 @@ bool FdFile::PreadFully(void* buffer, size_t byte_count, size_t offset) {
 }
 
 bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
+  DCHECK(!read_only_mode_);
   const char* ptr = static_cast<const char*>(buffer);
   moveTo(GuardState::kBase, GuardState::kClosed, "Writing into closed file.");
   while (byte_count > 0) {
@@ -233,6 +250,7 @@ bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
 }
 
 bool FdFile::Copy(FdFile* input_file, int64_t offset, int64_t size) {
+  DCHECK(!read_only_mode_);
   off_t off = static_cast<off_t>(offset);
   off_t sz = static_cast<off_t>(size);
   if (offset < 0 || static_cast<int64_t>(off) != offset ||
@@ -279,12 +297,14 @@ bool FdFile::Copy(FdFile* input_file, int64_t offset, int64_t size) {
 }
 
 void FdFile::Erase() {
+  DCHECK(!read_only_mode_);
   TEMP_FAILURE_RETRY(SetLength(0));
   TEMP_FAILURE_RETRY(Flush());
   TEMP_FAILURE_RETRY(Close());
 }
 
 int FdFile::FlushCloseOrErase() {
+  DCHECK(!read_only_mode_);
   int flush_result = TEMP_FAILURE_RETRY(Flush());
   if (flush_result != 0) {
     LOG(::art::ERROR) << "CloseOrErase failed while flushing a file.";
@@ -301,6 +321,7 @@ int FdFile::FlushCloseOrErase() {
 }
 
 int FdFile::FlushClose() {
+  DCHECK(!read_only_mode_);
   int flush_result = TEMP_FAILURE_RETRY(Flush());
   if (flush_result != 0) {
     LOG(::art::ERROR) << "FlushClose failed while flushing a file.";
@@ -317,6 +338,7 @@ void FdFile::MarkUnchecked() {
 }
 
 bool FdFile::ClearContent() {
+  DCHECK(!read_only_mode_);
   if (SetLength(0) < 0) {
     PLOG(art::ERROR) << "Failed to reset the length";
     return false;
@@ -325,6 +347,7 @@ bool FdFile::ClearContent() {
 }
 
 bool FdFile::ResetOffset() {
+  DCHECK(!read_only_mode_);
   off_t rc =  TEMP_FAILURE_RETRY(lseek(fd_, 0, SEEK_SET));
   if (rc == static_cast<off_t>(-1)) {
     PLOG(art::ERROR) << "Failed to reset the offset";
