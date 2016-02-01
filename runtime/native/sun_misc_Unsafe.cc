@@ -231,58 +231,58 @@ static void Unsafe_setMemory(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong addres
   memset(reinterpret_cast<void*>(static_cast<uintptr_t>(address)), value, bytes);
 }
 
-static jbyte Unsafe_getByte$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jbyte Unsafe_getByteJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jbyte*>(address);
 }
 
-static void Unsafe_putByte$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jbyte value) {
+static void Unsafe_putByteJB(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jbyte value) {
   *reinterpret_cast<jbyte*>(address) = value;
 }
 
-static jshort Unsafe_getShort$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jshort Unsafe_getShortJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jshort*>(address);
 }
 
-static void Unsafe_putShort$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jshort value) {
+static void Unsafe_putShortJS(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jshort value) {
   *reinterpret_cast<jshort*>(address) = value;
 }
 
-static jchar Unsafe_getChar$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jchar Unsafe_getCharJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jchar*>(address);
 }
 
-static void Unsafe_putChar$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jchar value) {
+static void Unsafe_putCharJC(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jchar value) {
   *reinterpret_cast<jchar*>(address) = value;
 }
 
-static jint Unsafe_getInt$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jint Unsafe_getIntJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jint*>(address);
 }
 
-static void Unsafe_putInt$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jint value) {
+static void Unsafe_putIntJI(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jint value) {
   *reinterpret_cast<jint*>(address) = value;
 }
 
-static jlong Unsafe_getLong$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jlong Unsafe_getLongJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jlong*>(address);
 }
 
-static void Unsafe_putLong$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jlong value) {
+static void Unsafe_putLongJJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jlong value) {
   *reinterpret_cast<jlong*>(address) = value;
 }
 
-static jfloat Unsafe_getFloat$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jfloat Unsafe_getFloatJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jfloat*>(address);
 }
 
-static void Unsafe_putFloat$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jfloat value) {
+static void Unsafe_putFloatJF(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jfloat value) {
   *reinterpret_cast<jfloat*>(address) = value;
 }
-static jdouble Unsafe_getDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
+static jdouble Unsafe_getDoubleJ(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jdouble*>(address);
 }
 
-static void Unsafe_putDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jdouble value) {
+static void Unsafe_putDoubleJD(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jdouble value) {
   *reinterpret_cast<jdouble*>(address) = value;
 }
 
@@ -499,24 +499,11 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, allocateMemory, "!(J)J"),
   NATIVE_METHOD(Unsafe, freeMemory, "!(J)V"),
   NATIVE_METHOD(Unsafe, setMemory, "!(JJB)V"),
-  NATIVE_METHOD(Unsafe, getByte$, "!(J)B"),
-  NATIVE_METHOD(Unsafe, putByte$, "!(JB)V"),
-  NATIVE_METHOD(Unsafe, getShort$, "!(J)S"),
-  NATIVE_METHOD(Unsafe, putShort$, "!(JS)V"),
-  NATIVE_METHOD(Unsafe, getChar$, "!(J)C"),
-  NATIVE_METHOD(Unsafe, putChar$, "!(JC)V"),
-  NATIVE_METHOD(Unsafe, getInt$, "!(J)I"),
-  NATIVE_METHOD(Unsafe, putInt$, "!(JI)V"),
-  NATIVE_METHOD(Unsafe, getLong$, "!(J)J"),
-  NATIVE_METHOD(Unsafe, putLong$, "!(JJ)V"),
-  NATIVE_METHOD(Unsafe, getFloat$, "!(J)F"),
-  NATIVE_METHOD(Unsafe, putFloat$, "!(JF)V"),
-  NATIVE_METHOD(Unsafe, getDouble$, "!(J)D"),
-  NATIVE_METHOD(Unsafe, putDouble$, "!(JD)V"),
   NATIVE_METHOD(Unsafe, copyMemory, "!(JJJ)V"),
   NATIVE_METHOD(Unsafe, copyMemoryToPrimitiveArray, "!(JLjava/lang/Object;JJ)V"),
   NATIVE_METHOD(Unsafe, copyMemoryFromPrimitiveArray, "!(Ljava/lang/Object;JJJ)V"),
   NATIVE_METHOD(Unsafe, getBoolean, "!(Ljava/lang/Object;J)Z"),
+
   NATIVE_METHOD(Unsafe, getByte, "!(Ljava/lang/Object;J)B"),
   NATIVE_METHOD(Unsafe, getChar, "!(Ljava/lang/Object;J)C"),
   NATIVE_METHOD(Unsafe, getShort, "!(Ljava/lang/Object;J)S"),
@@ -528,6 +515,23 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, putShort, "!(Ljava/lang/Object;JS)V"),
   NATIVE_METHOD(Unsafe, putFloat, "!(Ljava/lang/Object;JF)V"),
   NATIVE_METHOD(Unsafe, putDouble, "!(Ljava/lang/Object;JD)V"),
+
+  // Each of the getFoo variants are overloaded with a call that operates
+  // directively on a native pointer.
+  OVERLOADED_NATIVE_METHOD(Unsafe, getByte, "!(J)B", getByteJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, getChar, "!(J)C", getCharJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, getShort, "!(J)S", getShortJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, getInt, "!(J)I", getIntJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, getLong, "!(J)J", getLongJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, getFloat, "!(J)F", getFloatJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, getDouble, "!(J)D", getDoubleJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putByte, "!(JB)V", putByteJB),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putChar, "!(JC)V", putCharJC),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putShort, "!(JS)V", putShortJS),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putInt, "!(JI)V", putIntJI),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putLong, "!(JJ)V", putLongJJ),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putFloat, "!(JF)V", putFloatJF),
+  OVERLOADED_NATIVE_METHOD(Unsafe, putDouble, "!(JD)V", putDoubleJD),
 };
 
 void register_sun_misc_Unsafe(JNIEnv* env) {

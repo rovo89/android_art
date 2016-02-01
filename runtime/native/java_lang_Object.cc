@@ -20,10 +20,6 @@
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access.h"
 
-// TODO: better support for overloading.
-#undef NATIVE_METHOD
-#define NATIVE_METHOD(className, functionName, signature, identifier) \
-    { #functionName, signature, reinterpret_cast<void*>(className ## _ ## identifier) }
 
 namespace art {
 
@@ -58,11 +54,11 @@ static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Object, internalClone, "!()Ljava/lang/Object;", internalClone),
-  NATIVE_METHOD(Object, notify, "!()V", notify),
-  NATIVE_METHOD(Object, notifyAll, "!()V", notifyAll),
-  NATIVE_METHOD(Object, wait, "!()V", wait),
-  NATIVE_METHOD(Object, wait, "!(JI)V", waitJI),
+  NATIVE_METHOD(Object, internalClone, "!()Ljava/lang/Object;"),
+  NATIVE_METHOD(Object, notify, "!()V"),
+  NATIVE_METHOD(Object, notifyAll, "!()V"),
+  OVERLOADED_NATIVE_METHOD(Object, wait, "!()V", wait),
+  OVERLOADED_NATIVE_METHOD(Object, wait, "!(JI)V", waitJI),
 };
 
 void register_java_lang_Object(JNIEnv* env) {
