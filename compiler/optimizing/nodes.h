@@ -4450,9 +4450,6 @@ class HTypeConversion : public HExpression<1> {
   Primitive::Type GetInputType() const { return GetInput()->GetType(); }
   Primitive::Type GetResultType() const { return GetType(); }
 
-  // Required by the x86, ARM, MIPS and MIPS64 code generators when producing calls
-  // to the runtime.
-
   bool CanBeMoved() const OVERRIDE { return true; }
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
 
@@ -4819,8 +4816,7 @@ class HArraySet : public HTemplateInstruction<3> {
   }
 
   bool NeedsEnvironment() const OVERRIDE {
-    // We currently always call a runtime method to catch array store
-    // exceptions.
+    // We call a runtime method to throw ArrayStoreException.
     return needs_type_check_;
   }
 
@@ -5131,11 +5127,13 @@ class HLoadString : public HExpression<1> {
 
   uint32_t GetStringIndex() const { return string_index_; }
 
-  // TODO: Can we deopt or debug when we resolve a string?
-  bool NeedsEnvironment() const OVERRIDE { return false; }
+  // Will call the runtime if the string is not already in the dex cache.
+  bool NeedsEnvironment() const OVERRIDE { return !IsInDexCache(); }
+
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE { return true; }
   bool CanBeNull() const OVERRIDE { return false; }
   bool IsInDexCache() const { return is_in_dex_cache_; }
+  bool CanThrow() const OVERRIDE { return !IsInDexCache(); }
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
     return SideEffects::CanTriggerGC();
@@ -5465,7 +5463,7 @@ class HInstanceOf : public HExpression<2> {
   }
 
   bool NeedsEnvironment() const OVERRIDE {
-    return false;
+    return CanCallRuntime(check_kind_);
   }
 
   bool IsExactCheck() const { return check_kind_ == TypeCheckKind::kExactCheck; }
@@ -5476,11 +5474,13 @@ class HInstanceOf : public HExpression<2> {
   bool MustDoNullCheck() const { return must_do_null_check_; }
   void ClearMustDoNullCheck() { must_do_null_check_ = false; }
 
+  static bool CanCallRuntime(TypeCheckKind check_kind) {
+    // Mips currently does runtime calls for any other checks.
+    return check_kind != TypeCheckKind::kExactCheck;
+  }
+
   static SideEffects SideEffectsForArchRuntimeCalls(TypeCheckKind check_kind) {
-    return (check_kind == TypeCheckKind::kExactCheck)
-        ? SideEffects::None()
-        // Mips currently does runtime calls for any other checks.
-        : SideEffects::CanTriggerGC();
+    return CanCallRuntime(check_kind) ? SideEffects::CanTriggerGC() : SideEffects::None();
   }
 
   DECLARE_INSTRUCTION(InstanceOf);
@@ -5605,8 +5605,8 @@ class HMonitorOperation : public HTemplateInstruction<1> {
     SetRawInputAt(0, object);
   }
 
-  // Instruction may throw a Java exception, so we need an environment.
-  bool NeedsEnvironment() const OVERRIDE { return CanThrow(); }
+  // Instruction may go into runtime, so we need an environment.
+  bool NeedsEnvironment() const OVERRIDE { return true; }
 
   bool CanThrow() const OVERRIDE {
     // Verifier guarantees that monitor-exit cannot throw.
