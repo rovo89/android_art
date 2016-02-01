@@ -468,7 +468,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
       // the DEX code has not been quickened.
       std::string error_msg;
       for (const OatFile::OatDexFile* current : file.GetOatDexFiles()) {
-        const DexFile* const dex_file = current->OpenDexFile(&error_msg).release();
+        std::unique_ptr<const DexFile> dex_file = current->OpenDexFile(&error_msg);
         DCHECK(dex_file != nullptr);
         for (size_t i = 0, e = dex_file->NumClassDefs(); i < e; ++i) {
           DCHECK_EQ(current->GetOatClass(i).GetType(), kOatClassNoneCompiled);
