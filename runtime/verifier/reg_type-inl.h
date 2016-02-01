@@ -93,6 +93,10 @@ inline bool RegType::AssignableFrom(const RegType& lhs, const RegType& rhs, bool
         return true;  // All reference types can be assigned null.
       } else if (!rhs.IsReferenceTypes()) {
         return false;  // Expect rhs to be a reference type.
+      } else if (lhs.IsUninitializedTypes() || rhs.IsUninitializedTypes()) {
+        // Uninitialized types are only allowed to be assigned to themselves.
+        // TODO: Once we have a proper "reference" super type, this needs to be extended.
+        return false;
       } else if (lhs.IsJavaLangObject()) {
         return true;  // All reference types can be assigned to Object.
       } else if (!strict && !lhs.IsUnresolvedTypes() && lhs.GetClass()->IsInterface()) {

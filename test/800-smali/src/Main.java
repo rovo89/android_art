@@ -145,6 +145,21 @@ public class Main {
                 new AbstractMethodError(), null));
         testCases.add(new TestCase("b/26579108", "B26579108", "run", null, new VerifyError(),
                 null));
+        testCases.add(new TestCase("b/26594149 (1)", "B26594149_1", "run", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("b/26594149 (2)", "B26594149_2", "run", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("b/26594149 (3)", "B26594149_3", "run", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("b/26594149 (4)", "B26594149_4", "run", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("b/26594149 (5)", "B26594149_5", "run", null, null, null));
+        testCases.add(new TestCase("b/26594149 (6)", "B26594149_6", "run", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("b/26594149 (7)", "B26594149_7", "run", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("b/26594149 (8)", "B26594149_8", "run", null, new VerifyError(),
+                null));
     }
 
     public void runTests() {
