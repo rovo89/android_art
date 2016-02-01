@@ -621,6 +621,12 @@ class DebugInfoWriter {
       info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
 
+      // Base class references to be patched at the end.
+      std::map<size_t, mirror::Class*> base_class_references;
+
+      // Already written declarations or definitions.
+      std::map<mirror::Class*, size_t> class_declarations;
+
       std::vector<uint8_t> expr_buffer;
       for (mirror::Class* type : types) {
         if (type->IsPrimitive()) {
@@ -652,22 +658,10 @@ class DebugInfoWriter {
           // Skip.  Variables cannot have an interface as a dynamic type.
           // We do not expose the interface information to the debugger in any way.
         } else {
-          // Declare base class.  We can not use the standard WriteLazyType
-          // since we want to avoid the DW_TAG_reference_tag wrapping.
-          mirror::Class* base_class = type->GetSuperClass();
-          size_t base_class_declaration_offset = 0;
-          if (base_class != nullptr) {
-            std::string tmp_storage;
-            const char* base_class_desc = base_class->GetDescriptor(&tmp_storage);
-            base_class_declaration_offset = StartClassTag(base_class_desc);
-            info_.WriteFlagPresent(DW_AT_declaration);
-            WriteLinkageName(base_class);
-            EndClassTag();
-          }
-
           std::string descriptor_string;
           const char* desc = type->GetDescriptor(&descriptor_string);
-          StartClassTag(desc);
+          size_t class_offset = StartClassTag(desc);
+          class_declarations.emplace(type, class_offset);
 
           if (!type->IsVariableSize()) {
             info_.WriteUdata(DW_AT_byte_size, type->GetObjectSize());
@@ -704,9 +698,11 @@ class DebugInfoWriter {
           }
 
           // Base class.
+          mirror::Class* base_class = type->GetSuperClass();
           if (base_class != nullptr) {
             info_.StartTag(DW_TAG_inheritance);
-            info_.WriteRef4(DW_AT_type, base_class_declaration_offset);
+            base_class_references.emplace(info_.size(), base_class);
+            info_.WriteRef4(DW_AT_type, 0);
             info_.WriteUdata(DW_AT_data_member_location, 0);
             info_.WriteSdata(DW_AT_accessibility, DW_ACCESS_public);
             info_.EndTag();  // DW_TAG_inheritance.
@@ -746,6 +742,27 @@ class DebugInfoWriter {
           }
 
           EndClassTag();
+        }
+      }
+
+      // Write base class declarations.
+      for (const auto& base_class_reference : base_class_references) {
+        size_t reference_offset = base_class_reference.first;
+        mirror::Class* base_class = base_class_reference.second;
+        const auto& it = class_declarations.find(base_class);
+        if (it != class_declarations.end()) {
+          info_.UpdateUint32(reference_offset, it->second);
+        } else {
+          // Declare base class.  We can not use the standard WriteLazyType
+          // since we want to avoid the DW_TAG_reference_tag wrapping.
+          std::string tmp_storage;
+          const char* base_class_desc = base_class->GetDescriptor(&tmp_storage);
+          size_t base_class_declaration_offset = StartClassTag(base_class_desc);
+          info_.WriteFlagPresent(DW_AT_declaration);
+          WriteLinkageName(base_class);
+          EndClassTag();
+          class_declarations.emplace(base_class, base_class_declaration_offset);
+          info_.UpdateUint32(reference_offset, base_class_declaration_offset);
         }
       }
 
