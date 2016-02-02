@@ -57,11 +57,10 @@ class ArtMethod FINAL {
                                         jobject jlr_method)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE mirror::Class* GetDeclaringClass() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE mirror::Class* GetDeclaringClassNoBarrier()
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE mirror::Class* GetDeclaringClassUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -77,6 +76,7 @@ class ArtMethod FINAL {
 
   // Note: GetAccessFlags acquires the mutator lock in debug mode to check that it is not called for
   // a proxy method.
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE uint32_t GetAccessFlags();
 
   void SetAccessFlags(uint32_t new_access_flags) {
@@ -154,8 +154,9 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccDefault) != 0;
   }
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsNative() {
-    return (GetAccessFlags() & kAccNative) != 0;
+    return (GetAccessFlags<kReadBarrierOption>() & kAccNative) != 0;
   }
 
   bool IsFastNative() {
@@ -485,7 +486,7 @@ class ArtMethod FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Update entry points by passing them through the visitor.
-  template <typename Visitor>
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
   ALWAYS_INLINE void UpdateEntrypoints(const Visitor& visitor);
 
  protected:

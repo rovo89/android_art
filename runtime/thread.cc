@@ -2704,7 +2704,7 @@ class ReferenceMapVisitor : public StackVisitor {
   // Visiting the declaring class is necessary so that we don't unload the class of a method that
   // is executing. We need to ensure that the code stays mapped.
   void VisitDeclaringClass(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
-    mirror::Class* klass = method->GetDeclaringClassNoBarrier();
+    mirror::Class* klass = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
     // klass can be null for runtime methods.
     if (klass != nullptr) {
       mirror::Object* new_ref = klass;
