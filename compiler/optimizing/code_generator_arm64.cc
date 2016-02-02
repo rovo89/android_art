@@ -1556,21 +1556,13 @@ void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCod
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register temp = temps.AcquireW();
   size_t status_offset = mirror::Class::StatusOffset().SizeValue();
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   // Even if the initialized flag is set, we need to ensure consistent memory ordering.
-  if (use_acquire_release) {
-    // TODO(vixl): Let the MacroAssembler handle MemOperand.
-    __ Add(temp, class_reg, status_offset);
-    __ Ldar(temp, HeapOperand(temp));
-    __ Cmp(temp, mirror::Class::kStatusInitialized);
-    __ B(lt, slow_path->GetEntryLabel());
-  } else {
-    __ Ldr(temp, HeapOperand(class_reg, status_offset));
-    __ Cmp(temp, mirror::Class::kStatusInitialized);
-    __ B(lt, slow_path->GetEntryLabel());
-    __ Dmb(InnerShareable, BarrierReads);
-  }
+  // TODO(vixl): Let the MacroAssembler handle MemOperand.
+  __ Add(temp, class_reg, status_offset);
+  __ Ldar(temp, HeapOperand(temp));
+  __ Cmp(temp, mirror::Class::kStatusInitialized);
+  __ B(lt, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1716,9 +1708,7 @@ void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
   Primitive::Type field_type = field_info.GetFieldType();
   BlockPoolsScope block_pools(GetVIXLAssembler());
-
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), field_info.GetFieldOffset());
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   if (field_type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // Object FieldGet with Baker's read barrier case.
@@ -1736,26 +1726,15 @@ void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
         offset,
         temp,
         /* needs_null_check */ true,
-        field_info.IsVolatile() && use_acquire_release);
-    if (field_info.IsVolatile() && !use_acquire_release) {
-      // For IRIW sequential consistency kLoadAny is not sufficient.
-      codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
+        field_info.IsVolatile());
   } else {
     // General case.
     if (field_info.IsVolatile()) {
-      if (use_acquire_release) {
-        // Note that a potential implicit null check is handled in this
-        // CodeGeneratorARM64::LoadAcquire call.
-        // NB: LoadAcquire will record the pc info if needed.
-        codegen_->LoadAcquire(
-            instruction, OutputCPURegister(instruction), field, /* needs_null_check */ true);
-      } else {
-        codegen_->Load(field_type, OutputCPURegister(instruction), field);
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        // For IRIW sequential consistency kLoadAny is not sufficient.
-        codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-      }
+      // Note that a potential implicit null check is handled in this
+      // CodeGeneratorARM64::LoadAcquire call.
+      // NB: LoadAcquire will record the pc info if needed.
+      codegen_->LoadAcquire(
+          instruction, OutputCPURegister(instruction), field, /* needs_null_check */ true);
     } else {
       codegen_->Load(field_type, OutputCPURegister(instruction), field);
       codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -1791,7 +1770,6 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
   CPURegister source = value;
   Offset offset = field_info.GetFieldOffset();
   Primitive::Type field_type = field_info.GetFieldType();
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   {
     // We use a block to end the scratch scope before the write barrier, thus
@@ -1807,15 +1785,8 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
     }
 
     if (field_info.IsVolatile()) {
-      if (use_acquire_release) {
-        codegen_->StoreRelease(field_type, source, HeapOperand(obj, offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-      } else {
-        codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-        codegen_->Store(field_type, source, HeapOperand(obj, offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-      }
+      codegen_->StoreRelease(field_type, source, HeapOperand(obj, offset));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
     } else {
       codegen_->Store(field_type, source, HeapOperand(obj, offset));
       codegen_->MaybeRecordImplicitNullCheck(instruction);
