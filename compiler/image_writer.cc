@@ -859,7 +859,7 @@ class NonImageClassesVisitor : public ClassVisitor {
     return true;
   }
 
-  mutable std::unordered_set<mirror::Class*> classes_to_prune_;
+  std::unordered_set<mirror::Class*> classes_to_prune_;
   ImageWriter* const image_writer_;
 };
 

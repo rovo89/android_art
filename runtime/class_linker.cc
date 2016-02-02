@@ -1290,8 +1290,11 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           // the app image.
           klass->SetClassLoader(class_loader.Get());
           // The resolved type could be from another dex cache, go through the dex cache just in
-          // case.
-          klass->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+          // case. May be null for array classes.
+          if (klass->GetDexCacheStrings() != nullptr) {
+            DCHECK(!klass->IsArrayClass());
+            klass->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+          }
           // If there are multiple dex caches, there may be the same class multiple times
           // in different dex caches. Check for this since inserting will add duplicates
           // otherwise.
