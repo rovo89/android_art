@@ -263,8 +263,7 @@ LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/fault_handler_arm.cc
 
 LIBART_TARGET_SRC_FILES_arm64 := \
-  interpreter/mterp/mterp.cc \
-  interpreter/mterp/out/mterp_arm64.S \
+  interpreter/mterp/mterp_stub.cc \
   arch/arm64/context_arm64.cc \
   arch/arm64/entrypoints_init_arm64.cc \
   arch/arm64/jni_entrypoints_arm64.S \
