@@ -31,14 +31,14 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(size_t pointer_size,
                                                   const DexFile::Header& header)
     : pointer_size_(pointer_size),
       /* types_offset_ is always 0u, so it's constexpr */
-      methods_offset_(types_offset_ +
-                      RoundUp(TypesSize(header.type_ids_size_), MethodsAlignment())),
-      strings_offset_(methods_offset_ +
-                      RoundUp(MethodsSize(header.method_ids_size_), StringsAlignment())),
-      fields_offset_(strings_offset_ +
-                     RoundUp(StringsSize(header.string_ids_size_), FieldsAlignment())),
-      size_(fields_offset_ +
-            RoundUp(FieldsSize(header.field_ids_size_), Alignment())) {
+      methods_offset_(
+          RoundUp(types_offset_ + TypesSize(header.type_ids_size_), MethodsAlignment())),
+      strings_offset_(
+          RoundUp(methods_offset_ + MethodsSize(header.method_ids_size_), StringsAlignment())),
+      fields_offset_(
+          RoundUp(strings_offset_ + StringsSize(header.string_ids_size_), FieldsAlignment())),
+      size_(
+          RoundUp(fields_offset_ + FieldsSize(header.field_ids_size_), Alignment())) {
   DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
 }
 
