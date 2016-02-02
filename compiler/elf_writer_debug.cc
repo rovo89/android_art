@@ -90,6 +90,10 @@ static Reg GetDwarfFpReg(InstructionSet isa, int machine_reg) {
       return Reg::X86Fp(machine_reg);
     case kX86_64:
       return Reg::X86_64Fp(machine_reg);
+    case kMips:
+      return Reg::MipsFp(machine_reg);
+    case kMips64:
+      return Reg::Mips64Fp(machine_reg);
     default:
       LOG(FATAL) << "Unknown instruction set: " << isa;
       UNREACHABLE();
@@ -160,6 +164,14 @@ static void WriteCIE(InstructionSet isa,
           opcodes.Undefined(Reg::MipsCore(reg));
         } else {
           opcodes.SameValue(Reg::MipsCore(reg));
+        }
+      }
+      // fp registers.
+      for (int reg = 0; reg < 32; reg++) {
+        if (reg < 24) {
+          opcodes.Undefined(Reg::Mips64Fp(reg));
+        } else {
+          opcodes.SameValue(Reg::Mips64Fp(reg));
         }
       }
       auto return_reg = Reg::MipsCore(31);  // R31(RA).
@@ -858,10 +870,6 @@ class DebugInfoWriter {
                 reg_hi.GetValue() == value + 1 && value % 2 == 0) {
               // Translate S register pair to D register (e.g. S4+S5 to D2).
               expr.WriteOpReg(Reg::ArmDp(value / 2).num());
-              break;
-            }
-            if (isa == kMips || isa == kMips64) {
-              // TODO: Find what the DWARF floating point register numbers are on MIPS.
               break;
             }
             expr.WriteOpReg(GetDwarfFpReg(isa, value).num());
