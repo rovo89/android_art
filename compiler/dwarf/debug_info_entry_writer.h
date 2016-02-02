@@ -164,6 +164,10 @@ class DebugInfoEntryWriter FINAL : private Writer<Vector> {
     this->PushUint8(value ? 1 : 0);
   }
 
+  void WriteFlagPresent(Attribute attrib) {
+    AddAbbrevAttribute(attrib, DW_FORM_flag_present);
+  }
+
   void WriteRef4(Attribute attrib, uint32_t cu_offset) {
     AddAbbrevAttribute(attrib, DW_FORM_ref4);
     this->PushUint32(cu_offset);
