@@ -27,14 +27,6 @@ inline uint32_t Reference::ClassSize(size_t pointer_size) {
   return Class::ComputeClassSize(false, vtable_entries, 2, 0, 0, 0, 0, pointer_size);
 }
 
-inline bool Reference::IsEnqueuable() {
-  // Not using volatile reads as an optimization since this is only called with all the mutators
-  // suspended.
-  const Object* queue = GetFieldObject<mirror::Object>(QueueOffset());
-  const Object* queue_next = GetFieldObject<mirror::Object>(QueueNextOffset());
-  return queue != nullptr && queue_next == nullptr;
-}
-
 }  // namespace mirror
 }  // namespace art
 

@@ -75,9 +75,7 @@ class MANAGED Reference : public Object {
   void ClearReferent() SHARED_REQUIRES(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
   }
-  // Volatile read/write is not necessary since the java pending next is only accessed from
-  // the java threads for cleared references. Once these cleared references have a null referent,
-  // we never end up reading their pending next from the GC again.
+
   Reference* GetPendingNext() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<Reference>(PendingNextOffset());
   }
@@ -91,13 +89,21 @@ class MANAGED Reference : public Object {
     }
   }
 
-  bool IsEnqueued() SHARED_REQUIRES(Locks::mutator_lock_) {
-    // Since the references are stored as cyclic lists it means that once enqueued, the pending
-    // next is always non-null.
-    return GetPendingNext() != nullptr;
+  // Returns true if the reference's pendingNext is null, indicating it is
+  // okay to process this reference.
+  //
+  // If pendingNext is not null, then one of the following cases holds:
+  // 1. The reference has already been enqueued to a java ReferenceQueue. In
+  // this case the referent should not be considered for reference processing
+  // ever again.
+  // 2. The reference is currently part of a list of references that may
+  // shortly be enqueued on a java ReferenceQueue. In this case the reference
+  // should not be processed again until and unless the reference has been
+  // removed from the list after having determined the reference is not ready
+  // to be enqueued on a java ReferenceQueue.
+  bool IsUnprocessed() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetPendingNext() == nullptr;
   }
-
-  bool IsEnqueuable() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static Class* GetJavaLangRefReference() SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -115,9 +121,9 @@ class MANAGED Reference : public Object {
   }
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  HeapReference<Reference> pending_next_;  // Note this is Java volatile:
-  HeapReference<Object> queue_;  // Note this is Java volatile:
-  HeapReference<Reference> queue_next_;  // Note this is Java volatile:
+  HeapReference<Reference> pending_next_;
+  HeapReference<Object> queue_;
+  HeapReference<Reference> queue_next_;
   HeapReference<Object> referent_;  // Note this is Java volatile:
 
   static GcRoot<Class> java_lang_ref_Reference_;
