@@ -780,7 +780,6 @@ static void GenUnsafeGet(HInvoke* invoke,
   Register offset = XRegisterFrom(offset_loc);  // Long offset.
   Location trg_loc = locations->Out();
   Register trg = RegisterFrom(trg_loc, type);
-  bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
 
   if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // UnsafeGetObject/UnsafeGetObjectVolatile with Baker's read barrier case.
@@ -788,19 +787,11 @@ static void GenUnsafeGet(HInvoke* invoke,
     Register temp = temps.AcquireW();
     codegen->GenerateArrayLoadWithBakerReadBarrier(
         invoke, trg_loc, base, 0U, offset_loc, temp, /* needs_null_check */ false);
-    if (is_volatile && !use_acquire_release) {
-      __ Dmb(InnerShareable, BarrierReads);
-    }
   } else {
     // Other cases.
     MemOperand mem_op(base.X(), offset);
     if (is_volatile) {
-      if (use_acquire_release) {
-        codegen->LoadAcquire(invoke, trg, mem_op, /* needs_null_check */ true);
-      } else {
-        codegen->Load(type, trg, mem_op);
-        __ Dmb(InnerShareable, BarrierReads);
-      }
+      codegen->LoadAcquire(invoke, trg, mem_op, /* needs_null_check */ true);
     } else {
       codegen->Load(type, trg, mem_op);
     }
@@ -914,8 +905,6 @@ static void GenUnsafePut(LocationSummary* locations,
   Register offset = XRegisterFrom(locations->InAt(2));  // Long offset.
   Register value = RegisterFrom(locations->InAt(3), type);
   Register source = value;
-  bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
-
   MemOperand mem_op(base.X(), offset);
 
   {
@@ -932,15 +921,7 @@ static void GenUnsafePut(LocationSummary* locations,
     }
 
     if (is_volatile || is_ordered) {
-      if (use_acquire_release) {
-        codegen->StoreRelease(type, source, mem_op);
-      } else {
-        __ Dmb(InnerShareable, BarrierAll);
-        codegen->Store(type, source, mem_op);
-        if (is_volatile) {
-          __ Dmb(InnerShareable, BarrierReads);
-        }
-      }
+      codegen->StoreRelease(type, source, mem_op);
     } else {
       codegen->Store(type, source, mem_op);
     }
@@ -1037,7 +1018,6 @@ static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena,
 }
 
 static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorARM64* codegen) {
-  bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
   vixl::MacroAssembler* masm = codegen->GetAssembler()->vixl_masm_;
 
   Register out = WRegisterFrom(locations->Out());                  // Boolean result.
@@ -1078,43 +1058,20 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   // result = tmp_value != 0;
 
   vixl::Label loop_head, exit_loop;
-  if (use_acquire_release) {
-    __ Bind(&loop_head);
-    // TODO: When `type == Primitive::kPrimNot`, add a read barrier for
-    // the reference stored in the object before attempting the CAS,
-    // similar to the one in the art::Unsafe_compareAndSwapObject JNI
-    // implementation.
-    //
-    // Note that this code is not (yet) used when read barriers are
-    // enabled (see IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject).
-    DCHECK(!(type == Primitive::kPrimNot && kEmitCompilerReadBarrier));
-    __ Ldaxr(tmp_value, MemOperand(tmp_ptr));
-    __ Cmp(tmp_value, expected);
-    __ B(&exit_loop, ne);
-    __ Stlxr(tmp_32, value, MemOperand(tmp_ptr));
-    __ Cbnz(tmp_32, &loop_head);
-  } else {
-    // Emit a `Dmb(InnerShareable, BarrierAll)` (DMB ISH) instruction
-    // instead of a `Dmb(InnerShareable, BarrierWrites)` (DMB ISHST)
-    // one, as the latter allows a preceding load to be delayed past
-    // the STXR instruction below.
-    __ Dmb(InnerShareable, BarrierAll);
-    __ Bind(&loop_head);
-    // TODO: When `type == Primitive::kPrimNot`, add a read barrier for
-    // the reference stored in the object before attempting the CAS,
-    // similar to the one in the art::Unsafe_compareAndSwapObject JNI
-    // implementation.
-    //
-    // Note that this code is not (yet) used when read barriers are
-    // enabled (see IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject).
-    DCHECK(!(type == Primitive::kPrimNot && kEmitCompilerReadBarrier));
-    __ Ldxr(tmp_value, MemOperand(tmp_ptr));
-    __ Cmp(tmp_value, expected);
-    __ B(&exit_loop, ne);
-    __ Stxr(tmp_32, value, MemOperand(tmp_ptr));
-    __ Cbnz(tmp_32, &loop_head);
-    __ Dmb(InnerShareable, BarrierAll);
-  }
+  __ Bind(&loop_head);
+  // TODO: When `type == Primitive::kPrimNot`, add a read barrier for
+  // the reference stored in the object before attempting the CAS,
+  // similar to the one in the art::Unsafe_compareAndSwapObject JNI
+  // implementation.
+  //
+  // Note that this code is not (yet) used when read barriers are
+  // enabled (see IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject).
+  DCHECK(!(type == Primitive::kPrimNot && kEmitCompilerReadBarrier));
+  __ Ldaxr(tmp_value, MemOperand(tmp_ptr));
+  __ Cmp(tmp_value, expected);
+  __ B(&exit_loop, ne);
+  __ Stlxr(tmp_32, value, MemOperand(tmp_ptr));
+  __ Cbnz(tmp_32, &loop_head);
   __ Bind(&exit_loop);
   __ Cset(out, eq);
 
