@@ -523,7 +523,9 @@ static dwarf::Reg DWARFReg(GpuRegister reg) {
   return dwarf::Reg::Mips64Core(static_cast<int>(reg));
 }
 
-// TODO: mapping of floating-point registers to DWARF
+static dwarf::Reg DWARFReg(FpuRegister reg) {
+  return dwarf::Reg::Mips64Fp(static_cast<int>(reg));
+}
 
 void CodeGeneratorMIPS64::GenerateFrameEntry() {
   __ Bind(&frame_entry_label_);
@@ -573,7 +575,7 @@ void CodeGeneratorMIPS64::GenerateFrameEntry() {
     if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
       ofs -= kMips64DoublewordSize;
       __ Sdc1(reg, SP, ofs);
-      // TODO: __ cfi().RelOffset(DWARFReg(reg), ofs);
+      __ cfi().RelOffset(DWARFReg(reg), ofs);
     }
   }
 
@@ -610,7 +612,7 @@ void CodeGeneratorMIPS64::GenerateFrameExit() {
       if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
         __ Ldc1(reg, SP, ofs);
         ofs += kMips64DoublewordSize;
-        // TODO: __ cfi().Restore(DWARFReg(reg));
+        __ cfi().Restore(DWARFReg(reg));
       }
     }
 
