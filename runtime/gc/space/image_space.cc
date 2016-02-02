@@ -867,20 +867,20 @@ class FixupObjectVisitor : public FixupVisitor {
     if (obj->IsClass<kVerifyNone, kWithoutReadBarrier>()) {
       mirror::Class* klass = obj->AsClass<kVerifyNone, kWithoutReadBarrier>();
       FixupObjectAdapter visitor(boot_image_, boot_oat_, app_image_, app_oat_);
-      klass->FixupNativePointers(klass, sizeof(void*), visitor);
+      klass->FixupNativePointers<kVerifyNone, kWithoutReadBarrier>(klass, sizeof(void*), visitor);
       // Deal with the arrays.
       mirror::PointerArray* vtable = klass->GetVTable<kVerifyNone, kWithoutReadBarrier>();
       if (vtable != nullptr) {
-        vtable->Fixup(vtable, sizeof(void*), visitor);
+        vtable->Fixup<kVerifyNone, kWithoutReadBarrier>(vtable, sizeof(void*), visitor);
       }
       mirror::IfTable* iftable = klass->GetIfTable<kVerifyNone, kWithoutReadBarrier>();
       if (iftable != nullptr) {
-        for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-          if (iftable->GetMethodArrayCount(i) > 0) {
+        for (int32_t i = 0, count = iftable->Count(); i < count; ++i) {
+          if (iftable->GetMethodArrayCount<kVerifyNone, kWithoutReadBarrier>(i) > 0) {
             mirror::PointerArray* methods =
                 iftable->GetMethodArray<kVerifyNone, kWithoutReadBarrier>(i);
             DCHECK(methods != nullptr);
-            methods->Fixup(methods, sizeof(void*), visitor);
+            methods->Fixup<kVerifyNone, kWithoutReadBarrier>(methods, sizeof(void*), visitor);
           }
         }
       }
@@ -1014,6 +1014,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
     // Nothing to fix up.
     return true;
   }
+  ScopedDebugDisallowReadBarriers sddrb(Thread::Current());
   // Need to update the image to be at the target base.
   const ImageSection& objects_section = image_header.GetImageSection(ImageHeader::kSectionObjects);
   uintptr_t objects_begin = reinterpret_cast<uintptr_t>(target_base + objects_section.Offset());
@@ -1039,7 +1040,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
     CHECK_EQ(image_header.GetImageBegin(), target_base);
     // Fix up dex cache DexFile pointers.
     auto* dex_caches = image_header.GetImageRoot<kWithoutReadBarrier>(ImageHeader::kDexCaches)->
-        AsObjectArray<mirror::DexCache>();
+        AsObjectArray<mirror::DexCache, kVerifyNone, kWithoutReadBarrier>();
     for (int32_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
       mirror::DexCache* dex_cache = dex_caches->Get<kVerifyNone, kWithoutReadBarrier>(i);
       // Fix up dex cache pointers.

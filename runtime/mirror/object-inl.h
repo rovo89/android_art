@@ -255,16 +255,17 @@ inline Class* Object::AsClass() {
   return down_cast<Class*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsObjectArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  return IsArrayInstance<kVerifyFlags>() &&
-      !GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitive();
+  return IsArrayInstance<kVerifyFlags, kReadBarrierOption>() &&
+      !GetClass<kNewFlags, kReadBarrierOption>()->
+          template GetComponentType<kNewFlags, kReadBarrierOption>()->IsPrimitive();
 }
 
-template<class T, VerifyObjectFlags kVerifyFlags>
+template<class T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ObjectArray<T>* Object::AsObjectArray() {
-  DCHECK(IsObjectArray<kVerifyFlags>());
+  DCHECK((IsObjectArray<kVerifyFlags, kReadBarrierOption>()));
   return down_cast<ObjectArray<T>*>(this);
 }
 
@@ -274,14 +275,14 @@ inline bool Object::IsArrayInstance() {
       template IsArrayClass<kVerifyFlags, kReadBarrierOption>();
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsReferenceInstance() {
-  return GetClass<kVerifyFlags>()->IsTypeOfReferenceClass();
+  return GetClass<kVerifyFlags, kReadBarrierOption>()->IsTypeOfReferenceClass();
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Reference* Object::AsReference() {
-  DCHECK(IsReferenceInstance<kVerifyFlags>());
+  DCHECK((IsReferenceInstance<kVerifyFlags, kReadBarrierOption>()));
   return down_cast<Reference*>(this);
 }
 
@@ -341,29 +342,31 @@ inline ShortArray* Object::AsShortSizedArray() {
   return down_cast<ShortArray*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsIntArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  auto* component_type = GetClass<kVerifyFlags>()->GetComponentType();
+  mirror::Class* klass = GetClass<kVerifyFlags, kReadBarrierOption>();
+  mirror::Class* component_type = klass->GetComponentType<kVerifyFlags, kReadBarrierOption>();
   return component_type != nullptr && component_type->template IsPrimitiveInt<kNewFlags>();
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline IntArray* Object::AsIntArray() {
-  DCHECK(IsIntArray<kVerifyFlags>());
+  DCHECK((IsIntArray<kVerifyFlags, kReadBarrierOption>()));
   return down_cast<IntArray*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsLongArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  auto* component_type = GetClass<kVerifyFlags>()->GetComponentType();
+  mirror::Class* klass = GetClass<kVerifyFlags, kReadBarrierOption>();
+  mirror::Class* component_type = klass->GetComponentType<kVerifyFlags, kReadBarrierOption>();
   return component_type != nullptr && component_type->template IsPrimitiveLong<kNewFlags>();
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline LongArray* Object::AsLongArray() {
-  DCHECK(IsLongArray<kVerifyFlags>());
+  DCHECK((IsLongArray<kVerifyFlags, kReadBarrierOption>()));
   return down_cast<LongArray*>(this);
 }
 
@@ -1063,7 +1066,7 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
       // Presumably GC can happen when we are cross compiling, it should not cause performance
       // problems to do pointer size logic.
       MemberOffset field_offset = kIsStatic
-          ? klass->GetFirstReferenceStaticFieldOffset(
+          ? klass->GetFirstReferenceStaticFieldOffset<kVerifyFlags, kReadBarrierOption>(
               Runtime::Current()->GetClassLinker()->GetImagePointerSize())
           : klass->GetFirstReferenceInstanceFieldOffset();
       for (size_t i = 0u; i < num_reference_fields; ++i) {
@@ -1123,26 +1126,26 @@ inline void Object::VisitReferences(const Visitor& visitor,
   visitor(this, ClassOffset(), false);
   const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
   if (LIKELY(class_flags == kClassFlagNormal)) {
-    DCHECK(!klass->IsVariableSize());
-    VisitInstanceFieldsReferences(klass, visitor);
+    DCHECK((!klass->IsVariableSize<kVerifyFlags, kReadBarrierOption>()));
+    VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
     DCHECK((!klass->IsClassClass<kVerifyFlags, kReadBarrierOption>()));
     DCHECK(!klass->IsStringClass());
     DCHECK(!klass->IsClassLoaderClass());
-    DCHECK(!klass->IsArrayClass());
+    DCHECK((!klass->IsArrayClass<kVerifyFlags, kReadBarrierOption>()));
   } else {
     if ((class_flags & kClassFlagNoReferenceFields) == 0) {
       DCHECK(!klass->IsStringClass());
       if (class_flags == kClassFlagClass) {
-        DCHECK(klass->IsClassClass());
-        AsClass<kVerifyNone>()->VisitReferences<kVisitNativeRoots,
-                                                kVerifyFlags,
-                                                kReadBarrierOption>(klass, visitor);
+        DCHECK((klass->IsClassClass<kVerifyFlags, kReadBarrierOption>()));
+        mirror::Class* as_klass = AsClass<kVerifyNone, kReadBarrierOption>();
+        as_klass->VisitReferences<kVisitNativeRoots, kVerifyFlags, kReadBarrierOption>(klass,
+                                                                                       visitor);
       } else if (class_flags == kClassFlagObjectArray) {
         DCHECK((klass->IsObjectArrayClass<kVerifyFlags, kReadBarrierOption>()));
-        AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences(visitor);
+        AsObjectArray<mirror::Object, kVerifyNone, kReadBarrierOption>()->VisitReferences(visitor);
       } else if ((class_flags & kClassFlagReference) != 0) {
-        VisitInstanceFieldsReferences(klass, visitor);
-        ref_visitor(klass, AsReference());
+        VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
+        ref_visitor(klass, AsReference<kVerifyFlags, kReadBarrierOption>());
       } else if (class_flags == kClassFlagDexCache) {
         mirror::DexCache* const dex_cache = AsDexCache<kVerifyFlags, kReadBarrierOption>();
         dex_cache->VisitReferences<kVisitNativeRoots,

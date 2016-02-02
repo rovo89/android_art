@@ -370,15 +370,17 @@ inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, i
   }
 }
 
-template<typename T>
+template<typename T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline T PointerArray::GetElementPtrSize(uint32_t idx, size_t ptr_size) {
   // C style casts here since we sometimes have T be a pointer, or sometimes an integer
   // (for stack traces).
   if (ptr_size == 8) {
-    return (T)static_cast<uintptr_t>(AsLongArray()->GetWithoutChecks(idx));
+    return (T)static_cast<uintptr_t>(
+        AsLongArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx));
   }
   DCHECK_EQ(ptr_size, 4u);
-  return (T)static_cast<uintptr_t>(AsIntArray()->GetWithoutChecks(idx));
+  return (T)static_cast<uintptr_t>(
+      AsIntArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx));
 }
 
 template<bool kTransactionActive, bool kUnchecked>
@@ -401,12 +403,12 @@ inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, size_t ptr
                                                     ptr_size);
 }
 
-template <typename Visitor>
+template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
 inline void PointerArray::Fixup(mirror::PointerArray* dest,
                                 size_t pointer_size,
                                 const Visitor& visitor) {
   for (size_t i = 0, count = GetLength(); i < count; ++i) {
-    void* ptr = GetElementPtrSize<void*>(i, pointer_size);
+    void* ptr = GetElementPtrSize<void*, kVerifyFlags, kReadBarrierOption>(i, pointer_size);
     void* new_ptr = visitor(ptr);
     if (ptr != new_ptr) {
       dest->SetElementPtrSize<false, true>(i, new_ptr, pointer_size);
