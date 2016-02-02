@@ -921,7 +921,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
       std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
      : exceptions_to_resolve_(exceptions_to_resolve) {}
 
-  virtual bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  virtual bool operator()(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : c->GetMethods(pointer_size)) {
       ResolveExceptionsForMethod(&m, pointer_size);
@@ -975,7 +975,7 @@ class RecordImageClassesVisitor : public ClassVisitor {
   explicit RecordImageClassesVisitor(std::unordered_set<std::string>* image_classes)
       : image_classes_(image_classes) {}
 
-  bool Visit(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     std::string temp;
     image_classes_->insert(klass->GetDescriptor(&temp));
     return true;
@@ -1142,7 +1142,7 @@ class ClinitImageUpdate {
    public:
     explicit FindImageClassesVisitor(ClinitImageUpdate* data) : data_(data) {}
 
-    bool Visit(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
       std::string temp;
       const char* name = klass->GetDescriptor(&temp);
       if (data_->image_class_descriptors_->find(name) != data_->image_class_descriptors_->end()) {

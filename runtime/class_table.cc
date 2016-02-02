@@ -73,17 +73,6 @@ mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* kl
   return existing;
 }
 
-bool ClassTable::Visit(ClassVisitor* visitor) {
-  for (ClassSet& class_set : classes_) {
-    for (GcRoot<mirror::Class>& root : class_set) {
-      if (!visitor->Visit(root.Read())) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 size_t ClassTable::NumZygoteClasses() const {
   size_t sum = 0;
   for (size_t i = 0; i < classes_.size() - 1; ++i) {
@@ -181,14 +170,6 @@ size_t ClassTable::ReadFromMemory(uint8_t* ptr) {
   size_t read_count = 0;
   classes_.insert(classes_.begin(), ClassSet(ptr, /*make copy*/false, &read_count));
   return read_count;
-}
-
-void ClassTable::SetClassLoader(mirror::ClassLoader* class_loader) {
-  for (const ClassSet& class_set : classes_) {
-    for (const GcRoot<mirror::Class>& root : class_set) {
-      root.Read()->SetClassLoader(class_loader);
-    }
-  }
 }
 
 }  // namespace art

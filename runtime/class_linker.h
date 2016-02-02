@@ -60,6 +60,13 @@ template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 
 enum VisitRootFlags : uint8_t;
 
+class ClassVisitor {
+ public:
+  virtual ~ClassVisitor() {}
+  // Return true to continue visiting.
+  virtual bool operator()(mirror::Class* klass) = 0;
+};
+
 class ClassLoaderVisitor {
  public:
   virtual ~ClassLoaderVisitor() {}
@@ -1007,11 +1014,13 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
-  void UpdateAppImageClassLoadersAndDexCaches(
+  bool UpdateAppImageClassLoadersAndDexCaches(
       gc::space::ImageSpace* space,
       Handle<mirror::ClassLoader> class_loader,
       Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches,
-      bool added_class_table)
+      bool added_class_table,
+      bool* out_forward_dex_cache_array,
+      std::string* out_error_msg)
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
