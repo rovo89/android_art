@@ -39,7 +39,8 @@ public class Main {
     /// CHECK-DAG:  <<Value:l\d+>>      ParameterValue
     /// CHECK-DAG:  <<Ignored:i\d+>>    IntConstant 77
     /// CHECK-DAG:  <<ClinitCk:l\d+>>   ClinitCheck
-    /// CHECK-DAG:  <<Invoke:l\d+>>     InvokeStaticOrDirect [<<Ignored>>,<<Value>>,<<ClinitCk>>]
+    // Note: The ArtMethod* (typed as int or long) is optional after sharpening.
+    /// CHECK-DAG:  <<Invoke:l\d+>>     InvokeStaticOrDirect [<<Ignored>>,<<Value>>{{(,[ij]\d+)?}},<<ClinitCk>>]
     /// CHECK-DAG:                      Return [<<Invoke>>]
 
     /// CHECK-START: java.lang.Object Main.staticReturnArg2(java.lang.String) inliner (after)
@@ -313,7 +314,8 @@ public class Main {
 
     /// CHECK-START: java.lang.Object Main.newObject() inliner (before)
     /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
-    /// CHECK-DAG:              InvokeStaticOrDirect [<<Obj>>] method_name:java.lang.Object.<init>
+    // Note: The ArtMethod* (typed as int or long) is optional after sharpening.
+    /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>{{(,[ij]\d+)?}}] method_name:java.lang.Object.<init>
 
     /// CHECK-START: java.lang.Object Main.newObject() inliner (after)
     /// CHECK-NOT:                      InvokeStaticOrDirect
