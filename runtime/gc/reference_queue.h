@@ -44,27 +44,24 @@ class GarbageCollector;
 class Heap;
 
 // Used to temporarily store java.lang.ref.Reference(s) during GC and prior to queueing on the
-// appropriate java.lang.ref.ReferenceQueue. The linked list is maintained in the
-// java.lang.ref.Reference objects.
+// appropriate java.lang.ref.ReferenceQueue. The linked list is maintained as an unordered,
+// circular, and singly-linked list using the pendingNext fields of the java.lang.ref.Reference
+// objects.
 class ReferenceQueue {
  public:
   explicit ReferenceQueue(Mutex* lock);
 
-  // Enqueue a reference if is not already enqueued. Thread safe to call from multiple threads
-  // since it uses a lock to avoid a race between checking for the references presence and adding
-  // it.
+  // Enqueue a reference if it is unprocessed. Thread safe to call from multiple
+  // threads since it uses a lock to avoid a race between checking for the references presence and
+  // adding it.
   void AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*lock_);
 
-  // Enqueue a reference, unlike EnqueuePendingReference, enqueue reference checks that the
-  // reference IsEnqueueable. Not thread safe, used when mutators are paused to minimize lock
-  // overhead.
+  // Enqueue a reference. The reference must be unprocessed.
+  // Not thread safe, used when mutators are paused to minimize lock overhead.
   void EnqueueReference(mirror::Reference* ref) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Enqueue a reference without checking that it is enqueable.
-  void EnqueuePendingReference(mirror::Reference* ref) SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Dequeue the first reference (returns list_).
+  // Dequeue a reference from the queue and return that dequeued reference.
   mirror::Reference* DequeuePendingReference() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to

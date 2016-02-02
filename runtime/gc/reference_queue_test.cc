@@ -41,19 +41,22 @@ TEST_F(ReferenceQueueTest, EnqueueDequeue) {
   ASSERT_TRUE(ref1.Get() != nullptr);
   auto ref2(hs.NewHandle(ref_class->AllocObject(self)->AsReference()));
   ASSERT_TRUE(ref2.Get() != nullptr);
-  // FIFO ordering.
-  queue.EnqueuePendingReference(ref1.Get());
+  queue.EnqueueReference(ref1.Get());
   ASSERT_TRUE(!queue.IsEmpty());
   ASSERT_EQ(queue.GetLength(), 1U);
-  queue.EnqueuePendingReference(ref2.Get());
+  queue.EnqueueReference(ref2.Get());
   ASSERT_TRUE(!queue.IsEmpty());
   ASSERT_EQ(queue.GetLength(), 2U);
-  ASSERT_EQ(queue.DequeuePendingReference(), ref2.Get());
+
+  std::set<mirror::Reference*> refs = {ref1.Get(), ref2.Get()};
+  std::set<mirror::Reference*> dequeued;
+  dequeued.insert(queue.DequeuePendingReference());
   ASSERT_TRUE(!queue.IsEmpty());
   ASSERT_EQ(queue.GetLength(), 1U);
-  ASSERT_EQ(queue.DequeuePendingReference(), ref1.Get());
+  dequeued.insert(queue.DequeuePendingReference());
   ASSERT_EQ(queue.GetLength(), 0U);
   ASSERT_TRUE(queue.IsEmpty());
+  ASSERT_EQ(refs, dequeued);
 }
 
 TEST_F(ReferenceQueueTest, Dump) {
@@ -75,9 +78,9 @@ TEST_F(ReferenceQueueTest, Dump) {
   ASSERT_TRUE(ref1.Get() != nullptr);
   auto ref2(hs.NewHandle(finalizer_ref_class->AllocObject(self)->AsReference()));
   ASSERT_TRUE(ref2.Get() != nullptr);
-  queue.EnqueuePendingReference(ref1.Get());
+  queue.EnqueueReference(ref1.Get());
   queue.Dump(LOG(INFO));
-  queue.EnqueuePendingReference(ref2.Get());
+  queue.EnqueueReference(ref2.Get());
   queue.Dump(LOG(INFO));
 }
 
