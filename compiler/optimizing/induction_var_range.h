@@ -60,13 +60,13 @@ class InductionVarRange {
    * Given a context denoted by the first instruction, returns a possibly conservative
    * lower and upper bound on the instruction's value in the output parameters min_val
    * and max_val, respectively. The need_finite_test flag denotes if an additional finite-test
-   * is needed to protect the range evaluation inside its loop.
+   * is needed to protect the range evaluation inside its loop. Returns false on failure.
    */
-  void GetInductionRange(HInstruction* context,
+  bool GetInductionRange(HInstruction* context,
                          HInstruction* instruction,
-                         /*out*/Value* min_val,
-                         /*out*/Value* max_val,
-                         /*out*/bool* needs_finite_test);
+                         /*out*/ Value* min_val,
+                         /*out*/ Value* max_val,
+                         /*out*/ bool* needs_finite_test);
 
   /** Refines the values with induction of next outer loop. Returns true on change. */
   bool RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) const;
@@ -79,8 +79,8 @@ class InductionVarRange {
    */
   bool CanGenerateCode(HInstruction* context,
                        HInstruction* instruction,
-                       /*out*/bool* needs_finite_test,
-                       /*out*/bool* needs_taken_test);
+                       /*out*/ bool* needs_finite_test,
+                       /*out*/ bool* needs_taken_test);
 
   /**
    * Generates the actual code in the HIR for the lower and upper bound expressions on the
@@ -101,8 +101,8 @@ class InductionVarRange {
                          HInstruction* instruction,
                          HGraph* graph,
                          HBasicBlock* block,
-                         /*out*/HInstruction** lower,
-                         /*out*/HInstruction** upper);
+                         /*out*/ HInstruction** lower,
+                         /*out*/ HInstruction** upper);
 
   /**
    * Generates explicit taken-test for the loop in the given context. Code is generated in
@@ -113,7 +113,7 @@ class InductionVarRange {
   void GenerateTakenTest(HInstruction* context,
                          HGraph* graph,
                          HBasicBlock* block,
-                         /*out*/HInstruction** taken_test);
+                         /*out*/ HInstruction** taken_test);
 
  private:
   bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) const;
@@ -168,17 +168,17 @@ class InductionVarRange {
                     HInstruction* instruction,
                     HGraph* graph,
                     HBasicBlock* block,
-                    /*out*/HInstruction** lower,
-                    /*out*/HInstruction** upper,
-                    /*out*/HInstruction** taken_test,
-                    /*out*/bool* needs_finite_test,
-                    /*out*/bool* needs_taken_test) const;
+                    /*out*/ HInstruction** lower,
+                    /*out*/ HInstruction** upper,
+                    /*out*/ HInstruction** taken_test,
+                    /*out*/ bool* needs_finite_test,
+                    /*out*/ bool* needs_taken_test) const;
 
   bool GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                     HInductionVarAnalysis::InductionInfo* trip,
                     HGraph* graph,
                     HBasicBlock* block,
-                    /*out*/HInstruction** result,
+                    /*out*/ HInstruction** result,
                     bool in_body,
                     bool is_min) const;
 
