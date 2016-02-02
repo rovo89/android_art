@@ -113,6 +113,25 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pShrLong = nullptr;
   qpoints->pUshrLong = nullptr;
 
+  // More math.
+  qpoints->pCos = cos;
+  qpoints->pSin = sin;
+  qpoints->pAcos = acos;
+  qpoints->pAsin = asin;
+  qpoints->pAtan = atan;
+  qpoints->pAtan2 = atan2;
+  qpoints->pCbrt = cbrt;
+  qpoints->pCosh = cosh;
+  qpoints->pExp = exp;
+  qpoints->pExpm1 = expm1;
+  qpoints->pHypot = hypot;
+  qpoints->pLog = log;
+  qpoints->pLog10 = log10;
+  qpoints->pNextAfter = nextafter;
+  qpoints->pSinh = sinh;
+  qpoints->pTan = tan;
+  qpoints->pTanh = tanh;
+
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
   qpoints->pStringCompareTo = art_quick_string_compareto;
