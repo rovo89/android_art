@@ -631,7 +631,8 @@ public class Main {
   /// CHECK-DAG:  <<Array2>>     NullCheck [<<Get1>>]                        loop:<<InnerLoop>>
   /// CHECK-DAG:  <<Len2:i\d+>>  ArrayLength [<<Array2>>]                    loop:<<InnerLoop>>
   /// CHECK-DAG:  <<Bounds2>>    BoundsCheck [<<Index2:i\d+>>,<<Len2>>]      loop:<<InnerLoop>>
-  /// CHECK-DAG:                 InvokeStaticOrDirect [<<Get2>>]             loop:<<InnerLoop>>
+  // Note: The ArtMethod* (typed as int or long) is optional after sharpening.
+  /// CHECK-DAG:                 InvokeStaticOrDirect [<<Get2>>{{(,[ij]\d+)?}}] loop:<<InnerLoop>>
   /// CHECK-DAG:  <<Index2>>     Phi                                         loop:<<InnerLoop>>
   /// CHECK-DAG:  <<Index1>>     Phi                                         loop:<<OuterLoop:B\d+>>
   /// CHECK-DAG:  <<Field1>>     StaticFieldGet                              loop:none
@@ -644,7 +645,8 @@ public class Main {
   /// CHECK-DAG:  <<Get1:l\d+>>  ArrayGet [<<Array1:l\d+>>,<<Index1:i\d+>>]  loop:<<OuterLoop>>
   //  Array reference ..[j] still in inner loop, with a direct index.
   /// CHECK-DAG:  <<Get2:i\d+>>  ArrayGet [<<Array2:l\d+>>,<<Index2:i\d+>>]  loop:<<InnerLoop:B\d+>>
-  /// CHECK-DAG:                 InvokeStaticOrDirect [<<Get2>>]             loop:<<InnerLoop>>
+  // Note: The ArtMethod* (typed as int or long) is optional after sharpening.
+  /// CHECK-DAG:                 InvokeStaticOrDirect [<<Get2>>{{(,[ij]\d+)?}}] loop:<<InnerLoop>>
   /// CHECK-DAG:  <<Index2>>     Phi                                         loop:<<InnerLoop>>
   /// CHECK-DAG:  <<Index1>>     Phi                                         loop:<<OuterLoop>>
   //  Synthetic phi.
