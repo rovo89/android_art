@@ -349,7 +349,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
   // Check that the class pointer inside the object is not null and is aligned.
   // TODO: Method might be not a heap address, and GetClass could fault.
   // No read barrier because method_obj may not be a real object.
-  mirror::Class* cls = method_obj->GetDeclaringClassNoBarrier();
+  mirror::Class* cls = method_obj->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
   if (cls == nullptr) {
     VLOG(signals) << "not a class";
     return false;
