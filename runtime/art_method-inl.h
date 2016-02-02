@@ -41,17 +41,15 @@
 
 namespace art {
 
+template <ReadBarrierOption kReadBarrierOption>
 inline mirror::Class* ArtMethod::GetDeclaringClassUnchecked() {
   GcRootSource gc_root_source(this);
-  return declaring_class_.Read(&gc_root_source);
+  return declaring_class_.Read<kReadBarrierOption>(&gc_root_source);
 }
 
-inline mirror::Class* ArtMethod::GetDeclaringClassNoBarrier() {
-  return declaring_class_.Read<kWithoutReadBarrier>();
-}
-
+template <ReadBarrierOption kReadBarrierOption>
 inline mirror::Class* ArtMethod::GetDeclaringClass() {
-  mirror::Class* result = GetDeclaringClassUnchecked();
+  mirror::Class* result = GetDeclaringClassUnchecked<kReadBarrierOption>();
   if (kIsDebugBuild) {
     if (!IsRuntimeMethod()) {
       CHECK(result != nullptr) << this;
@@ -79,24 +77,28 @@ inline bool ArtMethod::CASDeclaringClass(mirror::Class* expected_class,
 
 // AssertSharedHeld doesn't work in GetAccessFlags, so use a NO_THREAD_SAFETY_ANALYSIS helper.
 // TODO: Figure out why ASSERT_SHARED_CAPABILITY doesn't work.
-ALWAYS_INLINE
-static inline void DoGetAccessFlagsHelper(ArtMethod* method) NO_THREAD_SAFETY_ANALYSIS {
-  CHECK(method->IsRuntimeMethod() || method->GetDeclaringClass()->IsIdxLoaded() ||
-        method->GetDeclaringClass()->IsErroneous());
+template <ReadBarrierOption kReadBarrierOption>
+ALWAYS_INLINE static inline void DoGetAccessFlagsHelper(ArtMethod* method)
+    NO_THREAD_SAFETY_ANALYSIS {
+  CHECK(method->IsRuntimeMethod() ||
+        method->GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
+        method->GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
 }
 
+template <ReadBarrierOption kReadBarrierOption>
 inline uint32_t ArtMethod::GetAccessFlags() {
   if (kIsDebugBuild) {
     Thread* self = Thread::Current();
     if (!Locks::mutator_lock_->IsSharedHeld(self)) {
       ScopedObjectAccess soa(self);
-      CHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
-            GetDeclaringClass()->IsErroneous());
+      CHECK(IsRuntimeMethod() ||
+            GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
+            GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
     } else {
       // We cannot use SOA in this case. We might be holding the lock, but may not be in the
       // runnable state (e.g., during GC).
       Locks::mutator_lock_->AssertSharedHeld(self);
-      DoGetAccessFlagsHelper(this);
+      DoGetAccessFlagsHelper<kReadBarrierOption>(this);
     }
   }
   return access_flags_;
@@ -469,7 +471,7 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
 
 template <typename Visitor>
 inline void ArtMethod::UpdateObjectsForImageRelocation(const Visitor& visitor) {
-  mirror::Class* old_class = GetDeclaringClassNoBarrier();
+  mirror::Class* old_class = GetDeclaringClassUnchecked<kWithoutReadBarrier>();
   mirror::Class* new_class = visitor(old_class);
   if (old_class != new_class) {
     SetDeclaringClass(new_class);
@@ -486,9 +488,9 @@ inline void ArtMethod::UpdateObjectsForImageRelocation(const Visitor& visitor) {
   }
 }
 
-template <typename Visitor>
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
 inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor) {
-  if (IsNative()) {
+  if (IsNative<kReadBarrierOption>()) {
     const void* old_native_code = GetEntryPointFromJni();
     const void* new_native_code = visitor(old_native_code);
     if (old_native_code != new_native_code) {
