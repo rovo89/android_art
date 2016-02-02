@@ -240,7 +240,7 @@ static std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs
 }
 
 #if !defined(__clang__)
-#if (defined(__arm__) || defined(__i386__))
+#if (defined(__arm__) || defined(__i386__) || defined(__aarch64__))
 // TODO: remove when all targets implemented.
 static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
 #else
@@ -248,7 +248,7 @@ static constexpr InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKin
 #endif
 #else
 // Clang 3.4 fails to build the goto interpreter implementation.
-#if (defined(__arm__) || defined(__i386__))
+#if (defined(__arm__) || defined(__i386__) || defined(__aarch64__))
 static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
 #else
 static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImplKind;
