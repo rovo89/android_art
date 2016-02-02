@@ -976,46 +976,6 @@ void CodeGeneratorMIPS::MoveConstant(Location destination, int32_t value) {
   __ LoadConst32(dst, value);
 }
 
-void CodeGeneratorMIPS::Move(HInstruction* instruction,
-                             Location location,
-                             HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  Primitive::Type type = instruction->GetType();
-  DCHECK_NE(type, Primitive::kPrimVoid);
-
-  if (instruction->IsCurrentMethod()) {
-    Move32(location, Location::StackSlot(kCurrentMethodStackOffset));
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (instruction->IsIntConstant()
-             || instruction->IsLongConstant()
-             || instruction->IsNullConstant()) {
-    MoveConstant(location, instruction->AsConstant());
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    if (temp_location.IsStackSlot()) {
-      Move32(location, temp_location);
-    } else {
-      DCHECK(temp_location.IsDoubleStackSlot());
-      Move64(location, temp_location);
-    }
-  } else if (instruction->IsLoadLocal()) {
-    uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
-    if (Primitive::Is64BitType(type)) {
-      Move64(location, Location::DoubleStackSlot(stack_slot));
-    } else {
-      Move32(location, Location::StackSlot(stack_slot));
-    }
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    if (Primitive::Is64BitType(type)) {
-      Move64(location, locations->Out());
-    } else {
-      Move32(location, locations->Out());
-    }
-  }
-}
-
 void CodeGeneratorMIPS::AddLocationAsTemp(Location location, LocationSummary* locations) {
   if (location.IsRegister()) {
     locations->AddTemp(location);
@@ -4793,14 +4753,6 @@ void InstructionCodeGeneratorMIPS::VisitSuspendCheck(HSuspendCheck* instruction)
     return;
   }
   GenerateSuspendCheck(instruction, nullptr);
-}
-
-void LocationsBuilderMIPS::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorMIPS::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderMIPS::VisitThrow(HThrow* instruction) {

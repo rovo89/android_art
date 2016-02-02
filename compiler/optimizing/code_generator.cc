@@ -287,19 +287,6 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
   }
 }
 
-Location CodeGenerator::GetTemporaryLocation(HTemporary* temp) const {
-  uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
-  // The type of the previous instruction tells us if we need a single or double stack slot.
-  Primitive::Type type = temp->GetType();
-  int32_t temp_size = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble) ? 2 : 1;
-  // Use the temporary region (right below the dex registers).
-  int32_t slot = GetFrameSize() - FrameEntrySpillSize()
-                                - kVRegSize  // filler
-                                - (number_of_locals * kVRegSize)
-                                - ((temp_size + temp->GetIndex()) * kVRegSize);
-  return temp_size == 2 ? Location::DoubleStackSlot(slot) : Location::StackSlot(slot);
-}
-
 int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
   uint16_t reg_number = local->GetRegNumber();
   uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();

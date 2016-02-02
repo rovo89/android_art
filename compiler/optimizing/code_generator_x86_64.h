@@ -299,7 +299,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
   void Bind(HBasicBlock* block) OVERRIDE;
-  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
   void MoveLocation(Location dst, Location src, Primitive::Type dst_type) OVERRIDE;
   void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;

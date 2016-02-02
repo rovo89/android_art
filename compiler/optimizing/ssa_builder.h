@@ -75,7 +75,6 @@ class SsaBuilder : public HGraphVisitor {
   void VisitLoadLocal(HLoadLocal* load) OVERRIDE;
   void VisitStoreLocal(HStoreLocal* store) OVERRIDE;
   void VisitInstruction(HInstruction* instruction) OVERRIDE;
-  void VisitTemporary(HTemporary* instruction) OVERRIDE;
   void VisitArrayGet(HArrayGet* aget) OVERRIDE;
   void VisitArraySet(HArraySet* aset) OVERRIDE;
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
