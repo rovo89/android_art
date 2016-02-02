@@ -263,7 +263,8 @@ LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/fault_handler_arm.cc
 
 LIBART_TARGET_SRC_FILES_arm64 := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_arm64.S \
   arch/arm64/context_arm64.cc \
   arch/arm64/entrypoints_init_arm64.cc \
   arch/arm64/jni_entrypoints_arm64.S \
@@ -508,6 +509,7 @@ endif
   ifeq ($$(art_target_or_host),target)
     $$(eval $$(call set-target-local-clang-vars))
     $$(eval $$(call set-target-local-cflags-vars,$(2)))
+    LOCAL_CLANG_arm64 := true
     LOCAL_CFLAGS_$(DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
     LOCAL_CFLAGS_$(2ND_DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
   else # host
