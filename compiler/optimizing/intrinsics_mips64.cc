@@ -1429,8 +1429,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   __ LoadFromOffset(kLoadDoubleword,
                     TMP,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize,
-                                            pStringCompareTo).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pStringCompareTo).Int32Value());
   __ Jalr(TMP);
   __ Nop();
   __ Bind(slow_path->GetExitLabel());
@@ -1583,7 +1582,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   __ LoadFromOffset(kLoadDoubleword,
                     TMP,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pIndexOf).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pIndexOf).Int32Value());
   __ Jalr(TMP);
   __ Nop();
 
@@ -1659,7 +1658,8 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke
   __ LoadFromOffset(kLoadDoubleword,
                     TMP,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pAllocStringFromBytes).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
+                                            pAllocStringFromBytes).Int32Value());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Jalr(TMP);
   __ Nop();
@@ -1685,7 +1685,8 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke
   __ LoadFromOffset(kLoadDoubleword,
                     TMP,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pAllocStringFromChars).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
+                                            pAllocStringFromChars).Int32Value());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Jalr(TMP);
   __ Nop();
@@ -1716,7 +1717,8 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromString(HInvoke* invok
   __ LoadFromOffset(kLoadDoubleword,
                     TMP,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64WordSize, pAllocStringFromString).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
+                                            pAllocStringFromString).Int32Value());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Jalr(TMP);
   __ Nop();
