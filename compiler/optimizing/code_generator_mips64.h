@@ -27,10 +27,6 @@
 namespace art {
 namespace mips64 {
 
-// Use a local definition to prevent copying mistakes.
-static constexpr size_t kMips64WordSize = kMips64PointerSize;
-
-
 // InvokeDexCallingConvention registers
 
 static constexpr GpuRegister kParameterCoreRegisters[] =
@@ -274,9 +270,9 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
 
-  size_t GetWordSize() const OVERRIDE { return kMips64WordSize; }
+  size_t GetWordSize() const OVERRIDE { return kMips64DoublewordSize; }
 
-  size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return kMips64WordSize; }
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return kMips64DoublewordSize; }
 
   uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
     return assembler_.GetLabelLocation(GetLabelOf(block));
