@@ -1300,6 +1300,10 @@ void Runtime::InitNativeMethods() {
   VLOG(startup) << "Runtime::InitNativeMethods exiting";
 }
 
+void Runtime::ReclaimArenaPoolMemory() {
+  arena_pool_->LockReclaimMemory();
+}
+
 void Runtime::InitThreadGroups(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
   ScopedJniEnvLocalRefState env_state(env);
