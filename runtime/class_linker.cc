@@ -1230,7 +1230,6 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           DCHECK(strings[j].IsNull());
         }
         std::copy_n(image_resolved_strings, num_strings, strings);
-        *reinterpret_cast<GcRoot<mirror::String>**>(image_resolved_strings) = strings;
         dex_cache->SetStrings(strings);
       }
       if (num_types != 0u) {
@@ -1406,10 +1405,12 @@ class UpdateClassLoaderAndResolvedStringsVisitor {
     if (forward_strings_) {
       GcRoot<mirror::String>* strings = klass->GetDexCacheStrings();
       if (strings != nullptr) {
-        DCHECK(space_->GetImageHeader().GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
-            reinterpret_cast<uint8_t*>(strings) - space_->Begin()))
+        DCHECK(
+            space_->GetImageHeader().GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
+                reinterpret_cast<uint8_t*>(strings) - space_->Begin()))
             << "String dex cache array for " << PrettyClass(klass) << " is not in app image";
-        GcRoot<mirror::String>* new_strings = *reinterpret_cast<GcRoot<mirror::String>**>(strings);
+        // Dex caches have already been updated, so take the strings pointer from there.
+        GcRoot<mirror::String>* new_strings = klass->GetDexCache()->GetStrings();
         DCHECK_NE(strings, new_strings);
         klass->SetDexCacheStrings(new_strings);
       }

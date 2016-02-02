@@ -87,13 +87,11 @@ inline size_t DexCacheArraysLayout::StringOffset(uint32_t string_idx) const {
 }
 
 inline size_t DexCacheArraysLayout::StringsSize(size_t num_elements) const {
-  // App image patching relies on having enough room for a forwarding pointer in the types array.
-  return std::max(ArraySize(sizeof(GcRoot<mirror::String>), num_elements), pointer_size_);
+  return ArraySize(sizeof(GcRoot<mirror::String>), num_elements);
 }
 
 inline size_t DexCacheArraysLayout::StringsAlignment() const {
-  // App image patching relies on having enough room for a forwarding pointer in the strings array.
-  return pointer_size_;
+  return alignof(GcRoot<mirror::String>);
 }
 
 inline size_t DexCacheArraysLayout::FieldOffset(uint32_t field_idx) const {
