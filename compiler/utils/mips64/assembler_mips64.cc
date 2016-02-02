@@ -300,10 +300,17 @@ void Mips64Assembler::Dshd(GpuRegister rd, GpuRegister rt) {
   EmitRtd(0x1f, rt, rd, 0x5, 0x24);
 }
 
-void Mips64Assembler::Dext(GpuRegister rt, GpuRegister rs, int pos, int size_less_one) {
-  DCHECK(0 <= pos && pos < 32) << pos;
-  DCHECK(0 <= size_less_one && size_less_one < 32) << size_less_one;
-  EmitR(0x1f, rs, rt, static_cast<GpuRegister>(size_less_one), pos, 3);
+void Mips64Assembler::Dext(GpuRegister rt, GpuRegister rs, int pos, int size) {
+  CHECK(IsUint<5>(pos)) << pos;
+  CHECK(IsUint<5>(size - 1)) << size;
+  EmitR(0x1f, rs, rt, static_cast<GpuRegister>(size - 1), pos, 0x3);
+}
+
+void Mips64Assembler::Dinsu(GpuRegister rt, GpuRegister rs, int pos, int size) {
+  CHECK(IsUint<5>(pos - 32)) << pos;
+  CHECK(IsUint<5>(size - 1)) << size;
+  CHECK(IsUint<5>(pos + size - 33)) << pos << " + " << size;
+  EmitR(0x1f, rs, rt, static_cast<GpuRegister>(pos + size - 33), pos - 32, 0x6);
 }
 
 void Mips64Assembler::Wsbh(GpuRegister rd, GpuRegister rt) {
@@ -311,22 +318,22 @@ void Mips64Assembler::Wsbh(GpuRegister rd, GpuRegister rt) {
 }
 
 void Mips64Assembler::Sc(GpuRegister rt, GpuRegister base, int16_t imm9) {
-  DCHECK((-256 <= imm9) && (imm9 < 256));
+  CHECK(IsInt<9>(imm9));
   EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x26);
 }
 
 void Mips64Assembler::Scd(GpuRegister rt, GpuRegister base, int16_t imm9) {
-  DCHECK((-256 <= imm9) && (imm9 < 256));
+  CHECK(IsInt<9>(imm9));
   EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x27);
 }
 
 void Mips64Assembler::Ll(GpuRegister rt, GpuRegister base, int16_t imm9) {
-  DCHECK((-256 <= imm9) && (imm9 < 256));
+  CHECK(IsInt<9>(imm9));
   EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x36);
 }
 
 void Mips64Assembler::Lld(GpuRegister rt, GpuRegister base, int16_t imm9) {
-  DCHECK((-256 <= imm9) && (imm9 < 256));
+  CHECK(IsInt<9>(imm9));
   EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x37);
 }
 
@@ -967,8 +974,16 @@ void Mips64Assembler::Mfc1(GpuRegister rt, FpuRegister fs) {
   EmitFR(0x11, 0x00, static_cast<FpuRegister>(rt), fs, static_cast<FpuRegister>(0), 0x0);
 }
 
+void Mips64Assembler::Mfhc1(GpuRegister rt, FpuRegister fs) {
+  EmitFR(0x11, 0x03, static_cast<FpuRegister>(rt), fs, static_cast<FpuRegister>(0), 0x0);
+}
+
 void Mips64Assembler::Mtc1(GpuRegister rt, FpuRegister fs) {
   EmitFR(0x11, 0x04, static_cast<FpuRegister>(rt), fs, static_cast<FpuRegister>(0), 0x0);
+}
+
+void Mips64Assembler::Mthc1(GpuRegister rt, FpuRegister fs) {
+  EmitFR(0x11, 0x07, static_cast<FpuRegister>(rt), fs, static_cast<FpuRegister>(0), 0x0);
 }
 
 void Mips64Assembler::Dmfc1(GpuRegister rt, FpuRegister fs) {
@@ -1787,11 +1802,13 @@ void Mips64Assembler::Bc1nez(FpuRegister ft, Mips64Label* label) {
 
 void Mips64Assembler::LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuRegister base,
                                      int32_t offset) {
-  if (!IsInt<16>(offset)) {
-    LoadConst32(AT, offset);
+  if (!IsInt<16>(offset) ||
+      (type == kLoadDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
+       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
+    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
     Daddu(AT, AT, base);
     base = AT;
-    offset = 0;
+    offset &= (kMips64DoublewordSize - 1);
   }
 
   switch (type) {
@@ -1808,32 +1825,51 @@ void Mips64Assembler::LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuR
       Lhu(reg, base, offset);
       break;
     case kLoadWord:
+      CHECK_ALIGNED(offset, kMips64WordSize);
       Lw(reg, base, offset);
       break;
     case kLoadUnsignedWord:
+      CHECK_ALIGNED(offset, kMips64WordSize);
       Lwu(reg, base, offset);
       break;
     case kLoadDoubleword:
-      Ld(reg, base, offset);
+      if (!IsAligned<kMips64DoublewordSize>(offset)) {
+        CHECK_ALIGNED(offset, kMips64WordSize);
+        Lwu(reg, base, offset);
+        Lwu(TMP2, base, offset + kMips64WordSize);
+        Dinsu(reg, TMP2, 32, 32);
+      } else {
+        Ld(reg, base, offset);
+      }
       break;
   }
 }
 
 void Mips64Assembler::LoadFpuFromOffset(LoadOperandType type, FpuRegister reg, GpuRegister base,
                                         int32_t offset) {
-  if (!IsInt<16>(offset)) {
-    LoadConst32(AT, offset);
+  if (!IsInt<16>(offset) ||
+      (type == kLoadDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
+       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
+    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
     Daddu(AT, AT, base);
     base = AT;
-    offset = 0;
+    offset &= (kMips64DoublewordSize - 1);
   }
 
   switch (type) {
     case kLoadWord:
+      CHECK_ALIGNED(offset, kMips64WordSize);
       Lwc1(reg, base, offset);
       break;
     case kLoadDoubleword:
-      Ldc1(reg, base, offset);
+      if (!IsAligned<kMips64DoublewordSize>(offset)) {
+        CHECK_ALIGNED(offset, kMips64WordSize);
+        Lwc1(reg, base, offset);
+        Lw(TMP2, base, offset + kMips64WordSize);
+        Mthc1(TMP2, reg);
+      } else {
+        Ldc1(reg, base, offset);
+      }
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
@@ -1869,11 +1905,13 @@ void Mips64Assembler::EmitLoad(ManagedRegister m_dst, GpuRegister src_register, 
 
 void Mips64Assembler::StoreToOffset(StoreOperandType type, GpuRegister reg, GpuRegister base,
                                     int32_t offset) {
-  if (!IsInt<16>(offset)) {
-    LoadConst32(AT, offset);
+  if (!IsInt<16>(offset) ||
+      (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
+       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
+    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
     Daddu(AT, AT, base);
     base = AT;
-    offset = 0;
+    offset &= (kMips64DoublewordSize - 1);
   }
 
   switch (type) {
@@ -1884,10 +1922,18 @@ void Mips64Assembler::StoreToOffset(StoreOperandType type, GpuRegister reg, GpuR
       Sh(reg, base, offset);
       break;
     case kStoreWord:
+      CHECK_ALIGNED(offset, kMips64WordSize);
       Sw(reg, base, offset);
       break;
     case kStoreDoubleword:
-      Sd(reg, base, offset);
+      if (!IsAligned<kMips64DoublewordSize>(offset)) {
+        CHECK_ALIGNED(offset, kMips64WordSize);
+        Sw(reg, base, offset);
+        Dsrl32(TMP2, reg, 0);
+        Sw(TMP2, base, offset + kMips64WordSize);
+      } else {
+        Sd(reg, base, offset);
+      }
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
@@ -1896,19 +1942,29 @@ void Mips64Assembler::StoreToOffset(StoreOperandType type, GpuRegister reg, GpuR
 
 void Mips64Assembler::StoreFpuToOffset(StoreOperandType type, FpuRegister reg, GpuRegister base,
                                        int32_t offset) {
-  if (!IsInt<16>(offset)) {
-    LoadConst32(AT, offset);
+  if (!IsInt<16>(offset) ||
+      (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
+       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
+    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
     Daddu(AT, AT, base);
     base = AT;
-    offset = 0;
+    offset &= (kMips64DoublewordSize - 1);
   }
 
   switch (type) {
     case kStoreWord:
+      CHECK_ALIGNED(offset, kMips64WordSize);
       Swc1(reg, base, offset);
       break;
     case kStoreDoubleword:
-      Sdc1(reg, base, offset);
+      if (!IsAligned<kMips64DoublewordSize>(offset)) {
+        CHECK_ALIGNED(offset, kMips64WordSize);
+        Mfhc1(TMP2, reg);
+        Swc1(reg, base, offset);
+        Sw(TMP2, base, offset + kMips64WordSize);
+      } else {
+        Sdc1(reg, base, offset);
+      }
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
@@ -2053,7 +2109,7 @@ void Mips64Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   StoreToOffset(kStoreWord, scratch.AsGpuRegister(), SP, dest.Int32Value());
 }
 
-void Mips64Assembler::StoreStackOffsetToThread64(ThreadOffset<kMipsDoublewordSize> thr_offs,
+void Mips64Assembler::StoreStackOffsetToThread64(ThreadOffset<kMips64DoublewordSize> thr_offs,
                                                  FrameOffset fr_offs,
                                                  ManagedRegister mscratch) {
   Mips64ManagedRegister scratch = mscratch.AsMips64();
@@ -2062,7 +2118,7 @@ void Mips64Assembler::StoreStackOffsetToThread64(ThreadOffset<kMipsDoublewordSiz
   StoreToOffset(kStoreDoubleword, scratch.AsGpuRegister(), S1, thr_offs.Int32Value());
 }
 
-void Mips64Assembler::StoreStackPointerToThread64(ThreadOffset<kMipsDoublewordSize> thr_offs) {
+void Mips64Assembler::StoreStackPointerToThread64(ThreadOffset<kMips64DoublewordSize> thr_offs) {
   StoreToOffset(kStoreDoubleword, SP, S1, thr_offs.Int32Value());
 }
 
@@ -2080,7 +2136,7 @@ void Mips64Assembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) 
 }
 
 void Mips64Assembler::LoadFromThread64(ManagedRegister mdest,
-                                       ThreadOffset<kMipsDoublewordSize> src,
+                                       ThreadOffset<kMips64DoublewordSize> src,
                                        size_t size) {
   return EmitLoad(mdest, S1, src.Int32Value(), size);
 }
@@ -2102,7 +2158,7 @@ void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, Membe
     // Negate the 32-bit ref
     Dsubu(dest.AsGpuRegister(), ZERO, dest.AsGpuRegister());
     // And constrain it to 32 bits (zero-extend into bits 32 through 63) as on Arm64 and x86/64
-    Dext(dest.AsGpuRegister(), dest.AsGpuRegister(), 0, 31);
+    Dext(dest.AsGpuRegister(), dest.AsGpuRegister(), 0, 32);
   }
 }
 
@@ -2115,7 +2171,7 @@ void Mips64Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
 }
 
 void Mips64Assembler::LoadRawPtrFromThread64(ManagedRegister mdest,
-                                             ThreadOffset<kMipsDoublewordSize> offs) {
+                                             ThreadOffset<kMips64DoublewordSize> offs) {
   Mips64ManagedRegister dest = mdest.AsMips64();
   CHECK(dest.IsGpuRegister());
   LoadFromOffset(kLoadDoubleword, dest.AsGpuRegister(), S1, offs.Int32Value());
@@ -2160,7 +2216,7 @@ void Mips64Assembler::CopyRef(FrameOffset dest, FrameOffset src,
 }
 
 void Mips64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
-                                             ThreadOffset<kMipsDoublewordSize> thr_offs,
+                                             ThreadOffset<kMips64DoublewordSize> thr_offs,
                                              ManagedRegister mscratch) {
   Mips64ManagedRegister scratch = mscratch.AsMips64();
   CHECK(scratch.IsGpuRegister()) << scratch;
@@ -2168,7 +2224,7 @@ void Mips64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
   StoreToOffset(kStoreDoubleword, scratch.AsGpuRegister(), SP, fr_offs.Int32Value());
 }
 
-void Mips64Assembler::CopyRawPtrToThread64(ThreadOffset<kMipsDoublewordSize> thr_offs,
+void Mips64Assembler::CopyRawPtrToThread64(ThreadOffset<kMips64DoublewordSize> thr_offs,
                                            FrameOffset fr_offs,
                                            ManagedRegister mscratch) {
   Mips64ManagedRegister scratch = mscratch.AsMips64();
@@ -2372,7 +2428,7 @@ void Mips64Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscr
   // TODO: place reference map on call
 }
 
-void Mips64Assembler::CallFromThread64(ThreadOffset<kMipsDoublewordSize> offset ATTRIBUTE_UNUSED,
+void Mips64Assembler::CallFromThread64(ThreadOffset<kMips64DoublewordSize> offset ATTRIBUTE_UNUSED,
                                        ManagedRegister mscratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "No MIPS64 implementation";
 }
@@ -2392,7 +2448,7 @@ void Mips64Assembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_adjus
   LoadFromOffset(kLoadDoubleword,
                  scratch.AsGpuRegister(),
                  S1,
-                 Thread::ExceptionOffset<kMipsDoublewordSize>().Int32Value());
+                 Thread::ExceptionOffset<kMips64DoublewordSize>().Int32Value());
   Bnezc(scratch.AsGpuRegister(), exception_blocks_.back().Entry());
 }
 
@@ -2409,7 +2465,7 @@ void Mips64Assembler::EmitExceptionPoll(Mips64ExceptionSlowPath* exception) {
   LoadFromOffset(kLoadDoubleword,
                  T9,
                  S1,
-                 QUICK_ENTRYPOINT_OFFSET(kMipsDoublewordSize, pDeliverException).Int32Value());
+                 QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pDeliverException).Int32Value());
   Jr(T9);
   Nop();
 
