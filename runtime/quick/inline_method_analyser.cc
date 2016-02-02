@@ -108,7 +108,7 @@ bool InlineMethodAnalyser::AnalyseMethodCode(const DexFile::CodeItem* code_item,
 
   switch (opcode) {
     case Instruction::RETURN_VOID:
-      if (method != nullptr) {
+      if (result != nullptr) {
         result->opcode = kInlineOpNop;
         result->flags = kInlineSpecial;
         result->d.data = 0u;
