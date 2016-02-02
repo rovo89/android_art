@@ -88,6 +88,10 @@ public class Main {
     expectEquals(1, compare64(Long.MAX_VALUE, 1L));
     expectEquals(1, compare64(Long.MAX_VALUE, Long.MAX_VALUE - 1L));
 
+    expectEquals(-1, compare64(0x111111117FFFFFFFL, 0x11111111FFFFFFFFL));
+    expectEquals(0, compare64(0x111111117FFFFFFFL, 0x111111117FFFFFFFL));
+    expectEquals(1, compare64(0x11111111FFFFFFFFL, 0x111111117FFFFFFFL));
+
     for (long i = -11L; i <= 11L; i++) {
       for (long j = -11L; j <= 11L; j++) {
         int expected = 0;
@@ -95,6 +99,14 @@ public class Main {
         else if (i > j) expected = 1;
         expectEquals(expected, compare64(i, j));
       }
+    }
+
+    for (long i = Long.MIN_VALUE; i <= Long.MIN_VALUE + 11L; i++) {
+      expectEquals(-1, compare64(i, 0));
+    }
+
+    for (long i = Long.MAX_VALUE; i >= Long.MAX_VALUE - 11L; i--) {
+      expectEquals(1, compare64(i, 0));
     }
 
     System.out.println("passed");

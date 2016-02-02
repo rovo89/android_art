@@ -1763,6 +1763,7 @@ void LocationsBuilderMIPS64::VisitCompare(HCompare* compare) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare);
 
   switch (in_type) {
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(compare->InputAt(1)));
@@ -1791,16 +1792,25 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
   //  1 if: left  > right
   // -1 if: left  < right
   switch (in_type) {
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
       Location rhs_location = locations->InAt(1);
       bool use_imm = rhs_location.IsConstant();
       GpuRegister rhs = ZERO;
       if (use_imm) {
-        int64_t value = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()->AsConstant());
-        if (value != 0) {
-          rhs = AT;
-          __ LoadConst64(rhs, value);
+        if (in_type == Primitive::kPrimInt) {
+          int32_t value = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant()->AsConstant());
+          if (value != 0) {
+            rhs = AT;
+            __ LoadConst32(rhs, value);
+          }
+        } else {
+          int64_t value = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()->AsConstant());
+          if (value != 0) {
+            rhs = AT;
+            __ LoadConst64(rhs, value);
+          }
         }
       } else {
         rhs = rhs_location.AsRegister<GpuRegister>();

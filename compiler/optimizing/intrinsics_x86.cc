@@ -2291,7 +2291,7 @@ static void SwapBits(Register reg, Register temp, int32_t shift, int32_t mask,
 }
 
 void IntrinsicCodeGeneratorX86::VisitIntegerReverse(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  X86Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
   Register reg = locations->InAt(0).AsRegister<Register>();
@@ -2322,7 +2322,7 @@ void IntrinsicLocationsBuilderX86::VisitLongReverse(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitLongReverse(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  X86Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
   Register reg_low = locations->InAt(0).AsRegisterPairLow<Register>();
@@ -2366,7 +2366,9 @@ static void CreateBitCountLocations(
   locations->SetOut(Location::RequiresRegister());
 }
 
-static void GenBitCount(X86Assembler* assembler, HInvoke* invoke, bool is_long) {
+static void GenBitCount(X86Assembler* assembler,
+                        CodeGeneratorX86* codegen,
+                        HInvoke* invoke, bool is_long) {
   LocationSummary* locations = invoke->GetLocations();
   Location src = locations->InAt(0);
   Register out = locations->Out().AsRegister<Register>();
@@ -2377,11 +2379,7 @@ static void GenBitCount(X86Assembler* assembler, HInvoke* invoke, bool is_long) 
     value = is_long
         ? POPCOUNT(static_cast<uint64_t>(value))
         : POPCOUNT(static_cast<uint32_t>(value));
-    if (value == 0) {
-      __ xorl(out, out);
-    } else {
-      __ movl(out, Immediate(value));
-    }
+    codegen->Load32BitValue(out, value);
     return;
   }
 
@@ -2413,7 +2411,7 @@ void IntrinsicLocationsBuilderX86::VisitIntegerBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitIntegerBitCount(HInvoke* invoke) {
-  GenBitCount(GetAssembler(), invoke, /* is_long */ false);
+  GenBitCount(GetAssembler(), codegen_, invoke, /* is_long */ false);
 }
 
 void IntrinsicLocationsBuilderX86::VisitLongBitCount(HInvoke* invoke) {
@@ -2421,7 +2419,7 @@ void IntrinsicLocationsBuilderX86::VisitLongBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitLongBitCount(HInvoke* invoke) {
-  GenBitCount(GetAssembler(), invoke, /* is_long */ true);
+  GenBitCount(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
 static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, bool is_long) {
@@ -2436,7 +2434,9 @@ static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, b
   locations->SetOut(Location::RequiresRegister());
 }
 
-static void GenLeadingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_long) {
+static void GenLeadingZeros(X86Assembler* assembler,
+                            CodeGeneratorX86* codegen,
+                            HInvoke* invoke, bool is_long) {
   LocationSummary* locations = invoke->GetLocations();
   Location src = locations->InAt(0);
   Register out = locations->Out().AsRegister<Register>();
@@ -2449,11 +2449,7 @@ static void GenLeadingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_lo
     } else {
       value = is_long ? CLZ(static_cast<uint64_t>(value)) : CLZ(static_cast<uint32_t>(value));
     }
-    if (value == 0) {
-      __ xorl(out, out);
-    } else {
-      __ movl(out, Immediate(value));
-    }
+    codegen->Load32BitValue(out, value);
     return;
   }
 
@@ -2520,8 +2516,7 @@ void IntrinsicLocationsBuilderX86::VisitIntegerNumberOfLeadingZeros(HInvoke* inv
 }
 
 void IntrinsicCodeGeneratorX86::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
-  GenLeadingZeros(assembler, invoke, /* is_long */ false);
+  GenLeadingZeros(GetAssembler(), codegen_, invoke, /* is_long */ false);
 }
 
 void IntrinsicLocationsBuilderX86::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
@@ -2529,8 +2524,7 @@ void IntrinsicLocationsBuilderX86::VisitLongNumberOfLeadingZeros(HInvoke* invoke
 }
 
 void IntrinsicCodeGeneratorX86::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
-  GenLeadingZeros(assembler, invoke, /* is_long */ true);
+  GenLeadingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
 static void CreateTrailingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, bool is_long) {
@@ -2545,7 +2539,9 @@ static void CreateTrailingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, 
   locations->SetOut(Location::RequiresRegister());
 }
 
-static void GenTrailingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_long) {
+static void GenTrailingZeros(X86Assembler* assembler,
+                             CodeGeneratorX86* codegen,
+                             HInvoke* invoke, bool is_long) {
   LocationSummary* locations = invoke->GetLocations();
   Location src = locations->InAt(0);
   Register out = locations->Out().AsRegister<Register>();
@@ -2558,11 +2554,7 @@ static void GenTrailingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_l
     } else {
       value = is_long ? CTZ(static_cast<uint64_t>(value)) : CTZ(static_cast<uint32_t>(value));
     }
-    if (value == 0) {
-      __ xorl(out, out);
-    } else {
-      __ movl(out, Immediate(value));
-    }
+    codegen->Load32BitValue(out, value);
     return;
   }
 
@@ -2616,8 +2608,7 @@ void IntrinsicLocationsBuilderX86::VisitIntegerNumberOfTrailingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorX86::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
-  GenTrailingZeros(assembler, invoke, /* is_long */ false);
+  GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ false);
 }
 
 void IntrinsicLocationsBuilderX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
@@ -2625,8 +2616,7 @@ void IntrinsicLocationsBuilderX86::VisitLongNumberOfTrailingZeros(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
-  GenTrailingZeros(assembler, invoke, /* is_long */ true);
+  GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
 // Unimplemented intrinsics.
@@ -2646,20 +2636,20 @@ UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
 UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
 
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
 UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
 
-// Rotate operations are handled as HRor instructions.
+// Handled as HIR instructions.
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
+UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
+UNIMPLEMENTED_INTRINSIC(IntegerCompare)
+UNIMPLEMENTED_INTRINSIC(LongCompare)
+UNIMPLEMENTED_INTRINSIC(IntegerSignum)
+UNIMPLEMENTED_INTRINSIC(LongSignum)
 
 #undef UNIMPLEMENTED_INTRINSIC
 

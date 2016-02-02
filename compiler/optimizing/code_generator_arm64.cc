@@ -2408,6 +2408,7 @@ void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
   Primitive::Type in_type = compare->InputAt(0)->GetType();
   switch (in_type) {
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, ARM64EncodableConstantOrRegister(compare->InputAt(1), compare));
@@ -2436,14 +2437,14 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
   //  1 if: left  > right
   // -1 if: left  < right
   switch (in_type) {
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       Register result = OutputRegister(compare);
       Register left = InputRegisterAt(compare, 0);
       Operand right = InputOperandAt(compare, 1);
-
       __ Cmp(left, right);
-      __ Cset(result, ne);
-      __ Cneg(result, result, lt);
+      __ Cset(result, ne);          // result == +1 if NE or 0 otherwise
+      __ Cneg(result, result, lt);  // result == -1 if LT or unchanged otherwise
       break;
     }
     case Primitive::kPrimFloat:
