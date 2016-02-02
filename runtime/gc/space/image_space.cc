@@ -1047,7 +1047,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
       if (strings != nullptr) {
         GcRoot<mirror::String>* new_strings = fixup_adapter.ForwardObject(strings);
         if (strings != new_strings) {
-          dex_cache->SetFieldPtr64<false>(mirror::DexCache::StringsOffset(), new_strings);
+          dex_cache->SetStrings(new_strings);
         }
         dex_cache->FixupStrings<kWithoutReadBarrier>(new_strings, fixup_adapter);
       }
@@ -1055,7 +1055,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
       if (types != nullptr) {
         GcRoot<mirror::Class>* new_types = fixup_adapter.ForwardObject(types);
         if (types != new_types) {
-          dex_cache->SetFieldPtr64<false>(mirror::DexCache::ResolvedTypesOffset(), new_types);
+          dex_cache->SetResolvedTypes(new_types);
         }
         dex_cache->FixupResolvedTypes<kWithoutReadBarrier>(new_types, fixup_adapter);
       }
@@ -1063,7 +1063,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
       if (methods != nullptr) {
         ArtMethod** new_methods = fixup_adapter.ForwardObject(methods);
         if (methods != new_methods) {
-          dex_cache->SetFieldPtr64<false>(mirror::DexCache::ResolvedMethodsOffset(), new_methods);
+          dex_cache->SetResolvedMethods(new_methods);
         }
         for (size_t j = 0, num = dex_cache->NumResolvedMethods(); j != num; ++j) {
           ArtMethod* orig = mirror::DexCache::GetElementPtrSize(new_methods, j, sizeof(void*));
@@ -1077,7 +1077,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
       if (fields != nullptr) {
         ArtField** new_fields = fixup_adapter.ForwardObject(fields);
         if (fields != new_fields) {
-          dex_cache->SetFieldPtr64<false>(mirror::DexCache::ResolvedFieldsOffset(), new_fields);
+          dex_cache->SetResolvedFields(new_fields);
         }
         for (size_t j = 0, num = dex_cache->NumResolvedFields(); j != num; ++j) {
           ArtField* orig = mirror::DexCache::GetElementPtrSize(new_fields, j, sizeof(void*));

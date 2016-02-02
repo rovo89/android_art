@@ -239,11 +239,11 @@ void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
 
 void Jit::DumpTypeInfoForLoadedTypes(ClassLinker* linker) {
   struct CollectClasses : public ClassVisitor {
-    bool Visit(mirror::Class* klass) override {
+    bool operator()(mirror::Class* klass) override {
       classes_.push_back(klass);
       return true;
     }
-    std::vector<mirror::Class*> classes_;
+    mutable std::vector<mirror::Class*> classes_;
   };
 
   if (generate_debug_info_) {

@@ -28,6 +28,9 @@ void ClassTable::VisitRoots(Visitor& visitor) {
       visitor.VisitRoot(root.AddressWithoutBarrier());
     }
   }
+  for (GcRoot<mirror::Object>& root : dex_files_) {
+    visitor.VisitRoot(root.AddressWithoutBarrier());
+  }
 }
 
 template<class Visitor>
@@ -41,6 +44,19 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
     visitor.VisitRoot(root.AddressWithoutBarrier());
   }
 }
+
+template <typename Visitor>
+bool ClassTable::Visit(Visitor& visitor) {
+  for (ClassSet& class_set : classes_) {
+    for (GcRoot<mirror::Class>& root : class_set) {
+      if (!visitor(root.Read())) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 
 }  // namespace art
 
