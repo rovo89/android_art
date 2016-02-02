@@ -323,7 +323,7 @@
 #      -       /                 \-
 # irreducible_loop_back_edge    loop_within_back_edge
 #
-## CHECK-START: void IrreducibleLoop.analyze1(int) ssa_builder (after)
+## CHECK-START: void IrreducibleLoop.analyze1(int) builder (after)
 ## CHECK-DAG: Goto loop:<<OuterLoop:B\d+>> outer_loop:none irreducible:true
 ## CHECK-DAG: Goto outer_loop:<<OuterLoop>> irreducible:false
 .method public static analyze1(I)V
@@ -371,7 +371,7 @@
 # exit          \-         /
 #          irreducible_loop_body
 #
-## CHECK-START: void IrreducibleLoop.analyze2(int) ssa_builder (after)
+## CHECK-START: void IrreducibleLoop.analyze2(int) builder (after)
 ## CHECK-DAG: Goto outer_loop:none irreducible:false
 ## CHECK-DAG: Goto outer_loop:none irreducible:true
 .method public static analyze2(I)V
@@ -418,7 +418,7 @@
 #             |
 #           exit
 #
-## CHECK-START: void IrreducibleLoop.analyze3(int) ssa_builder (after)
+## CHECK-START: void IrreducibleLoop.analyze3(int) builder (after)
 ## CHECK-DAG: Goto loop:<<OuterLoop:B\d+>> outer_loop:none irreducible:true
 ## CHECK-DAG: Goto outer_loop:<<OuterLoop>> irreducible:true
 .method public static analyze3(I)V
@@ -467,7 +467,7 @@
 #             |
 #           exit
 #
-## CHECK-START: void IrreducibleLoop.analyze4(int) ssa_builder (after)
+## CHECK-START: void IrreducibleLoop.analyze4(int) builder (after)
 ## CHECK-DAG: Goto loop:<<OuterLoop:B\d+>> outer_loop:none irreducible:true
 ## CHECK-DAG: Goto outer_loop:<<OuterLoop>> irreducible:true
 .method public static analyze4(I)V
@@ -519,7 +519,7 @@
 #                    |
 #                   exit
 #
-## CHECK-START: void IrreducibleLoop.analyze5(int) ssa_builder (after)
+## CHECK-START: void IrreducibleLoop.analyze5(int) builder (after)
 ## CHECK-DAG: Goto loop:<<OuterLoop:B\d+>> outer_loop:none irreducible:true
 ## CHECK-DAG: Goto outer_loop:<<OuterLoop>> irreducible:true
 .method public static analyze5(I)V

@@ -226,7 +226,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         // The only instructions which may not be recorded in the environments
         // are constants created by the SSA builder as typed equivalents of
         // untyped constants from the bytecode, or phis with only such constants
-        // as inputs (verified by SSAChecker). Their raw binary value must
+        // as inputs (verified by GraphChecker). Their raw binary value must
         // therefore be the same and we only need to keep alive one.
       } else {
         size_t phi_input_index = successor->GetPredecessorIndexOf(block);

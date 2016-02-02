@@ -27,7 +27,7 @@ public class Main {
     return m.g();
   }
 
-  /// CHECK-START: Main Main.thisTest() ssa_builder (after)
+  /// CHECK-START: Main Main.thisTest() builder (after)
   /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
 
@@ -38,7 +38,7 @@ public class Main {
     return g();
   }
 
-  /// CHECK-START: Main Main.newInstanceRemoveTest() ssa_builder (after)
+  /// CHECK-START: Main Main.newInstanceRemoveTest() builder (after)
   /// CHECK:         NewInstance
   /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
@@ -52,7 +52,7 @@ public class Main {
     return m.g();
   }
 
-  /// CHECK-START: Main Main.newArrayRemoveTest() ssa_builder (after)
+  /// CHECK-START: Main Main.newArrayRemoveTest() builder (after)
   /// CHECK:         NewArray
   /// CHECK:         NullCheck
   /// CHECK:         ArrayGet
@@ -178,7 +178,7 @@ public class Main {
     return n.g();
   }
 
-  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) ssa_builder (after)
+  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) builder (after)
   /// CHECK:         NullCheck
 
   /// CHECK-START: Main Main.scopeRemoveTest(int, Main) instruction_simplifier (after)

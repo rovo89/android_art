@@ -25,8 +25,8 @@
 
 ## CHECK:  name            "B1"
 ## CHECK:  successors      "B5" "B2"
-## CHECK:  StoreLocal      [v0,<<Const0>>]
-## CHECK:  If
+## CHECK:  <<Cond:z\d+>>   Equal [<<Const0>>,<<Const0>>]
+## CHECK:  If [<<Cond>>]
 
 ## CHECK:  name            "B2"
 ## CHECK:  successors      "B4"

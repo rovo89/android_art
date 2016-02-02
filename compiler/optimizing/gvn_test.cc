@@ -100,7 +100,7 @@ TEST_F(GVNTest, LocalFieldElimination) {
   ASSERT_EQ(different_offset->GetBlock(), block);
   ASSERT_EQ(use_after_kill->GetBlock(), block);
 
-  TransformToSsa(graph);
+  graph->BuildDominatorTree();
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
   GVNOptimization(graph, side_effects).Run();
@@ -182,7 +182,7 @@ TEST_F(GVNTest, GlobalFieldElimination) {
                                                           0));
   join->AddInstruction(new (&allocator) HExit());
 
-  TransformToSsa(graph);
+  graph->BuildDominatorTree();
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
   GVNOptimization(graph, side_effects).Run();
@@ -288,7 +288,7 @@ TEST_F(GVNTest, LoopFieldElimination) {
   ASSERT_EQ(field_get_in_loop_body->GetBlock(), loop_body);
   ASSERT_EQ(field_get_in_exit->GetBlock(), exit);
 
-  TransformToSsa(graph);
+  graph->BuildDominatorTree();
   {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
@@ -364,7 +364,7 @@ TEST_F(GVNTest, LoopSideEffects) {
   inner_loop_exit->AddInstruction(new (&allocator) HGoto());
   outer_loop_exit->AddInstruction(new (&allocator) HExit());
 
-  TransformToSsa(graph);
+  graph->BuildDominatorTree();
 
   ASSERT_TRUE(inner_loop_header->GetLoopInformation()->IsIn(
       *outer_loop_header->GetLoopInformation()));

@@ -31,7 +31,7 @@ public class Main implements Itf {
     int a = ForceStatic.field;
   }
 
-  /// CHECK-START: void Main.main(java.lang.String[]) ssa_builder (after)
+  /// CHECK-START: void Main.main(java.lang.String[]) builder (after)
   /// CHECK:           InvokeStaticOrDirect {{.*Main.<init>.*}}
   /// CHECK:           InvokeInterface
 

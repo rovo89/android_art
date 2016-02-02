@@ -32,34 +32,38 @@ class GraphChecker : public HGraphDelegateVisitor {
       dump_prefix_(dump_prefix),
       seen_ids_(graph->GetArena(), graph->GetCurrentInstructionId(), false) {}
 
-  // Check the whole graph (in insertion order).
-  virtual void Run() { VisitInsertionOrder(); }
+  // Check the whole graph (in reverse post-order).
+  void Run() {
+    // VisitReversePostOrder is used instead of VisitInsertionOrder,
+    // as the latter might visit dead blocks removed by the dominator
+    // computation.
+    VisitReversePostOrder();
+  }
 
-  // Check `block`.
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
 
-  // Check `instruction`.
   void VisitInstruction(HInstruction* instruction) OVERRIDE;
+  void VisitPhi(HPhi* phi) OVERRIDE;
 
-  // Perform control-flow graph checks on instruction.
-  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
-
-  // Check that the HasBoundsChecks() flag is set for bounds checks.
+  void VisitBinaryOperation(HBinaryOperation* op) OVERRIDE;
+  void VisitBooleanNot(HBooleanNot* instruction) OVERRIDE;
+  void VisitBoundType(HBoundType* instruction) OVERRIDE;
   void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
-
-  // Check successors of blocks ending in TryBoundary.
-  void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE;
-
-  // Check that LoadException is the first instruction in a catch block.
-  void VisitLoadException(HLoadException* load) OVERRIDE;
-
-  // Check that HCheckCast and HInstanceOf have HLoadClass as second input.
   void VisitCheckCast(HCheckCast* check) OVERRIDE;
+  void VisitCondition(HCondition* op) OVERRIDE;
+  void VisitConstant(HConstant* instruction) OVERRIDE;
+  void VisitIf(HIf* instruction) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* check) OVERRIDE;
-
-  // Check that the Return and ReturnVoid jump to the exit block.
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
+  void VisitLoadException(HLoadException* load) OVERRIDE;
+  void VisitPackedSwitch(HPackedSwitch* instruction) OVERRIDE;
   void VisitReturn(HReturn* ret) OVERRIDE;
   void VisitReturnVoid(HReturnVoid* ret) OVERRIDE;
+  void VisitSelect(HSelect* instruction) OVERRIDE;
+  void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE;
+
+  void HandleLoop(HBasicBlock* loop_header);
+  void HandleBooleanInput(HInstruction* instruction, size_t input_index);
 
   // Was the last visit of the graph valid?
   bool IsValid() const {
@@ -95,46 +99,6 @@ class GraphChecker : public HGraphDelegateVisitor {
   ArenaBitVector seen_ids_;
 
   DISALLOW_COPY_AND_ASSIGN(GraphChecker);
-};
-
-
-// An SSA graph visitor performing various checks.
-class SSAChecker : public GraphChecker {
- public:
-  typedef GraphChecker super_type;
-
-  explicit SSAChecker(HGraph* graph)
-    : GraphChecker(graph, "art::SSAChecker: ") {}
-
-  // Check the whole graph (in reverse post-order).
-  void Run() OVERRIDE {
-    // VisitReversePostOrder is used instead of VisitInsertionOrder,
-    // as the latter might visit dead blocks removed by the dominator
-    // computation.
-    VisitReversePostOrder();
-  }
-
-  // Perform SSA form checks on `block`.
-  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
-  // Loop-related checks from block `loop_header`.
-  void CheckLoop(HBasicBlock* loop_header);
-
-  // Perform SSA form checks on instructions.
-  void VisitInstruction(HInstruction* instruction) OVERRIDE;
-  void VisitPhi(HPhi* phi) OVERRIDE;
-  void VisitBinaryOperation(HBinaryOperation* op) OVERRIDE;
-  void VisitCondition(HCondition* op) OVERRIDE;
-  void VisitIf(HIf* instruction) OVERRIDE;
-  void VisitPackedSwitch(HPackedSwitch* instruction) OVERRIDE;
-  void VisitSelect(HSelect* instruction) OVERRIDE;
-  void VisitBooleanNot(HBooleanNot* instruction) OVERRIDE;
-  void VisitConstant(HConstant* instruction) OVERRIDE;
-  void VisitBoundType(HBoundType* instruction) OVERRIDE;
-
-  void HandleBooleanInput(HInstruction* instruction, size_t input_index);
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(SSAChecker);
 };
 
 }  // namespace art

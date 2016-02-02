@@ -18,6 +18,7 @@
 #include "dex_instruction.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
+#include "pretty_printer.h"
 
 #include "gtest/gtest.h"
 
@@ -30,20 +31,17 @@ namespace art {
 static void TestCode(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateGraph(&allocator);
-  HGraphBuilder builder(graph);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  bool graph_built = builder.BuildGraph(*item);
-  ASSERT_TRUE(graph_built);
-
-  HBasicBlock* first_block = graph->GetEntryBlock()->GetSuccessors()[0];
-  HInstruction* first_instruction = first_block->GetFirstInstruction();
-  // Account for some tests having a store local as first instruction.
-  ASSERT_TRUE(first_instruction->IsSuspendCheck()
-              || first_instruction->GetNext()->IsSuspendCheck());
+  HGraph* graph = CreateCFG(&allocator, data);
+  HBasicBlock* first_block = graph->GetEntryBlock()->GetSingleSuccessor();
+  HBasicBlock* loop_header = first_block->GetSingleSuccessor();
+  ASSERT_TRUE(loop_header->IsLoopHeader());
+  ASSERT_EQ(loop_header->GetLoopInformation()->GetPreHeader(), first_block);
+  ASSERT_TRUE(loop_header->GetFirstInstruction()->IsSuspendCheck());
 }
 
-TEST(CodegenTest, CFG1) {
+class SuspendCheckTest : public CommonCompilerTest {};
+
+TEST_F(SuspendCheckTest, CFG1) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::NOP,
     Instruction::GOTO | 0xFF00);
@@ -51,14 +49,14 @@ TEST(CodegenTest, CFG1) {
   TestCode(data);
 }
 
-TEST(CodegenTest, CFG2) {
+TEST_F(SuspendCheckTest, CFG2) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_32, 0, 0);
 
   TestCode(data);
 }
 
-TEST(CodegenTest, CFG3) {
+TEST_F(SuspendCheckTest, CFG3) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 0xFFFF,
@@ -67,7 +65,7 @@ TEST(CodegenTest, CFG3) {
   TestCode(data);
 }
 
-TEST(CodegenTest, CFG4) {
+TEST_F(SuspendCheckTest, CFG4) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_NE, 0xFFFF,
@@ -76,7 +74,7 @@ TEST(CodegenTest, CFG4) {
   TestCode(data);
 }
 
-TEST(CodegenTest, CFG5) {
+TEST_F(SuspendCheckTest, CFG5) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQZ, 0xFFFF,
@@ -85,7 +83,7 @@ TEST(CodegenTest, CFG5) {
   TestCode(data);
 }
 
-TEST(CodegenTest, CFG6) {
+TEST_F(SuspendCheckTest, CFG6) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_NEZ, 0xFFFF,

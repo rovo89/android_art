@@ -186,18 +186,10 @@ class PassObserver : public ValueObject {
     // Validate the HGraph if running in debug mode.
     if (kIsDebugBuild) {
       if (!graph_in_bad_state_) {
-        if (graph_->IsInSsaForm()) {
-          SSAChecker checker(graph_);
-          checker.Run();
-          if (!checker.IsValid()) {
-            LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<SSAChecker>(checker);
-          }
-        } else {
-          GraphChecker checker(graph_);
-          checker.Run();
-          if (!checker.IsValid()) {
-            LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<GraphChecker>(checker);
-          }
+        GraphChecker checker(graph_);
+        checker.Run();
+        if (!checker.IsValid()) {
+          LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<GraphChecker>(checker);
         }
       }
     }
@@ -665,6 +657,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
                                                      dex_compilation_unit.GetDexFile(),
                                                      dex_compilation_unit.GetClassDefIndex());
+
   HGraph* graph = new (arena) HGraph(
       arena,
       dex_file,
@@ -674,6 +667,21 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       kInvalidInvokeType,
       compiler_driver->GetCompilerOptions().GetDebuggable(),
       osr);
+
+  const uint8_t* interpreter_metadata = nullptr;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::ClassLoader> loader(hs.NewHandle(
+        soa.Decode<mirror::ClassLoader*>(class_loader)));
+    ArtMethod* art_method = compiler_driver->ResolveMethod(
+        soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
+    // We may not get a method, for example if its class is erroneous.
+    if (art_method != nullptr) {
+      graph->SetArtMethod(art_method);
+      interpreter_metadata = art_method->GetQuickenedInfo();
+    }
+  }
 
   std::unique_ptr<CodeGenerator> codegen(
       CodeGenerator::Create(graph,
@@ -692,73 +700,54 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                              visualizer_output_.get(),
                              compiler_driver);
 
-  const uint8_t* interpreter_metadata = nullptr;
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::ClassLoader> loader(hs.NewHandle(
-        soa.Decode<mirror::ClassLoader*>(class_loader)));
-    ArtMethod* art_method = compiler_driver->ResolveMethod(
-        soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
-    // We may not get a method, for example if its class is erroneous.
-    if (art_method != nullptr) {
-      graph->SetArtMethod(art_method);
-      interpreter_metadata = art_method->GetQuickenedInfo();
-    }
-  }
-  HGraphBuilder builder(graph,
-                        &dex_compilation_unit,
-                        &dex_compilation_unit,
-                        &dex_file,
-                        compiler_driver,
-                        compilation_stats_.get(),
-                        interpreter_metadata,
-                        dex_cache);
-
   VLOG(compiler) << "Building " << pass_observer.GetMethodName();
 
   {
-    PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
-    if (!builder.BuildGraph(*code_item)) {
-      pass_observer.SetGraphInBadState();
-      return nullptr;
-    }
-  }
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScopeCollection handles(soa.Self());
+    // Do not hold `mutator_lock_` between optimizations.
+    ScopedThreadSuspension sts(soa.Self(), kNative);
 
-  VLOG(compiler) << "Optimizing " << pass_observer.GetMethodName();
-
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
-  ScopedThreadSuspension sts(soa.Self(), kNative);
-
-  {
-    PassScope scope(SsaBuilder::kSsaBuilderPassName, &pass_observer);
-    GraphAnalysisResult result = graph->TryBuildingSsa(&handles);
-    if (result != kAnalysisSuccess) {
-      switch (result) {
-        case kAnalysisFailThrowCatchLoop:
-          MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
-          break;
-        case kAnalysisFailAmbiguousArrayOp:
-          MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
-          break;
-        case kAnalysisSuccess:
-          UNREACHABLE();
+    {
+      PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
+      HGraphBuilder builder(graph,
+                            &dex_compilation_unit,
+                            &dex_compilation_unit,
+                            &dex_file,
+                            compiler_driver,
+                            compilation_stats_.get(),
+                            interpreter_metadata,
+                            dex_cache);
+      GraphAnalysisResult result = builder.BuildGraph(*code_item, &handles);
+      if (result != kAnalysisSuccess) {
+        switch (result) {
+          case kAnalysisInvalidBytecode:
+            break;
+          case kAnalysisFailThrowCatchLoop:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
+            break;
+          case kAnalysisFailAmbiguousArrayOp:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
+            break;
+          case kAnalysisSuccess:
+            UNREACHABLE();
+        }
+        pass_observer.SetGraphInBadState();
+        return nullptr;
       }
-      pass_observer.SetGraphInBadState();
-      return nullptr;
     }
-  }
 
-  RunOptimizations(graph,
-                   codegen.get(),
-                   compiler_driver,
-                   compilation_stats_.get(),
-                   dex_compilation_unit,
-                   &pass_observer,
-                   &handles);
-  codegen->Compile(code_allocator);
-  pass_observer.DumpDisassembly();
+    RunOptimizations(graph,
+                     codegen.get(),
+                     compiler_driver,
+                     compilation_stats_.get(),
+                     dex_compilation_unit,
+                     &pass_observer,
+                     &handles);
+
+    codegen->Compile(code_allocator);
+    pass_observer.DumpDisassembly();
+  }
 
   if (kArenaAllocatorCountAllocations) {
     if (arena->BytesAllocated() > 4 * MB) {

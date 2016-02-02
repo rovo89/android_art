@@ -16,7 +16,7 @@
 
 public class Main {
 
-  /// CHECK-START: void Main.testRedundantPhiCycle(boolean) ssa_builder (after)
+  /// CHECK-START: void Main.testRedundantPhiCycle(boolean) builder (after)
   /// CHECK-NOT:  Phi
   private void testRedundantPhiCycle(boolean cond) {
     Object o = null;
@@ -28,7 +28,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.testLoopPhisWithNullAndCrossUses(boolean) ssa_builder (after)
+  /// CHECK-START: void Main.testLoopPhisWithNullAndCrossUses(boolean) builder (after)
   /// CHECK-NOT:  Phi
   private void testLoopPhisWithNullAndCrossUses(boolean cond) {
     Main a = null;

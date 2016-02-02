@@ -86,25 +86,20 @@ class InductionVarRangeTest : public CommonCompilerTest {
     loop_body->AddSuccessor(loop_header);
     return_block->AddSuccessor(exit_block_);
     // Instructions.
-    HLocal* induc = new (&allocator_) HLocal(0);
-    entry_block_->AddInstruction(induc);
-    loop_preheader_->AddInstruction(
-        new (&allocator_) HStoreLocal(induc, graph_->GetIntConstant(lower)));  // i = l
     loop_preheader_->AddInstruction(new (&allocator_) HGoto());
-    HInstruction* load = new (&allocator_) HLoadLocal(induc, Primitive::kPrimInt);
-          loop_header->AddInstruction(load);
+    HPhi* phi = new (&allocator_) HPhi(&allocator_, 0, 0, Primitive::kPrimInt);
+    loop_header->AddPhi(phi);
+    phi->AddInput(graph_->GetIntConstant(lower));  // i = l
     if (stride > 0) {
-      condition_ = new (&allocator_) HLessThan(load, upper);  // i < u
+      condition_ = new (&allocator_) HLessThan(phi, upper);  // i < u
     } else {
-      condition_ = new (&allocator_) HGreaterThan(load, upper);  // i > u
+      condition_ = new (&allocator_) HGreaterThan(phi, upper);  // i > u
     }
     loop_header->AddInstruction(condition_);
     loop_header->AddInstruction(new (&allocator_) HIf(condition_));
-    load = new (&allocator_) HLoadLocal(induc, Primitive::kPrimInt);
-    loop_body->AddInstruction(load);
-    increment_ = new (&allocator_) HAdd(Primitive::kPrimInt, load, graph_->GetIntConstant(stride));
-    loop_body->AddInstruction(increment_);
-    loop_body->AddInstruction(new (&allocator_) HStoreLocal(induc, increment_));  // i += s
+    increment_ = new (&allocator_) HAdd(Primitive::kPrimInt, phi, graph_->GetIntConstant(stride));
+    loop_body->AddInstruction(increment_);  // i += s
+    phi->AddInput(increment_);
     loop_body->AddInstruction(new (&allocator_) HGoto());
     return_block->AddInstruction(new (&allocator_) HReturnVoid());
     exit_block_->AddInstruction(new (&allocator_) HExit());
@@ -112,7 +107,7 @@ class InductionVarRangeTest : public CommonCompilerTest {
 
   /** Constructs SSA and performs induction variable analysis. */
   void PerformInductionVarAnalysis() {
-    TransformToSsa(graph_);
+    graph_->BuildDominatorTree();
     iva_->Run();
   }
 

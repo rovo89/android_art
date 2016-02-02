@@ -1401,7 +1401,7 @@ public class Main {
 
   // Test that conditions on float/double are not flipped.
 
-  /// CHECK-START: int Main.floatConditionNotEqualOne(float) ssa_builder (after)
+  /// CHECK-START: int Main.floatConditionNotEqualOne(float) builder (after)
   /// CHECK:                            LessThanOrEqual
 
   /// CHECK-START: int Main.floatConditionNotEqualOne(float) instruction_simplifier_before_codegen (after)
@@ -1417,7 +1417,7 @@ public class Main {
     return ((f > 42.0f) == true) ? 13 : 54;
   }
 
-  /// CHECK-START: int Main.doubleConditionEqualZero(double) ssa_builder (after)
+  /// CHECK-START: int Main.doubleConditionEqualZero(double) builder (after)
   /// CHECK:                            LessThanOrEqual
 
   /// CHECK-START: int Main.doubleConditionEqualZero(double) instruction_simplifier_before_codegen (after)

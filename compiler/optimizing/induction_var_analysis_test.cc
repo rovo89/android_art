@@ -86,39 +86,28 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
     constant1_ = graph_->GetIntConstant(1);
     constant100_ = graph_->GetIntConstant(100);
     float_constant0_ = graph_->GetFloatConstant(0.0f);
-    induc_ = new (&allocator_) HLocal(n);
-    entry_->AddInstruction(induc_);
-    entry_->AddInstruction(new (&allocator_) HStoreLocal(induc_, constant0_));
-    tmp_ = new (&allocator_) HLocal(n + 1);
-    entry_->AddInstruction(tmp_);
-    entry_->AddInstruction(new (&allocator_) HStoreLocal(tmp_, constant100_));
-    dum_ = new (&allocator_) HLocal(n + 2);
-    entry_->AddInstruction(dum_);
     return_->AddInstruction(new (&allocator_) HReturnVoid());
     exit_->AddInstruction(new (&allocator_) HExit());
 
     // Provide loop instructions.
     for (int d = 0; d < n; d++) {
-      basic_[d] = new (&allocator_) HLocal(d);
-      entry_->AddInstruction(basic_[d]);
-      loop_preheader_[d]->AddInstruction(new (&allocator_) HStoreLocal(basic_[d], constant0_));
+      basic_[d] = new (&allocator_) HPhi(&allocator_, d, 0, Primitive::kPrimInt);
       loop_preheader_[d]->AddInstruction(new (&allocator_) HGoto());
-      HInstruction* load = new (&allocator_) HLoadLocal(basic_[d], Primitive::kPrimInt);
-      loop_header_[d]->AddInstruction(load);
-      HInstruction* compare = new (&allocator_) HLessThan(load, constant100_);
+      loop_header_[d]->AddPhi(basic_[d]);
+      HInstruction* compare = new (&allocator_) HLessThan(basic_[d], constant100_);
       loop_header_[d]->AddInstruction(compare);
       loop_header_[d]->AddInstruction(new (&allocator_) HIf(compare));
-      load = new (&allocator_) HLoadLocal(basic_[d], Primitive::kPrimInt);
-      loop_body_[d]->AddInstruction(load);
-      increment_[d] = new (&allocator_) HAdd(Primitive::kPrimInt, load, constant1_);
+      increment_[d] = new (&allocator_) HAdd(Primitive::kPrimInt, basic_[d], constant1_);
       loop_body_[d]->AddInstruction(increment_[d]);
-      loop_body_[d]->AddInstruction(new (&allocator_) HStoreLocal(basic_[d], increment_[d]));
       loop_body_[d]->AddInstruction(new (&allocator_) HGoto());
+
+      basic_[d]->AddInput(constant0_);
+      basic_[d]->AddInput(increment_[d]);
     }
   }
 
   // Builds if-statement at depth d.
-  void BuildIf(int d, HBasicBlock** ifT, HBasicBlock **ifF) {
+  HPhi* BuildIf(int d, HBasicBlock** ifT, HBasicBlock **ifF) {
     HBasicBlock* cond = new (&allocator_) HBasicBlock(graph_);
     HBasicBlock* ifTrue = new (&allocator_) HBasicBlock(graph_);
     HBasicBlock* ifFalse = new (&allocator_) HBasicBlock(graph_);
@@ -134,6 +123,10 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
     cond->AddInstruction(new (&allocator_) HIf(parameter_));
     *ifT = ifTrue;
     *ifF = ifFalse;
+
+    HPhi* select_phi = new (&allocator_) HPhi(&allocator_, -1, 0, Primitive::kPrimInt);
+    loop_body_[d]->AddPhi(select_phi);
+    return select_phi;
   }
 
   // Inserts instruction right before increment at depth d.
@@ -142,25 +135,20 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
     return instruction;
   }
 
-  // Inserts local load at depth d.
-  HInstruction* InsertLocalLoad(HLocal* local, int d) {
-    return InsertInstruction(new (&allocator_) HLoadLocal(local, Primitive::kPrimInt), d);
+  // Inserts a phi to loop header at depth d and returns it.
+  HPhi* InsertLoopPhi(int vreg, int d) {
+    HPhi* phi = new (&allocator_) HPhi(&allocator_, vreg, 0, Primitive::kPrimInt);
+    loop_header_[d]->AddPhi(phi);
+    return phi;
   }
 
-  // Inserts local store at depth d.
-  HInstruction* InsertLocalStore(HLocal* local, HInstruction* rhs, int d) {
-    return InsertInstruction(new (&allocator_) HStoreLocal(local, rhs), d);
-  }
-
-  // Inserts an array store with given local as subscript at depth d to
+  // Inserts an array store with given `subscript` at depth d to
   // enable tests to inspect the computed induction at that point easily.
-  HInstruction* InsertArrayStore(HLocal* subscript, int d) {
-    HInstruction* load = InsertInstruction(
-        new (&allocator_) HLoadLocal(subscript, Primitive::kPrimInt), d);
+  HInstruction* InsertArrayStore(HInstruction* subscript, int d) {
     // ArraySet is given a float value in order to avoid SsaBuilder typing
     // it from the array's non-existent reference type info.
     return InsertInstruction(new (&allocator_) HArraySet(
-        parameter_, load, float_constant0_, Primitive::kPrimFloat, 0), d);
+        parameter_, subscript, float_constant0_, Primitive::kPrimFloat, 0), d);
   }
 
   // Returns induction information of instruction in loop at depth d.
@@ -171,7 +159,7 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
 
   // Performs InductionVarAnalysis (after proper set up).
   void PerformInductionVarAnalysis() {
-    TransformToSsa(graph_);
+    graph_->BuildDominatorTree();
     iva_ = new (&allocator_) HInductionVarAnalysis(graph_);
     iva_->Run();
   }
@@ -191,16 +179,13 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
   HInstruction* constant1_;
   HInstruction* constant100_;
   HInstruction* float_constant0_;
-  HLocal* induc_;  // "vreg_n", the "k"
-  HLocal* tmp_;    // "vreg_n+1"
-  HLocal* dum_;    // "vreg_n+2"
 
   // Loop specifics.
   HBasicBlock* loop_preheader_[10];
   HBasicBlock* loop_header_[10];
   HBasicBlock* loop_body_[10];
   HInstruction* increment_[10];
-  HLocal* basic_[10];  // "vreg_d", the "i_d"
+  HPhi* basic_[10];  // "vreg_d", the "i_d"
 };
 
 //
@@ -216,7 +201,7 @@ TEST_F(InductionVarAnalysisTest, ProperLoopSetup) {
   //   ..
   // }
   BuildLoopNest(10);
-  TransformToSsa(graph_);
+  graph_->BuildDominatorTree();
   ASSERT_EQ(entry_->GetLoopInformation(), nullptr);
   for (int d = 0; d < 1; d++) {
     ASSERT_EQ(loop_preheader_[d]->GetLoopInformation(),
@@ -258,20 +243,15 @@ TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
   // }
   BuildLoopNest(1);
   HInstruction *add = InsertInstruction(
-      new (&allocator_) HAdd(Primitive::kPrimInt, constant100_, InsertLocalLoad(basic_[0], 0)), 0);
-  InsertLocalStore(induc_, add, 0);
+      new (&allocator_) HAdd(Primitive::kPrimInt, constant100_, basic_[0]), 0);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, constant100_, InsertLocalLoad(basic_[0], 0)), 0);
-  InsertLocalStore(induc_, sub, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, constant100_, basic_[0]), 0);
   HInstruction *mul = InsertInstruction(
-      new (&allocator_) HMul(Primitive::kPrimInt, constant100_, InsertLocalLoad(basic_[0], 0)), 0);
-  InsertLocalStore(induc_, mul, 0);
+      new (&allocator_) HMul(Primitive::kPrimInt, constant100_, basic_[0]), 0);
   HInstruction *shl = InsertInstruction(
-      new (&allocator_) HShl(Primitive::kPrimInt, InsertLocalLoad(basic_[0], 0), constant1_), 0);
-  InsertLocalStore(induc_, shl, 0);
+      new (&allocator_) HShl(Primitive::kPrimInt, basic_[0], constant1_), 0);
   HInstruction *neg = InsertInstruction(
-      new (&allocator_) HNeg(Primitive::kPrimInt, InsertLocalLoad(basic_[0], 0)), 0);
-  InsertLocalStore(induc_, neg, 0);
+      new (&allocator_) HNeg(Primitive::kPrimInt, basic_[0]), 0);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("((1) * i + (100))", GetInductionInfo(add, 0).c_str());
@@ -291,14 +271,16 @@ TEST_F(InductionVarAnalysisTest, FindChainInduction) {
   //   a[k] = 0;
   // }
   BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
   HInstruction *add = InsertInstruction(
-      new (&allocator_) HAdd(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(induc_, add, 0);
-  HInstruction* store1 = InsertArrayStore(induc_, 0);
+      new (&allocator_) HAdd(Primitive::kPrimInt, k, constant100_), 0);
+  HInstruction* store1 = InsertArrayStore(add, 0);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant1_), 0);
-  InsertLocalStore(induc_, sub, 0);
-  HInstruction* store2 = InsertArrayStore(induc_, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, add, constant1_), 0);
+  HInstruction* store2 = InsertArrayStore(sub, 0);
+  k->AddInput(sub);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("(((100) - (1)) * i + (100))",
@@ -316,23 +298,24 @@ TEST_F(InductionVarAnalysisTest, FindTwoWayBasicInduction) {
   //   a[k] = 0;
   // }
   BuildLoopNest(1);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(constant0_);
+
   HBasicBlock* ifTrue;
   HBasicBlock* ifFalse;
-  BuildIf(0, &ifTrue, &ifFalse);
+  HPhi* k_body = BuildIf(0, &ifTrue, &ifFalse);
+
   // True-branch.
-  HInstruction* load1 = new (&allocator_) HLoadLocal(induc_, Primitive::kPrimInt);
-  ifTrue->AddInstruction(load1);
-  HInstruction* inc1 = new (&allocator_) HAdd(Primitive::kPrimInt, load1, constant1_);
+  HInstruction* inc1 = new (&allocator_) HAdd(Primitive::kPrimInt, k_header, constant1_);
   ifTrue->AddInstruction(inc1);
-  ifTrue->AddInstruction(new (&allocator_) HStoreLocal(induc_, inc1));
+  k_body->AddInput(inc1);
   // False-branch.
-  HInstruction* load2 = new (&allocator_) HLoadLocal(induc_, Primitive::kPrimInt);
-  ifFalse->AddInstruction(load2);
-  HInstruction* inc2 = new (&allocator_) HAdd(Primitive::kPrimInt, load2, constant1_);
+  HInstruction* inc2 = new (&allocator_) HAdd(Primitive::kPrimInt, k_header, constant1_);
   ifFalse->AddInstruction(inc2);
-  ifFalse->AddInstruction(new (&allocator_) HStoreLocal(induc_, inc2));
+  k_body->AddInput(inc2);
   // Merge over a phi.
-  HInstruction* store = InsertArrayStore(induc_, 0);
+  HInstruction* store = InsertArrayStore(k_body, 0);
+  k_header->AddInput(k_body);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
@@ -348,21 +331,18 @@ TEST_F(InductionVarAnalysisTest, FindTwoWayDerivedInduction) {
   BuildLoopNest(1);
   HBasicBlock* ifTrue;
   HBasicBlock* ifFalse;
-  BuildIf(0, &ifTrue, &ifFalse);
+  HPhi* k = BuildIf(0, &ifTrue, &ifFalse);
+
   // True-branch.
-  HInstruction* load1 = new (&allocator_) HLoadLocal(basic_[0], Primitive::kPrimInt);
-  ifTrue->AddInstruction(load1);
-  HInstruction* inc1 = new (&allocator_) HAdd(Primitive::kPrimInt, load1, constant1_);
+  HInstruction* inc1 = new (&allocator_) HAdd(Primitive::kPrimInt, basic_[0], constant1_);
   ifTrue->AddInstruction(inc1);
-  ifTrue->AddInstruction(new (&allocator_) HStoreLocal(induc_, inc1));
+  k->AddInput(inc1);
   // False-branch.
-  HInstruction* load2 = new (&allocator_) HLoadLocal(basic_[0], Primitive::kPrimInt);
-  ifFalse->AddInstruction(load2);
-  HInstruction* inc2 = new (&allocator_) HAdd(Primitive::kPrimInt, load2, constant1_);
+  HInstruction* inc2 = new (&allocator_) HAdd(Primitive::kPrimInt, basic_[0], constant1_);
   ifFalse->AddInstruction(inc2);
-  ifFalse->AddInstruction(new (&allocator_) HStoreLocal(induc_, inc2));
+  k->AddInput(inc2);
   // Merge over a phi.
-  HInstruction* store = InsertArrayStore(induc_, 0);
+  HInstruction* store = InsertArrayStore(k, 0);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
@@ -376,10 +356,13 @@ TEST_F(InductionVarAnalysisTest, FindFirstOrderWrapAroundInduction) {
   //   k = 100 - i;
   // }
   BuildLoopNest(1);
-  HInstruction* store = InsertArrayStore(induc_, 0);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
+  HInstruction* store = InsertArrayStore(k, 0);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, constant100_, InsertLocalLoad(basic_[0], 0)), 0);
-  InsertLocalStore(induc_, sub, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, constant100_, basic_[0]), 0);
+  k->AddInput(sub);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("wrap((0), (( - (1)) * i + (100)))",
@@ -396,11 +379,16 @@ TEST_F(InductionVarAnalysisTest, FindSecondOrderWrapAroundInduction) {
   //   t = 100 - i;
   // }
   BuildLoopNest(1);
-  HInstruction* store = InsertArrayStore(induc_, 0);
-  InsertLocalStore(induc_, InsertLocalLoad(tmp_, 0), 0);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+  HPhi* t = InsertLoopPhi(1, 0);
+  t->AddInput(constant100_);
+
+  HInstruction* store = InsertArrayStore(k, 0);
+  k->AddInput(t);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, constant100_, InsertLocalLoad(basic_[0], 0)), 0);
-  InsertLocalStore(tmp_, sub, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, constant100_, basic_[0], 0), 0);
+  t->AddInput(sub);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("wrap((0), wrap((100), (( - (1)) * i + (100))))",
@@ -419,26 +407,21 @@ TEST_F(InductionVarAnalysisTest, FindWrapAroundDerivedInduction) {
   //   k = i << 1;
   // }
   BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
   HInstruction *add = InsertInstruction(
-      new (&allocator_) HAdd(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(tmp_, add, 0);
+      new (&allocator_) HAdd(Primitive::kPrimInt, k, constant100_), 0);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(tmp_, sub, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, k, constant100_), 0);
   HInstruction *mul = InsertInstruction(
-      new (&allocator_) HMul(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(tmp_, mul, 0);
+      new (&allocator_) HMul(Primitive::kPrimInt, k, constant100_), 0);
   HInstruction *shl = InsertInstruction(
-      new (&allocator_) HShl(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant1_), 0);
-  InsertLocalStore(tmp_, shl, 0);
+      new (&allocator_) HShl(Primitive::kPrimInt, k, constant1_), 0);
   HInstruction *neg = InsertInstruction(
-      new (&allocator_) HNeg(Primitive::kPrimInt, InsertLocalLoad(induc_, 0)), 0);
-  InsertLocalStore(tmp_, neg, 0);
-  InsertLocalStore(
-      induc_,
-      InsertInstruction(
-          new (&allocator_)
-          HShl(Primitive::kPrimInt, InsertLocalLoad(basic_[0], 0), constant1_), 0), 0);
+      new (&allocator_) HNeg(Primitive::kPrimInt, k), 0);
+  k->AddInput(
+      InsertInstruction(new (&allocator_) HShl(Primitive::kPrimInt, basic_[0], constant1_), 0));
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("wrap((100), ((2) * i + (100)))", GetInductionInfo(add, 0).c_str());
@@ -461,11 +444,15 @@ TEST_F(InductionVarAnalysisTest, FindPeriodicInduction) {
   //   k = d;
   // }
   BuildLoopNest(1);
-  HInstruction* store1 = InsertArrayStore(induc_, 0);
-  HInstruction* store2 = InsertArrayStore(tmp_, 0);
-  InsertLocalStore(dum_, InsertLocalLoad(tmp_, 0), 0);
-  InsertLocalStore(tmp_, InsertLocalLoad(induc_, 0), 0);
-  InsertLocalStore(induc_, InsertLocalLoad(dum_, 0), 0);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+  HPhi* t = InsertLoopPhi(1, 0);
+  t->AddInput(constant100_);
+
+  HInstruction* store1 = InsertArrayStore(k, 0);
+  HInstruction* store2 = InsertArrayStore(t, 0);
+  k->AddInput(t);
+  t->AddInput(k);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("periodic((0), (100))", GetInductionInfo(store1->InputAt(1), 0).c_str());
@@ -480,10 +467,13 @@ TEST_F(InductionVarAnalysisTest, FindIdiomaticPeriodicInduction) {
   //   k = 1 - k;
   // }
   BuildLoopNest(1);
-  HInstruction* store = InsertArrayStore(induc_, 0);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
+  HInstruction* store = InsertArrayStore(k, 0);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, constant1_, InsertLocalLoad(induc_, 0)), 0);
-  InsertLocalStore(induc_, sub, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, constant1_, k), 0);
+  k->AddInput(sub);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("periodic((0), (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
@@ -502,26 +492,24 @@ TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
   //   t = - k;
   // }
   BuildLoopNest(1);
-  InsertLocalStore(
-      induc_,
-      InsertInstruction(new (&allocator_)
-                        HSub(Primitive::kPrimInt, constant1_, InsertLocalLoad(induc_, 0)), 0), 0);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(constant0_);
+
+  HInstruction* k_body = InsertInstruction(
+      new (&allocator_) HSub(Primitive::kPrimInt, constant1_, k_header), 0);
+  k_header->AddInput(k_body);
+
   // Derived expressions.
   HInstruction *add = InsertInstruction(
-      new (&allocator_) HAdd(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(tmp_, add, 0);
+      new (&allocator_) HAdd(Primitive::kPrimInt, k_body, constant100_), 0);
   HInstruction *sub = InsertInstruction(
-      new (&allocator_) HSub(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(tmp_, sub, 0);
+      new (&allocator_) HSub(Primitive::kPrimInt, k_body, constant100_), 0);
   HInstruction *mul = InsertInstruction(
-      new (&allocator_) HMul(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant100_), 0);
-  InsertLocalStore(tmp_, mul, 0);
+      new (&allocator_) HMul(Primitive::kPrimInt, k_body, constant100_), 0);
   HInstruction *shl = InsertInstruction(
-      new (&allocator_) HShl(Primitive::kPrimInt, InsertLocalLoad(induc_, 0), constant1_), 0);
-  InsertLocalStore(tmp_, shl, 0);
+      new (&allocator_) HShl(Primitive::kPrimInt, k_body, constant1_), 0);
   HInstruction *neg = InsertInstruction(
-      new (&allocator_) HNeg(Primitive::kPrimInt, InsertLocalLoad(induc_, 0)), 0);
-  InsertLocalStore(tmp_, neg, 0);
+      new (&allocator_) HNeg(Primitive::kPrimInt, k_body), 0);
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("periodic(((1) + (100)), (100))", GetInductionInfo(add, 0).c_str());
@@ -543,10 +531,20 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
   //   ..
   // }
   BuildLoopNest(10);
+
+  HPhi* k[10];
+  for (int d = 0; d < 10; d++) {
+    k[d] = InsertLoopPhi(0, d);
+  }
+
   HInstruction *inc = InsertInstruction(
-      new (&allocator_) HAdd(Primitive::kPrimInt, constant1_, InsertLocalLoad(induc_, 9)), 9);
-  InsertLocalStore(induc_, inc, 9);
-  HInstruction* store = InsertArrayStore(induc_, 9);
+      new (&allocator_) HAdd(Primitive::kPrimInt, constant1_, k[9]), 9);
+  HInstruction* store = InsertArrayStore(inc, 9);
+
+  for (int d = 0; d < 10; d++) {
+    k[d]->AddInput((d != 0) ? k[d - 1] : constant0_ );
+    k[d]->AddInput((d != 9) ? k[d + 1] : inc);
+  }
   PerformInductionVarAnalysis();
 
   // Avoid exact phi number, since that depends on the SSA building phase.

@@ -20,10 +20,10 @@
 # be eliminated in normal mode but kept live in debuggable mode. Test that
 # Checker runs the correct test for each compilation mode.
 
-## CHECK-START: int TestCase.deadPhi(int, int, int) ssa_builder (after)
+## CHECK-START: int TestCase.deadPhi(int, int, int) builder (after)
 ## CHECK-NOT:         Phi
 
-## CHECK-START-DEBUGGABLE: int TestCase.deadPhi(int, int, int) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: int TestCase.deadPhi(int, int, int) builder (after)
 ## CHECK:             Phi
 
 .method public static deadPhi(III)I

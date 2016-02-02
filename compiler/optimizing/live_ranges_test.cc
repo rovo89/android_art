@@ -32,14 +32,10 @@ namespace art {
 class LiveRangesTest : public CommonCompilerTest {};
 
 static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraph* graph = CreateGraph(allocator);
-  HGraphBuilder builder(graph);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  builder.BuildGraph(*item);
+  HGraph* graph = CreateCFG(allocator, data);
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
-  TransformToSsa(graph);
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
   return graph;
@@ -303,13 +299,12 @@ TEST_F(LiveRangesTest, Loop2) {
    *       12: equal
    *       14: if +++++
    *        |       \ +
-   *        |     18: suspend
-   *        |     20: add
-   *        |     22: goto
+   *        |     18: add
+   *        |     20: goto
    *        |
-   *       26: return
+   *       24: return
    *         |
-   *       30: exit
+   *       28: exit
    *
    * We want to make sure the phi at 10 has a lifetime hole after the add at 20.
    */
@@ -345,18 +340,18 @@ TEST_F(LiveRangesTest, Loop2) {
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(10u, range->GetStart());
-  ASSERT_EQ(21u, range->GetEnd());
+  ASSERT_EQ(19u, range->GetEnd());
   range = range->GetNext();
   ASSERT_TRUE(range != nullptr);
-  ASSERT_EQ(24u, range->GetStart());
-  ASSERT_EQ(26u, range->GetEnd());
+  ASSERT_EQ(22u, range->GetStart());
+  ASSERT_EQ(24u, range->GetEnd());
 
   // Test for the add instruction.
   HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAdd();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(20u, range->GetStart());
-  ASSERT_EQ(24u, range->GetEnd());
+  ASSERT_EQ(18u, range->GetStart());
+  ASSERT_EQ(22u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
