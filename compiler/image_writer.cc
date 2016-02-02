@@ -714,7 +714,7 @@ bool ImageWriter::AllocMemory() {
 
 class ComputeLazyFieldsForClassesVisitor : public ClassVisitor {
  public:
-  bool Visit(Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     StackHandleScope<1> hs(Thread::Current());
     mirror::Class::ComputeName(hs.NewHandle(c));
     return true;
@@ -852,14 +852,14 @@ class NonImageClassesVisitor : public ClassVisitor {
  public:
   explicit NonImageClassesVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
-  bool Visit(Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!image_writer_->KeepClass(klass)) {
       classes_to_prune_.insert(klass);
     }
     return true;
   }
 
-  std::unordered_set<mirror::Class*> classes_to_prune_;
+  mutable std::unordered_set<mirror::Class*> classes_to_prune_;
   ImageWriter* const image_writer_;
 };
 

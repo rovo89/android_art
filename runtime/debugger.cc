@@ -983,7 +983,7 @@ class ClassListCreator : public ClassVisitor {
  public:
   explicit ClassListCreator(std::vector<JDWP::RefTypeId>* classes) : classes_(classes) {}
 
-  bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!c->IsPrimitive()) {
       classes_->push_back(Dbg::GetObjectRegistry()->AddRefType(c));
     }
