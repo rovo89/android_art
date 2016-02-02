@@ -516,7 +516,7 @@ class DebugInfoWriter {
           // Declare the class that owns this method.
           size_t class_offset = StartClassTag(dex_class_desc);
           info_.UpdateUint32(type_attrib_offset, class_offset);
-          info_.WriteFlag(DW_AT_declaration, true);
+          info_.WriteFlagPresent(DW_AT_declaration);
           // Check that each class is defined only once.
           bool unique = owner_->defined_dex_classes_.insert(dex_class_desc).second;
           CHECK(unique) << "Redefinition of " << dex_class_desc;
@@ -542,7 +542,7 @@ class DebugInfoWriter {
         if (!is_static) {
           info_.StartTag(DW_TAG_formal_parameter);
           WriteName("this");
-          info_.WriteFlag(DW_AT_artificial, true);
+          info_.WriteFlagPresent(DW_AT_artificial);
           WriteLazyType(dex_class_desc);
           if (dex_code != nullptr) {
             // Write the stack location of the parameter.
@@ -660,7 +660,7 @@ class DebugInfoWriter {
             std::string tmp_storage;
             const char* base_class_desc = base_class->GetDescriptor(&tmp_storage);
             base_class_declaration_offset = StartClassTag(base_class_desc);
-            info_.WriteFlag(DW_AT_declaration, true);
+            info_.WriteFlagPresent(DW_AT_declaration);
             WriteLinkageName(base_class);
             EndClassTag();
           }
@@ -682,7 +682,7 @@ class DebugInfoWriter {
             info_.StartTag(DW_TAG_member);
             WriteName(".dynamic_type");
             WriteLazyType(sizeof(uintptr_t) == 8 ? "J" : "I");
-            info_.WriteFlag(DW_AT_artificial, true);
+            info_.WriteFlagPresent(DW_AT_artificial);
             // Create DWARF expression to get the value of the methods_ field.
             Expression expr(&expr_buffer);
             // The address of the object has been implicitly pushed on the stack.
@@ -960,7 +960,7 @@ class DebugInfoWriter {
       if (desc[0] == 'L') {
         // Class type. For example: Lpackage/name;
         size_t class_offset = StartClassTag(desc.c_str());
-        info_.WriteFlag(DW_AT_declaration, true);
+        info_.WriteFlagPresent(DW_AT_declaration);
         EndClassTag();
         // Reference to the class type.
         offset = info_.StartTag(DW_TAG_reference_type);
@@ -971,7 +971,7 @@ class DebugInfoWriter {
         size_t element_type = WriteTypeDeclaration(desc.substr(1));
         CloseNamespacesAboveDepth(0);  // Declare in root namespace.
         size_t array_type = info_.StartTag(DW_TAG_array_type);
-        info_.WriteFlag(DW_AT_declaration, true);
+        info_.WriteFlagPresent(DW_AT_declaration);
         info_.WriteRef(DW_AT_type, element_type);
         info_.EndTag();
         offset = info_.StartTag(DW_TAG_reference_type);
