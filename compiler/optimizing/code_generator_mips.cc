@@ -1132,11 +1132,11 @@ size_t CodeGeneratorMIPS::RestoreFloatingPointRegister(size_t stack_index, uint3
 }
 
 void CodeGeneratorMIPS::DumpCoreRegister(std::ostream& stream, int reg) const {
-  stream << MipsManagedRegister::FromCoreRegister(Register(reg));
+  stream << Register(reg);
 }
 
 void CodeGeneratorMIPS::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  stream << MipsManagedRegister::FromFRegister(FRegister(reg));
+  stream << FRegister(reg);
 }
 
 void CodeGeneratorMIPS::InvokeRuntime(QuickEntrypointEnum entrypoint,
