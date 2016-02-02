@@ -615,18 +615,6 @@ endif
 TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
-# Tests broken by multi-image.
-TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS := \
-  476-checker-ctor-memory-barrier \
-  530-checker-lse
-
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), \
-    $(TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS),  $(ALL_ADDRESS_SIZES))
-
-TEST_ART_BROKEN_MULTI_IMAGE_RUN_TESTS :=
-
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
 $(foreach target, $(TARGET_TYPES), \
