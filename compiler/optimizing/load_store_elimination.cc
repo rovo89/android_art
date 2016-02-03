@@ -55,13 +55,13 @@ class ReferenceInfo : public ArenaObject<kArenaAllocMisc> {
         is_singleton_and_not_returned_ = false;
         return;
       }
-      if (use->IsPhi() || use->IsInvoke() ||
+      if (use->IsPhi() || use->IsSelect() || use->IsInvoke() ||
           (use->IsInstanceFieldSet() && (reference_ == use->InputAt(1))) ||
           (use->IsUnresolvedInstanceFieldSet() && (reference_ == use->InputAt(1))) ||
           (use->IsStaticFieldSet() && (reference_ == use->InputAt(1))) ||
           (use->IsUnresolvedStaticFieldSet() && (reference_ == use->InputAt(0))) ||
           (use->IsArraySet() && (reference_ == use->InputAt(2)))) {
-        // reference_ is merged to a phi, passed to a callee, or stored to heap.
+        // reference_ is merged to a phi/HSelect, passed to a callee, or stored to heap.
         // reference_ isn't the only name that can refer to its value anymore.
         is_singleton_ = false;
         is_singleton_and_not_returned_ = false;
