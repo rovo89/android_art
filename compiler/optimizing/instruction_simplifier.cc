@@ -46,6 +46,10 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   bool TryReplaceWithRotateRegisterSubPattern(HBinaryOperation* op, HUShr* ushr, HShl* shl);
 
   bool TryMoveNegOnInputsAfterBinop(HBinaryOperation* binop);
+  // `op` should be either HOr or HAnd.
+  // De Morgan's laws:
+  // ~a & ~b = ~(a | b)  and  ~a | ~b = ~(a & b)
+  bool TryDeMorganNegationFactoring(HBinaryOperation* op);
   void VisitShift(HBinaryOperation* shift);
 
   void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
@@ -162,6 +166,54 @@ bool InstructionSimplifierVisitor::TryMoveNegOnInputsAfterBinop(HBinaryOperation
   binop->ReplaceWithExceptInReplacementAtIndex(neg, 0);
   RecordSimplification();
   return true;
+}
+
+bool InstructionSimplifierVisitor::TryDeMorganNegationFactoring(HBinaryOperation* op) {
+  DCHECK(op->IsAnd() || op->IsOr()) << op->DebugName();
+  Primitive::Type type = op->GetType();
+  HInstruction* left = op->GetLeft();
+  HInstruction* right = op->GetRight();
+
+  // We can apply De Morgan's laws if both inputs are Not's and are only used
+  // by `op`.
+  if (left->IsNot() &&
+      right->IsNot() &&
+      left->HasOnlyOneNonEnvironmentUse() &&
+      right->HasOnlyOneNonEnvironmentUse()) {
+    // Replace code looking like
+    //    NOT nota, a
+    //    NOT notb, b
+    //    AND dst, nota, notb (respectively OR)
+    // with
+    //    OR or, a, b         (respectively AND)
+    //    NOT dest, or
+    HInstruction* src_left = left->AsNot()->GetInput();
+    HInstruction* src_right = right->AsNot()->GetInput();
+    uint32_t dex_pc = op->GetDexPc();
+
+    // Remove the negations on the inputs.
+    left->ReplaceWith(src_left);
+    right->ReplaceWith(src_right);
+    left->GetBlock()->RemoveInstruction(left);
+    right->GetBlock()->RemoveInstruction(right);
+
+    // Replace the `HAnd` or `HOr`.
+    HBinaryOperation* hbin;
+    if (op->IsAnd()) {
+      hbin = new (GetGraph()->GetArena()) HOr(type, src_left, src_right, dex_pc);
+    } else {
+      hbin = new (GetGraph()->GetArena()) HAnd(type, src_left, src_right, dex_pc);
+    }
+    HNot* hnot = new (GetGraph()->GetArena()) HNot(type, hbin, dex_pc);
+
+    op->GetBlock()->InsertInstructionBefore(hbin, op);
+    op->GetBlock()->ReplaceAndRemoveInstructionWith(op, hnot);
+
+    RecordSimplification();
+    return true;
+  }
+
+  return false;
 }
 
 void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
@@ -813,7 +865,10 @@ void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
     //    src
     instruction->ReplaceWith(instruction->GetLeft());
     instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
   }
+
+  TryDeMorganNegationFactoring(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitGreaterThan(HGreaterThan* condition) {
@@ -1127,6 +1182,8 @@ void InstructionSimplifierVisitor::VisitOr(HOr* instruction) {
     return;
   }
 
+  if (TryDeMorganNegationFactoring(instruction)) return;
+
   TryReplaceWithRotate(instruction);
 }
 
@@ -1245,6 +1302,26 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
     //    NOT dst, src
     HNot* bitwise_not = new (GetGraph()->GetArena()) HNot(instruction->GetType(), input_other);
     instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, bitwise_not);
+    RecordSimplification();
+    return;
+  }
+
+  HInstruction* left = instruction->GetLeft();
+  HInstruction* right = instruction->GetRight();
+  if (left->IsNot() &&
+      right->IsNot() &&
+      left->HasOnlyOneNonEnvironmentUse() &&
+      right->HasOnlyOneNonEnvironmentUse()) {
+    // Replace code looking like
+    //    NOT nota, a
+    //    NOT notb, b
+    //    XOR dst, nota, notb
+    // with
+    //    XOR dst, a, b
+    instruction->ReplaceInput(left->AsNot()->GetInput(), 0);
+    instruction->ReplaceInput(right->AsNot()->GetInput(), 1);
+    left->GetBlock()->RemoveInstruction(left);
+    right->GetBlock()->RemoveInstruction(right);
     RecordSimplification();
     return;
   }
