@@ -664,19 +664,50 @@ public class Main {
     System.out.println("testFinalizableByForcingGc() failed to force gc.");
   }
 
-  public static void assertIntEquals(int expected, int result) {
+  /// CHECK-START: int Main.testHSelect(boolean) load_store_elimination (before)
+  /// CHECK: InstanceFieldSet
+  /// CHECK: Select
+
+  /// CHECK-START: int Main.testHSelect(boolean) load_store_elimination (after)
+  /// CHECK: InstanceFieldSet
+  /// CHECK: Select
+
+  // Test that HSelect creates alias.
+  public static int testHSelect(boolean b) {
+    // Disable inlining.
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+    System.out.print("");
+
+    TestClass obj = new TestClass();
+    TestClass obj2 = null;
+    obj.i = 0xdead;
+    if (b) {
+      obj2 = obj;
+    }
+    return obj2.i;
+  }
+
+  public static void assertIntEquals(int result, int expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
 
-  public static void assertFloatEquals(float expected, float result) {
+  public static void assertFloatEquals(float result, float expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
 
-  public static void assertDoubleEquals(double expected, double result) {
+  public static void assertDoubleEquals(double result, double expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
@@ -723,5 +754,6 @@ public class Main {
     assertIntEquals(test23(false), 5);
     assertFloatEquals(test24(), 8.0f);
     testFinalizableByForcingGc();
+    assertIntEquals(testHSelect(true), 0xdead);
   }
 }
