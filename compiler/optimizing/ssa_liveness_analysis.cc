@@ -174,6 +174,38 @@ void SsaLivenessAnalysis::ComputeLiveness() {
   ComputeLiveInAndLiveOutSets();
 }
 
+static void RecursivelyProcessInputs(HInstruction* current,
+                                     HInstruction* actual_user,
+                                     BitVector* live_in) {
+  for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
+    HInstruction* input = current->InputAt(i);
+    bool has_in_location = current->GetLocations()->InAt(i).IsValid();
+    bool has_out_location = input->GetLocations()->Out().IsValid();
+
+    if (has_in_location) {
+      DCHECK(has_out_location)
+          << "Instruction " << current->DebugName() << current->GetId()
+          << " expects an input value at index " << i << " but "
+          << input->DebugName() << input->GetId() << " does not produce one.";
+      DCHECK(input->HasSsaIndex());
+      // `input` generates a result used by `current`. Add use and update
+      // the live-in set.
+      input->GetLiveInterval()->AddUse(current, /* environment */ nullptr, i, actual_user);
+      live_in->SetBit(input->GetSsaIndex());
+    } else if (has_out_location) {
+      // `input` generates a result but it is not used by `current`.
+    } else {
+      // `input` is inlined into `current`. Walk over its inputs and record
+      // uses at `current`.
+      DCHECK(input->IsEmittedAtUseSite());
+      // Check that the inlined input is not a phi. Recursing on loop phis could
+      // lead to an infinite loop.
+      DCHECK(!input->IsPhi());
+      RecursivelyProcessInputs(input, actual_user, live_in);
+    }
+  }
+}
+
 void SsaLivenessAnalysis::ComputeLiveRanges() {
   // Do a post order visit, adding inputs of instructions live in the block where
   // that instruction is defined, and killing instructions that are being visited.
@@ -261,35 +293,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
           DCHECK(!current->HasEnvironmentUses());
         }
       } else {
-        for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
-          HInstruction* input = current->InputAt(i);
-          bool has_in_location = current->GetLocations()->InAt(i).IsValid();
-          bool has_out_location = input->GetLocations()->Out().IsValid();
-
-          if (has_in_location) {
-            DCHECK(has_out_location);
-            DCHECK(input->HasSsaIndex());
-            // `Input` generates a result used by `current`. Add use and update
-            // the live-in set.
-            input->GetLiveInterval()->AddUse(current, /* environment */ nullptr, i);
-            live_in->SetBit(input->GetSsaIndex());
-          } else if (has_out_location) {
-            // `Input` generates a result but it is not used by `current`.
-          } else {
-            // `Input` is inlined into `current`. Walk over its inputs and record
-            // uses at `current`.
-            DCHECK(input->IsEmittedAtUseSite());
-            for (size_t i2 = 0, e2 = input->InputCount(); i2 < e2; ++i2) {
-              HInstruction* inlined_input = input->InputAt(i2);
-              DCHECK(inlined_input->HasSsaIndex()) << "Recursive inlining not allowed.";
-              if (input->GetLocations()->InAt(i2).IsValid()) {
-                live_in->SetBit(inlined_input->GetSsaIndex());
-                inlined_input->GetLiveInterval()->AddUse(
-                    /* owner */ input, /* environment */ nullptr, i2, /* actual_user */ current);
-              }
-            }
-          }
-        }
+        RecursivelyProcessInputs(current, current, live_in);
       }
     }
 
