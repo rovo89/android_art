@@ -61,7 +61,7 @@ class ReferenceInfo : public ArenaObject<kArenaAllocMisc> {
           (use->IsStaticFieldSet() && (reference_ == use->InputAt(1))) ||
           (use->IsUnresolvedStaticFieldSet() && (reference_ == use->InputAt(0))) ||
           (use->IsArraySet() && (reference_ == use->InputAt(2)))) {
-        // reference_ is merged to a phi/HSelect, passed to a callee, or stored to heap.
+        // reference_ is merged to HPhi/HSelect, passed to a callee, or stored to heap.
         // reference_ isn't the only name that can refer to its value anymore.
         is_singleton_ = false;
         is_singleton_and_not_returned_ = false;
@@ -455,6 +455,10 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitParameterValue(HParameterValue* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitSelect(HSelect* instruction) OVERRIDE {
     CreateReferenceInfoForReferenceType(instruction);
   }
 
