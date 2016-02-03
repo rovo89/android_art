@@ -858,7 +858,6 @@ void HEnvironment::CopyFromWithLoopPhiAdjustment(HEnvironment* env,
       // At the end of the loop pre-header, the corresponding value for instruction
       // is the first input of the phi.
       HInstruction* initial = instruction->AsPhi()->InputAt(0);
-      DCHECK(initial->GetBlock()->Dominates(loop_header));
       SetRawEnvAt(i, initial);
       initial->AddEnvUseAt(this, i);
     } else {
