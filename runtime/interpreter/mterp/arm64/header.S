@@ -87,6 +87,8 @@ codes.
  */
 #include "asm_support.h"
 
+#define MTERP_PROFILE_BRANCHES 1
+
 /* During bringup, we'll use the shadow frame model instead of xFP */
 /* single-purpose registers, given names for clarity */
 #define xPC     x20
