@@ -316,7 +316,31 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx, ArtMethod* referrer,
     default:                     is_primitive = true;  is_set = true;  is_static = true;  break;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ArtField* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
+
+  ArtField* resolved_field;
+  if (access_check) {
+    // Slow path: According to JLS 13.4.8, a linkage error may occur if a compile-time
+    // qualifying type of a field and the resolved run-time qualifying type of a field differed
+    // in their static-ness.
+    //
+    // In particular, don't assume the dex instruction already correctly knows if the
+    // real field is static or not. The resolution must not be aware of this.
+    ArtMethod* method = referrer->GetInterfaceMethodIfProxy(sizeof(void*));
+
+    StackHandleScope<2> hs(self);
+    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(method->GetDexCache()));
+    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(method->GetClassLoader()));
+
+    resolved_field = class_linker->ResolveFieldJLS(*method->GetDexFile(),
+                                                   field_idx,
+                                                   h_dex_cache,
+                                                   h_class_loader);
+  } else {
+    // Fast path: Verifier already would've called ResolveFieldJLS and we wouldn't
+    // be executing here if there was a static/non-static mismatch.
+    resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
+  }
+
   if (UNLIKELY(resolved_field == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
