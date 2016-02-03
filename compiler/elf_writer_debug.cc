@@ -27,7 +27,6 @@
 #include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
-#include "dwarf/dedup_vector.h"
 #include "dwarf/expression.h"
 #include "dwarf/headers.h"
 #include "dwarf/method_debug_info.h"
@@ -497,9 +496,9 @@ class DebugInfoWriter {
       const uintptr_t cu_size = compilation_unit.high_pc_ - compilation_unit.low_pc_;
 
       info_.StartTag(DW_TAG_compile_unit);
-      info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
+      info_.WriteString(DW_AT_producer, "Android dex2oat");
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
-      info_.WriteStrp(DW_AT_comp_dir, owner_->WriteString("$JAVA_SRC_ROOT"));
+      info_.WriteString(DW_AT_comp_dir, "$JAVA_SRC_ROOT");
       info_.WriteAddr(DW_AT_low_pc, text_address + compilation_unit.low_pc_);
       info_.WriteUdata(DW_AT_high_pc, dchecked_integral_cast<uint32_t>(cu_size));
       info_.WriteSecOffset(DW_AT_stmt_list, compilation_unit.debug_line_offset_);
@@ -630,7 +629,7 @@ class DebugInfoWriter {
 
     void Write(const ArrayRef<mirror::Class*>& types) SHARED_REQUIRES(Locks::mutator_lock_) {
       info_.StartTag(DW_TAG_compile_unit);
-      info_.WriteStrp(DW_AT_producer, owner_->WriteString("Android dex2oat"));
+      info_.WriteString(DW_AT_producer, "Android dex2oat");
       info_.WriteData1(DW_AT_language, DW_LANG_Java);
 
       // Base class references to be patched at the end.
@@ -968,7 +967,7 @@ class DebugInfoWriter {
    private:
     void WriteName(const char* name) {
       if (name != nullptr) {
-        info_.WriteStrp(DW_AT_name, owner_->WriteString(name));
+        info_.WriteString(DW_AT_name, name);
       }
     }
 
@@ -1154,21 +1153,15 @@ class DebugInfoWriter {
     builder_->WritePatches(".debug_info.oat_patches",
                            ArrayRef<const uintptr_t>(debug_info_patches_));
     builder_->WriteSection(".debug_abbrev", &debug_abbrev_buffer_);
-    builder_->WriteSection(".debug_str", &debug_str_.Data());
     builder_->WriteSection(".debug_loc", &debug_loc_);
     builder_->WriteSection(".debug_ranges", &debug_ranges_);
   }
 
  private:
-  size_t WriteString(const char* str) {
-    return debug_str_.Insert(reinterpret_cast<const uint8_t*>(str), strlen(str) + 1);
-  }
-
   ElfBuilder<ElfTypes>* builder_;
   std::vector<uintptr_t> debug_info_patches_;
   std::vector<uint8_t> debug_abbrev_buffer_;
   DebugAbbrevWriter<> debug_abbrev_;
-  DedupVector debug_str_;
   std::vector<uint8_t> debug_loc_;
   std::vector<uint8_t> debug_ranges_;
 
