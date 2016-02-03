@@ -444,7 +444,6 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-
   bool IsArrayClass() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -489,9 +488,11 @@ class MANAGED Class FINAL : public Object {
     return !IsPrimitive() && !IsInterface() && !IsAbstract() && !IsArrayClass();
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsInstantiable() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (!IsPrimitive() && !IsInterface() && !IsAbstract()) ||
-        (IsAbstract() && IsArrayClass());
+        (IsAbstract() && IsArrayClass<kVerifyFlags, kReadBarrierOption>());
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -810,8 +811,10 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(sizeof(Class));
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool ShouldHaveEmbeddedImtAndVTable() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return IsInstantiable();
+    return IsInstantiable<kVerifyFlags, kReadBarrierOption>();
   }
 
   bool HasVTable() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -820,9 +823,13 @@ class MANAGED Class FINAL : public Object {
 
   static MemberOffset EmbeddedVTableEntryOffset(uint32_t i, size_t pointer_size);
 
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ArtMethod* GetEmbeddedImTableEntry(uint32_t i, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   void SetEmbeddedImTableEntry(uint32_t i, ArtMethod* method, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1015,6 +1022,8 @@ class MANAGED Class FINAL : public Object {
   }
 
   // Get the offset of the first reference static field. Other reference static fields follow.
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   MemberOffset GetFirstReferenceStaticFieldOffset(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1238,7 +1247,9 @@ class MANAGED Class FINAL : public Object {
   // the corresponding entry in dest if visitor(obj) != obj to prevent dirty memory. Dest should be
   // initialized to a copy of *this to prevent issues. Does not visit the ArtMethod and ArtField
   // roots.
-  template <typename Visitor>
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            typename Visitor>
   void FixupNativePointers(mirror::Class* dest, size_t pointer_size, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
