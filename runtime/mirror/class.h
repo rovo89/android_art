@@ -287,14 +287,19 @@ class MANAGED Class FINAL : public Object {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
-  // Returns true if the class can avoid access checks.
-  bool IsPreverified() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetAccessFlags() & kAccPreverified) != 0;
+  // Returns true if the class had run the verifier at least once.
+  // This does not necessarily mean that access checks are avoidable,
+  // since the class methods might still need to be run with access checks.
+  // If this bit returns false, then the methods are not to be trusted with skipping access checks.
+  bool WasVerificationAttempted() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccSkipAccessChecks) != 0;
   }
 
-  void SetPreverified() SHARED_REQUIRES(Locks::mutator_lock_) {
+  // Mark the class as having gone through a verification attempt.
+  // Mutually exclusive from whether or not each method is allowed to skip access checks.
+  void SetVerificationAttempted() SHARED_REQUIRES(Locks::mutator_lock_) {
     uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
-    SetAccessFlags(flags | kAccPreverified);
+    SetAccessFlags(flags | kAccVerificationAttempted);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -1127,8 +1132,8 @@ class MANAGED Class FINAL : public Object {
   void VisitNativeRoots(Visitor& visitor, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // When class is verified, set the kAccPreverified flag on each method.
-  void SetPreverifiedFlagOnAllMethods(size_t pointer_size)
+  // When class is verified, set the kAccSkipAccessChecks flag on each method.
+  void SetSkipAccessChecksFlagOnAllMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the descriptor of the class. In a few cases a std::string is required, rather than

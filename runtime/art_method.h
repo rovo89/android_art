@@ -173,13 +173,13 @@ class ArtMethod FINAL {
 
   bool IsProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool IsPreverified() {
-    return (GetAccessFlags() & kAccPreverified) != 0;
+  bool SkipAccessChecks() {
+    return (GetAccessFlags() & kAccSkipAccessChecks) != 0;
   }
 
-  void SetPreverified() {
-    DCHECK(!IsPreverified());
-    SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  void SetSkipAccessChecks() {
+    DCHECK(!SkipAccessChecks());
+    SetAccessFlags(GetAccessFlags() | kAccSkipAccessChecks);
   }
 
   // Returns true if this method could be overridden by a default method.

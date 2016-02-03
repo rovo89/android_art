@@ -302,12 +302,7 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
-  135-MirandaDispatch \
-  137-cfi \
-  412-new-array \
-  471-uninitialized-locals \
-  506-verify-aput \
-  800-smali
+  137-cfi
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \

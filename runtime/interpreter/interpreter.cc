@@ -311,7 +311,7 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
   shadow_frame.GetMethod()->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
   bool transaction_active = Runtime::Current()->IsActiveTransaction();
-  if (LIKELY(shadow_frame.GetMethod()->IsPreverified())) {
+  if (LIKELY(shadow_frame.GetMethod()->SkipAccessChecks())) {
     // Enter the "without access check" interpreter.
     if (kInterpreterImplKind == kMterpImplKind) {
       if (transaction_active) {

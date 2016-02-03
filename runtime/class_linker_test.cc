@@ -1126,14 +1126,14 @@ TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
 static void CheckMethod(ArtMethod* method, bool verified)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (!method->IsNative() && !method->IsAbstract()) {
-    EXPECT_EQ((method->GetAccessFlags() & kAccPreverified) != 0U, verified)
+    EXPECT_EQ((method->GetAccessFlags() & kAccSkipAccessChecks) != 0U, verified)
         << PrettyMethod(method, true);
   }
 }
 
-static void CheckPreverified(mirror::Class* c, bool preverified)
+static void CheckVerificationAttempted(mirror::Class* c, bool preverified)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  EXPECT_EQ((c->GetAccessFlags() & kAccPreverified) != 0U, preverified)
+  EXPECT_EQ((c->GetAccessFlags() & kAccVerificationAttempted) != 0U, preverified)
       << "Class " << PrettyClass(c) << " not as expected";
   for (auto& m : c->GetMethods(sizeof(void*))) {
     CheckMethod(&m, preverified);
@@ -1147,7 +1147,7 @@ TEST_F(ClassLinkerTest, Preverified_InitializedBoot) {
   ASSERT_TRUE(JavaLangObject != nullptr);
   EXPECT_TRUE(JavaLangObject->IsInitialized()) << "Not testing already initialized class from the "
                                                   "core";
-  CheckPreverified(JavaLangObject, true);
+  CheckVerificationAttempted(JavaLangObject, true);
 }
 
 TEST_F(ClassLinkerTest, Preverified_UninitializedBoot) {
@@ -1160,10 +1160,10 @@ TEST_F(ClassLinkerTest, Preverified_UninitializedBoot) {
   EXPECT_FALSE(security_manager->IsInitialized()) << "Not testing uninitialized class from the "
                                                      "core";
 
-  CheckPreverified(security_manager.Get(), false);
+  CheckVerificationAttempted(security_manager.Get(), false);
 
   class_linker_->EnsureInitialized(soa.Self(), security_manager, true, true);
-  CheckPreverified(security_manager.Get(), true);
+  CheckVerificationAttempted(security_manager.Get(), true);
 }
 
 TEST_F(ClassLinkerTest, Preverified_App) {
@@ -1175,10 +1175,10 @@ TEST_F(ClassLinkerTest, Preverified_App) {
   Handle<mirror::Class> statics(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
 
-  CheckPreverified(statics.Get(), false);
+  CheckVerificationAttempted(statics.Get(), false);
 
   class_linker_->EnsureInitialized(soa.Self(), statics, true, true);
-  CheckPreverified(statics.Get(), true);
+  CheckVerificationAttempted(statics.Get(), true);
 }
 
 TEST_F(ClassLinkerTest, IsBootStrapClassLoaded) {
