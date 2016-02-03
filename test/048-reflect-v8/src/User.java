@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+// Stored as a complex annotation Calendars(Calendar,Calendar)
+// in the binary.
+//
+/* FIXME: Use this code instead, when Jack supports repeatable annotations properly.
+ *
+ * @Calendar(dayOfMonth="last")
+ * @Calendar(dayOfWeek="Fri", hour=23)
+ */
+@Calendars ({
+  @Calendar(dayOfMonth="last"),
+  @Calendar(dayOfWeek="Fri", hour=23)
+})
+public class User {
+
 }

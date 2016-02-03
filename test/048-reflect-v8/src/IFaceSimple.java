@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+// Simple annotation, no container.
+@Calendar(dayOfMonth="if_simple_first")
+public interface IFaceSimple {
+
 }

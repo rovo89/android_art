@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+// Stored as a complex annotation Calendars(Calendar,Calendar,Calendar)
+// in the binary.
+// (Check for order, should be z,x,y)
+@Calendars ({
+  @Calendar(dayOfMonth="z"),
+  @Calendar(dayOfMonth="x"),
+  @Calendar(dayOfMonth="y")
+})
+public class User2 {
+
 }

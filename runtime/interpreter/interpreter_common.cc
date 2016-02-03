@@ -637,17 +637,25 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         self, new_shadow_frame, StackedShadowFrameType::kShadowFrameUnderConstruction);
     self->EndAssertNoThreadSuspension(old_cause);
 
+    // ArtMethod here is needed to check type information of the call site against the callee.
+    // Type information is retrieved from a DexFile/DexCache for that respective declared method.
+    //
+    // As a special case for proxy methods, which are not dex-backed,
+    // we have to retrieve type information from the proxy's method
+    // interface method instead (which is dex backed since proxies are never interfaces).
+    ArtMethod* method = new_shadow_frame->GetMethod()->GetInterfaceMethodIfProxy(sizeof(void*));
+
     // We need to do runtime check on reference assignment. We need to load the shorty
     // to get the exact type of each reference argument.
-    const DexFile::TypeList* params = new_shadow_frame->GetMethod()->GetParameterTypeList();
+    const DexFile::TypeList* params = method->GetParameterTypeList();
     uint32_t shorty_len = 0;
-    const char* shorty = new_shadow_frame->GetMethod()->GetShorty(&shorty_len);
+    const char* shorty = method->GetShorty(&shorty_len);
 
     // Handle receiver apart since it's not part of the shorty.
     size_t dest_reg = first_dest_reg;
     size_t arg_offset = 0;
 
-    if (!new_shadow_frame->GetMethod()->IsStatic()) {
+    if (!method->IsStatic()) {
       size_t receiver_reg = is_range ? vregC : arg[0];
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
       ++dest_reg;
@@ -667,7 +675,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
           if (do_assignability_check && o != nullptr) {
             size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
             Class* arg_type =
-                new_shadow_frame->GetMethod()->GetClassFromTypeIndex(
+                method->GetClassFromTypeIndex(
                     params->GetTypeItem(shorty_pos).type_idx_, true /* resolve */, pointer_size);
             if (arg_type == nullptr) {
               CHECK(self->IsExceptionPending());
