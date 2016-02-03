@@ -243,7 +243,7 @@ void Jit::DumpTypeInfoForLoadedTypes(ClassLinker* linker) {
       classes_.push_back(klass);
       return true;
     }
-    mutable std::vector<mirror::Class*> classes_;
+    std::vector<mirror::Class*> classes_;
   };
 
   if (generate_debug_info_) {
