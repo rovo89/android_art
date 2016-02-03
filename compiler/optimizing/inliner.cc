@@ -392,8 +392,8 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
       << invoke_instruction->DebugName();
   // This optimization only works under JIT for now.
   DCHECK(Runtime::Current()->UseJit());
-  if (graph_->GetInstructionSet() == kMips || graph_->GetInstructionSet() == kMips64) {
-    // TODO: Support HClassTableGet for mips and mips64.
+  if (graph_->GetInstructionSet() == kMips64) {
+    // TODO: Support HClassTableGet for mips64.
     return false;
   }
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
