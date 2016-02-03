@@ -5287,12 +5287,27 @@ void InstructionCodeGeneratorMIPS::VisitInvokeUnresolved(HInvokeUnresolved* invo
   codegen_->GenerateInvokeUnresolvedRuntimeCall(invoke);
 }
 
-void LocationsBuilderMIPS::VisitClassTableGet(HClassTableGet*) {
-  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips";
+void LocationsBuilderMIPS::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorMIPS::VisitClassTableGet(HClassTableGet*) {
-  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips";
+void InstructionCodeGeneratorMIPS::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  uint32_t method_offset = 0;
+  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+        instruction->GetIndex(), kMipsPointerSize).SizeValue();
+  } else {
+    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+        instruction->GetIndex() % mirror::Class::kImtSize, kMipsPointerSize).Uint32Value();
+  }
+  __ LoadFromOffset(kLoadWord,
+                    locations->Out().AsRegister<Register>(),
+                    locations->InAt(0).AsRegister<Register>(),
+                    method_offset);
 }
 
 #undef __
