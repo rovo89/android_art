@@ -317,7 +317,10 @@ Heap::Heap(size_t initial_size,
         // Remove already loaded spaces.
         for (space::Space* loaded_space : added_image_spaces) {
           RemoveSpace(loaded_space);
+          delete loaded_space;
         }
+        boot_image_spaces_.clear();
+        requested_alloc_space_begin = nullptr;
         break;
       }
     }
