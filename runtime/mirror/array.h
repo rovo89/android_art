@@ -183,7 +183,9 @@ class MANAGED PrimitiveArray : public Array {
 // Either an IntArray or a LongArray.
 class PointerArray : public Array {
  public:
-  template<typename T>
+  template<typename T,
+           VerifyObjectFlags kVerifyFlags = kVerifyNone,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   T GetElementPtrSize(uint32_t idx, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -196,7 +198,9 @@ class PointerArray : public Array {
 
   // Fixup the pointers in the dest arrays by passing our pointers through the visitor. Only copies
   // to dest if visitor(source_ptr) != source_ptr.
-  template <typename Visitor>
+  template <VerifyObjectFlags kVerifyFlags = kVerifyNone,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            typename Visitor>
   void Fixup(mirror::PointerArray* dest, size_t pointer_size, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 };

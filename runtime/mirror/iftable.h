@@ -43,8 +43,11 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
     return method_array;
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t GetMethodArrayCount(int32_t i) SHARED_REQUIRES(Locks::mutator_lock_) {
-    auto* method_array = down_cast<PointerArray*>(Get((i * kMax) + kMethodArray));
+    auto* method_array = down_cast<PointerArray*>(
+        Get<kVerifyFlags, kReadBarrierOption>((i * kMax) + kMethodArray));
     return method_array == nullptr ? 0u : method_array->GetLength();
   }
 
