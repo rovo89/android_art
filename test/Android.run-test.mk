@@ -302,7 +302,6 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
-  073-mismatched-field \
   135-MirandaDispatch \
   137-cfi \
   412-new-array \
