@@ -1067,6 +1067,14 @@ class Thread {
 
   void InitStringEntryPoints();
 
+  void ModifyDebugDisallowReadBarrier(int8_t delta) {
+    debug_disallow_read_barrier_ += delta;
+  }
+
+  uint8_t GetDebugDisallowReadBarrierCount() const {
+    return debug_disallow_read_barrier_;
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_);
@@ -1446,6 +1454,9 @@ class Thread {
   // Thread "interrupted" status; stays raised until queried or thrown.
   bool interrupted_ GUARDED_BY(wait_mutex_);
 
+  // Debug disable read barrier count, only is checked for debug builds and only in the runtime.
+  uint8_t debug_disallow_read_barrier_ = 0;
+
   friend class Dbg;  // For SetStateUnsafe.
   friend class gc::collector::SemiSpace;  // For getting stack traces.
   friend class Runtime;  // For CreatePeer.
@@ -1491,6 +1502,20 @@ class ScopedStackedShadowFramePusher {
   const StackedShadowFrameType type_;
 
   DISALLOW_COPY_AND_ASSIGN(ScopedStackedShadowFramePusher);
+};
+
+// Only works for debug builds.
+class ScopedDebugDisallowReadBarriers {
+ public:
+  explicit ScopedDebugDisallowReadBarriers(Thread* self) : self_(self) {
+    self_->ModifyDebugDisallowReadBarrier(1);
+  }
+  ~ScopedDebugDisallowReadBarriers() {
+    self_->ModifyDebugDisallowReadBarrier(-1);
+  }
+
+ private:
+  Thread* const self_;
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
