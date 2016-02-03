@@ -93,7 +93,7 @@ InductionVarRange::InductionVarRange(HInductionVarAnalysis* induction_analysis)
   DCHECK(induction_analysis != nullptr);
 }
 
-void InductionVarRange::GetInductionRange(HInstruction* context,
+bool InductionVarRange::GetInductionRange(HInstruction* context,
                                           HInstruction* instruction,
                                           /*out*/Value* min_val,
                                           /*out*/Value* max_val,
@@ -111,12 +111,9 @@ void InductionVarRange::GetInductionRange(HInstruction* context,
     *min_val = GetVal(info, trip, in_body, /* is_min */ true);
     *max_val = SimplifyMax(GetVal(info, trip, in_body, /* is_min */ false));
     *needs_finite_test = NeedsTripCount(info) && IsUnsafeTripCount(trip);
-  } else {
-    // No loop to analyze.
-    *min_val = Value();
-    *max_val = Value();
-    *needs_finite_test = false;
+    return true;
   }
+  return false;  // Nothing known
 }
 
 bool InductionVarRange::RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) const {
