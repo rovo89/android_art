@@ -925,7 +925,7 @@ class FixupArtMethodVisitor : public FixupVisitor, public ArtMethodVisitor {
     if (fixup_heap_objects_) {
       method->UpdateObjectsForImageRelocation(ForwardObjectAdapter(this));
     }
-    method->UpdateEntrypoints(ForwardCodeAdapter(this));
+    method->UpdateEntrypoints<kWithoutReadBarrier>(ForwardCodeAdapter(this));
   }
 
  private:
