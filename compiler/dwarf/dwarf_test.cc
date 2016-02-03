@@ -283,7 +283,8 @@ TEST_F(DwarfTest, DebugLineSpecialOpcodes) {
 
 TEST_F(DwarfTest, DebugInfo) {
   constexpr bool is64bit = false;
-  DebugInfoEntryWriter<> info(is64bit, &debug_abbrev_data_);
+  DebugAbbrevWriter<> debug_abbrev(&debug_abbrev_data_);
+  DebugInfoEntryWriter<> info(is64bit, &debug_abbrev);
   DW_CHECK("Contents of the .debug_info section:");
   info.StartTag(dwarf::DW_TAG_compile_unit);
   DW_CHECK("Abbrev Number: 1 (DW_TAG_compile_unit)");
