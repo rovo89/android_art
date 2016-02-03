@@ -210,11 +210,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
                                                klass->GetDescriptor(&temp2)));
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
-      if (klass->NumDirectMethods() == 1) {
-        EXPECT_TRUE(klass->GetDirectMethod(0, sizeof(void*))->IsClassInitializer());
-        EXPECT_TRUE(klass->GetDirectMethod(0, sizeof(void*))->IsDirect());
-      } else {
-        EXPECT_EQ(0U, klass->NumDirectMethods());
+      // Check that all direct methods are static (either <clinit> or a regular static method).
+      for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
+        EXPECT_TRUE(m.IsStatic());
+        EXPECT_TRUE(m.IsDirect());
       }
     } else {
       if (!klass->IsSynthetic()) {
