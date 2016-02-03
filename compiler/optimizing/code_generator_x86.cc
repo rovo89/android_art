@@ -2688,6 +2688,8 @@ void LocationsBuilderX86::VisitAdd(HAdd* add) {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
         DCHECK(add->InputAt(1)->IsEmittedAtUseSite());
+      } else if (add->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::RequiresFpuRegister());
       } else {
         locations->SetInAt(1, Location::Any());
       }
@@ -2804,6 +2806,8 @@ void LocationsBuilderX86::VisitSub(HSub* sub) {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
         DCHECK(sub->InputAt(1)->IsEmittedAtUseSite());
+      } else if (sub->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::RequiresFpuRegister());
       } else {
         locations->SetInAt(1, Location::Any());
       }
@@ -2918,6 +2922,8 @@ void LocationsBuilderX86::VisitMul(HMul* mul) {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
         DCHECK(mul->InputAt(1)->IsEmittedAtUseSite());
+      } else if (mul->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::RequiresFpuRegister());
       } else {
         locations->SetInAt(1, Location::Any());
       }
@@ -3415,6 +3421,8 @@ void LocationsBuilderX86::VisitDiv(HDiv* div) {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
         DCHECK(div->InputAt(1)->IsEmittedAtUseSite());
+      } else if (div->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::RequiresFpuRegister());
       } else {
         locations->SetInAt(1, Location::Any());
       }
