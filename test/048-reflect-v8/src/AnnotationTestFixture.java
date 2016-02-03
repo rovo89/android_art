@@ -14,14 +14,35 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
+public class AnnotationTestFixture {
+
+  @Calendar(dayOfWeek="single", hour=23)
+  public static void singleUser() {
+
+  }
+  @Calendars ({
+    @Calendar(dayOfMonth="last"),
+    @Calendar(dayOfWeek="Fri", hour=23)
+  })
+  public static void user() {
+
+  }
+
+  @Calendars ({
+    @Calendar(dayOfMonth="z"),
+    @Calendar(dayOfMonth="x"),
+    @Calendar(dayOfMonth="y")
+  })
+  public static void user2() {
+
+  }
+
+  @Calendar(dayOfMonth="afirst")
+  @Calendars ({
+    @Calendar(dayOfMonth="zsecond"),
+    @Calendar(dayOfMonth="athird", hour=23)
+  })
+  public static void userComplex() {
+
   }
 }

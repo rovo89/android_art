@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+// Stored as a complex annotation Calendars(Calendar,Calendar)
+// in the binary.
+@Calendars ({
+  @Calendar(dayOfMonth="if_a_first"),
+  @Calendar(dayOfMonth="if_b_last")
+})
+public interface IFaceA {
 }

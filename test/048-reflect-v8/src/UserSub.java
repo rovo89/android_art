@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
-    IsDefaultTest.test();
-    AnnotationTest.testAnnotationsByType();
-    AnnotationTest.testDeclaredAnnotation();
-    AnnotationTest.testDeclaredAnnotationsByType();
-    AnnotationTest.testMethodAnnotationsByType();
-    AnnotationTest.testMethodDeclaredAnnotations();
-    AnnotationTest.testMethodDeclaredAnnotationsByType();
-  }
+public class UserSub
+  extends User
+  implements IFaceA, IFaceSimple {
+
 }

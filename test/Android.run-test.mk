@@ -302,17 +302,12 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
-  004-JniTest \
-  005-annotations \
-  044-proxy \
   073-mismatched-field \
-  088-monitor-verification \
   135-MirandaDispatch \
   137-cfi \
   412-new-array \
   471-uninitialized-locals \
   506-verify-aput \
-  554-jit-profile-file \
   800-smali
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
