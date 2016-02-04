@@ -271,7 +271,7 @@ Heap::Heap(size_t initial_size,
     // The loaded spaces. Secondary images may fail to load, in which case we need to remove
     // already added spaces.
     std::vector<space::Space*> added_image_spaces;
-
+    uint8_t* const original_requested_alloc_space_begin = requested_alloc_space_begin;
     for (size_t index = 0; index < image_file_names.size(); ++index) {
       std::string& image_name = image_file_names[index];
       ATRACE_BEGIN("ImageSpace::Create");
@@ -320,7 +320,7 @@ Heap::Heap(size_t initial_size,
           delete loaded_space;
         }
         boot_image_spaces_.clear();
-        requested_alloc_space_begin = nullptr;
+        requested_alloc_space_begin = original_requested_alloc_space_begin;
         break;
       }
     }
