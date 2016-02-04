@@ -277,6 +277,8 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .WithType<ExperimentalFlags>()
           .AppendValues()
           .IntoKey(M::Experimental)
+      .Define("-Xforce-nb-testing")
+          .IntoKey(M::ForceNativeBridge)
       .Ignore({
           "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
           "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",

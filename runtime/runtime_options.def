@@ -92,6 +92,7 @@ RUNTIME_OPTIONS_KEY (BackgroundGcOption,  BackgroundGc)
 
 RUNTIME_OPTIONS_KEY (Unit,                DisableExplicitGC)
 RUNTIME_OPTIONS_KEY (Unit,                NoSigChain)
+RUNTIME_OPTIONS_KEY (Unit,                ForceNativeBridge)
 RUNTIME_OPTIONS_KEY (LogVerbosity,        Verbose)
 RUNTIME_OPTIONS_KEY (unsigned int,        LockProfThreshold)
 RUNTIME_OPTIONS_KEY (std::string,         StackTraceFile)
