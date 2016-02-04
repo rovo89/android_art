@@ -41,7 +41,8 @@
   result: EXEC_FAILED,
   modes: [device],
   names: ["libcore.icu.RelativeDateTimeFormatterTest#test_bug25821045",
-          "libcore.java.text.SimpleDateFormatTest#testLocales"],
+          "libcore.java.text.SimpleDateFormatTest#testLocales",
+          "libcore.java.util.zip.ZipFileTest#testZipFileWithLotsOfEntries"],
   bug: 26711853
 }
 ]
