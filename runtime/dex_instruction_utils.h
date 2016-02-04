@@ -49,6 +49,16 @@ std::ostream& operator<<(std::ostream& os, const DexMemAccessType& type);
 
 // NOTE: The following functions disregard quickened instructions.
 
+// By "direct" const we mean to exclude const-string and const-class
+// which load data from somewhere else, i.e. indirectly.
+constexpr bool IsInstructionDirectConst(Instruction::Code opcode) {
+  return Instruction::CONST_4 <= opcode && opcode <= Instruction::CONST_WIDE_HIGH16;
+}
+
+constexpr bool IsInstructionConstWide(Instruction::Code opcode) {
+  return Instruction::CONST_WIDE_16 <= opcode && opcode <= Instruction::CONST_WIDE_HIGH16;
+}
+
 constexpr bool IsInstructionReturn(Instruction::Code opcode) {
   return Instruction::RETURN_VOID <= opcode && opcode <= Instruction::RETURN_OBJECT;
 }

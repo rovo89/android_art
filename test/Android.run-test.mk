@@ -235,6 +235,18 @@ ifdef dist_goal
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
+# 569-checker-pattern-replacement tests behaviour present only on host.
+TEST_ART_BROKEN_TARGET_TESTS := \
+  569-checker-pattern-replacement
+
+ifneq (,$(filter target,$(TARGET_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_TARGET_TESTS), $(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_TARGET_TESTS :=
+
 # Tests that require python3.
 TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS := \
   960-default-smali \

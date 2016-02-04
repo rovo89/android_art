@@ -875,6 +875,7 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       move_result = mir_graph->FindMoveResult(bb, invoke);
       result = GenInlineIPut(mir_graph, bb, invoke, move_result, method);
       break;
+    case kInlineOpConstructor:
     case kInlineStringInit:
       return false;
     default:
