@@ -70,6 +70,26 @@ public class Main {
     return acc;
   }
 
+  /**
+   * An artificial example with an inconsistent phi structure during
+   * dynamic bce that is corrected afterwards. Note that only the last
+   * assignment is really live, but the other statements set up an
+   * interesting phi structure.
+   */
+  private static int doit(int[] z) {
+    int a = 0;
+    for (int i = 0; i < 10; ++i) {
+      for (int j = i; j < 10; ++j) {
+        a = z[i];
+        for (int k = 0; k < 10; ++k) {
+          a += z[k];
+          a = z[i];
+        }
+      }
+    }
+    return a;
+  }
+
   public static void main(String args[]) {
     int[][] x = new int[2][2];
     int y;
@@ -95,6 +115,9 @@ public class Main {
     expectEquals(16, foo(a, b,  1));
     expectEquals(26, foo(a, b,  2));
     expectEquals(38, foo(a, b,  3));
+
+    int[] z = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    expectEquals(10, doit(z));
 
     System.out.println("passed");
   }
