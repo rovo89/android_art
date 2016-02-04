@@ -283,11 +283,13 @@ class LinkerPatch {
     static_assert(sizeof(element_offset_) == sizeof(cmp1_), "needed by relational operators");
   };
   union {
-    uint32_t cmp2_;             // Used for relational operators.
+    // Note: To avoid uninitialized padding on 64-bit systems, we use `size_t` for `cmp2_`.
+    // This allows a hashing function to treat an array of linker patches as raw memory.
+    size_t cmp2_;             // Used for relational operators.
     // Literal offset of the insn loading PC (same as literal_offset if it's the same insn,
     // may be different if the PC-relative addressing needs multiple insns).
     uint32_t pc_insn_offset_;
-    static_assert(sizeof(pc_insn_offset_) == sizeof(cmp2_), "needed by relational operators");
+    static_assert(sizeof(pc_insn_offset_) <= sizeof(cmp2_), "needed by relational operators");
   };
 
   friend bool operator==(const LinkerPatch& lhs, const LinkerPatch& rhs);
