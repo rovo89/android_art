@@ -42,14 +42,16 @@ static constexpr uint32_t kAccEnum =         0x4000;  // class, field, ic (1.5)
 
 static constexpr uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources (low 16)
 
-static constexpr uint32_t kAccConstructor =          0x00010000;  // method (dex only) <(cl)init>
-static constexpr uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (dex only)
-static constexpr uint32_t kAccClassIsProxy =         0x00040000;  // class  (dex only)
-static constexpr uint32_t kAccPreverified =          0x00080000;  // class (runtime),
-                                                                  // method (dex only)
-static constexpr uint32_t kAccFastNative =           0x00080000;  // method (dex only)
-static constexpr uint32_t kAccMiranda =              0x00200000;  // method (dex only)
-static constexpr uint32_t kAccDefault =              0x00400000;  // method (runtime)
+static constexpr uint32_t kAccConstructor =           0x00010000;  // method (dex only) <(cl)init>
+static constexpr uint32_t kAccDeclaredSynchronized =  0x00020000;  // method (dex only)
+static constexpr uint32_t kAccClassIsProxy =          0x00040000;  // class  (dex only)
+// Used by a method to denote that its execution does not need to go through slow path interpreter.
+static constexpr uint32_t kAccSkipAccessChecks =      0x00080000;  // method (dex only)
+// Used by a class to denote that the verifier has attempted to check it at least once.
+static constexpr uint32_t kAccVerificationAttempted = 0x00080000;  // class (runtime)
+static constexpr uint32_t kAccFastNative =            0x00080000;  // method (dex only)
+static constexpr uint32_t kAccMiranda =               0x00200000;  // method (dex only)
+static constexpr uint32_t kAccDefault =               0x00400000;  // method (runtime)
 // This is set by the class linker during LinkInterfaceMethods. Prior to that point we do not know
 // if any particular method needs to be a default conflict. Used to figure out at runtime if
 // invoking this method will throw an exception.

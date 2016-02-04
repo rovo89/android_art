@@ -2306,9 +2306,9 @@ class SetVerifiedClassVisitor : public CompilationVisitor {
           mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, soa.Self());
           // Mark methods as pre-verified. If we don't do this, the interpreter will run with
           // access checks.
-          klass->SetPreverifiedFlagOnAllMethods(
+          klass->SetSkipAccessChecksFlagOnAllMethods(
               GetInstructionSetPointerSize(manager_->GetCompiler()->GetInstructionSet()));
-          klass->SetPreverified();
+          klass->SetVerificationAttempted();
         }
         // Record the final class status if necessary.
         ClassReference ref(manager_->GetDexFile(), class_def_index);

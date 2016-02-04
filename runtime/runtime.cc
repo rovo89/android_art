@@ -1914,7 +1914,8 @@ void Runtime::SetImtUnimplementedMethod(ArtMethod* method) {
 }
 
 bool Runtime::IsVerificationEnabled() const {
-  return verify_ == verifier::VerifyMode::kEnable;
+  return verify_ == verifier::VerifyMode::kEnable ||
+      verify_ == verifier::VerifyMode::kSoftFail;
 }
 
 bool Runtime::IsVerificationSoftFail() const {
