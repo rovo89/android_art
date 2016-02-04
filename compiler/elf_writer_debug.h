@@ -33,7 +33,8 @@ struct MethodDebugInfo;
 template <typename ElfTypes>
 void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
-                    CFIFormat cfi_format);
+                    CFIFormat cfi_format,
+                    bool write_oat_patches);
 
 template <typename ElfTypes>
 void WriteMiniDebugInfo(ElfBuilder<ElfTypes>* builder,
