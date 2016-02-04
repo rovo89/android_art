@@ -110,18 +110,27 @@ class ElfBuilder FINAL {
       CHECK(sections.empty() || sections.back()->finished_);
       // The first ELF section index is 1. Index 0 is reserved for NULL.
       section_index_ = sections.size() + 1;
-      // Push this section on the list of written sections.
-      sections.push_back(this);
+      // Page-align if we switch between allocated and non-allocated sections,
+      // or if we change the type of allocation (e.g. executable vs non-executable).
+      if (!sections.empty()) {
+        if (header_.sh_flags != sections.back()->header_.sh_flags) {
+          header_.sh_addralign = kPageSize;
+        }
+      }
       // Align file position.
       if (header_.sh_type != SHT_NOBITS) {
-        header_.sh_offset = RoundUp(owner_->stream_.Seek(0, kSeekCurrent), header_.sh_addralign);
-        owner_->stream_.Seek(header_.sh_offset, kSeekSet);
+        header_.sh_offset = owner_->AlignFileOffset(header_.sh_addralign);
+      } else {
+        header_.sh_offset = 0;
       }
       // Align virtual memory address.
       if ((header_.sh_flags & SHF_ALLOC) != 0) {
-        header_.sh_addr = RoundUp(owner_->virtual_address_, header_.sh_addralign);
-        owner_->virtual_address_ = header_.sh_addr;
+        header_.sh_addr = owner_->AlignVirtualAddress(header_.sh_addralign);
+      } else {
+        header_.sh_addr = 0;
       }
+      // Push this section on the list of written sections.
+      sections.push_back(this);
     }
 
     // Finish writing of this section.
@@ -170,8 +179,8 @@ class ElfBuilder FINAL {
     // and it will be zero-initialized when the ELF file is loaded in the running program.
     void WriteNoBitsSection(Elf_Word size) {
       DCHECK_NE(header_.sh_flags & SHF_ALLOC, 0u);
-      Start();
       header_.sh_type = SHT_NOBITS;
+      Start();
       header_.sh_size = size;
       End();
     }
@@ -293,12 +302,13 @@ class ElfBuilder FINAL {
         dynamic_(this, ".dynamic", SHT_DYNAMIC, SHF_ALLOC, &dynstr_, 0, kPageSize, sizeof(Elf_Dyn)),
         eh_frame_(this, ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
         eh_frame_hdr_(this, ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0),
-        strtab_(this, ".strtab", 0, kPageSize),
+        strtab_(this, ".strtab", 0, 1),
         symtab_(this, ".symtab", SHT_SYMTAB, 0, &strtab_),
         debug_frame_(this, ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, sizeof(Elf_Addr), 0),
         debug_info_(this, ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
         debug_line_(this, ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0),
         shstrtab_(this, ".shstrtab", 0, 1),
+        started_(false),
         virtual_address_(0) {
     text_.phdr_flags_ = PF_R | PF_X;
     bss_.phdr_flags_ = PF_R | PF_W;
@@ -357,16 +367,25 @@ class ElfBuilder FINAL {
     virtual_address_ = address;
   }
 
-  void Start() {
-    // Reserve space for ELF header and program headers.
-    // We do not know the number of headers until later, so
-    // it is easiest to just reserve a fixed amount of space.
-    int size = sizeof(Elf_Ehdr) + sizeof(Elf_Phdr) * kMaxProgramHeaders;
+  // Reserve space for ELF header and program headers.
+  // We do not know the number of headers until later, so
+  // it is easiest to just reserve a fixed amount of space.
+  // Program headers are required for loading by the linker.
+  // It is possible to omit them for ELF files used for debugging.
+  void Start(bool write_program_headers = true) {
+    int size = sizeof(Elf_Ehdr);
+    if (write_program_headers) {
+      size += sizeof(Elf_Phdr) * kMaxProgramHeaders;
+    }
     stream_.Seek(size, kSeekSet);
+    started_ = true;
     virtual_address_ += size;
+    write_program_headers_ = write_program_headers;
   }
 
   void End() {
+    DCHECK(started_);
+
     // Write section names and finish the section headers.
     shstrtab_.Start();
     shstrtab_.Write("");
@@ -386,8 +405,7 @@ class ElfBuilder FINAL {
       shdrs.push_back(section->header_);
     }
     Elf_Off section_headers_offset;
-    section_headers_offset = RoundUp(stream_.Seek(0, kSeekCurrent), sizeof(Elf_Off));
-    stream_.Seek(section_headers_offset, kSeekSet);
+    section_headers_offset = AlignFileOffset(sizeof(Elf_Off));
     stream_.WriteFully(shdrs.data(), shdrs.size() * sizeof(shdrs[0]));
 
     // Flush everything else before writing the program headers. This should prevent
@@ -395,14 +413,21 @@ class ElfBuilder FINAL {
     // and partially written data if we suddenly lose power, for example.
     stream_.Flush();
 
-    // Write the initial file headers.
-    std::vector<Elf_Phdr> phdrs = MakeProgramHeaders();
+    // The main ELF header.
     Elf_Ehdr elf_header = MakeElfHeader(isa_);
-    elf_header.e_phoff = sizeof(Elf_Ehdr);
     elf_header.e_shoff = section_headers_offset;
-    elf_header.e_phnum = phdrs.size();
     elf_header.e_shnum = shdrs.size();
     elf_header.e_shstrndx = shstrtab_.GetSectionIndex();
+
+    // Program headers (i.e. mmap instructions).
+    std::vector<Elf_Phdr> phdrs;
+    if (write_program_headers_) {
+      phdrs = MakeProgramHeaders();
+      CHECK_LE(phdrs.size(), kMaxProgramHeaders);
+      elf_header.e_phoff = sizeof(Elf_Ehdr);
+      elf_header.e_phnum = phdrs.size();
+    }
+
     stream_.Seek(0, kSeekSet);
     stream_.WriteFully(&elf_header, sizeof(elf_header));
     stream_.WriteFully(phdrs.data(), phdrs.size() * sizeof(phdrs[0]));
@@ -490,6 +515,14 @@ class ElfBuilder FINAL {
   // Returns the builder's internal stream.
   OutputStream* GetStream() {
     return &stream_;
+  }
+
+  off_t AlignFileOffset(size_t alignment) {
+     return stream_.Seek(RoundUp(stream_.Seek(0, kSeekCurrent), alignment), kSeekSet);
+  }
+
+  Elf_Addr AlignVirtualAddress(size_t alignment) {
+     return virtual_address_ = RoundUp(virtual_address_, alignment);
   }
 
  private:
@@ -666,8 +699,12 @@ class ElfBuilder FINAL {
   // List of used section in the order in which they were written.
   std::vector<Section*> sections_;
 
+  bool started_;
+
   // Used for allocation of virtual address space.
   Elf_Addr virtual_address_;
+
+  size_t write_program_headers_;
 
   DISALLOW_COPY_AND_ASSIGN(ElfBuilder);
 };
