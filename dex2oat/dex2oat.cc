@@ -126,6 +126,11 @@ static std::string StrippedCommandLine() {
       continue;
     }
 
+    // The image format is dropped.
+    if (StartsWith(original_argv[i], "--image-format=")) {
+      continue;
+    }
+
     // This should leave any dex-file and oat-file options, describing what we compiled.
 
     // However, we prefer to drop this when we saw --zip-fd.
