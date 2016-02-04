@@ -37,7 +37,7 @@ public class Main {
 
   // Note: before the instruction_simplifier pass, Xor's are used instead of
   // Not's (the simplification happens during the same pass).
-  /// CHECK-START-ARM64: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (before)
+  /// CHECK-START: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<CstM1:i\d+>>       IntConstant -1
@@ -46,14 +46,14 @@ public class Main {
   /// CHECK:       <<And:i\d+>>         And [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<And>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (after)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<Or:i\d+>>          Or [<<P1>>,<<P2>>]
   /// CHECK:       <<Not:i\d+>>         Not [<<Or>>]
   /// CHECK:                            Return [<<Not>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (after)
   /// CHECK:                            Not
   /// CHECK-NOT:                        Not
   /// CHECK-NOT:                        And
@@ -69,7 +69,7 @@ public class Main {
 
   // See note above.
   // The second Xor has its arguments reversed for no obvious reason.
-  /// CHECK-START-ARM64: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (before)
+  /// CHECK-START: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (before)
   /// CHECK:       <<P1:j\d+>>          ParameterValue
   /// CHECK:       <<P2:j\d+>>          ParameterValue
   /// CHECK:       <<CstM1:j\d+>>       LongConstant -1
@@ -78,14 +78,14 @@ public class Main {
   /// CHECK:       <<Or:j\d+>>          Or [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<Or>>]
 
-  /// CHECK-START-ARM64: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (after)
+  /// CHECK-START: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (after)
   /// CHECK:       <<P1:j\d+>>          ParameterValue
   /// CHECK:       <<P2:j\d+>>          ParameterValue
   /// CHECK:       <<And:j\d+>>         And [<<P1>>,<<P2>>]
   /// CHECK:       <<Not:j\d+>>         Not [<<And>>]
   /// CHECK:                            Return [<<Not>>]
 
-  /// CHECK-START-ARM64: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (after)
+  /// CHECK-START: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (after)
   /// CHECK:                            Not
   /// CHECK-NOT:                        Not
   /// CHECK-NOT:                        Or
@@ -102,7 +102,7 @@ public class Main {
    * operation incorrectly.
    */
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (before)
+  /// CHECK-START: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK-DAG:   <<Cst1:i\d+>>        IntConstant 1
@@ -114,7 +114,7 @@ public class Main {
   /// CHECK:       <<Or:i\d+>>          Or [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<Or>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (after)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<Cst1:i\d+>>        IntConstant 1
@@ -124,7 +124,7 @@ public class Main {
   /// CHECK:       <<Not:i\d+>>         Not [<<And>>]
   /// CHECK:                            Return [<<Not>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (after)
   /// CHECK:                            Not
   /// CHECK-NOT:                        Not
   /// CHECK-NOT:                        Or
@@ -143,7 +143,7 @@ public class Main {
    */
 
   // See first note above.
-  /// CHECK-START-ARM64: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (before)
+  /// CHECK-START: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<CstM1:i\d+>>       IntConstant -1
@@ -152,13 +152,13 @@ public class Main {
   /// CHECK:       <<Xor:i\d+>>         Xor [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<Xor>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (after)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<Xor:i\d+>>         Xor [<<P1>>,<<P2>>]
   /// CHECK:                            Return [<<Xor>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (after)
   /// CHECK-NOT:                        Not
 
   public static int $opt$noinline$notXorToXor(int a, int b) {
@@ -170,7 +170,7 @@ public class Main {
    * Check that no transformation is done when one Not has multiple uses.
    */
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (before)
+  /// CHECK-START: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<CstM1:i\d+>>       IntConstant -1
@@ -182,7 +182,7 @@ public class Main {
   /// CHECK:       <<Add:i\d+>>         Add [<<And2>>,<<And1>>]
   /// CHECK:                            Return [<<Add>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (after)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
   /// CHECK:       <<One:i\d+>>         IntConstant 1
@@ -193,7 +193,7 @@ public class Main {
   /// CHECK:       <<Add:i\d+>>         Add [<<And2>>,<<And1>>]
   /// CHECK:                            Return [<<Add>>]
 
-  /// CHECK-START-ARM64: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (after)
+  /// CHECK-START: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (after)
   /// CHECK-NOT:                        Or
 
   public static int $opt$noinline$notMultipleUses(int a, int b) {
