@@ -3625,7 +3625,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
 
   // Don't attempt to re-verify if already sufficiently verified.
   if (klass->IsVerified()) {
-    EnsurePreverifiedMethods(klass);
+    EnsureSkipAccessChecksMethods(klass);
     return;
   }
   if (klass->IsCompileTimeVerified() && Runtime::Current()->IsAotCompiler()) {
@@ -3648,22 +3648,10 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
     mirror::Class::SetStatus(klass, mirror::Class::kStatusVerifyingAtRuntime, self);
   }
 
-  // Skip verification if we are forcing a soft fail.
-  // This has to be before the normal verification enabled check,
-  // since technically verification is disabled in this mode.
-  if (UNLIKELY(Runtime::Current()->IsVerificationSoftFail())) {
-    // Force verification to be a 'soft failure'.
-    mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
-    // As this is a fake verified status, make sure the methods are _not_ marked preverified
-    // later.
-    klass->SetPreverified();
-    return;
-  }
-
   // Skip verification if disabled.
   if (!Runtime::Current()->IsVerificationEnabled()) {
     mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
-    EnsurePreverifiedMethods(klass);
+    EnsureSkipAccessChecksMethods(klass);
     return;
   }
 
@@ -3766,9 +3754,9 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
         mirror::Class::SetStatus(klass, mirror::Class::kStatusRetryVerificationAtRuntime, self);
       } else {
         mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
-        // As this is a fake verified status, make sure the methods are _not_ marked preverified
-        // later.
-        klass->SetPreverified();
+        // As this is a fake verified status, make sure the methods are _not_ marked
+        // kAccSkipAccessChecks later.
+        klass->SetVerificationAttempted();
       }
     }
   } else {
@@ -3781,19 +3769,26 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   }
   if (preverified || verifier_failure == verifier::MethodVerifier::kNoFailure) {
     // Class is verified so we don't need to do any access check on its methods.
-    // Let the interpreter know it by setting the kAccPreverified flag onto each
+    // Let the interpreter know it by setting the kAccSkipAccessChecks flag onto each
     // method.
     // Note: we're going here during compilation and at runtime. When we set the
-    // kAccPreverified flag when compiling image classes, the flag is recorded
+    // kAccSkipAccessChecks flag when compiling image classes, the flag is recorded
     // in the image and is set when loading the image.
-    EnsurePreverifiedMethods(klass);
+
+    if (UNLIKELY(Runtime::Current()->IsVerificationSoftFail())) {
+      // Never skip access checks if the verification soft fail is forced.
+      // Mark the class as having a verification attempt to avoid re-running the verifier.
+      klass->SetVerificationAttempted();
+    } else {
+      EnsureSkipAccessChecksMethods(klass);
+    }
   }
 }
 
-void ClassLinker::EnsurePreverifiedMethods(Handle<mirror::Class> klass) {
-  if (!klass->IsPreverified()) {
-    klass->SetPreverifiedFlagOnAllMethods(image_pointer_size_);
-    klass->SetPreverified();
+void ClassLinker::EnsureSkipAccessChecksMethods(Handle<mirror::Class> klass) {
+  if (!klass->WasVerificationAttempted()) {
+    klass->SetSkipAccessChecksFlagOnAllMethods(image_pointer_size_);
+    klass->SetVerificationAttempted();
   }
 }
 
@@ -3824,7 +3819,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
   }
 
   // We may be running with a preopted oat file but without image. In this case,
-  // we don't skip verification of preverified classes to ensure we initialize
+  // we don't skip verification of skip_access_checks classes to ensure we initialize
   // dex caches with all types resolved during verification.
   // We need to trust image classes, as these might be coming out of a pre-opted, quickened boot
   // image (that we just failed loading), and the verifier can't be run on quickened opcodes when
@@ -3932,8 +3927,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   }
   DCHECK(klass->GetClass() != nullptr);
   klass->SetObjectSize(sizeof(mirror::Proxy));
-  // Set the class access flags incl. preverified, so we do not try to set the flag on the methods.
-  klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccPreverified);
+  // Set the class access flags incl. VerificationAttempted, so we do not try to set the flag on
+  // the methods.
+  klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
   klass->SetClassLoader(soa.Decode<mirror::ClassLoader*>(loader));
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetName(soa.Decode<mirror::String*>(name));
@@ -4742,7 +4738,7 @@ bool ClassLinker::EnsureInitialized(Thread* self, Handle<mirror::Class> c, bool 
                                     bool can_init_parents) {
   DCHECK(c.Get() != nullptr);
   if (c->IsInitialized()) {
-    EnsurePreverifiedMethods(c);
+    EnsureSkipAccessChecksMethods(c);
     return true;
   }
   const bool success = InitializeClass(self, c, can_init_fields, can_init_parents);
@@ -6437,11 +6433,11 @@ bool ClassLinker::LinkInterfaceMethods(
     for (ArtMethod* def_method : default_methods) {
       ArtMethod& new_method = *out;
       new_method.CopyFrom(def_method, image_pointer_size_);
-      // Clear the preverified flag if it is present. Since this class hasn't been verified yet it
-      // shouldn't have methods that are preverified.
+      // Clear the kAccSkipAccessChecks flag if it is present. Since this class hasn't been verified
+      // yet it shouldn't have methods that are skipping access checks.
       // TODO This is rather arbitrary. We should maybe support classes where only some of its
-      // methods are preverified.
-      new_method.SetAccessFlags((new_method.GetAccessFlags() | kAccDefault) & ~kAccPreverified);
+      // methods are skip_access_checks.
+      new_method.SetAccessFlags((new_method.GetAccessFlags() | kAccDefault) & ~kAccSkipAccessChecks);
       move_table.emplace(def_method, &new_method);
       ++out;
     }
@@ -6449,11 +6445,11 @@ bool ClassLinker::LinkInterfaceMethods(
       ArtMethod& new_method = *out;
       new_method.CopyFrom(conf_method, image_pointer_size_);
       // This is a type of default method (there are default method impls, just a conflict) so mark
-      // this as a default, non-abstract method, since thats what it is. Also clear the preverified
-      // bit since this class hasn't been verified yet it shouldn't have methods that are
-      // preverified.
+      // this as a default, non-abstract method, since thats what it is. Also clear the
+      // kAccSkipAccessChecks bit since this class hasn't been verified yet it shouldn't have
+      // methods that are skipping access checks.
       constexpr uint32_t kSetFlags = kAccDefault | kAccDefaultConflict;
-      constexpr uint32_t kMaskFlags = ~(kAccAbstract | kAccPreverified);
+      constexpr uint32_t kMaskFlags = ~(kAccAbstract | kAccSkipAccessChecks);
       new_method.SetAccessFlags((new_method.GetAccessFlags() | kSetFlags) & kMaskFlags);
       DCHECK(new_method.IsDefaultConflicting());
       // The actual method might or might not be marked abstract since we just copied it from a

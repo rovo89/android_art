@@ -800,11 +800,11 @@ ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece&
   return nullptr;
 }
 
-void Class::SetPreverifiedFlagOnAllMethods(size_t pointer_size) {
+void Class::SetSkipAccessChecksFlagOnAllMethods(size_t pointer_size) {
   DCHECK(IsVerified());
   for (auto& m : GetMethods(pointer_size)) {
     if (!m.IsNative() && m.IsInvokable()) {
-      m.SetPreverified();
+      m.SetSkipAccessChecks();
     }
   }
 }
