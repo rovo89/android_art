@@ -774,6 +774,9 @@ class Runtime {
   // building a statically link version of dex2oat.
   bool no_sig_chain_;
 
+  // Force the use of native bridge even if the app ISA matches the runtime ISA.
+  bool force_native_bridge_;
+
   // Whether or not a native bridge has been loaded.
   //
   // The native bridge allows running native code compiled for a foreign ISA. The way it works is,
