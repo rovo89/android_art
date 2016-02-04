@@ -459,10 +459,7 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
 # Known broken tests for the mips32 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
-    441-checker-inliner \
     510-checker-try-catch \
-    536-checker-intrinsic-optimization \
-    557-checker-instruction-simplifier-ror \
 
 ifeq (mips,$(TARGET_ARCH))
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
@@ -477,7 +474,6 @@ TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS :=
 
 # Known broken tests for the mips64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_MIPS64_RUN_TESTS := \
-    557-checker-instruction-simplifier-ror \
 
 ifeq (mips64,$(TARGET_ARCH))
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
