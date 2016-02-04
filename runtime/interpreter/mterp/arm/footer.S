@@ -124,6 +124,18 @@ MterpCheckSuspendAndContinue:
     GOTO_OPCODE ip                      @ jump to next instruction
 
 /*
+ * On-stack replacement pending.
+ * Branch offset in rINST on entry.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    mov r0, rSELF
+    add r1, rFP, #OFF_FP_SHADOWFRAME
+    mov r2, rINST
+    bl MterpLogOSR
+#endif
+    b MterpFallback                     @ Let the reference interpreter deal with it.
+/*
  * Bail out to reference interpreter.
  */
 MterpFallback:
