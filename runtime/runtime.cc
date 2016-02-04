@@ -602,9 +602,12 @@ bool Runtime::Start() {
     if (is_native_bridge_loaded_) {
       PreInitializeNativeBridge(".");
     }
+    NativeBridgeAction action = force_native_bridge_
+        ? NativeBridgeAction::kInitialize
+        : NativeBridgeAction::kUnload;
     InitNonZygoteOrPostFork(self->GetJniEnv(),
                             /* is_system_server */ false,
-                            NativeBridgeAction::kInitialize,
+                            action,
                             GetInstructionSetString(kRuntimeISA));
   }
 
@@ -939,6 +942,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   allow_dex_file_fallback_ = !runtime_options.Exists(Opt::NoDexFileFallback);
 
   no_sig_chain_ = runtime_options.Exists(Opt::NoSigChain);
+  force_native_bridge_ = runtime_options.Exists(Opt::ForceNativeBridge);
 
   Split(runtime_options.GetOrDefault(Opt::CpuAbiList), ',', &cpu_abilist_);
 
