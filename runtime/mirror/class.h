@@ -287,10 +287,9 @@ class MANAGED Class FINAL : public Object {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
-  // Returns true if the class had run the verifier at least once.
+  // Return whether the class had run the verifier at least once.
   // This does not necessarily mean that access checks are avoidable,
   // since the class methods might still need to be run with access checks.
-  // If this bit returns false, then the methods are not to be trusted with skipping access checks.
   bool WasVerificationAttempted() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccSkipAccessChecks) != 0;
   }
