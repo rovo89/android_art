@@ -85,8 +85,6 @@ unspecified registers or condition codes.
  */
 #include "asm_support.h"
 
-#define MTERP_PROFILE_BRANCHES 1
-
 /* During bringup, we'll use the shadow frame model instead of rFP */
 /* single-purpose registers, given names for clarity */
 #define rPC     r4

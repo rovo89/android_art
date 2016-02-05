@@ -124,19 +124,6 @@ check1:
     GOTO_OPCODE ip                      // jump to next instruction
 
 /*
- * On-stack replacement pending.
- * Branch offset in wINST on entry.
- */
-MterpOnStackReplacement:
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm x2, xINST, 0, 31
-    bl MterpLogOSR
-#endif
-    b MterpFallback                     // Let the reference interpreter deal with it.
-
-/*
  * Bail out to reference interpreter.
  */
 MterpFallback:

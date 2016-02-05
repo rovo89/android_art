@@ -30,17 +30,8 @@
     GET_VREG r1, r3                     @ r1<- vAA
     add     r0, rPC, r0, lsl #1         @ r0<- PC + BBBBbbbb*2
     bl      $func                       @ r0<- code-unit branch offset
-    mov     rINST, r0
-#if MTERP_PROFILE_BRANCHES
-    mov     r0, rSELF
-    add     r1, rFP, #OFF_FP_SHADOWFRAME
-    mov     r2, rINST
-    bl      MterpProfileBranch          @ (self, shadow_frame, offset)
-    cmp     r0, #0
-    bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-#endif
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    adds    r1, rINST, rINST            @ r1<- byte offset; clear V
+    adds    r1, r0, r0                  @ r1<- byte offset; clear V
     FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
     ble     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  @ extract opcode from rINST
