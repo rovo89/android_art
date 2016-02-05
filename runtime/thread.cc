@@ -3012,4 +3012,25 @@ size_t Thread::NumberOfHeldMutexes() const {
   return count;
 }
 
+
+void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
+  DCHECK_EQ(GetException(), Thread::GetDeoptimizationException());
+  ClearException();
+  ShadowFrame* shadow_frame =
+      PopStackedShadowFrame(StackedShadowFrameType::kDeoptimizationShadowFrame);
+  mirror::Throwable* pending_exception = nullptr;
+  bool from_code = false;
+  PopDeoptimizationContext(result, &pending_exception, &from_code);
+  CHECK(!from_code) << "Deoptimizing from code should be done with single frame deoptimization";
+  SetTopOfStack(nullptr);
+  SetTopOfShadowStack(shadow_frame);
+
+  // Restore the exception that was pending before deoptimization then interpret the
+  // deoptimized frames.
+  if (pending_exception != nullptr) {
+    SetException(pending_exception);
+  }
+  interpreter::EnterInterpreterFromDeoptimize(this, shadow_frame, from_code, result);
+}
+
 }  // namespace art
