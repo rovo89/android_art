@@ -284,6 +284,10 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
     return false;
   }
 
+  // Get the actual Java method if this method is from a proxy class. The compiler
+  // and the JIT code cache do not expect methods from proxy classes.
+  method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+
   // Cheap check if the method has been compiled already. That's an indicator that we should
   // osr into it.
   if (!jit->GetCodeCache()->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
