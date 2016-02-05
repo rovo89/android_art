@@ -133,13 +133,6 @@ enum FindFieldType {
   StaticPrimitiveWrite,
 };
 
-inline constexpr bool FindFieldTypeIsRead(FindFieldType type) {
-  return type == InstanceObjectRead ||
-         type == InstancePrimitiveRead ||
-         type == StaticObjectRead ||
-         type == StaticPrimitiveRead;
-}
-
 template<FindFieldType type, bool access_check>
 inline ArtField* FindFieldFromCode(
     uint32_t field_idx, ArtMethod* referrer, Thread* self, size_t expected_size)
