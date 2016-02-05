@@ -25,10 +25,12 @@
 #include "jit_code_cache.h"
 #include "jit_instrumentation.h"
 #include "oat_file_manager.h"
+#include "oat_quick_method_header.h"
 #include "offline_profiling_info.h"
 #include "profile_saver.h"
 #include "runtime.h"
 #include "runtime_options.h"
+#include "stack_map.h"
 #include "utils.h"
 
 namespace art {
@@ -43,6 +45,8 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheMaxCapacity);
   jit_options->compile_threshold_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
+  // TODO(ngeoffray): Make this a proper option.
+  jit_options->osr_threshold_ = jit_options->compile_threshold_ * 2;
   jit_options->warmup_threshold_ =
       options.GetOrDefault(RuntimeArgumentMap::JITWarmupThreshold);
   jit_options->dump_info_on_shutdown_ =
@@ -121,7 +125,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = "JIT couldn't find jit_unload entry point";
     return false;
   }
-  jit_compile_method_ = reinterpret_cast<bool (*)(void*, ArtMethod*, Thread*)>(
+  jit_compile_method_ = reinterpret_cast<bool (*)(void*, ArtMethod*, Thread*, bool)>(
       dlsym(jit_library_handle_, "jit_compile_method"));
   if (jit_compile_method_ == nullptr) {
     dlclose(jit_library_handle_);
@@ -156,7 +160,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
   return true;
 }
 
-bool Jit::CompileMethod(ArtMethod* method, Thread* self) {
+bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
   DCHECK(!method->IsRuntimeMethod());
   // Don't compile the method if it has breakpoints.
   if (Dbg::IsDebuggerActive() && Dbg::MethodHasAnyBreakpoints(method)) {
@@ -171,10 +175,11 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self) {
     return false;
   }
 
-  if (!code_cache_->NotifyCompilationOf(method, self)) {
+  if (!code_cache_->NotifyCompilationOf(method, self, osr)) {
+    VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to code cache";
     return false;
   }
-  bool success = jit_compile_method_(jit_compiler_handle_, method, self);
+  bool success = jit_compile_method_(jit_compiler_handle_, method, self, osr);
   code_cache_->DoneCompiling(method, self);
   return success;
 }
@@ -224,9 +229,11 @@ Jit::~Jit() {
   }
 }
 
-void Jit::CreateInstrumentationCache(size_t compile_threshold, size_t warmup_threshold) {
+void Jit::CreateInstrumentationCache(size_t compile_threshold,
+                                     size_t warmup_threshold,
+                                     size_t osr_threshold) {
   instrumentation_cache_.reset(
-      new jit::JitInstrumentationCache(compile_threshold, warmup_threshold));
+      new jit::JitInstrumentationCache(compile_threshold, warmup_threshold, osr_threshold));
 }
 
 void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
@@ -253,6 +260,121 @@ void Jit::DumpTypeInfoForLoadedTypes(ClassLinker* linker) {
     linker->VisitClasses(&visitor);
     jit_types_loaded_(jit_compiler_handle_, visitor.classes_.data(), visitor.classes_.size());
   }
+}
+
+extern "C" void art_quick_osr_stub(void** stack,
+                                   uint32_t stack_size_in_bytes,
+                                   const uint8_t* native_pc,
+                                   JValue* result,
+                                   const char* shorty,
+                                   Thread* self);
+
+bool Jit::MaybeDoOnStackReplacement(Thread* thread,
+                                    ArtMethod* method,
+                                    uint32_t dex_pc,
+                                    int32_t dex_pc_offset,
+                                    JValue* result) {
+  Jit* jit = Runtime::Current()->GetJit();
+  if (jit == nullptr) {
+    return false;
+  }
+
+  if (kRuntimeISA == kMips || kRuntimeISA == kMips64) {
+    VLOG(jit) << "OSR not supported on this platform";
+    return false;
+  }
+
+  // Cheap check if the method has been compiled already. That's an indicator that we should
+  // osr into it.
+  if (!jit->GetCodeCache()->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
+    return false;
+  }
+
+  const OatQuickMethodHeader* osr_method = jit->GetCodeCache()->LookupOsrMethodHeader(method);
+  if (osr_method == nullptr) {
+    // No osr method yet, just return to the interpreter.
+    return false;
+  }
+
+  const size_t number_of_vregs = method->GetCodeItem()->registers_size_;
+  CodeInfo code_info = osr_method->GetOptimizedCodeInfo();
+  StackMapEncoding encoding = code_info.ExtractEncoding();
+
+  // Find stack map starting at the target dex_pc.
+  StackMap stack_map = code_info.GetOsrStackMapForDexPc(dex_pc + dex_pc_offset, encoding);
+  if (!stack_map.IsValid()) {
+    // There is no OSR stack map for this dex pc offset. Just return to the interpreter in the
+    // hope that the next branch has one.
+    return false;
+  }
+
+  // We found a stack map, now fill the frame with dex register values from the interpreter's
+  // shadow frame.
+  DexRegisterMap vreg_map =
+      code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
+
+  ShadowFrame* shadow_frame = thread->PopShadowFrame();
+
+  size_t frame_size = osr_method->GetFrameSizeInBytes();
+  void** memory = reinterpret_cast<void**>(malloc(frame_size));
+  memset(memory, 0, frame_size);
+
+  // Art ABI: ArtMethod is at the bottom of the stack.
+  memory[0] = method;
+
+  if (!vreg_map.IsValid()) {
+    // If we don't have a dex register map, then there are no live dex registers at
+    // this dex pc.
+  } else {
+    for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
+      DexRegisterLocation::Kind location =
+          vreg_map.GetLocationKind(vreg, number_of_vregs, code_info, encoding);
+      if (location == DexRegisterLocation::Kind::kNone) {
+        // Dex register is dead or unitialized.
+        continue;
+      }
+
+      if (location == DexRegisterLocation::Kind::kConstant) {
+        // We skip constants because the compiled code knows how to handle them.
+        continue;
+      }
+
+      DCHECK(location == DexRegisterLocation::Kind::kInStack);
+
+      int32_t vreg_value = shadow_frame->GetVReg(vreg);
+      int32_t slot_offset = vreg_map.GetStackOffsetInBytes(vreg,
+                                                           number_of_vregs,
+                                                           code_info,
+                                                           encoding);
+      DCHECK_LT(slot_offset, static_cast<int32_t>(frame_size));
+      DCHECK_GT(slot_offset, 0);
+      (reinterpret_cast<int32_t*>(memory))[slot_offset / sizeof(int32_t)] = vreg_value;
+    }
+  }
+
+  const uint8_t* native_pc = stack_map.GetNativePcOffset(encoding) + osr_method->GetEntryPoint();
+  VLOG(jit) << "Jumping to "
+            << PrettyMethod(method)
+            << "@"
+            << std::hex << reinterpret_cast<uintptr_t>(native_pc);
+  {
+    ManagedStack fragment;
+    thread->PushManagedStackFragment(&fragment);
+    (*art_quick_osr_stub)(memory,
+                          frame_size,
+                          native_pc,
+                          result,
+                          method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(),
+                          thread);
+    if (UNLIKELY(thread->GetException() == Thread::GetDeoptimizationException())) {
+      thread->DeoptimizeWithDeoptimizationException(result);
+    }
+    thread->PopManagedStackFragment(fragment);
+  }
+  free(memory);
+  thread->PushShadowFrame(shadow_frame);
+  VLOG(jit) << "Done running OSR code for " << PrettyMethod(method);
+  return true;
 }
 
 }  // namespace jit

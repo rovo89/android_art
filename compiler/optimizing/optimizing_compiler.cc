@@ -300,7 +300,7 @@ class OptimizingCompiler FINAL : public Compiler {
     }
   }
 
-  bool JitCompile(Thread* self, jit::JitCodeCache* code_cache, ArtMethod* method)
+  bool JitCompile(Thread* self, jit::JitCodeCache* code_cache, ArtMethod* method, bool osr)
       OVERRIDE
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -309,7 +309,8 @@ class OptimizingCompiler FINAL : public Compiler {
   CompiledMethod* Emit(ArenaAllocator* arena,
                        CodeVectorAllocator* code_allocator,
                        CodeGenerator* codegen,
-                       CompilerDriver* driver) const;
+                       CompilerDriver* driver,
+                       const DexFile::CodeItem* item) const;
 
   // Try compiling a method and return the code generator used for
   // compiling it.
@@ -327,7 +328,8 @@ class OptimizingCompiler FINAL : public Compiler {
                             uint32_t method_idx,
                             jobject class_loader,
                             const DexFile& dex_file,
-                            Handle<mirror::DexCache> dex_cache) const;
+                            Handle<mirror::DexCache> dex_cache,
+                            bool osr) const;
 
   std::unique_ptr<OptimizingCompilerStats> compilation_stats_;
 
@@ -580,11 +582,12 @@ static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen)
 CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* arena,
                                          CodeVectorAllocator* code_allocator,
                                          CodeGenerator* codegen,
-                                         CompilerDriver* compiler_driver) const {
+                                         CompilerDriver* compiler_driver,
+                                         const DexFile::CodeItem* code_item) const {
   ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
   ArenaVector<uint8_t> stack_map(arena->Adapter(kArenaAllocStackMaps));
   stack_map.resize(codegen->ComputeStackMapsSize());
-  codegen->BuildStackMaps(MemoryRegion(stack_map.data(), stack_map.size()));
+  codegen->BuildStackMaps(MemoryRegion(stack_map.data(), stack_map.size()), *code_item);
 
   CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
@@ -615,7 +618,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                                               uint32_t method_idx,
                                               jobject class_loader,
                                               const DexFile& dex_file,
-                                              Handle<mirror::DexCache> dex_cache) const {
+                                              Handle<mirror::DexCache> dex_cache,
+                                              bool osr) const {
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
   InstructionSet instruction_set = compiler_driver->GetInstructionSet();
@@ -663,8 +667,14 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                                                      dex_compilation_unit.GetDexFile(),
                                                      dex_compilation_unit.GetClassDefIndex());
   HGraph* graph = new (arena) HGraph(
-      arena, dex_file, method_idx, requires_barrier, compiler_driver->GetInstructionSet(),
-      kInvalidInvokeType, compiler_driver->GetCompilerOptions().GetDebuggable());
+      arena,
+      dex_file,
+      method_idx,
+      requires_barrier,
+      compiler_driver->GetInstructionSet(),
+      kInvalidInvokeType,
+      compiler_driver->GetCompilerOptions().GetDebuggable(),
+      osr);
 
   std::unique_ptr<CodeGenerator> codegen(
       CodeGenerator::Create(graph,
@@ -797,10 +807,11 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                    method_idx,
                    jclass_loader,
                    dex_file,
-                   dex_cache));
+                   dex_cache,
+                   /* osr */ false));
     if (codegen.get() != nullptr) {
       MaybeRecordStat(MethodCompilationStat::kCompiled);
-      method = Emit(&arena, &code_allocator, codegen.get(), compiler_driver);
+      method = Emit(&arena, &code_allocator, codegen.get(), compiler_driver, code_item);
     }
   } else {
     if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
@@ -843,7 +854,8 @@ bool IsCompilingWithCoreImage() {
 
 bool OptimizingCompiler::JitCompile(Thread* self,
                                     jit::JitCodeCache* code_cache,
-                                    ArtMethod* method) {
+                                    ArtMethod* method,
+                                    bool osr) {
   StackHandleScope<2> hs(self);
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       method->GetDeclaringClass()->GetClassLoader()));
@@ -873,7 +885,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                    method_idx,
                    jclass_loader,
                    *dex_file,
-                   dex_cache));
+                   dex_cache,
+                   osr));
     if (codegen.get() == nullptr) {
       return false;
     }
@@ -885,7 +898,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     return false;
   }
   MaybeRecordStat(MethodCompilationStat::kCompiled);
-  codegen->BuildStackMaps(MemoryRegion(stack_map_data, stack_map_size));
+  codegen->BuildStackMaps(MemoryRegion(stack_map_data, stack_map_size), *code_item);
   const void* code = code_cache->CommitCode(
       self,
       method,
@@ -896,7 +909,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
       code_allocator.GetMemory().data(),
-      code_allocator.GetSize());
+      code_allocator.GetSize(),
+      osr);
 
   if (code == nullptr) {
     code_cache->ClearData(self, stack_map_data);
