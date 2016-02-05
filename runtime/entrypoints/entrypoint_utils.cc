@@ -273,15 +273,15 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
     if (outer_method != nullptr) {
       const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
       if (current_code->IsOptimized()) {
-          uintptr_t native_pc_offset = current_code->NativeQuickPcOffset(caller_pc);
-          CodeInfo code_info = current_code->GetOptimizedCodeInfo();
-          StackMapEncoding encoding = code_info.ExtractEncoding();
-          StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-          DCHECK(stack_map.IsValid());
-          if (stack_map.HasInlineInfo(encoding)) {
-            InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-            caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
-          }
+        uintptr_t native_pc_offset = current_code->NativeQuickPcOffset(caller_pc);
+        CodeInfo code_info = current_code->GetOptimizedCodeInfo();
+        StackMapEncoding encoding = code_info.ExtractEncoding();
+        StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
+        DCHECK(stack_map.IsValid());
+        if (stack_map.HasInlineInfo(encoding)) {
+          InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
+          caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
+        }
       }
     }
     if (kIsDebugBuild && do_caller_check) {
