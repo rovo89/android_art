@@ -366,7 +366,7 @@ class RosAlloc {
     static size_t fixed_header_size() {
       return sizeof(Run);
     }
-    Slot* FirstSlot() {
+    Slot* FirstSlot() const {
       const uint8_t idx = size_bracket_idx_;
       return reinterpret_cast<Slot*>(reinterpret_cast<uintptr_t>(this) + headerSizes[idx]);
     }
@@ -473,7 +473,16 @@ class RosAlloc {
       DCHECK_LT(slot_idx, numOfSlots[idx]);
       return reinterpret_cast<Slot*>(ptr);
     }
-    size_t SlotIndex(Slot* slot);
+    size_t SlotIndex(Slot* slot) const {
+      const uint8_t idx = size_bracket_idx_;
+      const size_t bracket_size = bracketSizes[idx];
+      const size_t offset_from_slot_base = reinterpret_cast<uint8_t*>(slot)
+          - reinterpret_cast<uint8_t*>(FirstSlot());
+      DCHECK_EQ(offset_from_slot_base % bracket_size, 0U);
+      size_t slot_idx = offset_from_slot_base / bracket_size;
+      DCHECK_LT(slot_idx, numOfSlots[idx]);
+      return slot_idx;
+    }
 
     // TODO: DISALLOW_COPY_AND_ASSIGN(Run);
   };
@@ -482,10 +491,8 @@ class RosAlloc {
   static constexpr uint8_t kMagicNum = 42;
   // The magic number for free pages.
   static constexpr uint8_t kMagicNumFree = 43;
-  // The number of size brackets. Sync this with the length of Thread::rosalloc_runs_.
-  static constexpr size_t kNumOfSizeBrackets = kNumRosAllocThreadLocalSizeBrackets;
-  // The number of smaller size brackets that are the quantum size apart.
-  static constexpr size_t kNumOfQuantumSizeBrackets = 32;
+  // The number of size brackets.
+  static constexpr size_t kNumOfSizeBrackets = 42;
   // The sizes (the slot sizes, in bytes) of the size brackets.
   static size_t bracketSizes[kNumOfSizeBrackets];
   // The numbers of pages that are used for runs for each size bracket.
@@ -506,16 +513,23 @@ class RosAlloc {
   }
   // Returns the index of the size bracket from the bracket size.
   static size_t BracketSizeToIndex(size_t size) {
-    DCHECK(16 <= size && ((size < 1 * KB && size % 16 == 0) || size == 1 * KB || size == 2 * KB));
+    DCHECK(8 <= size &&
+           ((size <= kMaxThreadLocalBracketSize && size % kThreadLocalBracketQuantumSize == 0) ||
+            (size <= kMaxRegularBracketSize && size % kBracketQuantumSize == 0) ||
+            size == 1 * KB || size == 2 * KB));
     size_t idx;
     if (UNLIKELY(size == 1 * KB)) {
       idx = kNumOfSizeBrackets - 2;
     } else if (UNLIKELY(size == 2 * KB)) {
       idx = kNumOfSizeBrackets - 1;
+    } else if (LIKELY(size <= kMaxThreadLocalBracketSize)) {
+      DCHECK_EQ(size % kThreadLocalBracketQuantumSize, 0U);
+      idx = size / kThreadLocalBracketQuantumSize - 1;
     } else {
-      DCHECK(size < 1 * KB);
-      DCHECK_EQ(size % 16, static_cast<size_t>(0));
-      idx = size / 16 - 1;
+      DCHECK(size <= kMaxRegularBracketSize);
+      DCHECK_EQ((size - kMaxThreadLocalBracketSize) % kBracketQuantumSize, 0U);
+      idx = ((size - kMaxThreadLocalBracketSize) / kBracketQuantumSize - 1)
+          + kNumThreadLocalSizeBrackets;
     }
     DCHECK(bracketSizes[idx] == size);
     return idx;
@@ -530,51 +544,64 @@ class RosAlloc {
   // Rounds up the size up the nearest bracket size.
   static size_t RoundToBracketSize(size_t size) {
     DCHECK(size <= kLargeSizeThreshold);
-    if (LIKELY(size <= 512)) {
-      return RoundUp(size, 16);
-    } else if (512 < size && size <= 1 * KB) {
+    if (LIKELY(size <= kMaxThreadLocalBracketSize)) {
+      return RoundUp(size, kThreadLocalBracketQuantumSize);
+    } else if (size <= kMaxRegularBracketSize) {
+      return RoundUp(size, kBracketQuantumSize);
+    } else if (UNLIKELY(size <= 1 * KB)) {
       return 1 * KB;
     } else {
-      DCHECK(1 * KB < size && size <= 2 * KB);
+      DCHECK_LE(size, 2 * KB);
       return 2 * KB;
     }
   }
   // Returns the size bracket index from the byte size with rounding.
   static size_t SizeToIndex(size_t size) {
     DCHECK(size <= kLargeSizeThreshold);
-    if (LIKELY(size <= 512)) {
-      return RoundUp(size, 16) / 16 - 1;
-    } else if (512 < size && size <= 1 * KB) {
+    if (LIKELY(size <= kMaxThreadLocalBracketSize)) {
+      return RoundUp(size, kThreadLocalBracketQuantumSize) / kThreadLocalBracketQuantumSize - 1;
+    } else if (size <= kMaxRegularBracketSize) {
+      return (RoundUp(size, kBracketQuantumSize) - kMaxThreadLocalBracketSize) / kBracketQuantumSize
+          - 1 + kNumThreadLocalSizeBrackets;
+    } else if (size <= 1 * KB) {
       return kNumOfSizeBrackets - 2;
     } else {
-      DCHECK(1 * KB < size && size <= 2 * KB);
+      DCHECK_LE(size, 2 * KB);
       return kNumOfSizeBrackets - 1;
     }
   }
   // A combination of SizeToIndex() and RoundToBracketSize().
   static size_t SizeToIndexAndBracketSize(size_t size, size_t* bracket_size_out) {
     DCHECK(size <= kLargeSizeThreshold);
-    if (LIKELY(size <= 512)) {
-      size_t bracket_size = RoundUp(size, 16);
-      *bracket_size_out = bracket_size;
-      size_t idx = bracket_size / 16 - 1;
-      DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
-      return idx;
-    } else if (512 < size && size <= 1 * KB) {
-      size_t bracket_size = 1024;
-      *bracket_size_out = bracket_size;
-      size_t idx = kNumOfSizeBrackets - 2;
-      DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
-      return idx;
+    size_t idx;
+    size_t bracket_size;
+    if (LIKELY(size <= kMaxThreadLocalBracketSize)) {
+      bracket_size = RoundUp(size, kThreadLocalBracketQuantumSize);
+      idx = bracket_size / kThreadLocalBracketQuantumSize - 1;
+    } else if (size <= kMaxRegularBracketSize) {
+      bracket_size = RoundUp(size, kBracketQuantumSize);
+      idx = ((bracket_size - kMaxThreadLocalBracketSize) / kBracketQuantumSize - 1)
+          + kNumThreadLocalSizeBrackets;
+    } else if (size <= 1 * KB) {
+      bracket_size = 1 * KB;
+      idx = kNumOfSizeBrackets - 2;
     } else {
-      DCHECK(1 * KB < size && size <= 2 * KB);
-      size_t bracket_size = 2048;
-      *bracket_size_out = bracket_size;
-      size_t idx = kNumOfSizeBrackets - 1;
-      DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
-      return idx;
+      DCHECK(size <= 2 * KB);
+      bracket_size = 2 * KB;
+      idx = kNumOfSizeBrackets - 1;
     }
+    DCHECK_EQ(idx, SizeToIndex(size)) << idx;
+    DCHECK_EQ(bracket_size, IndexToBracketSize(idx)) << idx;
+    DCHECK_EQ(bracket_size, bracketSizes[idx]) << idx;
+    DCHECK_LE(size, bracket_size) << idx;
+    DCHECK(size > kMaxRegularBracketSize ||
+           (size <= kMaxThreadLocalBracketSize &&
+            bracket_size - size < kThreadLocalBracketQuantumSize) ||
+           (size <= kMaxRegularBracketSize && bracket_size - size < kBracketQuantumSize)) << idx;
+    *bracket_size_out = bracket_size;
+    return idx;
   }
+
   // Returns the page map index from an address. Requires that the
   // address is page size aligned.
   size_t ToPageMapIndex(const void* addr) const {
@@ -630,18 +657,37 @@ class RosAlloc {
   // The default value for page_release_size_threshold_.
   static constexpr size_t kDefaultPageReleaseSizeThreshold = 4 * MB;
 
-  // We use thread-local runs for the size Brackets whose indexes
+  // We use thread-local runs for the size brackets whose indexes
   // are less than this index. We use shared (current) runs for the rest.
-  static const size_t kNumThreadLocalSizeBrackets = 8;
+  // Sync this with the length of Thread::rosalloc_runs_.
+  static const size_t kNumThreadLocalSizeBrackets = 16;
+  static_assert(kNumThreadLocalSizeBrackets == kNumRosAllocThreadLocalSizeBracketsInThread,
+                "Mismatch between kNumThreadLocalSizeBrackets and "
+                "kNumRosAllocThreadLocalSizeBracketsInThread");
 
   // The size of the largest bracket we use thread-local runs for.
   // This should be equal to bracketSizes[kNumThreadLocalSizeBrackets - 1].
   static const size_t kMaxThreadLocalBracketSize = 128;
 
-  // The bracket size increment for the brackets of size <= 512 bytes.
+  // We use regular (8 or 16-bytes increment) runs for the size brackets whose indexes are less than
+  // this index.
+  static const size_t kNumRegularSizeBrackets = 40;
+
+  // The size of the largest regular (8 or 16-byte increment) bracket. Non-regular brackets are the
+  // 1 KB and the 2 KB brackets. This should be equal to bracketSizes[kNumRegularSizeBrackets - 1].
+  static const size_t kMaxRegularBracketSize = 512;
+
+  // The bracket size increment for the thread-local brackets (<= kMaxThreadLocalBracketSize bytes).
+  static constexpr size_t kThreadLocalBracketQuantumSize = 8;
+
+  // Equal to Log2(kThreadLocalBracketQuantumSize).
+  static constexpr size_t kThreadLocalBracketQuantumSizeShift = 3;
+
+  // The bracket size increment for the non-thread-local, regular brackets (of size <=
+  // kMaxRegularBracketSize bytes and > kMaxThreadLocalBracketSize bytes).
   static constexpr size_t kBracketQuantumSize = 16;
 
-  // Equal to Log2(kQuantumBracketSizeIncrement).
+  // Equal to Log2(kBracketQuantumSize).
   static constexpr size_t kBracketQuantumSizeShift = 4;
 
  private:

@@ -150,11 +150,11 @@ ADD_TEST_EQ(THREAD_ALT_IBASE_OFFSET,
 ADD_TEST_EQ(THREAD_ROSALLOC_RUNS_OFFSET,
             art::Thread::RosAllocRunsOffset<__SIZEOF_POINTER__>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_alloc_stack_top.
-#define THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 34 * __SIZEOF_POINTER__)
+#define THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 16 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET,
             art::Thread::ThreadLocalAllocStackTopOffset<__SIZEOF_POINTER__>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_alloc_stack_end.
-#define THREAD_LOCAL_ALLOC_STACK_END_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 35 * __SIZEOF_POINTER__)
+#define THREAD_LOCAL_ALLOC_STACK_END_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 17 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_END_OFFSET,
             art::Thread::ThreadLocalAllocStackEndOffset<__SIZEOF_POINTER__>().Int32Value())
 
@@ -331,21 +331,23 @@ ADD_TEST_EQ(static_cast<uint32_t>(OBJECT_ALIGNMENT_MASK_TOGGLED),
 ADD_TEST_EQ(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE,
             static_cast<int32_t>(art::gc::allocator::RosAlloc::kMaxThreadLocalBracketSize))
 
-#define ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT 4
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT 3
 ADD_TEST_EQ(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT,
-            static_cast<int32_t>(art::gc::allocator::RosAlloc::kBracketQuantumSizeShift))
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::kThreadLocalBracketQuantumSizeShift))
 
-#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK 15
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK 7
 ADD_TEST_EQ(ROSALLOC_BRACKET_QUANTUM_SIZE_MASK,
-            static_cast<int32_t>(art::gc::allocator::RosAlloc::kBracketQuantumSize - 1))
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::kThreadLocalBracketQuantumSize - 1))
 
-#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED32 0xfffffff0
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED32 0xfffffff8
 ADD_TEST_EQ(static_cast<uint32_t>(ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED32),
-            ~static_cast<uint32_t>(art::gc::allocator::RosAlloc::kBracketQuantumSize - 1))
+            ~static_cast<uint32_t>(
+                art::gc::allocator::RosAlloc::kThreadLocalBracketQuantumSize - 1))
 
-#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED64 0xfffffffffffffff0
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED64 0xfffffffffffffff8
 ADD_TEST_EQ(static_cast<uint64_t>(ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED64),
-            ~static_cast<uint64_t>(art::gc::allocator::RosAlloc::kBracketQuantumSize - 1))
+            ~static_cast<uint64_t>(
+                art::gc::allocator::RosAlloc::kThreadLocalBracketQuantumSize - 1))
 
 #define ROSALLOC_RUN_FREE_LIST_OFFSET 8
 ADD_TEST_EQ(ROSALLOC_RUN_FREE_LIST_OFFSET,
