@@ -66,6 +66,8 @@ class ProfileCompilationInfo {
 
   // For testing purposes.
   bool Equals(ProfileCompilationInfo& other);
+  // Exposed for testing purpose.
+  static std::string GetProfileDexFileKey(const std::string& dex_location);
 
  private:
   bool AddData(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);

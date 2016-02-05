@@ -249,9 +249,9 @@ class CompilerDriverProfileTest : public CompilerDriverTest {
 
     ProfileCompilationInfo info;
     for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
-      std::cout << std::string(dex_file->GetLocation());
-      profile_info_.AddData(dex_file->GetLocation(), dex_file->GetLocationChecksum(), 1);
-      profile_info_.AddData(dex_file->GetLocation(), dex_file->GetLocationChecksum(), 2);
+      std::string key = ProfileCompilationInfo::GetProfileDexFileKey(dex_file->GetLocation());
+      profile_info_.AddData(key, dex_file->GetLocationChecksum(), 1);
+      profile_info_.AddData(key, dex_file->GetLocationChecksum(), 2);
     }
     return &profile_info_;
   }
