@@ -488,14 +488,6 @@ extern "C" void MterpLogFallback(Thread* self, ShadowFrame* shadow_frame)
             << self->IsExceptionPending();
 }
 
-extern "C" void MterpLogOSR(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
-  UNUSED(self);
-  const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
-  uint16_t inst_data = inst->Fetch16(0);
-  LOG(INFO) << "OSR: " << inst->Opcode(inst_data) << ", offset = " << offset;
-}
-
 extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame, uint32_t flags)
   SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
@@ -624,15 +616,6 @@ extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t 
     return nullptr;
   }
   return obj->GetFieldObject<mirror::Object>(MemberOffset(field_offset));
-}
-
-extern "C" bool  MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (offset <= 0) {
-    const auto* const instrumentation = Runtime::Current()->GetInstrumentation();
-    instrumentation->Branch(self, shadow_frame->GetMethod(), shadow_frame->GetDexPC(), offset);
-  }
-  return false;  // TDB - return true if need to trigger on-stack replacement.
 }
 
 }  // namespace interpreter

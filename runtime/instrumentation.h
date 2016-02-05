@@ -290,14 +290,6 @@ class Instrumentation {
   bool IsActive() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
         have_field_read_listeners_ || have_field_write_listeners_ ||
-        have_exception_caught_listeners_ || have_method_unwind_listeners_ ||
-        have_branch_listeners_ || have_invoke_virtual_or_interface_listeners_;
-  }
-
-  // Any instrumentation *other* than what is needed for Jit profiling active?
-  bool NonJitProfilingActive() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return have_dex_pc_listeners_ || have_method_exit_listeners_ ||
-        have_field_read_listeners_ || have_field_write_listeners_ ||
         have_exception_caught_listeners_ || have_method_unwind_listeners_;
   }
 
