@@ -326,6 +326,24 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
 }
 
+void ClassLinker::CheckSystemClass(Thread* self, Handle<mirror::Class> c1, const char* descriptor) {
+  mirror::Class* c2 = FindSystemClass(self, descriptor);
+  if (c2 == nullptr) {
+    LOG(FATAL) << "Could not find class " << descriptor;
+    UNREACHABLE();
+  }
+  if (c1.Get() != c2) {
+    std::ostringstream os1, os2;
+    c1->DumpClass(os1, mirror::Class::kDumpClassFullDetail);
+    c2->DumpClass(os2, mirror::Class::kDumpClassFullDetail);
+    LOG(FATAL) << "InitWithoutImage: Class mismatch for " << descriptor
+               << ". This is most likely the result of a broken build. Make sure that "
+               << "libcore and art projects match.\n\n"
+               << os1.str() << "\n\n" << os2.str();
+    UNREACHABLE();
+  }
+}
+
 bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path,
                                    std::string* error_msg) {
   VLOG(startup) << "ClassLinker::Init";
@@ -517,18 +535,12 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
   mirror::Class::SetStatus(java_lang_Object, mirror::Class::kStatusNotReady, self);
-  CHECK_EQ(java_lang_Object.Get(), FindSystemClass(self, "Ljava/lang/Object;"));
+  CheckSystemClass(self, java_lang_Object, "Ljava/lang/Object;");
   CHECK_EQ(java_lang_Object->GetObjectSize(), mirror::Object::InstanceSize());
   mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusNotReady, self);
-  mirror::Class* String_class = FindSystemClass(self, "Ljava/lang/String;");
-  if (java_lang_String.Get() != String_class) {
-    std::ostringstream os1, os2;
-    java_lang_String->DumpClass(os1, mirror::Class::kDumpClassFullDetail);
-    String_class->DumpClass(os2, mirror::Class::kDumpClassFullDetail);
-    LOG(FATAL) << os1.str() << "\n\n" << os2.str();
-  }
+  CheckSystemClass(self, java_lang_String, "Ljava/lang/String;");
   mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusNotReady, self);
-  CHECK_EQ(java_lang_DexCache.Get(), FindSystemClass(self, "Ljava/lang/DexCache;"));
+  CheckSystemClass(self, java_lang_DexCache, "Ljava/lang/DexCache;");
   CHECK_EQ(java_lang_DexCache->GetObjectSize(), mirror::DexCache::InstanceSize());
 
   // Setup the primitive array type classes - can't be done until Object has a vtable.
@@ -538,14 +550,13 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kByteArrayClass, FindSystemClass(self, "[B"));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
 
-  CHECK_EQ(char_array_class.Get(), FindSystemClass(self, "[C"));
+  CheckSystemClass(self, char_array_class, "[C");
 
   SetClassRoot(kShortArrayClass, FindSystemClass(self, "[S"));
   mirror::ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
-  CHECK_EQ(int_array_class.Get(), FindSystemClass(self, "[I"));
-
-  CHECK_EQ(long_array_class.Get(), FindSystemClass(self, "[J"));
+  CheckSystemClass(self, int_array_class, "[I");
+  CheckSystemClass(self, long_array_class, "[J");
 
   SetClassRoot(kFloatArrayClass, FindSystemClass(self, "[F"));
   mirror::FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
@@ -553,9 +564,12 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kDoubleArrayClass, FindSystemClass(self, "[D"));
   mirror::DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
 
-  CHECK_EQ(class_array_class.Get(), FindSystemClass(self, "[Ljava/lang/Class;"));
+  // Run Class through FindSystemClass. This initializes the dex_cache_ fields and register it
+  // in class_table_.
+  CheckSystemClass(self, java_lang_Class, "Ljava/lang/Class;");
 
-  CHECK_EQ(object_array_class.Get(), FindSystemClass(self, "[Ljava/lang/Object;"));
+  CheckSystemClass(self, class_array_class, "[Ljava/lang/Class;");
+  CheckSystemClass(self, object_array_class, "[Ljava/lang/Object;");
 
   // Setup the single, global copy of "iftable".
   auto java_lang_Cloneable = hs.NewHandle(FindSystemClass(self, "Ljava/lang/Cloneable;"));
@@ -577,14 +591,11 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
            mirror::Class::GetDirectInterface(self, object_array_class, 0));
   CHECK_EQ(java_io_Serializable.Get(),
            mirror::Class::GetDirectInterface(self, object_array_class, 1));
-  // Run Class, ArtField, and ArtMethod through FindSystemClass. This initializes their
-  // dex_cache_ fields and register them in class_table_.
-  CHECK_EQ(java_lang_Class.Get(), FindSystemClass(self, "Ljava/lang/Class;"));
 
   CHECK_EQ(object_array_string.Get(),
            FindSystemClass(self, GetClassRootDescriptor(kJavaLangStringArrayClass)));
 
-  // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
+  // End of special init trickery, all subsequent classes may be loaded via FindSystemClass.
 
   // Create java.lang.reflect.Proxy root.
   SetClassRoot(kJavaLangReflectProxy, FindSystemClass(self, "Ljava/lang/reflect/Proxy;"));
@@ -624,7 +635,7 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   // finish initializing Reference class
   mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusNotReady, self);
-  CHECK_EQ(java_lang_ref_Reference.Get(), FindSystemClass(self, "Ljava/lang/ref/Reference;"));
+  CheckSystemClass(self, java_lang_ref_Reference, "Ljava/lang/ref/Reference;");
   CHECK_EQ(java_lang_ref_Reference->GetObjectSize(), mirror::Reference::InstanceSize());
   CHECK_EQ(java_lang_ref_Reference->GetClassSize(),
            mirror::Reference::ClassSize(image_pointer_size_));
