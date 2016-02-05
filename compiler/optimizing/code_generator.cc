@@ -629,72 +629,8 @@ size_t CodeGenerator::ComputeStackMapsSize() {
   return stack_map_stream_.PrepareForFillIn();
 }
 
-static void CheckCovers(uint32_t dex_pc,
-                        const HGraph& graph,
-                        const CodeInfo& code_info,
-                        const ArenaVector<HSuspendCheck*>& loop_headers,
-                        ArenaVector<size_t>* covered) {
-  StackMapEncoding encoding = code_info.ExtractEncoding();
-  for (size_t i = 0; i < loop_headers.size(); ++i) {
-    if (loop_headers[i]->GetDexPc() == dex_pc) {
-      if (graph.IsCompilingOsr()) {
-        DCHECK(code_info.GetOsrStackMapForDexPc(dex_pc, encoding).IsValid());
-      }
-      ++(*covered)[i];
-    }
-  }
-}
-
-// Debug helper to ensure loop entries in compiled code are matched by
-// dex branch instructions.
-static void CheckLoopEntriesCanBeUsedForOsr(const HGraph& graph,
-                                            const CodeInfo& code_info,
-                                            const DexFile::CodeItem& code_item) {
-  ArenaVector<HSuspendCheck*> loop_headers(graph.GetArena()->Adapter(kArenaAllocMisc));
-  for (HReversePostOrderIterator it(graph); !it.Done(); it.Advance()) {
-    if (it.Current()->IsLoopHeader()) {
-      HSuspendCheck* suspend_check = it.Current()->GetLoopInformation()->GetSuspendCheck();
-      if (!suspend_check->GetEnvironment()->IsFromInlinedInvoke()) {
-        loop_headers.push_back(suspend_check);
-      }
-    }
-  }
-  ArenaVector<size_t> covered(loop_headers.size(), 0, graph.GetArena()->Adapter(kArenaAllocMisc));
-  const uint16_t* code_ptr = code_item.insns_;
-  const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
-
-  size_t dex_pc = 0;
-  while (code_ptr < code_end) {
-    const Instruction& instruction = *Instruction::At(code_ptr);
-    if (instruction.IsBranch()) {
-      uint32_t target = dex_pc + instruction.GetTargetOffset();
-      CheckCovers(target, graph, code_info, loop_headers, &covered);
-    } else if (instruction.IsSwitch()) {
-      SwitchTable table(instruction, dex_pc, instruction.Opcode() == Instruction::SPARSE_SWITCH);
-      uint16_t num_entries = table.GetNumEntries();
-      size_t offset = table.GetFirstValueIndex();
-
-      // Use a larger loop counter type to avoid overflow issues.
-      for (size_t i = 0; i < num_entries; ++i) {
-        // The target of the case.
-        uint32_t target = dex_pc + table.GetEntryAt(i + offset);
-        CheckCovers(target, graph, code_info, loop_headers, &covered);
-      }
-    }
-    dex_pc += instruction.SizeInCodeUnits();
-    code_ptr += instruction.SizeInCodeUnits();
-  }
-
-  for (size_t i = 0; i < covered.size(); ++i) {
-    DCHECK_NE(covered[i], 0u) << "Loop in compiled code has no dex branch equivalent";
-  }
-}
-
-void CodeGenerator::BuildStackMaps(MemoryRegion region, const DexFile::CodeItem& code_item) {
+void CodeGenerator::BuildStackMaps(MemoryRegion region) {
   stack_map_stream_.FillIn(region);
-  if (kIsDebugBuild) {
-    CheckLoopEntriesCanBeUsedForOsr(*graph_, CodeInfo(region), code_item);
-  }
 }
 
 void CodeGenerator::RecordPcInfo(HInstruction* instruction,
@@ -769,46 +705,6 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
 
   EmitEnvironment(instruction->GetEnvironment(), slow_path);
   stack_map_stream_.EndStackMapEntry();
-
-  HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
-  if (instruction->IsSuspendCheck() &&
-      (info != nullptr) &&
-      graph_->IsCompilingOsr() &&
-      (inlining_depth == 0)) {
-    DCHECK_EQ(info->GetSuspendCheck(), instruction);
-    // We duplicate the stack map as a marker that this stack map can be an OSR entry.
-    // Duplicating it avoids having the runtime recognize and skip an OSR stack map.
-    DCHECK(info->IsIrreducible());
-    stack_map_stream_.BeginStackMapEntry(
-        dex_pc, native_pc, register_mask, locations->GetStackMask(), outer_environment_size, 0);
-    EmitEnvironment(instruction->GetEnvironment(), slow_path);
-    stack_map_stream_.EndStackMapEntry();
-    if (kIsDebugBuild) {
-      HEnvironment* environment = instruction->GetEnvironment();
-      for (size_t i = 0, environment_size = environment->Size(); i < environment_size; ++i) {
-        HInstruction* in_environment = environment->GetInstructionAt(i);
-        if (in_environment != nullptr) {
-          DCHECK(in_environment->IsPhi() || in_environment->IsConstant());
-          Location location = environment->GetLocationAt(i);
-          DCHECK(location.IsStackSlot() ||
-                 location.IsDoubleStackSlot() ||
-                 location.IsConstant() ||
-                 location.IsInvalid());
-          if (location.IsStackSlot() || location.IsDoubleStackSlot()) {
-            DCHECK_LT(location.GetStackIndex(), static_cast<int32_t>(GetFrameSize()));
-          }
-        }
-      }
-    }
-  } else if (kIsDebugBuild) {
-    // Ensure stack maps are unique, by checking that the native pc in the stack map
-    // last emitted is different than the native pc of the stack map just emitted.
-    size_t number_of_stack_maps = stack_map_stream_.GetNumberOfStackMaps();
-    if (number_of_stack_maps > 1) {
-      DCHECK_NE(stack_map_stream_.GetStackMap(number_of_stack_maps - 1).native_pc_offset,
-                stack_map_stream_.GetStackMap(number_of_stack_maps - 2).native_pc_offset);
-    }
-  }
 }
 
 bool CodeGenerator::HasStackMapAtCurrentPc() {

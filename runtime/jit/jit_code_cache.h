@@ -71,7 +71,7 @@ class JitCodeCache {
   // Number of compilations done throughout the lifetime of the JIT.
   size_t NumberOfCompilations() REQUIRES(!lock_);
 
-  bool NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr)
+  bool NotifyCompilationOf(ArtMethod* method, Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -89,8 +89,7 @@ class JitCodeCache {
                       size_t core_spill_mask,
                       size_t fp_spill_mask,
                       const uint8_t* code,
-                      size_t code_size,
-                      bool osr)
+                      size_t code_size)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -129,10 +128,6 @@ class JitCodeCache {
   // Return null if 'pc' is not in the code cache. 'method' is passed for
   // sanity check.
   OatQuickMethodHeader* LookupMethodHeader(uintptr_t pc, ArtMethod* method)
-      REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  OatQuickMethodHeader* LookupOsrMethodHeader(ArtMethod* method)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -192,8 +187,7 @@ class JitCodeCache {
                               size_t core_spill_mask,
                               size_t fp_spill_mask,
                               const uint8_t* code,
-                              size_t code_size,
-                              bool osr)
+                              size_t code_size)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -243,10 +237,8 @@ class JitCodeCache {
   void* data_mspace_ GUARDED_BY(lock_);
   // Bitmap for collecting code and data.
   std::unique_ptr<CodeCacheBitmap> live_bitmap_;
-  // Holds compiled code associated to the ArtMethod.
+  // This map holds compiled code associated to the ArtMethod.
   SafeMap<const void*, ArtMethod*> method_code_map_ GUARDED_BY(lock_);
-  // Holds osr compiled code associated to the ArtMethod.
-  SafeMap<ArtMethod*, const void*> osr_code_map_ GUARDED_BY(lock_);
   // ProfilingInfo objects we have allocated.
   std::vector<ProfilingInfo*> profiling_infos_ GUARDED_BY(lock_);
 

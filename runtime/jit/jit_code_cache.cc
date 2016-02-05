@@ -184,8 +184,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   size_t core_spill_mask,
                                   size_t fp_spill_mask,
                                   const uint8_t* code,
-                                  size_t code_size,
-                                  bool osr) {
+                                  size_t code_size) {
   uint8_t* result = CommitCodeInternal(self,
                                        method,
                                        mapping_table,
@@ -195,8 +194,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                        core_spill_mask,
                                        fp_spill_mask,
                                        code,
-                                       code_size,
-                                       osr);
+                                       code_size);
   if (result == nullptr) {
     // Retry.
     GarbageCollectCache(self);
@@ -209,8 +207,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                 core_spill_mask,
                                 fp_spill_mask,
                                 code,
-                                code_size,
-                                osr);
+                                code_size);
   }
   return result;
 }
@@ -290,8 +287,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           size_t core_spill_mask,
                                           size_t fp_spill_mask,
                                           const uint8_t* code,
-                                          size_t code_size,
-                                          bool osr) {
+                                          size_t code_size) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   // Ensure the header ends up at expected instruction alignment.
   size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
@@ -333,12 +329,8 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   {
     MutexLock mu(self, lock_);
     method_code_map_.Put(code_ptr, method);
-    if (osr) {
-      osr_code_map_.Put(method, code_ptr);
-    } else {
-      Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
-          method, method_header->GetEntryPoint());
-    }
+    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+        method, method_header->GetEntryPoint());
     if (collection_in_progress_) {
       // We need to update the live bitmap if there is a GC to ensure it sees this new
       // code.
@@ -346,7 +338,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     }
     last_update_time_ns_.StoreRelease(NanoTime());
     VLOG(jit)
-        << "JIT added (osr = " << std::boolalpha << osr << std::noboolalpha << ") "
+        << "JIT added "
         << PrettyMethod(method) << "@" << method
         << " ccache_size=" << PrettySize(CodeCacheSizeLocked()) << ": "
         << " dcache_size=" << PrettySize(DataCacheSizeLocked()) << ": "
@@ -577,10 +569,6 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
         info->GetMethod()->SetProfilingInfo(nullptr);
       }
     }
-
-    // Empty osr method map, as osr compile code will be deleted (except the ones
-    // on thread stacks).
-    osr_code_map_.clear();
   }
 
   // Run a checkpoint on all threads to mark the JIT compiled code they are running.
@@ -674,15 +662,6 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
   return method_header;
 }
 
-OatQuickMethodHeader* JitCodeCache::LookupOsrMethodHeader(ArtMethod* method) {
-  MutexLock mu(Thread::Current(), lock_);
-  auto it = osr_code_map_.find(method);
-  if (it == osr_code_map_.end()) {
-    return nullptr;
-  }
-  return OatQuickMethodHeader::FromCodePointer(it->second);
-}
-
 ProfilingInfo* JitCodeCache::AddProfilingInfo(Thread* self,
                                               ArtMethod* method,
                                               const std::vector<uint32_t>& entries,
@@ -754,15 +733,12 @@ uint64_t JitCodeCache::GetLastUpdateTimeNs() const {
   return last_update_time_ns_.LoadAcquire();
 }
 
-bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr) {
-  if (!osr && ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
+bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self) {
+  if (ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
     return false;
   }
 
   MutexLock mu(self, lock_);
-  if (osr && (osr_code_map_.find(method) != osr_code_map_.end())) {
-    return false;
-  }
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
   if (info == nullptr || info->IsMethodBeingCompiled()) {
     return false;
