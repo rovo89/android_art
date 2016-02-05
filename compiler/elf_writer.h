@@ -52,6 +52,9 @@ class ElfWriter {
   virtual ~ElfWriter() {}
 
   virtual void Start() = 0;
+  virtual void PrepareDebugInfo(size_t rodata_section_size,
+                                size_t text_section_size,
+                                const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) = 0;
   virtual OutputStream* StartRoData() = 0;
   virtual void EndRoData(OutputStream* rodata) = 0;
   virtual OutputStream* StartText() = 0;
