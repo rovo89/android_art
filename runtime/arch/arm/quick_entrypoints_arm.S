@@ -458,10 +458,10 @@ ENTRY art_quick_osr_stub
     bl     memcpy                          @ memcpy (dest r0, src r1, bytes r2)
     bl     .Losr_entry                     @ Call the method
     ldr    r11, [sp, #4]                   @ Restore saved stack pointer
-    ldr    r10, [sp, #8]                   @ Restire JValue result
+    ldr    r10, [sp, #8]                   @ Restore JValue result
     mov    sp, r11                         @ Restore stack pointer.
     ldr    r4, [sp, #36]                   @ load shorty
-    ldr    r4, [r4, #0]                    @ load return type
+    ldrb   r4, [r4, #0]                    @ load return type
     cmp    r4, #68                         @ Test if result type char == 'D'.
     beq    .Losr_fp_result
     cmp    r4, #70                         @ Test if result type char == 'F'.
