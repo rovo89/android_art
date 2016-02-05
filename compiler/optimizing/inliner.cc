@@ -758,6 +758,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       compiler_driver_->GetInstructionSet(),
       invoke_type,
       graph_->IsDebuggable(),
+      /* osr */ false,
       graph_->GetCurrentInstructionId());
   callee_graph->SetArtMethod(resolved_method);
 
