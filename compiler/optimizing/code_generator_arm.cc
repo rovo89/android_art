@@ -3750,6 +3750,7 @@ void LocationsBuilderARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
   switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
@@ -3779,6 +3780,13 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
   Primitive::Type type = compare->InputAt(0)->GetType();
   Condition less_cond;
   switch (type) {
+    case Primitive::kPrimInt: {
+      __ LoadImmediate(out, 0);
+      __ cmp(left.AsRegister<Register>(),
+             ShifterOperand(right.AsRegister<Register>()));  // Signed compare.
+      less_cond = LT;
+      break;
+    }
     case Primitive::kPrimLong: {
       __ cmp(left.AsRegisterPairHigh<Register>(),
              ShifterOperand(right.AsRegisterPairHigh<Register>()));  // Signed compare.
@@ -3808,6 +3816,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
       LOG(FATAL) << "Unexpected compare type " << type;
       UNREACHABLE();
   }
+
   __ b(&done, EQ);
   __ b(&less, less_cond);
 

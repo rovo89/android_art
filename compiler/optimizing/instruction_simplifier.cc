@@ -91,6 +91,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyRotate(HInvoke* invoke, bool is_left);
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
+  void SimplifyCompare(HInvoke* invoke, bool has_zero_op);
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -1446,6 +1447,24 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
   }
 }
 
+void InstructionSimplifierVisitor::SimplifyCompare(HInvoke* invoke, bool is_signum) {
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  uint32_t dex_pc = invoke->GetDexPc();
+  HInstruction* left = invoke->InputAt(0);
+  HInstruction* right;
+  Primitive::Type type = left->GetType();
+  if (!is_signum) {
+    right = invoke->InputAt(1);
+  } else if (type == Primitive::kPrimLong) {
+    right = GetGraph()->GetLongConstant(0);
+  } else {
+    right = GetGraph()->GetIntConstant(0);
+  }
+  HCompare* compare = new (GetGraph()->GetArena())
+      HCompare(type, left, right, ComparisonBias::kNoBias, dex_pc);
+  invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, compare);
+}
+
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   if (instruction->GetIntrinsic() == Intrinsics::kStringEquals) {
     SimplifyStringEquals(instruction);
@@ -1457,6 +1476,12 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateLeft ||
              instruction->GetIntrinsic() == Intrinsics::kLongRotateLeft) {
     SimplifyRotate(instruction, true);
+  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerCompare ||
+             instruction->GetIntrinsic() == Intrinsics::kLongCompare) {
+    SimplifyCompare(instruction, /* is_signum */ false);
+  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerSignum ||
+             instruction->GetIntrinsic() == Intrinsics::kLongSignum) {
+    SimplifyCompare(instruction, /* is_signum */ true);
   }
 }
 
