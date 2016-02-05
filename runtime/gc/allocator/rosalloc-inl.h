@@ -62,11 +62,6 @@ inline bool RosAlloc::CanAllocFromThreadLocalRun(Thread* self, size_t size) {
   }
   size_t bracket_size;
   size_t idx = SizeToIndexAndBracketSize(size, &bracket_size);
-  DCHECK_EQ(idx, SizeToIndex(size));
-  DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
-  DCHECK_EQ(bracket_size, bracketSizes[idx]);
-  DCHECK_LE(size, bracket_size);
-  DCHECK(size > 512 || bracket_size - size < 16);
   DCHECK_LT(idx, kNumThreadLocalSizeBrackets);
   Run* thread_local_run = reinterpret_cast<Run*>(self->GetRosAllocRun(idx));
   if (kIsDebugBuild) {

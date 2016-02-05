@@ -127,7 +127,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mterp_default_ibase, mterp_alt_ibase, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mterp_alt_ibase, rosalloc_runs, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, rosalloc_runs, thread_local_alloc_stack_top,
-                        sizeof(void*) * kNumRosAllocThreadLocalSizeBrackets);
+                        sizeof(void*) * kNumRosAllocThreadLocalSizeBracketsInThread);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_top, thread_local_alloc_stack_end,
                         sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, sizeof(void*));

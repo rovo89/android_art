@@ -638,11 +638,6 @@ void* RosAlloc::AllocFromRunThreadUnsafe(Thread* self, size_t size, size_t* byte
   DCHECK_LE(size, kLargeSizeThreshold);
   size_t bracket_size;
   size_t idx = SizeToIndexAndBracketSize(size, &bracket_size);
-  DCHECK_EQ(idx, SizeToIndex(size));
-  DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
-  DCHECK_EQ(bracket_size, bracketSizes[idx]);
-  DCHECK_LE(size, bracket_size);
-  DCHECK(size > 512 || bracket_size - size < 16);
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   void* slot_addr = AllocFromCurrentRunUnlocked(self, idx);
   if (LIKELY(slot_addr != nullptr)) {
@@ -662,14 +657,7 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated,
   DCHECK_LE(size, kLargeSizeThreshold);
   size_t bracket_size;
   size_t idx = SizeToIndexAndBracketSize(size, &bracket_size);
-  DCHECK_EQ(idx, SizeToIndex(size));
-  DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
-  DCHECK_EQ(bracket_size, bracketSizes[idx]);
-  DCHECK_LE(size, bracket_size);
-  DCHECK(size > 512 || bracket_size - size < 16);
-
   void* slot_addr;
-
   if (LIKELY(idx < kNumThreadLocalSizeBrackets)) {
     // Use a thread-local run.
     Run* thread_local_run = reinterpret_cast<Run*>(self->GetRosAllocRun(idx));
@@ -879,17 +867,6 @@ std::string RosAlloc::Run::Dump() {
          << " thread_local_list=" << FreeListToStr(&thread_local_free_list_)
          << " }" << std::endl;
   return stream.str();
-}
-
-inline size_t RosAlloc::Run::SlotIndex(Slot* slot) {
-  const uint8_t idx = size_bracket_idx_;
-  const size_t bracket_size = bracketSizes[idx];
-  const size_t offset_from_slot_base = reinterpret_cast<uint8_t*>(slot)
-      - reinterpret_cast<uint8_t*>(FirstSlot());
-  DCHECK_EQ(offset_from_slot_base % bracket_size, static_cast<size_t>(0));
-  size_t slot_idx = offset_from_slot_base / bracket_size;
-  DCHECK_LT(slot_idx, numOfSlots[idx]);
-  return slot_idx;
 }
 
 void RosAlloc::Run::FreeSlot(void* ptr) {
@@ -1647,9 +1624,14 @@ void RosAlloc::AssertAllThreadLocalRunsAreRevoked() {
 
 void RosAlloc::Initialize() {
   // bracketSizes.
+  static_assert(kNumRegularSizeBrackets == kNumOfSizeBrackets - 2,
+                "There should be two non-regular brackets");
   for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
-    if (i < kNumOfSizeBrackets - 2) {
-      bracketSizes[i] = 16 * (i + 1);
+    if (i < kNumThreadLocalSizeBrackets) {
+      bracketSizes[i] = kThreadLocalBracketQuantumSize * (i + 1);
+    } else if (i < kNumRegularSizeBrackets) {
+      bracketSizes[i] = kBracketQuantumSize * (i - kNumThreadLocalSizeBrackets + 1) +
+          (kThreadLocalBracketQuantumSize *  kNumThreadLocalSizeBrackets);
     } else if (i == kNumOfSizeBrackets - 2) {
       bracketSizes[i] = 1 * KB;
     } else {
@@ -1662,16 +1644,13 @@ void RosAlloc::Initialize() {
   }
   // numOfPages.
   for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
-    if (i < 4) {
+    if (i < kNumThreadLocalSizeBrackets) {
       numOfPages[i] = 1;
-    } else if (i < 8) {
-      numOfPages[i] = 1;
-    } else if (i < 16) {
+    } else if (i < (kNumThreadLocalSizeBrackets + kNumRegularSizeBrackets) / 2) {
       numOfPages[i] = 4;
-    } else if (i < 32) {
+    } else if (i < kNumRegularSizeBrackets) {
       numOfPages[i] = 8;
-    } else if (i == 32) {
-      DCHECK_EQ(i, kNumOfSizeBrackets - 2);
+    } else if (i == kNumOfSizeBrackets - 2) {
       numOfPages[i] = 16;
     } else {
       DCHECK_EQ(i, kNumOfSizeBrackets - 1);
@@ -1701,8 +1680,8 @@ void RosAlloc::Initialize() {
       size_t tmp_header_size = (tmp_unaligned_header_size % bracket_size == 0) ?
           tmp_unaligned_header_size :
           tmp_unaligned_header_size + (bracket_size - tmp_unaligned_header_size % bracket_size);
-      DCHECK_EQ(tmp_header_size % bracket_size, static_cast<size_t>(0));
-      DCHECK_EQ(tmp_header_size % 8, static_cast<size_t>(0));
+      DCHECK_EQ(tmp_header_size % bracket_size, 0U);
+      DCHECK_EQ(tmp_header_size % sizeof(uint64_t), 0U);
       if (tmp_slots_size + tmp_header_size <= run_size) {
         // Found the right number of slots, that is, there was enough
         // space for the header (including the bit maps.)
@@ -1711,8 +1690,8 @@ void RosAlloc::Initialize() {
         break;
       }
     }
-    DCHECK_GT(num_of_slots, 0U);
-    DCHECK_GT(header_size, 0U);
+    DCHECK_GT(num_of_slots, 0U) << i;
+    DCHECK_GT(header_size, 0U) << i;
     // Add the padding for the alignment remainder.
     header_size += run_size % bracket_size;
     DCHECK_EQ(header_size + num_of_slots * bracket_size, run_size);
@@ -1723,7 +1702,7 @@ void RosAlloc::Initialize() {
                 << ", headerSizes[" << i << "]=" << headerSizes[i];
     }
   }
-  // Fill the alloc bitmap so nobody can successfully allocate from it.
+  // Set up the dedicated full run so that nobody can successfully allocate from it.
   if (kIsDebugBuild) {
     dedicated_full_run_->magic_num_ = kMagicNum;
   }
@@ -1735,6 +1714,9 @@ void RosAlloc::Initialize() {
 
   // The smallest bracket size must be at least as large as the sizeof(Slot).
   DCHECK_LE(sizeof(Slot), bracketSizes[0]) << "sizeof(Slot) <= the smallest bracket size";
+  // Check the invariants between the max bracket sizes and the number of brackets.
+  DCHECK_EQ(kMaxThreadLocalBracketSize, bracketSizes[kNumThreadLocalSizeBrackets - 1]);
+  DCHECK_EQ(kMaxRegularBracketSize, bracketSizes[kNumRegularSizeBrackets - 1]);
 }
 
 void RosAlloc::BytesAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end ATTRIBUTE_UNUSED,

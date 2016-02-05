@@ -113,7 +113,8 @@ enum class StackedShadowFrameType {
   kSingleFrameDeoptimizationShadowFrame
 };
 
-static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
+// This should match RosAlloc::kNumThreadLocalSizeBrackets.
+static constexpr size_t kNumRosAllocThreadLocalSizeBracketsInThread = 16;
 
 // Thread's stack layout for implicit stack overflow checks:
 //
@@ -1424,7 +1425,7 @@ class Thread {
     void* mterp_alt_ibase;
 
     // There are RosAlloc::kNumThreadLocalSizeBrackets thread-local size brackets per thread.
-    void* rosalloc_runs[kNumRosAllocThreadLocalSizeBrackets];
+    void* rosalloc_runs[kNumRosAllocThreadLocalSizeBracketsInThread];
 
     // Thread-local allocation stack data/routines.
     StackReference<mirror::Object>* thread_local_alloc_stack_top;
