@@ -264,6 +264,7 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
   void GenerateExplicitNullCheck(HNullCheck* instruction);
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
+  void GenerateCompareTest(HCondition* condition);
   template<class LabelType>
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
@@ -481,6 +482,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // Load a 32/64 bit value into a register in the most efficient manner.
   void Load32BitValue(CpuRegister dest, int32_t value);
   void Load64BitValue(CpuRegister dest, int64_t value);
+  void Load32BitValue(XmmRegister dest, int32_t value);
+  void Load64BitValue(XmmRegister dest, int64_t value);
+  void Load32BitValue(XmmRegister dest, float value);
+  void Load64BitValue(XmmRegister dest, double value);
 
   Address LiteralCaseTable(HPackedSwitch* switch_instr);
 
