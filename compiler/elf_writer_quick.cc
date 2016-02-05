@@ -33,6 +33,8 @@
 #include "leb128.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
+#include "thread-inl.h"
+#include "thread_pool.h"
 #include "utils.h"
 
 namespace art {
@@ -46,6 +48,37 @@ namespace art {
 // Let's use .debug_frame because it is easier to strip or compress.
 constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_DEBUG_FRAME_FORMAT;
 
+class DebugInfoTask : public Task {
+ public:
+  DebugInfoTask(InstructionSet isa,
+                size_t rodata_section_size,
+                size_t text_section_size,
+                const ArrayRef<const dwarf::MethodDebugInfo>& method_infos)
+      : isa_(isa),
+        rodata_section_size_(rodata_section_size),
+        text_section_size_(text_section_size),
+        method_infos_(method_infos) {
+  }
+
+  void Run(Thread*) {
+    result_ = dwarf::MakeMiniDebugInfo(isa_,
+                                       rodata_section_size_,
+                                       text_section_size_,
+                                       method_infos_);
+  }
+
+  std::vector<uint8_t>* GetResult() {
+    return &result_;
+  }
+
+ private:
+  InstructionSet isa_;
+  size_t rodata_section_size_;
+  size_t text_section_size_;
+  const ArrayRef<const dwarf::MethodDebugInfo>& method_infos_;
+  std::vector<uint8_t> result_;
+};
+
 template <typename ElfTypes>
 class ElfWriterQuick FINAL : public ElfWriter {
  public:
@@ -55,6 +88,9 @@ class ElfWriterQuick FINAL : public ElfWriter {
   ~ElfWriterQuick();
 
   void Start() OVERRIDE;
+  void PrepareDebugInfo(size_t rodata_section_size,
+                        size_t text_section_size,
+                        const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) OVERRIDE;
   OutputStream* StartRoData() OVERRIDE;
   void EndRoData(OutputStream* rodata) OVERRIDE;
   OutputStream* StartText() OVERRIDE;
@@ -75,6 +111,8 @@ class ElfWriterQuick FINAL : public ElfWriter {
   File* const elf_file_;
   std::unique_ptr<BufferedOutputStream> output_stream_;
   std::unique_ptr<ElfBuilder<ElfTypes>> builder_;
+  std::unique_ptr<DebugInfoTask> debug_info_task_;
+  std::unique_ptr<ThreadPool> debug_info_thread_pool_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ElfWriterQuick);
 };
@@ -147,6 +185,26 @@ void ElfWriterQuick<ElfTypes>::WriteDynamicSection() {
 }
 
 template <typename ElfTypes>
+void ElfWriterQuick<ElfTypes>::PrepareDebugInfo(
+    size_t rodata_section_size,
+    size_t text_section_size,
+    const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
+  if (compiler_options_->GetGenerateMiniDebugInfo()) {
+    // Prepare the mini-debug-info in background while we do other I/O.
+    Thread* self = Thread::Current();
+    debug_info_task_ = std::unique_ptr<DebugInfoTask>(
+        new DebugInfoTask(builder_->GetIsa(),
+                          rodata_section_size,
+                          text_section_size,
+                          method_infos));
+    debug_info_thread_pool_ = std::unique_ptr<ThreadPool>(
+        new ThreadPool("Mini-debug-info writer", 1));
+    debug_info_thread_pool_->AddTask(self, debug_info_task_.get());
+    debug_info_thread_pool_->StartWorkers(self);
+  }
+}
+
+template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
     const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
   if (compiler_options_->GetGenerateDebugInfo()) {
@@ -154,8 +212,11 @@ void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
     dwarf::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat, true /* write_oat_patches */);
   }
   if (compiler_options_->GetGenerateMiniDebugInfo()) {
-    // Generate only some information and compress it.
-    dwarf::WriteMiniDebugInfo(builder_.get(), method_infos);
+    // Wait for the mini-debug-info generation to finish and write it to disk.
+    Thread* self = Thread::Current();
+    DCHECK(debug_info_thread_pool_ != nullptr);
+    debug_info_thread_pool_->Wait(self, true, false);
+    builder_->WriteSection(".gnu_debugdata", debug_info_task_->GetResult());
   }
 }
 
