@@ -40,8 +40,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   466-get-live-vreg/get_live_vreg_jni.cc \
   497-inlining-and-class-loader/clear_dex_cache.cc \
   543-env-long-ref/env_long_ref.cc \
-  566-polymorphic-inlining/polymorphic_inline.cc \
-  570-checker-osr/osr.cc
+  566-polymorphic-inlining/polymorphic_inline.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttestd.so

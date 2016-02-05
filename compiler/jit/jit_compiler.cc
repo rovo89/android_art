@@ -60,12 +60,11 @@ extern "C" void jit_unload(void* handle) {
   delete reinterpret_cast<JitCompiler*>(handle);
 }
 
-extern "C" bool jit_compile_method(
-    void* handle, ArtMethod* method, Thread* self, bool osr)
+extern "C" bool jit_compile_method(void* handle, ArtMethod* method, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
   DCHECK(jit_compiler != nullptr);
-  return jit_compiler->CompileMethod(self, method, osr);
+  return jit_compiler->CompileMethod(self, method);
 }
 
 extern "C" void jit_types_loaded(void* handle, mirror::Class** types, size_t count)
@@ -202,7 +201,7 @@ JitCompiler::~JitCompiler() {
   }
 }
 
-bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
+bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
   const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
@@ -224,8 +223,8 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
     // of that proxy method, as the compiler does not expect a proxy method.
     ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
     JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
-    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile, osr);
-    if (success && (perf_file_ != nullptr)) {
+    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile);
+    if (success && perf_file_ != nullptr) {
       const void* ptr = method_to_compile->GetEntryPointFromQuickCompiledCode();
       std::ostringstream stream;
       stream << std::hex

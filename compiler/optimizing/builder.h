@@ -30,6 +30,7 @@
 namespace art {
 
 class Instruction;
+class SwitchTable;
 
 class HGraphBuilder : public ValueObject {
  public:

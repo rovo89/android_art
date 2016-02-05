@@ -29,8 +29,7 @@ class JitCompileTask FINAL : public Task {
  public:
   enum TaskKind {
     kAllocateProfile,
-    kCompile,
-    kCompileOsr
+    kCompile
   };
 
   JitCompileTask(ArtMethod* method, TaskKind kind) : method_(method), kind_(kind) {
@@ -49,13 +48,8 @@ class JitCompileTask FINAL : public Task {
     ScopedObjectAccess soa(self);
     if (kind_ == kCompile) {
       VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
-      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ false)) {
+      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self)) {
         VLOG(jit) << "Failed to compile method " << PrettyMethod(method_);
-      }
-    } else if (kind_ == kCompileOsr) {
-      VLOG(jit) << "JitCompileTask compiling method osr " << PrettyMethod(method_);
-      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ true)) {
-        VLOG(jit) << "Failed to compile method osr " << PrettyMethod(method_);
       }
     } else {
       DCHECK(kind_ == kAllocateProfile);
@@ -78,11 +72,9 @@ class JitCompileTask FINAL : public Task {
 };
 
 JitInstrumentationCache::JitInstrumentationCache(size_t hot_method_threshold,
-                                                 size_t warm_method_threshold,
-                                                 size_t osr_method_threshold)
+                                                 size_t warm_method_threshold)
     : hot_method_threshold_(hot_method_threshold),
       warm_method_threshold_(warm_method_threshold),
-      osr_method_threshold_(osr_method_threshold),
       listener_(this) {
 }
 
@@ -158,11 +150,6 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t
   if (sample_count == hot_method_threshold_) {
     DCHECK(thread_pool_ != nullptr);
     thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
-  }
-
-  if (sample_count == osr_method_threshold_) {
-    DCHECK(thread_pool_ != nullptr);
-    thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
   }
 }
 

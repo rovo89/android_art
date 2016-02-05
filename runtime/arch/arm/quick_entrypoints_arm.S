@@ -429,56 +429,6 @@ ENTRY art_quick_invoke_stub_internal
 END art_quick_invoke_stub_internal
 
     /*
-     * On stack replacement stub.
-     * On entry:
-     *   r0 = stack to copy
-     *   r1 = size of stack
-     *   r2 = pc to call
-     *   r3 = JValue* result
-     *   [sp] = shorty
-     *   [sp + 4] = thread
-     */
-ENTRY art_quick_osr_stub
-    SPILL_ALL_CALLEE_SAVE_GPRS             @ Spill regs (9)
-    mov    r11, sp                         @ Save the stack pointer
-    mov    r10, r1                         @ Save size of stack
-    ldr    r9, [r11, #40]                  @ Move managed thread pointer into r9
-    mov    r8, r2                          @ Save the pc to call
-    sub    r7, sp, #12                     @ Reserve space for stack pointer, JValue result, and ArtMethod* slot
-    and    r7, #0xFFFFFFF0                 @ Align stack pointer
-    mov    sp, r7                          @ Update stack pointer
-    str    r11, [sp, #4]                   @ Save old stack pointer
-    str    r3, [sp, #8]                    @ Save JValue result
-    mov    ip, #0
-    str    ip, [sp]                        @ Store null for ArtMethod* at bottom of frame
-    sub    sp, sp, r1                      @ Reserve space for callee stack
-    mov    r2, r1
-    mov    r1, r0
-    mov    r0, sp
-    bl     memcpy                          @ memcpy (dest r0, src r1, bytes r2)
-    bl     .Losr_entry                     @ Call the method
-    ldr    r11, [sp, #4]                   @ Restore saved stack pointer
-    ldr    r10, [sp, #8]                   @ Restire JValue result
-    mov    sp, r11                         @ Restore stack pointer.
-    ldr    r4, [sp, #36]                   @ load shorty
-    ldr    r4, [r4, #0]                    @ load return type
-    cmp    r4, #68                         @ Test if result type char == 'D'.
-    beq    .Losr_fp_result
-    cmp    r4, #70                         @ Test if result type char == 'F'.
-    beq    .Losr_fp_result
-    strd r0, [r10]                         @ Store r0/r1 into result pointer
-    b    .Losr_exit
-.Losr_fp_result:
-    vstr d0, [r10]                         @ Store s0-s1/d0 into result pointer
-.Losr_exit:
-    pop    {r4, r5, r6, r7, r8, r9, r10, r11, pc}
-.Losr_entry:
-    sub r10, r10, #4
-    str lr, [sp, r10]                     @ Store link register per the compiler ABI
-    bx r8
-END art_quick_osr_stub
-
-    /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
      */
 ARM_ENTRY art_quick_do_long_jump
