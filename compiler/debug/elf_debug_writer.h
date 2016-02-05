@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEBUG_ELF_WRITER_DEBUG_H_
-#define ART_COMPILER_DEBUG_ELF_WRITER_DEBUG_H_
+#ifndef ART_COMPILER_DEBUG_ELF_DEBUG_WRITER_H_
+#define ART_COMPILER_DEBUG_ELF_DEBUG_WRITER_H_
 
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -27,13 +27,13 @@ namespace art {
 namespace mirror {
 class Class;
 }
-namespace dwarf {
+namespace debug {
 struct MethodDebugInfo;
 
 template <typename ElfTypes>
 void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
-                    CFIFormat cfi_format,
+                    dwarf::CFIFormat cfi_format,
                     bool write_oat_patches);
 
 std::vector<uint8_t> MakeMiniDebugInfo(InstructionSet isa,
@@ -41,13 +41,13 @@ std::vector<uint8_t> MakeMiniDebugInfo(InstructionSet isa,
                                        size_t text_section_size,
                                        const ArrayRef<const MethodDebugInfo>& method_infos);
 
-ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const dwarf::MethodDebugInfo& method_info);
+ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const MethodDebugInfo& method_info);
 
 ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
                                                     const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-}  // namespace dwarf
+}  // namespace debug
 }  // namespace art
 
-#endif  // ART_COMPILER_DEBUG_ELF_WRITER_DEBUG_H_
+#endif  // ART_COMPILER_DEBUG_ELF_DEBUG_WRITER_H_
