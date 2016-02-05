@@ -24,6 +24,7 @@
 #include "base/stl_util.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "gc/space/image_space.h"
 #include "handle_scope-inl.h"
 #include "mirror/class_loader.h"
@@ -379,6 +380,9 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
           // spaces array.
           {
             ScopedThreadSuspension sts(self, kSuspended);
+            gc::ScopedGCCriticalSection gcs(self,
+                                            gc::kGcCauseAddRemoveAppImageSpace,
+                                            gc::kCollectorTypeAddRemoveAppImageSpace);
             ScopedSuspendAll ssa("Add image space");
             runtime->GetHeap()->AddSpace(image_space.get());
           }
@@ -393,6 +397,9 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             dex_files.clear();
             {
               ScopedThreadSuspension sts(self, kSuspended);
+              gc::ScopedGCCriticalSection gcs(self,
+                                              gc::kGcCauseAddRemoveAppImageSpace,
+                                              gc::kCollectorTypeAddRemoveAppImageSpace);
               ScopedSuspendAll ssa("Remove image space");
               runtime->GetHeap()->RemoveSpace(image_space.get());
             }
