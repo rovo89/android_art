@@ -189,7 +189,7 @@ void ElfWriterQuick<ElfTypes>::PrepareDebugInfo(
     size_t rodata_section_size,
     size_t text_section_size,
     const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
-  if (compiler_options_->GetGenerateMiniDebugInfo()) {
+  if (!method_infos.empty() && compiler_options_->GetGenerateMiniDebugInfo()) {
     // Prepare the mini-debug-info in background while we do other I/O.
     Thread* self = Thread::Current();
     debug_info_task_ = std::unique_ptr<DebugInfoTask>(
@@ -207,16 +207,18 @@ void ElfWriterQuick<ElfTypes>::PrepareDebugInfo(
 template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
     const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
-  if (compiler_options_->GetGenerateDebugInfo()) {
-    // Generate all the debug information we can.
-    dwarf::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat, true /* write_oat_patches */);
-  }
-  if (compiler_options_->GetGenerateMiniDebugInfo()) {
-    // Wait for the mini-debug-info generation to finish and write it to disk.
-    Thread* self = Thread::Current();
-    DCHECK(debug_info_thread_pool_ != nullptr);
-    debug_info_thread_pool_->Wait(self, true, false);
-    builder_->WriteSection(".gnu_debugdata", debug_info_task_->GetResult());
+  if (!method_infos.empty()) {
+    if (compiler_options_->GetGenerateDebugInfo()) {
+      // Generate all the debug information we can.
+      dwarf::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat, true /* write_oat_patches */);
+    }
+    if (compiler_options_->GetGenerateMiniDebugInfo()) {
+      // Wait for the mini-debug-info generation to finish and write it to disk.
+      Thread* self = Thread::Current();
+      DCHECK(debug_info_thread_pool_ != nullptr);
+      debug_info_thread_pool_->Wait(self, true, false);
+      builder_->WriteSection(".gnu_debugdata", debug_info_task_->GetResult());
+    }
   }
 }
 
