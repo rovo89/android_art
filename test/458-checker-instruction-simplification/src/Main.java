@@ -1404,7 +1404,7 @@ public class Main {
   /// CHECK-START: int Main.floatConditionNotEqualOne(float) ssa_builder (after)
   /// CHECK:                            LessThanOrEqual
 
-  /// CHECK-START: int Main.floatConditionNotEqualOne(float) register (before)
+  /// CHECK-START: int Main.floatConditionNotEqualOne(float) instruction_simplifier_before_codegen (after)
   /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
@@ -1420,7 +1420,7 @@ public class Main {
   /// CHECK-START: int Main.doubleConditionEqualZero(double) ssa_builder (after)
   /// CHECK:                            LessThanOrEqual
 
-  /// CHECK-START: int Main.doubleConditionEqualZero(double) register (before)
+  /// CHECK-START: int Main.doubleConditionEqualZero(double) instruction_simplifier_before_codegen (after)
   /// CHECK-DAG:      <<Arg:d\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
