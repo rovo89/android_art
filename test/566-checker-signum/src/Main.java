@@ -54,11 +54,26 @@ public class Main {
     expectEquals(1, sign64(12345L));
     expectEquals(1, sign64(Long.MAX_VALUE));
 
+    expectEquals(-1, sign64(0x800000007FFFFFFFL));
+    expectEquals(-1, sign64(0x80000000FFFFFFFFL));
+    expectEquals(1, sign64(0x000000007FFFFFFFL));
+    expectEquals(1, sign64(0x00000000FFFFFFFFL));
+    expectEquals(1, sign64(0x7FFFFFFF7FFFFFFFL));
+    expectEquals(1, sign64(0x7FFFFFFFFFFFFFFFL));
+
     for (long i = -11L; i <= 11L; i++) {
       int expected = 0;
       if (i < 0) expected = -1;
       else if (i > 0) expected = 1;
       expectEquals(expected, sign64(i));
+    }
+
+    for (long i = Long.MIN_VALUE; i <= Long.MIN_VALUE + 11L; i++) {
+      expectEquals(-1, sign64(i));
+    }
+
+    for (long i = Long.MAX_VALUE; i >= Long.MAX_VALUE - 11L; i--) {
+      expectEquals(1, sign64(i));
     }
 
     System.out.println("passed");

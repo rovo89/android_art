@@ -284,36 +284,6 @@ static void CreateIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
-static void GenCompare(LocationSummary* locations, bool is_long, vixl::MacroAssembler* masm) {
-  Location op1 = locations->InAt(0);
-  Location op2 = locations->InAt(1);
-  Location out = locations->Out();
-
-  Register op1_reg = is_long ? XRegisterFrom(op1) : WRegisterFrom(op1);
-  Register op2_reg = is_long ? XRegisterFrom(op2) : WRegisterFrom(op2);
-  Register out_reg = WRegisterFrom(out);
-
-  __ Cmp(op1_reg, op2_reg);
-  __ Cset(out_reg, gt);           // out == +1 if GT or 0 otherwise
-  __ Cinv(out_reg, out_reg, lt);  // out == -1 if LT or unchanged otherwise
-}
-
-void IntrinsicLocationsBuilderARM64::VisitIntegerCompare(HInvoke* invoke) {
-  CreateIntIntToIntLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitIntegerCompare(HInvoke* invoke) {
-  GenCompare(invoke->GetLocations(), /* is_long */ false, GetVIXLAssembler());
-}
-
-void IntrinsicLocationsBuilderARM64::VisitLongCompare(HInvoke* invoke) {
-  CreateIntIntToIntLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitLongCompare(HInvoke* invoke) {
-  GenCompare(invoke->GetLocations(), /* is_long */ true,  GetVIXLAssembler());
-}
-
 static void GenNumberOfLeadingZeros(LocationSummary* locations,
                                     Primitive::Type type,
                                     vixl::MacroAssembler* masm) {
@@ -1456,34 +1426,6 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromString(HInvoke* invoke
   __ Bind(slow_path->GetExitLabel());
 }
 
-static void GenSignum(LocationSummary* locations, bool is_long, vixl::MacroAssembler* masm) {
-  Location op1 = locations->InAt(0);
-  Location out = locations->Out();
-
-  Register op1_reg = is_long ? XRegisterFrom(op1) : WRegisterFrom(op1);
-  Register out_reg = WRegisterFrom(out);
-
-  __ Cmp(op1_reg, 0);
-  __ Cset(out_reg, gt);           // out == +1 if GT or 0 otherwise
-  __ Cinv(out_reg, out_reg, lt);  // out == -1 if LT or unchanged otherwise
-}
-
-void IntrinsicLocationsBuilderARM64::VisitIntegerSignum(HInvoke* invoke) {
-  CreateIntToIntLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitIntegerSignum(HInvoke* invoke) {
-  GenSignum(invoke->GetLocations(), /* is_long */ false, GetVIXLAssembler());
-}
-
-void IntrinsicLocationsBuilderARM64::VisitLongSignum(HInvoke* invoke) {
-  CreateIntToIntLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitLongSignum(HInvoke* invoke) {
-  GenSignum(invoke->GetLocations(), /* is_long */ true,  GetVIXLAssembler());
-}
-
 static void CreateFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
   DCHECK_EQ(invoke->GetNumberOfArguments(), 1U);
   DCHECK(Primitive::IsFloatingPointType(invoke->InputAt(0)->GetType()));
@@ -1684,11 +1626,15 @@ UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
 
-// Rotate operations are handled as HRor instructions.
+// Handled as HIR instructions.
 UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
+UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
+UNIMPLEMENTED_INTRINSIC(IntegerCompare)
+UNIMPLEMENTED_INTRINSIC(LongCompare)
+UNIMPLEMENTED_INTRINSIC(IntegerSignum)
+UNIMPLEMENTED_INTRINSIC(LongSignum)
 
 #undef UNIMPLEMENTED_INTRINSIC
 
