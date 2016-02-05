@@ -17,7 +17,6 @@
 #include "base/stl_util.h"  // MakeUnique
 #include "experimental_flags.h"
 #include "interpreter_common.h"
-#include "jit/jit.h"
 #include "safe_math.h"
 
 #include <memory>  // std::unique_ptr
@@ -70,14 +69,9 @@ namespace interpreter {
     }                                                                                           \
   } while (false)
 
-#define BRANCH_INSTRUMENTATION(offset)                                                         \
-  do {                                                                                         \
-    ArtMethod* method = shadow_frame.GetMethod();                                              \
-    instrumentation->Branch(self, method, dex_pc, offset);                                     \
-    JValue result;                                                                             \
-    if (jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, &result)) {          \
-      return result;                                                                           \
-    }                                                                                          \
+#define BRANCH_INSTRUMENTATION(offset) \
+  do { \
+    instrumentation->Branch(self, shadow_frame.GetMethod(), dex_pc, offset); \
   } while (false)
 
 static bool IsExperimentalInstructionEnabled(const Instruction *inst) {

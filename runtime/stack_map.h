@@ -1195,35 +1195,6 @@ class CodeInfo {
     return StackMap();
   }
 
-  StackMap GetOsrStackMapForDexPc(uint32_t dex_pc, const StackMapEncoding& encoding) const {
-    size_t e = GetNumberOfStackMaps();
-    if (e == 0) {
-      // There cannot be OSR stack map if there is no stack map.
-      return StackMap();
-    }
-    // Walk over all stack maps. If two consecutive stack maps are identical, then we
-    // have found a stack map suitable for OSR.
-    for (size_t i = 0; i < e - 1; ++i) {
-      StackMap stack_map = GetStackMapAt(i, encoding);
-      if (stack_map.GetDexPc(encoding) == dex_pc) {
-        StackMap other = GetStackMapAt(i + 1, encoding);
-        if (other.GetDexPc(encoding) == dex_pc &&
-            other.GetNativePcOffset(encoding) == stack_map.GetNativePcOffset(encoding)) {
-          DCHECK_EQ(other.GetDexRegisterMapOffset(encoding),
-                    stack_map.GetDexRegisterMapOffset(encoding));
-          DCHECK(!stack_map.HasInlineInfo(encoding));
-          if (i < e - 2) {
-            // Make sure there are not three identical stack maps following each other.
-            DCHECK_NE(stack_map.GetNativePcOffset(encoding),
-                      GetStackMapAt(i + 2, encoding).GetNativePcOffset(encoding));
-          }
-          return stack_map;
-        }
-      }
-    }
-    return StackMap();
-  }
-
   StackMap GetStackMapForNativePcOffset(uint32_t native_pc_offset,
                                         const StackMapEncoding& encoding) const {
     // TODO: Safepoint stack maps are sorted by native_pc_offset but catch stack
