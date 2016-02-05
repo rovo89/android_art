@@ -56,11 +56,50 @@ public class Main {
   /// CHECK-START: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (after)
   /// CHECK:                            Not
   /// CHECK-NOT:                        Not
+
+  /// CHECK-START: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (after)
   /// CHECK-NOT:                        And
 
   public static int $opt$noinline$andToOr(int a, int b) {
     if (doThrow) throw new Error();
     return ~a & ~b;
+  }
+
+  /**
+   * Test transformation of Not/Not/And into Or/Not for boolean negations.
+   * Note that the graph before this instruction simplification pass does not
+   * contain `HBooleanNot` instructions. This is because this transformation
+   * follows the optimization of `HSelect` to `HBooleanNot` occurring in the
+   * same pass.
+   */
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (before)
+  /// CHECK:       <<P1:z\d+>>          ParameterValue
+  /// CHECK:       <<P2:z\d+>>          ParameterValue
+  /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
+  /// CHECK-DAG:   <<Const1:i\d+>>      IntConstant 1
+  /// CHECK:       <<Select1:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P1>>]
+  /// CHECK:       <<Select2:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P2>>]
+  /// CHECK:       <<And:i\d+>>         And [<<Select2>>,<<Select1>>]
+  /// CHECK:                            Return [<<And>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK:       <<Cond1:z\d+>>       ParameterValue
+  /// CHECK:       <<Cond2:z\d+>>       ParameterValue
+  /// CHECK:       <<Or:i\d+>>          Or [<<Cond2>>,<<Cond1>>]
+  /// CHECK:       <<BooleanNot:z\d+>>  BooleanNot [<<Or>>]
+  /// CHECK:                            Return [<<BooleanNot>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK:                            BooleanNot
+  /// CHECK-NOT:                        BooleanNot
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-NOT:                        And
+
+  public static boolean $opt$noinline$booleanAndToOr(boolean a, boolean b) {
+    if (doThrow) throw new Error();
+    return !a & !b;
   }
 
   /**
@@ -88,11 +127,50 @@ public class Main {
   /// CHECK-START: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (after)
   /// CHECK:                            Not
   /// CHECK-NOT:                        Not
+
+  /// CHECK-START: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (after)
   /// CHECK-NOT:                        Or
 
   public static long $opt$noinline$orToAnd(long a, long b) {
     if (doThrow) throw new Error();
     return ~a | ~b;
+  }
+
+  /**
+   * Test transformation of Not/Not/Or into Or/And for boolean negations.
+   * Note that the graph before this instruction simplification pass does not
+   * contain `HBooleanNot` instructions. This is because this transformation
+   * follows the optimization of `HSelect` to `HBooleanNot` occurring in the
+   * same pass.
+   */
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (before)
+  /// CHECK:       <<P1:z\d+>>          ParameterValue
+  /// CHECK:       <<P2:z\d+>>          ParameterValue
+  /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
+  /// CHECK-DAG:   <<Const1:i\d+>>      IntConstant 1
+  /// CHECK:       <<Select1:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P1>>]
+  /// CHECK:       <<Select2:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P2>>]
+  /// CHECK:       <<Or:i\d+>>          Or [<<Select2>>,<<Select1>>]
+  /// CHECK:                            Return [<<Or>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK:       <<Cond1:z\d+>>       ParameterValue
+  /// CHECK:       <<Cond2:z\d+>>       ParameterValue
+  /// CHECK:       <<And:i\d+>>         And [<<Cond2>>,<<Cond1>>]
+  /// CHECK:       <<BooleanNot:z\d+>>  BooleanNot [<<And>>]
+  /// CHECK:                            Return [<<BooleanNot>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK:                            BooleanNot
+  /// CHECK-NOT:                        BooleanNot
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-NOT:                        Or
+
+  public static boolean $opt$noinline$booleanOrToAnd(boolean a, boolean b) {
+    if (doThrow) throw new Error();
+    return !a | !b;
   }
 
   /**
@@ -127,6 +205,8 @@ public class Main {
   /// CHECK-START: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (after)
   /// CHECK:                            Not
   /// CHECK-NOT:                        Not
+
+  /// CHECK-START: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (after)
   /// CHECK-NOT:                        Or
 
   public static int $opt$noinline$regressInputsAway(int a, int b) {
@@ -164,6 +244,38 @@ public class Main {
   public static int $opt$noinline$notXorToXor(int a, int b) {
     if (doThrow) throw new Error();
     return ~a ^ ~b;
+  }
+
+  /**
+   * Test transformation of Not/Not/Xor into Xor for boolean negations.
+   * Note that the graph before this instruction simplification pass does not
+   * contain `HBooleanNot` instructions. This is because this transformation
+   * follows the optimization of `HSelect` to `HBooleanNot` occurring in the
+   * same pass.
+   */
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier_after_bce (before)
+  /// CHECK:       <<P1:z\d+>>          ParameterValue
+  /// CHECK:       <<P2:z\d+>>          ParameterValue
+  /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
+  /// CHECK-DAG:   <<Const1:i\d+>>      IntConstant 1
+  /// CHECK:       <<Select1:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P1>>]
+  /// CHECK:       <<Select2:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P2>>]
+  /// CHECK:       <<Xor:i\d+>>         Xor [<<Select2>>,<<Select1>>]
+  /// CHECK:                            Return [<<Xor>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK:       <<Cond1:z\d+>>       ParameterValue
+  /// CHECK:       <<Cond2:z\d+>>       ParameterValue
+  /// CHECK:       <<Xor:i\d+>>         Xor [<<Cond2>>,<<Cond1>>]
+  /// CHECK:                            Return [<<Xor>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-NOT:                        BooleanNot
+
+  public static boolean $opt$noinline$booleanNotXorToXor(boolean a, boolean b) {
+    if (doThrow) throw new Error();
+    return !a ^ !b;
   }
 
   /**
