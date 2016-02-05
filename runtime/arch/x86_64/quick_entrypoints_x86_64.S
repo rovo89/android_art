@@ -1744,3 +1744,62 @@ DEFINE_FUNCTION art_quick_read_barrier_for_root_slow
     RESTORE_FP_CALLEE_SAVE_FRAME
     ret
 END_FUNCTION art_quick_read_barrier_for_root_slow
+
+    /*
+     * On stack replacement stub.
+     * On entry:
+     *   [sp] = return address
+     *   rdi = stack to copy
+     *   rsi = size of stack
+     *   rdx = pc to call
+     *   rcx = JValue* result
+     *   r8 = shorty
+     *   r9 = thread
+     */
+DEFINE_FUNCTION art_quick_osr_stub
+    // Save the non-volatiles.
+    PUSH rbp                      // Save rbp.
+    PUSH rcx                      // Save rcx/result*.
+    PUSH r8                       // Save r8/shorty*.
+
+    // Save callee saves.
+    PUSH rbx
+    PUSH r12
+    PUSH r13
+    PUSH r14
+    PUSH r15
+
+    pushq LITERAL(0)              // Push null for ArtMethod*.
+    movl %esi, %ecx               // rcx := size of stack
+    movq %rdi, %rsi               // rsi := stack to copy
+    call .Losr_entry
+
+    // Restore stack and callee-saves.
+    addq LITERAL(8), %rsp
+    POP r15
+    POP r14
+    POP r13
+    POP r12
+    POP rbx
+    POP r8
+    POP rcx
+    POP rbp
+    cmpb LITERAL(68), (%r8)        // Test if result type char == 'D'.
+    je .Losr_return_double_quick
+    cmpb LITERAL(70), (%r8)        // Test if result type char == 'F'.
+    je .Losr_return_float_quick
+    movq %rax, (%rcx)              // Store the result assuming its a long, int or Object*
+    ret
+.Losr_return_double_quick:
+    movsd %xmm0, (%rcx)            // Store the double floating point result.
+    ret
+.Losr_return_float_quick:
+    movss %xmm0, (%rcx)            // Store the floating point result.
+    ret
+.Losr_entry:
+    subl LITERAL(8), %ecx         // Given stack size contains pushed frame pointer, substract it.
+    subq %rcx, %rsp
+    movq %rsp, %rdi               // rdi := beginning of stack
+    rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
+    jmp *%rdx
+END_FUNCTION art_quick_osr_stub

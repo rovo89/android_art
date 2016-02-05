@@ -274,6 +274,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
          InstructionSet instruction_set,
          InvokeType invoke_type = kInvalidInvokeType,
          bool debuggable = false,
+         bool osr = false,
          int start_instruction_id = 0)
       : arena_(arena),
         blocks_(arena->Adapter(kArenaAllocBlockList)),
@@ -302,7 +303,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         cached_long_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_double_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_current_method_(nullptr),
-        inexact_object_rti_(ReferenceTypeInfo::CreateInvalid()) {
+        inexact_object_rti_(ReferenceTypeInfo::CreateInvalid()),
+        osr_(osr) {
     blocks_.reserve(kDefaultNumberOfBlocks);
   }
 
@@ -478,6 +480,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return instruction_set_;
   }
 
+  bool IsCompilingOsr() const { return osr_; }
+
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
@@ -605,6 +609,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // Keep the RTI of inexact Object to avoid having to pass stack handle
   // collection pointer to passes which may create NullConstant.
   ReferenceTypeInfo inexact_object_rti_;
+
+  // Whether we are compiling this graph for on stack replacement: this will
+  // make all loops seen as irreducible and emit special stack maps to mark
+  // compiled code entries which the interpreter can directly jump to.
+  const bool osr_;
 
   friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
@@ -6039,6 +6048,74 @@ inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
 
   FOR_EACH_CONCRETE_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
 #undef INSTRUCTION_TYPE_CHECK
+
+class SwitchTable : public ValueObject {
+ public:
+  SwitchTable(const Instruction& instruction, uint32_t dex_pc, bool sparse)
+      : instruction_(instruction), dex_pc_(dex_pc), sparse_(sparse) {
+    int32_t table_offset = instruction.VRegB_31t();
+    const uint16_t* table = reinterpret_cast<const uint16_t*>(&instruction) + table_offset;
+    if (sparse) {
+      CHECK_EQ(table[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
+    } else {
+      CHECK_EQ(table[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
+    }
+    num_entries_ = table[1];
+    values_ = reinterpret_cast<const int32_t*>(&table[2]);
+  }
+
+  uint16_t GetNumEntries() const {
+    return num_entries_;
+  }
+
+  void CheckIndex(size_t index) const {
+    if (sparse_) {
+      // In a sparse table, we have num_entries_ keys and num_entries_ values, in that order.
+      DCHECK_LT(index, 2 * static_cast<size_t>(num_entries_));
+    } else {
+      // In a packed table, we have the starting key and num_entries_ values.
+      DCHECK_LT(index, 1 + static_cast<size_t>(num_entries_));
+    }
+  }
+
+  int32_t GetEntryAt(size_t index) const {
+    CheckIndex(index);
+    return values_[index];
+  }
+
+  uint32_t GetDexPcForIndex(size_t index) const {
+    CheckIndex(index);
+    return dex_pc_ +
+        (reinterpret_cast<const int16_t*>(values_ + index) -
+         reinterpret_cast<const int16_t*>(&instruction_));
+  }
+
+  // Index of the first value in the table.
+  size_t GetFirstValueIndex() const {
+    if (sparse_) {
+      // In a sparse table, we have num_entries_ keys and num_entries_ values, in that order.
+      return num_entries_;
+    } else {
+      // In a packed table, we have the starting key and num_entries_ values.
+      return 1;
+    }
+  }
+
+ private:
+  const Instruction& instruction_;
+  const uint32_t dex_pc_;
+
+  // Whether this is a sparse-switch table (or a packed-switch one).
+  const bool sparse_;
+
+  // This can't be const as it needs to be computed off of the given instruction, and complicated
+  // expressions in the initializer list seemed very ugly.
+  uint16_t num_entries_;
+
+  const int32_t* values_;
+
+  DISALLOW_COPY_AND_ASSIGN(SwitchTable);
+};
 
 }  // namespace art
 

@@ -64,7 +64,8 @@ class Compiler {
 
   virtual bool JitCompile(Thread* self ATTRIBUTE_UNUSED,
                           jit::JitCodeCache* code_cache ATTRIBUTE_UNUSED,
-                          ArtMethod* method ATTRIBUTE_UNUSED)
+                          ArtMethod* method ATTRIBUTE_UNUSED,
+                          bool osr ATTRIBUTE_UNUSED)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     return false;
   }

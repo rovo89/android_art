@@ -552,6 +552,9 @@ class Thread {
         OFFSETOF_MEMBER(tls_32bit_sized_values, is_gc_marking));
   }
 
+  // Deoptimize the Java stack.
+  void DeoptimizeWithDeoptimizationException(JValue* result) SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   template<size_t pointer_size>
   static ThreadOffset<pointer_size> ThreadOffsetFromTlsPtr(size_t tls_ptr_offset) {
