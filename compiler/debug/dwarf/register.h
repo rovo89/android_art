@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_REGISTER_H_
-#define ART_COMPILER_DWARF_REGISTER_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_REGISTER_H_
+#define ART_COMPILER_DEBUG_DWARF_REGISTER_H_
 
 namespace art {
 namespace dwarf {
@@ -59,4 +59,4 @@ class Reg {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_REGISTER_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_REGISTER_H_

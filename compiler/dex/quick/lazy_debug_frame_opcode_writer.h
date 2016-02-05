@@ -19,7 +19,7 @@
 
 #include "base/arena_allocator.h"
 #include "base/arena_containers.h"
-#include "dwarf/debug_frame_opcode_writer.h"
+#include "debug/dwarf/debug_frame_opcode_writer.h"
 
 namespace art {
 struct LIR;
