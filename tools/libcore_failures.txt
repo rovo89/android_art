@@ -171,7 +171,7 @@
   bug: 25437292
 },
 {
-  description: "Failing tests after enso move.",
+  description: "Failing tests after OpenJDK move.",
   result: EXEC_FAILED,
   bug: 26326992,
   names: ["libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeDateTimeStringDST",
@@ -196,6 +196,12 @@
           "org.apache.harmony.tests.java.text.DecimalFormatSymbolsTest#test_setInternationalCurrencySymbolLjava_lang_String",
           "org.apache.harmony.tests.java.text.DecimalFormatTest#testSerializationHarmonyRICompatible",
           "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parseLjava_lang_StringLjava_text_ParsePosition",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parse_W_w_dd_MMMM_yyyy_EEEE",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parse_dayOfYearPatterns",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parse_h_m_z",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parse_h_z_2DigitOffsetFromGMT",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parse_h_z_4DigitOffsetFromGMT",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parse_h_z_4DigitOffsetNoGMT",
           "org.apache.harmony.tests.java.util.jar.JarFileTest#test_getInputStreamLjava_util_jar_JarEntry_subtest0",
           "libcore.java.util.CalendarTest#test_clear_45877",
           "org.apache.harmony.crypto.tests.javax.crypto.spec.SecretKeySpecTest#testGetFormat",
