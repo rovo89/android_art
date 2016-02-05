@@ -1,0 +1,2 @@
+Check that X86 FP constant-area handling handles intrinsics with CurrentMethod
+on the call.
