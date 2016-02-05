@@ -1126,30 +1126,43 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
     return;
   }
   if (destination.IsRegister()) {
+    CpuRegister dest = destination.AsRegister<CpuRegister>();
     if (source.IsRegister()) {
-      __ movq(destination.AsRegister<CpuRegister>(), source.AsRegister<CpuRegister>());
+      __ movq(dest, source.AsRegister<CpuRegister>());
     } else if (source.IsFpuRegister()) {
-      __ movd(destination.AsRegister<CpuRegister>(), source.AsFpuRegister<XmmRegister>());
+      __ movd(dest, source.AsFpuRegister<XmmRegister>());
     } else if (source.IsStackSlot()) {
-      __ movl(destination.AsRegister<CpuRegister>(),
-              Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movl(dest, Address(CpuRegister(RSP), source.GetStackIndex()));
+    } else if (source.IsConstant()) {
+      HConstant* constant = source.GetConstant();
+      if (constant->IsLongConstant()) {
+        Load64BitValue(dest, constant->AsLongConstant()->GetValue());
+      } else {
+        Load32BitValue(dest, GetInt32ValueOf(constant));
+      }
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ movq(destination.AsRegister<CpuRegister>(),
-              Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movq(dest, Address(CpuRegister(RSP), source.GetStackIndex()));
     }
   } else if (destination.IsFpuRegister()) {
+    XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
     if (source.IsRegister()) {
-      __ movd(destination.AsFpuRegister<XmmRegister>(), source.AsRegister<CpuRegister>());
+      __ movd(dest, source.AsRegister<CpuRegister>());
     } else if (source.IsFpuRegister()) {
-      __ movaps(destination.AsFpuRegister<XmmRegister>(), source.AsFpuRegister<XmmRegister>());
+      __ movaps(dest, source.AsFpuRegister<XmmRegister>());
+    } else if (source.IsConstant()) {
+      HConstant* constant = source.GetConstant();
+      int64_t value = CodeGenerator::GetInt64ValueOf(constant);
+      if (constant->IsFloatConstant()) {
+        Load32BitValue(dest, static_cast<int32_t>(value));
+      } else {
+        Load64BitValue(dest, value);
+      }
     } else if (source.IsStackSlot()) {
-      __ movss(destination.AsFpuRegister<XmmRegister>(),
-              Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movss(dest, Address(CpuRegister(RSP), source.GetStackIndex()));
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ movsd(destination.AsFpuRegister<XmmRegister>(),
-               Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movsd(dest, Address(CpuRegister(RSP), source.GetStackIndex()));
     }
   } else if (destination.IsStackSlot()) {
     if (source.IsRegister()) {
@@ -1345,22 +1358,34 @@ void InstructionCodeGeneratorX86_64::GenerateFPJumps(HCondition* cond,
   __ j(X86_64FPCondition(cond->GetCondition()), true_label);
 }
 
-template<class LabelType>
-void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HCondition* condition,
-                                                                  LabelType* true_target_in,
-                                                                  LabelType* false_target_in) {
-  // Generated branching requires both targets to be explicit. If either of the
-  // targets is nullptr (fallthrough) use and bind `fallthrough_target` instead.
-  LabelType fallthrough_target;
-  LabelType* true_target = true_target_in == nullptr ? &fallthrough_target : true_target_in;
-  LabelType* false_target = false_target_in == nullptr ? &fallthrough_target : false_target_in;
-
+void InstructionCodeGeneratorX86_64::GenerateCompareTest(HCondition* condition) {
   LocationSummary* locations = condition->GetLocations();
+
   Location left = locations->InAt(0);
   Location right = locations->InAt(1);
-
   Primitive::Type type = condition->InputAt(0)->GetType();
   switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      CpuRegister left_reg = left.AsRegister<CpuRegister>();
+      if (right.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(right.GetConstant());
+        if (value == 0) {
+          __ testl(left_reg, left_reg);
+        } else {
+          __ cmpl(left_reg, Immediate(value));
+        }
+      } else if (right.IsStackSlot()) {
+        __ cmpl(left_reg, Address(CpuRegister(RSP), right.GetStackIndex()));
+      } else {
+        __ cmpl(left_reg, right.AsRegister<CpuRegister>());
+      }
+      break;
+    }
     case Primitive::kPrimLong: {
       CpuRegister left_reg = left.AsRegister<CpuRegister>();
       if (right.IsConstant()) {
@@ -1380,7 +1405,6 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HCondition* co
       } else {
         __ cmpq(left_reg, right.AsRegister<CpuRegister>());
       }
-      __ j(X86_64IntegerCondition(condition->GetCondition()), true_target);
       break;
     }
     case Primitive::kPrimFloat: {
@@ -1395,7 +1419,6 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HCondition* co
         __ ucomiss(left.AsFpuRegister<XmmRegister>(),
                    Address(CpuRegister(RSP), right.GetStackIndex()));
       }
-      GenerateFPJumps(condition, true_target, false_target);
       break;
     }
     case Primitive::kPrimDouble: {
@@ -1410,6 +1433,38 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HCondition* co
         __ ucomisd(left.AsFpuRegister<XmmRegister>(),
                    Address(CpuRegister(RSP), right.GetStackIndex()));
       }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected condition type " << type;
+  }
+}
+
+template<class LabelType>
+void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HCondition* condition,
+                                                                  LabelType* true_target_in,
+                                                                  LabelType* false_target_in) {
+  // Generated branching requires both targets to be explicit. If either of the
+  // targets is nullptr (fallthrough) use and bind `fallthrough_target` instead.
+  LabelType fallthrough_target;
+  LabelType* true_target = true_target_in == nullptr ? &fallthrough_target : true_target_in;
+  LabelType* false_target = false_target_in == nullptr ? &fallthrough_target : false_target_in;
+
+  // Generate the comparison to set the CC.
+  GenerateCompareTest(condition);
+
+  // Now generate the correct jump(s).
+  Primitive::Type type = condition->InputAt(0)->GetType();
+  switch (type) {
+    case Primitive::kPrimLong: {
+      __ j(X86_64IntegerCondition(condition->GetCondition()), true_target);
+      break;
+    }
+    case Primitive::kPrimFloat: {
+      GenerateFPJumps(condition, true_target, false_target);
+      break;
+    }
+    case Primitive::kPrimDouble: {
       GenerateFPJumps(condition, true_target, false_target);
       break;
     }
@@ -1564,14 +1619,37 @@ void InstructionCodeGeneratorX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
                                /* false_target */ nullptr);
 }
 
+static bool SelectCanUseCMOV(HSelect* select) {
+  // There are no conditional move instructions for XMMs.
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    return false;
+  }
+
+  // A FP condition doesn't generate the single CC that we need.
+  HInstruction* condition = select->GetCondition();
+  if (condition->IsCondition() &&
+      Primitive::IsFloatingPointType(condition->InputAt(0)->GetType())) {
+    return false;
+  }
+
+  // We can generate a CMOV for this Select.
+  return true;
+}
+
 void LocationsBuilderX86_64::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
   if (Primitive::IsFloatingPointType(select->GetType())) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
-    locations->SetInAt(1, Location::RequiresFpuRegister());
+    // Since we can't use CMOV, there is no need to force 'true' into a register.
+    locations->SetInAt(1, Location::Any());
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RequiresRegister());
+    if (SelectCanUseCMOV(select)) {
+      locations->SetInAt(1, Location::RequiresRegister());
+    } else {
+      // Since we can't use CMOV, there is no need to force 'true' into a register.
+      locations->SetInAt(1, Location::Any());
+    }
   }
   if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
     locations->SetInAt(2, Location::RequiresRegister());
@@ -1581,13 +1659,52 @@ void LocationsBuilderX86_64::VisitSelect(HSelect* select) {
 
 void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
   LocationSummary* locations = select->GetLocations();
-  NearLabel false_target;
-  GenerateTestAndBranch<NearLabel>(select,
-                                   /* condition_input_index */ 2,
-                                   /* true_target */ nullptr,
-                                   &false_target);
-  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
-  __ Bind(&false_target);
+  if (SelectCanUseCMOV(select)) {
+    // If both the condition and the source types are integer, we can generate
+    // a CMOV to implement Select.
+    CpuRegister value_false = locations->InAt(0).AsRegister<CpuRegister>();
+    CpuRegister value_true = locations->InAt(1).AsRegister<CpuRegister>();
+    DCHECK(locations->InAt(0).Equals(locations->Out()));
+
+    HInstruction* select_condition = select->GetCondition();
+    Condition cond = kNotEqual;
+
+    // Figure out how to test the 'condition'.
+    if (select_condition->IsCondition()) {
+      HCondition* condition = select_condition->AsCondition();
+      if (!condition->IsEmittedAtUseSite()) {
+        // This was a previously materialized condition.
+        // Can we use the existing condition code?
+        if (AreEflagsSetFrom(condition, select)) {
+          // Materialization was the previous instruction.  Condition codes are right.
+          cond = X86_64IntegerCondition(condition->GetCondition());
+        } else {
+          // No, we have to recreate the condition code.
+          CpuRegister cond_reg = locations->InAt(2).AsRegister<CpuRegister>();
+          __ testl(cond_reg, cond_reg);
+        }
+      } else {
+        GenerateCompareTest(condition);
+        cond = X86_64IntegerCondition(condition->GetCondition());
+      }
+    } else {
+      // Must be a boolean condition, which needs to be compared to 0.
+      CpuRegister cond_reg = locations->InAt(2).AsRegister<CpuRegister>();
+      __ testl(cond_reg, cond_reg);
+    }
+
+    // If the condition is true, overwrite the output, which already contains false.
+    // Generate the correct sized CMOV.
+    __ cmov(cond, value_false, value_true, select->GetType() == Primitive::kPrimLong);
+  } else {
+    NearLabel false_target;
+    GenerateTestAndBranch<NearLabel>(select,
+                                     /* condition_input_index */ 2,
+                                     /* true_target */ nullptr,
+                                     &false_target);
+    codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
+    __ Bind(&false_target);
+  }
 }
 
 void LocationsBuilderX86_64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
@@ -2750,11 +2867,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             int32_t v = in.GetConstant()->AsIntConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            if (v == 0) {
-              __ xorps(dest, dest);
-            } else {
-              __ movss(dest, codegen_->LiteralFloatAddress(static_cast<float>(v)));
-            }
+            codegen_->Load32BitValue(dest, static_cast<float>(v));
           } else {
             __ cvtsi2ss(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()), false);
@@ -2768,11 +2881,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             int64_t v = in.GetConstant()->AsLongConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            if (v == 0) {
-              __ xorps(dest, dest);
-            } else {
-              __ movss(dest, codegen_->LiteralFloatAddress(static_cast<float>(v)));
-            }
+            codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
             __ cvtsi2ss(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()), true);
@@ -2786,11 +2895,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             double v = in.GetConstant()->AsDoubleConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            if (bit_cast<int64_t, double>(v) == 0) {
-              __ xorps(dest, dest);
-            } else {
-              __ movss(dest, codegen_->LiteralFloatAddress(static_cast<float>(v)));
-            }
+            codegen_->Load32BitValue(dest, static_cast<float>(v));
           } else {
             __ cvtsd2ss(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()));
@@ -2817,11 +2922,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             int32_t v = in.GetConstant()->AsIntConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            if (v == 0) {
-              __ xorpd(dest, dest);
-            } else {
-              __ movsd(dest, codegen_->LiteralDoubleAddress(static_cast<double>(v)));
-            }
+            codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
             __ cvtsi2sd(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()), false);
@@ -2835,11 +2936,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             int64_t v = in.GetConstant()->AsLongConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            if (v == 0) {
-              __ xorpd(dest, dest);
-            } else {
-              __ movsd(dest, codegen_->LiteralDoubleAddress(static_cast<double>(v)));
-            }
+            codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
             __ cvtsi2sd(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()), true);
@@ -2853,11 +2950,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             float v = in.GetConstant()->AsFloatConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            if (bit_cast<int32_t, float>(v) == 0) {
-              __ xorpd(dest, dest);
-            } else {
-              __ movsd(dest, codegen_->LiteralDoubleAddress(static_cast<double>(v)));
-            }
+            codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
             __ cvtss2sd(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()));
@@ -5196,18 +5289,12 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       }
     } else if (constant->IsFloatConstant()) {
       float fp_value = constant->AsFloatConstant()->GetValue();
-      int32_t value = bit_cast<int32_t, float>(fp_value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
-        if (value == 0) {
-          // easy FP 0.0.
-          __ xorps(dest, dest);
-        } else {
-          __ movss(dest, codegen_->LiteralFloatAddress(fp_value));
-        }
+        codegen_->Load32BitValue(dest, fp_value);
       } else {
         DCHECK(destination.IsStackSlot()) << destination;
-        Immediate imm(value);
+        Immediate imm(bit_cast<int32_t, float>(fp_value));
         __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), imm);
       }
     } else {
@@ -5216,11 +5303,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       int64_t value = bit_cast<int64_t, double>(fp_value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
-        if (value == 0) {
-          __ xorpd(dest, dest);
-        } else {
-          __ movsd(dest, codegen_->LiteralDoubleAddress(fp_value));
-        }
+        codegen_->Load64BitValue(dest, fp_value);
       } else {
         DCHECK(destination.IsDoubleStackSlot()) << destination;
         codegen_->Store64BitValueToStack(destination, value);
@@ -6465,6 +6548,30 @@ void CodeGeneratorX86_64::Load64BitValue(CpuRegister dest, int64_t value) {
   } else {
     __ movq(dest, Immediate(value));
   }
+}
+
+void CodeGeneratorX86_64::Load32BitValue(XmmRegister dest, int32_t value) {
+  if (value == 0) {
+    __ xorps(dest, dest);
+  } else {
+    __ movss(dest, LiteralInt32Address(value));
+  }
+}
+
+void CodeGeneratorX86_64::Load64BitValue(XmmRegister dest, int64_t value) {
+  if (value == 0) {
+    __ xorpd(dest, dest);
+  } else {
+    __ movsd(dest, LiteralInt64Address(value));
+  }
+}
+
+void CodeGeneratorX86_64::Load32BitValue(XmmRegister dest, float value) {
+  Load32BitValue(dest, bit_cast<int32_t, float>(value));
+}
+
+void CodeGeneratorX86_64::Load64BitValue(XmmRegister dest, double value) {
+  Load64BitValue(dest, bit_cast<int64_t, double>(value));
 }
 
 void CodeGeneratorX86_64::Store64BitValueToStack(Location dest, int64_t value) {

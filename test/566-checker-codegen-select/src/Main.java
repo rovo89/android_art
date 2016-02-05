@@ -45,11 +45,32 @@ public class Main {
   /// CHECK:             LessThanOrEqual
   /// CHECK-NEXT:        Select
 
+  // Check that we generate CMOV for long on x86_64.
+  /// CHECK-START-X86_64: long Main.$noinline$longSelect_Constant(long) disassembly (after)
+  /// CHECK:             LessThanOrEqual
+  /// CHECK-NEXT:        Select
+  /// CHECK:             cmpq
+  /// CHECK:             cmovle/ngq
+
   public long $noinline$longSelect_Constant(long param) {
     if (doThrow) { throw new Error(); }
     long val_true = longB;
     long val_false = longC;
     return (param > 3L) ? val_true : val_false;
+  }
+
+  // Check that we generate CMOV for int on x86_64.
+  /// CHECK-START-X86_64: int Main.$noinline$intSelect_Constant(int) disassembly (after)
+  /// CHECK:             LessThan
+  /// CHECK-NEXT:        Select
+  /// CHECK:             cmp
+  /// CHECK:             cmovl/nge
+
+  public int $noinline$intSelect_Constant(int param) {
+    if (doThrow) { throw new Error(); }
+    int val_true = intB;
+    int val_false = intC;
+    return (param >= 3) ? val_true : val_false;
   }
 
   public static void main(String[] args) {
@@ -58,6 +79,14 @@ public class Main {
     assertLongEquals(7L, m.$noinline$longSelect(2L));
     assertLongEquals(5L, m.$noinline$longSelect_Constant(4L));
     assertLongEquals(7L, m.$noinline$longSelect_Constant(2L));
+    assertIntEquals(5, m.$noinline$intSelect_Constant(4));
+    assertIntEquals(7, m.$noinline$intSelect_Constant(2));
+  }
+
+  public static void assertIntEquals(int expected, int actual) {
+    if (expected != actual) {
+      throw new Error(expected + " != " + actual);
+    }
   }
 
   public static void assertLongEquals(long expected, long actual) {
@@ -71,4 +100,6 @@ public class Main {
   public long longA = 3L;
   public long longB = 5L;
   public long longC = 7L;
+  public int intB = 5;
+  public int intC = 7;
 }

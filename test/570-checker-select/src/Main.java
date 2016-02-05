@@ -19,12 +19,22 @@ public class Main {
   /// CHECK-START: int Main.BoolCond_IntVarVar(boolean, int, int) register (after)
   /// CHECK:               Select [{{i\d+}},{{i\d+}},{{z\d+}}]
 
+  /// CHECK-START-X86_64: int Main.BoolCond_IntVarVar(boolean, int, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
   public static int BoolCond_IntVarVar(boolean cond, int x, int y) {
     return cond ? x : y;
   }
 
   /// CHECK-START: int Main.BoolCond_IntVarCst(boolean, int) register (after)
   /// CHECK:               Select [{{i\d+}},{{i\d+}},{{z\d+}}]
+
+  /// CHECK-START-X86_64: int Main.BoolCond_IntVarCst(boolean, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
 
   public static int BoolCond_IntVarCst(boolean cond, int x) {
     return cond ? x : 1;
@@ -33,8 +43,49 @@ public class Main {
   /// CHECK-START: int Main.BoolCond_IntCstVar(boolean, int) register (after)
   /// CHECK:               Select [{{i\d+}},{{i\d+}},{{z\d+}}]
 
+  /// CHECK-START-X86_64: int Main.BoolCond_IntCstVar(boolean, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
   public static int BoolCond_IntCstVar(boolean cond, int y) {
     return cond ? 1 : y;
+  }
+
+  /// CHECK-START: long Main.BoolCond_LongVarVar(boolean, long, long) register (after)
+  /// CHECK:               Select [{{j\d+}},{{j\d+}},{{z\d+}}]
+
+  /// CHECK-START-X86_64: long Main.BoolCond_LongVarVar(boolean, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/neq
+
+  public static long BoolCond_LongVarVar(boolean cond, long x, long y) {
+    return cond ? x : y;
+  }
+
+  /// CHECK-START: long Main.BoolCond_LongVarCst(boolean, long) register (after)
+  /// CHECK:               Select [{{j\d+}},{{j\d+}},{{z\d+}}]
+
+  /// CHECK-START-X86_64: long Main.BoolCond_LongVarCst(boolean, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/neq
+
+  public static long BoolCond_LongVarCst(boolean cond, long x) {
+    return cond ? x : 1L;
+  }
+
+  /// CHECK-START: long Main.BoolCond_LongCstVar(boolean, long) register (after)
+  /// CHECK:               Select [{{j\d+}},{{j\d+}},{{z\d+}}]
+
+  /// CHECK-START-X86_64: long Main.BoolCond_LongCstVar(boolean, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/neq
+
+  public static long BoolCond_LongCstVar(boolean cond, long y) {
+    return cond ? 1L : y;
   }
 
   /// CHECK-START: float Main.BoolCond_FloatVarVar(boolean, float, float) register (after)
@@ -62,6 +113,11 @@ public class Main {
   /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
   /// CHECK-NEXT:                     Select [{{i\d+}},{{i\d+}},<<Cond>>]
 
+  /// CHECK-START-X86_64: int Main.IntNonmatCond_IntVarVar(int, int, int, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK-NEXT:                     Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ng
+
   public static int IntNonmatCond_IntVarVar(int a, int b, int x, int y) {
     return a > b ? x : y;
   }
@@ -71,9 +127,76 @@ public class Main {
   /// CHECK-NEXT:       <<Sel:i\d+>>  Select [{{i\d+}},{{i\d+}},{{z\d+}}]
   /// CHECK-NEXT:                     Add [<<Cond>>,<<Sel>>]
 
+  /// CHECK-START-X86_64: int Main.IntMatCond_IntVarVar(int, int, int, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ng
+
   public static int IntMatCond_IntVarVar(int a, int b, int x, int y) {
     int result = (a > b ? x : y);
     return result + (a > b ? 0 : 1);
+  }
+
+  /// CHECK-START: long Main.IntNonmatCond_LongVarVar(int, int, long, long) register (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK-NEXT:                     Select [{{j\d+}},{{j\d+}},<<Cond>>]
+
+  /// CHECK-START-X86_64: long Main.IntNonmatCond_LongVarVar(int, int, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK-NEXT:                     Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ngq
+
+  public static long IntNonmatCond_LongVarVar(int a, int b, long x, long y) {
+    return a > b ? x : y;
+  }
+
+  /// CHECK-START: long Main.IntMatCond_LongVarVar(int, int, long, long) register (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK:            <<Sel1:j\d+>> Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:            <<Sel2:j\d+>> Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          Add [<<Sel2>>,<<Sel1>>]
+
+  /// CHECK-START-X86_64: long Main.IntMatCond_LongVarVar(int, int, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ngq
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/neq
+
+  public static long IntMatCond_LongVarVar(int a, int b, long x, long y) {
+    long result = (a > b ? x : y);
+    return result + (a > b ? 0L : 1L);
+  }
+
+  /// CHECK-START: long Main.LongNonmatCond_LongVarVar(long, long, long, long) register (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{j\d+}},{{j\d+}}]
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+
+  /// CHECK-START-X86_64: long Main.LongNonmatCond_LongVarVar(long, long, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{j\d+}},{{j\d+}}]
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ngq
+
+  public static long LongNonmatCond_LongVarVar(long a, long b, long x, long y) {
+    return a > b ? x : y;
+  }
+
+  /// CHECK-START: long Main.LongMatCond_LongVarVar(long, long, long, long) register (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{j\d+}},{{j\d+}}]
+  /// CHECK:            <<Sel1:j\d+>> Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:            <<Sel2:j\d+>> Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          Add [<<Sel2>>,<<Sel1>>]
+
+  /// CHECK-START-X86_64: long Main.LongMatCond_LongVarVar(long, long, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{j\d+}},{{j\d+}}]
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ngq
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/neq
+
+  public static long LongMatCond_LongVarVar(long a, long b, long x, long y) {
+    long result = (a > b ? x : y);
+    return result + (a > b ? 0L : 1L);
   }
 
   /// CHECK-START: int Main.FloatLtNonmatCond_IntVarVar(float, float, int, int) register (after)
@@ -149,6 +272,13 @@ public class Main {
     assertEqual(1, BoolCond_IntVarCst(false, 5));
     assertEqual(1, BoolCond_IntCstVar(true, 7));
     assertEqual(7, BoolCond_IntCstVar(false, 7));
+
+    assertEqual(5L, BoolCond_LongVarVar(true, 5L, 7L));
+    assertEqual(7L, BoolCond_LongVarVar(false, 5L, 7L));
+    assertEqual(5L, BoolCond_LongVarCst(true, 5L));
+    assertEqual(1L, BoolCond_LongVarCst(false, 5L));
+    assertEqual(1L, BoolCond_LongCstVar(true, 7L));
+    assertEqual(7L, BoolCond_LongCstVar(false, 7L));
 
     assertEqual(5, BoolCond_FloatVarVar(true, 5, 7));
     assertEqual(7, BoolCond_FloatVarVar(false, 5, 7));
