@@ -37,7 +37,7 @@ class JitCompiler {
  public:
   static JitCompiler* Create();
   virtual ~JitCompiler();
-  bool CompileMethod(Thread* self, ArtMethod* method, bool osr)
+  bool CompileMethod(Thread* self, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_);
   CompilerCallbacks* GetCompilerCallbacks() const;
   size_t GetTotalCompileTime() const {

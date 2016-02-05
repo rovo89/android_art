@@ -288,7 +288,7 @@ class CodeGenerator {
     slow_paths_.push_back(slow_path);
   }
 
-  void BuildStackMaps(MemoryRegion region, const DexFile::CodeItem& code_item);
+  void BuildStackMaps(MemoryRegion region);
   size_t ComputeStackMapsSize();
 
   bool IsLeafMethod() const {
