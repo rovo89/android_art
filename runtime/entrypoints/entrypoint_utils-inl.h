@@ -299,8 +299,10 @@ inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
 }
 
 template<FindFieldType type, bool access_check>
-inline ArtField* FindFieldFromCode(uint32_t field_idx, ArtMethod* referrer,
-                                           Thread* self, size_t expected_size) {
+inline ArtField* FindFieldFromCode(uint32_t field_idx,
+                                   ArtMethod* referrer,
+                                   Thread* self,
+                                   size_t expected_size) REQUIRES(!Roles::uninterruptible_) {
   bool is_primitive;
   bool is_set;
   bool is_static;
