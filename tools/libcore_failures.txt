@@ -266,10 +266,5 @@
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndNoSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNullArguments"]
-},
-{
-  description: "Intermittent failure the libcore team is working on",
-  result: EXEC_FAILED,
-  names: ["ibcore.util.ZoneInfoTest#testReadSerialized"]
 }
 ]
