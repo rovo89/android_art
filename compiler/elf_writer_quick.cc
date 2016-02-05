@@ -155,7 +155,12 @@ void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
   }
   if (compiler_options_->GetGenerateMiniDebugInfo()) {
     // Generate only some information and compress it.
-    dwarf::WriteMiniDebugInfo(builder_.get(), method_infos);
+    std::vector<uint8_t> xz_elf_file = MakeMiniDebugInfo(
+        builder_->GetIsa(),
+        builder_->GetRoData()->GetSize(),
+        builder_->GetText()->GetSize(),
+        method_infos);
+    builder_->WriteSection(".gnu_debugdata", &xz_elf_file);
   }
 }
 

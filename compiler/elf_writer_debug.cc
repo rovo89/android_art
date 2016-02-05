@@ -1549,20 +1549,20 @@ static void XzCompress(const std::vector<uint8_t>* src, std::vector<uint8_t>* ds
 }
 
 template <typename ElfTypes>
-void WriteMiniDebugInfo(ElfBuilder<ElfTypes>* parent_builder,
-                        const ArrayRef<const MethodDebugInfo>& method_infos) {
-  const InstructionSet isa = parent_builder->GetIsa();
+std::vector<uint8_t> MakeMiniDebugInfoInternal(
+    InstructionSet isa,
+    size_t rodata_section_size,
+    size_t text_section_size,
+    const ArrayRef<const MethodDebugInfo>& method_infos) {
   std::vector<uint8_t> buffer;
   buffer.reserve(KB);
   VectorOutputStream out("Mini-debug-info ELF file", &buffer);
   std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
   builder->Start();
-  // Write .rodata and .text as NOBITS sections.
-  // This allows tools to detect virtual address relocation of the parent ELF file.
-  builder->SetVirtualAddress(parent_builder->GetRoData()->GetAddress());
-  builder->GetRoData()->WriteNoBitsSection(parent_builder->GetRoData()->GetSize());
-  builder->SetVirtualAddress(parent_builder->GetText()->GetAddress());
-  builder->GetText()->WriteNoBitsSection(parent_builder->GetText()->GetSize());
+  // Mirror .rodata and .text as NOBITS sections.
+  // It is needed to detected relocations after compression.
+  builder->GetRoData()->WriteNoBitsSection(rodata_section_size);
+  builder->GetText()->WriteNoBitsSection(text_section_size);
   WriteDebugSymbols(builder.get(), method_infos, false /* with_signature */);
   WriteCFISection(builder.get(), method_infos, DW_DEBUG_FRAME_FORMAT, false /* write_oat_paches */);
   builder->End();
@@ -1570,7 +1570,19 @@ void WriteMiniDebugInfo(ElfBuilder<ElfTypes>* parent_builder,
   std::vector<uint8_t> compressed_buffer;
   compressed_buffer.reserve(buffer.size() / 4);
   XzCompress(&buffer, &compressed_buffer);
-  parent_builder->WriteSection(".gnu_debugdata", &compressed_buffer);
+  return compressed_buffer;
+}
+
+std::vector<uint8_t> MakeMiniDebugInfo(
+    InstructionSet isa,
+    size_t rodata_size,
+    size_t text_size,
+    const ArrayRef<const MethodDebugInfo>& method_infos) {
+  if (Is64BitInstructionSet(isa)) {
+    return MakeMiniDebugInfoInternal<ElfTypes64>(isa, rodata_size, text_size, method_infos);
+  } else {
+    return MakeMiniDebugInfoInternal<ElfTypes32>(isa, rodata_size, text_size, method_infos);
+  }
 }
 
 template <typename ElfTypes>
@@ -1649,12 +1661,6 @@ template void WriteDebugInfo<ElfTypes64>(
     const ArrayRef<const MethodDebugInfo>& method_infos,
     CFIFormat cfi_format,
     bool write_oat_patches);
-template void WriteMiniDebugInfo<ElfTypes32>(
-    ElfBuilder<ElfTypes32>* builder,
-    const ArrayRef<const MethodDebugInfo>& method_infos);
-template void WriteMiniDebugInfo<ElfTypes64>(
-    ElfBuilder<ElfTypes64>* builder,
-    const ArrayRef<const MethodDebugInfo>& method_infos);
 
 }  // namespace dwarf
 }  // namespace art

@@ -361,12 +361,6 @@ class ElfBuilder FINAL {
     other_sections_.push_back(std::move(s));
   }
 
-  // Set where the next section will be allocated in the virtual address space.
-  void SetVirtualAddress(Elf_Addr address) {
-    DCHECK_GE(address, virtual_address_);
-    virtual_address_ = address;
-  }
-
   // Reserve space for ELF header and program headers.
   // We do not know the number of headers until later, so
   // it is easiest to just reserve a fixed amount of space.
