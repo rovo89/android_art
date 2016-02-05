@@ -37,13 +37,14 @@ namespace art {
 // Note: this is OK because we don't store profiles of different apps into the same file.
 // Apps with split apks don't cause trouble because each split has a different name and will not
 // collide with other entries.
-static std::string GetProfileDexFileKey(const std::string& dex_location) {
+std::string ProfileCompilationInfo::GetProfileDexFileKey(const std::string& dex_location) {
   DCHECK(!dex_location.empty());
   size_t last_sep_index = dex_location.find_last_of('/');
   if (last_sep_index == std::string::npos) {
     return dex_location;
   } else {
-    return dex_location.substr(last_sep_index);
+    DCHECK(last_sep_index < dex_location.size());
+    return dex_location.substr(last_sep_index + 1);
   }
 }
 
