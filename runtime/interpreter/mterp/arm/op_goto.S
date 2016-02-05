@@ -16,18 +16,10 @@
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 #else
-    mov     r0, rINST, lsl #16          @ r0<- AAxx0000
-    movs    rINST, r0, asr #24          @ rINST<- ssssssAA (sign-extended)
-#if MTERP_PROFILE_BRANCHES
-    mov     r0, rSELF
-    add     r1, rFP, #OFF_FP_SHADOWFRAME
-    mov     r2, rINST
-    bl      MterpProfileBranch          @ (self, shadow_frame, offset)
-    cmp     r0, #0
-    bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-#endif
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    add     r2, rINST, rINST            @ r2<- byte offset, set flags
+    mov     r0, rINST, lsl #16          @ r0<- AAxx0000
+    movs    r1, r0, asr #24             @ r1<- ssssssAA (sign-extended)
+    add     r2, r1, r1                  @ r2<- byte offset, set flags
     FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
        @ If backwards branch refresh rIBASE
     bmi     MterpCheckSuspendAndContinue
