@@ -66,6 +66,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     DEBUG_ENABLE_JNI_LOGGING        = 1 << 4,
     DEBUG_GENERATE_DEBUG_INFO       = 1 << 5,
     DEBUG_ALWAYS_JIT                = 1 << 6,
+    DEBUG_NATIVE_DEBUGGABLE         = 1 << 7,
   };
 
   Runtime* const runtime = Runtime::Current();
@@ -115,6 +116,11 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     CHECK(jit_options != nullptr);
     jit_options->SetJitAtFirstUse();
     debug_flags &= ~DEBUG_ALWAYS_JIT;
+  }
+
+  if ((debug_flags & DEBUG_NATIVE_DEBUGGABLE) != 0) {
+    runtime->AddCompilerOption("--native-debuggable");
+    debug_flags &= ~DEBUG_NATIVE_DEBUGGABLE;
   }
 
   if (debug_flags != 0) {
