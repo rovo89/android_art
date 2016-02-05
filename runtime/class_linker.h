@@ -1024,6 +1024,11 @@ class ClassLinker {
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Check that c1 == FindSystemClass(self, descriptor). Abort with class dumps otherwise.
+  void CheckSystemClass(Thread* self, Handle<mirror::Class> c1, const char* descriptor)
+      REQUIRES(!dex_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   std::vector<const DexFile*> boot_class_path_;
   std::vector<std::unique_ptr<const DexFile>> boot_dex_files_;
 
