@@ -49,9 +49,11 @@ class Jit {
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
-  bool CompileMethod(ArtMethod* method, Thread* self)
+  bool CompileMethod(ArtMethod* method, Thread* self, bool osr)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void CreateInstrumentationCache(size_t compile_threshold, size_t warmup_threshold);
+  void CreateInstrumentationCache(size_t compile_threshold,
+                                  size_t warmup_threshold,
+                                  size_t osr_threshold);
   void CreateThreadPool();
   CompilerCallbacks* GetCompilerCallbacks() {
     return compiler_callbacks_;
@@ -88,6 +90,17 @@ class Jit {
 
   bool JitAtFirstUse();
 
+  // If an OSR compiled version is available for `method`,
+  // and `dex_pc + dex_pc_offset` is an entry point of that compiled
+  // version, this method will jump to the compiled code, let it run,
+  // and return true afterwards. Return false otherwise.
+  static bool MaybeDoOnStackReplacement(Thread* thread,
+                                        ArtMethod* method,
+                                        uint32_t dex_pc,
+                                        int32_t dex_pc_offset,
+                                        JValue* result)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   Jit();
   bool LoadCompiler(std::string* error_msg);
@@ -97,7 +110,7 @@ class Jit {
   void* jit_compiler_handle_;
   void* (*jit_load_)(CompilerCallbacks**, bool*);
   void (*jit_unload_)(void*);
-  bool (*jit_compile_method_)(void*, ArtMethod*, Thread*);
+  bool (*jit_compile_method_)(void*, ArtMethod*, Thread*, bool);
   void (*jit_types_loaded_)(void*, mirror::Class**, size_t count);
 
   // Performance monitoring.
@@ -122,6 +135,9 @@ class JitOptions {
   }
   size_t GetWarmupThreshold() const {
     return warmup_threshold_;
+  }
+  size_t GetOsrThreshold() const {
+    return osr_threshold_;
   }
   size_t GetCodeCacheInitialCapacity() const {
     return code_cache_initial_capacity_;
@@ -155,6 +171,7 @@ class JitOptions {
   size_t code_cache_max_capacity_;
   size_t compile_threshold_;
   size_t warmup_threshold_;
+  size_t osr_threshold_;
   bool dump_info_on_shutdown_;
   bool save_profiling_info_;
 
