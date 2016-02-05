@@ -34,6 +34,7 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseHomogeneousSpaceCompact: return "HomogeneousSpaceCompact";
     case kGcCauseTrim: return "HeapTrim";
     case kGcCauseInstrumentation: return "Instrumentation";
+    case kGcCauseAddRemoveAppImageSpace: return "AddRemoveAppImageSpace";
     default:
       LOG(FATAL) << "Unreachable";
       UNREACHABLE();
