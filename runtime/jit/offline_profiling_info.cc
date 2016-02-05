@@ -33,6 +33,20 @@
 
 namespace art {
 
+// Transform the actual dex location into relative paths.
+// Note: this is OK because we don't store profiles of different apps into the same file.
+// Apps with split apks don't cause trouble because each split has a different name and will not
+// collide with other entries.
+static std::string GetProfileDexFileKey(const std::string& dex_location) {
+  DCHECK(!dex_location.empty());
+  size_t last_sep_index = dex_location.find_last_of('/');
+  if (last_sep_index == std::string::npos) {
+    return dex_location;
+  } else {
+    return dex_location.substr(last_sep_index);
+  }
+}
+
 bool ProfileCompilationInfo::SaveProfilingInfo(const std::string& filename,
                                                const std::vector<ArtMethod*>& methods) {
   if (methods.empty()) {
@@ -58,7 +72,7 @@ bool ProfileCompilationInfo::SaveProfilingInfo(const std::string& filename,
     ScopedObjectAccess soa(Thread::Current());
     for (auto it = methods.begin(); it != methods.end(); it++) {
       const DexFile* dex_file = (*it)->GetDexFile();
-      if (!info.AddData(dex_file->GetLocation(),
+      if (!info.AddData(GetProfileDexFileKey(dex_file->GetLocation()),
                         dex_file->GetLocationChecksum(),
                         (*it)->GetDexMethodIndex())) {
         return false;
@@ -107,8 +121,8 @@ static constexpr const char kLineSeparator = '\n';
  *    dex_location1,dex_location_checksum1,method_id11,method_id12...
  *    dex_location2,dex_location_checksum2,method_id21,method_id22...
  * e.g.
- *    /system/priv-app/app/app.apk,131232145,11,23,454,54
- *    /system/priv-app/app/app.apk:classes5.dex,218490184,39,13,49,1
+ *    app.apk,131232145,11,23,454,54
+ *    app.apk:classes5.dex,218490184,39,13,49,1
  **/
 bool ProfileCompilationInfo::Save(uint32_t fd) {
   DCHECK_GE(fd, 0u);
@@ -270,7 +284,7 @@ bool ProfileCompilationInfo::Load(const ProfileCompilationInfo& other) {
 }
 
 bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) const {
-  auto info_it = info_.find(method_ref.dex_file->GetLocation());
+  auto info_it = info_.find(GetProfileDexFileKey(method_ref.dex_file->GetLocation()));
   if (info_it != info_.end()) {
     if (method_ref.dex_file->GetLocationChecksum() != info_it->second.checksum) {
       return false;
