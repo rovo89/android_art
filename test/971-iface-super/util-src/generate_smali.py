@@ -39,7 +39,7 @@ import itertools
 import string
 
 # The max depth the type tree can have.
-MAX_IFACE_DEPTH = 3
+MAX_IFACE_DEPTH = 2
 
 class MainClass(mixins.DumpMixin, mixins.Named, mixins.SmaliFileMixin):
   """
