@@ -114,6 +114,9 @@ static const char* GetSignalCodeName(int signal_number, int signal_code) {
       switch (signal_code) {
         case SEGV_MAPERR: return "SEGV_MAPERR";
         case SEGV_ACCERR: return "SEGV_ACCERR";
+#if defined(SEGV_BNDERR)
+        case SEGV_BNDERR: return "SEGV_BNDERR";
+#endif
       }
       break;
     case SIGTRAP:
