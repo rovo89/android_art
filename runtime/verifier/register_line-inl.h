@@ -178,9 +178,9 @@ inline void RegisterLine::VerifyMonitorStackEmpty(MethodVerifier* verifier) cons
   if (MonitorStackDepth() != 0) {
     verifier->Fail(VERIFY_ERROR_LOCKING);
     if (kDumpLockFailures) {
-      LOG(WARNING) << "expected empty monitor stack in "
-                   << PrettyMethod(verifier->GetMethodReference().dex_method_index,
-                                   *verifier->GetMethodReference().dex_file);
+      VLOG(verifier) << "expected empty monitor stack in "
+                     << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                     *verifier->GetMethodReference().dex_file);
     }
   }
 }
