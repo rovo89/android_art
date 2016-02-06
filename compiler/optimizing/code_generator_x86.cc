@@ -26,7 +26,6 @@
 #include "intrinsics_x86.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
-#include "pc_relative_fixups_x86.h"
 #include "thread.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
@@ -1505,30 +1504,131 @@ void InstructionCodeGeneratorX86::VisitDeoptimize(HDeoptimize* deoptimize) {
                                /* false_target */ nullptr);
 }
 
+static bool SelectCanUseCMOV(HSelect* select) {
+  // There are no conditional move instructions for XMMs.
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    return false;
+  }
+
+  // A FP condition doesn't generate the single CC that we need.
+  // In 32 bit mode, a long condition doesn't generate a single CC either.
+  HInstruction* condition = select->GetCondition();
+  if (condition->IsCondition()) {
+    Primitive::Type compare_type = condition->InputAt(0)->GetType();
+    if (compare_type == Primitive::kPrimLong ||
+        Primitive::IsFloatingPointType(compare_type)) {
+      return false;
+    }
+  }
+
+  // We can generate a CMOV for this Select.
+  return true;
+}
+
 void LocationsBuilderX86::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
-  Primitive::Type select_type = select->GetType();
-  HInstruction* cond = select->GetCondition();
-
-  if (Primitive::IsFloatingPointType(select_type)) {
+  if (Primitive::IsFloatingPointType(select->GetType())) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::Any());
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
+    if (SelectCanUseCMOV(select)) {
+      if (select->InputAt(1)->IsConstant()) {
+        // Cmov can't handle a constant value.
+        locations->SetInAt(1, Location::RequiresRegister());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
+    } else {
+      locations->SetInAt(1, Location::Any());
+    }
   }
-  locations->SetInAt(1, Location::Any());
-  if (IsBooleanValueOrMaterializedCondition(cond)) {
-    locations->SetInAt(2, Location::Any());
+  if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
+    locations->SetInAt(2, Location::RequiresRegister());
   }
   locations->SetOut(Location::SameAsFirstInput());
 }
 
+void InstructionCodeGeneratorX86::GenerateIntCompare(Location lhs, Location rhs) {
+  Register lhs_reg = lhs.AsRegister<Register>();
+  if (rhs.IsConstant()) {
+    int32_t value = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
+    codegen_->Compare32BitValue(lhs_reg, value);
+  } else if (rhs.IsStackSlot()) {
+    __ cmpl(lhs_reg, Address(ESP, rhs.GetStackIndex()));
+  } else {
+    __ cmpl(lhs_reg, rhs.AsRegister<Register>());
+  }
+}
+
 void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
   LocationSummary* locations = select->GetLocations();
-  NearLabel false_target;
-  GenerateTestAndBranch<NearLabel>(
-      select, /* condition_input_index */ 2, /* true_target */ nullptr, &false_target);
-  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
-  __ Bind(&false_target);
+  DCHECK(locations->InAt(0).Equals(locations->Out()));
+  if (SelectCanUseCMOV(select)) {
+    // If both the condition and the source types are integer, we can generate
+    // a CMOV to implement Select.
+
+    HInstruction* select_condition = select->GetCondition();
+    Condition cond = kNotEqual;
+
+    // Figure out how to test the 'condition'.
+    if (select_condition->IsCondition()) {
+      HCondition* condition = select_condition->AsCondition();
+      if (!condition->IsEmittedAtUseSite()) {
+        // This was a previously materialized condition.
+        // Can we use the existing condition code?
+        if (AreEflagsSetFrom(condition, select)) {
+          // Materialization was the previous instruction. Condition codes are right.
+          cond = X86Condition(condition->GetCondition());
+        } else {
+          // No, we have to recreate the condition code.
+          Register cond_reg = locations->InAt(2).AsRegister<Register>();
+          __ testl(cond_reg, cond_reg);
+        }
+      } else {
+        // We can't handle FP or long here.
+        DCHECK_NE(condition->InputAt(0)->GetType(), Primitive::kPrimLong);
+        DCHECK(!Primitive::IsFloatingPointType(condition->InputAt(0)->GetType()));
+        LocationSummary* cond_locations = condition->GetLocations();
+        GenerateIntCompare(cond_locations->InAt(0), cond_locations->InAt(1));
+        cond = X86Condition(condition->GetCondition());
+      }
+    } else {
+      // Must be a boolean condition, which needs to be compared to 0.
+      Register cond_reg = locations->InAt(2).AsRegister<Register>();
+      __ testl(cond_reg, cond_reg);
+    }
+
+    // If the condition is true, overwrite the output, which already contains false.
+    Location false_loc = locations->InAt(0);
+    Location true_loc = locations->InAt(1);
+    if (select->GetType() == Primitive::kPrimLong) {
+      // 64 bit conditional move.
+      Register false_high = false_loc.AsRegisterPairHigh<Register>();
+      Register false_low = false_loc.AsRegisterPairLow<Register>();
+      if (true_loc.IsRegisterPair()) {
+        __ cmovl(cond, false_high, true_loc.AsRegisterPairHigh<Register>());
+        __ cmovl(cond, false_low, true_loc.AsRegisterPairLow<Register>());
+      } else {
+        __ cmovl(cond, false_high, Address(ESP, true_loc.GetHighStackIndex(kX86WordSize)));
+        __ cmovl(cond, false_low, Address(ESP, true_loc.GetStackIndex()));
+      }
+    } else {
+      // 32 bit conditional move.
+      Register false_reg = false_loc.AsRegister<Register>();
+      if (true_loc.IsRegister()) {
+        __ cmovl(cond, false_reg, true_loc.AsRegister<Register>());
+      } else {
+        __ cmovl(cond, false_reg, Address(ESP, true_loc.GetStackIndex()));
+      }
+    }
+  } else {
+    NearLabel false_target;
+    GenerateTestAndBranch<NearLabel>(
+        select, /* condition_input_index */ 2, /* true_target */ nullptr, &false_target);
+    codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
+    __ Bind(&false_target);
+  }
 }
 
 void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
@@ -1642,15 +1742,7 @@ void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
 
       // Clear output register: setb only sets the low byte.
       __ xorl(reg, reg);
-
-      if (rhs.IsRegister()) {
-        __ cmpl(lhs.AsRegister<Register>(), rhs.AsRegister<Register>());
-      } else if (rhs.IsConstant()) {
-        int32_t constant = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
-        codegen_->Compare32BitValue(lhs.AsRegister<Register>(), constant);
-      } else {
-        __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
-      }
+      GenerateIntCompare(lhs, rhs);
       __ setb(X86Condition(cond->GetCondition()), reg);
       return;
     }
@@ -4128,15 +4220,7 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
 
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimInt: {
-      Register left_reg = left.AsRegister<Register>();
-      if (right.IsConstant()) {
-        int32_t value = right.GetConstant()->AsIntConstant()->GetValue();
-        codegen_->Compare32BitValue(left_reg, value);
-      } else if (right.IsStackSlot()) {
-        __ cmpl(left_reg, Address(ESP, right.GetStackIndex()));
-      } else {
-        __ cmpl(left_reg, right.AsRegister<Register>());
-      }
+      GenerateIntCompare(left, right);
       break;
     }
     case Primitive::kPrimLong: {

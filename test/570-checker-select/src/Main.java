@@ -29,6 +29,11 @@ public class Main {
   /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/ne
 
+  /// CHECK-START-X86: int Main.BoolCond_IntVarVar(boolean, int, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
   public static int BoolCond_IntVarVar(boolean cond, int x, int y) {
     return cond ? x : y;
   }
@@ -42,6 +47,11 @@ public class Main {
   /// CHECK-NEXT:            csinc ne
 
   /// CHECK-START-X86_64: int Main.BoolCond_IntVarCst(boolean, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
+  /// CHECK-START-X86: int Main.BoolCond_IntVarCst(boolean, int) disassembly (after)
   /// CHECK:            <<Cond:z\d+>> ParameterValue
   /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/ne
@@ -63,6 +73,11 @@ public class Main {
   /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/ne
 
+  /// CHECK-START-X86: int Main.BoolCond_IntCstVar(boolean, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
   public static int BoolCond_IntCstVar(boolean cond, int y) {
     return cond ? 1 : y;
   }
@@ -79,6 +94,12 @@ public class Main {
   /// CHECK:            <<Cond:z\d+>> ParameterValue
   /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/neq
+
+  /// CHECK-START-X86: long Main.BoolCond_LongVarVar(boolean, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+  /// CHECK-NEXT:                     cmovnz/ne
 
   public static long BoolCond_LongVarVar(boolean cond, long x, long y) {
     return cond ? x : y;
@@ -97,6 +118,12 @@ public class Main {
   /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/neq
 
+  /// CHECK-START-X86: long Main.BoolCond_LongVarCst(boolean, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+  /// CHECK-NEXT:                     cmovnz/ne
+
   public static long BoolCond_LongVarCst(boolean cond, long x) {
     return cond ? x : 1L;
   }
@@ -113,6 +140,12 @@ public class Main {
   /// CHECK:            <<Cond:z\d+>> ParameterValue
   /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/neq
+
+  /// CHECK-START-X86: long Main.BoolCond_LongCstVar(boolean, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+  /// CHECK-NEXT:                     cmovnz/ne
 
   public static long BoolCond_LongCstVar(boolean cond, long y) {
     return cond ? 1L : y;
@@ -168,6 +201,11 @@ public class Main {
   /// CHECK-NEXT:                     Select [{{i\d+}},{{i\d+}},<<Cond>>]
   /// CHECK:                          cmovle/ng
 
+  /// CHECK-START-X86: int Main.IntNonmatCond_IntVarVar(int, int, int, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK-NEXT:                     Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ng
+
   public static int IntNonmatCond_IntVarVar(int a, int b, int x, int y) {
     return a > b ? x : y;
   }
@@ -185,6 +223,11 @@ public class Main {
   /// CHECK-NEXT:            csel le
 
   /// CHECK-START-X86_64: int Main.IntMatCond_IntVarVar(int, int, int, int) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ng
+
+  /// CHECK-START-X86: int Main.IntMatCond_IntVarVar(int, int, int, int) disassembly (after)
   /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
   /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
   /// CHECK:                          cmovle/ng
@@ -207,6 +250,12 @@ public class Main {
   /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
   /// CHECK-NEXT:                     Select [{{j\d+}},{{j\d+}},<<Cond>>]
   /// CHECK:                          cmovle/ngq
+
+  /// CHECK-START-X86: long Main.IntNonmatCond_LongVarVar(int, int, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK-NEXT:                     Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovle/ng
+  /// CHECK-NEXT:                     cmovle/ng
 
   public static long IntNonmatCond_LongVarVar(int a, int b, long x, long y) {
     return a > b ? x : y;
@@ -231,6 +280,15 @@ public class Main {
   /// CHECK:                          cmovle/ngq
   /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
   /// CHECK:                          cmovnz/neq
+
+  /// CHECK-START-X86: long Main.IntMatCond_LongVarVar(int, int, long, long) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{i\d+}},{{i\d+}}]
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK-NEXT:                     cmovle/ng
+  /// CHECK-NEXT:                     cmovle/ng
+  /// CHECK:                          Select [{{j\d+}},{{j\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+  /// CHECK-NEXT:                     cmovnz/ne
 
   public static long IntMatCond_LongVarVar(int a, int b, long x, long y) {
     long result = (a > b ? x : y);
