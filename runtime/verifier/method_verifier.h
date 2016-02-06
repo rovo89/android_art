@@ -25,6 +25,7 @@
 #include "base/macros.h"
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
+#include "base/value_object.h"
 #include "dex_file.h"
 #include "handle.h"
 #include "instruction_flags.h"
@@ -344,23 +345,31 @@ class MethodVerifier {
   // Adds the given string to the end of the last failure message.
   void AppendToLastFailMessage(std::string);
 
+  // Verification result for method(s). Includes a (maximum) failure kind, and (the union of)
+  // all failure types.
+  struct FailureData : ValueObject {
+    FailureKind kind = kNoFailure;
+    uint32_t types = 0U;
+
+    // Merge src into this. Uses the most severe failure kind, and the union of types.
+    void Merge(const FailureData& src);
+  };
+
   // Verify all direct or virtual methods of a class. The method assumes that the iterator is
   // positioned correctly, and the iterator will be updated.
   template <bool kDirect>
-  static void VerifyMethods(Thread* self,
-                            ClassLinker* linker,
-                            const DexFile* dex_file,
-                            const DexFile::ClassDef* class_def,
-                            ClassDataItemIterator* it,
-                            Handle<mirror::DexCache> dex_cache,
-                            Handle<mirror::ClassLoader> class_loader,
-                            CompilerCallbacks* callbacks,
-                            bool allow_soft_failures,
-                            bool log_hard_failures,
-                            bool need_precise_constants,
-                            bool* hard_fail,
-                            size_t* error_count,
-                            std::string* error_string)
+  static FailureData VerifyMethods(Thread* self,
+                                   ClassLinker* linker,
+                                   const DexFile* dex_file,
+                                   const DexFile::ClassDef* class_def,
+                                   ClassDataItemIterator* it,
+                                   Handle<mirror::DexCache> dex_cache,
+                                   Handle<mirror::ClassLoader> class_loader,
+                                   CompilerCallbacks* callbacks,
+                                   bool allow_soft_failures,
+                                   bool log_hard_failures,
+                                   bool need_precise_constants,
+                                   std::string* error_string)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
@@ -374,7 +383,7 @@ class MethodVerifier {
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
    */
-  static FailureKind VerifyMethod(Thread* self, uint32_t method_idx,
+  static FailureData VerifyMethod(Thread* self, uint32_t method_idx,
                                   const DexFile* dex_file,
                                   Handle<mirror::DexCache> dex_cache,
                                   Handle<mirror::ClassLoader> class_loader,

@@ -58,6 +58,10 @@ static constexpr bool kDebugVerify = false;
 // On VLOG(verifier), should we dump the whole state when we run into a hard failure?
 static constexpr bool kDumpRegLinesOnHardFailureIfVLOG = true;
 
+// We print a warning blurb about "dx --no-optimize" when we find monitor-locking issues. Make
+// sure we only print this once.
+static bool gPrintedDxMonitorText = false;
+
 PcToRegisterLineTable::PcToRegisterLineTable(ScopedArenaAllocator& arena)
     : register_lines_(arena.Adapter(kArenaAllocVerifier)) {}
 
@@ -166,22 +170,37 @@ static bool HasNextMethod(ClassDataItemIterator* it) {
   return kDirect ? it->HasNextDirectMethod() : it->HasNextVirtualMethod();
 }
 
+static MethodVerifier::FailureKind FailureKindMax(MethodVerifier::FailureKind fk1,
+                                                  MethodVerifier::FailureKind fk2) {
+  static_assert(MethodVerifier::FailureKind::kNoFailure <
+                    MethodVerifier::FailureKind::kSoftFailure
+                && MethodVerifier::FailureKind::kSoftFailure <
+                       MethodVerifier::FailureKind::kHardFailure,
+                "Unexpected FailureKind order");
+  return std::max(fk1, fk2);
+}
+
+void MethodVerifier::FailureData::Merge(const MethodVerifier::FailureData& fd) {
+  kind = FailureKindMax(kind, fd.kind);
+  types |= fd.types;
+}
+
 template <bool kDirect>
-void MethodVerifier::VerifyMethods(Thread* self,
-                                   ClassLinker* linker,
-                                   const DexFile* dex_file,
-                                   const DexFile::ClassDef* class_def,
-                                   ClassDataItemIterator* it,
-                                   Handle<mirror::DexCache> dex_cache,
-                                   Handle<mirror::ClassLoader> class_loader,
-                                   CompilerCallbacks* callbacks,
-                                   bool allow_soft_failures,
-                                   bool log_hard_failures,
-                                   bool need_precise_constants,
-                                   bool* hard_fail,
-                                   size_t* error_count,
-                                   std::string* error_string) {
+MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
+                                                          ClassLinker* linker,
+                                                          const DexFile* dex_file,
+                                                          const DexFile::ClassDef* class_def,
+                                                          ClassDataItemIterator* it,
+                                                          Handle<mirror::DexCache> dex_cache,
+                                                          Handle<mirror::ClassLoader> class_loader,
+                                                          CompilerCallbacks* callbacks,
+                                                          bool allow_soft_failures,
+                                                          bool log_hard_failures,
+                                                          bool need_precise_constants,
+                                                          std::string* error_string) {
   DCHECK(it != nullptr);
+
+  MethodVerifier::FailureData failure_data;
 
   int64_t previous_method_idx = -1;
   while (HasNextMethod<kDirect>(it)) {
@@ -206,7 +225,7 @@ void MethodVerifier::VerifyMethods(Thread* self,
     }
     StackHandleScope<1> hs(self);
     std::string hard_failure_msg;
-    MethodVerifier::FailureKind result = VerifyMethod(self,
+    MethodVerifier::FailureData result = VerifyMethod(self,
                                                       method_idx,
                                                       dex_file,
                                                       dex_cache,
@@ -220,24 +239,24 @@ void MethodVerifier::VerifyMethods(Thread* self,
                                                       log_hard_failures,
                                                       need_precise_constants,
                                                       &hard_failure_msg);
-    if (result != kNoFailure) {
-      if (result == kHardFailure) {
-        if (*error_count > 0) {
-          *error_string += "\n";
-        }
-        if (!*hard_fail) {
-          *error_string += "Verifier rejected class ";
-          *error_string += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
-          *error_string += ":";
-        }
-        *error_string += " ";
-        *error_string += hard_failure_msg;
-        *hard_fail = true;
+    if (result.kind == kHardFailure) {
+      if (failure_data.kind == kHardFailure) {
+        // If we logged an error before, we need a newline.
+        *error_string += "\n";
+      } else {
+        // If we didn't log a hard failure before, print the header of the message.
+        *error_string += "Verifier rejected class ";
+        *error_string += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
+        *error_string += ":";
       }
-      *error_count = *error_count + 1;
+      *error_string += " ";
+      *error_string += hard_failure_msg;
     }
+    failure_data.Merge(result);
     it->Next();
   }
+
+  return failure_data;
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
@@ -268,44 +287,53 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     it.Next();
   }
-  size_t error_count = 0;
-  bool hard_fail = false;
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   // Direct methods.
-  VerifyMethods<true>(self,
-                      linker,
-                      dex_file,
-                      class_def,
-                      &it,
-                      dex_cache,
-                      class_loader,
-                      callbacks,
-                      allow_soft_failures,
-                      log_hard_failures,
-                      false /* need precise constants */,
-                      &hard_fail,
-                      &error_count,
-                      error);
+  MethodVerifier::FailureData data1 = VerifyMethods<true>(self,
+                                                          linker,
+                                                          dex_file,
+                                                          class_def,
+                                                          &it,
+                                                          dex_cache,
+                                                          class_loader,
+                                                          callbacks,
+                                                          allow_soft_failures,
+                                                          log_hard_failures,
+                                                          false /* need precise constants */,
+                                                          error);
   // Virtual methods.
-  VerifyMethods<false>(self,
-                      linker,
-                      dex_file,
-                      class_def,
-                      &it,
-                      dex_cache,
-                      class_loader,
-                      callbacks,
-                      allow_soft_failures,
-                      log_hard_failures,
-                      false /* need precise constants */,
-                      &hard_fail,
-                      &error_count,
-                      error);
+  MethodVerifier::FailureData data2 = VerifyMethods<false>(self,
+                                                           linker,
+                                                           dex_file,
+                                                           class_def,
+                                                           &it,
+                                                           dex_cache,
+                                                           class_loader,
+                                                           callbacks,
+                                                           allow_soft_failures,
+                                                           log_hard_failures,
+                                                           false /* need precise constants */,
+                                                           error);
 
-  if (error_count == 0) {
+  data1.Merge(data2);
+
+  if (data1.kind == kNoFailure) {
     return kNoFailure;
   } else {
-    return hard_fail ? kHardFailure : kSoftFailure;
+    if ((data1.types & VERIFY_ERROR_LOCKING) != 0) {
+      // Print a warning about expected slow-down. Use a string temporary to print one contiguous
+      // warning.
+      std::string tmp =
+          StringPrintf("Class %s failed lock verification and will run slower.",
+                       PrettyDescriptor(dex_file->GetClassDescriptor(*class_def)).c_str());
+      if (!gPrintedDxMonitorText) {
+        tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
+                    "and incorrect proguard optimizations.";
+        gPrintedDxMonitorText = true;
+      }
+      LOG(WARNING) << tmp;
+    }
+    return data1.kind;
   }
 }
 
@@ -320,7 +348,7 @@ static bool IsLargeMethod(const DexFile::CodeItem* const code_item) {
   return registers_size * insns_size > 4*1024*1024;
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
+MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          uint32_t method_idx,
                                                          const DexFile* dex_file,
                                                          Handle<mirror::DexCache> dex_cache,
@@ -334,7 +362,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
                                                          bool log_hard_failures,
                                                          bool need_precise_constants,
                                                          std::string* hard_failure_msg) {
-  MethodVerifier::FailureKind result = kNoFailure;
+  MethodVerifier::FailureData result;
   uint64_t start_ns = kTimeVerifyMethod ? NanoTime() : 0;
 
   MethodVerifier verifier(self, dex_file, dex_cache, class_loader, class_def, code_item,
@@ -355,7 +383,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
         verifier.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
                                                     << PrettyMethod(method_idx, *dex_file) << "\n");
       }
-      result = kSoftFailure;
+      result.kind = kSoftFailure;
     }
   } else {
     // Bad method data.
@@ -364,7 +392,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
     if (UNLIKELY(verifier.have_pending_experimental_failure_)) {
       // Failed due to being forced into interpreter. This is ok because
       // we just want to skip verification.
-      result = kSoftFailure;
+      result.kind = kSoftFailure;
     } else {
       CHECK(verifier.have_pending_hard_failure_);
       if (VLOG_IS_ON(verifier) || log_hard_failures) {
@@ -376,7 +404,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
         *hard_failure_msg =
             verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
       }
-      result = kHardFailure;
+      result.kind = kHardFailure;
 
       if (callbacks != nullptr) {
         // Let the interested party know that we failed the class.
@@ -397,6 +425,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self,
                    << (IsLargeMethod(code_item) ? " (large method)" : "");
     }
   }
+  result.types = verifier.encountered_failure_types_;
   return result;
 }
 
