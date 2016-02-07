@@ -36,6 +36,8 @@
 namespace art {
 namespace jit {
 
+static constexpr bool kEnableOnStackReplacement = false;
+
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
   jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
@@ -274,6 +276,10 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
                                     uint32_t dex_pc,
                                     int32_t dex_pc_offset,
                                     JValue* result) {
+  if (!kEnableOnStackReplacement) {
+    return false;
+  }
+
   Jit* jit = Runtime::Current()->GetJit();
   if (jit == nullptr) {
     return false;
