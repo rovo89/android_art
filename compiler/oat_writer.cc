@@ -811,7 +811,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         // Record debug information for this function if we are doing that.
         const uint32_t quick_code_start = quick_code_offset -
             writer_->oat_header_->GetExecutableOffset() - thumb_offset;
-        writer_->method_info_.push_back(dwarf::MethodDebugInfo {
+        writer_->method_info_.push_back(debug::MethodDebugInfo {
             dex_file_,
             class_def_index_,
             it.GetMemberIndex(),

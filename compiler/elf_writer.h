@@ -32,9 +32,9 @@ namespace art {
 class ElfFile;
 class OutputStream;
 
-namespace dwarf {
+namespace debug {
 struct MethodDebugInfo;
-}  // namespace dwarf
+}  // namespace debug
 
 class ElfWriter {
  public:
@@ -54,14 +54,14 @@ class ElfWriter {
   virtual void Start() = 0;
   virtual void PrepareDebugInfo(size_t rodata_section_size,
                                 size_t text_section_size,
-                                const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) = 0;
+                                const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
   virtual OutputStream* StartRoData() = 0;
   virtual void EndRoData(OutputStream* rodata) = 0;
   virtual OutputStream* StartText() = 0;
   virtual void EndText(OutputStream* text) = 0;
   virtual void SetBssSize(size_t bss_size) = 0;
   virtual void WriteDynamicSection() = 0;
-  virtual void WriteDebugInfo(const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) = 0;
+  virtual void WriteDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
   virtual void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) = 0;
   virtual bool End() = 0;
 

@@ -20,7 +20,7 @@ include art/build/Android.common_build.mk
 
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
-	debug/elf_writer_debug.cc \
+	debug/elf_debug_writer.cc \
 	dex/global_value_numbering.cc \
 	dex/gvn_dead_code_elimination.cc \
 	dex/local_value_numbering.cc \

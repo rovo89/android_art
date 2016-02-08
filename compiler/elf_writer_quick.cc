@@ -23,7 +23,7 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "compiled_method.h"
-#include "debug/elf_writer_debug.h"
+#include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
 #include "driver/compiler_options.h"
 #include "elf.h"
@@ -53,7 +53,7 @@ class DebugInfoTask : public Task {
   DebugInfoTask(InstructionSet isa,
                 size_t rodata_section_size,
                 size_t text_section_size,
-                const ArrayRef<const dwarf::MethodDebugInfo>& method_infos)
+                const ArrayRef<const debug::MethodDebugInfo>& method_infos)
       : isa_(isa),
         rodata_section_size_(rodata_section_size),
         text_section_size_(text_section_size),
@@ -61,7 +61,7 @@ class DebugInfoTask : public Task {
   }
 
   void Run(Thread*) {
-    result_ = dwarf::MakeMiniDebugInfo(isa_,
+    result_ = debug::MakeMiniDebugInfo(isa_,
                                        rodata_section_size_,
                                        text_section_size_,
                                        method_infos_);
@@ -75,7 +75,7 @@ class DebugInfoTask : public Task {
   InstructionSet isa_;
   size_t rodata_section_size_;
   size_t text_section_size_;
-  const ArrayRef<const dwarf::MethodDebugInfo>& method_infos_;
+  const ArrayRef<const debug::MethodDebugInfo>& method_infos_;
   std::vector<uint8_t> result_;
 };
 
@@ -90,14 +90,14 @@ class ElfWriterQuick FINAL : public ElfWriter {
   void Start() OVERRIDE;
   void PrepareDebugInfo(size_t rodata_section_size,
                         size_t text_section_size,
-                        const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) OVERRIDE;
+                        const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
   OutputStream* StartRoData() OVERRIDE;
   void EndRoData(OutputStream* rodata) OVERRIDE;
   OutputStream* StartText() OVERRIDE;
   void EndText(OutputStream* text) OVERRIDE;
   void SetBssSize(size_t bss_size) OVERRIDE;
   void WriteDynamicSection() OVERRIDE;
-  void WriteDebugInfo(const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) OVERRIDE;
+  void WriteDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
   void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) OVERRIDE;
   bool End() OVERRIDE;
 
@@ -188,7 +188,7 @@ template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::PrepareDebugInfo(
     size_t rodata_section_size,
     size_t text_section_size,
-    const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
+    const ArrayRef<const debug::MethodDebugInfo>& method_infos) {
   if (!method_infos.empty() && compiler_options_->GetGenerateMiniDebugInfo()) {
     // Prepare the mini-debug-info in background while we do other I/O.
     Thread* self = Thread::Current();
@@ -206,11 +206,11 @@ void ElfWriterQuick<ElfTypes>::PrepareDebugInfo(
 
 template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
-    const ArrayRef<const dwarf::MethodDebugInfo>& method_infos) {
+    const ArrayRef<const debug::MethodDebugInfo>& method_infos) {
   if (!method_infos.empty()) {
     if (compiler_options_->GetGenerateDebugInfo()) {
       // Generate all the debug information we can.
-      dwarf::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat, true /* write_oat_patches */);
+      debug::WriteDebugInfo(builder_.get(), method_infos, kCFIFormat, true /* write_oat_patches */);
     }
     if (compiler_options_->GetGenerateMiniDebugInfo()) {
       // Wait for the mini-debug-info generation to finish and write it to disk.

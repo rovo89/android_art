@@ -43,9 +43,9 @@ class TimingLogger;
 class TypeLookupTable;
 class ZipEntry;
 
-namespace dwarf {
+namespace debug {
 struct MethodDebugInfo;
-}  // namespace dwarf
+}  // namespace debug
 
 // OatHeader         variable length with count of D OatDexFiles
 //
@@ -193,8 +193,8 @@ class OatWriter {
 
   ~OatWriter();
 
-  ArrayRef<const dwarf::MethodDebugInfo> GetMethodDebugInfo() const {
-    return ArrayRef<const dwarf::MethodDebugInfo>(method_info_);
+  ArrayRef<const debug::MethodDebugInfo> GetMethodDebugInfo() const {
+    return ArrayRef<const debug::MethodDebugInfo>(method_info_);
   }
 
   const CompilerDriver* GetCompilerDriver() {
@@ -289,7 +289,7 @@ class OatWriter {
   // We need this because we keep plain pointers to the strings' c_str().
   std::list<std::string> zipped_dex_file_locations_;
 
-  dchecked_vector<dwarf::MethodDebugInfo> method_info_;
+  dchecked_vector<debug::MethodDebugInfo> method_info_;
 
   const CompilerDriver* compiler_driver_;
   ImageWriter* image_writer_;
