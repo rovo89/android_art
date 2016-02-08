@@ -45,7 +45,7 @@
 #include "compiler.h"
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
-#include "debug/elf_writer_debug.h"
+#include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
@@ -932,7 +932,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         ArrayRef<const uint8_t>(),  // native_gc_map.
         ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
         ArrayRef<const LinkerPatch>());
-    dwarf::MethodDebugInfo method_debug_info {
+    debug::MethodDebugInfo method_debug_info {
         dex_file,
         class_def_idx,
         method_idx,
@@ -943,7 +943,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         code_address + code_allocator.GetSize(),
         &compiled_method
     };
-    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFileForMethod(method_debug_info);
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethod(method_debug_info);
     CreateJITCodeEntryForAddress(code_address,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());

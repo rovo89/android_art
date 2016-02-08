@@ -24,7 +24,7 @@
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "compiler_callbacks.h"
-#include "debug/elf_writer_debug.h"
+#include "debug/elf_debug_writer.h"
 #include "dex/pass_manager.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "driver/compiler_driver.h"
@@ -74,7 +74,7 @@ extern "C" void jit_types_loaded(void* handle, mirror::Class** types, size_t cou
   DCHECK(jit_compiler != nullptr);
   if (jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo()) {
     const ArrayRef<mirror::Class*> types_array(types, count);
-    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFileForClasses(kRuntimeISA, types_array);
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForClasses(kRuntimeISA, types_array);
     CreateJITCodeEntry(std::unique_ptr<const uint8_t[]>(elf_file.data()), elf_file.size());
   }
 }
