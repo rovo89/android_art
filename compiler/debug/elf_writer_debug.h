@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_ELF_WRITER_DEBUG_H_
-#define ART_COMPILER_ELF_WRITER_DEBUG_H_
+#ifndef ART_COMPILER_DEBUG_ELF_WRITER_DEBUG_H_
+#define ART_COMPILER_DEBUG_ELF_WRITER_DEBUG_H_
 
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "dwarf/dwarf_constants.h"
+#include "debug/dwarf/dwarf_constants.h"
 #include "elf_builder.h"
 #include "utils/array_ref.h"
 
@@ -50,4 +50,4 @@ ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_ELF_WRITER_DEBUG_H_
+#endif  // ART_COMPILER_DEBUG_ELF_WRITER_DEBUG_H_

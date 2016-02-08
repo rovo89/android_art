@@ -18,7 +18,7 @@
 #define ART_COMPILER_UTILS_MIPS64_MANAGED_REGISTER_MIPS64_H_
 
 #include "constants_mips64.h"
-#include "dwarf/register.h"
+#include "debug/dwarf/register.h"
 #include "utils/managed_register.h"
 
 namespace art {

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_DEBUG_ABBREV_WRITER_H_
-#define ART_COMPILER_DWARF_DEBUG_ABBREV_WRITER_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_DEBUG_ABBREV_WRITER_H_
+#define ART_COMPILER_DEBUG_DWARF_DEBUG_ABBREV_WRITER_H_
 
 #include <cstdint>
 #include <type_traits>
@@ -23,8 +23,8 @@
 
 #include "base/casts.h"
 #include "base/stl_util.h"
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/writer.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/writer.h"
 #include "leb128.h"
 
 namespace art {
@@ -95,4 +95,4 @@ class DebugAbbrevWriter FINAL : private Writer<Vector> {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_DEBUG_ABBREV_WRITER_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_DEBUG_ABBREV_WRITER_H_

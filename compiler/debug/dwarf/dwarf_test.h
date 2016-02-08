@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_DWARF_TEST_H_
-#define ART_COMPILER_DWARF_DWARF_TEST_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_DWARF_TEST_H_
+#define ART_COMPILER_DEBUG_DWARF_DWARF_TEST_H_
 
 #include <cstring>
 #include <dirent.h>
@@ -169,4 +169,4 @@ class DwarfTest : public CommonRuntimeTest {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_DWARF_TEST_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_DWARF_TEST_H_
