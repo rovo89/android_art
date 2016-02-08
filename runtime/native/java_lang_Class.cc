@@ -388,7 +388,7 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
   auto h_args = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
   Handle<mirror::Class> h_klass = hs.NewHandle(DecodeClass(soa, javaThis));
   ArtMethod* result = nullptr;
-  for (auto& m : h_klass->GetVirtualMethods(sizeof(void*))) {
+  for (auto& m : h_klass->GetDeclaredVirtualMethods(sizeof(void*))) {
     auto* np_method = m.GetInterfaceMethodIfProxy(sizeof(void*));
     // May cause thread suspension.
     mirror::String* np_name = np_method->GetNameAsString(soa.Self());
