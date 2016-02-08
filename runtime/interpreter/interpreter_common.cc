@@ -20,7 +20,6 @@
 
 #include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
-#include "jit/jit.h"
 #include "mirror/array-inl.h"
 #include "stack.h"
 #include "unstarted_runtime.h"
@@ -502,6 +501,23 @@ static inline bool DoCallCommon(ArtMethod* called_method,
                                 uint32_t (&arg)[kVarArgMax],
                                 uint32_t vregC) ALWAYS_INLINE;
 
+SHARED_REQUIRES(Locks::mutator_lock_)
+static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame) ALWAYS_INLINE;
+
+static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame) {
+  ArtMethod* target = new_shadow_frame->GetMethod();
+  if (UNLIKELY(target->IsNative() || target->IsProxyMethod())) {
+    return false;
+  }
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  return runtime->GetInstrumentation()->IsForcedInterpretOnly() ||
+        // Doing this check avoids doing compiled/interpreter transitions.
+        class_linker->IsQuickToInterpreterBridge(target->GetEntryPointFromQuickCompiledCode()) ||
+        // Force the use of interpreter when it is required by the debugger.
+        Dbg::IsForcedInterpreterNeededForCalling(self, target);
+}
+
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         const DexFile::CodeItem* code_item,
                                         ShadowFrame* shadow_frame,
@@ -720,11 +736,10 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
-    ArtMethod* target = new_shadow_frame->GetMethod();
-    if (ClassLinker::CanUseAOTCode(target, target->GetEntryPointFromQuickCompiledCode())) {
-      ArtInterpreterToCompiledCodeBridge(self, code_item, new_shadow_frame, result);
-    } else {
+    if (NeedsInterpreter(self, new_shadow_frame)) {
       ArtInterpreterToInterpreterBridge(self, code_item, new_shadow_frame, result);
+    } else {
+      ArtInterpreterToCompiledCodeBridge(self, code_item, new_shadow_frame, result);
     }
   } else {
     UnstartedRuntime::Invoke(self, code_item, new_shadow_frame, result, first_dest_reg);

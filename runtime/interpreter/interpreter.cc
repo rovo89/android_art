@@ -27,7 +27,6 @@
 #include "unstarted_runtime.h"
 #include "mterp/mterp.h"
 #include "jit/jit.h"
-#include "jit/jit_code_cache.h"
 
 namespace art {
 namespace interpreter {
@@ -294,10 +293,9 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
                                         method, 0);
     }
 
-    jit::Jit* jit = Runtime::Current()->GetJit();
-    if (UNLIKELY(jit != nullptr &&
-                 jit->JitAtFirstUse() &&
-                 jit->GetCodeCache()->ContainsMethod(method))) {
+    if (UNLIKELY(Runtime::Current()->GetJit() != nullptr &&
+                 Runtime::Current()->GetJit()->JitAtFirstUse() &&
+                 method->HasAnyCompiledCode())) {
       JValue result;
 
       // Pop the shadow frame before calling into compiled code.

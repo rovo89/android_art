@@ -2620,37 +2620,19 @@ const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file,
   return oat_class.GetOatMethod(oat_method_idx).GetQuickCode();
 }
 
-bool ClassLinker::CanUseAOTCode(ArtMethod* method, const void* quick_code) {
+// Returns true if the method must run with interpreter, false otherwise.
+static bool NeedsInterpreter(ArtMethod* method, const void* quick_code)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (quick_code == nullptr) {
     // No code: need interpreter.
-    return false;
-  }
-
-  if (UNLIKELY(method->IsNative() || method->IsProxyMethod())) {
+    // May return true for native code, in the case of generic JNI
+    // DCHECK(!method->IsNative());
     return true;
   }
-
-  Runtime* runtime = Runtime::Current();
-  instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
-  if (instr->InterpretOnly()) {
-    return false;
-  }
-
-  if (runtime->GetClassLinker()->IsQuickToInterpreterBridge(quick_code)) {
-    // Doing this check avoids doing compiled/interpreter transitions.
-    return false;
-  }
-
-  if (Dbg::IsForcedInterpreterNeededForCalling(Thread::Current(), method)) {
-    // Force the use of interpreter when it is required by the debugger.
-    return false;
-  }
-
-  if (runtime->UseJit() && runtime->GetJit()->JitAtFirstUse()) {
-    // Don't use AOT code in force JIT mode.
-    return false;
-  }
-  return true;
+  // If interpreter mode is enabled, every method (except native and proxy) must
+  // be run with interpreter.
+  return Runtime::Current()->GetInstrumentation()->InterpretOnly() &&
+         !method->IsNative() && !method->IsProxyMethod();
 }
 
 void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
@@ -2695,7 +2677,8 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
       quick_code = oat_method.GetQuickCode();
     }
-    if (!CanUseAOTCode(method, quick_code)) {
+    const bool enter_interpreter = NeedsInterpreter(method, quick_code);
+    if (enter_interpreter) {
       // Use interpreter entry point.
       // Check whether the method is native, in which case it's generic JNI.
       if (quick_code == nullptr && method->IsNative()) {
@@ -2732,7 +2715,8 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
     oat_method.LinkMethod(method);
   }
 
-  bool has_usable_oat_code = CanUseAOTCode(method, method->GetEntryPointFromQuickCompiledCode());
+  // Install entry point from interpreter.
+  bool enter_interpreter = NeedsInterpreter(method, method->GetEntryPointFromQuickCompiledCode());
 
   if (!method->IsInvokable()) {
     EnsureThrowsInvocationError(method);
@@ -2744,7 +2728,7 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
     // after initializing class (see ClassLinker::InitializeClass method).
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
-  } else if (!has_usable_oat_code) {
+  } else if (enter_interpreter) {
     if (!method->IsNative()) {
       // Set entry point from compiled code if there's no code or in interpreter only mode.
       method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
@@ -2757,7 +2741,7 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
     // Unregistering restores the dlsym lookup stub.
     method->UnregisterNative();
 
-    if (!has_usable_oat_code) {
+    if (enter_interpreter) {
       // We have a native method here without code. Then it should have either the generic JNI
       // trampoline as entrypoint (non-static), or the resolution trampoline (static).
       // TODO: this doesn't handle all the cases where trampolines may be installed.
