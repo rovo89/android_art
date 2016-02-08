@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_HEADERS_H_
-#define ART_COMPILER_DWARF_HEADERS_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_HEADERS_H_
+#define ART_COMPILER_DEBUG_DWARF_HEADERS_H_
 
 #include <cstdint>
 
-#include "dwarf/debug_frame_opcode_writer.h"
-#include "dwarf/debug_info_entry_writer.h"
-#include "dwarf/debug_line_opcode_writer.h"
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/register.h"
-#include "dwarf/writer.h"
+#include "debug/dwarf/debug_frame_opcode_writer.h"
+#include "debug/dwarf/debug_info_entry_writer.h"
+#include "debug/dwarf/debug_line_opcode_writer.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/register.h"
+#include "debug/dwarf/writer.h"
 #include "utils/array_ref.h"
 
 namespace art {
@@ -204,4 +204,4 @@ void WriteDebugLineTable(const std::vector<std::string>& include_directories,
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_HEADERS_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_HEADERS_H_

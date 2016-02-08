@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_METHOD_DEBUG_INFO_H_
-#define ART_COMPILER_DWARF_METHOD_DEBUG_INFO_H_
+#ifndef ART_COMPILER_DEBUG_METHOD_DEBUG_INFO_H_
+#define ART_COMPILER_DEBUG_METHOD_DEBUG_INFO_H_
 
 #include "dex_file.h"
 
@@ -38,4 +38,4 @@ struct MethodDebugInfo {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_METHOD_DEBUG_INFO_H_
+#endif  // ART_COMPILER_DEBUG_METHOD_DEBUG_INFO_H_

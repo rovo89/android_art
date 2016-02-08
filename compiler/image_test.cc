@@ -23,7 +23,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
-#include "dwarf/method_debug_info.h"
+#include "debug/method_debug_info.h"
 #include "elf_writer.h"
 #include "elf_writer_quick.h"
 #include "gc/space/image_space.h"

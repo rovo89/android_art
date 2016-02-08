@@ -20,6 +20,7 @@ include art/build/Android.common_build.mk
 
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
+	debug/elf_writer_debug.cc \
 	dex/global_value_numbering.cc \
 	dex/gvn_dead_code_elimination.cc \
 	dex/local_value_numbering.cc \
@@ -105,7 +106,6 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/swap_space.cc \
 	compiler.cc \
 	elf_writer.cc \
-	elf_writer_debug.cc \
 	elf_writer_quick.cc \
 	image_writer.cc \
 	oat_writer.cc \

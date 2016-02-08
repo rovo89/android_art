@@ -18,7 +18,7 @@
 #define ART_COMPILER_UTILS_X86_MANAGED_REGISTER_X86_H_
 
 #include "constants_x86.h"
-#include "dwarf/register.h"
+#include "debug/dwarf/register.h"
 #include "utils/managed_register.h"
 
 namespace art {

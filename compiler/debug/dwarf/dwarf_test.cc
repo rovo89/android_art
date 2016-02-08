@@ -16,11 +16,11 @@
 
 #include "dwarf_test.h"
 
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/debug_frame_opcode_writer.h"
-#include "dwarf/debug_info_entry_writer.h"
-#include "dwarf/debug_line_opcode_writer.h"
-#include "dwarf/headers.h"
+#include "debug/dwarf/debug_frame_opcode_writer.h"
+#include "debug/dwarf/debug_info_entry_writer.h"
+#include "debug/dwarf/debug_line_opcode_writer.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/headers.h"
 #include "gtest/gtest.h"
 
 namespace art {

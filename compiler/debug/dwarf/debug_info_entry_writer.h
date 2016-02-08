@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
-#define ART_COMPILER_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
+#define ART_COMPILER_DEBUG_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
 
 #include <cstdint>
 #include <unordered_map>
 
 #include "base/casts.h"
-#include "dwarf/debug_abbrev_writer.h"
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/expression.h"
-#include "dwarf/writer.h"
+#include "debug/dwarf/debug_abbrev_writer.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/expression.h"
+#include "debug/dwarf/writer.h"
 #include "leb128.h"
 
 namespace art {
@@ -225,4 +225,4 @@ class DebugInfoEntryWriter FINAL : private Writer<Vector> {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
