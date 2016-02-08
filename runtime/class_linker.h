@@ -592,9 +592,6 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static bool CanUseAOTCode(ArtMethod* method, const void* quick_code)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
