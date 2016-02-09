@@ -352,6 +352,8 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
     UNIMPLEMENTED(FATAL);
   }
 
+  void GenerateNop();
+
  private:
   // Labels for each block that will be compiled.
   Mips64Label* block_labels_;  // Indexed by block id.
