@@ -3,7 +3,7 @@
  */
     /* throw vAA */
     EXPORT_PC
-    GET_VREG %eax rINST                     # eax<- vAA (exception object)
+    GET_VREG %eax, rINST                    # eax<- vAA (exception object)
     testl   %eax, %eax
     jz      common_errNullObject
     movl    rSELF,%ecx

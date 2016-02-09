@@ -9,7 +9,7 @@
     movl    %ecx, OUT_ARG1(%esp)
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG2(%esp)
-    call    MterpNewInstance
+    call    SYMBOL(MterpNewInstance)
     REFRESH_IBASE
     testl   %eax, %eax                 # 0 means an exception is thrown
     jz      MterpPossibleException

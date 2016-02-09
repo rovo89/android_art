@@ -6,8 +6,8 @@
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC),%eax                     # eax <- BB
     movzbl  3(rPC),%ecx                     # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     $instr                                  # ex: addl    %ecx,%eax
-    SET_VREG $result rINST
+    SET_VREG $result, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

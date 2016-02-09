@@ -14,7 +14,7 @@
     movl    rINST, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpNewArray
+    call    SYMBOL(MterpNewArray)
     REFRESH_IBASE
     testl   %eax, %eax                      # 0 means an exception is thrown
     jz      MterpPossibleException

@@ -12,7 +12,7 @@
     /* binop/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $$4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $$0xf, %cl                      # ecx <- A
     $instr                                  # for ex: addl   %eax,(rFP,%ecx,4)
     CLEAR_REF %ecx

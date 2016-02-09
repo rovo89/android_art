@@ -27,7 +27,7 @@
     mov     LOCAL0(%esp), rPC               # restore Interpreter PC
     mov     LOCAL1(%esp), rFP               # restore FP
     leal    (%ecx,rIBASE), rIBASE           # full result now in rIBASE:%eax
-    SET_VREG_HIGH rIBASE rINST              # v[B+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[B+1] <- rIBASE
     mov     LOCAL2(%esp), rIBASE            # restore IBASE
-    SET_VREG %eax rINST                     # v[B] <- eax
+    SET_VREG %eax, rINST                    # v[B] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

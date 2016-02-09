@@ -4,7 +4,7 @@
     movl    rPC, OUT_ARG1(%esp)
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG2(%esp)
-    call    MterpIputObjectQuick
+    call    SYMBOL(MterpIputObjectQuick)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE

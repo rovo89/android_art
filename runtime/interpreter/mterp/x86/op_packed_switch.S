@@ -10,11 +10,11 @@
  */
     /* op vAA, +BBBB */
     movl    2(rPC), %ecx                    # ecx <- BBBBbbbb
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     leal    (rPC,%ecx,2), %ecx              # ecx <- PC + BBBBbbbb*2
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
-    call    $func
+    call    SYMBOL($func)
     addl    %eax, %eax
     leal    (rPC, %eax), rPC
     FETCH_INST
