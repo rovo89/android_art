@@ -16,7 +16,6 @@
 
 #include "image_space.h"
 
-#include <dirent.h>
 #include <lz4.h>
 #include <random>
 #include <sys/statvfs.h>
@@ -28,9 +27,9 @@
 #include "base/stl_util.h"
 #include "base/scoped_flock.h"
 #include "base/time_utils.h"
-#include "base/unix_file/fd_file.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "image-inl.h"
+#include "image_space_fs.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "oat_file.h"
@@ -76,105 +75,6 @@ static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta)
   CHECK_GE(max_delta, r);
   CHECK_ALIGNED(r, kPageSize);
   return r;
-}
-
-// We are relocating or generating the core image. We should get rid of everything. It is all
-// out-of-date. We also don't really care if this fails since it is just a convenience.
-// Adapted from prune_dex_cache(const char* subdir) in frameworks/native/cmds/installd/commands.c
-// Note this should only be used during first boot.
-static void RealPruneDalvikCache(const std::string& cache_dir_path);
-
-static void PruneDalvikCache(InstructionSet isa) {
-  CHECK_NE(isa, kNone);
-  // Prune the base /data/dalvik-cache.
-  RealPruneDalvikCache(GetDalvikCacheOrDie(".", false));
-  // Prune /data/dalvik-cache/<isa>.
-  RealPruneDalvikCache(GetDalvikCacheOrDie(GetInstructionSetString(isa), false));
-}
-
-static void RealPruneDalvikCache(const std::string& cache_dir_path) {
-  if (!OS::DirectoryExists(cache_dir_path.c_str())) {
-    return;
-  }
-  DIR* cache_dir = opendir(cache_dir_path.c_str());
-  if (cache_dir == nullptr) {
-    PLOG(WARNING) << "Unable to open " << cache_dir_path << " to delete it's contents";
-    return;
-  }
-
-  for (struct dirent* de = readdir(cache_dir); de != nullptr; de = readdir(cache_dir)) {
-    const char* name = de->d_name;
-    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-      continue;
-    }
-    // We only want to delete regular files and symbolic links.
-    if (de->d_type != DT_REG && de->d_type != DT_LNK) {
-      if (de->d_type != DT_DIR) {
-        // We do expect some directories (namely the <isa> for pruning the base dalvik-cache).
-        LOG(WARNING) << "Unexpected file type of " << std::hex << de->d_type << " encountered.";
-      }
-      continue;
-    }
-    std::string cache_file(cache_dir_path);
-    cache_file += '/';
-    cache_file += name;
-    if (TEMP_FAILURE_RETRY(unlink(cache_file.c_str())) != 0) {
-      PLOG(ERROR) << "Unable to unlink " << cache_file;
-      continue;
-    }
-  }
-  CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(cache_dir))) << "Unable to close directory.";
-}
-
-// We write out an empty file to the zygote's ISA specific cache dir at the start of
-// every zygote boot and delete it when the boot completes. If we find a file already
-// present, it usually means the boot didn't complete. We wipe the entire dalvik
-// cache if that's the case.
-static void MarkZygoteStart(const InstructionSet isa, const uint32_t max_failed_boots) {
-  const std::string isa_subdir = GetDalvikCacheOrDie(GetInstructionSetString(isa), false);
-  const std::string boot_marker = isa_subdir + "/.booting";
-  const char* file_name = boot_marker.c_str();
-
-  uint32_t num_failed_boots = 0;
-  std::unique_ptr<File> file(OS::OpenFileReadWrite(file_name));
-  if (file.get() == nullptr) {
-    file.reset(OS::CreateEmptyFile(file_name));
-
-    if (file.get() == nullptr) {
-      PLOG(WARNING) << "Failed to create boot marker.";
-      return;
-    }
-  } else {
-    if (!file->ReadFully(&num_failed_boots, sizeof(num_failed_boots))) {
-      PLOG(WARNING) << "Failed to read boot marker.";
-      file->Erase();
-      return;
-    }
-  }
-
-  if (max_failed_boots != 0 && num_failed_boots > max_failed_boots) {
-    LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
-    RealPruneDalvikCache(isa_subdir);
-  }
-
-  ++num_failed_boots;
-  VLOG(startup) << "Number of failed boots on : " << boot_marker << " = " << num_failed_boots;
-
-  if (lseek(file->Fd(), 0, SEEK_SET) == -1) {
-    PLOG(WARNING) << "Failed to write boot marker.";
-    file->Erase();
-    return;
-  }
-
-  if (!file->WriteFully(&num_failed_boots, sizeof(num_failed_boots))) {
-    PLOG(WARNING) << "Failed to write boot marker.";
-    file->Erase();
-    return;
-  }
-
-  if (file->FlushCloseOrErase() != 0) {
-    PLOG(WARNING) << "Failed to flush boot marker.";
-  }
 }
 
 static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,
@@ -486,9 +386,33 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
   bool has_cache = false;
   bool dalvik_cache_exists = false;
   bool is_global_cache = true;
-  const bool found_image = FindImageFilename(image_location, image_isa, &system_filename,
-                                             &has_system, &cache_filename, &dalvik_cache_exists,
-                                             &has_cache, &is_global_cache);
+  bool found_image = FindImageFilename(image_location, image_isa, &system_filename,
+                                       &has_system, &cache_filename, &dalvik_cache_exists,
+                                       &has_cache, &is_global_cache);
+
+  // If we're starting with the global cache, and we're the zygote, try to see whether there are
+  // OTA artifacts from the A/B OTA preopting to move over.
+  // (It is structurally simpler to check this here, instead of complicating the compile/relocate
+  // logic below.)
+  const bool is_zygote = Runtime::Current()->IsZygote();
+  if (is_global_cache && is_zygote) {
+    VLOG(startup) << "Checking for A/B OTA data.";
+    TryMoveOTAArtifacts(cache_filename, dalvik_cache_exists);
+
+    // Retry. There are two cases where the old info is outdated:
+    // * There wasn't a boot image before (e.g., some failure on boot), but now the OTA preopted
+    //   image has been moved in-place.
+    // * There was a boot image before, and we tried to move the OTA preopted image, but a failure
+    //   happened and there is no file anymore.
+    found_image = FindImageFilename(image_location,
+                                    image_isa,
+                                    &system_filename,
+                                    &has_system,
+                                    &cache_filename,
+                                    &dalvik_cache_exists,
+                                    &has_cache,
+                                    &is_global_cache);
+  }
 
   if (Runtime::Current()->IsZygote() && !secondary_image) {
     MarkZygoteStart(image_isa, Runtime::Current()->GetZygoteMaxFailedBoots());
