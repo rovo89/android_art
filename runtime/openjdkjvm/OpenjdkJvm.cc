@@ -124,14 +124,18 @@ JNIEXPORT jlong JVM_Lseek(jint fd, jlong offset, jint whence) {
  * mutexes.  They're used by ZipFile.
  */
 JNIEXPORT void* JVM_RawMonitorCreate(void) {
-    pthread_mutex_t* newMutex =
+    pthread_mutex_t* mutex =
         reinterpret_cast<pthread_mutex_t*>(malloc(sizeof(pthread_mutex_t)));
-    pthread_mutex_init(newMutex, NULL);
-    return newMutex;
+    CHECK(mutex != nullptr);
+    CHECK_PTHREAD_CALL(pthread_mutex_init, (mutex, nullptr), "JVM_RawMonitorCreate");
+    return mutex;
 }
 
 JNIEXPORT void JVM_RawMonitorDestroy(void* mon) {
-    pthread_mutex_destroy(reinterpret_cast<pthread_mutex_t*>(mon));
+    CHECK_PTHREAD_CALL(pthread_mutex_destroy,
+                       (reinterpret_cast<pthread_mutex_t*>(mon)),
+                       "JVM_RawMonitorDestroy");
+    free(mon);
 }
 
 JNIEXPORT jint JVM_RawMonitorEnter(void* mon) {
@@ -139,7 +143,9 @@ JNIEXPORT jint JVM_RawMonitorEnter(void* mon) {
 }
 
 JNIEXPORT void JVM_RawMonitorExit(void* mon) {
-    pthread_mutex_unlock(reinterpret_cast<pthread_mutex_t*>(mon));
+    CHECK_PTHREAD_CALL(pthread_mutex_unlock,
+                       (reinterpret_cast<pthread_mutex_t*>(mon)),
+                       "JVM_RawMonitorExit");
 }
 
 JNIEXPORT char* JVM_NativePath(char* path) {
