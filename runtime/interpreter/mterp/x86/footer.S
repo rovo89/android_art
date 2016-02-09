@@ -20,7 +20,7 @@ common_errDivideByZero:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogDivideByZeroException
+    call    SYMBOL(MterpLogDivideByZeroException)
 #endif
     jmp     MterpCommonFallback
 
@@ -31,7 +31,7 @@ common_errArrayIndex:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogArrayIndexException
+    call    SYMBOL(MterpLogArrayIndexException)
 #endif
     jmp     MterpCommonFallback
 
@@ -42,7 +42,7 @@ common_errNegativeArraySize:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogNegativeArraySizeException
+    call    SYMBOL(MterpLogNegativeArraySizeException)
 #endif
     jmp     MterpCommonFallback
 
@@ -53,7 +53,7 @@ common_errNoSuchMethod:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogNoSuchMethodException
+    call    SYMBOL(MterpLogNoSuchMethodException)
 #endif
     jmp     MterpCommonFallback
 
@@ -64,7 +64,7 @@ common_errNullObject:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogNullObjectException
+    call    SYMBOL(MterpLogNullObjectException)
 #endif
     jmp     MterpCommonFallback
 
@@ -75,7 +75,7 @@ common_exceptionThrown:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG0(%esp)
-    call    MterpLogExceptionThrownException
+    call    SYMBOL(MterpLogExceptionThrownException)
 #endif
     jmp     MterpCommonFallback
 
@@ -88,7 +88,7 @@ MterpSuspendFallback:
     movl    %ecx, OUT_ARG0(%esp)
     movl    THREAD_FLAGS_OFFSET(%eax), %eax
     movl    %eax, OUT_ARG2(%esp)
-    call    MterpLogSuspendFallback
+    call    SYMBOL(MterpLogSuspendFallback)
 #endif
     jmp     MterpCommonFallback
 
@@ -113,7 +113,7 @@ MterpException:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpHandleException
+    call    SYMBOL(MterpHandleException)
     testl   %eax, %eax
     jz      MterpExceptionReturn
     REFRESH_IBASE
@@ -137,7 +137,7 @@ MterpCheckSuspendAndContinue:
     testl   $$(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
     REFRESH_IBASE
 1:
     GOTO_NEXT
@@ -152,7 +152,7 @@ MterpFallback:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogFallback
+    call    SYMBOL(MterpLogFallback)
 #endif
 MterpCommonFallback:
     xor     %eax, %eax
@@ -183,4 +183,4 @@ MterpDone:
     ret
 
     .cfi_endproc
-    .size   ExecuteMterpImpl, .-ExecuteMterpImpl
+    SIZE(ExecuteMterpImpl,ExecuteMterpImpl)

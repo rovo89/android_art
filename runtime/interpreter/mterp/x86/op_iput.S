@@ -18,7 +18,7 @@
     movl    %eax, OUT_ARG2(%esp)            # fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    $handler
+    call    SYMBOL($handler)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE

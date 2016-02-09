@@ -11,11 +11,11 @@
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGet64StaticFromCode
+    call    SYMBOL(artGet64StaticFromCode)
     movl    rSELF, %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
-    SET_VREG %eax rINST                     # fp[A]<- low part
-    SET_VREG_HIGH %edx rINST                # fp[A+1]<- high part
+    SET_VREG %eax, rINST                    # fp[A]<- low part
+    SET_VREG_HIGH %edx, rINST               # fp[A+1]<- high part
     REFRESH_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

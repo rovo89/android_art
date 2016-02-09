@@ -13,7 +13,7 @@
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG3(%esp)
-    call    $helper
+    call    SYMBOL($helper)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE

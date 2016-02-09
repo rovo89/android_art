@@ -41,6 +41,9 @@ label_prefix = ".L"         # use ".L" to hide labels from gdb
 alt_label_prefix = ".L_ALT" # use ".L" to hide labels from gdb
 style = None                # interpreter style
 generate_alt_table = False
+function_type_format = ".type   %s, %%function"
+function_size_format = ".size   %s, .-%s"
+global_name_format = "%s"
 
 # Exception class.
 class DataParseError(SyntaxError):
@@ -147,7 +150,24 @@ def setAsmAltStub(tokens):
         raise DataParseError("import requires one argument")
     default_alt_stub = tokens[1]
     generate_alt_table = True
-
+#
+# Change the default function type format
+#
+def setFunctionTypeFormat(tokens):
+    global function_type_format
+    function_type_format = tokens[1]
+#
+# Change the default function size format
+#
+def setFunctionSizeFormat(tokens):
+    global function_size_format
+    function_size_format = tokens[1]
+#
+# Change the global name format
+#
+def setGlobalNameFormat(tokens):
+    global global_name_format
+    global_name_format = tokens[1]
 #
 # Parse arch config file --
 # Start of opcode list.
@@ -259,12 +279,12 @@ def loadAndEmitOpcodes():
     sister_list = []
     assert len(opcodes) == kNumPackedOpcodes
     need_dummy_start = False
-    start_label = "artMterpAsmInstructionStart"
-    end_label = "artMterpAsmInstructionEnd"
+    start_label = global_name_format % "artMterpAsmInstructionStart"
+    end_label = global_name_format % "artMterpAsmInstructionEnd"
 
     # point MterpAsmInstructionStart at the first handler or stub
     asm_fp.write("\n    .global %s\n" % start_label)
-    asm_fp.write("    .type   %s, %%function\n" % start_label)
+    asm_fp.write("    " + (function_type_format % start_label) + "\n");
     asm_fp.write("%s = " % start_label + label_prefix + "_op_nop\n")
     asm_fp.write("    .text\n\n")
 
@@ -290,21 +310,23 @@ def loadAndEmitOpcodes():
         asm_fp.write(label_prefix + "_op_nop:   /* dummy */\n");
 
     emitAlign()
-    asm_fp.write("    .size   %s, .-%s\n" % (start_label, start_label))
+    asm_fp.write("    " + (function_size_format % (start_label, start_label)) + "\n")
     asm_fp.write("    .global %s\n" % end_label)
     asm_fp.write("%s:\n" % end_label)
 
     if style == "computed-goto":
+        start_sister_label = global_name_format % "artMterpAsmSisterStart"
+        end_sister_label = global_name_format % "artMterpAsmSisterEnd"
         emitSectionComment("Sister implementations", asm_fp)
-        asm_fp.write("    .global artMterpAsmSisterStart\n")
-        asm_fp.write("    .type   artMterpAsmSisterStart, %function\n")
+        asm_fp.write("    .global %s\n" % start_sister_label)
+        asm_fp.write("    " + (function_type_format % start_sister_label) + "\n");
         asm_fp.write("    .text\n")
         asm_fp.write("    .balign 4\n")
-        asm_fp.write("artMterpAsmSisterStart:\n")
+        asm_fp.write("%s:\n" % start_sister_label)
         asm_fp.writelines(sister_list)
-        asm_fp.write("\n    .size   artMterpAsmSisterStart, .-artMterpAsmSisterStart\n")
-        asm_fp.write("    .global artMterpAsmSisterEnd\n")
-        asm_fp.write("artMterpAsmSisterEnd:\n\n")
+        asm_fp.write("\n    " + (function_size_format % (start_sister_label, start_sister_label)) + "\n")
+        asm_fp.write("    .global %s\n" % end_sister_label)
+        asm_fp.write("%s:\n\n" % end_sister_label)
 
 #
 # Load an alternate entry stub
@@ -324,12 +346,12 @@ def loadAndEmitAltStub(source, opindex):
 #
 def loadAndEmitAltOpcodes():
     assert len(opcodes) == kNumPackedOpcodes
-    start_label = "artMterpAsmAltInstructionStart"
-    end_label = "artMterpAsmAltInstructionEnd"
+    start_label = global_name_format % "artMterpAsmAltInstructionStart"
+    end_label = global_name_format % "artMterpAsmAltInstructionEnd"
 
     # point MterpAsmInstructionStart at the first handler or stub
     asm_fp.write("\n    .global %s\n" % start_label)
-    asm_fp.write("    .type   %s, %%function\n" % start_label)
+    asm_fp.write("    " + (function_type_format % start_label) + "\n");
     asm_fp.write("    .text\n\n")
     asm_fp.write("%s = " % start_label + label_prefix + "_ALT_op_nop\n")
 
@@ -342,7 +364,7 @@ def loadAndEmitAltOpcodes():
         loadAndEmitAltStub(source, i)
 
     emitAlign()
-    asm_fp.write("    .size   %s, .-%s\n" % (start_label, start_label))
+    asm_fp.write("    " + (function_size_format % (start_label, start_label)) + "\n")
     asm_fp.write("    .global %s\n" % end_label)
     asm_fp.write("%s:\n" % end_label)
 
@@ -579,6 +601,12 @@ try:
                 splitops = True
             elif tokens[0] == "fallback-stub":
                setFallbackStub(tokens)
+            elif tokens[0] == "function-type-format":
+               setFunctionTypeFormat(tokens)
+            elif tokens[0] == "function-size-format":
+               setFunctionSizeFormat(tokens)
+            elif tokens[0] == "global-name-format":
+               setGlobalNameFormat(tokens)
             else:
                 raise DataParseError, "unrecognized command '%s'" % tokens[0]
             if style == None:

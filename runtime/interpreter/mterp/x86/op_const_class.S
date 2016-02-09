@@ -7,7 +7,7 @@
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
-    call    MterpConstClass                 # (index, tgt_reg, shadow_frame, self)
+    call    SYMBOL(MterpConstClass)         # (index, tgt_reg, shadow_frame, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpPossibleException

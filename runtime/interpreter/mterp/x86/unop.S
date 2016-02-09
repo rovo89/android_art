@@ -6,8 +6,8 @@
     /* unop vA, vB */
     movzbl  rINSTbl,%ecx                    # ecx <- A+
     sarl    $$4,rINST                       # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $$0xf,%cl                       # ecx <- A
     $instr
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
