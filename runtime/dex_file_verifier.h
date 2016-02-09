@@ -157,9 +157,10 @@ class DexFileVerifier {
 
   // Check validity of the given access flags, interpreted for a field in the context of a class
   // with the given second access flags.
-  static bool CheckFieldAccessFlags(uint32_t field_access_flags,
-                                    uint32_t class_access_flags,
-                                    std::string* error_msg);
+  bool CheckFieldAccessFlags(uint32_t idx,
+                             uint32_t field_access_flags,
+                             uint32_t class_access_flags,
+                             std::string* error_msg);
   // Check validity of the given method and access flags, in the context of a class with the given
   // second access flags.
   bool CheckMethodAccessFlags(uint32_t method_index,
