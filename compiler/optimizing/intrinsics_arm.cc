@@ -1580,6 +1580,251 @@ void IntrinsicCodeGeneratorARM::VisitSystemArrayCopy(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+static void CreateFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  // If the graph is debuggable, all callee-saved floating-point registers are blocked by
+  // the code generator. Furthermore, the register allocator creates fixed live intervals
+  // for all caller-saved registers because we are doing a function call. As a result, if
+  // the input and output locations are unallocated, the register allocator runs out of
+  // registers and fails; however, a debuggable graph is not the common case.
+  if (invoke->GetBlock()->GetGraph()->IsDebuggable()) {
+    return;
+  }
+
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 1U);
+  DCHECK_EQ(invoke->InputAt(0)->GetType(), Primitive::kPrimDouble);
+  DCHECK_EQ(invoke->GetType(), Primitive::kPrimDouble);
+
+  LocationSummary* const locations = new (arena) LocationSummary(invoke,
+                                                                 LocationSummary::kCall,
+                                                                 kIntrinsified);
+  const InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister());
+  // Native code uses the soft float ABI.
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+}
+
+static void CreateFPFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  // If the graph is debuggable, all callee-saved floating-point registers are blocked by
+  // the code generator. Furthermore, the register allocator creates fixed live intervals
+  // for all caller-saved registers because we are doing a function call. As a result, if
+  // the input and output locations are unallocated, the register allocator runs out of
+  // registers and fails; however, a debuggable graph is not the common case.
+  if (invoke->GetBlock()->GetGraph()->IsDebuggable()) {
+    return;
+  }
+
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 2U);
+  DCHECK_EQ(invoke->InputAt(0)->GetType(), Primitive::kPrimDouble);
+  DCHECK_EQ(invoke->InputAt(1)->GetType(), Primitive::kPrimDouble);
+  DCHECK_EQ(invoke->GetType(), Primitive::kPrimDouble);
+
+  LocationSummary* const locations = new (arena) LocationSummary(invoke,
+                                                                 LocationSummary::kCall,
+                                                                 kIntrinsified);
+  const InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister());
+  // Native code uses the soft float ABI.
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(3)));
+}
+
+static void GenFPToFPCall(HInvoke* invoke,
+                          ArmAssembler* assembler,
+                          CodeGeneratorARM* codegen,
+                          QuickEntrypointEnum entry) {
+  LocationSummary* const locations = invoke->GetLocations();
+  const InvokeRuntimeCallingConvention calling_convention;
+
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 1U);
+  DCHECK(locations->WillCall() && locations->Intrinsified());
+  DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(0)));
+  DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(1)));
+
+  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmWordSize>(entry).Int32Value());
+  // Native code uses the soft float ABI.
+  __ vmovrrd(calling_convention.GetRegisterAt(0),
+             calling_convention.GetRegisterAt(1),
+             FromLowSToD(locations->InAt(0).AsFpuRegisterPairLow<SRegister>()));
+  __ blx(LR);
+  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ vmovdrr(FromLowSToD(locations->Out().AsFpuRegisterPairLow<SRegister>()),
+             calling_convention.GetRegisterAt(0),
+             calling_convention.GetRegisterAt(1));
+}
+
+static void GenFPFPToFPCall(HInvoke* invoke,
+                          ArmAssembler* assembler,
+                          CodeGeneratorARM* codegen,
+                          QuickEntrypointEnum entry) {
+  LocationSummary* const locations = invoke->GetLocations();
+  const InvokeRuntimeCallingConvention calling_convention;
+
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 2U);
+  DCHECK(locations->WillCall() && locations->Intrinsified());
+  DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(0)));
+  DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(1)));
+  DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(2)));
+  DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(3)));
+
+  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmWordSize>(entry).Int32Value());
+  // Native code uses the soft float ABI.
+  __ vmovrrd(calling_convention.GetRegisterAt(0),
+             calling_convention.GetRegisterAt(1),
+             FromLowSToD(locations->InAt(0).AsFpuRegisterPairLow<SRegister>()));
+  __ vmovrrd(calling_convention.GetRegisterAt(2),
+             calling_convention.GetRegisterAt(3),
+             FromLowSToD(locations->InAt(1).AsFpuRegisterPairLow<SRegister>()));
+  __ blx(LR);
+  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ vmovdrr(FromLowSToD(locations->Out().AsFpuRegisterPairLow<SRegister>()),
+             calling_convention.GetRegisterAt(0),
+             calling_convention.GetRegisterAt(1));
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathCos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathCos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickCos);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathSin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathSin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickSin);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathAcos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathAcos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickAcos);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathAsin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathAsin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickAsin);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathAtan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathAtan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickAtan);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathCbrt(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathCbrt(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickCbrt);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathCosh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathCosh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickCosh);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathExp(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathExp(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickExp);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathExpm1(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathExpm1(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickExpm1);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathLog(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathLog(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickLog);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathLog10(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathLog10(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickLog10);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathSinh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathSinh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickSinh);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathTan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathTan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickTan);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathTanh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathTanh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, GetAssembler(), codegen_, kQuickTanh);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathAtan2(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathAtan2(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, GetAssembler(), codegen_, kQuickAtan2);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathHypot(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathHypot(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, GetAssembler(), codegen_, kQuickHypot);
+}
+
+void IntrinsicLocationsBuilderARM::VisitMathNextAfter(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitMathNextAfter(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, GetAssembler(), codegen_, kQuickNextAfter);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -1610,23 +1855,6 @@ UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
-UNIMPLEMENTED_INTRINSIC(MathCos)
-UNIMPLEMENTED_INTRINSIC(MathSin)
-UNIMPLEMENTED_INTRINSIC(MathAcos)
-UNIMPLEMENTED_INTRINSIC(MathAsin)
-UNIMPLEMENTED_INTRINSIC(MathAtan)
-UNIMPLEMENTED_INTRINSIC(MathAtan2)
-UNIMPLEMENTED_INTRINSIC(MathCbrt)
-UNIMPLEMENTED_INTRINSIC(MathCosh)
-UNIMPLEMENTED_INTRINSIC(MathExp)
-UNIMPLEMENTED_INTRINSIC(MathExpm1)
-UNIMPLEMENTED_INTRINSIC(MathHypot)
-UNIMPLEMENTED_INTRINSIC(MathLog)
-UNIMPLEMENTED_INTRINSIC(MathLog10)
-UNIMPLEMENTED_INTRINSIC(MathNextAfter)
-UNIMPLEMENTED_INTRINSIC(MathSinh)
-UNIMPLEMENTED_INTRINSIC(MathTan)
-UNIMPLEMENTED_INTRINSIC(MathTanh)
 
 UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
