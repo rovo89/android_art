@@ -184,6 +184,11 @@ class MemMap {
   static void Init() REQUIRES(!Locks::mem_maps_lock_);
   static void Shutdown() REQUIRES(!Locks::mem_maps_lock_);
 
+  // If the map is PROT_READ, try to read each page of the map to check it is in fact readable (not
+  // faulting). This is used to diagnose a bug b/19894268 where mprotect doesn't seem to be working
+  // intermittently.
+  void TryReadable();
+
  private:
   MemMap(const std::string& name,
          uint8_t* begin,
