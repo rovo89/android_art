@@ -53,6 +53,66 @@ class HMultiplyAccumulate : public HExpression<3> {
   DISALLOW_COPY_AND_ASSIGN(HMultiplyAccumulate);
 };
 
+class HBitwiseNegatedRight : public HBinaryOperation {
+ public:
+  HBitwiseNegatedRight(Primitive::Type result_type,
+                            InstructionKind op,
+                            HInstruction* left,
+                            HInstruction* right,
+                            uint32_t dex_pc = kNoDexPc)
+    : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc),
+      op_kind_(op) {
+    DCHECK(op == HInstruction::kAnd || op == HInstruction::kOr || op == HInstruction::kXor) << op;
+  }
+
+  template <typename T, typename U>
+  auto Compute(T x, U y) const -> decltype(x & ~y) {
+    static_assert(std::is_same<decltype(x & ~y), decltype(x | ~y)>::value &&
+                  std::is_same<decltype(x & ~y), decltype(x ^ ~y)>::value,
+                  "Inconsistent negated bitwise types");
+    switch (op_kind_) {
+      case HInstruction::kAnd:
+        return x & ~y;
+      case HInstruction::kOr:
+        return x | ~y;
+      case HInstruction::kXor:
+        return x ^ ~y;
+      default:
+        LOG(FATAL) << "Unreachable";
+        UNREACHABLE();
+    }
+  }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(
+        Compute(x->GetValue(), y->GetValue()), GetDexPc());
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue()), GetDexPc());
+  }
+  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
+                      HFloatConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for float values";
+    UNREACHABLE();
+  }
+  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
+                      HDoubleConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for double values";
+    UNREACHABLE();
+  }
+
+  InstructionKind GetOpKind() const { return op_kind_; }
+
+  DECLARE_INSTRUCTION(BitwiseNegatedRight);
+
+ private:
+  // Specifies the bitwise operation, which will be then negated.
+  const InstructionKind op_kind_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBitwiseNegatedRight);
+};
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_NODES_SHARED_H_
