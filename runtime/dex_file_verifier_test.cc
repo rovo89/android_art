@@ -527,7 +527,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsConstructors) {
         ApplyMaskToMethodFlags(dex_file, "<init>", ~kAccPublic);
         OrMaskToMethodFlags(dex_file, "<init>", kAccStatic);
       },
-      "Constructor 1 is not flagged correctly wrt/ static");
+      "Constructor 1(LMethodFlags;.<init>) is not flagged correctly wrt/ static");
   static constexpr uint32_t kInitNotAllowed[] = {
       kAccFinal,
       kAccSynchronized,
@@ -544,7 +544,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsConstructors) {
           ApplyMaskToMethodFlags(dex_file, "<init>", ~kAccPublic);
           OrMaskToMethodFlags(dex_file, "<init>", kInitNotAllowed[i]);
         },
-        "Constructor 1 flagged inappropriately");
+        "Constructor 1(LMethodFlags;.<init>) flagged inappropriately");
   }
 }
 
@@ -742,7 +742,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
       },
-      "Interface method 1 is not public and abstract");
+      "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_non_abstract",
@@ -751,7 +751,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccAbstract);
       },
-      "Method 1 has no code, but is not marked native or abstract");
+      "Method 1(LInterfaceMethodFlags;.foo) has no code, but is not marked native or abstract");
 
   VerifyModification(
       kMethodFlagsInterface,
@@ -761,7 +761,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         OrMaskToMethodFlags(dex_file, "foo", kAccStatic);
       },
-      "Direct/virtual method 1 not in expected list 0");
+      "Direct/virtual method 1(LInterfaceMethodFlags;.foo) not in expected list 0");
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_private",
@@ -771,7 +771,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
         OrMaskToMethodFlags(dex_file, "foo", kAccPrivate);
       },
-      "Direct/virtual method 1 not in expected list 0");
+      "Direct/virtual method 1(LInterfaceMethodFlags;.foo) not in expected list 0");
 
   VerifyModification(
       kMethodFlagsInterface,
@@ -781,7 +781,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
       },
-      "Interface method 1 is not public and abstract");
+      "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_protected",
@@ -791,7 +791,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
         OrMaskToMethodFlags(dex_file, "foo", kAccProtected);
       },
-      "Interface method 1 is not public and abstract");
+      "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
 
   constexpr uint32_t kAllMethodFlags =
       kAccPublic |
@@ -831,7 +831,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
           }
           OrMaskToMethodFlags(dex_file, "foo", mask);
         },
-        "Abstract method 1 has disallowed access flags");
+        "Abstract method 1(LInterfaceMethodFlags;.foo) has disallowed access flags");
   }
 }
 
