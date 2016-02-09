@@ -39,7 +39,7 @@ namespace art {
 template <typename TDexCallingConvention>
 class IntrinsicSlowPath : public SlowPathCode {
  public:
-  explicit IntrinsicSlowPath(HInvoke* invoke) : invoke_(invoke) { }
+  explicit IntrinsicSlowPath(HInvoke* invoke) : SlowPathCode(invoke), invoke_(invoke) { }
 
   Location MoveArguments(CodeGenerator* codegen) {
     TDexCallingConvention calling_convention_visitor;

@@ -64,7 +64,7 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 class NullCheckSlowPathARM : public SlowPathCode {
  public:
-  explicit NullCheckSlowPathARM(HNullCheck* instruction) : instruction_(instruction) {}
+  explicit NullCheckSlowPathARM(HNullCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -83,13 +83,12 @@ class NullCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathARM"; }
 
  private:
-  HNullCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
 };
 
 class DivZeroCheckSlowPathARM : public SlowPathCode {
  public:
-  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : instruction_(instruction) {}
+  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -108,14 +107,13 @@ class DivZeroCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathARM"; }
 
  private:
-  HDivZeroCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathARM);
 };
 
 class SuspendCheckSlowPathARM : public SlowPathCode {
  public:
   SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
-      : instruction_(instruction), successor_(successor) {}
+      : SlowPathCode(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -144,7 +142,6 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathARM"; }
 
  private:
-  HSuspendCheck* const instruction_;
   // If not null, the block to branch to after the suspend check.
   HBasicBlock* const successor_;
 
@@ -157,7 +154,7 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
 class BoundsCheckSlowPathARM : public SlowPathCode {
  public:
   explicit BoundsCheckSlowPathARM(HBoundsCheck* instruction)
-      : instruction_(instruction) {}
+      : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -188,8 +185,6 @@ class BoundsCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathARM"; }
 
  private:
-  HBoundsCheck* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM);
 };
 
@@ -199,7 +194,7 @@ class LoadClassSlowPathARM : public SlowPathCode {
                        HInstruction* at,
                        uint32_t dex_pc,
                        bool do_clinit)
-      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+      : SlowPathCode(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
@@ -253,7 +248,7 @@ class LoadClassSlowPathARM : public SlowPathCode {
 
 class LoadStringSlowPathARM : public SlowPathCode {
  public:
-  explicit LoadStringSlowPathARM(HLoadString* instruction) : instruction_(instruction) {}
+  explicit LoadStringSlowPathARM(HLoadString* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -264,7 +259,8 @@ class LoadStringSlowPathARM : public SlowPathCode {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction_->GetStringIndex());
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    __ LoadImmediate(calling_convention.GetRegisterAt(0), string_index);
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -277,15 +273,13 @@ class LoadStringSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM"; }
 
  private:
-  HLoadString* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM);
 };
 
 class TypeCheckSlowPathARM : public SlowPathCode {
  public:
   TypeCheckSlowPathARM(HInstruction* instruction, bool is_fatal)
-      : instruction_(instruction), is_fatal_(is_fatal) {}
+      : SlowPathCode(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -340,7 +334,6 @@ class TypeCheckSlowPathARM : public SlowPathCode {
   bool IsFatal() const OVERRIDE { return is_fatal_; }
 
  private:
-  HInstruction* const instruction_;
   const bool is_fatal_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM);
@@ -349,7 +342,7 @@ class TypeCheckSlowPathARM : public SlowPathCode {
 class DeoptimizationSlowPathARM : public SlowPathCode {
  public:
   explicit DeoptimizationSlowPathARM(HDeoptimize* instruction)
-    : instruction_(instruction) {}
+    : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -365,13 +358,12 @@ class DeoptimizationSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM"; }
 
  private:
-  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM);
 };
 
 class ArraySetSlowPathARM : public SlowPathCode {
  public:
-  explicit ArraySetSlowPathARM(HInstruction* instruction) : instruction_(instruction) {}
+  explicit ArraySetSlowPathARM(HInstruction* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -410,8 +402,6 @@ class ArraySetSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathARM"; }
 
  private:
-  HInstruction* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARM);
 };
 
@@ -419,7 +409,7 @@ class ArraySetSlowPathARM : public SlowPathCode {
 class ReadBarrierMarkSlowPathARM : public SlowPathCode {
  public:
   ReadBarrierMarkSlowPathARM(HInstruction* instruction, Location out, Location obj)
-      : instruction_(instruction), out_(out), obj_(obj) {
+      : SlowPathCode(instruction), out_(out), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -458,7 +448,6 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
   }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location obj_;
 
@@ -474,7 +463,7 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
                                          Location obj,
                                          uint32_t offset,
                                          Location index)
-      : instruction_(instruction),
+      : SlowPathCode(instruction),
         out_(out),
         ref_(ref),
         obj_(obj),
@@ -629,7 +618,6 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
     UNREACHABLE();
   }
 
-  HInstruction* const instruction_;
   const Location out_;
   const Location ref_;
   const Location obj_;
@@ -646,7 +634,7 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
 class ReadBarrierForRootSlowPathARM : public SlowPathCode {
  public:
   ReadBarrierForRootSlowPathARM(HInstruction* instruction, Location out, Location root)
-      : instruction_(instruction), out_(out), root_(root) {
+      : SlowPathCode(instruction), out_(out), root_(root) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -679,7 +667,6 @@ class ReadBarrierForRootSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "ReadBarrierForRootSlowPathARM"; }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location root_;
 
