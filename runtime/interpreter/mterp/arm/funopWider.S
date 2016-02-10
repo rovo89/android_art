@@ -12,6 +12,7 @@
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     $instr                              @ d0<- op
+    CLEAR_SHADOW_PAIR r9, ip, lr        @ Zero shadow regs
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     fstd    d0, [r9]                    @ vA<- d0
