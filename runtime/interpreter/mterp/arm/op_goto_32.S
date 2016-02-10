@@ -10,21 +10,29 @@
      * offset to byte offset.
      */
     /* goto/32 +AAAAAAAA */
-#if MTERP_SUSPEND
+#if MTERP_PROFILE_BRANCHES
     FETCH r0, 1                         @ r0<- aaaa (lo)
     FETCH r1, 2                         @ r1<- AAAA (hi)
-    orr     r0, r0, r1, lsl #16         @ r0<- AAAAaaaa
-    adds    r1, r0, r0                  @ r1<- byte offset
+    orr     rINST, r0, r1, lsl #16      @ rINST<- AAAAaaaa
+    EXPORT_PC
+    mov     r0, rSELF
+    add     r1, rFP, #OFF_FP_SHADOWFRAME
+    mov     r2, rINST
+    bl      MterpProfileBranch          @ (self, shadow_frame, offset)
+    cmp     r0, #0
+    bne     MterpOnStackReplacement     @ Note: offset must be in rINST
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    adds    r1, rINST, rINST            @ r1<- byte offset
     FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    ldrle   rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET] @ refresh handler base
+    ble     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 #else
     FETCH r0, 1                         @ r0<- aaaa (lo)
     FETCH r1, 2                         @ r1<- AAAA (hi)
+    orr     rINST, r0, r1, lsl #16      @ rINST<- AAAAaaaa
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    orr     r0, r0, r1, lsl #16         @ r0<- AAAAaaaa
-    adds    r1, r0, r0                  @ r1<- byte offset
+    adds    r1, rINST, rINST            @ r1<- byte offset
     FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
     ble     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  @ extract opcode from rINST

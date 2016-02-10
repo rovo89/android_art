@@ -1,4 +1,4 @@
-%default { "is_object":"0", "helper":"artGet32InstanceFromCode"}
+%default { "extend":"", "is_object":"0", "helper":"artGet32InstanceFromCode"}
     /*
      * General instance field get.
      *
@@ -12,6 +12,7 @@
     mov      x3, xSELF                     // w3<- self
     bl       $helper
     ldr      x3, [xSELF, #THREAD_EXCEPTION_OFFSET]
+    $extend
     ubfx     w2, wINST, #8, #4             // w2<- A
     PREFETCH_INST 2
     cbnz     x3, MterpPossibleException    // bail out
