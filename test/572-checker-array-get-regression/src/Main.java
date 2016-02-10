@@ -21,7 +21,7 @@ public class Main {
   }
 
   /// CHECK-START: java.lang.Integer Main.test() ssa_builder (after)
-  /// CHECK-DAG:     <<Method:j\d+>>       CurrentMethod
+  /// CHECK-DAG:     <<Method:[ij]\d+>>    CurrentMethod
   /// CHECK-DAG:     <<Const2P20:i\d+>>    IntConstant 1048576
   /// CHECK-DAG:     <<ConstM1:i\d+>>      IntConstant -1
   /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<Const2P20>>,<<Method>>]
@@ -35,7 +35,7 @@ public class Main {
   /// CHECK-DAG:                           Return [<<LastElement>>]
 
   /// CHECK-START: java.lang.Integer Main.test() register (before)
-  /// CHECK-DAG:     <<Method:j\d+>>       CurrentMethod
+  /// CHECK-DAG:     <<Method:[ij]\d+>>    CurrentMethod
   /// CHECK-DAG:     <<Const2P20:i\d+>>    IntConstant 1048576
   /// CHECK-DAG:     <<Const2P20M1:i\d+>>  IntConstant 1048575
   /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<Const2P20>>,<<Method>>]
