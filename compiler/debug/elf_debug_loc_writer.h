@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEBUG_ELF_DEBUG_LOC_WRITER_H_
 #define ART_COMPILER_DEBUG_ELF_DEBUG_LOC_WRITER_H_
 
+#include <cstring>
 #include <map>
 
 #include "arch/instruction_set.h"
@@ -167,11 +168,6 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
     return;
   }
 
-  dwarf::Writer<> debug_loc(debug_loc_buffer);
-  dwarf::Writer<> debug_ranges(debug_ranges_buffer);
-  debug_info->WriteSecOffset(dwarf::DW_AT_location, debug_loc.size());
-  debug_info->WriteSecOffset(dwarf::DW_AT_start_scope, debug_ranges.size());
-
   std::vector<VariableLocation> variable_locations = GetVariableLocations(
       method_info,
       vreg,
@@ -180,6 +176,8 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
       dex_pc_high);
 
   // Write .debug_loc entries.
+  dwarf::Writer<> debug_loc(debug_loc_buffer);
+  const size_t debug_loc_offset = debug_loc.size();
   const bool is64bit = Is64BitInstructionSet(isa);
   std::vector<uint8_t> expr_buffer;
   for (const VariableLocation& variable_location : variable_locations) {
@@ -266,6 +264,8 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
 
   // Write .debug_ranges entries.
   // This includes ranges where the variable is in scope but the location is not known.
+  dwarf::Writer<> debug_ranges(debug_ranges_buffer);
+  size_t debug_ranges_offset = debug_ranges.size();
   for (size_t i = 0; i < variable_locations.size(); i++) {
     uint32_t low_pc = variable_locations[i].low_pc;
     uint32_t high_pc = variable_locations[i].high_pc;
@@ -289,6 +289,23 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
     debug_ranges.PushUint32(0);
     debug_ranges.PushUint32(0);
   }
+
+  // Simple de-duplication - check whether this entry is same as the last one (or tail of it).
+  size_t debug_ranges_entry_size = debug_ranges.size() - debug_ranges_offset;
+  if (debug_ranges_offset >= debug_ranges_entry_size) {
+    size_t previous_offset = debug_ranges_offset - debug_ranges_entry_size;
+    if (memcmp(debug_ranges_buffer->data() + previous_offset,
+               debug_ranges_buffer->data() + debug_ranges_offset,
+               debug_ranges_entry_size) == 0) {
+      // Remove what we have just written and use the last entry instead.
+      debug_ranges_buffer->resize(debug_ranges_offset);
+      debug_ranges_offset = previous_offset;
+    }
+  }
+
+  // Write attributes to .debug_info.
+  debug_info->WriteSecOffset(dwarf::DW_AT_location, debug_loc_offset);
+  debug_info->WriteSecOffset(dwarf::DW_AT_start_scope, debug_ranges_offset);
 }
 
 }  // namespace debug
