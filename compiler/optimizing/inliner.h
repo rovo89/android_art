@@ -70,11 +70,11 @@ class HInliner : public HOptimization {
     SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Create a new HInstanceFieldGet.
-  HInstanceFieldGet* CreateInstanceFieldGet(ArtMethod* resolved_method,
+  HInstanceFieldGet* CreateInstanceFieldGet(Handle<mirror::DexCache> dex_cache,
                                             uint32_t field_index,
                                             HInstruction* obj);
   // Create a new HInstanceFieldSet.
-  HInstanceFieldSet* CreateInstanceFieldSet(ArtMethod* resolved_method,
+  HInstanceFieldSet* CreateInstanceFieldSet(Handle<mirror::DexCache> dex_cache,
                                             uint32_t field_index,
                                             HInstruction* obj,
                                             HInstruction* value);

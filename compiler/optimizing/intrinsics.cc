@@ -481,6 +481,7 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     case kInlineOpNonWideConst:
     case kInlineOpIGet:
     case kInlineOpIPut:
+    case kInlineOpConstructor:
       return Intrinsics::kNone;
 
     // String init cases, not intrinsics.
