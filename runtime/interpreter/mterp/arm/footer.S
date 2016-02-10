@@ -12,7 +12,6 @@
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -123,6 +122,18 @@ MterpCheckSuspendAndContinue:
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 
+/*
+ * On-stack replacement pending.
+ * Branch offset in rINST on entry.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    mov r0, rSELF
+    add r1, rFP, #OFF_FP_SHADOWFRAME
+    mov r2, rINST
+    bl MterpLogOSR
+#endif
+    b MterpFallback                     @ Let the reference interpreter deal with it.
 /*
  * Bail out to reference interpreter.
  */
