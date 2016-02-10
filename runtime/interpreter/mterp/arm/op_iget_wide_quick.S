@@ -8,6 +8,7 @@
     ldrd    r0, [r3, ip]                @ r0<- obj.field (64 bits, aligned)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     add     r3, rFP, r2, lsl #2         @ r3<- &fp[A]
+    CLEAR_SHADOW_PAIR r2, ip, lr        @ Zero out the shadow regs
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
     GOTO_OPCODE ip                      @ jump to next instruction

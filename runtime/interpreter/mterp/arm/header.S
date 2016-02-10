@@ -263,6 +263,19 @@ unspecified registers or condition codes.
     str     \reg, [rFP, \vreg, lsl #2]
     str     \reg, [rREFS, \vreg, lsl #2]
 .endm
+.macro SET_VREG_SHADOW reg, vreg
+    str     \reg, [rREFS, \vreg, lsl #2]
+.endm
+
+/*
+ * Clear the corresponding shadow regs for a vreg pair
+ */
+.macro CLEAR_SHADOW_PAIR vreg, tmp1, tmp2
+    mov     \tmp1, #0
+    add     \tmp2, \vreg, #1
+    SET_VREG_SHADOW \tmp1, \vreg
+    SET_VREG_SHADOW \tmp1, \tmp2
+.endm
 
 /*
  * Convert a virtual register index into an address.
