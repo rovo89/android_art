@@ -107,6 +107,7 @@ enum InlineMethodOpcode : uint16_t {
   kInlineOpNonWideConst,
   kInlineOpIGet,
   kInlineOpIPut,
+  kInlineOpConstructor,
   kInlineStringInit,
 };
 std::ostream& operator<<(std::ostream& os, const InlineMethodOpcode& rhs);
@@ -168,6 +169,19 @@ struct InlineReturnArgData {
 static_assert(sizeof(InlineReturnArgData) == sizeof(uint64_t),
               "Invalid size of InlineReturnArgData");
 
+struct InlineConstructorData {
+  // There can be up to 3 IPUTs, unused fields are marked with kNoDexIndex16.
+  uint16_t iput0_field_index;
+  uint16_t iput1_field_index;
+  uint16_t iput2_field_index;
+  uint16_t iput0_arg : 4;
+  uint16_t iput1_arg : 4;
+  uint16_t iput2_arg : 4;
+  uint16_t reserved : 4;
+};
+static_assert(sizeof(InlineConstructorData) == sizeof(uint64_t),
+              "Invalid size of InlineConstructorData");
+
 struct InlineMethod {
   InlineMethodOpcode opcode;
   InlineMethodFlags flags;
@@ -175,6 +189,7 @@ struct InlineMethod {
     uint64_t data;
     InlineIGetIPutData ifield_data;
     InlineReturnArgData return_data;
+    InlineConstructorData constructor_data;
   } d;
 };
 
