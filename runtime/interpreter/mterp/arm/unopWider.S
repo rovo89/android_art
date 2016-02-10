@@ -8,10 +8,11 @@
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    ubfx    r9, rINST, #8, #4           @ r9<- A
+    ubfx    rINST, rINST, #8, #4        @ rINST<- A
     GET_VREG r0, r3                     @ r0<- vB
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
     $preinstr                           @ optional op; may set condition codes
+    CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     $instr                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST

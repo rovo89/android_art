@@ -10,6 +10,7 @@
     mov     r3, r0, lsr #8              @ r3<- CC
     GET_VREG r0, r2                     @ r0<- vBB (array object)
     GET_VREG r1, r3                     @ r1<- vCC (requested index)
+    CLEAR_SHADOW_PAIR r9, r2, r3        @ Zero out the shadow regs
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
     ldr     r3, [r0, #MIRROR_ARRAY_LENGTH_OFFSET]    @ r3<- arrayObj->length
