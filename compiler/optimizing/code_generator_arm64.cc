@@ -4880,20 +4880,18 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
     static_assert(
         sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
         "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
-    temp2 = temps.AcquireW();
     // /* HeapReference<Object> */ ref =
     //     *(obj + offset + index * sizeof(HeapReference<Object>))
-    MemOperand source = HeapOperand(obj);
+    const size_t shift_amount = Primitive::ComponentSizeShift(type);
     if (index.IsConstant()) {
-      uint32_t computed_offset =
-          offset + (Int64ConstantFrom(index) << Primitive::ComponentSizeShift(type));
-      source = HeapOperand(obj, computed_offset);
+      uint32_t computed_offset = offset + (Int64ConstantFrom(index) << shift_amount);
+      Load(type, ref_reg, HeapOperand(obj, computed_offset));
     } else {
+      temp2 = temps.AcquireW();
       __ Add(temp2, obj, offset);
-      source = HeapOperand(temp2, XRegisterFrom(index), LSL, Primitive::ComponentSizeShift(type));
+      Load(type, ref_reg, HeapOperand(temp2, XRegisterFrom(index), LSL, shift_amount));
+      temps.Release(temp2);
     }
-    Load(type, ref_reg, source);
-    temps.Release(temp2);
   } else {
     // /* HeapReference<Object> */ ref = *(obj + offset)
     MemOperand field = HeapOperand(obj, offset);
