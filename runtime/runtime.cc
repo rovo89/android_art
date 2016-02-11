@@ -335,6 +335,7 @@ struct AbortState {
     os << "Runtime aborting...\n";
     if (Runtime::Current() == nullptr) {
       os << "(Runtime does not yet exist!)\n";
+      DumpNativeStack(os, GetTid(), nullptr, "  native: ", nullptr);
       return;
     }
     Thread* self = Thread::Current();
