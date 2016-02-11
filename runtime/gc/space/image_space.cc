@@ -305,12 +305,6 @@ static bool RelocateImage(const char* image_location, const char* dest_filename,
   std::string output_image_filename_arg("--output-image-file=");
   output_image_filename_arg += dest_filename;
 
-  std::string input_oat_location_arg("--input-oat-location=");
-  input_oat_location_arg += ImageHeader::GetOatLocationFromImageLocation(image_location);
-
-  std::string output_oat_filename_arg("--output-oat-file=");
-  output_oat_filename_arg += ImageHeader::GetOatLocationFromImageLocation(dest_filename);
-
   std::string instruction_set_arg("--instruction-set=");
   instruction_set_arg += GetInstructionSetString(isa);
 
@@ -323,9 +317,6 @@ static bool RelocateImage(const char* image_location, const char* dest_filename,
 
   argv.push_back(input_image_location_arg);
   argv.push_back(output_image_filename_arg);
-
-  argv.push_back(input_oat_location_arg);
-  argv.push_back(output_oat_filename_arg);
 
   argv.push_back(instruction_set_arg);
   argv.push_back(base_offset_arg);
