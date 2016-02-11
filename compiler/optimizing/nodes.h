@@ -5451,6 +5451,8 @@ enum class TypeCheckKind {
   kArrayCheck             // No optimization yet when checking against a generic array.
 };
 
+std::ostream& operator<<(std::ostream& os, TypeCheckKind rhs);
+
 class HInstanceOf : public HExpression<2> {
  public:
   HInstanceOf(HInstruction* object,
