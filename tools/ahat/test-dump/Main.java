@@ -35,6 +35,7 @@ public class Main {
   // class and reading the desired field.
   public static class DumpedStuff {
     public String basicString = "hello, world";
+    public char[] charArray = "char thing".toCharArray();
     public String nullString = null;
     public Object anObject = new Object();
     public ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
