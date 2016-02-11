@@ -20,7 +20,6 @@
 #include "interpreter/interpreter_common.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "mterp.h"
-#include "jit/jit.h"
 
 namespace art {
 namespace interpreter {
@@ -489,14 +488,6 @@ extern "C" void MterpLogFallback(Thread* self, ShadowFrame* shadow_frame)
             << self->IsExceptionPending();
 }
 
-extern "C" void MterpLogOSR(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
-  UNUSED(self);
-  const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
-  uint16_t inst_data = inst->Fetch16(0);
-  LOG(INFO) << "OSR: " << inst->Opcode(inst_data) << ", offset = " << offset;
-}
-
 extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame, uint32_t flags)
   SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
@@ -625,16 +616,6 @@ extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t 
     return nullptr;
   }
   return obj->GetFieldObject<mirror::Object>(MemberOffset(field_offset));
-}
-
-extern "C" bool  MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
-  ArtMethod* method = shadow_frame->GetMethod();
-  uint32_t dex_pc = shadow_frame->GetDexPC();
-  const auto* const instrumentation = Runtime::Current()->GetInstrumentation();
-  instrumentation->Branch(self, method, dex_pc, offset);
-  JValue result;
-  return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, &result);
 }
 
 }  // namespace interpreter
