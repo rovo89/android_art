@@ -9,11 +9,12 @@
     mov     x0, xSELF
     add     x1, xFP, #OFF_FP_SHADOWFRAME
     mov     x2, xPC
-    // and     x3, xINST, 0xFFFF
     mov     x3, xINST
     bl      $helper
     cbz     w0, MterpException
     FETCH_ADVANCE_INST 3
+    bl      MterpShouldSwitchInterpreters
+    cbnz    w0, MterpFallback
     GET_INST_OPCODE ip
     GOTO_OPCODE ip
 
