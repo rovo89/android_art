@@ -38,7 +38,8 @@ class OsrVisitor : public StackVisitor {
         (m_name.compare("$noinline$returnFloat") == 0) ||
         (m_name.compare("$noinline$returnDouble") == 0) ||
         (m_name.compare("$noinline$returnLong") == 0) ||
-        (m_name.compare("$noinline$deopt") == 0)) {
+        (m_name.compare("$noinline$deopt") == 0) ||
+        (m_name.compare("$noinline$inlineCache") == 0)) {
       const OatQuickMethodHeader* header =
           Runtime::Current()->GetJit()->GetCodeCache()->LookupOsrMethodHeader(m);
       if (header != nullptr && header == GetCurrentOatQuickMethodHeader()) {

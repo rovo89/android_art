@@ -16,6 +16,7 @@
 
 public class Main {
   public static void main(String[] args) {
+    new SubMain();
     System.loadLibrary(args[0]);
     if ($noinline$returnInt() != 53) {
       throw new Error("Unexpected return value");
@@ -33,6 +34,12 @@ public class Main {
     try {
       $noinline$deopt();
     } catch (Exception e) {}
+    DeoptimizationController.stopDeoptimization();
+
+    $noinline$inlineCache(new Main(), 0);
+    if ($noinline$inlineCache(new SubMain(), 1) != SubMain.class) {
+      throw new Error("Unexpected return value");
+    }
   }
 
   public static int $noinline$returnInt() {
@@ -84,9 +91,57 @@ public class Main {
     DeoptimizationController.startDeoptimization();
   }
 
+  public static Class $noinline$inlineCache(Main m, int count) {
+    for (int i = 0; i < 500; ++i) {
+      // Warm me up.
+    }
+    if (count == 1) {
+      // Lots of back edges to trigger OSR compilation.
+      for (int i = 0; i < 1000; ++i) {
+      }
+      // Wait for OSR compilation.
+      try {
+        Thread.sleep(10);
+      } catch (Exception e) {}
+    }
+
+    // This call will be optimized in the OSR compiled code
+    // to check and deoptimize if m is not of type 'Main'.
+    Main other = m.inlineCache();
+
+    if (count == 1) {
+      // Jump to OSR compiled code. The second run
+      // of this method will have 'm' as a SubMain, and the compiled
+      // code we are jumping to will have wrongly optimize other as being a
+      // 'Main'.
+      while (!ensureInOsrCode()) {}
+    }
+
+    // We used to wrongly optimize this call and assume 'other' was a 'Main'.
+    return other.returnClass();
+  }
+
+  public Main inlineCache() {
+    return new Main();
+  }
+
+  public Class returnClass() {
+    return Main.class;
+  }
+
   public static int[] array = new int[4];
 
   public static native boolean ensureInOsrCode();
 
   public static boolean doThrow = false;
+}
+
+class SubMain extends Main {
+  public Class returnClass() {
+    return SubMain.class;
+  }
+
+  public Main inlineCache() {
+    return new SubMain();
+  }
 }

@@ -36,8 +36,6 @@
 namespace art {
 namespace jit {
 
-static constexpr bool kEnableOnStackReplacement = false;
-
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
   jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
@@ -164,6 +162,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
 
 bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
   DCHECK(!method->IsRuntimeMethod());
+
   // Don't compile the method if it has breakpoints.
   if (Dbg::IsDebuggerActive() && Dbg::MethodHasAnyBreakpoints(method)) {
     VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to breakpoint";
@@ -177,12 +176,15 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
     return false;
   }
 
-  if (!code_cache_->NotifyCompilationOf(method, self, osr)) {
+  // If we get a request to compile a proxy method, we pass the actual Java method
+  // of that proxy method, as the compiler does not expect a proxy method.
+  ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  if (!code_cache_->NotifyCompilationOf(method_to_compile, self, osr)) {
     VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to code cache";
     return false;
   }
-  bool success = jit_compile_method_(jit_compiler_handle_, method, self, osr);
-  code_cache_->DoneCompiling(method, self);
+  bool success = jit_compile_method_(jit_compiler_handle_, method_to_compile, self, osr);
+  code_cache_->DoneCompiling(method_to_compile, self);
   return success;
 }
 
@@ -276,10 +278,6 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
                                     uint32_t dex_pc,
                                     int32_t dex_pc_offset,
                                     JValue* result) {
-  if (!kEnableOnStackReplacement) {
-    return false;
-  }
-
   Jit* jit = Runtime::Current()->GetJit();
   if (jit == nullptr) {
     return false;
@@ -326,7 +324,13 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   ShadowFrame* shadow_frame = thread->PopShadowFrame();
 
   size_t frame_size = osr_method->GetFrameSizeInBytes();
+
+  // Allocate memory to put shadow frame values. The osr stub will copy that memory to
+  // stack.
+  // Note that we could pass the shadow frame to the stub, and let it copy the values there,
+  // but that is engineering complexity not worth the effort for something like OSR.
   void** memory = reinterpret_cast<void**>(malloc(frame_size));
+  CHECK(memory != nullptr);
   memset(memory, 0, frame_size);
 
   // Art ABI: ArtMethod is at the bottom of the stack.

@@ -203,6 +203,7 @@ JitCompiler::~JitCompiler() {
 }
 
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
+  DCHECK(!method->IsProxyMethod());
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
   const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
@@ -220,20 +221,17 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   bool success = false;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
-    // If we get a request to compile a proxy method, we pass the actual Java method
-    // of that proxy method, as the compiler does not expect a proxy method.
-    ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
     JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
-    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile, osr);
+    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method, osr);
     if (success && (perf_file_ != nullptr)) {
-      const void* ptr = method_to_compile->GetEntryPointFromQuickCompiledCode();
+      const void* ptr = method->GetEntryPointFromQuickCompiledCode();
       std::ostringstream stream;
       stream << std::hex
              << reinterpret_cast<uintptr_t>(ptr)
              << " "
              << code_cache->GetMemorySizeOfCodePointer(ptr)
              << " "
-             << PrettyMethod(method_to_compile)
+             << PrettyMethod(method)
              << std::endl;
       std::string str = stream.str();
       bool res = perf_file_->WriteFully(str.c_str(), str.size());
