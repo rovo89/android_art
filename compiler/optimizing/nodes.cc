@@ -2387,4 +2387,26 @@ std::ostream& operator<<(std::ostream& os, const MoveOperands& rhs) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, TypeCheckKind rhs) {
+  switch (rhs) {
+    case TypeCheckKind::kUnresolvedCheck:
+      return os << "unresolved_check";
+    case TypeCheckKind::kExactCheck:
+      return os << "exact_check";
+    case TypeCheckKind::kClassHierarchyCheck:
+      return os << "class_hierarchy_check";
+    case TypeCheckKind::kAbstractClassCheck:
+      return os << "abstract_class_check";
+    case TypeCheckKind::kInterfaceCheck:
+      return os << "interface_check";
+    case TypeCheckKind::kArrayObjectCheck:
+      return os << "array_object_check";
+    case TypeCheckKind::kArrayCheck:
+      return os << "array_check";
+    default:
+      LOG(FATAL) << "Unknown TypeCheckKind: " << static_cast<int>(rhs);
+      UNREACHABLE();
+  }
+}
+
 }  // namespace art

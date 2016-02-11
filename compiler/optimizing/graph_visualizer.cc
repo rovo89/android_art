@@ -368,11 +368,13 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
   void VisitCheckCast(HCheckCast* check_cast) OVERRIDE {
+    StartAttributeStream("check_kind") << check_cast->GetTypeCheckKind();
     StartAttributeStream("must_do_null_check") << std::boolalpha
         << check_cast->MustDoNullCheck() << std::noboolalpha;
   }
 
   void VisitInstanceOf(HInstanceOf* instance_of) OVERRIDE {
+    StartAttributeStream("check_kind") << instance_of->GetTypeCheckKind();
     StartAttributeStream("must_do_null_check") << std::boolalpha
         << instance_of->MustDoNullCheck() << std::noboolalpha;
   }
