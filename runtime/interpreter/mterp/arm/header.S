@@ -85,9 +85,6 @@ unspecified registers or condition codes.
  */
 #include "asm_support.h"
 
-#define MTERP_PROFILE_BRANCHES 1
-#define MTERP_LOGGING 0
-
 /* During bringup, we'll use the shadow frame model instead of rFP */
 /* single-purpose registers, given names for clarity */
 #define rPC     r4
@@ -110,6 +107,14 @@ unspecified registers or condition codes.
 #define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
 #define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
+
+/*
+ *
+ * The reference interpreter performs explicit suspect checks, which is somewhat wasteful.
+ * Dalvik's interpreter folded suspend checks into the jump table mechanism, and eventually
+ * mterp should do so as well.
+ */
+#define MTERP_SUSPEND 0
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must
