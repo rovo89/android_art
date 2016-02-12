@@ -547,3 +547,5 @@ endif # !art_dont_bother
 art_dont_bother :=
 art_test_bother :=
 TEST_ART_TARGET_SYNC_DEPS :=
+
+include $(art_path)/runtime/openjdkjvm/Android.mk
