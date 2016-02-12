@@ -220,7 +220,7 @@ void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor*
 
   const size_t number_of_vregs = handler_method_->GetCodeItem()->registers_size_;
   CodeInfo code_info = handler_method_header_->GetOptimizedCodeInfo();
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
 
   // Find stack map of the catch block.
   StackMap catch_stack_map = code_info.GetCatchStackMapForDexPc(GetHandlerDexPc(), encoding);
@@ -386,11 +386,10 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
     CodeInfo code_info = method_header->GetOptimizedCodeInfo();
     uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
-    StackMapEncoding encoding = code_info.ExtractEncoding();
+    CodeInfoEncoding encoding = code_info.ExtractEncoding();
     StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
     const size_t number_of_vregs = m->GetCodeItem()->registers_size_;
-    MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
-    uint32_t register_mask = stack_map.GetRegisterMask(encoding);
+    uint32_t register_mask = stack_map.GetRegisterMask(encoding.stack_map_encoding);
     DexRegisterMap vreg_map = IsInInlinedFrame()
         ? code_info.GetDexRegisterMapAtDepth(GetCurrentInliningDepth() - 1,
                                              code_info.GetInlineInfoOf(stack_map, encoding),
@@ -423,7 +422,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           const uint8_t* addr = reinterpret_cast<const uint8_t*>(GetCurrentQuickFrame()) + offset;
           value = *reinterpret_cast<const uint32_t*>(addr);
           uint32_t bit = (offset >> 2);
-          if (stack_mask.size_in_bits() > bit && stack_mask.LoadBit(bit)) {
+          if (stack_map.GetNumberOfStackMaskBits(encoding.stack_map_encoding) > bit &&
+              stack_map.GetStackMaskBit(encoding.stack_map_encoding, bit)) {
             is_reference = true;
           }
           break;

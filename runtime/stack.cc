@@ -117,7 +117,7 @@ InlineInfo StackVisitor::GetCurrentInlineInfo() const {
   const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
   uint32_t native_pc_offset = method_header->NativeQuickPcOffset(cur_quick_frame_pc_);
   CodeInfo code_info = method_header->GetOptimizedCodeInfo();
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
   DCHECK(stack_map.IsValid());
   return code_info.GetInlineInfoOf(stack_map, encoding);
@@ -308,7 +308,7 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
   DCHECK_LT(vreg, code_item->registers_size_);
   const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
   CodeInfo code_info = method_header->GetOptimizedCodeInfo();
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
 
   uint32_t native_pc_offset = method_header->NativeQuickPcOffset(cur_quick_frame_pc_);
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
@@ -863,11 +863,11 @@ void StackVisitor::WalkStack(bool include_transitions) {
             && (cur_oat_quick_method_header_ != nullptr)
             && cur_oat_quick_method_header_->IsOptimized()) {
           CodeInfo code_info = cur_oat_quick_method_header_->GetOptimizedCodeInfo();
-          StackMapEncoding encoding = code_info.ExtractEncoding();
+          CodeInfoEncoding encoding = code_info.ExtractEncoding();
           uint32_t native_pc_offset =
               cur_oat_quick_method_header_->NativeQuickPcOffset(cur_quick_frame_pc_);
           StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-          if (stack_map.IsValid() && stack_map.HasInlineInfo(encoding)) {
+          if (stack_map.IsValid() && stack_map.HasInlineInfo(encoding.stack_map_encoding)) {
             InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
             DCHECK_EQ(current_inlining_depth_, 0u);
             for (current_inlining_depth_ = inline_info.GetDepth();
