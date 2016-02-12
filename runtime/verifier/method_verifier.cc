@@ -4526,6 +4526,19 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
     if (UNLIKELY(have_pending_hard_failure_)) {
       return;
     }
+    if (should_adjust) {
+      if (field == nullptr) {
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Might be accessing a superclass instance field prior "
+                                          << "to the superclass being initialized in "
+                                          << PrettyMethod(dex_method_idx_, *dex_file_);
+      } else if (field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access superclass instance field "
+                                          << PrettyField(field) << " of a not fully initialized "
+                                          << "object within the context of "
+                                          << PrettyMethod(dex_method_idx_, *dex_file_);
+        return;
+      }
+    }
   }
   const RegType* field_type = nullptr;
   if (field != nullptr) {
