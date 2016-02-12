@@ -150,30 +150,17 @@ static bool FinishFile(File* file, bool close) {
   }
 }
 
-bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t delta,
-                     File* output_oat, File* output_image, InstructionSet isa,
-                     TimingLogger* timings,
-                     bool output_oat_opened_from_fd ATTRIBUTE_UNUSED,
-                     bool new_oat_out) {
+bool PatchOat::Patch(const std::string& image_location,
+                     off_t delta,
+                     const std::string& output_directory,
+                     InstructionSet isa,
+                     TimingLogger* timings) {
   CHECK(Runtime::Current() == nullptr);
-  CHECK(output_image != nullptr);
-  CHECK_GE(output_image->Fd(), 0);
-  CHECK(input_oat != nullptr);
-  CHECK(output_oat != nullptr);
-  CHECK_GE(input_oat->Fd(), 0);
-  CHECK_GE(output_oat->Fd(), 0);
   CHECK(!image_location.empty()) << "image file must have a filename.";
 
   TimingLogger::ScopedTiming t("Runtime Setup", timings);
 
-  if (isa == kNone) {
-    Elf32_Ehdr elf_hdr;
-    if (sizeof(elf_hdr) != input_oat->Read(reinterpret_cast<char*>(&elf_hdr), sizeof(elf_hdr), 0)) {
-      LOG(ERROR) << "unable to read elf header";
-      return false;
-    }
-    isa = GetInstructionSetFromELF(elf_hdr.e_machine, elf_hdr.e_flags);
-  }
+  CHECK_NE(isa, kNone);
   const char* isa_name = GetInstructionSetString(isa);
 
   // Set up the runtime
@@ -193,8 +180,6 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   ScopedObjectAccess soa(Thread::Current());
 
-  std::string output_directory =
-      output_image->GetPath().substr(0, output_image->GetPath().find_last_of("/"));
   t.NewTiming("Image and oat Patching setup");
   std::vector<gc::space::ImageSpace*> spaces = Runtime::Current()->GetHeap()->GetBootImageSpaces();
   std::map<gc::space::ImageSpace*, std::unique_ptr<File>> space_to_file_map;
@@ -325,6 +310,7 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
     std::string output_image_filename = output_directory +
                                         (StartsWith(converted_image_filename, "/") ? "" : "/") +
                                         converted_image_filename;
+    bool new_oat_out;
     std::unique_ptr<File>
         output_image_file(CreateOrOpen(output_image_filename.c_str(), &new_oat_out));
     if (output_image_file.get() == nullptr) {
@@ -932,20 +918,8 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --output-image-file=<file.art>: Specifies the exact file to write the patched");
   UsageError("      image file to.");
   UsageError("");
-  UsageError("  --output-image-fd=<file-descriptor>: Specifies the file-descriptor to write the");
-  UsageError("      the patched image file to.");
-  UsageError("");
-  UsageError("  --orig-base-offset=<original-base-offset>: Specify the base offset the input file");
-  UsageError("      was compiled with. This is needed if one is specifying a --base-offset");
-  UsageError("");
-  UsageError("  --base-offset=<new-base-offset>: Specify the base offset we will repatch the");
-  UsageError("      given files to use. This requires that --orig-base-offset is also given.");
-  UsageError("");
   UsageError("  --base-offset-delta=<delta>: Specify the amount to change the old base-offset by.");
   UsageError("      This value may be negative.");
-  UsageError("");
-  UsageError("  --patched-image-file=<file.art>: Relocate the oat file to be the same as the");
-  UsageError("      given image file.");
   UsageError("");
   UsageError("  --patched-image-location=<file.art>: Relocate the oat file to be the same as the");
   UsageError("      image at the given location. If used one must also specify the");
@@ -992,6 +966,244 @@ static bool ReadBaseDelta(const char* name, off_t* delta, std::string* error_msg
   return true;
 }
 
+static int patchoat_image(TimingLogger& timings,
+                          InstructionSet isa,
+                          const std::string& input_image_location,
+                          const std::string& output_image_filename,
+                          off_t base_delta,
+                          bool base_delta_set,
+                          bool debug) {
+  CHECK(!input_image_location.empty());
+  if (output_image_filename.empty()) {
+    Usage("Image patching requires --output-image-file");
+  }
+
+  if (!base_delta_set) {
+    Usage("Must supply a desired new offset or delta.");
+  }
+
+  if (!IsAligned<kPageSize>(base_delta)) {
+    Usage("Base offset/delta must be aligned to a pagesize (0x%08x) boundary.", kPageSize);
+  }
+
+  if (debug) {
+    LOG(INFO) << "moving offset by " << base_delta
+        << " (0x" << std::hex << base_delta << ") bytes or "
+        << std::dec << (base_delta/kPageSize) << " pages.";
+  }
+
+  TimingLogger::ScopedTiming pt("patch image and oat", &timings);
+
+  std::string output_directory =
+      output_image_filename.substr(0, output_image_filename.find_last_of("/"));
+  bool ret = PatchOat::Patch(input_image_location, base_delta, output_directory, isa, &timings);
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Exiting with return ... " << ret;
+  }
+  return ret ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static int patchoat_oat(TimingLogger& timings,
+                        InstructionSet isa,
+                        const std::string& patched_image_location,
+                        off_t base_delta,
+                        bool base_delta_set,
+                        int input_oat_fd,
+                        const std::string& input_oat_location,
+                        std::string input_oat_filename,
+                        bool have_input_oat,
+                        int output_oat_fd,
+                        std::string output_oat_filename,
+                        bool have_output_oat,
+                        bool lock_output,
+                        bool debug) {
+  {
+    // Only 1 of these may be set.
+    uint32_t cnt = 0;
+    cnt += (base_delta_set) ? 1 : 0;
+    cnt += (!patched_image_location.empty()) ? 1 : 0;
+    if (cnt > 1) {
+      Usage("Only one of --base-offset-delta or --patched-image-location may be used.");
+    } else if (cnt == 0) {
+      Usage("Must specify --base-offset-delta or --patched-image-location.");
+    }
+  }
+
+  if (!have_input_oat || !have_output_oat) {
+    Usage("Both input and output oat must be supplied to patch an app odex.");
+  }
+
+  if (!input_oat_location.empty()) {
+    if (!LocationToFilename(input_oat_location, isa, &input_oat_filename)) {
+      Usage("Unable to find filename for input oat location %s", input_oat_location.c_str());
+    }
+    if (debug) {
+      LOG(INFO) << "Using input-oat-file " << input_oat_filename;
+    }
+  }
+
+  bool match_delta = false;
+  if (!patched_image_location.empty()) {
+    std::string system_filename;
+    bool has_system = false;
+    std::string cache_filename;
+    bool has_cache = false;
+    bool has_android_data_unused = false;
+    bool is_global_cache = false;
+    if (!gc::space::ImageSpace::FindImageFilename(patched_image_location.c_str(), isa,
+                                                  &system_filename, &has_system, &cache_filename,
+                                                  &has_android_data_unused, &has_cache,
+                                                  &is_global_cache)) {
+      Usage("Unable to determine image file for location %s", patched_image_location.c_str());
+    }
+    std::string patched_image_filename;
+    if (has_cache) {
+      patched_image_filename = cache_filename;
+    } else if (has_system) {
+      LOG(WARNING) << "Only image file found was in /system for image location "
+          << patched_image_location;
+      patched_image_filename = system_filename;
+    } else {
+      Usage("Unable to determine image file for location %s", patched_image_location.c_str());
+    }
+    if (debug) {
+      LOG(INFO) << "Using patched-image-file " << patched_image_filename;
+    }
+
+    base_delta_set = true;
+    match_delta = true;
+    std::string error_msg;
+    if (!ReadBaseDelta(patched_image_filename.c_str(), &base_delta, &error_msg)) {
+      Usage(error_msg.c_str(), patched_image_filename.c_str());
+    }
+  }
+
+  if (!IsAligned<kPageSize>(base_delta)) {
+    Usage("Base offset/delta must be alligned to a pagesize (0x%08x) boundary.", kPageSize);
+  }
+
+  // Do we need to cleanup output files if we fail?
+  bool new_oat_out = false;
+
+  std::unique_ptr<File> input_oat;
+  std::unique_ptr<File> output_oat;
+
+  if (input_oat_fd != -1) {
+    if (input_oat_filename.empty()) {
+      input_oat_filename = "input-oat-file";
+    }
+    input_oat.reset(new File(input_oat_fd, input_oat_filename, false));
+    if (input_oat_fd == output_oat_fd) {
+      input_oat.get()->DisableAutoClose();
+    }
+    if (input_oat == nullptr) {
+      // Unlikely, but ensure exhaustive logging in non-0 exit code case
+      LOG(ERROR) << "Failed to open input oat file by its FD" << input_oat_fd;
+    }
+  } else {
+    CHECK(!input_oat_filename.empty());
+    input_oat.reset(OS::OpenFileForReading(input_oat_filename.c_str()));
+    if (input_oat == nullptr) {
+      int err = errno;
+      LOG(ERROR) << "Failed to open input oat file " << input_oat_filename
+          << ": " << strerror(err) << "(" << err << ")";
+    }
+  }
+
+  if (output_oat_fd != -1) {
+    if (output_oat_filename.empty()) {
+      output_oat_filename = "output-oat-file";
+    }
+    output_oat.reset(new File(output_oat_fd, output_oat_filename, true));
+    if (output_oat == nullptr) {
+      // Unlikely, but ensure exhaustive logging in non-0 exit code case
+      LOG(ERROR) << "Failed to open output oat file by its FD" << output_oat_fd;
+    }
+  } else {
+    CHECK(!output_oat_filename.empty());
+    output_oat.reset(CreateOrOpen(output_oat_filename.c_str(), &new_oat_out));
+    if (output_oat == nullptr) {
+      int err = errno;
+      LOG(ERROR) << "Failed to open output oat file " << output_oat_filename
+          << ": " << strerror(err) << "(" << err << ")";
+    }
+  }
+
+  // TODO: get rid of this.
+  auto cleanup = [&output_oat_filename, &new_oat_out](bool success) {
+    if (!success) {
+      if (new_oat_out) {
+        CHECK(!output_oat_filename.empty());
+        TEMP_FAILURE_RETRY(unlink(output_oat_filename.c_str()));
+      }
+    }
+
+    if (kIsDebugBuild) {
+      LOG(INFO) << "Cleaning up.. success? " << success;
+    }
+  };
+
+  if (input_oat.get() == nullptr || output_oat.get() == nullptr) {
+    LOG(ERROR) << "Failed to open input/output oat files";
+    cleanup(false);
+    return EXIT_FAILURE;
+  }
+
+  if (match_delta) {
+    std::string error_msg;
+    // Figure out what the current delta is so we can match it to the desired delta.
+    std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat.get(), PROT_READ, MAP_PRIVATE,
+                                               &error_msg));
+    off_t current_delta = 0;
+    if (elf.get() == nullptr) {
+      LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
+      cleanup(false);
+      return EXIT_FAILURE;
+    } else if (!ReadOatPatchDelta(elf.get(), &current_delta, &error_msg)) {
+      LOG(ERROR) << "Unable to get current delta: " << error_msg;
+      cleanup(false);
+      return EXIT_FAILURE;
+    }
+    // Before this line base_delta is the desired final delta. We need it to be the actual amount to
+    // change everything by. We subtract the current delta from it to make it this.
+    base_delta -= current_delta;
+    if (!IsAligned<kPageSize>(base_delta)) {
+      LOG(ERROR) << "Given image file was relocated by an illegal delta";
+      cleanup(false);
+      return false;
+    }
+  }
+
+  if (debug) {
+    LOG(INFO) << "moving offset by " << base_delta
+        << " (0x" << std::hex << base_delta << ") bytes or "
+        << std::dec << (base_delta/kPageSize) << " pages.";
+  }
+
+  ScopedFlock output_oat_lock;
+  if (lock_output) {
+    std::string error_msg;
+    if (!output_oat_lock.Init(output_oat.get(), &error_msg)) {
+      LOG(ERROR) << "Unable to lock output oat " << output_oat->GetPath() << ": " << error_msg;
+      cleanup(false);
+      return EXIT_FAILURE;
+    }
+  }
+
+  TimingLogger::ScopedTiming pt("patch oat", &timings);
+  bool ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings,
+                             output_oat_fd >= 0,  // was it opened from FD?
+                             new_oat_out);
+  ret = FinishFile(output_oat.get(), ret);
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Exiting with return ... " << ret;
+  }
+  cleanup(ret);
+  return ret ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
 static int patchoat(int argc, char **argv) {
   InitLogging(argv);
   MemMap::Init();
@@ -1024,15 +1236,8 @@ static int patchoat(int argc, char **argv) {
   int output_oat_fd = -1;
   bool have_output_oat = false;
   std::string output_image_filename;
-  int output_image_fd = -1;
-  bool have_output_image = false;
-  uintptr_t base_offset = 0;
-  bool base_offset_set = false;
-  uintptr_t orig_base_offset = 0;
-  bool orig_base_offset_set = false;
   off_t base_delta = 0;
   bool base_delta_set = false;
-  bool match_delta = false;
   std::string patched_image_filename;
   std::string patched_image_location;
   bool dump_timings = kIsDebugBuild;
@@ -1096,36 +1301,7 @@ static int patchoat(int argc, char **argv) {
         Usage("--output-oat-fd pass a negative value %d", output_oat_fd);
       }
     } else if (option.starts_with("--output-image-file=")) {
-      if (have_output_image) {
-        Usage("Only one of --output-image-file, and --output-image-fd may be used.");
-      }
-      have_output_image = true;
       output_image_filename = option.substr(strlen("--output-image-file=")).data();
-    } else if (option.starts_with("--output-image-fd=")) {
-      if (have_output_image) {
-        Usage("Only one of --output-image-file, and --output-image-fd may be used.");
-      }
-      have_output_image = true;
-      const char* image_fd_str = option.substr(strlen("--output-image-fd=")).data();
-      if (!ParseInt(image_fd_str, &output_image_fd)) {
-        Usage("Failed to parse --output-image-fd argument '%s' as an integer", image_fd_str);
-      }
-      if (output_image_fd < 0) {
-        Usage("--output-image-fd pass a negative value %d", output_image_fd);
-      }
-    } else if (option.starts_with("--orig-base-offset=")) {
-      const char* orig_base_offset_str = option.substr(strlen("--orig-base-offset=")).data();
-      orig_base_offset_set = true;
-      if (!ParseUint(orig_base_offset_str, &orig_base_offset)) {
-        Usage("Failed to parse --orig-base-offset argument '%s' as an uintptr_t",
-              orig_base_offset_str);
-      }
-    } else if (option.starts_with("--base-offset=")) {
-      const char* base_offset_str = option.substr(strlen("--base-offset=")).data();
-      base_offset_set = true;
-      if (!ParseUint(base_offset_str, &base_offset)) {
-        Usage("Failed to parse --base-offset argument '%s' as an uintptr_t", base_offset_str);
-      }
     } else if (option.starts_with("--base-offset-delta=")) {
       const char* base_delta_str = option.substr(strlen("--base-offset-delta=")).data();
       base_delta_set = true;
@@ -1134,8 +1310,6 @@ static int patchoat(int argc, char **argv) {
       }
     } else if (option.starts_with("--patched-image-location=")) {
       patched_image_location = option.substr(strlen("--patched-image-location=")).data();
-    } else if (option.starts_with("--patched-image-file=")) {
-      patched_image_filename = option.substr(strlen("--patched-image-file=")).data();
     } else if (option == "--lock-output") {
       lock_output = true;
     } else if (option == "--no-lock-output") {
@@ -1149,284 +1323,43 @@ static int patchoat(int argc, char **argv) {
     }
   }
 
-  {
-    // Only 1 of these may be set.
-    uint32_t cnt = 0;
-    cnt += (base_delta_set) ? 1 : 0;
-    cnt += (base_offset_set && orig_base_offset_set) ? 1 : 0;
-    cnt += (!patched_image_filename.empty()) ? 1 : 0;
-    cnt += (!patched_image_location.empty()) ? 1 : 0;
-    if (cnt > 1) {
-      Usage("Only one of --base-offset/--orig-base-offset, --base-offset-delta, "
-            "--patched-image-filename or --patched-image-location may be used.");
-    } else if (cnt == 0) {
-      Usage("Must specify --base-offset-delta, --base-offset and --orig-base-offset, "
-            "--patched-image-location or --patched-image-file");
-    }
+  // The instruction set is mandatory. This simplifies things...
+  if (!isa_set) {
+    Usage("Instruction set must be set.");
   }
 
-  if (have_input_oat != have_output_oat) {
-    Usage("Either both input and output oat must be supplied or niether must be.");
-  }
-
-  if ((!input_image_location.empty()) != have_output_image) {
-    Usage("Either both input and output image must be supplied or niether must be.");
-  }
-
-  // We know we have both the input and output so rename for clarity.
-  bool have_image_files = have_output_image;
-  bool have_oat_files = have_output_oat;
-
-  if (!have_oat_files) {
-    if (have_image_files) {
-      Usage("Cannot patch an image file without an oat file");
-    } else {
-      Usage("Must be patching either an oat file or an image file with an oat file.");
-    }
-  }
-
-  if (!have_oat_files && !isa_set) {
-    Usage("Must include ISA if patching an image file without an oat file.");
-  }
-
-  if (!input_oat_location.empty()) {
-    if (!isa_set) {
-      Usage("specifying a location requires specifying an instruction set");
-    }
-    if (!LocationToFilename(input_oat_location, isa, &input_oat_filename)) {
-      Usage("Unable to find filename for input oat location %s", input_oat_location.c_str());
-    }
-    if (debug) {
-      LOG(INFO) << "Using input-oat-file " << input_oat_filename;
-    }
-  }
-  if (!patched_image_location.empty()) {
-    if (!isa_set) {
-      Usage("specifying a location requires specifying an instruction set");
-    }
-    std::string system_filename;
-    bool has_system = false;
-    std::string cache_filename;
-    bool has_cache = false;
-    bool has_android_data_unused = false;
-    bool is_global_cache = false;
-    if (!gc::space::ImageSpace::FindImageFilename(patched_image_location.c_str(), isa,
-                                                  &system_filename, &has_system, &cache_filename,
-                                                  &has_android_data_unused, &has_cache,
-                                                  &is_global_cache)) {
-      Usage("Unable to determine image file for location %s", patched_image_location.c_str());
-    }
-    if (has_cache) {
-      patched_image_filename = cache_filename;
-    } else if (has_system) {
-      LOG(WARNING) << "Only image file found was in /system for image location "
-                   << patched_image_location;
-      patched_image_filename = system_filename;
-    } else {
-      Usage("Unable to determine image file for location %s", patched_image_location.c_str());
-    }
-    if (debug) {
-      LOG(INFO) << "Using patched-image-file " << patched_image_filename;
-    }
-  }
-
-  if (!base_delta_set) {
-    if (orig_base_offset_set && base_offset_set) {
-      base_delta_set = true;
-      base_delta = base_offset - orig_base_offset;
-    } else if (!patched_image_filename.empty()) {
-      if (have_image_files) {
-        Usage("--patched-image-location should not be used when patching other images");
-      }
-      base_delta_set = true;
-      match_delta = true;
-      std::string error_msg;
-      if (!ReadBaseDelta(patched_image_filename.c_str(), &base_delta, &error_msg)) {
-        Usage(error_msg.c_str(), patched_image_filename.c_str());
-      }
-    } else {
-      if (base_offset_set) {
-        Usage("Unable to determine original base offset.");
-      } else {
-        Usage("Must supply a desired new offset or delta.");
-      }
-    }
-  }
-
-  if (!IsAligned<kPageSize>(base_delta)) {
-    Usage("Base offset/delta must be alligned to a pagesize (0x%08x) boundary.", kPageSize);
-  }
-
-  // Do we need to cleanup output files if we fail?
-  bool new_image_out = false;
-  bool new_oat_out = false;
-
-  std::unique_ptr<File> input_oat;
-  std::unique_ptr<File> output_oat;
-  std::unique_ptr<File> output_image;
-
-  if (have_image_files) {
-    CHECK(!input_image_location.empty());
-
-    if (output_image_fd != -1) {
-      if (output_image_filename.empty()) {
-        output_image_filename = "output-image-file";
-      }
-      output_image.reset(new File(output_image_fd, output_image_filename, true));
-    } else {
-      CHECK(!output_image_filename.empty());
-      output_image.reset(CreateOrOpen(output_image_filename.c_str(), &new_image_out));
-    }
+  int ret;
+  if (!input_image_location.empty()) {
+    ret = patchoat_image(timings,
+                         isa,
+                         input_image_location,
+                         output_image_filename,
+                         base_delta,
+                         base_delta_set,
+                         debug);
   } else {
-    CHECK(output_image_filename.empty() && output_image_fd == -1 && input_image_location.empty());
+    ret = patchoat_oat(timings,
+                       isa,
+                       patched_image_location,
+                       base_delta,
+                       base_delta_set,
+                       input_oat_fd,
+                       input_oat_location,
+                       input_oat_filename,
+                       have_input_oat,
+                       output_oat_fd,
+                       output_oat_filename,
+                       have_output_oat,
+                       lock_output,
+                       debug);
   }
 
-  if (have_oat_files) {
-    if (input_oat_fd != -1) {
-      if (input_oat_filename.empty()) {
-        input_oat_filename = "input-oat-file";
-      }
-      input_oat.reset(new File(input_oat_fd, input_oat_filename, false));
-      if (input_oat_fd == output_oat_fd) {
-        input_oat.get()->DisableAutoClose();
-      }
-      if (input_oat == nullptr) {
-        // Unlikely, but ensure exhaustive logging in non-0 exit code case
-        LOG(ERROR) << "Failed to open input oat file by its FD" << input_oat_fd;
-      }
-    } else {
-      CHECK(!input_oat_filename.empty());
-      input_oat.reset(OS::OpenFileForReading(input_oat_filename.c_str()));
-      if (input_oat == nullptr) {
-        int err = errno;
-        LOG(ERROR) << "Failed to open input oat file " << input_oat_filename
-                   << ": " << strerror(err) << "(" << err << ")";
-      }
-    }
-
-    if (output_oat_fd != -1) {
-      if (output_oat_filename.empty()) {
-        output_oat_filename = "output-oat-file";
-      }
-      output_oat.reset(new File(output_oat_fd, output_oat_filename, true));
-      if (output_oat == nullptr) {
-        // Unlikely, but ensure exhaustive logging in non-0 exit code case
-        LOG(ERROR) << "Failed to open output oat file by its FD" << output_oat_fd;
-      }
-    } else {
-      CHECK(!output_oat_filename.empty());
-      output_oat.reset(CreateOrOpen(output_oat_filename.c_str(), &new_oat_out));
-      if (output_oat == nullptr) {
-        int err = errno;
-        LOG(ERROR) << "Failed to open output oat file " << output_oat_filename
-                   << ": " << strerror(err) << "(" << err << ")";
-      }
-    }
+  timings.EndTiming();
+  if (dump_timings) {
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
   }
 
-  // TODO: get rid of this.
-  auto cleanup = [&output_image_filename, &output_oat_filename,
-                  &new_oat_out, &new_image_out, &timings, &dump_timings](bool success) {
-    timings.EndTiming();
-    if (!success) {
-      if (new_oat_out) {
-        CHECK(!output_oat_filename.empty());
-        TEMP_FAILURE_RETRY(unlink(output_oat_filename.c_str()));
-      }
-      if (new_image_out) {
-        CHECK(!output_image_filename.empty());
-        TEMP_FAILURE_RETRY(unlink(output_image_filename.c_str()));
-      }
-    }
-    if (dump_timings) {
-      LOG(INFO) << Dumpable<TimingLogger>(timings);
-    }
-
-    if (kIsDebugBuild) {
-      LOG(INFO) << "Cleaning up.. success? " << success;
-    }
-  };
-
-  if (have_oat_files && (input_oat.get() == nullptr || output_oat.get() == nullptr)) {
-    LOG(ERROR) << "Failed to open input/output oat files";
-    cleanup(false);
-    return EXIT_FAILURE;
-  } else if (have_image_files && output_image.get() == nullptr) {
-    LOG(ERROR) << "Failed to open output image file";
-    cleanup(false);
-    return EXIT_FAILURE;
-  }
-
-  if (match_delta) {
-    CHECK(!have_image_files);  // We will not do this with images.
-    std::string error_msg;
-    // Figure out what the current delta is so we can match it to the desired delta.
-    std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat.get(), PROT_READ, MAP_PRIVATE,
-                                               &error_msg));
-    off_t current_delta = 0;
-    if (elf.get() == nullptr) {
-      LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
-      cleanup(false);
-      return EXIT_FAILURE;
-    } else if (!ReadOatPatchDelta(elf.get(), &current_delta, &error_msg)) {
-      LOG(ERROR) << "Unable to get current delta: " << error_msg;
-      cleanup(false);
-      return EXIT_FAILURE;
-    }
-    // Before this line base_delta is the desired final delta. We need it to be the actual amount to
-    // change everything by. We subtract the current delta from it to make it this.
-    base_delta -= current_delta;
-    if (!IsAligned<kPageSize>(base_delta)) {
-      LOG(ERROR) << "Given image file was relocated by an illegal delta";
-      cleanup(false);
-      return false;
-    }
-  }
-
-  if (debug) {
-    LOG(INFO) << "moving offset by " << base_delta
-              << " (0x" << std::hex << base_delta << ") bytes or "
-              << std::dec << (base_delta/kPageSize) << " pages.";
-  }
-
-  // TODO: is it going to be promatic to unlink a file that was flock-ed?
-  ScopedFlock output_oat_lock;
-  if (lock_output) {
-    std::string error_msg;
-    if (have_oat_files && !output_oat_lock.Init(output_oat.get(), &error_msg)) {
-      LOG(ERROR) << "Unable to lock output oat " << output_image->GetPath() << ": " << error_msg;
-      cleanup(false);
-      return EXIT_FAILURE;
-    }
-  }
-
-  bool ret;
-  if (have_image_files && have_oat_files) {
-    TimingLogger::ScopedTiming pt("patch image and oat", &timings);
-    ret = PatchOat::Patch(input_oat.get(), input_image_location, base_delta,
-                          output_oat.get(), output_image.get(), isa, &timings,
-                          output_oat_fd >= 0,  // was it opened from FD?
-                          new_oat_out);
-    // The order here doesn't matter. If the first one is successfully saved and the second one
-    // erased, ImageSpace will still detect a problem and not use the files.
-    ret = FinishFile(output_image.get(), ret);
-    ret = FinishFile(output_oat.get(), ret);
-  } else if (have_oat_files) {
-    TimingLogger::ScopedTiming pt("patch oat", &timings);
-    ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings,
-                          output_oat_fd >= 0,  // was it opened from FD?
-                          new_oat_out);
-    ret = FinishFile(output_oat.get(), ret);
-  } else {
-    CHECK(false);
-    ret = true;
-  }
-
-  if (kIsDebugBuild) {
-    LOG(INFO) << "Exiting with return ... " << ret;
-  }
-  cleanup(ret);
-  return (ret) ? EXIT_SUCCESS : EXIT_FAILURE;
+  return ret;
 }
 
 }  // namespace art
