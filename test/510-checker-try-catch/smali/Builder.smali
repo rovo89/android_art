@@ -1126,7 +1126,6 @@
 ## CHECK-START: int[] Builder.testMoveResult_FilledNewArray(int, int, int) builder (after)
 
 ## CHECK:      <<Res:l\d+>>     NewArray
-## CHECK-NEXT:                  Temporary
 ## CHECK-NEXT: <<Local1:i\d+>>  LoadLocal  [v0]
 ## CHECK-NEXT:                  ArraySet   [<<Res>>,{{i\d+}},<<Local1>>]
 ## CHECK-NEXT: <<Local2:i\d+>>  LoadLocal  [v1]
