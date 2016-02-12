@@ -45,7 +45,7 @@ public class Main {
   public static int $noinline$returnInt() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 100000000; ++i) {
+    for (; i < 100000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -55,7 +55,7 @@ public class Main {
   public static float $noinline$returnFloat() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 200000000; ++i) {
+    for (; i < 200000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -65,7 +65,7 @@ public class Main {
   public static double $noinline$returnDouble() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 300000000; ++i) {
+    for (; i < 300000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -74,8 +74,8 @@ public class Main {
 
   public static long $noinline$returnLong() {
     if (doThrow) throw new Error("");
-    int i = 1000000;
-    for (; i < 400000000; ++i) {
+    int i = 0;
+    for (; i < 400000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -85,7 +85,7 @@ public class Main {
   public static void $noinline$deopt() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 100000000; ++i) {
+    for (; i < 100000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     DeoptimizationController.startDeoptimization();
@@ -99,9 +99,9 @@ public class Main {
       // Lots of back edges to trigger OSR compilation.
       for (int i = 0; i < 1000; ++i) {
       }
-      // Wait for OSR compilation.
+      // Best effort to wait for OSR compilation.
       try {
-        Thread.sleep(10);
+        Thread.sleep(1);
       } catch (Exception e) {}
     }
 
