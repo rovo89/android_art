@@ -2363,6 +2363,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2381,6 +2383,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2458,6 +2462,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2552,6 +2558,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2560,13 +2568,12 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `int-to-byte' instruction.
           if (in.IsRegister()) {
             __ movsxb(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
-          } else if (in.IsStackSlot()) {
+          } else if (in.IsStackSlot() || in.IsDoubleStackSlot()) {
             __ movsxb(out.AsRegister<CpuRegister>(),
                       Address(CpuRegister(RSP), in.GetStackIndex()));
           } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.AsRegister<CpuRegister>(),
-                    Immediate(static_cast<int8_t>(in.GetConstant()->AsIntConstant()->GetValue())));
+                    Immediate(static_cast<int8_t>(Int64FromConstant(in.GetConstant()))));
           }
           break;
 
@@ -2578,6 +2585,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2586,13 +2595,12 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `int-to-short' instruction.
           if (in.IsRegister()) {
             __ movsxw(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
-          } else if (in.IsStackSlot()) {
+          } else if (in.IsStackSlot() || in.IsDoubleStackSlot()) {
             __ movsxw(out.AsRegister<CpuRegister>(),
                       Address(CpuRegister(RSP), in.GetStackIndex()));
           } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.AsRegister<CpuRegister>(),
-                    Immediate(static_cast<int16_t>(in.GetConstant()->AsIntConstant()->GetValue())));
+                    Immediate(static_cast<int16_t>(Int64FromConstant(in.GetConstant()))));
           }
           break;
 
@@ -2735,6 +2743,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2743,14 +2753,12 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `int-to-char' instruction.
           if (in.IsRegister()) {
             __ movzxw(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
-          } else if (in.IsStackSlot()) {
+          } else if (in.IsStackSlot() || in.IsDoubleStackSlot()) {
             __ movzxw(out.AsRegister<CpuRegister>(),
                       Address(CpuRegister(RSP), in.GetStackIndex()));
           } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.AsRegister<CpuRegister>(),
-                    Immediate(static_cast<uint16_t>(
-                        in.GetConstant()->AsIntConstant()->GetValue())));
+                    Immediate(static_cast<uint16_t>(Int64FromConstant(in.GetConstant()))));
           }
           break;
 
