@@ -268,8 +268,6 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void Bind(HBasicBlock* block) OVERRIDE;
 
-  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
-
   size_t GetWordSize() const OVERRIDE { return kMips64DoublewordSize; }
 
   size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return kMips64DoublewordSize; }

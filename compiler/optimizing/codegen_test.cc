@@ -777,9 +777,9 @@ TEST_F(CodegenTest, MaterializedCondition2) {
       HIntConstant* cst_rhs = graph->GetIntConstant(rhs[i]);
       HLessThan cmp_lt(cst_lhs, cst_rhs);
       if_block->AddInstruction(&cmp_lt);
-      // We insert a temporary to separate the HIf from the HLessThan and force
-      // the materialization of the condition.
-      HTemporary force_materialization(0);
+      // We insert a dummy instruction to separate the HIf from the HLessThan
+      // and force the materialization of the condition.
+      HMemoryBarrier force_materialization(MemBarrierKind::kAnyAny, 0);
       if_block->AddInstruction(&force_materialization);
       HIf if_lt(&cmp_lt);
       if_block->AddInstruction(&if_lt);

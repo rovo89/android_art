@@ -37,41 +37,6 @@
 
 namespace art {
 
-/**
- * Helper class to add HTemporary instructions. This class is used when
- * converting a DEX instruction to multiple HInstruction, and where those
- * instructions do not die at the following instruction, but instead spans
- * multiple instructions.
- */
-class Temporaries : public ValueObject {
- public:
-  explicit Temporaries(HGraph* graph) : graph_(graph), index_(0) {}
-
-  void Add(HInstruction* instruction) {
-    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_, instruction->GetDexPc());
-    instruction->GetBlock()->AddInstruction(temp);
-
-    DCHECK(temp->GetPrevious() == instruction);
-
-    size_t offset;
-    if (instruction->GetType() == Primitive::kPrimLong
-        || instruction->GetType() == Primitive::kPrimDouble) {
-      offset = 2;
-    } else {
-      offset = 1;
-    }
-    index_ += offset;
-
-    graph_->UpdateTemporariesVRegSlots(index_);
-  }
-
- private:
-  HGraph* const graph_;
-
-  // Current index in the temporary stack, updated by `Add`.
-  size_t index_;
-};
-
 void HGraphBuilder::InitializeLocals(uint16_t count) {
   graph_->SetNumberOfVRegs(count);
   locals_.resize(count);
@@ -1166,12 +1131,10 @@ bool HGraphBuilder::HandleInvoke(HInvoke* invoke,
   size_t start_index = 0;
   size_t argument_index = 0;
   if (invoke->GetOriginalInvokeType() != InvokeType::kStatic) {  // Instance call.
-    Temporaries temps(graph_);
     HInstruction* arg = LoadLocal(
         is_range ? register_index : args[0], Primitive::kPrimNot, invoke->GetDexPc());
     HNullCheck* null_check = new (arena_) HNullCheck(arg, invoke->GetDexPc());
     current_block_->AddInstruction(null_check);
-    temps.Add(null_check);
     invoke->SetArgumentAt(0, null_check);
     start_index = 1;
     argument_index = 1;
@@ -1269,9 +1232,6 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
       ? GetFieldAccessType(*dex_file_, field_index)
       : resolved_field->GetTypeAsPrimitiveType();
   if (is_put) {
-    Temporaries temps(graph_);
-    // We need one temporary for the null check.
-    temps.Add(null_check);
     HInstruction* value = LoadLocal(source_or_dest_reg, field_type, dex_pc);
     HInstruction* field_set = nullptr;
     if (resolved_field == nullptr) {
@@ -1456,8 +1416,6 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   uint16_t class_def_index = klass->GetDexClassDefIndex();
   if (is_put) {
     // We need to keep the class alive before loading the value.
-    Temporaries temps(graph_);
-    temps.Add(cls);
     HInstruction* value = LoadLocal(source_or_dest_reg, field_type, dex_pc);
     DCHECK_EQ(value->GetType(), field_type);
     current_block_->AddInstruction(new (arena_) HStaticFieldSet(cls,
@@ -1510,9 +1468,7 @@ void HGraphBuilder::BuildCheckedDivRem(uint16_t out_vreg,
       || (type == Primitive::kPrimInt && second->AsIntConstant()->GetValue() == 0)
       || (type == Primitive::kPrimLong && second->AsLongConstant()->GetValue() == 0)) {
     second = new (arena_) HDivZeroCheck(second, dex_pc);
-    Temporaries temps(graph_);
     current_block_->AddInstruction(second);
-    temps.Add(current_block_->GetLastInstruction());
   }
 
   if (isDiv) {
@@ -1531,21 +1487,15 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
   uint8_t array_reg = instruction.VRegB_23x();
   uint8_t index_reg = instruction.VRegC_23x();
 
-  // We need one temporary for the null check, one for the index, and one for the length.
-  Temporaries temps(graph_);
-
   HInstruction* object = LoadLocal(array_reg, Primitive::kPrimNot, dex_pc);
   object = new (arena_) HNullCheck(object, dex_pc);
   current_block_->AddInstruction(object);
-  temps.Add(object);
 
   HInstruction* length = new (arena_) HArrayLength(object, dex_pc);
   current_block_->AddInstruction(length);
-  temps.Add(length);
   HInstruction* index = LoadLocal(index_reg, Primitive::kPrimInt, dex_pc);
   index = new (arena_) HBoundsCheck(index, length, dex_pc);
   current_block_->AddInstruction(index);
-  temps.Add(index);
   if (is_put) {
     HInstruction* value = LoadLocal(source_or_dest_reg, anticipated_type, dex_pc);
     // TODO: Insert a type check node if the type is Object.
@@ -1586,8 +1536,6 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
   bool is_reference_array = (primitive == 'L') || (primitive == '[');
   Primitive::Type type = is_reference_array ? Primitive::kPrimNot : Primitive::kPrimInt;
 
-  Temporaries temps(graph_);
-  temps.Add(object);
   for (size_t i = 0; i < number_of_vreg_arguments; ++i) {
     HInstruction* value = LoadLocal(is_range ? register_index + i : args[i], type, dex_pc);
     HInstruction* index = graph_->GetIntConstant(i, dex_pc);
@@ -1612,11 +1560,9 @@ void HGraphBuilder::BuildFillArrayData(HInstruction* object,
 }
 
 void HGraphBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t dex_pc) {
-  Temporaries temps(graph_);
   HInstruction* array = LoadLocal(instruction.VRegA_31t(), Primitive::kPrimNot, dex_pc);
   HNullCheck* null_check = new (arena_) HNullCheck(array, dex_pc);
   current_block_->AddInstruction(null_check);
-  temps.Add(null_check);
 
   HInstruction* length = new (arena_) HArrayLength(null_check, dex_pc);
   current_block_->AddInstruction(length);
@@ -1732,10 +1678,6 @@ void HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
       !can_access,
       compiler_driver_->CanAssumeTypeIsPresentInDexCache(dex_file, type_index));
   current_block_->AddInstruction(cls);
-
-  // The class needs a temporary before being used by the type check.
-  Temporaries temps(graph_);
-  temps.Add(cls);
 
   TypeCheckKind check_kind = ComputeTypeCheckKind(resolved_class);
   if (instruction.Opcode() == Instruction::INSTANCE_OF) {
@@ -2815,8 +2757,6 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::ARRAY_LENGTH: {
       HInstruction* object = LoadLocal(instruction.VRegB_12x(), Primitive::kPrimNot, dex_pc);
-      // No need for a temporary for the null check, it is the only input of the following
-      // instruction.
       object = new (arena_) HNullCheck(object, dex_pc);
       current_block_->AddInstruction(object);
       current_block_->AddInstruction(new (arena_) HArrayLength(object, dex_pc));

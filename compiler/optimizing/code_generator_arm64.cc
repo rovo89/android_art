@@ -1066,54 +1066,6 @@ void CodeGeneratorARM64::Bind(HBasicBlock* block) {
   __ Bind(GetLabelOf(block));
 }
 
-void CodeGeneratorARM64::Move(HInstruction* instruction,
-                              Location location,
-                              HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  Primitive::Type type = instruction->GetType();
-  DCHECK_NE(type, Primitive::kPrimVoid);
-
-  if (instruction->IsCurrentMethod()) {
-    MoveLocation(location,
-                 Location::DoubleStackSlot(kCurrentMethodStackOffset),
-                 Primitive::kPrimVoid);
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (instruction->IsIntConstant()
-             || instruction->IsLongConstant()
-             || instruction->IsNullConstant()) {
-    int64_t value = GetInt64ValueOf(instruction->AsConstant());
-    if (location.IsRegister()) {
-      Register dst = RegisterFrom(location, type);
-      DCHECK(((instruction->IsIntConstant() || instruction->IsNullConstant()) && dst.Is32Bits()) ||
-             (instruction->IsLongConstant() && dst.Is64Bits()));
-      __ Mov(dst, value);
-    } else {
-      DCHECK(location.IsStackSlot() || location.IsDoubleStackSlot());
-      UseScratchRegisterScope temps(GetVIXLAssembler());
-      Register temp = (instruction->IsIntConstant() || instruction->IsNullConstant())
-          ? temps.AcquireW()
-          : temps.AcquireX();
-      __ Mov(temp, value);
-      __ Str(temp, StackOperandFrom(location));
-    }
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    MoveLocation(location, temp_location, type);
-  } else if (instruction->IsLoadLocal()) {
-    uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
-    if (Primitive::Is64BitType(type)) {
-      MoveLocation(location, Location::DoubleStackSlot(stack_slot), type);
-    } else {
-      MoveLocation(location, Location::StackSlot(stack_slot), type);
-    }
-
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    MoveLocation(location, locations->Out(), type);
-  }
-}
-
 void CodeGeneratorARM64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ Mov(RegisterFrom(location, Primitive::kPrimInt), value);
@@ -4443,14 +4395,6 @@ void InstructionCodeGeneratorARM64::VisitSuspendCheck(HSuspendCheck* instruction
     return;
   }
   GenerateSuspendCheck(instruction, nullptr);
-}
-
-void LocationsBuilderARM64::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorARM64::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderARM64::VisitThrow(HThrow* instruction) {
