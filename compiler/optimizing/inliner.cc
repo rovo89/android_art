@@ -378,7 +378,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
 
   // Run type propagation to get the guard typed, and eventually propagate the
   // type of the receiver.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_);
+  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
   rtp_fixup.Run();
 
   MaybeRecordStat(kInlinedMonomorphicCall);
@@ -420,6 +420,9 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
       actual_method = new_method;
     } else if (actual_method != new_method) {
       // Different methods, bailout.
+      VLOG(compiler) << "Call to " << PrettyMethod(resolved_method)
+                     << " from inline cache is not inlined because it resolves"
+                     << " to different methods";
       return false;
     }
   }
@@ -474,7 +477,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
   deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
 
   // Run type propagation to get the guard typed.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_);
+  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
   rtp_fixup.Run();
 
   MaybeRecordStat(kInlinedPolymorphicCall);
@@ -727,7 +730,7 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);
   if (iget->GetType() == Primitive::kPrimNot) {
-    ReferenceTypePropagation rtp(graph_, handles_);
+    ReferenceTypePropagation rtp(graph_, handles_, /* is_first_run */ false);
     rtp.Visit(iget);
   }
   return iget;
@@ -756,6 +759,7 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex
       /* dex_pc */ 0);
   return iput;
 }
+
 bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                                  HInvoke* invoke_instruction,
                                  bool same_dex_file,
@@ -988,12 +992,18 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
 
       if (current->IsNewInstance() &&
           (current->AsNewInstance()->GetEntrypoint() == kQuickAllocObjectWithAccessCheck)) {
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " could not be inlined because it is using an entrypoint"
+                       << " with access checks";
         // Allocation entrypoint does not handle inlined frames.
         return false;
       }
 
       if (current->IsNewArray() &&
           (current->AsNewArray()->GetEntrypoint() == kQuickAllocArrayWithAccessCheck)) {
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " could not be inlined because it is using an entrypoint"
+                       << " with access checks";
         // Allocation entrypoint does not handle inlined frames.
         return false;
       }
@@ -1003,6 +1013,9 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
           current->IsUnresolvedStaticFieldSet() ||
           current->IsUnresolvedInstanceFieldSet()) {
         // Entrypoint for unresolved fields does not handle inlined frames.
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " could not be inlined because it is using an unresolved"
+                       << " entrypoint";
         return false;
       }
     }
@@ -1044,13 +1057,13 @@ void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
         if (invoke_rti.IsStrictSupertypeOf(return_rti)
             || (return_rti.IsExact() && !invoke_rti.IsExact())
             || !return_replacement->CanBeNull()) {
-          ReferenceTypePropagation(graph_, handles_).Run();
+          ReferenceTypePropagation(graph_, handles_, /* is_first_run */ false).Run();
         }
       }
     } else if (return_replacement->IsInstanceOf()) {
       if (do_rtp) {
         // Inlining InstanceOf into an If may put a tighter bound on reference types.
-        ReferenceTypePropagation(graph_, handles_).Run();
+        ReferenceTypePropagation(graph_, handles_, /* is_first_run */ false).Run();
       }
     }
   }

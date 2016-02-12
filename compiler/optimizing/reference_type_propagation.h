@@ -33,6 +33,7 @@ class ReferenceTypePropagation : public HOptimization {
  public:
   ReferenceTypePropagation(HGraph* graph,
                            StackHandleScopeCollection* handles,
+                           bool is_first_run,
                            const char* name = kReferenceTypePropagationPassName);
 
   // Visit a single instruction.
@@ -93,6 +94,8 @@ class ReferenceTypePropagation : public HOptimization {
 
   ArenaVector<HInstruction*> worklist_;
 
+  // Whether this reference type propagation is the first run we are doing.
+  const bool is_first_run_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
 

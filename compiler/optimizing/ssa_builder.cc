@@ -483,7 +483,7 @@ GraphAnalysisResult SsaBuilder::BuildSsa() {
 
   // 6) Compute type of reference type instructions. The pass assumes that
   // NullConstant has been fixed up.
-  ReferenceTypePropagation(GetGraph(), handles_).Run();
+  ReferenceTypePropagation(GetGraph(), handles_, /* is_first_run */ true).Run();
 
   // 7) Step 1) duplicated ArrayGet instructions with ambiguous type (int/float
   // or long/double) and marked ArraySets with ambiguous input type. Now that RTP
