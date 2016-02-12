@@ -387,12 +387,16 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             runtime->GetHeap()->AddSpace(image_space.get());
           }
           added_image_space = true;
-          if (!runtime->GetClassLinker()->AddImageSpace(image_space.get(),
-                                                        h_loader,
-                                                        dex_elements,
-                                                        dex_location,
-                                                        /*out*/&dex_files,
-                                                        /*out*/&temp_error_msg)) {
+          if (runtime->GetClassLinker()->AddImageSpace(image_space.get(),
+                                                       h_loader,
+                                                       dex_elements,
+                                                       dex_location,
+                                                       /*out*/&dex_files,
+                                                       /*out*/&temp_error_msg)) {
+            // Successfully added image space to heap, release the map so that it does not get
+            // freed.
+            image_space.release();
+          } else {
             LOG(INFO) << "Failed to add image file " << temp_error_msg;
             dex_files.clear();
             {
@@ -406,7 +410,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             added_image_space = false;
             // Non-fatal, don't update error_msg.
           }
-          image_space.release();
         }
       }
     }
