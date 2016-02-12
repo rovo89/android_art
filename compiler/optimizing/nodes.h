@@ -1235,7 +1235,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(StoreLocal, Instruction)                                            \
   M(Sub, BinaryOperation)                                               \
   M(SuspendCheck, Instruction)                                          \
-  M(Temporary, Instruction)                                             \
   M(Throw, Instruction)                                                 \
   M(TryBoundary, Instruction)                                           \
   M(TypeConversion, Instruction)                                        \
@@ -4939,33 +4938,6 @@ class HBoundsCheck : public HExpression<2> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
-};
-
-/**
- * Some DEX instructions are folded into multiple HInstructions that need
- * to stay live until the last HInstruction. This class
- * is used as a marker for the baseline compiler to ensure its preceding
- * HInstruction stays live. `index` represents the stack location index of the
- * instruction (the actual offset is computed as index * vreg_size).
- */
-class HTemporary : public HTemplateInstruction<0> {
- public:
-  explicit HTemporary(size_t index, uint32_t dex_pc = kNoDexPc)
-      : HTemplateInstruction(SideEffects::None(), dex_pc), index_(index) {}
-
-  size_t GetIndex() const { return index_; }
-
-  Primitive::Type GetType() const OVERRIDE {
-    // The previous instruction is the one that will be stored in the temporary location.
-    DCHECK(GetPrevious() != nullptr);
-    return GetPrevious()->GetType();
-  }
-
-  DECLARE_INSTRUCTION(Temporary);
-
- private:
-  const size_t index_;
-  DISALLOW_COPY_AND_ASSIGN(HTemporary);
 };
 
 class HSuspendCheck : public HTemplateInstruction<0> {

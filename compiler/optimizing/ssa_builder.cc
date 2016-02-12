@@ -899,11 +899,6 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   }
 }
 
-void SsaBuilder::VisitTemporary(HTemporary* temp) {
-  // Temporaries are only used by the baseline register allocator.
-  temp->GetBlock()->RemoveInstruction(temp);
-}
-
 void SsaBuilder::VisitArrayGet(HArrayGet* aget) {
   Primitive::Type type = aget->GetType();
   DCHECK(!Primitive::IsFloatingPointType(type));

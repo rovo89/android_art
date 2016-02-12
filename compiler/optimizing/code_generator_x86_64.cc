@@ -1206,82 +1206,6 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
   }
 }
 
-void CodeGeneratorX86_64::Move(HInstruction* instruction,
-                               Location location,
-                               HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  if (instruction->IsCurrentMethod()) {
-    Move(location, Location::DoubleStackSlot(kCurrentMethodStackOffset));
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (locations != nullptr && locations->Out().IsConstant()) {
-    HConstant* const_to_move = locations->Out().GetConstant();
-    if (const_to_move->IsIntConstant() || const_to_move->IsNullConstant()) {
-      Immediate imm(GetInt32ValueOf(const_to_move));
-      if (location.IsRegister()) {
-        __ movl(location.AsRegister<CpuRegister>(), imm);
-      } else if (location.IsStackSlot()) {
-        __ movl(Address(CpuRegister(RSP), location.GetStackIndex()), imm);
-      } else {
-        DCHECK(location.IsConstant());
-        DCHECK_EQ(location.GetConstant(), const_to_move);
-      }
-    } else if (const_to_move->IsLongConstant()) {
-      int64_t value = const_to_move->AsLongConstant()->GetValue();
-      if (location.IsRegister()) {
-        Load64BitValue(location.AsRegister<CpuRegister>(), value);
-      } else if (location.IsDoubleStackSlot()) {
-        Store64BitValueToStack(location, value);
-      } else {
-        DCHECK(location.IsConstant());
-        DCHECK_EQ(location.GetConstant(), const_to_move);
-      }
-    }
-  } else if (instruction->IsLoadLocal()) {
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimFloat:
-        Move(location, Location::StackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        Move(location,
-             Location::DoubleStackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected local type " << instruction->GetType();
-    }
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    Move(location, temp_location);
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimLong:
-      case Primitive::kPrimFloat:
-      case Primitive::kPrimDouble:
-        Move(location, locations->Out());
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected type " << instruction->GetType();
-    }
-  }
-}
-
 void CodeGeneratorX86_64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   Load64BitValue(location.AsRegister<CpuRegister>(), static_cast<int64_t>(value));
@@ -5140,14 +5064,6 @@ void CodeGeneratorX86_64::MarkGCCard(CpuRegister temp,
   if (value_can_be_null) {
     __ Bind(&is_null);
   }
-}
-
-void LocationsBuilderX86_64::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorX86_64::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderX86_64::VisitParallelMove(HParallelMove* instruction ATTRIBUTE_UNUSED) {

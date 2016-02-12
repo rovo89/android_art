@@ -268,7 +268,6 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   void Bind(HBasicBlock* block) OVERRIDE;
 
-  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   void Move32(Location destination, Location source);
   void Move64(Location destination, Location source);
   void MoveConstant(Location location, HConstant* c);

@@ -187,7 +187,6 @@ class CodeGenerator {
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(HBasicBlock* block) = 0;
-  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
   virtual void MoveConstant(Location destination, int32_t value) = 0;
   virtual void MoveLocation(Location dst, Location src, Primitive::Type dst_type) = 0;
   virtual void AddLocationAsTemp(Location location, LocationSummary* locations) = 0;
@@ -203,7 +202,6 @@ class CodeGenerator {
                                 size_t number_of_out_slots,
                                 const ArenaVector<HBasicBlock*>& block_order);
   int32_t GetStackSlot(HLocal* local) const;
-  Location GetTemporaryLocation(HTemporary* temp) const;
 
   uint32_t GetFrameSize() const { return frame_size_; }
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
