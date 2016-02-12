@@ -1551,14 +1551,16 @@ void LocationsBuilderX86_64::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
   if (Primitive::IsFloatingPointType(select->GetType())) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
-    // Since we can't use CMOV, there is no need to force 'true' into a register.
     locations->SetInAt(1, Location::Any());
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
     if (SelectCanUseCMOV(select)) {
-      locations->SetInAt(1, Location::RequiresRegister());
+      if (select->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::RequiresRegister());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
     } else {
-      // Since we can't use CMOV, there is no need to force 'true' into a register.
       locations->SetInAt(1, Location::Any());
     }
   }
@@ -1574,7 +1576,7 @@ void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
     // If both the condition and the source types are integer, we can generate
     // a CMOV to implement Select.
     CpuRegister value_false = locations->InAt(0).AsRegister<CpuRegister>();
-    CpuRegister value_true = locations->InAt(1).AsRegister<CpuRegister>();
+    Location value_true_loc = locations->InAt(1);
     DCHECK(locations->InAt(0).Equals(locations->Out()));
 
     HInstruction* select_condition = select->GetCondition();
@@ -1606,7 +1608,14 @@ void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
 
     // If the condition is true, overwrite the output, which already contains false.
     // Generate the correct sized CMOV.
-    __ cmov(cond, value_false, value_true, select->GetType() == Primitive::kPrimLong);
+    bool is_64_bit = Primitive::Is64BitType(select->GetType());
+    if (value_true_loc.IsRegister()) {
+      __ cmov(cond, value_false, value_true_loc.AsRegister<CpuRegister>(), is_64_bit);
+    } else {
+      __ cmov(cond,
+              value_false,
+              Address(CpuRegister(RSP), value_true_loc.GetStackIndex()), is_64_bit);
+    }
   } else {
     NearLabel false_target;
     GenerateTestAndBranch<NearLabel>(select,
