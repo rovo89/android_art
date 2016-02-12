@@ -332,6 +332,21 @@ TEST_F(AssemblerX86Test, UComisdAddr) {
 }
 
 
+TEST_F(AssemblerX86Test, CmovlAddress) {
+  GetAssembler()->cmovl(x86::kEqual, x86::Register(x86::EAX), x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+  GetAssembler()->cmovl(x86::kNotEqual, x86::Register(x86::EDI), x86::Address(
+      x86::Register(x86::ESI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+  GetAssembler()->cmovl(x86::kEqual, x86::Register(x86::EDI), x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::EAX), x86::TIMES_4, 12));
+  const char* expected =
+    "cmovzl 0xc(%EDI,%EBX,4), %eax\n"
+    "cmovnzl 0xc(%ESI,%EBX,4), %edi\n"
+    "cmovzl 0xc(%EDI,%EAX,4), %edi\n";
+
+  DriverStr(expected, "cmovl_address");
+}
+
 /////////////////
 // Near labels //
 /////////////////
