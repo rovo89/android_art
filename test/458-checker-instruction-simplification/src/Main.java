@@ -1711,6 +1711,65 @@ public class Main {
     return "c=" + ((int) c) + ", b=" + ((int) b);  // implicit conversions.
   }
 
+  /// CHECK-START: byte Main.longAnd0xffToByte(long) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Mask:j\d+>>     LongConstant 255
+  /// CHECK-DAG:      <<And:j\d+>>      And [<<Mask>>,<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<And>>]
+  /// CHECK-DAG:      <<Byte:b\d+>>     TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Byte>>]
+
+  /// CHECK-START: byte Main.longAnd0xffToByte(long) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Byte:b\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:                        Return [<<Byte>>]
+
+  /// CHECK-START: byte Main.longAnd0xffToByte(long) instruction_simplifier (after)
+  /// CHECK-NOT:                        And
+
+  public static byte longAnd0xffToByte(long value) {
+    return (byte) (value & 0xff);
+  }
+
+  /// CHECK-START: char Main.intAnd0x1ffffToChar(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Mask:i\d+>>     IntConstant 131071
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Mask>>,<<Arg>>]
+  /// CHECK-DAG:      <<Char:c\d+>>     TypeConversion [<<And>>]
+  /// CHECK-DAG:                        Return [<<Char>>]
+
+  /// CHECK-START: char Main.intAnd0x1ffffToChar(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Char:c\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:                        Return [<<Char>>]
+
+  /// CHECK-START: char Main.intAnd0x1ffffToChar(int) instruction_simplifier (after)
+  /// CHECK-NOT:                        And
+
+  public static char intAnd0x1ffffToChar(int value) {
+    // Keeping all significant bits and one more.
+    return (char) (value & 0x1ffff);
+  }
+
+  /// CHECK-START: short Main.intAnd0x17fffToShort(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Mask:i\d+>>     IntConstant 98303
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Mask>>,<<Arg>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<And>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  /// CHECK-START: short Main.intAnd0x17fffToShort(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Mask:i\d+>>     IntConstant 98303
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Mask>>,<<Arg>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<And>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  public static short intAnd0x17fffToShort(int value) {
+    // No simplification: clearing a significant bit.
+    return (short) (value & 0x17fff);
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -1836,6 +1895,17 @@ public class Main {
     assertStringEquals(shortToCharToBytePrint((short) 1025), "c=1025, b=1");
     assertStringEquals(shortToCharToBytePrint((short) 1023), "c=1023, b=-1");
     assertStringEquals(shortToCharToBytePrint((short) -1), "c=65535, b=-1");
+
+    assertIntEquals(longAnd0xffToByte(0x1234432112344321L), 0x21);
+    assertIntEquals(longAnd0xffToByte(Long.MIN_VALUE), 0);
+    assertIntEquals(longAnd0xffToByte(Long.MAX_VALUE), -1);
+    assertIntEquals(intAnd0x1ffffToChar(0x43211234), 0x1234);
+    assertIntEquals(intAnd0x1ffffToChar(Integer.MIN_VALUE), 0);
+    assertIntEquals(intAnd0x1ffffToChar(Integer.MAX_VALUE), Character.MAX_VALUE);
+    assertIntEquals(intAnd0x17fffToShort(0x87654321), 0x4321);
+    assertIntEquals(intAnd0x17fffToShort(0x88888888), 0x0888);
+    assertIntEquals(intAnd0x17fffToShort(Integer.MIN_VALUE), 0);
+    assertIntEquals(intAnd0x17fffToShort(Integer.MAX_VALUE), Short.MAX_VALUE);
   }
 
   public static boolean booleanField;
