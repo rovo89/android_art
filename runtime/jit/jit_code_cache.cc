@@ -578,7 +578,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       }
     }
 
-    // Empty osr method map, as osr compile code will be deleted (except the ones
+    // Empty osr method map, as osr compiled code will be deleted (except the ones
     // on thread stacks).
     osr_code_map_.clear();
   }

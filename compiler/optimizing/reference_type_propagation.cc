@@ -55,10 +55,12 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
  public:
   RTPVisitor(HGraph* graph,
              HandleCache* handle_cache,
-             ArenaVector<HInstruction*>* worklist)
+             ArenaVector<HInstruction*>* worklist,
+             bool is_first_run)
     : HGraphDelegateVisitor(graph),
       handle_cache_(handle_cache),
-      worklist_(worklist) {}
+      worklist_(worklist),
+      is_first_run_(is_first_run) {}
 
   void VisitNewInstance(HNewInstance* new_instance) OVERRIDE;
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE;
@@ -86,14 +88,17 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
  private:
   HandleCache* handle_cache_;
   ArenaVector<HInstruction*>* worklist_;
+  const bool is_first_run_;
 };
 
 ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
                                                    StackHandleScopeCollection* handles,
+                                                   bool is_first_run,
                                                    const char* name)
     : HOptimization(graph, name),
       handle_cache_(handles),
-      worklist_(graph->GetArena()->Adapter(kArenaAllocReferenceTypePropagation)) {
+      worklist_(graph->GetArena()->Adapter(kArenaAllocReferenceTypePropagation)),
+      is_first_run_(is_first_run) {
 }
 
 void ReferenceTypePropagation::ValidateTypes() {
@@ -125,7 +130,7 @@ void ReferenceTypePropagation::ValidateTypes() {
 }
 
 void ReferenceTypePropagation::Visit(HInstruction* instruction) {
-  RTPVisitor visitor(graph_, &handle_cache_, &worklist_);
+  RTPVisitor visitor(graph_, &handle_cache_, &worklist_, is_first_run_);
   instruction->Accept(&visitor);
 }
 
@@ -144,7 +149,7 @@ void ReferenceTypePropagation::Run() {
 }
 
 void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
-  RTPVisitor visitor(graph_, &handle_cache_, &worklist_);
+  RTPVisitor visitor(graph_, &handle_cache_, &worklist_, is_first_run_);
   // Handle Phis first as there might be instructions in the same block who depend on them.
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     VisitPhi(it.Current()->AsPhi());
@@ -620,6 +625,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitCheckCast(HCheckCast* check_cast
   DCHECK_EQ(bound_type->InputAt(0), check_cast->InputAt(0));
 
   if (class_rti.IsValid()) {
+    DCHECK(is_first_run_);
     // This is the first run of RTP and class is resolved.
     bound_type->SetUpperBound(class_rti, /* CheckCast succeeds for nulls. */ true);
   } else {
@@ -636,6 +642,12 @@ void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
   }
 
   if (phi->GetBlock()->IsLoopHeader()) {
+    if (!is_first_run_ && graph_->IsCompilingOsr()) {
+      // Don't update the type of a loop phi when compiling OSR: we may have done
+      // speculative optimizations dominating that phi, that do not hold at the
+      // point the interpreter jumps to that loop header.
+      return;
+    }
     ScopedObjectAccess soa(Thread::Current());
     // Set the initial type for the phi. Use the non back edge input for reaching
     // a fixed point faster.
