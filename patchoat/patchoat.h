@@ -53,11 +53,11 @@ class PatchOat {
                     TimingLogger* timings);
 
   // Patch both the image and the oat file
-  static bool Patch(File* oat_in, const std::string& art_location,
-                    off_t delta, File* oat_out, File* art_out, InstructionSet isa,
-                    TimingLogger* timings,
-                    bool output_oat_opened_from_fd,  // Was this using --oatput-oat-fd ?
-                    bool new_oat_out);               // Output oat was a new file created by us?
+  static bool Patch(const std::string& art_location,
+                    off_t delta,
+                    const std::string& output_directory,
+                    InstructionSet isa,
+                    TimingLogger* timings);
 
   ~PatchOat() {}
   PatchOat(PatchOat&&) = default;
