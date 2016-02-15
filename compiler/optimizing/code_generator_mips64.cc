@@ -3943,18 +3943,26 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
         __ Andi(dst, src, 0xFFFF);
         break;
       case Primitive::kPrimByte:
-        // long is never converted into types narrower than int directly,
-        // so SEB and SEH can be used without ever causing unpredictable results
-        // on 64-bit inputs
-        DCHECK(input_type != Primitive::kPrimLong);
-        __ Seb(dst, src);
+        if (input_type == Primitive::kPrimLong) {
+          // Type conversion from long to types narrower than int is a result of code
+          // transformations. To avoid unpredictable results for SEB and SEH, we first
+          // need to sign-extend the low 32-bit value into bits 32 through 63.
+          __ Sll(dst, src, 0);
+          __ Seb(dst, dst);
+        } else {
+          __ Seb(dst, src);
+        }
         break;
       case Primitive::kPrimShort:
-        // long is never converted into types narrower than int directly,
-        // so SEB and SEH can be used without ever causing unpredictable results
-        // on 64-bit inputs
-        DCHECK(input_type != Primitive::kPrimLong);
-        __ Seh(dst, src);
+        if (input_type == Primitive::kPrimLong) {
+          // Type conversion from long to types narrower than int is a result of code
+          // transformations. To avoid unpredictable results for SEB and SEH, we first
+          // need to sign-extend the low 32-bit value into bits 32 through 63.
+          __ Sll(dst, src, 0);
+          __ Seh(dst, dst);
+        } else {
+          __ Seh(dst, src);
+        }
         break;
       case Primitive::kPrimInt:
       case Primitive::kPrimLong:

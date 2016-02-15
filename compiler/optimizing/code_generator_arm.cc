@@ -2079,6 +2079,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2097,6 +2099,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2181,6 +2185,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2280,6 +2286,10 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
+          __ sbfx(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>(), 0, 8);
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2297,6 +2307,10 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
+          __ sbfx(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>(), 0, 16);
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2398,6 +2412,10 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
+          __ ubfx(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>(), 0, 16);
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:

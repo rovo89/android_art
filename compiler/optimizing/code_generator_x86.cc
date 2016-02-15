@@ -2145,6 +2145,18 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong: {
+          // Type conversion from long to byte is a result of code transformations.
+          HInstruction* input = conversion->InputAt(0);
+          Location input_location = input->IsConstant()
+              ? Location::ConstantLocation(input->AsConstant())
+              : Location::RegisterPairLocation(EAX, EDX);
+          locations->SetInAt(0, input_location);
+          // Make the output overlap to please the register allocator. This greatly simplifies
+          // the validation of the linear scan implementation
+          locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+          break;
+        }
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2165,6 +2177,8 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2242,6 +2256,8 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2336,6 +2352,16 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
+          if (in.IsRegisterPair()) {
+            __ movsxb(out.AsRegister<Register>(), in.AsRegisterPairLow<ByteRegister>());
+          } else {
+            DCHECK(in.GetConstant()->IsLongConstant());
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ movl(out.AsRegister<Register>(), Immediate(static_cast<int8_t>(value)));
+          }
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2359,6 +2385,18 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
+          if (in.IsRegisterPair()) {
+            __ movsxw(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>());
+          } else if (in.IsDoubleStackSlot()) {
+            __ movsxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
+          } else {
+            DCHECK(in.GetConstant()->IsLongConstant());
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ movl(out.AsRegister<Register>(), Immediate(static_cast<int16_t>(value)));
+          }
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2495,6 +2533,18 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
+          if (in.IsRegisterPair()) {
+            __ movzxw(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>());
+          } else if (in.IsDoubleStackSlot()) {
+            __ movzxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
+          } else {
+            DCHECK(in.GetConstant()->IsLongConstant());
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ movl(out.AsRegister<Register>(), Immediate(static_cast<uint16_t>(value)));
+          }
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
