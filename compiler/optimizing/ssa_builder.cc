@@ -430,8 +430,6 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
   }
 
   for (HNewInstance* new_instance : uninitialized_strings_) {
-    DCHECK(new_instance->IsStringAlloc());
-
     // Replace NewInstance of String with NullConstant if not used prior to
     // calling StringFactory. In case of deoptimization, the interpreter is
     // expected to skip null check on the `this` argument of the StringFactory call.
@@ -440,10 +438,26 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
       new_instance->GetBlock()->RemoveInstruction(new_instance);
 
       // Remove LoadClass if not needed any more.
-      HLoadClass* load_class = new_instance->InputAt(0)->AsLoadClass();
+      HInstruction* input = new_instance->InputAt(0);
+      HLoadClass* load_class = nullptr;
+
+      // If the class was not present in the dex cache at the point of building
+      // the graph, the builder inserted a HClinitCheck in between. Since the String
+      // class is always initialized at the point of running Java code, we can remove
+      // that check.
+      if (input->IsClinitCheck()) {
+        load_class = input->InputAt(0)->AsLoadClass();
+        input->ReplaceWith(load_class);
+        input->GetBlock()->RemoveInstruction(input);
+      } else {
+        load_class = input->AsLoadClass();
+        DCHECK(new_instance->IsStringAlloc());
+        DCHECK(!load_class->NeedsAccessCheck()) << "String class is always accessible";
+      }
       DCHECK(load_class != nullptr);
-      DCHECK(!load_class->NeedsAccessCheck()) << "String class is always accessible";
       if (!load_class->HasUses()) {
+        // Even if the HLoadClass needs access check, we can remove it, as we know the
+        // String class does not need it.
         load_class->GetBlock()->RemoveInstruction(load_class);
       }
     }
