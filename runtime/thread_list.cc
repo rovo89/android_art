@@ -140,7 +140,7 @@ void ThreadList::DumpForSigQuit(std::ostream& os) {
       suspend_all_historam_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
     }
   }
-  Dump(os);
+  Dump(os, Runtime::Current()->GetDumpNativeStackOnSigQuit());
   DumpUnattachedThreads(os);
 }
 
@@ -189,8 +189,11 @@ static constexpr uint32_t kDumpWaitTimeout = kIsTargetBuild ? 10000 : 20000;
 // A closure used by Thread::Dump.
 class DumpCheckpoint FINAL : public Closure {
  public:
-  explicit DumpCheckpoint(std::ostream* os)
-      : os_(os), barrier_(0), backtrace_map_(BacktraceMap::Create(getpid())) {}
+  DumpCheckpoint(std::ostream* os, bool dump_native_stack)
+      : os_(os),
+        barrier_(0),
+        backtrace_map_(dump_native_stack ? BacktraceMap::Create(getpid()) : nullptr),
+        dump_native_stack_(dump_native_stack) {}
 
   void Run(Thread* thread) OVERRIDE {
     // Note thread and self may not be equal if thread was already suspended at the point of the
@@ -199,7 +202,7 @@ class DumpCheckpoint FINAL : public Closure {
     std::ostringstream local_os;
     {
       ScopedObjectAccess soa(self);
-      thread->Dump(local_os, backtrace_map_.get());
+      thread->Dump(local_os, dump_native_stack_, backtrace_map_.get());
     }
     local_os << "\n";
     {
@@ -228,14 +231,16 @@ class DumpCheckpoint FINAL : public Closure {
   Barrier barrier_;
   // A backtrace map, so that all threads use a shared info and don't reacquire/parse separately.
   std::unique_ptr<BacktraceMap> backtrace_map_;
+  // Whether we should dump the native stack.
+  const bool dump_native_stack_;
 };
 
-void ThreadList::Dump(std::ostream& os) {
+void ThreadList::Dump(std::ostream& os, bool dump_native_stack) {
   {
     MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
     os << "DALVIK THREADS (" << list_.size() << "):\n";
   }
-  DumpCheckpoint checkpoint(&os);
+  DumpCheckpoint checkpoint(&os, dump_native_stack);
   size_t threads_running_checkpoint = RunCheckpoint(&checkpoint);
   if (threads_running_checkpoint != 0) {
     checkpoint.WaitForThreadsToRunThroughCheckpoint(threads_running_checkpoint);

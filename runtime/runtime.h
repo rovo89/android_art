@@ -603,6 +603,10 @@ class Runtime {
     safe_mode_ = mode;
   }
 
+  bool GetDumpNativeStackOnSigQuit() const {
+    return dump_native_stack_on_sig_quit_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -812,6 +816,9 @@ class Runtime {
 
   // Whether the application should run in safe mode, that is, interpreter only.
   bool safe_mode_;
+
+  // Whether threads should dump their native stack on SIGQUIT.
+  bool dump_native_stack_on_sig_quit_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

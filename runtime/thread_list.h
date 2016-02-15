@@ -49,7 +49,7 @@ class ThreadList {
   void DumpForSigQuit(std::ostream& os)
       REQUIRES(!Locks::thread_list_lock_, !Locks::mutator_lock_);
   // For thread suspend timeout dumps.
-  void Dump(std::ostream& os)
+  void Dump(std::ostream& os, bool dump_native_stack = true)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
   pid_t GetLockOwner();  // For SignalCatcher.
 
