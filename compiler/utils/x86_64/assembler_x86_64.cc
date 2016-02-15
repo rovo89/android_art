@@ -223,6 +223,19 @@ void X86_64Assembler::cmov(Condition c, CpuRegister dst, CpuRegister src, bool i
 }
 
 
+void X86_64Assembler::cmov(Condition c, CpuRegister dst, const Address& src, bool is64bit) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (is64bit) {
+    EmitRex64(dst, src);
+  } else {
+    EmitOptionalRex32(dst, src);
+  }
+  EmitUint8(0x0F);
+  EmitUint8(0x40 + c);
+  EmitOperand(dst.LowBits(), src);
+}
+
+
 void X86_64Assembler::movzxb(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalByteRegNormalizingRex32(dst, src);
