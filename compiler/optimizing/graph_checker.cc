@@ -149,6 +149,103 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
     }
     current->Accept(this);
   }
+
+  // Ensure that catch blocks are not normal successors, and normal blocks are
+  // never exceptional successors.
+  for (HBasicBlock* successor : block->GetNormalSuccessors()) {
+    if (successor->IsCatchBlock()) {
+      AddError(StringPrintf("Catch block %d is a normal successor of block %d.",
+                            successor->GetBlockId(),
+                            block->GetBlockId()));
+    }
+  }
+  for (HBasicBlock* successor : block->GetExceptionalSuccessors()) {
+    if (!successor->IsCatchBlock()) {
+      AddError(StringPrintf("Normal block %d is an exceptional successor of block %d.",
+                            successor->GetBlockId(),
+                            block->GetBlockId()));
+    }
+  }
+
+  // Ensure dominated blocks have `block` as the dominator.
+  for (HBasicBlock* dominated : block->GetDominatedBlocks()) {
+    if (dominated->GetDominator() != block) {
+      AddError(StringPrintf("Block %d should be the dominator of %d.",
+                            block->GetBlockId(),
+                            dominated->GetBlockId()));
+    }
+  }
+
+  // Ensure there is no critical edge (i.e., an edge connecting a
+  // block with multiple successors to a block with multiple
+  // predecessors). Exceptional edges are synthesized and hence
+  // not accounted for.
+  if (block->GetSuccessors().size() > 1) {
+    for (HBasicBlock* successor : block->GetNormalSuccessors()) {
+      if (successor->IsExitBlock() &&
+          block->IsSingleTryBoundary() &&
+          block->GetPredecessors().size() == 1u &&
+          block->GetSinglePredecessor()->GetLastInstruction()->IsThrow()) {
+        // Allowed critical edge Throw->TryBoundary->Exit.
+      } else if (successor->GetPredecessors().size() > 1) {
+        AddError(StringPrintf("Critical edge between blocks %d and %d.",
+                              block->GetBlockId(),
+                              successor->GetBlockId()));
+      }
+    }
+  }
+
+  // Ensure try membership information is consistent.
+  if (block->IsCatchBlock()) {
+    if (block->IsTryBlock()) {
+      const HTryBoundary& try_entry = block->GetTryCatchInformation()->GetTryEntry();
+      AddError(StringPrintf("Catch blocks should not be try blocks but catch block %d "
+                            "has try entry %s:%d.",
+                            block->GetBlockId(),
+                            try_entry.DebugName(),
+                            try_entry.GetId()));
+    }
+
+    if (block->IsLoopHeader()) {
+      AddError(StringPrintf("Catch blocks should not be loop headers but catch block %d is.",
+                            block->GetBlockId()));
+    }
+  } else {
+    for (HBasicBlock* predecessor : block->GetPredecessors()) {
+      const HTryBoundary* incoming_try_entry = predecessor->ComputeTryEntryOfSuccessors();
+      if (block->IsTryBlock()) {
+        const HTryBoundary& stored_try_entry = block->GetTryCatchInformation()->GetTryEntry();
+        if (incoming_try_entry == nullptr) {
+          AddError(StringPrintf("Block %d has try entry %s:%d but no try entry follows "
+                                "from predecessor %d.",
+                                block->GetBlockId(),
+                                stored_try_entry.DebugName(),
+                                stored_try_entry.GetId(),
+                                predecessor->GetBlockId()));
+        } else if (!incoming_try_entry->HasSameExceptionHandlersAs(stored_try_entry)) {
+          AddError(StringPrintf("Block %d has try entry %s:%d which is not consistent "
+                                "with %s:%d that follows from predecessor %d.",
+                                block->GetBlockId(),
+                                stored_try_entry.DebugName(),
+                                stored_try_entry.GetId(),
+                                incoming_try_entry->DebugName(),
+                                incoming_try_entry->GetId(),
+                                predecessor->GetBlockId()));
+        }
+      } else if (incoming_try_entry != nullptr) {
+        AddError(StringPrintf("Block %d is not a try block but try entry %s:%d follows "
+                              "from predecessor %d.",
+                              block->GetBlockId(),
+                              incoming_try_entry->DebugName(),
+                              incoming_try_entry->GetId(),
+                              predecessor->GetBlockId()));
+      }
+    }
+  }
+
+  if (block->IsLoopHeader()) {
+    HandleLoop(block);
+  }
 }
 
 void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
@@ -168,7 +265,7 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
 
   // Ensure that all exception handlers are catch blocks.
   // Note that a normal-flow successor may be a catch block before CFG
-  // simplification. We only test normal-flow successors in SsaChecker.
+  // simplification. We only test normal-flow successors in GraphChecker.
   for (HBasicBlock* handler : handlers) {
     if (!handler->IsCatchBlock()) {
       AddError(StringPrintf("Block %d with %s:%d has exceptional successor %d which "
@@ -303,6 +400,88 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
                             input->GetId()));
     }
   }
+
+  // Ensure an instruction dominates all its uses.
+  for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
+       !use_it.Done(); use_it.Advance()) {
+    HInstruction* use = use_it.Current()->GetUser();
+    if (!use->IsPhi() && !instruction->StrictlyDominates(use)) {
+      AddError(StringPrintf("Instruction %s:%d in block %d does not dominate "
+                            "use %s:%d in block %d.",
+                            instruction->DebugName(),
+                            instruction->GetId(),
+                            current_block_->GetBlockId(),
+                            use->DebugName(),
+                            use->GetId(),
+                            use->GetBlock()->GetBlockId()));
+    }
+  }
+
+  if (instruction->NeedsEnvironment() && !instruction->HasEnvironment()) {
+    AddError(StringPrintf("Instruction %s:%d in block %d requires an environment "
+                          "but does not have one.",
+                          instruction->DebugName(),
+                          instruction->GetId(),
+                          current_block_->GetBlockId()));
+  }
+
+  // Ensure an instruction having an environment is dominated by the
+  // instructions contained in the environment.
+  for (HEnvironment* environment = instruction->GetEnvironment();
+       environment != nullptr;
+       environment = environment->GetParent()) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      HInstruction* env_instruction = environment->GetInstructionAt(i);
+      if (env_instruction != nullptr
+          && !env_instruction->StrictlyDominates(instruction)) {
+        AddError(StringPrintf("Instruction %d in environment of instruction %d "
+                              "from block %d does not dominate instruction %d.",
+                              env_instruction->GetId(),
+                              instruction->GetId(),
+                              current_block_->GetBlockId(),
+                              instruction->GetId()));
+      }
+    }
+  }
+
+  // Ensure that reference type instructions have reference type info.
+  if (instruction->GetType() == Primitive::kPrimNot) {
+    ScopedObjectAccess soa(Thread::Current());
+    if (!instruction->GetReferenceTypeInfo().IsValid()) {
+      AddError(StringPrintf("Reference type instruction %s:%d does not have "
+                            "valid reference type information.",
+                            instruction->DebugName(),
+                            instruction->GetId()));
+    }
+  }
+
+  if (instruction->CanThrowIntoCatchBlock()) {
+    // Find the top-level environment. This corresponds to the environment of
+    // the catch block since we do not inline methods with try/catch.
+    HEnvironment* environment = instruction->GetEnvironment();
+    while (environment->GetParent() != nullptr) {
+      environment = environment->GetParent();
+    }
+
+    // Find all catch blocks and test that `instruction` has an environment
+    // value for each one.
+    const HTryBoundary& entry = instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
+    for (HBasicBlock* catch_block : entry.GetExceptionHandlers()) {
+      for (HInstructionIterator phi_it(catch_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+        HPhi* catch_phi = phi_it.Current()->AsPhi();
+        if (environment->GetInstructionAt(catch_phi->GetRegNumber()) == nullptr) {
+          AddError(StringPrintf("Instruction %s:%d throws into catch block %d "
+                                "with catch phi %d for vreg %d but its "
+                                "corresponding environment slot is empty.",
+                                instruction->DebugName(),
+                                instruction->GetId(),
+                                catch_block->GetBlockId(),
+                                catch_phi->GetId(),
+                                catch_phi->GetRegNumber()));
+        }
+      }
+    }
+  }
 }
 
 void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
@@ -371,108 +550,7 @@ void GraphChecker::VisitInstanceOf(HInstanceOf* instruction) {
   }
 }
 
-void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
-  super_type::VisitBasicBlock(block);
-
-  // Ensure that catch blocks are not normal successors, and normal blocks are
-  // never exceptional successors.
-  for (HBasicBlock* successor : block->GetNormalSuccessors()) {
-    if (successor->IsCatchBlock()) {
-      AddError(StringPrintf("Catch block %d is a normal successor of block %d.",
-                            successor->GetBlockId(),
-                            block->GetBlockId()));
-    }
-  }
-  for (HBasicBlock* successor : block->GetExceptionalSuccessors()) {
-    if (!successor->IsCatchBlock()) {
-      AddError(StringPrintf("Normal block %d is an exceptional successor of block %d.",
-                            successor->GetBlockId(),
-                            block->GetBlockId()));
-    }
-  }
-
-  // Ensure dominated blocks have `block` as the dominator.
-  for (HBasicBlock* dominated : block->GetDominatedBlocks()) {
-    if (dominated->GetDominator() != block) {
-      AddError(StringPrintf("Block %d should be the dominator of %d.",
-                            block->GetBlockId(),
-                            dominated->GetBlockId()));
-    }
-  }
-
-  // Ensure there is no critical edge (i.e., an edge connecting a
-  // block with multiple successors to a block with multiple
-  // predecessors). Exceptional edges are synthesized and hence
-  // not accounted for.
-  if (block->GetSuccessors().size() > 1) {
-    for (HBasicBlock* successor : block->GetNormalSuccessors()) {
-      if (successor->IsExitBlock() &&
-          block->IsSingleTryBoundary() &&
-          block->GetPredecessors().size() == 1u &&
-          block->GetSinglePredecessor()->GetLastInstruction()->IsThrow()) {
-        // Allowed critical edge Throw->TryBoundary->Exit.
-      } else if (successor->GetPredecessors().size() > 1) {
-        AddError(StringPrintf("Critical edge between blocks %d and %d.",
-                              block->GetBlockId(),
-                              successor->GetBlockId()));
-      }
-    }
-  }
-
-  // Ensure try membership information is consistent.
-  if (block->IsCatchBlock()) {
-    if (block->IsTryBlock()) {
-      const HTryBoundary& try_entry = block->GetTryCatchInformation()->GetTryEntry();
-      AddError(StringPrintf("Catch blocks should not be try blocks but catch block %d "
-                            "has try entry %s:%d.",
-                            block->GetBlockId(),
-                            try_entry.DebugName(),
-                            try_entry.GetId()));
-    }
-
-    if (block->IsLoopHeader()) {
-      AddError(StringPrintf("Catch blocks should not be loop headers but catch block %d is.",
-                            block->GetBlockId()));
-    }
-  } else {
-    for (HBasicBlock* predecessor : block->GetPredecessors()) {
-      const HTryBoundary* incoming_try_entry = predecessor->ComputeTryEntryOfSuccessors();
-      if (block->IsTryBlock()) {
-        const HTryBoundary& stored_try_entry = block->GetTryCatchInformation()->GetTryEntry();
-        if (incoming_try_entry == nullptr) {
-          AddError(StringPrintf("Block %d has try entry %s:%d but no try entry follows "
-                                "from predecessor %d.",
-                                block->GetBlockId(),
-                                stored_try_entry.DebugName(),
-                                stored_try_entry.GetId(),
-                                predecessor->GetBlockId()));
-        } else if (!incoming_try_entry->HasSameExceptionHandlersAs(stored_try_entry)) {
-          AddError(StringPrintf("Block %d has try entry %s:%d which is not consistent "
-                                "with %s:%d that follows from predecessor %d.",
-                                block->GetBlockId(),
-                                stored_try_entry.DebugName(),
-                                stored_try_entry.GetId(),
-                                incoming_try_entry->DebugName(),
-                                incoming_try_entry->GetId(),
-                                predecessor->GetBlockId()));
-        }
-      } else if (incoming_try_entry != nullptr) {
-        AddError(StringPrintf("Block %d is not a try block but try entry %s:%d follows "
-                              "from predecessor %d.",
-                              block->GetBlockId(),
-                              incoming_try_entry->DebugName(),
-                              incoming_try_entry->GetId(),
-                              predecessor->GetBlockId()));
-      }
-    }
-  }
-
-  if (block->IsLoopHeader()) {
-    CheckLoop(block);
-  }
-}
-
-void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
+void GraphChecker::HandleLoop(HBasicBlock* loop_header) {
   int id = loop_header->GetBlockId();
   HLoopInformation* loop_information = loop_header->GetLoopInformation();
 
@@ -582,92 +660,6 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   }
 }
 
-void SSAChecker::VisitInstruction(HInstruction* instruction) {
-  super_type::VisitInstruction(instruction);
-
-  // Ensure an instruction dominates all its uses.
-  for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
-       !use_it.Done(); use_it.Advance()) {
-    HInstruction* use = use_it.Current()->GetUser();
-    if (!use->IsPhi() && !instruction->StrictlyDominates(use)) {
-      AddError(StringPrintf("Instruction %s:%d in block %d does not dominate "
-                            "use %s:%d in block %d.",
-                            instruction->DebugName(),
-                            instruction->GetId(),
-                            current_block_->GetBlockId(),
-                            use->DebugName(),
-                            use->GetId(),
-                            use->GetBlock()->GetBlockId()));
-    }
-  }
-
-  if (instruction->NeedsEnvironment() && !instruction->HasEnvironment()) {
-    AddError(StringPrintf("Instruction %s:%d in block %d requires an environment "
-                          "but does not have one.",
-                          instruction->DebugName(),
-                          instruction->GetId(),
-                          current_block_->GetBlockId()));
-  }
-
-  // Ensure an instruction having an environment is dominated by the
-  // instructions contained in the environment.
-  for (HEnvironment* environment = instruction->GetEnvironment();
-       environment != nullptr;
-       environment = environment->GetParent()) {
-    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
-      HInstruction* env_instruction = environment->GetInstructionAt(i);
-      if (env_instruction != nullptr
-          && !env_instruction->StrictlyDominates(instruction)) {
-        AddError(StringPrintf("Instruction %d in environment of instruction %d "
-                              "from block %d does not dominate instruction %d.",
-                              env_instruction->GetId(),
-                              instruction->GetId(),
-                              current_block_->GetBlockId(),
-                              instruction->GetId()));
-      }
-    }
-  }
-
-  // Ensure that reference type instructions have reference type info.
-  if (instruction->GetType() == Primitive::kPrimNot) {
-    ScopedObjectAccess soa(Thread::Current());
-    if (!instruction->GetReferenceTypeInfo().IsValid()) {
-      AddError(StringPrintf("Reference type instruction %s:%d does not have "
-                            "valid reference type information.",
-                            instruction->DebugName(),
-                            instruction->GetId()));
-    }
-  }
-
-  if (instruction->CanThrowIntoCatchBlock()) {
-    // Find the top-level environment. This corresponds to the environment of
-    // the catch block since we do not inline methods with try/catch.
-    HEnvironment* environment = instruction->GetEnvironment();
-    while (environment->GetParent() != nullptr) {
-      environment = environment->GetParent();
-    }
-
-    // Find all catch blocks and test that `instruction` has an environment
-    // value for each one.
-    const HTryBoundary& entry = instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
-    for (HBasicBlock* catch_block : entry.GetExceptionHandlers()) {
-      for (HInstructionIterator phi_it(catch_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-        HPhi* catch_phi = phi_it.Current()->AsPhi();
-        if (environment->GetInstructionAt(catch_phi->GetRegNumber()) == nullptr) {
-          AddError(StringPrintf("Instruction %s:%d throws into catch block %d "
-                                "with catch phi %d for vreg %d but its "
-                                "corresponding environment slot is empty.",
-                                instruction->DebugName(),
-                                instruction->GetId(),
-                                catch_block->GetBlockId(),
-                                catch_phi->GetId(),
-                                catch_phi->GetRegNumber()));
-        }
-      }
-    }
-  }
-}
-
 static Primitive::Type PrimitiveKind(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -710,7 +702,7 @@ static bool IsConstantEquivalent(HInstruction* insn1, HInstruction* insn2, BitVe
   }
 }
 
-void SSAChecker::VisitPhi(HPhi* phi) {
+void GraphChecker::VisitPhi(HPhi* phi) {
   VisitInstruction(phi);
 
   // Ensure the first input of a phi is not itself.
@@ -846,7 +838,7 @@ void SSAChecker::VisitPhi(HPhi* phi) {
   }
 }
 
-void SSAChecker::HandleBooleanInput(HInstruction* instruction, size_t input_index) {
+void GraphChecker::HandleBooleanInput(HInstruction* instruction, size_t input_index) {
   HInstruction* input = instruction->InputAt(input_index);
   if (input->IsIntConstant()) {
     int32_t value = input->AsIntConstant()->GetValue();
@@ -876,7 +868,7 @@ void SSAChecker::HandleBooleanInput(HInstruction* instruction, size_t input_inde
   }
 }
 
-void SSAChecker::VisitPackedSwitch(HPackedSwitch* instruction) {
+void GraphChecker::VisitPackedSwitch(HPackedSwitch* instruction) {
   VisitInstruction(instruction);
   // Check that the number of block successors matches the switch count plus
   // one for the default block.
@@ -892,22 +884,22 @@ void SSAChecker::VisitPackedSwitch(HPackedSwitch* instruction) {
   }
 }
 
-void SSAChecker::VisitIf(HIf* instruction) {
+void GraphChecker::VisitIf(HIf* instruction) {
   VisitInstruction(instruction);
   HandleBooleanInput(instruction, 0);
 }
 
-void SSAChecker::VisitSelect(HSelect* instruction) {
+void GraphChecker::VisitSelect(HSelect* instruction) {
   VisitInstruction(instruction);
   HandleBooleanInput(instruction, 2);
 }
 
-void SSAChecker::VisitBooleanNot(HBooleanNot* instruction) {
+void GraphChecker::VisitBooleanNot(HBooleanNot* instruction) {
   VisitInstruction(instruction);
   HandleBooleanInput(instruction, 0);
 }
 
-void SSAChecker::VisitCondition(HCondition* op) {
+void GraphChecker::VisitCondition(HCondition* op) {
   VisitInstruction(op);
   if (op->GetType() != Primitive::kPrimBoolean) {
     AddError(StringPrintf(
@@ -937,7 +929,7 @@ void SSAChecker::VisitCondition(HCondition* op) {
   }
 }
 
-void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
+void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
   VisitInstruction(op);
   if (op->IsUShr() || op->IsShr() || op->IsShl() || op->IsRor()) {
     if (PrimitiveKind(op->InputAt(1)->GetType()) != Primitive::kPrimInt) {
@@ -979,7 +971,7 @@ void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
   }
 }
 
-void SSAChecker::VisitConstant(HConstant* instruction) {
+void GraphChecker::VisitConstant(HConstant* instruction) {
   HBasicBlock* block = instruction->GetBlock();
   if (!block->IsEntryBlock()) {
     AddError(StringPrintf(
@@ -990,7 +982,7 @@ void SSAChecker::VisitConstant(HConstant* instruction) {
   }
 }
 
-void SSAChecker::VisitBoundType(HBoundType* instruction) {
+void GraphChecker::VisitBoundType(HBoundType* instruction) {
   VisitInstruction(instruction);
 
   ScopedObjectAccess soa(Thread::Current());

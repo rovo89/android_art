@@ -19,10 +19,10 @@
 # Test phi with fixed-type ArrayGet as an input and a matching second input.
 # The phi should be typed accordingly.
 
-## CHECK-START: void ArrayGet.matchingFixedType(float[], float) ssa_builder (after)
+## CHECK-START: void ArrayGet.matchingFixedType(float[], float) builder (after)
 ## CHECK-NOT: Phi
 
-## CHECK-START-DEBUGGABLE: void ArrayGet.matchingFixedType(float[], float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void ArrayGet.matchingFixedType(float[], float) builder (after)
 ## CHECK-DAG:  <<Arg1:f\d+>> ParameterValue
 ## CHECK-DAG:  <<Aget:f\d+>> ArrayGet
 ## CHECK-DAG:  {{f\d+}}      Phi [<<Aget>>,<<Arg1>>] reg:0
@@ -49,10 +49,10 @@
 # Test phi with fixed-type ArrayGet as an input and a conflicting second input.
 # The phi should be eliminated due to the conflict.
 
-## CHECK-START: void ArrayGet.conflictingFixedType(float[], int) ssa_builder (after)
+## CHECK-START: void ArrayGet.conflictingFixedType(float[], int) builder (after)
 ## CHECK-NOT: Phi
 
-## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFixedType(float[], int) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFixedType(float[], int) builder (after)
 ## CHECK-NOT: Phi
 .method public static conflictingFixedType([FI)V
   .registers 8
@@ -76,13 +76,13 @@
 # Same test as the one above, only this time tests that type of ArrayGet is not
 # changed.
 
-## CHECK-START: void ArrayGet.conflictingFixedType2(int[], float) ssa_builder (after)
+## CHECK-START: void ArrayGet.conflictingFixedType2(int[], float) builder (after)
 ## CHECK-NOT: Phi
 
-## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFixedType2(int[], float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFixedType2(int[], float) builder (after)
 ## CHECK-NOT: Phi
 
-## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFixedType2(int[], float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFixedType2(int[], float) builder (after)
 ## CHECK:     {{i\d+}} ArrayGet
 .method public static conflictingFixedType2([IF)V
   .registers 8
@@ -107,10 +107,10 @@
 # Test phi with free-type ArrayGet as an input and a matching second input.
 # The phi should be typed accordingly.
 
-## CHECK-START: void ArrayGet.matchingFreeType(float[], float) ssa_builder (after)
+## CHECK-START: void ArrayGet.matchingFreeType(float[], float) builder (after)
 ## CHECK-NOT: Phi
 
-## CHECK-START-DEBUGGABLE: void ArrayGet.matchingFreeType(float[], float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void ArrayGet.matchingFreeType(float[], float) builder (after)
 ## CHECK-DAG:  <<Arg1:f\d+>> ParameterValue
 ## CHECK-DAG:  <<Aget:f\d+>> ArrayGet
 ## CHECK-DAG:                ArraySet [{{l\d+}},{{i\d+}},<<Aget>>]
@@ -139,10 +139,10 @@
 # The phi will be kept and typed according to the second input despite the
 # conflict.
 
-## CHECK-START: void ArrayGet.conflictingFreeType(int[], float) ssa_builder (after)
+## CHECK-START: void ArrayGet.conflictingFreeType(int[], float) builder (after)
 ## CHECK-NOT: Phi
 
-## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFreeType(int[], float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void ArrayGet.conflictingFreeType(int[], float) builder (after)
 ## CHECK-NOT: Phi
 
 .method public static conflictingFreeType([IF)V
@@ -169,7 +169,7 @@
 # case uses ArrayGet indirectly through two phis. It also creates an unused
 # conflicting phi which should not be preserved.
 
-## CHECK-START: void ArrayGet.conflictingPhiUses(int[], float, boolean, boolean, boolean) ssa_builder (after)
+## CHECK-START: void ArrayGet.conflictingPhiUses(int[], float, boolean, boolean, boolean) builder (after)
 ## CHECK:         InvokeStaticOrDirect env:[[{{i\d+}},{{i\d+}},_,{{i\d+}},{{.*}}
 
 .method public static conflictingPhiUses([IFZZZ)V
@@ -209,10 +209,10 @@
 # another. The situation needs to be resolved so that only one instruction
 # remains.
 
-## CHECK-START: void ArrayGet.typedVsUntypedPhiUse(float[], float, boolean, boolean) ssa_builder (after)
+## CHECK-START: void ArrayGet.typedVsUntypedPhiUse(float[], float, boolean, boolean) builder (after)
 ## CHECK:         {{f\d+}} ArrayGet
 
-## CHECK-START: void ArrayGet.typedVsUntypedPhiUse(float[], float, boolean, boolean) ssa_builder (after)
+## CHECK-START: void ArrayGet.typedVsUntypedPhiUse(float[], float, boolean, boolean) builder (after)
 ## CHECK-NOT:     {{i\d+}} ArrayGet
 
 .method public static typedVsUntypedPhiUse([FFZZ)V

@@ -39,14 +39,7 @@ template <size_t number_of_blocks>
 static void TestCode(const uint16_t* data, const uint32_t (&expected_order)[number_of_blocks]) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateGraph(&allocator);
-  HGraphBuilder builder(graph);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  bool graph_built = builder.BuildGraph(*item);
-  ASSERT_TRUE(graph_built);
-
-  TransformToSsa(graph);
-
+  HGraph* graph = CreateCFG(&allocator, data);
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());

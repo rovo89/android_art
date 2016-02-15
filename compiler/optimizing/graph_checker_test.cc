@@ -52,28 +52,16 @@ static void TestCode(const uint16_t* data) {
   ASSERT_TRUE(graph_checker.IsValid());
 }
 
-static void TestCodeSSA(const uint16_t* data) {
-  ArenaPool pool;
-  ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateCFG(&allocator, data);
-  ASSERT_NE(graph, nullptr);
+class GraphCheckerTest : public CommonCompilerTest {};
 
-  TransformToSsa(graph);
-
-  SSAChecker ssa_checker(graph);
-  ssa_checker.Run();
-  ASSERT_TRUE(ssa_checker.IsValid());
-}
-
-
-TEST(GraphChecker, ReturnVoid) {
+TEST_F(GraphCheckerTest, ReturnVoid) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
       Instruction::RETURN_VOID);
 
   TestCode(data);
 }
 
-TEST(GraphChecker, CFG1) {
+TEST_F(GraphCheckerTest, CFG1) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
       Instruction::GOTO | 0x100,
       Instruction::RETURN_VOID);
@@ -81,7 +69,7 @@ TEST(GraphChecker, CFG1) {
   TestCode(data);
 }
 
-TEST(GraphChecker, CFG2) {
+TEST_F(GraphCheckerTest, CFG2) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
@@ -91,7 +79,7 @@ TEST(GraphChecker, CFG2) {
   TestCode(data);
 }
 
-TEST(GraphChecker, CFG3) {
+TEST_F(GraphCheckerTest, CFG3) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
@@ -103,7 +91,7 @@ TEST(GraphChecker, CFG3) {
 
 // Test case with an invalid graph containing inconsistent
 // predecessor/successor arcs in CFG.
-TEST(GraphChecker, InconsistentPredecessorsAndSuccessors) {
+TEST_F(GraphCheckerTest, InconsistentPredecessorsAndSuccessors) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
@@ -121,7 +109,7 @@ TEST(GraphChecker, InconsistentPredecessorsAndSuccessors) {
 
 // Test case with an invalid graph containing a non-branch last
 // instruction in a block.
-TEST(GraphChecker, BlockEndingWithNonBranchInstruction) {
+TEST_F(GraphCheckerTest, BlockEndingWithNonBranchInstruction) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
@@ -141,9 +129,7 @@ TEST(GraphChecker, BlockEndingWithNonBranchInstruction) {
   ASSERT_FALSE(graph_checker.IsValid());
 }
 
-class SSACheckerTest : public CommonCompilerTest {};
-
-TEST_F(SSACheckerTest, SSAPhi) {
+TEST_F(GraphCheckerTest, SSAPhi) {
   // This code creates one Phi function during the conversion to SSA form.
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -151,7 +137,7 @@ TEST_F(SSACheckerTest, SSAPhi) {
     Instruction::CONST_4 | 4 << 12 | 0,
     Instruction::RETURN | 0 << 8);
 
-  TestCodeSSA(data);
+  TestCode(data);
 }
 
 }  // namespace art

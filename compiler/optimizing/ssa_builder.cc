@@ -451,6 +451,8 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
 }
 
 GraphAnalysisResult SsaBuilder::BuildSsa() {
+  DCHECK(!GetGraph()->IsInSsaForm());
+
   // 1) Visit in reverse post order. We need to have all predecessors of a block
   // visited (with the exception of loops) in order to create the right environment
   // for that block. For loops, we create phis whose inputs will be set in 2).
@@ -533,6 +535,7 @@ GraphAnalysisResult SsaBuilder::BuildSsa() {
     }
   }
 
+  GetGraph()->SetInSsaForm();
   return kAnalysisSuccess;
 }
 

@@ -17,7 +17,7 @@
 
 public class Main {
 
-  /// CHECK-START: java.lang.Object Main.boundTypeForIf(java.lang.Object) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.boundTypeForIf(java.lang.Object) builder (after)
   /// CHECK:     BoundType
   public static Object boundTypeForIf(Object a) {
     if (a != null) {
@@ -27,7 +27,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: java.lang.Object Main.boundTypeForInstanceOf(java.lang.Object) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.boundTypeForInstanceOf(java.lang.Object) builder (after)
   /// CHECK:     BoundType
   public static Object boundTypeForInstanceOf(Object a) {
     if (a instanceof Main) {
@@ -37,7 +37,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: java.lang.Object Main.noBoundTypeForIf(java.lang.Object) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.noBoundTypeForIf(java.lang.Object) builder (after)
   /// CHECK-NOT: BoundType
   public static Object noBoundTypeForIf(Object a) {
     if (a == null) {
@@ -47,7 +47,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: java.lang.Object Main.noBoundTypeForInstanceOf(java.lang.Object) ssa_builder (after)
+  /// CHECK-START: java.lang.Object Main.noBoundTypeForInstanceOf(java.lang.Object) builder (after)
   /// CHECK-NOT: BoundType
   public static Object noBoundTypeForInstanceOf(Object a) {
     if (a instanceof Main) {

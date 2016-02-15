@@ -24,15 +24,12 @@
 
 namespace art {
 
+class OptimizerTest : public CommonCompilerTest {};
+
 static void TestCode(const uint16_t* data, const uint32_t* blocks, size_t blocks_length) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateGraph(&allocator);
-  HGraphBuilder builder(graph);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  bool graph_built = builder.BuildGraph(*item);
-  ASSERT_TRUE(graph_built);
-  graph->BuildDominatorTree();
+  HGraph* graph = CreateCFG(&allocator, data);
   ASSERT_EQ(graph->GetBlocks().size(), blocks_length);
   for (size_t i = 0, e = blocks_length; i < e; ++i) {
     if (blocks[i] == kInvalidBlockId) {
@@ -50,7 +47,7 @@ static void TestCode(const uint16_t* data, const uint32_t* blocks, size_t blocks
   }
 }
 
-TEST(OptimizerTest, ReturnVoid) {
+TEST_F(OptimizerTest, ReturnVoid) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
       Instruction::RETURN_VOID);  // Block number 1
 
@@ -63,7 +60,7 @@ TEST(OptimizerTest, ReturnVoid) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG1) {
+TEST_F(OptimizerTest, CFG1) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,  // Block number 1
     Instruction::RETURN_VOID);  // Block number 2
@@ -78,7 +75,7 @@ TEST(OptimizerTest, CFG1) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG2) {
+TEST_F(OptimizerTest, CFG2) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,  // Block number 1
     Instruction::GOTO | 0x100,  // Block number 2
@@ -95,7 +92,7 @@ TEST(OptimizerTest, CFG2) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG3) {
+TEST_F(OptimizerTest, CFG3) {
   const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x200,    // Block number 1
     Instruction::RETURN_VOID,     // Block number 2
@@ -126,7 +123,7 @@ TEST(OptimizerTest, CFG3) {
   TestCode(data3, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG4) {
+TEST_F(OptimizerTest, CFG4) {
   const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::NOP,
     Instruction::GOTO | 0xFF00);
@@ -146,7 +143,7 @@ TEST(OptimizerTest, CFG4) {
   TestCode(data2, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG5) {
+TEST_F(OptimizerTest, CFG5) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::RETURN_VOID,     // Block number 1
     Instruction::GOTO | 0x100,    // Dead block
@@ -163,7 +160,7 @@ TEST(OptimizerTest, CFG5) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG6) {
+TEST_F(OptimizerTest, CFG6) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
@@ -182,7 +179,7 @@ TEST(OptimizerTest, CFG6) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG7) {
+TEST_F(OptimizerTest, CFG7) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,        // Block number 1
@@ -202,7 +199,7 @@ TEST(OptimizerTest, CFG7) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG8) {
+TEST_F(OptimizerTest, CFG8) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,        // Block number 1
@@ -223,7 +220,7 @@ TEST(OptimizerTest, CFG8) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG9) {
+TEST_F(OptimizerTest, CFG9) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,        // Block number 1
@@ -244,7 +241,7 @@ TEST(OptimizerTest, CFG9) {
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
 }
 
-TEST(OptimizerTest, CFG10) {
+TEST_F(OptimizerTest, CFG10) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 6,  // Block number 1

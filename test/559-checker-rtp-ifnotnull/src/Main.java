@@ -17,7 +17,7 @@
 
 public class Main {
 
-  /// CHECK-START: void Main.boundTypeForIfNotNull() ssa_builder (after)
+  /// CHECK-START: void Main.boundTypeForIfNotNull() builder (after)
   /// CHECK-DAG:     <<Method:(i|j)\d+>>  CurrentMethod
   /// CHECK-DAG:     <<Null:l\d+>>        NullConstant
   /// CHECK-DAG:     <<Cst5:i\d+>>        IntConstant 5

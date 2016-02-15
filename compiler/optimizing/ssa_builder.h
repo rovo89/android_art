@@ -79,8 +79,6 @@ class SsaBuilder : public HGraphVisitor {
   void VisitArraySet(HArraySet* aset) OVERRIDE;
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
 
-  static constexpr const char* kSsaBuilderPassName = "ssa_builder";
-
  private:
   void SetLoopHeaderPhiInputs();
   void FixEnvironmentPhis();

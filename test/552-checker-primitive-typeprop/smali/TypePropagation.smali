@@ -15,7 +15,7 @@
 .class public LTypePropagation;
 .super Ljava/lang/Object;
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeDeadPhi(boolean, boolean, int, float, float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeDeadPhi(boolean, boolean, int, float, float) builder (after)
 ## CHECK-NOT: Phi
 .method public static mergeDeadPhi(ZZIFF)V
   .registers 8
@@ -34,7 +34,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeSameType(boolean, int, int) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeSameType(boolean, int, int) builder (after)
 ## CHECK:     {{i\d+}} Phi
 ## CHECK-NOT:          Phi
 .method public static mergeSameType(ZII)V
@@ -47,7 +47,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeVoidInput(boolean, boolean, int, int) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeVoidInput(boolean, boolean, int, int) builder (after)
 ## CHECK:     {{i\d+}} Phi
 ## CHECK:     {{i\d+}} Phi
 ## CHECK-NOT:          Phi
@@ -64,7 +64,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeDifferentSize(boolean, int, long) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeDifferentSize(boolean, int, long) builder (after)
 ## CHECK-NOT: Phi
 .method public static mergeDifferentSize(ZIJ)V
   .registers 8
@@ -76,7 +76,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeRefFloat(boolean, float, java.lang.Object) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeRefFloat(boolean, float, java.lang.Object) builder (after)
 ## CHECK-NOT: Phi
 .method public static mergeRefFloat(ZFLjava/lang/Object;)V
   .registers 8
@@ -88,7 +88,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeIntFloat_Success(boolean, float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeIntFloat_Success(boolean, float) builder (after)
 ## CHECK:     {{f\d+}} Phi
 ## CHECK-NOT:          Phi
 .method public static mergeIntFloat_Success(ZF)V
@@ -101,7 +101,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.mergeIntFloat_Fail(boolean, int, float) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.mergeIntFloat_Fail(boolean, int, float) builder (after)
 ## CHECK-NOT: Phi
 .method public static mergeIntFloat_Fail(ZIF)V
   .registers 8
@@ -113,7 +113,7 @@
   return-void
 .end method
 
-## CHECK-START-DEBUGGABLE: void TypePropagation.updateAllUsersOnConflict(boolean, boolean, int, float, int) ssa_builder (after)
+## CHECK-START-DEBUGGABLE: void TypePropagation.updateAllUsersOnConflict(boolean, boolean, int, float, int) builder (after)
 ## CHECK-NOT: Phi
 .method public static updateAllUsersOnConflict(ZZIFI)V
   .registers 8

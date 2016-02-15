@@ -22,7 +22,7 @@
 # otherwise running the code with an array short enough to throw will crash at
 # runtime because v0 is undefined.
 
-## CHECK-START: int SsaBuilder.environmentPhi(boolean, int[]) ssa_builder (after)
+## CHECK-START: int SsaBuilder.environmentPhi(boolean, int[]) builder (after)
 ## CHECK-DAG:     <<Cst0:f\d+>>  FloatConstant 0
 ## CHECK-DAG:     <<Cst2:f\d+>>  FloatConstant 2
 ## CHECK-DAG:     <<Phi:f\d+>>   Phi [<<Cst0>>,<<Cst2>>]

@@ -25,7 +25,7 @@
 # Test storing into the high vreg of a wide pair. This scenario has runtime
 # behaviour implications so we run it from Main.main.
 
-## CHECK-START: int TestCase.invalidateLow(long) ssa_builder (after)
+## CHECK-START: int TestCase.invalidateLow(long) builder (after)
 ## CHECK-DAG: <<Cst0:i\d+>> IntConstant 0
 ## CHECK-DAG: <<Arg:j\d+>>  ParameterValue
 ## CHECK-DAG: <<Cast:i\d+>> TypeConversion [<<Arg>>]
@@ -53,7 +53,7 @@
 # Test that storing a wide invalidates the value in the high vreg. This
 # cannot be detected from runtime so we only test the environment with Checker.
 
-## CHECK-START: void TestCase.invalidateHigh1(long) ssa_builder (after)
+## CHECK-START: void TestCase.invalidateHigh1(long) builder (after)
 ## CHECK-DAG: <<Arg:j\d+>>  ParameterValue
 ## CHECK-DAG: InvokeStaticOrDirect method_name:java.lang.System.nanoTime env:[[<<Arg>>,_,<<Arg>>,_]]
 
@@ -67,7 +67,7 @@
 
 .end method
 
-## CHECK-START: void TestCase.invalidateHigh2(long) ssa_builder (after)
+## CHECK-START: void TestCase.invalidateHigh2(long) builder (after)
 ## CHECK-DAG: <<Arg:j\d+>>  ParameterValue
 ## CHECK-DAG: InvokeStaticOrDirect method_name:java.lang.System.nanoTime env:[[<<Arg>>,_,_,<<Arg>>,_]]
 
