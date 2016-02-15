@@ -20,13 +20,13 @@ if [ ! -d libcore ]; then
 fi
 
 # Jar containing jsr166 tests.
-jsr166_test_jar=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/jsr166-tests_intermediates/javalib.jar
+jsr166_test_jack=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/jsr166-tests_intermediates/classes.jack
 
 # Jar containing all the other tests.
-test_jar=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/core-tests_intermediates/javalib.jar
+test_jack=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/core-tests_intermediates/classes.jack
 
 
-if [ ! -f $test_jar ]; then
+if [ ! -f $test_jack ]; then
   echo "Before running, you must build core-tests, jsr166-tests and vogar: \
         make core-tests jsr166-tests vogar vogar.jar"
   exit 1
@@ -108,7 +108,11 @@ done
 # the default timeout.
 vogar_args="$vogar_args --timeout 480"
 
+# Use Jack with "1.8" configuration.
+export JACK_VERSION=`basename prebuilts/sdk/tools/jacks/*ALPHA* | sed 's/^jack-//' | sed 's/.jar$//'`
+vogar_args="$vogar_args --toolchain jack --language JN"
+
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $vogar_args --vm-arg -Xusejit:true $expectations --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
+vogar $vogar_args --vm-arg -Xusejit:true $expectations --classpath $jsr166_test_jack --classpath $test_jack ${working_packages[@]}
