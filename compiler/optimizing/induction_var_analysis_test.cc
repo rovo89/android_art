@@ -542,7 +542,7 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
   HInstruction* store = InsertArrayStore(inc, 9);
 
   for (int d = 0; d < 10; d++) {
-    k[d]->AddInput((d != 0) ? k[d - 1] : constant0_ );
+    k[d]->AddInput((d != 0) ? k[d - 1] : constant0_);
     k[d]->AddInput((d != 9) ? k[d + 1] : inc);
   }
   PerformInductionVarAnalysis();
