@@ -46,6 +46,12 @@ public class Main {
     }
   }
 
+  public static void assertStringEquals(String expected, String result) {
+    if (expected == null ? result != null : !expected.equals(result)) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   /**
    * Tiny programs exercising optimizations of arithmetic identities.
    */
@@ -1433,6 +1439,278 @@ public class Main {
     return ((d > 42.0) != false) ? 13 : 54;
   }
 
+  /// CHECK-START: int Main.intToDoubleToInt(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Double>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  /// CHECK-START: int Main.intToDoubleToInt(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:                        Return [<<Arg>>]
+
+  /// CHECK-START: int Main.intToDoubleToInt(int) instruction_simplifier (after)
+  /// CHECK-NOT:                        TypeConversion
+
+  public static int intToDoubleToInt(int value) {
+    // Lossless conversion followed by a conversion back.
+    return (int) (double) value;
+  }
+
+  /// CHECK-START: java.lang.String Main.intToDoubleToIntPrint(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      {{i\d+}}          TypeConversion [<<Double>>]
+
+  /// CHECK-START: java.lang.String Main.intToDoubleToIntPrint(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      {{d\d+}}          TypeConversion [<<Arg>>]
+
+  /// CHECK-START: java.lang.String Main.intToDoubleToIntPrint(int) instruction_simplifier (after)
+  /// CHECK-DAG:                        TypeConversion
+  /// CHECK-NOT:                        TypeConversion
+
+  public static String intToDoubleToIntPrint(int value) {
+    // Lossless conversion followed by a conversion back
+    // with another use of the intermediate result.
+    double d = (double) value;
+    int i = (int) d;
+    return "d=" + d + ", i=" + i;
+  }
+
+  /// CHECK-START: int Main.byteToDoubleToInt(byte) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:b\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Double>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  /// CHECK-START: int Main.byteToDoubleToInt(byte) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:b\d+>>      ParameterValue
+  /// CHECK-DAG:                        Return [<<Arg>>]
+
+  /// CHECK-START: int Main.byteToDoubleToInt(byte) instruction_simplifier (after)
+  /// CHECK-NOT:                        TypeConversion
+
+  public static int byteToDoubleToInt(byte value) {
+    // Lossless conversion followed by another conversion, use implicit conversion.
+    return (int) (double) value;
+  }
+
+  /// CHECK-START: int Main.floatToDoubleToInt(float) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Double>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  /// CHECK-START: int Main.floatToDoubleToInt(float) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  /// CHECK-START: int Main.floatToDoubleToInt(float) instruction_simplifier (after)
+  /// CHECK-DAG:                        TypeConversion
+  /// CHECK-NOT:                        TypeConversion
+
+  public static int floatToDoubleToInt(float value) {
+    // Lossless conversion followed by another conversion.
+    return (int) (double) value;
+  }
+
+  /// CHECK-START: java.lang.String Main.floatToDoubleToIntPrint(float) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      {{i\d+}}          TypeConversion [<<Double>>]
+
+  /// CHECK-START: java.lang.String Main.floatToDoubleToIntPrint(float) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      {{i\d+}}          TypeConversion [<<Double>>]
+
+  public static String floatToDoubleToIntPrint(float value) {
+    // Lossless conversion followed by another conversion with
+    // an extra use of the intermediate result.
+    double d = (double) value;
+    int i = (int) d;
+    return "d=" + d + ", i=" + i;
+  }
+
+  /// CHECK-START: short Main.byteToDoubleToShort(byte) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:b\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Double>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  /// CHECK-START: short Main.byteToDoubleToShort(byte) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:b\d+>>      ParameterValue
+  /// CHECK-DAG:                        Return [<<Arg>>]
+
+  /// CHECK-START: short Main.byteToDoubleToShort(byte) instruction_simplifier (after)
+  /// CHECK-NOT:                        TypeConversion
+
+  public static short byteToDoubleToShort(byte value) {
+    // Originally, this is byte->double->int->short. The first conversion is lossless,
+    // so we merge this with the second one to byte->int which we omit as it's an implicit
+    // conversion. Then we eliminate the resulting byte->short as an implicit conversion.
+    return (short) (double) value;
+  }
+
+  /// CHECK-START: short Main.charToDoubleToShort(char) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:c\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Double>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  /// CHECK-START: short Main.charToDoubleToShort(char) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:c\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<Arg>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  /// CHECK-START: short Main.charToDoubleToShort(char) instruction_simplifier (after)
+  /// CHECK-DAG:                        TypeConversion
+  /// CHECK-NOT:                        TypeConversion
+
+  public static short charToDoubleToShort(char value) {
+    // Originally, this is char->double->int->short. The first conversion is lossless,
+    // so we merge this with the second one to char->int which we omit as it's an implicit
+    // conversion. Then we are left with the resulting char->short conversion.
+    return (short) (double) value;
+  }
+
+  /// CHECK-START: short Main.floatToIntToShort(float) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  /// CHECK-START: short Main.floatToIntToShort(float) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  public static short floatToIntToShort(float value) {
+    // Lossy FP to integral conversion followed by another conversion: no simplification.
+    return (short) value;
+  }
+
+  /// CHECK-START: int Main.intToFloatToInt(int) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Float:f\d+>>    TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Float>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  /// CHECK-START: int Main.intToFloatToInt(int) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Float:f\d+>>    TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Float>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  public static int intToFloatToInt(int value) {
+    // Lossy integral to FP conversion followed another conversion: no simplification.
+    return (int) (float) value;
+  }
+
+  /// CHECK-START: double Main.longToIntToDouble(long) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Double>>]
+
+  /// CHECK-START: double Main.longToIntToDouble(long) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Double>>]
+
+  public static double longToIntToDouble(long value) {
+    // Lossy long-to-int conversion followed an integral to FP conversion: no simplification.
+    return (double) (int) value;
+  }
+
+  /// CHECK-START: long Main.longToIntToLong(long) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Long:j\d+>>     TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Long>>]
+
+  /// CHECK-START: long Main.longToIntToLong(long) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Long:j\d+>>     TypeConversion [<<Int>>]
+  /// CHECK-DAG:                        Return [<<Long>>]
+
+  public static long longToIntToLong(long value) {
+    // Lossy long-to-int conversion followed an int-to-long conversion: no simplification.
+    return (long) (int) value;
+  }
+
+  /// CHECK-START: short Main.shortToCharToShort(short) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Char:c\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Short:s\d+>>    TypeConversion [<<Char>>]
+  /// CHECK-DAG:                        Return [<<Short>>]
+
+  /// CHECK-START: short Main.shortToCharToShort(short) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:                        Return [<<Arg>>]
+
+  public static short shortToCharToShort(short value) {
+    // Integral conversion followed by non-widening integral conversion to original type.
+    return (short) (char) value;
+  }
+
+  /// CHECK-START: int Main.shortToLongToInt(short) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Long:j\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Int:i\d+>>      TypeConversion [<<Long>>]
+  /// CHECK-DAG:                        Return [<<Int>>]
+
+  /// CHECK-START: int Main.shortToLongToInt(short) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:                        Return [<<Arg>>]
+
+  public static int shortToLongToInt(short value) {
+    // Integral conversion followed by non-widening integral conversion, use implicit conversion.
+    return (int) (long) value;
+  }
+
+  /// CHECK-START: byte Main.shortToCharToByte(short) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Char:c\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      <<Byte:b\d+>>     TypeConversion [<<Char>>]
+  /// CHECK-DAG:                        Return [<<Byte>>]
+
+  /// CHECK-START: byte Main.shortToCharToByte(short) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Byte:b\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:                        Return [<<Byte>>]
+
+  public static byte shortToCharToByte(short value) {
+    // Integral conversion followed by non-widening integral conversion losing bits
+    // from the original type. Simplify to use only one conversion.
+    return (byte) (char) value;
+  }
+
+  /// CHECK-START: java.lang.String Main.shortToCharToBytePrint(short) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Char:c\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      {{b\d+}}          TypeConversion [<<Char>>]
+
+  /// CHECK-START: java.lang.String Main.shortToCharToBytePrint(short) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Char:c\d+>>     TypeConversion [<<Arg>>]
+  /// CHECK-DAG:      {{b\d+}}          TypeConversion [<<Char>>]
+
+  public static String shortToCharToBytePrint(short value) {
+    // Integral conversion followed by non-widening integral conversion losing bits
+    // from the original type with an extra use of the intermediate result.
+    char c = (char) value;
+    byte b = (byte) c;
+    return "c=" + ((int) c) + ", b=" + ((int) b);  // implicit conversions.
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -1518,6 +1796,46 @@ public class Main {
     assertIntEquals(floatConditionNotEqualOne(43.0f), 13);
     assertIntEquals(doubleConditionEqualZero(6.0), 54);
     assertIntEquals(doubleConditionEqualZero(43.0), 13);
+
+    assertIntEquals(intToDoubleToInt(1234567), 1234567);
+    assertIntEquals(intToDoubleToInt(Integer.MIN_VALUE), Integer.MIN_VALUE);
+    assertIntEquals(intToDoubleToInt(Integer.MAX_VALUE), Integer.MAX_VALUE);
+    assertStringEquals(intToDoubleToIntPrint(7654321), "d=7654321.0, i=7654321");
+    assertIntEquals(byteToDoubleToInt((byte) 12), 12);
+    assertIntEquals(byteToDoubleToInt(Byte.MIN_VALUE), Byte.MIN_VALUE);
+    assertIntEquals(byteToDoubleToInt(Byte.MAX_VALUE), Byte.MAX_VALUE);
+    assertIntEquals(floatToDoubleToInt(11.3f), 11);
+    assertStringEquals(floatToDoubleToIntPrint(12.25f), "d=12.25, i=12");
+    assertIntEquals(byteToDoubleToShort((byte) 123), 123);
+    assertIntEquals(byteToDoubleToShort(Byte.MIN_VALUE), Byte.MIN_VALUE);
+    assertIntEquals(byteToDoubleToShort(Byte.MAX_VALUE), Byte.MAX_VALUE);
+    assertIntEquals(charToDoubleToShort((char) 1234), 1234);
+    assertIntEquals(charToDoubleToShort(Character.MIN_VALUE), Character.MIN_VALUE);
+    assertIntEquals(charToDoubleToShort(Character.MAX_VALUE), /* sign-extended */ -1);
+    assertIntEquals(floatToIntToShort(12345.75f), 12345);
+    assertIntEquals(floatToIntToShort((float)(Short.MIN_VALUE - 1)), Short.MAX_VALUE);
+    assertIntEquals(floatToIntToShort((float)(Short.MAX_VALUE + 1)), Short.MIN_VALUE);
+    assertIntEquals(intToFloatToInt(-54321), -54321);
+    assertDoubleEquals(longToIntToDouble(0x1234567812345678L), (double) 0x12345678);
+    assertDoubleEquals(longToIntToDouble(Long.MIN_VALUE), 0.0);
+    assertDoubleEquals(longToIntToDouble(Long.MAX_VALUE), -1.0);
+    assertLongEquals(longToIntToLong(0x1234567812345678L), 0x0000000012345678L);
+    assertLongEquals(longToIntToLong(0x1234567887654321L), 0xffffffff87654321L);
+    assertLongEquals(longToIntToLong(Long.MIN_VALUE), 0L);
+    assertLongEquals(longToIntToLong(Long.MAX_VALUE), -1L);
+    assertIntEquals(shortToCharToShort((short) -5678), (short) -5678);
+    assertIntEquals(shortToCharToShort(Short.MIN_VALUE), Short.MIN_VALUE);
+    assertIntEquals(shortToCharToShort(Short.MAX_VALUE), Short.MAX_VALUE);
+    assertIntEquals(shortToLongToInt((short) 5678), 5678);
+    assertIntEquals(shortToLongToInt(Short.MIN_VALUE), Short.MIN_VALUE);
+    assertIntEquals(shortToLongToInt(Short.MAX_VALUE), Short.MAX_VALUE);
+    assertIntEquals(shortToCharToByte((short) 0x1234), 0x34);
+    assertIntEquals(shortToCharToByte((short) 0x12f0), -0x10);
+    assertIntEquals(shortToCharToByte(Short.MIN_VALUE), 0);
+    assertIntEquals(shortToCharToByte(Short.MAX_VALUE), -1);
+    assertStringEquals(shortToCharToBytePrint((short) 1025), "c=1025, b=1");
+    assertStringEquals(shortToCharToBytePrint((short) 1023), "c=1023, b=-1");
+    assertStringEquals(shortToCharToBytePrint((short) -1), "c=65535, b=-1");
   }
 
   public static boolean booleanField;
