@@ -1371,6 +1371,37 @@ TEST_F(AssemblerX86_64Test, PopcntqAddress) {
   DriverStr(expected, "popcntq_address");
 }
 
+TEST_F(AssemblerX86_64Test, CmovlAddress) {
+  GetAssembler()->cmov(x86_64::kEqual, x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12), false);
+  GetAssembler()->cmov(x86_64::kNotEqual, x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12), false);
+  GetAssembler()->cmov(x86_64::kEqual, x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12), false);
+  const char* expected =
+    "cmovzl 0xc(%RDI,%RBX,4), %R10d\n"
+    "cmovnzl 0xc(%R10,%RBX,4), %edi\n"
+    "cmovzl 0xc(%RDI,%R9,4), %edi\n";
+
+  DriverStr(expected, "cmovl_address");
+}
+
+TEST_F(AssemblerX86_64Test, CmovqAddress) {
+  GetAssembler()->cmov(x86_64::kEqual, x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12), true);
+  GetAssembler()->cmov(x86_64::kNotEqual, x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12), true);
+  GetAssembler()->cmov(x86_64::kEqual, x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12), true);
+  const char* expected =
+    "cmovzq 0xc(%RDI,%RBX,4), %R10\n"
+    "cmovnzq 0xc(%R10,%RBX,4), %rdi\n"
+    "cmovzq 0xc(%RDI,%R9,4), %rdi\n";
+
+  DriverStr(expected, "cmovq_address");
+}
+
+
 /////////////////
 // Near labels //
 /////////////////
