@@ -449,24 +449,25 @@ template<typename RootVisitorType>
 void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
   ArtMethod* interface_method = nullptr;
   mirror::Class* klass = declaring_class_.Read();
-  if (UNLIKELY(klass != nullptr && klass->IsProxyClass())) {
-    // For normal methods, dex cache shortcuts will be visited through the declaring class.
-    // However, for proxies we need to keep the interface method alive, so we visit its roots.
-    interface_method = mirror::DexCache::GetElementPtrSize(
-        GetDexCacheResolvedMethods(pointer_size),
-        GetDexMethodIndex(),
-        pointer_size);
-    DCHECK(interface_method != nullptr);
-    DCHECK_EQ(interface_method,
-              Runtime::Current()->GetClassLinker()->FindMethodForProxy(klass, this));
-    interface_method->VisitRoots(visitor, pointer_size);
-  }
-
-  visitor.VisitRootIfNonNull(declaring_class_.AddressWithoutBarrier());
-  if (!IsNative()) {
-    ProfilingInfo* profiling_info = GetProfilingInfo(pointer_size);
-    if (profiling_info != nullptr) {
-      profiling_info->VisitRoots(visitor);
+  if (LIKELY(klass != nullptr)) {
+    if (UNLIKELY(klass->IsProxyClass())) {
+      // For normal methods, dex cache shortcuts will be visited through the declaring class.
+      // However, for proxies we need to keep the interface method alive, so we visit its roots.
+      interface_method = mirror::DexCache::GetElementPtrSize(
+          GetDexCacheResolvedMethods(pointer_size),
+          GetDexMethodIndex(),
+          pointer_size);
+      DCHECK(interface_method != nullptr);
+      DCHECK_EQ(interface_method,
+                Runtime::Current()->GetClassLinker()->FindMethodForProxy(klass, this));
+      interface_method->VisitRoots(visitor, pointer_size);
+    }
+    visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
+    if (!IsNative()) {
+      ProfilingInfo* profiling_info = GetProfilingInfo(pointer_size);
+      if (profiling_info != nullptr) {
+        profiling_info->VisitRoots(visitor);
+      }
     }
   }
 }
