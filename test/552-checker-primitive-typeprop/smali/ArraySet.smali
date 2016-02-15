@@ -19,7 +19,7 @@
 # Note that the input is a Phi to make sure primitive type propagation is re-run
 # on the replaced inputs.
 
-## CHECK-START: void ArraySet.ambiguousSet(int[], float[], boolean) ssa_builder (after)
+## CHECK-START: void ArraySet.ambiguousSet(int[], float[], boolean) builder (after)
 ## CHECK-DAG:     <<IntArray:l\d+>>    ParameterValue klass:int[]
 ## CHECK-DAG:     <<IntA:i\d+>>        IntConstant 0
 ## CHECK-DAG:     <<IntB:i\d+>>        IntConstant 1073741824

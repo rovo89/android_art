@@ -46,8 +46,10 @@
   div-int/2addr p0, p1
   :else
   div-int/2addr p0, p2
-  return p0
   :try_end_2
-  .catchall {:try_start_2 .. :try_end_2} :catchall
+  .catchall {:try_start_2 .. :try_end_2} :catchall2
+
+  :catchall2
+  return p0
 
 .end method

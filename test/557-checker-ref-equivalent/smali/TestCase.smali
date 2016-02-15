@@ -16,7 +16,7 @@
 
 .super Ljava/lang/Object;
 
-## CHECK-START: void TestCase.testIntRefEquivalent() ssa_builder (after)
+## CHECK-START: void TestCase.testIntRefEquivalent() builder (after)
 ## CHECK-NOT: Phi
 .method public static testIntRefEquivalent()V
     .registers 4

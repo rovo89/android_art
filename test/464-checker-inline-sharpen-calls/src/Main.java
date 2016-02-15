@@ -39,7 +39,7 @@ public final class Main {
     m.invokeVirtual();
   }
 
-  /// CHECK-START: int Main.inlineSharpenHelperInvoke() ssa_builder (after)
+  /// CHECK-START: int Main.inlineSharpenHelperInvoke() builder (after)
   /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeVirtual {{.*\.getFoo.*}}
   /// CHECK-DAG:                      Return [<<Invoke>>]
 

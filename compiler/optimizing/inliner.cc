@@ -829,7 +829,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                         resolved_method->GetQuickenedInfo(),
                         dex_cache);
 
-  if (!builder.BuildGraph(*code_item)) {
+  if (builder.BuildGraph(*code_item, handles_) != kAnalysisSuccess) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " could not be built, so cannot be inlined";
     return false;
@@ -839,12 +839,6 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                                                   compiler_driver_->GetInstructionSet())) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " cannot be inlined because of the register allocator";
-    return false;
-  }
-
-  if (callee_graph->TryBuildingSsa(handles_) != kAnalysisSuccess) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
-                   << " could not be transformed to SSA";
     return false;
   }
 

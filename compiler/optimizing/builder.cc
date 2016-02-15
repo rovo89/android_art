@@ -32,6 +32,7 @@
 #include "nodes.h"
 #include "primitive.h"
 #include "scoped_thread_state_change.h"
+#include "ssa_builder.h"
 #include "thread.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 
@@ -248,7 +249,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
     // loop for synchronized blocks.
     if (block->HasThrowingInstructions()) {
       // Try to find a TryItem covering the block.
-      DCHECK_NE(block->GetDexPc(), kNoDexPc) << "Block must have a dec_pc to find its TryItem.";
+      DCHECK_NE(block->GetDexPc(), kNoDexPc) << "Block must have a dex_pc to find its TryItem.";
       const int32_t try_item_idx = DexFile::FindTryItem(code_item, block->GetDexPc());
       if (try_item_idx != -1) {
         // Block throwing and in a TryItem. Store the try block information.
@@ -322,7 +323,8 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
   }
 }
 
-bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
+GraphAnalysisResult HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item,
+                                              StackHandleScopeCollection* handles) {
   DCHECK(graph_->GetBlocks().empty());
 
   const uint16_t* code_ptr = code_item.insns_;
@@ -349,12 +351,12 @@ bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   // start a new block, and create these blocks.
   if (!ComputeBranchTargets(code_ptr, code_end, &number_of_branches)) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledBranchOutsideMethodCode);
-    return false;
+    return kAnalysisInvalidBytecode;
   }
 
   // Note that the compiler driver is null when unit testing.
   if ((compiler_driver_ != nullptr) && SkipCompilation(code_item, number_of_branches)) {
-    return false;
+    return kAnalysisInvalidBytecode;
   }
 
   // Find locations where we want to generate extra stackmaps for native debugging.
@@ -385,7 +387,7 @@ bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
       }
     }
     if (!AnalyzeDexInstruction(instruction, dex_pc)) {
-      return false;
+      return kAnalysisInvalidBytecode;
     }
     dex_pc += instruction.SizeInCodeUnits();
     code_ptr += instruction.SizeInCodeUnits();
@@ -404,7 +406,13 @@ bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   // non-exceptional edges to have been created.
   InsertTryBoundaryBlocks(code_item);
 
-  return true;
+  GraphAnalysisResult result = graph_->BuildDominatorTree();
+  if (result != kAnalysisSuccess) {
+    return result;
+  }
+
+  graph_->InitializeInexactObjectRTI(handles);
+  return SsaBuilder(graph_, handles).BuildSsa();
 }
 
 void HGraphBuilder::MaybeUpdateCurrentBlock(size_t dex_pc) {

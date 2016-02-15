@@ -19,7 +19,7 @@
 # Tests that catch blocks with both normal and exceptional predecessors are
 # split in two.
 
-## CHECK-START: int SsaBuilder.testSimplifyCatchBlock(int, int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testSimplifyCatchBlock(int, int, int) builder (after)
 
 ## CHECK:      name             "B1"
 ## CHECK-NEXT: from_bci
@@ -62,7 +62,7 @@
 
 # Should be rejected because :catch_all is a loop header.
 
-## CHECK-START: int SsaBuilder.testCatchLoopHeader(int, int, int) ssa_builder (after, bad_state)
+## CHECK-START: int SsaBuilder.testCatchLoopHeader(int, int, int) builder (after, bad_state)
 
 .method public static testCatchLoopHeader(III)I
     .registers 4
@@ -84,7 +84,7 @@
 
 # Tests creation of catch Phis.
 
-## CHECK-START: int SsaBuilder.testPhiCreation(int, int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testPhiCreation(int, int, int) builder (after)
 ## CHECK-DAG:     <<P0:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<P1:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<P2:i\d+>>   ParameterValue
@@ -127,7 +127,7 @@
 # Tests that phi elimination does not remove catch phis where the value does
 # not dominate the phi.
 
-## CHECK-START: int SsaBuilder.testPhiElimination_Domination(int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testPhiElimination_Domination(int, int) builder (after)
 ## CHECK-DAG:     <<P0:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<P1:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<Cst5:i\d+>> IntConstant 5
@@ -168,7 +168,7 @@
 
 # Tests that phi elimination loops until no more phis can be removed.
 
-## CHECK-START: int SsaBuilder.testPhiElimination_Dependencies(int, int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testPhiElimination_Dependencies(int, int, int) builder (after)
 ## CHECK-NOT:     Phi
 
 .method public static testPhiElimination_Dependencies(III)I
@@ -200,10 +200,7 @@
 
 # Tests that dead catch blocks are removed.
 
-## CHECK-START: int SsaBuilder.testDeadCatchBlock(int, int, int) ssa_builder (before)
-## CHECK:                       Mul
-
-## CHECK-START: int SsaBuilder.testDeadCatchBlock(int, int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testDeadCatchBlock(int, int, int) builder (after)
 ## CHECK-DAG:     <<P0:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<P1:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<P2:i\d+>>   ParameterValue
@@ -211,7 +208,7 @@
 ## CHECK-DAG:     <<Add2:i\d+>> Add [<<Add1>>,<<P2>>]
 ## CHECK-DAG:                   Return [<<Add2>>]
 
-## CHECK-START: int SsaBuilder.testDeadCatchBlock(int, int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testDeadCatchBlock(int, int, int) builder (after)
 ## CHECK-NOT:                   flags "catch_block"
 ## CHECK-NOT:                   Mul
 

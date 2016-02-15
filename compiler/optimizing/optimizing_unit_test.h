@@ -64,10 +64,12 @@ LiveInterval* BuildInterval(const size_t ranges[][2],
 
 void RemoveSuspendChecks(HGraph* graph) {
   for (HBasicBlock* block : graph->GetBlocks()) {
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
-      if (current->IsSuspendCheck()) {
-        current->GetBlock()->RemoveInstruction(current);
+    if (block != nullptr) {
+      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+        HInstruction* current = it.Current();
+        if (current->IsSuspendCheck()) {
+          current->GetBlock()->RemoveInstruction(current);
+        }
       }
     }
   }
@@ -83,12 +85,17 @@ inline HGraph* CreateGraph(ArenaAllocator* allocator) {
 inline HGraph* CreateCFG(ArenaAllocator* allocator,
                          const uint16_t* data,
                          Primitive::Type return_type = Primitive::kPrimInt) {
-  HGraph* graph = CreateGraph(allocator);
-  HGraphBuilder builder(graph, return_type);
   const DexFile::CodeItem* item =
     reinterpret_cast<const DexFile::CodeItem*>(data);
-  bool graph_built = builder.BuildGraph(*item);
-  return graph_built ? graph : nullptr;
+  HGraph* graph = CreateGraph(allocator);
+
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScopeCollection handles(soa.Self());
+    HGraphBuilder builder(graph, return_type);
+    bool graph_built = (builder.BuildGraph(*item, &handles) == kAnalysisSuccess);
+    return graph_built ? graph : nullptr;
+  }
 }
 
 // Naive string diff data type.
@@ -112,12 +119,6 @@ inline std::string Patch(const std::string& original, const diff_t& diff) {
 // Returns if the instruction is removed from the graph.
 inline bool IsRemoved(HInstruction* instruction) {
   return instruction->GetBlock() == nullptr;
-}
-
-inline void TransformToSsa(HGraph* graph) {
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
-  EXPECT_EQ(graph->TryBuildingSsa(&handles), kAnalysisSuccess);
 }
 
 }  // namespace art

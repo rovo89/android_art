@@ -27,6 +27,15 @@
 
 namespace art {
 
+void HGraph::InitializeInexactObjectRTI(StackHandleScopeCollection* handles) {
+  ScopedObjectAccess soa(Thread::Current());
+  // Create the inexact Object reference type and store it in the HGraph.
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  inexact_object_rti_ = ReferenceTypeInfo::Create(
+      handles->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangObject)),
+      /* is_exact */ false);
+}
+
 void HGraph::AddBlock(HBasicBlock* block) {
   block->SetBlockId(blocks_.size());
   blocks_.push_back(block);
@@ -234,29 +243,6 @@ void HGraph::ComputeDominanceInformation() {
       block->GetDominator()->AddDominatedBlock(block);
     }
   }
-}
-
-GraphAnalysisResult HGraph::TryBuildingSsa(StackHandleScopeCollection* handles) {
-  GraphAnalysisResult result = BuildDominatorTree();
-  if (result != kAnalysisSuccess) {
-    return result;
-  }
-
-  // Create the inexact Object reference type and store it in the HGraph.
-  ScopedObjectAccess soa(Thread::Current());
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  inexact_object_rti_ = ReferenceTypeInfo::Create(
-      handles->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangObject)),
-      /* is_exact */ false);
-
-  // Tranforms graph to SSA form.
-  result = SsaBuilder(this, handles).BuildSsa();
-  if (result != kAnalysisSuccess) {
-    return result;
-  }
-
-  in_ssa_form_ = true;
-  return kAnalysisSuccess;
 }
 
 HBasicBlock* HGraph::SplitEdge(HBasicBlock* block, HBasicBlock* successor) {
@@ -1592,7 +1578,7 @@ void HBasicBlock::DisconnectAndDelete() {
     loop_info->Remove(this);
     if (loop_info->IsBackEdge(*this)) {
       // If this was the last back edge of the loop, we deliberately leave the
-      // loop in an inconsistent state and will fail SSAChecker unless the
+      // loop in an inconsistent state and will fail GraphChecker unless the
       // entire loop is removed during the pass.
       loop_info->RemoveBackEdge(this);
     }
@@ -1631,7 +1617,7 @@ void HBasicBlock::DisconnectAndDelete() {
     } else if (num_pred_successors == 0u) {
       // The predecessor has no remaining successors and therefore must be dead.
       // We deliberately leave it without a control-flow instruction so that the
-      // SSAChecker fails unless it is not removed during the pass too.
+      // GraphChecker fails unless it is not removed during the pass too.
       predecessor->RemoveInstruction(last_instruction);
     } else {
       // There are multiple successors left. The removed block might be a successor

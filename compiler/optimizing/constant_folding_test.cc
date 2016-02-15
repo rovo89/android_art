@@ -56,7 +56,6 @@ class ConstantFoldingTest : public CommonCompilerTest {
                             const std::string& expected_after_dce,
                             std::function<void(HGraph*)> check_after_cf) {
     ASSERT_NE(graph_, nullptr);
-    TransformToSsa(graph_);
 
     StringPrettyPrinter printer_before(graph_);
     printer_before.VisitInsertionOrder();
@@ -67,9 +66,9 @@ class ConstantFoldingTest : public CommonCompilerTest {
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegenX86(graph_, *features_x86.get(), CompilerOptions());
     HConstantFolding(graph_).Run();
-    SSAChecker ssa_checker_cf(graph_);
-    ssa_checker_cf.Run();
-    ASSERT_TRUE(ssa_checker_cf.IsValid());
+    GraphChecker graph_checker_cf(graph_);
+    graph_checker_cf.Run();
+    ASSERT_TRUE(graph_checker_cf.IsValid());
 
     StringPrettyPrinter printer_after_cf(graph_);
     printer_after_cf.VisitInsertionOrder();
@@ -79,9 +78,9 @@ class ConstantFoldingTest : public CommonCompilerTest {
     check_after_cf(graph_);
 
     HDeadCodeElimination(graph_).Run();
-    SSAChecker ssa_checker_dce(graph_);
-    ssa_checker_dce.Run();
-    ASSERT_TRUE(ssa_checker_dce.IsValid());
+    GraphChecker graph_checker_dce(graph_);
+    graph_checker_dce.Run();
+    ASSERT_TRUE(graph_checker_dce.IsValid());
 
     StringPrettyPrinter printer_after_dce(graph_);
     printer_after_dce.VisitInsertionOrder();
@@ -775,76 +774,87 @@ TEST_F(ConstantFoldingTest, UnsignedComparisonsWithZero) {
   HInstruction* zero = graph_->GetIntConstant(0);
   HInstruction* last;
   block->AddInstruction(last = new (&allocator_) HAbove(zero, parameter));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HAbove(parameter, zero));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HAboveOrEqual(zero, parameter));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HAboveOrEqual(parameter, zero));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HBelow(zero, parameter));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HBelow(parameter, zero));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HBelowOrEqual(zero, parameter));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HBelowOrEqual(parameter, zero));
-  block->AddInstruction(new (&allocator_) HDeoptimize(last, 0));
+  block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
 
   entry_block->AddInstruction(new (&allocator_) HGoto());
   block->AddInstruction(new (&allocator_) HReturn(zero));
   exit_block->AddInstruction(new (&allocator_) HExit());
 
+  graph_->BuildDominatorTree();
+
   const std::string expected_before =
       "BasicBlock 0, succ: 1\n"
-      "  0: ParameterValue [16, 14, 12, 10, 8, 6, 4, 2]\n"
+      "  0: ParameterValue [17, 17, 16, 15, 15, 14, 13, 13, 12, 11, 11, 10, 9, 9, "
+                           "8, 7, 7, 6, 5, 5, 4, 3, 3, 2]\n"
       "  1: IntConstant [19, 16, 14, 12, 10, 8, 6, 4, 2]\n"
       "  18: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
       "  2: Above(1, 0) [3]\n"
-      "  3: Deoptimize(2)\n"
+      "  3: Select(0, 0, 2)\n"
       "  4: Above(0, 1) [5]\n"
-      "  5: Deoptimize(4)\n"
+      "  5: Select(0, 0, 4)\n"
       "  6: AboveOrEqual(1, 0) [7]\n"
-      "  7: Deoptimize(6)\n"
+      "  7: Select(0, 0, 6)\n"
       "  8: AboveOrEqual(0, 1) [9]\n"
-      "  9: Deoptimize(8)\n"
+      "  9: Select(0, 0, 8)\n"
       "  10: Below(1, 0) [11]\n"
-      "  11: Deoptimize(10)\n"
+      "  11: Select(0, 0, 10)\n"
       "  12: Below(0, 1) [13]\n"
-      "  13: Deoptimize(12)\n"
+      "  13: Select(0, 0, 12)\n"
       "  14: BelowOrEqual(1, 0) [15]\n"
-      "  15: Deoptimize(14)\n"
+      "  15: Select(0, 0, 14)\n"
       "  16: BelowOrEqual(0, 1) [17]\n"
-      "  17: Deoptimize(16)\n"
+      "  17: Select(0, 0, 16)\n"
       "  19: Return(1)\n"
       "BasicBlock 2, pred: 1\n"
       "  20: Exit\n";
 
   const std::string expected_after_cf =
       "BasicBlock 0, succ: 1\n"
-      "  0: ParameterValue [16, 10, 6, 4]\n"
+      "  0: ParameterValue [17, 17, 16, 15, 15, 13, 13, 11, 11, 10, 9, 9, 7, 7, 6, 5, 5, 4, 3, 3]\n"
       "  1: IntConstant [13, 3, 19, 16, 10, 6, 4]\n"
       "  21: IntConstant [15, 9]\n"
       "  18: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  3: Deoptimize(1)\n"
+      "  3: Select(0, 0, 1)\n"
       "  4: Above(0, 1) [5]\n"
-      "  5: Deoptimize(4)\n"
+      "  5: Select(0, 0, 4)\n"
       "  6: AboveOrEqual(1, 0) [7]\n"
-      "  7: Deoptimize(6)\n"
-      "  9: Deoptimize(21)\n"
+      "  7: Select(0, 0, 6)\n"
+      "  9: Select(0, 0, 21)\n"
       "  10: Below(1, 0) [11]\n"
-      "  11: Deoptimize(10)\n"
-      "  13: Deoptimize(1)\n"
-      "  15: Deoptimize(21)\n"
+      "  11: Select(0, 0, 10)\n"
+      "  13: Select(0, 0, 1)\n"
+      "  15: Select(0, 0, 21)\n"
       "  16: BelowOrEqual(0, 1) [17]\n"
-      "  17: Deoptimize(16)\n"
+      "  17: Select(0, 0, 16)\n"
       "  19: Return(1)\n"
       "BasicBlock 2, pred: 1\n"
       "  20: Exit\n";
 
-  const std::string expected_after_dce = expected_after_cf;
+  const std::string expected_after_dce =
+      "BasicBlock 0, succ: 1\n"
+      "  0: ParameterValue\n"
+      "  1: IntConstant [19]\n"
+      "  18: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  19: Return(1)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  20: Exit\n";
 
   auto check_after_cf = [](HGraph* graph) {
     CHECK(graph != nullptr);

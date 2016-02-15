@@ -19,7 +19,7 @@ public class Main {
 
   public static Object returnIntArray() { return new int[10]; }
 
-  /// CHECK-START: void Main.boundTypeForMergingPhi() ssa_builder (after)
+  /// CHECK-START: void Main.boundTypeForMergingPhi() builder (after)
   /// CHECK-DAG:              ArraySet [<<NC:l\d+>>,{{i\d+}},{{i\d+}}]
   /// CHECK-DAG:     <<NC>>   NullCheck [<<Phi:l\d+>>]
   /// CHECK-DAG:     <<Phi>>  Phi klass:int[]
@@ -32,7 +32,7 @@ public class Main {
     array[0] = 14;
   }
 
-  /// CHECK-START: void Main.boundTypeForLoopPhi() ssa_builder (after)
+  /// CHECK-START: void Main.boundTypeForLoopPhi() builder (after)
   /// CHECK-DAG:              ArraySet [<<NC:l\d+>>,{{i\d+}},{{i\d+}}]
   /// CHECK-DAG:     <<NC>>   NullCheck [<<Phi:l\d+>>]
   /// CHECK-DAG:     <<Phi>>  Phi klass:int[]
@@ -50,7 +50,7 @@ public class Main {
     array[0] = 14;
   }
 
-  /// CHECK-START: void Main.boundTypeForCatchPhi() ssa_builder (after)
+  /// CHECK-START: void Main.boundTypeForCatchPhi() builder (after)
   /// CHECK-DAG:              ArraySet [<<NC:l\d+>>,{{i\d+}},{{i\d+}}]
   /// CHECK-DAG:     <<NC>>   NullCheck [<<Phi:l\d+>>]
   /// CHECK-DAG:     <<Phi>>  Phi is_catch_phi:true klass:int[]
