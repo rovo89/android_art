@@ -53,6 +53,7 @@ static void CauseSegfault() {
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_sleep(JNIEnv*, jobject, jint, jboolean, jdouble) {
   // Keep pausing.
+  printf("Going to sleep\n");
   for (;;) {
     pause();
   }
