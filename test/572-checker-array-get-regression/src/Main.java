@@ -20,7 +20,7 @@ public class Main {
     System.out.println(test().intValue());
   }
 
-  /// CHECK-START: java.lang.Integer Main.test() ssa_builder (after)
+  /// CHECK-START: java.lang.Integer Main.test() builder (after)
   /// CHECK-DAG:     <<Method:[ij]\d+>>    CurrentMethod
   /// CHECK-DAG:     <<Const2P19:i\d+>>    IntConstant 524288
   /// CHECK-DAG:     <<ConstM1:i\d+>>      IntConstant -1

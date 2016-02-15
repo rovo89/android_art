@@ -38,6 +38,7 @@ HGraph* CreateSimpleCFG(ArenaAllocator* allocator) {
   graph->AddBlock(exit_block);
   graph->SetExitBlock(exit_block);
   entry_block->AddSuccessor(exit_block);
+  graph->BuildDominatorTree();
   return graph;
 }
 
