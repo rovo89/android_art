@@ -406,6 +406,9 @@ if [ "$HOST" = "n" ]; then
   TMP_DIR_OPTION="-Djava.io.tmpdir=/data/local/tmp"
 fi
 
+# We set DumpNativeStackOnSigQuit to false to avoid stressing libunwind.
+# b/27185632
+# b/24664297
 dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $GDB_ARGS \
                   $FLAGS \
@@ -420,6 +423,7 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $DEBUGGER_OPTS \
                   $DALVIKVM_BOOT_OPT \
                   $TMP_DIR_OPTION \
+                  -XX:DumpNativeStackOnSigQuit:false \
                   -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN $ARGS"
 
 # Remove whitespace.
