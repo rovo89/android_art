@@ -5997,9 +5997,14 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
 };
 
 inline int64_t Int64FromConstant(HConstant* constant) {
-  DCHECK(constant->IsIntConstant() || constant->IsLongConstant());
-  return constant->IsIntConstant() ? constant->AsIntConstant()->GetValue()
-                                   : constant->AsLongConstant()->GetValue();
+  if (constant->IsIntConstant()) {
+    return constant->AsIntConstant()->GetValue();
+  } else if (constant->IsLongConstant()) {
+    return constant->AsLongConstant()->GetValue();
+  } else {
+    DCHECK(constant->IsNullConstant());
+    return 0;
+  }
 }
 
 inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
