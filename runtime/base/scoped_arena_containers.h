@@ -201,21 +201,27 @@ inline ScopedArenaAllocatorAdapter<void> ScopedArenaAllocator::Adapter(ArenaAllo
 template <typename T>
 class ArenaDelete {
   static constexpr uint8_t kMagicFill = 0xCE;
- public:
-  void operator()(T* ptr) const {
-    ptr->~T();
+ protected:
+  // Used for variable sized objects such as RegisterLine.
+  ALWAYS_INLINE void ProtectMemory(T* ptr, size_t size) const {
     if (RUNNING_ON_MEMORY_TOOL > 0) {
       // Writing to the memory will fail if it we already destroyed the pointer with
       // DestroyOnlyDelete since we make it no access.
-      memset(ptr, kMagicFill, sizeof(T));
-      MEMORY_TOOL_MAKE_NOACCESS(ptr, sizeof(T));
+      memset(ptr, kMagicFill, size);
+      MEMORY_TOOL_MAKE_NOACCESS(ptr, size);
     } else if (kIsDebugBuild) {
       CHECK(ArenaStack::ArenaTagForAllocation(reinterpret_cast<void*>(ptr)) == ArenaFreeTag::kUsed)
           << "Freeing invalid object " << ptr;
       ArenaStack::ArenaTagForAllocation(reinterpret_cast<void*>(ptr)) = ArenaFreeTag::kFree;
       // Write a magic value to try and catch use after free error.
-      memset(ptr, kMagicFill, sizeof(T));
+      memset(ptr, kMagicFill, size);
     }
+  }
+
+ public:
+  void operator()(T* ptr) const {
+    ptr->~T();
+    ProtectMemory(ptr, sizeof(T));
   }
 };
 

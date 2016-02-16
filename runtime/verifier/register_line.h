@@ -197,6 +197,9 @@ class RegisterLine {
     return num_regs_;
   }
 
+  // Return how many bytes of memory a register line uses.
+  ALWAYS_INLINE static size_t ComputeSize(size_t num_regs);
+
   /*
    * Get the "this" pointer from a non-static method invocation. This returns the RegType so the
    * caller can decide whether it needs the reference to be initialized or not. (Can also return
@@ -400,6 +403,13 @@ class RegisterLine {
 
   DISALLOW_COPY_AND_ASSIGN(RegisterLine);
 };
+
+class RegisterLineArenaDelete : public ArenaDelete<RegisterLine> {
+ public:
+  void operator()(RegisterLine* ptr) const;
+};
+
+
 
 }  // namespace verifier
 }  // namespace art
