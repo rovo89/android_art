@@ -2274,25 +2274,18 @@ const ImageWriter::ImageInfo& ImageWriter::GetImageInfo(size_t index) const {
   return GetConstImageInfo(oat_filenames_[index]);
 }
 
-void ImageWriter::UpdateOatFile(File* oat_file, const char* oat_filename) {
-  DCHECK(oat_file != nullptr);
+void ImageWriter::UpdateOatFile(size_t index, size_t oat_loaded_size) {
   if (compile_app_image_) {
     CHECK_EQ(oat_filenames_.size(), 1u) << "App image should have no next image.";
     return;
   }
-  ImageInfo& cur_image_info = GetImageInfo(oat_filename);
 
   // Update the oat_offset of the next image info.
-  auto it = std::find(oat_filenames_.begin(), oat_filenames_.end(), oat_filename);
-  DCHECK(it != oat_filenames_.end());
-
-  it++;
-  if (it != oat_filenames_.end()) {
-    size_t oat_loaded_size = 0;
-    size_t oat_data_offset = 0;
-    ElfWriter::GetOatElfInformation(oat_file, &oat_loaded_size, &oat_data_offset);
+  DCHECK_LT(index, oat_filenames_.size());
+  if (index + 1u != oat_filenames_.size()) {
     // There is a following one.
-    ImageInfo& next_image_info = GetImageInfo(*it);
+    ImageInfo& cur_image_info = GetImageInfo(oat_filenames_[index]);
+    ImageInfo& next_image_info = GetImageInfo(oat_filenames_[index + 1u]);
     next_image_info.oat_offset_ = cur_image_info.oat_offset_ + oat_loaded_size;
   }
 }

@@ -32,19 +32,19 @@ TEST(CompiledMethodStorage, Deduplicate) {
   CompilerDriver driver(&compiler_options,
                         &verification_results,
                         &method_inliner_map,
-                        Compiler::kOptimizing, kNone,
-                        nullptr,
-                        false,
-                        nullptr,
-                        nullptr,
-                        nullptr,
-                        1u,
-                        false,
-                        false,
-                        nullptr,
-                        -1,
-                        nullptr,
-                        nullptr);
+                        Compiler::kOptimizing,
+                        /* instruction_set_ */ kNone,
+                        /* instruction_set_features */ nullptr,
+                        /* boot_image */ false,
+                        /* image_classes */ nullptr,
+                        /* compiled_classes */ nullptr,
+                        /* compiled_methods */ nullptr,
+                        /* thread_count */ 1u,
+                        /* dump_stats */ false,
+                        /* dump_passes */ false,
+                        /* timer */ nullptr,
+                        /* swap_fd */ -1,
+                        /* profile_compilation_info */ nullptr);
   CompiledMethodStorage* storage = driver.GetCompiledMethodStorage();
 
   ASSERT_TRUE(storage->DedupeEnabled());  // The default.

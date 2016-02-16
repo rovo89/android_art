@@ -145,7 +145,9 @@ class OatSymbolizer FINAL {
       bss->WriteNoBitsSection(oat_file_->BssSize());
     }
 
-    builder_->WriteDynamicSection(elf_file->GetPath());
+    builder_->PrepareDynamicSection(
+        elf_file->GetPath(), rodata_size, text_size, oat_file_->BssSize());
+    builder_->WriteDynamicSection();
 
     Walk(&art::OatSymbolizer::RegisterForDedup);
 

@@ -1557,13 +1557,12 @@ class Dex2Oat FINAL {
                                      IsBootImage(),
                                      image_classes_.release(),
                                      compiled_classes_.release(),
-                                     nullptr,
+                                     /* compiled_methods */ nullptr,
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
                                      compiler_phases_timings_.get(),
                                      swap_fd_,
-                                     &dex_file_oat_filename_map_,
                                      profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
     driver_->CompileAll(class_loader_, dex_files_, timings_);
@@ -1680,18 +1679,33 @@ class Dex2Oat FINAL {
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
       for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
-        std::unique_ptr<File>& oat_file = oat_files_[i];
         std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
         std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
 
         std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
         oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files);
 
-        // We need to mirror the layout of the ELF file in the compressed debug-info.
-        // Therefore we need to propagate the sizes of at least those sections.
         size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
         size_t text_size = oat_writer->GetSize() - rodata_size;
-        elf_writer->PrepareDebugInfo(rodata_size, text_size, oat_writer->GetMethodDebugInfo());
+        elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer->GetBssSize());
+
+        if (IsImage()) {
+          // Update oat estimates.
+          DCHECK(image_writer_ != nullptr);
+          DCHECK_LT(i, oat_filenames_.size());
+
+          image_writer_->UpdateOatFile(i, elf_writer->GetLoadedSize());
+        }
+      }
+
+      for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
+        std::unique_ptr<File>& oat_file = oat_files_[i];
+        std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
+        std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
+
+        // We need to mirror the layout of the ELF file in the compressed debug-info.
+        // Therefore we need to propagate the sizes of at least those sections.
+        elf_writer->PrepareDebugInfo(oat_writer->GetMethodDebugInfo());
 
         OutputStream*& rodata = rodata_[i];
         DCHECK(rodata != nullptr);
@@ -1717,7 +1731,6 @@ class Dex2Oat FINAL {
           return false;
         }
 
-        elf_writer->SetBssSize(oat_writer->GetBssSize());
         elf_writer->WriteDynamicSection();
         elf_writer->WriteDebugInfo(oat_writer->GetMethodDebugInfo());
         elf_writer->WritePatchLocations(oat_writer->GetAbsolutePatchLocations());
@@ -1731,17 +1744,8 @@ class Dex2Oat FINAL {
         if (oat_files_[i] != nullptr) {
           if (oat_files_[i]->Flush() != 0) {
             PLOG(ERROR) << "Failed to flush oat file: " << oat_filenames_[i];
-            oat_files_[i]->Erase();
             return false;
           }
-        }
-
-        if (IsImage()) {
-          // Update oat estimates.
-          DCHECK(image_writer_ != nullptr);
-          DCHECK_LT(i, oat_filenames_.size());
-
-          image_writer_->UpdateOatFile(oat_file.get(), oat_filenames_[i]);
         }
 
         VLOG(compiler) << "Oat file written successfully: " << oat_filenames_[i];
