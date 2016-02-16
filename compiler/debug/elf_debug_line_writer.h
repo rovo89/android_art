@@ -24,7 +24,6 @@
 #include "debug/dwarf/headers.h"
 #include "debug/elf_compilation_unit.h"
 #include "dex_file-inl.h"
-#include "dex_file.h"
 #include "elf_builder.h"
 #include "stack_map.h"
 
@@ -90,8 +89,9 @@ class ElfDebugLineWriter {
         continue;
       }
 
-      ArrayRef<const SrcMapElem> src_mapping_table;
-      std::vector<SrcMapElem> src_mapping_table_from_stack_maps;
+      uint32_t prologue_end = std::numeric_limits<uint32_t>::max();
+      ArrayRef<const SrcMapElem> pc2dex_map;
+      std::vector<SrcMapElem> pc2dex_map_from_stack_maps;
       if (mi->IsFromOptimizingCompiler()) {
         // Use stack maps to create mapping table from pc to dex.
         const CodeInfo code_info(mi->compiled_method->GetVmapTable().data());
@@ -99,35 +99,36 @@ class ElfDebugLineWriter {
         for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
           StackMap stack_map = code_info.GetStackMapAt(s, encoding);
           DCHECK(stack_map.IsValid());
-          // Emit only locations where we have local-variable information.
-          // In particular, skip mappings inside the prologue.
+          const uint32_t pc = stack_map.GetNativePcOffset(encoding);
+          const int32_t dex = stack_map.GetDexPc(encoding);
+          pc2dex_map_from_stack_maps.push_back({pc, dex});
           if (stack_map.HasDexRegisterMap(encoding)) {
-            const uint32_t pc = stack_map.GetNativePcOffset(encoding);
-            const int32_t dex = stack_map.GetDexPc(encoding);
-            src_mapping_table_from_stack_maps.push_back({pc, dex});
+            // Guess that the first map with local variables is the end of prologue.
+            prologue_end = std::min(prologue_end, pc);
           }
         }
-        std::sort(src_mapping_table_from_stack_maps.begin(),
-                  src_mapping_table_from_stack_maps.end());
-        src_mapping_table = ArrayRef<const SrcMapElem>(src_mapping_table_from_stack_maps);
+        std::sort(pc2dex_map_from_stack_maps.begin(),
+                  pc2dex_map_from_stack_maps.end());
+        pc2dex_map = ArrayRef<const SrcMapElem>(pc2dex_map_from_stack_maps);
       } else {
         // Use the mapping table provided by the quick compiler.
-        src_mapping_table = mi->compiled_method->GetSrcMappingTable();
+        pc2dex_map = mi->compiled_method->GetSrcMappingTable();
+        prologue_end = 0;
       }
 
-      if (src_mapping_table.empty()) {
+      if (pc2dex_map.empty()) {
         continue;
       }
 
       Elf_Addr method_address = text_address + mi->low_pc;
 
-      PositionInfos position_infos;
+      PositionInfos dex2line_map;
       const DexFile* dex = mi->dex_file;
-      if (!dex->DecodeDebugPositionInfo(mi->code_item, PositionInfoCallback, &position_infos)) {
+      if (!dex->DecodeDebugPositionInfo(mi->code_item, PositionInfoCallback, &dex2line_map)) {
         continue;
       }
 
-      if (position_infos.empty()) {
+      if (dex2line_map.empty()) {
         continue;
       }
 
@@ -184,21 +185,25 @@ class ElfDebugLineWriter {
       // Generate mapping opcodes from PC to Java lines.
       if (file_index != 0) {
         bool first = true;
-        for (SrcMapElem pc2dex : src_mapping_table) {
+        for (SrcMapElem pc2dex : pc2dex_map) {
           uint32_t pc = pc2dex.from_;
           int dex_pc = pc2dex.to_;
           // Find mapping with address with is greater than our dex pc; then go back one step.
-          auto ub = std::upper_bound(position_infos.begin(), position_infos.end(), dex_pc,
+          auto dex2line = std::upper_bound(
+              dex2line_map.begin(),
+              dex2line_map.end(),
+              dex_pc,
               [](uint32_t address, const DexFile::PositionInfo& entry) {
                   return address < entry.address_;
               });
-          if (ub != position_infos.begin()) {
-            int line = (--ub)->line_;
+          // Look for first valid mapping after the prologue.
+          if (dex2line != dex2line_map.begin() && pc >= prologue_end) {
+            int line = (--dex2line)->line_;
             if (first) {
               first = false;
               if (pc > 0) {
                 // Assume that any preceding code is prologue.
-                int first_line = position_infos.front().line_;
+                int first_line = dex2line_map.front().line_;
                 // Prologue is not a sensible place for a breakpoint.
                 opcodes.NegateStmt();
                 opcodes.AddRow(method_address, first_line);
