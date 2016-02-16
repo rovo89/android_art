@@ -185,9 +185,12 @@ inline void RegisterLine::VerifyMonitorStackEmpty(MethodVerifier* verifier) cons
   }
 }
 
+inline size_t RegisterLine::ComputeSize(size_t num_regs) {
+  return OFFSETOF_MEMBER(RegisterLine, line_) + num_regs * sizeof(uint16_t);
+}
+
 inline RegisterLine* RegisterLine::Create(size_t num_regs, MethodVerifier* verifier) {
-  void* memory = verifier->GetArena().Alloc(OFFSETOF_MEMBER(RegisterLine, line_) +
-                                                (num_regs * sizeof(uint16_t)));
+  void* memory = verifier->GetArena().Alloc(ComputeSize(num_regs));
   return new (memory) RegisterLine(num_regs, verifier);
 }
 
@@ -198,6 +201,12 @@ inline RegisterLine::RegisterLine(size_t num_regs, MethodVerifier* verifier)
       this_initialized_(false) {
   std::uninitialized_fill_n(line_, num_regs_, 0u);
   SetResultTypeToUnknown(verifier);
+}
+
+inline void RegisterLineArenaDelete::operator()(RegisterLine* ptr) const {
+  const size_t size = ptr != nullptr ? RegisterLine::ComputeSize(ptr->NumRegs()) : 0u;
+  ptr->~RegisterLine();
+  ProtectMemory(ptr, size);
 }
 
 }  // namespace verifier
