@@ -36,7 +36,7 @@
 namespace art {
 namespace jit {
 
-static constexpr bool kEnableOnStackReplacement = false;
+static constexpr bool kEnableOnStackReplacement = true;
 
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
@@ -304,79 +304,91 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
     return false;
   }
 
-  const OatQuickMethodHeader* osr_method = jit->GetCodeCache()->LookupOsrMethodHeader(method);
-  if (osr_method == nullptr) {
-    // No osr method yet, just return to the interpreter.
-    return false;
-  }
-
+  // Fetch some data before looking up for an OSR method, as we don't want thread
+  // suspension once we hold an OSR method.
   const size_t number_of_vregs = method->GetCodeItem()->registers_size_;
-  CodeInfo code_info = osr_method->GetOptimizedCodeInfo();
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  const char* shorty = method->GetShorty();
+  std::string method_name(VLOG_IS_ON(jit) ? PrettyMethod(method) : "");
+  void** memory = nullptr;
+  size_t frame_size = 0;
+  ShadowFrame* shadow_frame = nullptr;
+  const uint8_t* native_pc = nullptr;
 
-  // Find stack map starting at the target dex_pc.
-  StackMap stack_map = code_info.GetOsrStackMapForDexPc(dex_pc + dex_pc_offset, encoding);
-  if (!stack_map.IsValid()) {
-    // There is no OSR stack map for this dex pc offset. Just return to the interpreter in the
-    // hope that the next branch has one.
-    return false;
-  }
-
-  // We found a stack map, now fill the frame with dex register values from the interpreter's
-  // shadow frame.
-  DexRegisterMap vreg_map =
-      code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
-
-  ShadowFrame* shadow_frame = thread->PopShadowFrame();
-
-  size_t frame_size = osr_method->GetFrameSizeInBytes();
-
-  // Allocate memory to put shadow frame values. The osr stub will copy that memory to
-  // stack.
-  // Note that we could pass the shadow frame to the stub, and let it copy the values there,
-  // but that is engineering complexity not worth the effort for something like OSR.
-  void** memory = reinterpret_cast<void**>(malloc(frame_size));
-  CHECK(memory != nullptr);
-  memset(memory, 0, frame_size);
-
-  // Art ABI: ArtMethod is at the bottom of the stack.
-  memory[0] = method;
-
-  if (!vreg_map.IsValid()) {
-    // If we don't have a dex register map, then there are no live dex registers at
-    // this dex pc.
-  } else {
-    for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
-      DexRegisterLocation::Kind location =
-          vreg_map.GetLocationKind(vreg, number_of_vregs, code_info, encoding);
-      if (location == DexRegisterLocation::Kind::kNone) {
-        // Dex register is dead or unitialized.
-        continue;
-      }
-
-      if (location == DexRegisterLocation::Kind::kConstant) {
-        // We skip constants because the compiled code knows how to handle them.
-        continue;
-      }
-
-      DCHECK(location == DexRegisterLocation::Kind::kInStack);
-
-      int32_t vreg_value = shadow_frame->GetVReg(vreg);
-      int32_t slot_offset = vreg_map.GetStackOffsetInBytes(vreg,
-                                                           number_of_vregs,
-                                                           code_info,
-                                                           encoding);
-      DCHECK_LT(slot_offset, static_cast<int32_t>(frame_size));
-      DCHECK_GT(slot_offset, 0);
-      (reinterpret_cast<int32_t*>(memory))[slot_offset / sizeof(int32_t)] = vreg_value;
+  {
+    ScopedAssertNoThreadSuspension sts(thread, "Holding OSR method");
+    const OatQuickMethodHeader* osr_method = jit->GetCodeCache()->LookupOsrMethodHeader(method);
+    if (osr_method == nullptr) {
+      // No osr method yet, just return to the interpreter.
+      return false;
     }
+
+    CodeInfo code_info = osr_method->GetOptimizedCodeInfo();
+    StackMapEncoding encoding = code_info.ExtractEncoding();
+
+    // Find stack map starting at the target dex_pc.
+    StackMap stack_map = code_info.GetOsrStackMapForDexPc(dex_pc + dex_pc_offset, encoding);
+    if (!stack_map.IsValid()) {
+      // There is no OSR stack map for this dex pc offset. Just return to the interpreter in the
+      // hope that the next branch has one.
+      return false;
+    }
+
+    // We found a stack map, now fill the frame with dex register values from the interpreter's
+    // shadow frame.
+    DexRegisterMap vreg_map =
+        code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_vregs);
+
+    frame_size = osr_method->GetFrameSizeInBytes();
+
+    // Allocate memory to put shadow frame values. The osr stub will copy that memory to
+    // stack.
+    // Note that we could pass the shadow frame to the stub, and let it copy the values there,
+    // but that is engineering complexity not worth the effort for something like OSR.
+    memory = reinterpret_cast<void**>(malloc(frame_size));
+    CHECK(memory != nullptr);
+    memset(memory, 0, frame_size);
+
+    // Art ABI: ArtMethod is at the bottom of the stack.
+    memory[0] = method;
+
+    shadow_frame = thread->PopShadowFrame();
+    if (!vreg_map.IsValid()) {
+      // If we don't have a dex register map, then there are no live dex registers at
+      // this dex pc.
+    } else {
+      for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
+        DexRegisterLocation::Kind location =
+            vreg_map.GetLocationKind(vreg, number_of_vregs, code_info, encoding);
+        if (location == DexRegisterLocation::Kind::kNone) {
+          // Dex register is dead or unitialized.
+          continue;
+        }
+
+        if (location == DexRegisterLocation::Kind::kConstant) {
+          // We skip constants because the compiled code knows how to handle them.
+          continue;
+        }
+
+        DCHECK(location == DexRegisterLocation::Kind::kInStack);
+
+        int32_t vreg_value = shadow_frame->GetVReg(vreg);
+        int32_t slot_offset = vreg_map.GetStackOffsetInBytes(vreg,
+                                                             number_of_vregs,
+                                                             code_info,
+                                                             encoding);
+        DCHECK_LT(slot_offset, static_cast<int32_t>(frame_size));
+        DCHECK_GT(slot_offset, 0);
+        (reinterpret_cast<int32_t*>(memory))[slot_offset / sizeof(int32_t)] = vreg_value;
+      }
+    }
+
+    native_pc = stack_map.GetNativePcOffset(encoding) + osr_method->GetEntryPoint();
+    VLOG(jit) << "Jumping to "
+              << method_name
+              << "@"
+              << std::hex << reinterpret_cast<uintptr_t>(native_pc);
   }
 
-  const uint8_t* native_pc = stack_map.GetNativePcOffset(encoding) + osr_method->GetEntryPoint();
-  VLOG(jit) << "Jumping to "
-            << PrettyMethod(method)
-            << "@"
-            << std::hex << reinterpret_cast<uintptr_t>(native_pc);
   {
     ManagedStack fragment;
     thread->PushManagedStackFragment(&fragment);
@@ -384,8 +396,9 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
                           frame_size,
                           native_pc,
                           result,
-                          method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(),
+                          shorty,
                           thread);
+
     if (UNLIKELY(thread->GetException() == Thread::GetDeoptimizationException())) {
       thread->DeoptimizeWithDeoptimizationException(result);
     }
@@ -393,7 +406,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   }
   free(memory);
   thread->PushShadowFrame(shadow_frame);
-  VLOG(jit) << "Done running OSR code for " << PrettyMethod(method);
+  VLOG(jit) << "Done running OSR code for " << method_name;
   return true;
 }
 
