@@ -61,12 +61,25 @@ class HInliner : public HOptimization {
   bool TryInline(HInvoke* invoke_instruction);
 
   // Try to inline `resolved_method` in place of `invoke_instruction`. `do_rtp` is whether
-  // reference type propagation can run after the inlining.
-  bool TryInline(HInvoke* invoke_instruction, ArtMethod* resolved_method, bool do_rtp = true)
+  // reference type propagation can run after the inlining. If the inlining is successful, this
+  // method will replace and remove the `invoke_instruction`.
+  bool TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* resolved_method, bool do_rtp)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool TryBuildAndInline(HInvoke* invoke_instruction,
+                         ArtMethod* resolved_method,
+                         HInstruction** return_replacement)
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
+  bool TryBuildAndInlineHelper(HInvoke* invoke_instruction,
+                               ArtMethod* resolved_method,
+                               bool same_dex_file,
+                               HInstruction** return_replacement);
+
   // Try to recognize known simple patterns and replace invoke call with appropriate instructions.
-  bool TryPatternSubstitution(HInvoke* invoke_instruction, ArtMethod* resolved_method, bool do_rtp)
+  bool TryPatternSubstitution(HInvoke* invoke_instruction,
+                              ArtMethod* resolved_method,
+                              HInstruction** return_replacement)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Create a new HInstanceFieldGet.
@@ -94,18 +107,13 @@ class HInliner : public HOptimization {
                                 const InlineCache& ic)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool TryBuildAndInline(ArtMethod* resolved_method,
-                         HInvoke* invoke_instruction,
-                         bool same_dex_file,
-                         bool do_rtp = true);
-
   HInstanceFieldGet* BuildGetReceiverClass(ClassLinker* class_linker,
                                            HInstruction* receiver,
                                            uint32_t dex_pc) const
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void FixUpReturnReferenceType(ArtMethod* resolved_method,
-                                HInvoke* invoke_instruction,
+  void FixUpReturnReferenceType(HInvoke* invoke_instruction,
+                                ArtMethod* resolved_method,
                                 HInstruction* return_replacement,
                                 bool do_rtp)
     SHARED_REQUIRES(Locks::mutator_lock_);
