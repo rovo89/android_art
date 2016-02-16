@@ -1,4 +1,3 @@
-Code cache exists: './code_cache'.
 Native bridge initialized.
 Checking for getEnvValues.
 Ready for native bridge tests.
