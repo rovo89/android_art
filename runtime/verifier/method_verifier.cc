@@ -1960,8 +1960,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   // We need to ensure the work line is consistent while performing validation. When we spot a
   // peephole pattern we compute a new line for either the fallthrough instruction or the
   // branch target.
-  ArenaUniquePtr<RegisterLine> branch_line;
-  ArenaUniquePtr<RegisterLine> fallthrough_line;
+  RegisterLineArenaUniquePtr branch_line;
+  RegisterLineArenaUniquePtr fallthrough_line;
 
   switch (inst->Opcode()) {
     case Instruction::NOP:
@@ -4824,7 +4824,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       AdjustReturnLine(this, ret_inst, target_line);
     }
   } else {
-    ArenaUniquePtr<RegisterLine> copy;
+    RegisterLineArenaUniquePtr copy;
     if (kDebugVerify) {
       copy.reset(RegisterLine::Create(target_line->NumRegs(), this));
       copy->CopyFromLine(target_line);

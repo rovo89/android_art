@@ -30,6 +30,7 @@
 #include "handle.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
+#include "register_line.h"
 #include "reg_type_cache.h"
 
 namespace art {
@@ -45,6 +46,7 @@ namespace verifier {
 class DexPcToReferenceMap;
 class MethodVerifier;
 class RegisterLine;
+using RegisterLineArenaUniquePtr = std::unique_ptr<RegisterLine, RegisterLineArenaDelete>;
 class RegType;
 
 /*
@@ -127,7 +129,7 @@ class PcToRegisterLineTable {
   }
 
  private:
-  ScopedArenaVector<ArenaUniquePtr<RegisterLine>> register_lines_;
+  ScopedArenaVector<RegisterLineArenaUniquePtr> register_lines_;
 
   DISALLOW_COPY_AND_ASSIGN(PcToRegisterLineTable);
 };
@@ -771,14 +773,14 @@ class MethodVerifier {
   PcToRegisterLineTable reg_table_;
 
   // Storage for the register status we're currently working on.
-  ArenaUniquePtr<RegisterLine> work_line_;
+  RegisterLineArenaUniquePtr work_line_;
 
   // The address of the instruction we're currently working on, note that this is in 2 byte
   // quantities
   uint32_t work_insn_idx_;
 
   // Storage for the register status we're saving for later.
-  ArenaUniquePtr<RegisterLine> saved_line_;
+  RegisterLineArenaUniquePtr saved_line_;
 
   const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
