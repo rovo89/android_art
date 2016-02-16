@@ -269,16 +269,12 @@ extern "C" bool native_bridge_initialize(const android::NativeBridgeRuntimeCallb
   struct stat st;
   if (app_code_cache_dir != nullptr) {
     if (stat(app_code_cache_dir, &st) == 0) {
-      if (S_ISDIR(st.st_mode)) {
-        printf("Code cache exists: '%s'.\n", app_code_cache_dir);
-      } else {
+      if (!S_ISDIR(st.st_mode)) {
         printf("Code cache is not a directory.\n");
       }
     } else {
       perror("Error when stat-ing the code_cache:");
     }
-  } else {
-    printf("app_code_cache_dir is null.\n");
   }
 
   if (art_cbs != nullptr) {
