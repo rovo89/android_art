@@ -446,9 +446,7 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Known broken tests for the JIT.
 # CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
 # also uses Generic JNI instead of the JNI compiler.
-# Disable 570 while investigating OSR issues.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
-  570-checker-osr \
   137-cfi
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))

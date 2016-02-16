@@ -36,8 +36,8 @@ public class Main {
     } catch (Exception e) {}
     DeoptimizationController.stopDeoptimization();
 
-    $noinline$inlineCache(new Main(), 0);
-    if ($noinline$inlineCache(new SubMain(), 1) != SubMain.class) {
+    $noinline$inlineCache(new Main(), /* isSecondInvocation */ false);
+    if ($noinline$inlineCache(new SubMain(), /* isSecondInvocation */ true) != SubMain.class) {
       throw new Error("Unexpected return value");
     }
   }
@@ -91,29 +91,29 @@ public class Main {
     DeoptimizationController.startDeoptimization();
   }
 
-  public static Class $noinline$inlineCache(Main m, int count) {
-    for (int i = 0; i < 500; ++i) {
-      // Warm me up.
+  public static Class $noinline$inlineCache(Main m, boolean isSecondInvocation) {
+    // If we are running in non-JIT mode, or were unlucky enough to get this method
+    // already JITted, just return the expected value.
+    if (!ensureInInterpreter()) {
+      return SubMain.class;
     }
-    if (count == 1) {
-      // Lots of back edges to trigger OSR compilation.
-      for (int i = 0; i < 1000; ++i) {
-      }
-      // Best effort to wait for OSR compilation.
-      try {
-        Thread.sleep(1);
-      } catch (Exception e) {}
+
+    ensureHasProfilingInfo();
+
+    // Ensure that we have OSR code to jump to.
+    if (isSecondInvocation) {
+      ensureHasOsrCode();
     }
 
     // This call will be optimized in the OSR compiled code
     // to check and deoptimize if m is not of type 'Main'.
     Main other = m.inlineCache();
 
-    if (count == 1) {
-      // Jump to OSR compiled code. The second run
-      // of this method will have 'm' as a SubMain, and the compiled
-      // code we are jumping to will have wrongly optimize other as being a
-      // 'Main'.
+    // Jump to OSR compiled code. The second run
+    // of this method will have 'm' as a SubMain, and the compiled
+    // code we are jumping to will have wrongly optimize other as being a
+    // 'Main'.
+    if (isSecondInvocation) {
       while (!ensureInOsrCode()) {}
     }
 
@@ -131,7 +131,10 @@ public class Main {
 
   public static int[] array = new int[4];
 
+  public static native boolean ensureInInterpreter();
   public static native boolean ensureInOsrCode();
+  public static native void ensureHasProfilingInfo();
+  public static native void ensureHasOsrCode();
 
   public static boolean doThrow = false;
 }
