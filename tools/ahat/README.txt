@@ -78,6 +78,7 @@ Things to move to perflib:
 
 Release History:
  0.4 Pending
+   Annotate char[] objects with their string values.
    Show registered native allocations for heap dumps that support it.
 
  0.3 Dec 15, 2015

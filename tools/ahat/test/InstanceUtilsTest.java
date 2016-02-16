@@ -32,10 +32,24 @@ public class InstanceUtilsTest {
   }
 
   @Test
+  public void asStringCharArray() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("charArray");
+    assertEquals("char thing", InstanceUtils.asString(str));
+  }
+
+  @Test
   public void asStringTruncated() throws IOException {
     TestDump dump = TestDump.getTestDump();
     Instance str = (Instance)dump.getDumpedThing("basicString");
     assertEquals("hello", InstanceUtils.asString(str, 5));
+  }
+
+  @Test
+  public void asStringCharArrayTruncated() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("charArray");
+    assertEquals("char ", InstanceUtils.asString(str, 5));
   }
 
   @Test
@@ -46,6 +60,13 @@ public class InstanceUtilsTest {
   }
 
   @Test
+  public void asStringCharArrayExactMax() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("charArray");
+    assertEquals("char thing", InstanceUtils.asString(str, 10));
+  }
+
+  @Test
   public void asStringNotTruncated() throws IOException {
     TestDump dump = TestDump.getTestDump();
     Instance str = (Instance)dump.getDumpedThing("basicString");
@@ -53,10 +74,24 @@ public class InstanceUtilsTest {
   }
 
   @Test
+  public void asStringCharArrayNotTruncated() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("charArray");
+    assertEquals("char thing", InstanceUtils.asString(str, 50));
+  }
+
+  @Test
   public void asStringNegativeMax() throws IOException {
     TestDump dump = TestDump.getTestDump();
     Instance str = (Instance)dump.getDumpedThing("basicString");
     assertEquals("hello, world", InstanceUtils.asString(str, -3));
+  }
+
+  @Test
+  public void asStringCharArrayNegativeMax() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    Instance str = (Instance)dump.getDumpedThing("charArray");
+    assertEquals("char thing", InstanceUtils.asString(str, -3));
   }
 
   @Test
