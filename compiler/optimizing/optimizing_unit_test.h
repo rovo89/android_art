@@ -91,8 +91,8 @@ inline HGraph* CreateCFG(ArenaAllocator* allocator,
   {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScopeCollection handles(soa.Self());
-    HGraphBuilder builder(graph, return_type);
-    bool graph_built = (builder.BuildGraph(*item, &handles) == kAnalysisSuccess);
+    HGraphBuilder builder(graph, *item, return_type);
+    bool graph_built = (builder.BuildGraph(&handles) == kAnalysisSuccess);
     return graph_built ? graph : nullptr;
   }
 }
@@ -109,7 +109,8 @@ inline std::string Patch(const std::string& original, const diff_t& diff) {
   std::string result = original;
   for (const auto& p : diff) {
     std::string::size_type pos = result.find(p.first);
-    EXPECT_NE(pos, std::string::npos);
+    DCHECK_NE(pos, std::string::npos)
+        << "Could not find: \"" << p.first << "\" in \"" << result << "\"";
     result.replace(pos, p.first.size(), p.second);
   }
   return result;
