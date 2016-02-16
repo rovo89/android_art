@@ -345,8 +345,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   void ComputeTryBlockInformation();
 
   // Inline this graph in `outer_graph`, replacing the given `invoke` instruction.
-  // Returns the instruction used to replace the invoke expression or null if the
-  // invoke is for a void method.
+  // Returns the instruction to replace the invoke expression or null if the
+  // invoke is for a void method. Note that the caller is responsible for replacing
+  // and removing the invoke instruction.
   HInstruction* InlineInto(HGraph* outer_graph, HInvoke* invoke);
 
   // Need to add a couple of blocks to test if the loop body is entered and
