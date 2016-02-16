@@ -2030,13 +2030,6 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     }
   }
 
-  if (return_value != nullptr) {
-    invoke->ReplaceWith(return_value);
-  }
-
-  // Finally remove the invoke from the caller.
-  invoke->GetBlock()->RemoveInstruction(invoke);
-
   return return_value;
 }
 
