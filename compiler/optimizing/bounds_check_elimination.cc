@@ -1166,8 +1166,8 @@ class BCEVisitor : public HGraphVisitor {
 
   // Attempt dominator-based dynamic elimination on remaining candidates.
   void AddComparesWithDeoptimization(HBasicBlock* block) {
-    for (const auto& it : first_index_bounds_check_map_) {
-      HBoundsCheck* bounds_check = it.second;
+    for (const auto& entry : first_index_bounds_check_map_) {
+      HBoundsCheck* bounds_check = entry.second;
       HInstruction* index = bounds_check->InputAt(0);
       HInstruction* array_length = bounds_check->InputAt(1);
       if (!array_length->IsArrayLength()) {
@@ -1215,8 +1215,7 @@ class BCEVisitor : public HGraphVisitor {
         }
       }
       // Add standby candidates that fall in selected range.
-      for (size_t i = 0; i < standby.size(); ++i) {
-        HBoundsCheck* other_bounds_check = standby[i]->AsBoundsCheck();
+      for (HBoundsCheck* other_bounds_check : standby) {
         HInstruction* other_index = other_bounds_check->InputAt(0);
         int32_t other_c = ValueBound::AsValueBound(other_index).GetConstant();
         if (min_c <= other_c && other_c <= max_c) {
@@ -1233,8 +1232,7 @@ class BCEVisitor : public HGraphVisitor {
           (base != nullptr || min_c >= 0) &&  // reject certain OOB
            distance <= kMaxLengthForAddingDeoptimize) {  // reject likely/certain deopt
         AddCompareWithDeoptimization(block, array_length, base, min_c, max_c);
-        for (size_t i = 0; i < candidates.size(); ++i) {
-          HInstruction* other_bounds_check = candidates[i];
+        for (HInstruction* other_bounds_check : candidates) {
           ReplaceInstruction(other_bounds_check, other_bounds_check->InputAt(0));
         }
       }
