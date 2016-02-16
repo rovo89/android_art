@@ -1276,7 +1276,7 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
     }
     // Must be equal high, so compare the lows.
     codegen_->Compare32BitValue(left_low, val_low);
-  } else {
+  } else if (right.IsRegisterPair()) {
     Register right_high = right.AsRegisterPairHigh<Register>();
     Register right_low = right.AsRegisterPairLow<Register>();
 
@@ -1291,6 +1291,19 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
     }
     // Must be equal high, so compare the lows.
     __ cmpl(left_low, right_low);
+  } else {
+    DCHECK(right.IsDoubleStackSlot());
+    __ cmpl(left_high, Address(ESP, right.GetHighStackIndex(kX86WordSize)));
+    if (if_cond == kCondNE) {
+      __ j(X86Condition(true_high_cond), true_label);
+    } else if (if_cond == kCondEQ) {
+      __ j(X86Condition(false_high_cond), false_label);
+    } else {
+      __ j(X86Condition(true_high_cond), true_label);
+      __ j(X86Condition(false_high_cond), false_label);
+    }
+    // Must be equal high, so compare the lows.
+    __ cmpl(left_low, Address(ESP, right.GetStackIndex()));
   }
   // The last comparison might be unsigned.
   __ j(final_condition, true_label);
@@ -1593,7 +1606,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
   switch (cond->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
+      locations->SetInAt(1, Location::Any());
       if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister());
       }
