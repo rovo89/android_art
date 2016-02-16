@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
+
 public class Main {
+
+  // Workaround for b/18051191.
+  class InnerClass {}
 
   public static void assertFalse(boolean condition) {
     if (condition) {
@@ -44,6 +49,68 @@ public class Main {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
+  }
+
+
+  // Wrappers around methods located in file TestCmp.smali.
+
+  public int smaliCmpLongConstants() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLongConstants");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpGtFloatConstants() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpGtFloatConstants");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpLtFloatConstants() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLtFloatConstants");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpGtDoubleConstants() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpGtDoubleConstants");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpLtDoubleConstants() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLtDoubleConstants");
+    return (Integer)m.invoke(null);
+  }
+
+  public int smaliCmpLongSameConstant() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLongSameConstant");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpGtFloatSameConstant() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpGtFloatSameConstant");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpLtFloatSameConstant() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLtFloatSameConstant");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpGtDoubleSameConstant() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpGtDoubleSameConstant");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpLtDoubleSameConstant() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLtDoubleSameConstant");
+    return (Integer)m.invoke(null);
+  }
+
+  public int smaliCmpGtFloatConstantWithNaN() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpGtFloatConstantWithNaN");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpLtFloatConstantWithNaN() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLtFloatConstantWithNaN");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpGtDoubleConstantWithNaN() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpGtDoubleConstantWithNaN");
+    return (Integer)m.invoke(null);
+  }
+  public int smaliCmpLtDoubleConstantWithNaN() throws Exception {
+    Method m = testCmp.getMethod("$opt$CmpLtDoubleConstantWithNaN");
+    return (Integer)m.invoke(null);
   }
 
 
@@ -85,6 +152,44 @@ public class Main {
   public static long LongNegation() {
     long x, y;
     x = 42L;
+    y = -x;
+    return y;
+  }
+
+  /// CHECK-START: float Main.FloatNegation() constant_folding (before)
+  /// CHECK-DAG:     <<Const42:f\d+>>  FloatConstant 42
+  /// CHECK-DAG:     <<Neg:f\d+>>      Neg [<<Const42>>]
+  /// CHECK-DAG:                       Return [<<Neg>>]
+
+  /// CHECK-START: float Main.FloatNegation() constant_folding (after)
+  /// CHECK-DAG:     <<ConstN42:f\d+>> FloatConstant -42
+  /// CHECK-DAG:                       Return [<<ConstN42>>]
+
+  /// CHECK-START: float Main.FloatNegation() constant_folding (after)
+  /// CHECK-NOT:                       Neg
+
+  public static float FloatNegation() {
+    float x, y;
+    x = 42F;
+    y = -x;
+    return y;
+  }
+
+  /// CHECK-START: double Main.DoubleNegation() constant_folding (before)
+  /// CHECK-DAG:     <<Const42:d\d+>>  DoubleConstant 42
+  /// CHECK-DAG:     <<Neg:d\d+>>      Neg [<<Const42>>]
+  /// CHECK-DAG:                       Return [<<Neg>>]
+
+  /// CHECK-START: double Main.DoubleNegation() constant_folding (after)
+  /// CHECK-DAG:     <<ConstN42:d\d+>> DoubleConstant -42
+  /// CHECK-DAG:                       Return [<<ConstN42>>]
+
+  /// CHECK-START: double Main.DoubleNegation() constant_folding (after)
+  /// CHECK-NOT:                       Neg
+
+  public static double DoubleNegation() {
+    double x, y;
+    x = 42D;
     y = -x;
     return y;
   }
@@ -166,6 +271,48 @@ public class Main {
     return c;
   }
 
+  /// CHECK-START: float Main.FloatAddition() constant_folding (before)
+  /// CHECK-DAG:     <<Const1:f\d+>>  FloatConstant 1
+  /// CHECK-DAG:     <<Const2:f\d+>>  FloatConstant 2
+  /// CHECK-DAG:     <<Add:f\d+>>     Add [<<Const1>>,<<Const2>>]
+  /// CHECK-DAG:                      Return [<<Add>>]
+
+  /// CHECK-START: float Main.FloatAddition() constant_folding (after)
+  /// CHECK-DAG:     <<Const3:f\d+>>  FloatConstant 3
+  /// CHECK-DAG:                      Return [<<Const3>>]
+
+  /// CHECK-START: float Main.FloatAddition() constant_folding (after)
+  /// CHECK-NOT:                      Add
+
+  public static float FloatAddition() {
+    float a, b, c;
+    a = 1F;
+    b = 2F;
+    c = a + b;
+    return c;
+  }
+
+  /// CHECK-START: double Main.DoubleAddition() constant_folding (before)
+  /// CHECK-DAG:     <<Const1:d\d+>>  DoubleConstant 1
+  /// CHECK-DAG:     <<Const2:d\d+>>  DoubleConstant 2
+  /// CHECK-DAG:     <<Add:d\d+>>     Add [<<Const1>>,<<Const2>>]
+  /// CHECK-DAG:                      Return [<<Add>>]
+
+  /// CHECK-START: double Main.DoubleAddition() constant_folding (after)
+  /// CHECK-DAG:     <<Const3:d\d+>>  DoubleConstant 3
+  /// CHECK-DAG:                      Return [<<Const3>>]
+
+  /// CHECK-START: double Main.DoubleAddition() constant_folding (after)
+  /// CHECK-NOT:                      Add
+
+  public static double DoubleAddition() {
+    double a, b, c;
+    a = 1D;
+    b = 2D;
+    c = a + b;
+    return c;
+  }
+
 
   /**
    * Exercise constant folding on subtraction.
@@ -213,6 +360,48 @@ public class Main {
     return c;
   }
 
+  /// CHECK-START: float Main.FloatSubtraction() constant_folding (before)
+  /// CHECK-DAG:     <<Const6:f\d+>>  FloatConstant 6
+  /// CHECK-DAG:     <<Const2:f\d+>>  FloatConstant 2
+  /// CHECK-DAG:     <<Sub:f\d+>>     Sub [<<Const6>>,<<Const2>>]
+  /// CHECK-DAG:                      Return [<<Sub>>]
+
+  /// CHECK-START: float Main.FloatSubtraction() constant_folding (after)
+  /// CHECK-DAG:     <<Const4:f\d+>>  FloatConstant 4
+  /// CHECK-DAG:                      Return [<<Const4>>]
+
+  /// CHECK-START: float Main.FloatSubtraction() constant_folding (after)
+  /// CHECK-NOT:                      Sub
+
+  public static float FloatSubtraction() {
+    float a, b, c;
+    a = 6F;
+    b = 2F;
+    c = a - b;
+    return c;
+  }
+
+  /// CHECK-START: double Main.DoubleSubtraction() constant_folding (before)
+  /// CHECK-DAG:     <<Const6:d\d+>>  DoubleConstant 6
+  /// CHECK-DAG:     <<Const2:d\d+>>  DoubleConstant 2
+  /// CHECK-DAG:     <<Sub:d\d+>>     Sub [<<Const6>>,<<Const2>>]
+  /// CHECK-DAG:                      Return [<<Sub>>]
+
+  /// CHECK-START: double Main.DoubleSubtraction() constant_folding (after)
+  /// CHECK-DAG:     <<Const4:d\d+>>  DoubleConstant 4
+  /// CHECK-DAG:                      Return [<<Const4>>]
+
+  /// CHECK-START: double Main.DoubleSubtraction() constant_folding (after)
+  /// CHECK-NOT:                      Sub
+
+  public static double DoubleSubtraction() {
+    double a, b, c;
+    a = 6D;
+    b = 2D;
+    c = a - b;
+    return c;
+  }
+
 
   /**
    * Exercise constant folding on multiplication.
@@ -256,6 +445,48 @@ public class Main {
     long a, b, c;
     a = 7L;
     b = 3L;
+    c = a * b;
+    return c;
+  }
+
+  /// CHECK-START: float Main.FloatMultiplication() constant_folding (before)
+  /// CHECK-DAG:     <<Const7:f\d+>>  FloatConstant 7
+  /// CHECK-DAG:     <<Const3:f\d+>>  FloatConstant 3
+  /// CHECK-DAG:     <<Mul:f\d+>>     Mul [<<Const7>>,<<Const3>>]
+  /// CHECK-DAG:                      Return [<<Mul>>]
+
+  /// CHECK-START: float Main.FloatMultiplication() constant_folding (after)
+  /// CHECK-DAG:     <<Const21:f\d+>> FloatConstant 21
+  /// CHECK-DAG:                      Return [<<Const21>>]
+
+  /// CHECK-START: float Main.FloatMultiplication() constant_folding (after)
+  /// CHECK-NOT:                      Mul
+
+  public static float FloatMultiplication() {
+    float a, b, c;
+    a = 7F;
+    b = 3F;
+    c = a * b;
+    return c;
+  }
+
+  /// CHECK-START: double Main.DoubleMultiplication() constant_folding (before)
+  /// CHECK-DAG:     <<Const7:d\d+>>  DoubleConstant 7
+  /// CHECK-DAG:     <<Const3:d\d+>>  DoubleConstant 3
+  /// CHECK-DAG:     <<Mul:d\d+>>     Mul [<<Const7>>,<<Const3>>]
+  /// CHECK-DAG:                      Return [<<Mul>>]
+
+  /// CHECK-START: double Main.DoubleMultiplication() constant_folding (after)
+  /// CHECK-DAG:     <<Const21:d\d+>> DoubleConstant 21
+  /// CHECK-DAG:                      Return [<<Const21>>]
+
+  /// CHECK-START: double Main.DoubleMultiplication() constant_folding (after)
+  /// CHECK-NOT:                      Mul
+
+  public static double DoubleMultiplication() {
+    double a, b, c;
+    a = 7D;
+    b = 3D;
     c = a * b;
     return c;
   }
@@ -311,6 +542,48 @@ public class Main {
     return c;
   }
 
+  /// CHECK-START: float Main.FloatDivision() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:f\d+>>   FloatConstant 8
+  /// CHECK-DAG:     <<Const2P5:f\d+>> FloatConstant 2.5
+  /// CHECK-DAG:     <<Div:f\d+>>      Div [<<Const8>>,<<Const2P5>>]
+  /// CHECK-DAG:                       Return [<<Div>>]
+
+  /// CHECK-START: float Main.FloatDivision() constant_folding (after)
+  /// CHECK-DAG:     <<Const3P2:f\d+>> FloatConstant 3.2
+  /// CHECK-DAG:                       Return [<<Const3P2>>]
+
+  /// CHECK-START: float Main.FloatDivision() constant_folding (after)
+  /// CHECK-NOT:                       Div
+
+  public static float FloatDivision() {
+    float a, b, c;
+    a = 8F;
+    b = 2.5F;
+    c = a / b;
+    return c;
+  }
+
+  /// CHECK-START: double Main.DoubleDivision() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:d\d+>>   DoubleConstant 8
+  /// CHECK-DAG:     <<Const2P5:d\d+>> DoubleConstant 2.5
+  /// CHECK-DAG:     <<Div:d\d+>>      Div [<<Const8>>,<<Const2P5>>]
+  /// CHECK-DAG:                       Return [<<Div>>]
+
+  /// CHECK-START: double Main.DoubleDivision() constant_folding (after)
+  /// CHECK-DAG:     <<Const3P2:d\d+>> DoubleConstant 3.2
+  /// CHECK-DAG:                       Return [<<Const3P2>>]
+
+  /// CHECK-START: double Main.DoubleDivision() constant_folding (after)
+  /// CHECK-NOT:                       Div
+
+  public static double DoubleDivision() {
+    double a, b, c;
+    a = 8D;
+    b = 2.5D;
+    c = a / b;
+    return c;
+  }
+
 
   /**
    * Exercise constant folding on remainder.
@@ -358,6 +631,48 @@ public class Main {
     long a, b, c;
     a = 8L;
     b = 3L;
+    c = a % b;
+    return c;
+  }
+
+  /// CHECK-START: float Main.FloatRemainder() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:f\d+>>   FloatConstant 8
+  /// CHECK-DAG:     <<Const2P5:f\d+>> FloatConstant 2.5
+  /// CHECK-DAG:     <<Rem:f\d+>>      Rem [<<Const8>>,<<Const2P5>>]
+  /// CHECK-DAG:                       Return [<<Rem>>]
+
+  /// CHECK-START: float Main.FloatRemainder() constant_folding (after)
+  /// CHECK-DAG:     <<Const0P5:f\d+>> FloatConstant 0.5
+  /// CHECK-DAG:                       Return [<<Const0P5>>]
+
+  /// CHECK-START: float Main.FloatRemainder() constant_folding (after)
+  /// CHECK-NOT:                       Rem
+
+  public static float FloatRemainder() {
+    float a, b, c;
+    a = 8F;
+    b = 2.5F;
+    c = a % b;
+    return c;
+  }
+
+  /// CHECK-START: double Main.DoubleRemainder() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:d\d+>>   DoubleConstant 8
+  /// CHECK-DAG:     <<Const2P5:d\d+>> DoubleConstant 2.5
+  /// CHECK-DAG:     <<Rem:d\d+>>      Rem [<<Const8>>,<<Const2P5>>]
+  /// CHECK-DAG:                       Return [<<Rem>>]
+
+  /// CHECK-START: double Main.DoubleRemainder() constant_folding (after)
+  /// CHECK-DAG:     <<Const0P5:d\d+>> DoubleConstant 0.5
+  /// CHECK-DAG:                       Return [<<Const0P5>>]
+
+  /// CHECK-START: double Main.DoubleRemainder() constant_folding (after)
+  /// CHECK-NOT:                       Rem
+
+  public static double DoubleRemainder() {
+    double a, b, c;
+    a = 8D;
+    b = 2.5D;
     c = a % b;
     return c;
   }
@@ -1197,25 +1512,37 @@ public class Main {
   }
 
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     assertIntEquals(-42, IntNegation());
     assertLongEquals(-42L, LongNegation());
+    assertFloatEquals(-42F, FloatNegation());
+    assertDoubleEquals(-42D, DoubleNegation());
 
     assertIntEquals(3, IntAddition1());
     assertIntEquals(14, IntAddition2());
     assertLongEquals(3L, LongAddition());
+    assertFloatEquals(3F, FloatAddition());
+    assertDoubleEquals(3D, DoubleAddition());
 
     assertIntEquals(4, IntSubtraction());
     assertLongEquals(4L, LongSubtraction());
+    assertFloatEquals(4F, FloatSubtraction());
+    assertDoubleEquals(4D, DoubleSubtraction());
 
     assertIntEquals(21, IntMultiplication());
     assertLongEquals(21L, LongMultiplication());
+    assertFloatEquals(21F, FloatMultiplication());
+    assertDoubleEquals(21D, DoubleMultiplication());
 
     assertIntEquals(2, IntDivision());
     assertLongEquals(2L, LongDivision());
+    assertFloatEquals(3.2F, FloatDivision());
+    assertDoubleEquals(3.2D, DoubleDivision());
 
     assertIntEquals(2, IntRemainder());
     assertLongEquals(2L, LongRemainder());
+    assertFloatEquals(0.5F, FloatRemainder());
+    assertDoubleEquals(0.5D, DoubleRemainder());
 
     assertIntEquals(4, ShlIntLong());
     assertLongEquals(12L, ShlLongInt());
@@ -1259,6 +1586,24 @@ public class Main {
     assertFalse(CmpFloatGreaterThanNaN(arbitrary));
     assertFalse(CmpDoubleLessThanNaN(arbitrary));
 
+    Main main = new Main();
+    assertIntEquals(1, main.smaliCmpLongConstants());
+    assertIntEquals(-1, main.smaliCmpGtFloatConstants());
+    assertIntEquals(-1, main.smaliCmpLtFloatConstants());
+    assertIntEquals(-1, main.smaliCmpGtDoubleConstants());
+    assertIntEquals(-1, main.smaliCmpLtDoubleConstants());
+
+    assertIntEquals(0, main.smaliCmpLongSameConstant());
+    assertIntEquals(0, main.smaliCmpGtFloatSameConstant());
+    assertIntEquals(0, main.smaliCmpLtFloatSameConstant());
+    assertIntEquals(0, main.smaliCmpGtDoubleSameConstant());
+    assertIntEquals(0, main.smaliCmpLtDoubleSameConstant());
+
+    assertIntEquals(1, main.smaliCmpGtFloatConstantWithNaN());
+    assertIntEquals(-1, main.smaliCmpLtFloatConstantWithNaN());
+    assertIntEquals(1, main.smaliCmpGtDoubleConstantWithNaN());
+    assertIntEquals(-1, main.smaliCmpLtDoubleConstantWithNaN());
+
     assertIntEquals(33, ReturnInt33());
     assertIntEquals(2147483647, ReturnIntMax());
     assertIntEquals(0, ReturnInt0());
@@ -1275,4 +1620,10 @@ public class Main {
     assertDoubleEquals(34, ReturnDouble34());
     assertDoubleEquals(99.25, ReturnDouble99P25());
   }
+
+  Main() throws ClassNotFoundException {
+    testCmp = Class.forName("TestCmp");
+  }
+
+  private Class<?> testCmp;
 }

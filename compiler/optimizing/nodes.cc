@@ -15,6 +15,8 @@
  */
 #include "nodes.h"
 
+#include <cfloat>
+
 #include "code_generator.h"
 #include "common_dominator.h"
 #include "ssa_builder.h"
@@ -26,6 +28,12 @@
 #include "scoped_thread_state_change.h"
 
 namespace art {
+
+// Enable floating-point static evaluation during constant folding
+// only if all floating-point operations and constants evaluate in the
+// range and precision of the type used (i.e., 32-bit float, 64-bit
+// double).
+static constexpr bool kEnableFloatingPointStaticEvaluation = (FLT_EVAL_METHOD == 0);
 
 void HGraph::InitializeInexactObjectRTI(StackHandleScopeCollection* handles) {
   ScopedObjectAccess soa(Thread::Current());
@@ -1159,6 +1167,12 @@ HConstant* HUnaryOperation::TryStaticEvaluation() const {
     return Evaluate(GetInput()->AsIntConstant());
   } else if (GetInput()->IsLongConstant()) {
     return Evaluate(GetInput()->AsLongConstant());
+  } else if (kEnableFloatingPointStaticEvaluation) {
+    if (GetInput()->IsFloatConstant()) {
+      return Evaluate(GetInput()->AsFloatConstant());
+    } else if (GetInput()->IsDoubleConstant()) {
+      return Evaluate(GetInput()->AsDoubleConstant());
+    }
   }
   return nullptr;
 }
@@ -1178,6 +1192,12 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
     }
   } else if (GetLeft()->IsNullConstant() && GetRight()->IsNullConstant()) {
     return Evaluate(GetLeft()->AsNullConstant(), GetRight()->AsNullConstant());
+  } else if (kEnableFloatingPointStaticEvaluation) {
+    if (GetLeft()->IsFloatConstant() && GetRight()->IsFloatConstant()) {
+      return Evaluate(GetLeft()->AsFloatConstant(), GetRight()->AsFloatConstant());
+    } else if (GetLeft()->IsDoubleConstant() && GetRight()->IsDoubleConstant()) {
+      return Evaluate(GetLeft()->AsDoubleConstant(), GetRight()->AsDoubleConstant());
+    }
   }
   return nullptr;
 }
@@ -1202,6 +1222,20 @@ HInstruction* HBinaryOperation::GetLeastConstantLeft() const {
     return GetRight();
   } else {
     return GetLeft();
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, const ComparisonBias& rhs) {
+  switch (rhs) {
+    case ComparisonBias::kNoBias:
+      return os << "no_bias";
+    case ComparisonBias::kGtBias:
+      return os << "gt_bias";
+    case ComparisonBias::kLtBias:
+      return os << "lt_bias";
+    default:
+      LOG(FATAL) << "Unknown ComparisonBias: " << static_cast<int>(rhs);
+      UNREACHABLE();
   }
 }
 
