@@ -88,13 +88,7 @@ if [ -z "$JACK_CLASSPATH" ]; then
   export JACK_CLASSPATH="${OUT_DIR:-$ANDROID_BUILD_TOP/out}/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack:${OUT_DIR:-$ANDROID_BUILD_TOP/out}/host/common/obj/JAVA_LIBRARIES/core-oj-hostdex_intermediates/classes.jack"
 fi
 
-# If JILL_JAR is not set, assume it is located in the prebuilts directory.
-if [ -z "$JILL_JAR" ]; then
-  export JILL_JAR="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/jill.jar"
-fi
-
 export JACK="$JACK -g -cp $JACK_CLASSPATH"
-export JILL="java -jar $JILL_JAR"
 
 info="info.txt"
 build="build"

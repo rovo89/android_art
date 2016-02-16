@@ -23,10 +23,10 @@ if [ ${USE_JACK} = "true" ]; then
   ${JACK} --output-jack src.jack src
 
   ${JASMIN} -d classes src/*.j
-  ${JILL} classes --output jasmin.jack
+  jar cf jasmin.jill.jar -C classes .
 
   # We set jack.import.type.policy=keep-first to consider class definitions from jasmin first.
-  ${JACK} --import jasmin.jack --import src.jack -D jack.import.type.policy=keep-first --output-dex .
+  ${JACK} --import jasmin.jill.jar --import src.jack -D jack.import.type.policy=keep-first --output-dex .
 else
   ${JAVAC} -d classes src/*.java
   ${JASMIN} -d classes src/*.j

@@ -27,8 +27,8 @@ rm 'classes/MissingClass.class'
 rm 'classes/Main$MissingInnerClass.class'
 
 if [ ${USE_JACK} = "true" ]; then
-  ${JILL} classes --output classes.jack
-  ${JACK} --import classes.jack --output-dex .
+  jar cf classes.jill.jar -C classes .
+  ${JACK} --import classes.jill.jar --output-dex .
 else
   ${DX} -JXmx256m --debug --dex --output=classes.dex classes
 fi
