@@ -290,7 +290,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   }
 
   if (kRuntimeISA == kMips || kRuntimeISA == kMips64) {
-    VLOG(jit) << "OSR not supported on this platform";
+    VLOG(jit) << "OSR not supported on this platform: " << kRuntimeISA;
     return false;
   }
 
@@ -304,8 +304,9 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
     return false;
   }
 
-  // Fetch some data before looking up for an OSR method, as we don't want thread
-  // suspension once we hold an OSR method.
+  // Fetch some data before looking up for an OSR method. We don't want thread
+  // suspension once we hold an OSR method, as the JIT code cache could delete the OSR
+  // method while we are being suspended.
   const size_t number_of_vregs = method->GetCodeItem()->registers_size_;
   const char* shorty = method->GetShorty();
   std::string method_name(VLOG_IS_ON(jit) ? PrettyMethod(method) : "");
@@ -360,7 +361,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
         DexRegisterLocation::Kind location =
             vreg_map.GetLocationKind(vreg, number_of_vregs, code_info, encoding);
         if (location == DexRegisterLocation::Kind::kNone) {
-          // Dex register is dead or unitialized.
+          // Dex register is dead or uninitialized.
           continue;
         }
 
@@ -369,7 +370,8 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
           continue;
         }
 
-        DCHECK(location == DexRegisterLocation::Kind::kInStack);
+        DCHECK(location == DexRegisterLocation::Kind::kInStack)
+            << DexRegisterLocation::PrettyDescriptor(location);
 
         int32_t vreg_value = shadow_frame->GetVReg(vreg);
         int32_t slot_offset = vreg_map.GetStackOffsetInBytes(vreg,
