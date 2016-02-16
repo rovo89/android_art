@@ -42,8 +42,7 @@ TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES :=
 
 ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
   TEST_ART_RUN_TEST_DEPENDENCIES += \
-    $(JACK) \
-    $(JILL_JAR)
+    $(JACK)
   TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES += setup-jack-server
 endif
 
@@ -72,8 +71,8 @@ $$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TARGET_JACK_CLASSPATH_DEPE
 	  DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
 	  JACK_VERSION=$(JACK_DEFAULT_VERSION) \
 	  JACK=$(abspath $(JACK)) \
+	  JACK_VERSION=$(JACK_DEFAULT_VERSION) \
 	  JACK_CLASSPATH=$(TARGET_JACK_CLASSPATH) \
-	  JILL_JAR=$(abspath $(JILL_JAR)) \
 	  $(LOCAL_PATH)/run-test $$(PRIVATE_RUN_TEST_OPTIONS) --output-path $$(abspath $$(dir $$@)) $(1)
 	$(hide) touch $$@
 
@@ -962,8 +961,8 @@ $$(run_test_rule_name): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(HOST_OUT_EXECUTABLES
 	    DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
 	    JACK_VERSION=$(JACK_DEFAULT_VERSION) \
 	    JACK=$(abspath $(JACK)) \
+	    JACK_VERSION=$(JACK_DEFAULT_VERSION) \
 	    JACK_CLASSPATH=$$(PRIVATE_JACK_CLASSPATH) \
-	    JILL_JAR=$(abspath $(JILL_JAR)) \
 	    art/test/run-test $$(PRIVATE_RUN_TEST_OPTIONS) $(12) \
 	      && $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
 	$$(hide) (echo $(MAKECMDGOALS) | grep -q $$@ && \

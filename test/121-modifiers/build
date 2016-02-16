@@ -31,9 +31,9 @@ set -e
 # mv Main.class A.class A\$B.class A\$C.class classes/
 
 if [ ${USE_JACK} = "true" ]; then
-  ${JILL} classes --output classes.jack
+  jar cf classes.jill.jar -C classes .
   # Workaround b/19561685: disable sanity checks to produce a DEX file with invalid modifiers.
-  ${JACK} --sanity-checks off --import classes.jack --output-dex .
+  ${JACK} --sanity-checks off --import classes.jill.jar --output-dex .
 else
   ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
 fi

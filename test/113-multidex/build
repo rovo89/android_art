@@ -29,13 +29,13 @@ rm classes2/Second.class classes2/FillerA.class classes2/FillerB.class classes2/
 
 if [ ${USE_JACK} = "true" ]; then
   # Create .jack files from classes generated with javac.
-  ${JILL} classes --output classes.jack
-  ${JILL} classes2 --output classes2.jack
+  jar cf classes.jill.jar -C classes .
+  jar cf classes2.jill.jar -C classes2 .
 
   # Create DEX files from .jack files.
-  ${JACK} --import classes.jack --output-dex .
+  ${JACK} --import classes.jill.jar --output-dex .
   mv classes.dex classes-1.dex
-  ${JACK} --import classes2.jack --output-dex .
+  ${JACK} --import classes2.jill.jar --output-dex .
   mv classes.dex classes2.dex
   mv classes-1.dex classes.dex
 else
