@@ -37,20 +37,16 @@
 
 namespace art {
 
-VerifiedMethod::VerifiedMethod(uint32_t encountered_error_types,
-                               bool has_runtime_throw,
-                               const SafeMap<uint32_t, std::set<uint32_t>>& string_init_pc_reg_map)
+VerifiedMethod::VerifiedMethod(uint32_t encountered_error_types, bool has_runtime_throw)
     : encountered_error_types_(encountered_error_types),
-      has_runtime_throw_(has_runtime_throw),
-      string_init_pc_reg_map_(string_init_pc_reg_map) {
+      has_runtime_throw_(has_runtime_throw) {
 }
 
 const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_verifier,
                                              bool compile) {
   std::unique_ptr<VerifiedMethod> verified_method(
       new VerifiedMethod(method_verifier->GetEncounteredFailureTypes(),
-                         method_verifier->HasInstructionThatWillThrow(),
-                         method_verifier->GetStringInitPcRegMap()));
+                         method_verifier->HasInstructionThatWillThrow()));
 
   if (compile) {
     /* Generate a register map. */

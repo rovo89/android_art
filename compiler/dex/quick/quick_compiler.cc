@@ -509,7 +509,8 @@ static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set)
 }
 
 bool QuickCompiler::CanCompileInstruction(const MIR* mir,
-                                          const DexFile& dex_file) const {
+                                          const DexFile& dex_file,
+                                          CompilationUnit* cu) const {
   switch (mir->dalvikInsn.opcode) {
     // Quick compiler won't support new instruction semantics to invoke-super into an interface
     // method
@@ -521,6 +522,13 @@ bool QuickCompiler::CanCompileInstruction(const MIR* mir,
       const DexFile::ClassDef* class_def = dex_file.FindClassDef(method_id.class_idx_);
       // False if we are an interface i.e. !(java_access_flags & kAccInterface)
       return class_def != nullptr && ((class_def->GetJavaAccessFlags() & kAccInterface) == 0);
+    }
+    case Instruction::NEW_INSTANCE: {
+      uint32_t type_idx = mir->dalvikInsn.vB;
+      if (cu->compiler_driver->IsStringTypeIndex(type_idx, cu->dex_file)) {
+        return false;
+      }
+      return true;
     }
     default:
       return true;
@@ -567,7 +575,7 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx,
               << MIRGraph::extended_mir_op_names_[opcode - kMirOpFirst];
         }
         return false;
-      } else if (!CanCompileInstruction(mir, dex_file)) {
+      } else if (!CanCompileInstruction(mir, dex_file, cu)) {
         VLOG(compiler) << "Cannot compile dalvik opcode : " << mir->dalvikInsn.opcode;
         return false;
       }

@@ -1679,9 +1679,7 @@ void MIRGraph::StringChange() {
       if (opcode == Instruction::NEW_INSTANCE) {
         uint32_t type_idx = mir->dalvikInsn.vB;
         if (cu_->compiler_driver->IsStringTypeIndex(type_idx, cu_->dex_file)) {
-          // Change NEW_INSTANCE into CONST_4 of 0
-          mir->dalvikInsn.opcode = Instruction::CONST_4;
-          mir->dalvikInsn.vB = 0;
+          LOG(FATAL) << "Quick cannot compile String allocations";
         }
       } else if ((opcode == Instruction::INVOKE_DIRECT) ||
                  (opcode == Instruction::INVOKE_DIRECT_RANGE)) {
@@ -1689,51 +1687,12 @@ void MIRGraph::StringChange() {
         DexFileMethodInliner* inliner =
             cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
         if (inliner->IsStringInitMethodIndex(method_idx)) {
-          bool is_range = (opcode == Instruction::INVOKE_DIRECT_RANGE);
-          uint32_t orig_this_reg = is_range ? mir->dalvikInsn.vC : mir->dalvikInsn.arg[0];
-          // Remove this pointer from string init and change to static call.
-          mir->dalvikInsn.vA--;
-          if (!is_range) {
-            mir->dalvikInsn.opcode = Instruction::INVOKE_STATIC;
-            for (uint32_t i = 0; i < mir->dalvikInsn.vA; i++) {
-              mir->dalvikInsn.arg[i] = mir->dalvikInsn.arg[i + 1];
-            }
-          } else {
-            mir->dalvikInsn.opcode = Instruction::INVOKE_STATIC_RANGE;
-            mir->dalvikInsn.vC++;
-          }
-          // Insert a move-result instruction to the original this pointer reg.
-          MIR* move_result_mir = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
-          move_result_mir->dalvikInsn.opcode = Instruction::MOVE_RESULT_OBJECT;
-          move_result_mir->dalvikInsn.vA = orig_this_reg;
-          move_result_mir->offset = mir->offset;
-          move_result_mir->m_unit_index = mir->m_unit_index;
-          bb->InsertMIRAfter(mir, move_result_mir);
-          // Add additional moves if this pointer was copied to other registers.
-          const VerifiedMethod* verified_method =
-              cu_->compiler_driver->GetVerifiedMethod(cu_->dex_file, cu_->method_idx);
-          DCHECK(verified_method != nullptr);
-          const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
-              verified_method->GetStringInitPcRegMap();
-          auto map_it = string_init_map.find(mir->offset);
-          if (map_it != string_init_map.end()) {
-            const std::set<uint32_t>& reg_set = map_it->second;
-            for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
-              MIR* move_mir = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
-              move_mir->dalvikInsn.opcode = Instruction::MOVE_OBJECT;
-              move_mir->dalvikInsn.vA = *set_it;
-              move_mir->dalvikInsn.vB = orig_this_reg;
-              move_mir->offset = mir->offset;
-              move_mir->m_unit_index = mir->m_unit_index;
-              bb->InsertMIRAfter(move_result_mir, move_mir);
-            }
-          }
+          LOG(FATAL) << "Quick cannot compile String allocations";
         }
       }
     }
   }
 }
-
 
 bool MIRGraph::EliminateSuspendChecksGate() {
   if (kLeafOptimization ||           // Incompatible (could create loops without suspend checks).
