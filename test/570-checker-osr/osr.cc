@@ -71,6 +71,10 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_ensureInOsrCode(JNIEnv*, jclass)
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_ensureInInterpreter(JNIEnv*, jclass) {
+  if (!Runtime::Current()->UseJit()) {
+    // The return value is irrelevant if we're not using JIT.
+    return false;
+  }
   ScopedObjectAccess soa(Thread::Current());
   OsrVisitor visitor(soa.Self());
   visitor.WalkStack();
@@ -96,6 +100,9 @@ class ProfilingInfoVisitor : public StackVisitor {
 };
 
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureHasProfilingInfo(JNIEnv*, jclass) {
+  if (!Runtime::Current()->UseJit()) {
+    return;
+  }
   ScopedObjectAccess soa(Thread::Current());
   ProfilingInfoVisitor visitor(soa.Self());
   visitor.WalkStack();
@@ -126,6 +133,9 @@ class OsrCheckVisitor : public StackVisitor {
 };
 
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureHasOsrCode(JNIEnv*, jclass) {
+  if (!Runtime::Current()->UseJit()) {
+    return;
+  }
   ScopedObjectAccess soa(Thread::Current());
   OsrCheckVisitor visitor(soa.Self());
   visitor.WalkStack();
