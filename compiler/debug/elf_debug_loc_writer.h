@@ -82,6 +82,8 @@ struct VariableLocation {
 // Get the location of given dex register (e.g. stack or machine register).
 // Note that the location might be different based on the current pc.
 // The result will cover all ranges where the variable is in scope.
+// PCs corresponding to stackmap with dex register map are accurate,
+// all other PCs are best-effort only.
 std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method_info,
                                                    uint16_t vreg,
                                                    bool is64bitValue,
@@ -140,6 +142,9 @@ std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method
         variable_locations.back().reg_hi == reg_hi &&
         variable_locations.back().high_pc == low_pc) {
       // Merge with the previous entry (extend its range).
+      variable_locations.back().high_pc = high_pc;
+    } else if (!variable_locations.empty() && reg_lo == DexRegisterLocation::None()) {
+      // Unknown location - use the last known location as best-effort guess.
       variable_locations.back().high_pc = high_pc;
     } else {
       variable_locations.push_back({low_pc, high_pc, reg_lo, reg_hi});
