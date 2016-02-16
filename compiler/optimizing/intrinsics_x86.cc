@@ -261,7 +261,8 @@ static void CreateFloatToFloat(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::SameAsFirstInput());
   HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirect();
   DCHECK(static_or_direct != nullptr);
-  if (invoke->InputAt(static_or_direct->GetSpecialInputIndex())->IsX86ComputeBaseMethodAddress()) {
+  if (static_or_direct->HasSpecialInput() &&
+      invoke->InputAt(static_or_direct->GetSpecialInputIndex())->IsX86ComputeBaseMethodAddress()) {
     // We need addressibility for the constant area.
     locations->SetInAt(1, Location::RequiresRegister());
     // We need a temporary to hold the constant.
@@ -276,7 +277,7 @@ static void MathAbsFP(LocationSummary* locations,
   Location output = locations->Out();
 
   DCHECK(output.IsFpuRegister());
-  if (locations->InAt(1).IsValid()) {
+  if (locations->GetInputCount() == 2 && locations->InAt(1).IsValid()) {
     DCHECK(locations->InAt(1).IsRegister());
     // We also have a constant area pointer.
     Register constant_area = locations->InAt(1).AsRegister<Register>();
@@ -465,7 +466,7 @@ static void GenMinMaxFP(LocationSummary* locations,
   // NaN handling.
   __ Bind(&nan);
   // Do we have a constant area pointer?
-  if (locations->InAt(2).IsValid()) {
+  if (locations->GetInputCount() == 3 && locations->InAt(2).IsValid()) {
     DCHECK(locations->InAt(2).IsRegister());
     Register constant_area = locations->InAt(2).AsRegister<Register>();
     if (is_double) {
@@ -510,7 +511,8 @@ static void CreateFPFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::SameAsFirstInput());
   HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirect();
   DCHECK(static_or_direct != nullptr);
-  if (invoke->InputAt(static_or_direct->GetSpecialInputIndex())->IsX86ComputeBaseMethodAddress()) {
+  if (static_or_direct->HasSpecialInput() &&
+      invoke->InputAt(static_or_direct->GetSpecialInputIndex())->IsX86ComputeBaseMethodAddress()) {
     locations->SetInAt(2, Location::RequiresRegister());
   }
 }

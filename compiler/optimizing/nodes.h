@@ -3671,6 +3671,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   // method pointer; otherwise there may be one platform-specific special input,
   // such as PC-relative addressing base.
   uint32_t GetSpecialInputIndex() const { return GetNumberOfArguments(); }
+  bool HasSpecialInput() const { return GetNumberOfArguments() != InputCount(); }
 
   InvokeType GetOptimizedInvokeType() const { return optimized_invoke_type_; }
   void SetOptimizedInvokeType(InvokeType invoke_type) {
