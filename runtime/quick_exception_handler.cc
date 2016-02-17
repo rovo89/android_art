@@ -23,6 +23,8 @@
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle_scope-inl.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/throwable.h"
@@ -629,13 +631,17 @@ void QuickExceptionHandler::DeoptimizeSingleFrame() {
   DeoptimizeStackVisitor visitor(self_, context_, this, true);
   visitor.WalkStack(true);
 
-  // Compiled code made an explicit deoptimization. Transfer the code
-  // to interpreter and clear the counter to JIT the method again.
+  // Compiled code made an explicit deoptimization.
   ArtMethod* deopt_method = visitor.GetSingleFrameDeoptMethod();
   DCHECK(deopt_method != nullptr);
-  deopt_method->ClearCounter();
-  Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
-      deopt_method, GetQuickToInterpreterBridge());
+  if (Runtime::Current()->UseJit()) {
+    Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
+        deopt_method, handler_method_header_);
+  } else {
+    // Transfer the code to interpreter.
+    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+        deopt_method, GetQuickToInterpreterBridge());
+  }
 
   // PC needs to be of the quick-to-interpreter bridge.
   int32_t offset;

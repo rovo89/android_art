@@ -790,5 +790,24 @@ size_t JitCodeCache::GetMemorySizeOfCodePointer(const void* ptr) {
   return mspace_usable_size(reinterpret_cast<const void*>(FromCodeToAllocation(ptr)));
 }
 
+void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
+                                             const OatQuickMethodHeader* header) {
+  if (method->GetEntryPointFromQuickCompiledCode() == header->GetEntryPoint()) {
+    // The entrypoint is the one to invalidate, so we just update
+    // it to the interpreter entry point and clear the counter to get the method
+    // Jitted again.
+    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+        method, GetQuickToInterpreterBridge());
+    method->ClearCounter();
+  } else {
+    MutexLock mu(Thread::Current(), lock_);
+    auto it = osr_code_map_.find(method);
+    if (it != osr_code_map_.end() && OatQuickMethodHeader::FromCodePointer(it->second) == header) {
+      // Remove the OSR method, to avoid using it again.
+      osr_code_map_.erase(it);
+    }
+  }
+}
+
 }  // namespace jit
 }  // namespace art
