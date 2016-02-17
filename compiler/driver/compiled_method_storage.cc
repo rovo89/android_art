@@ -190,7 +190,8 @@ CompiledMethodStorage::~CompiledMethodStorage() {
 
 void CompiledMethodStorage::DumpMemoryUsage(std::ostream& os, bool extended) const {
   if (swap_space_.get() != nullptr) {
-    os << " swap=" << PrettySize(swap_space_->GetSize());
+    const size_t swap_size = swap_space_->GetSize();
+    os << " swap=" << PrettySize(swap_size) << " (" << swap_size << "B)";
   }
   if (extended) {
     Thread* self = Thread::Current();
