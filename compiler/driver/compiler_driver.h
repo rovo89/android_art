@@ -94,11 +94,9 @@ class CompilerDriver {
                  bool boot_image, std::unordered_set<std::string>* image_classes,
                  std::unordered_set<std::string>* compiled_classes,
                  std::unordered_set<std::string>* compiled_methods,
-                 size_t thread_count,
-                 bool dump_stats,
-                 bool dump_passes,
-                 CumulativeLogger* timer,
-                 int swap_fd,
+                 size_t thread_count, bool dump_stats, bool dump_passes,
+                 CumulativeLogger* timer, int swap_fd,
+                 const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map,
                  const ProfileCompilationInfo* profile_compilation_info);
 
   ~CompilerDriver();
@@ -113,6 +111,20 @@ class CompilerDriver {
     return (dex_files_for_oat_file_ != nullptr)
         ? ArrayRef<const DexFile* const>(*dex_files_for_oat_file_)
         : ArrayRef<const DexFile* const>();
+  }
+
+  // Are the given dex files compiled into the same oat file? Should only be called after
+  // GetDexFilesForOatFile, as the conservative answer (when we don't have a map) is true.
+  bool AreInSameOatFile(const DexFile* d1, const DexFile* d2) {
+    if (dex_file_oat_filename_map_ == nullptr) {
+      // TODO: Check for this wrt/ apps and boot image calls.
+      return true;
+    }
+    auto it1 = dex_file_oat_filename_map_->find(d1);
+    DCHECK(it1 != dex_file_oat_filename_map_->end());
+    auto it2 = dex_file_oat_filename_map_->find(d2);
+    DCHECK(it2 != dex_file_oat_filename_map_->end());
+    return it1->second == it2->second;
   }
 
   void CompileAll(jobject class_loader,
@@ -687,6 +699,9 @@ class CompilerDriver {
 
   // List of dex files that will be stored in the oat file.
   const std::vector<const DexFile*>* dex_files_for_oat_file_;
+
+  // Map from dex files to the oat file (name) they will be compiled into.
+  const std::unordered_map<const DexFile*, const char*>* dex_file_oat_filename_map_;
 
   CompiledMethodStorage compiled_method_storage_;
 
