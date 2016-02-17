@@ -297,6 +297,7 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
                                    HBasicBlock* default_block);
 
   void GenerateFPCompare(Location lhs, Location rhs, HInstruction* insn, bool is_double);
+  void GenerateIntCompare(Location lhs, Location rhs);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
