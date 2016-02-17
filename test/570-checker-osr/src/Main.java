@@ -40,6 +40,9 @@ public class Main {
     if ($noinline$inlineCache(new SubMain(), /* isSecondInvocation */ true) != SubMain.class) {
       throw new Error("Unexpected return value");
     }
+
+    $noinline$stackOverflow(new Main(), /* isSecondInvocation */ false);
+    $noinline$stackOverflow(new SubMain(), /* isSecondInvocation */ true);
   }
 
   public static int $noinline$returnInt() {
@@ -129,7 +132,32 @@ public class Main {
     return Main.class;
   }
 
-  public static int[] array = new int[4];
+  public void otherInlineCache() {
+    return;
+  }
+
+  public static void $noinline$stackOverflow(Main m, boolean isSecondInvocation) {
+    // If we are running in non-JIT mode, or were unlucky enough to get this method
+    // already JITted, just return the expected value.
+    if (!ensureInInterpreter()) {
+      return;
+    }
+
+    // We need a ProfilingInfo object to populate the 'otherInlineCache' call.
+    ensureHasProfilingInfo();
+
+    if (isSecondInvocation) {
+      // Ensure we have an OSR code and we jump to it.
+      while (!ensureInOsrCode()) {}
+    }
+
+    for (int i = 0; i < (isSecondInvocation ? 10000000 : 1); ++i) {
+      // The first invocation of $noinline$stackOverflow will populate the inline
+      // cache with Main. The second invocation of the method, will see a SubMain
+      // and will therefore trigger deoptimization.
+      m.otherInlineCache();
+    }
+  }
 
   public static native boolean ensureInInterpreter();
   public static native boolean ensureInOsrCode();
@@ -146,5 +174,9 @@ class SubMain extends Main {
 
   public Main inlineCache() {
     return new SubMain();
+  }
+
+  public void otherInlineCache() {
+    return;
   }
 }

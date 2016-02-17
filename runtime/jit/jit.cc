@@ -294,6 +294,14 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
     return false;
   }
 
+  if (UNLIKELY(__builtin_frame_address(0) < thread->GetStackEnd())) {
+    // Don't attempt to do an OSR if we are close to the stack limit. Since
+    // the interpreter frames are still on stack, OSR has the potential
+    // to stack overflow even for a simple loop.
+    // b/27094810.
+    return false;
+  }
+
   // Get the actual Java method if this method is from a proxy class. The compiler
   // and the JIT code cache do not expect methods from proxy classes.
   method = method->GetInterfaceMethodIfProxy(sizeof(void*));

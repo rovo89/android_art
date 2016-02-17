@@ -172,6 +172,10 @@ class JitCodeCache {
 
   size_t GetMemorySizeOfCodePointer(const void* ptr) REQUIRES(!lock_);
 
+  void InvalidateCompiledCodeFor(ArtMethod* method, const OatQuickMethodHeader* code)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
