@@ -178,7 +178,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitCompare(HCompare* instruction
         ((input_cst->IsFloatConstant() && input_cst->AsFloatConstant()->IsNaN()) ||
          (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstant()->IsNaN()))) {
       // Replace code looking like
-      //    CMP{G,L} dst, src, NaN
+      //    CMP{G,L}-{FLOAT,DOUBLE} dst, src, NaN
       // with
       //    CONSTANT +1 (gt bias)
       // or

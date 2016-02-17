@@ -111,6 +111,11 @@ template <typename T> T AbsOrMin(T value) {
       : std::abs(value);
 }
 
+template <typename T>
+inline typename std::make_unsigned<T>::type MakeUnsigned(T x) {
+  return static_cast<typename std::make_unsigned<T>::type>(x);
+}
+
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
