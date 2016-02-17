@@ -2107,7 +2107,6 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register res = locations->Out().AsRegister<Register>();
   Primitive::Type in_type = instruction->InputAt(0)->GetType();
-  bool gt_bias = instruction->IsGtBias();
   bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
 
   //  0 if: left == right
@@ -2141,6 +2140,7 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
     }
 
     case Primitive::kPrimFloat: {
+      bool gt_bias = instruction->IsGtBias();
       FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
       FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
       MipsLabel done;
@@ -2180,6 +2180,7 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
       break;
     }
     case Primitive::kPrimDouble: {
+      bool gt_bias = instruction->IsGtBias();
       FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
       FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
       MipsLabel done;
