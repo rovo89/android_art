@@ -532,8 +532,9 @@ inline LengthPrefixedArray<ArtField>* Class::GetIFieldsPtr() {
   return GetFieldPtr<LengthPrefixedArray<ArtField>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_));
 }
 
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline MemberOffset Class::GetFirstReferenceInstanceFieldOffset() {
-  Class* super_class = GetSuperClass();
+  Class* super_class = GetSuperClass<kVerifyFlags, kReadBarrierOption>();
   return (super_class != nullptr)
       ? MemberOffset(RoundUp(super_class->GetObjectSize(),
                              sizeof(mirror::HeapReference<mirror::Object>)))
