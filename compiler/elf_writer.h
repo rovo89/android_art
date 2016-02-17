@@ -52,14 +52,12 @@ class ElfWriter {
   virtual ~ElfWriter() {}
 
   virtual void Start() = 0;
-  virtual void PrepareDebugInfo(size_t rodata_section_size,
-                                size_t text_section_size,
-                                const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
+  virtual void SetLoadedSectionSizes(size_t rodata_size, size_t text_size, size_t bss_size) = 0;
+  virtual void PrepareDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
   virtual OutputStream* StartRoData() = 0;
   virtual void EndRoData(OutputStream* rodata) = 0;
   virtual OutputStream* StartText() = 0;
   virtual void EndText(OutputStream* text) = 0;
-  virtual void SetBssSize(size_t bss_size) = 0;
   virtual void WriteDynamicSection() = 0;
   virtual void WriteDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
   virtual void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) = 0;
@@ -69,6 +67,9 @@ class ElfWriter {
   // to a section after the section has been finished. When that's done, the user
   // should Seek() back to the position where the stream was before this operation.
   virtual OutputStream* GetStream() = 0;
+
+  // Get the size that the loaded ELF file will occupy in memory.
+  virtual size_t GetLoadedSize() = 0;
 
  protected:
   ElfWriter() = default;

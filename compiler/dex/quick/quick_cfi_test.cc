@@ -84,17 +84,16 @@ class QuickCFITest : public CFITest {
                           Compiler::kQuick,
                           isa,
                           isa_features.get(),
-                          false,
-                          nullptr,
-                          nullptr,
-                          nullptr,
-                          0,
-                          false,
-                          false,
-                          0,
-                          -1,
-                          nullptr,
-                          nullptr);
+                          /* boot_image */ false,
+                          /* image_classes */ nullptr,
+                          /* compiled_classes */ nullptr,
+                          /* compiled_methods */ nullptr,
+                          /* thread_count */ 0,
+                          /* dump_stats */ false,
+                          /* dump_passes */ false,
+                          /* timer */ nullptr,
+                          /* swap_fd */ -1,
+                          /* profile_compilation_info */ nullptr);
     ClassLinker* linker = nullptr;
     CompilationUnit cu(&pool, isa, &driver, linker);
     DexFile::CodeItem code_item { 0, 0, 0, 0, 0, 0, { 0 } };  // NOLINT

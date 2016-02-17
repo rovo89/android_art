@@ -194,16 +194,15 @@ void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind, InstructionSe
                                             kind,
                                             isa,
                                             instruction_set_features_.get(),
-                                            true,
+                                            /* boot_image */ true,
                                             GetImageClasses(),
                                             GetCompiledClasses(),
                                             GetCompiledMethods(),
-                                            2,
-                                            true,
-                                            true,
+                                            /* thread_count */ 2,
+                                            /* dump_stats */ true,
+                                            /* dump_passes */ true,
                                             timer_.get(),
-                                            -1,
-                                            /* dex_to_oat_map */ nullptr,
+                                            /* swap_fd */ -1,
                                             GetProfileCompilationInfo()));
   // We typically don't generate an image in unit tests, disable this optimization by default.
   compiler_driver_->SetSupportBootImageFixup(false);
