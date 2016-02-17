@@ -204,9 +204,10 @@ inline RegisterLine::RegisterLine(size_t num_regs, MethodVerifier* verifier)
 }
 
 inline void RegisterLineArenaDelete::operator()(RegisterLine* ptr) const {
-  const size_t size = ptr != nullptr ? RegisterLine::ComputeSize(ptr->NumRegs()) : 0u;
-  ptr->~RegisterLine();
-  ProtectMemory(ptr, size);
+  if (ptr != nullptr) {
+    ptr->~RegisterLine();
+    ProtectMemory(ptr, RegisterLine::ComputeSize(ptr->NumRegs()));
+  }
 }
 
 }  // namespace verifier
