@@ -41,7 +41,8 @@ class OsrVisitor : public StackVisitor {
         (m_name.compare("$noinline$returnDouble") == 0) ||
         (m_name.compare("$noinline$returnLong") == 0) ||
         (m_name.compare("$noinline$deopt") == 0) ||
-        (m_name.compare("$noinline$inlineCache") == 0)) {
+        (m_name.compare("$noinline$inlineCache") == 0) ||
+        (m_name.compare("$noinline$stackOverflow") == 0)) {
       const OatQuickMethodHeader* header =
           Runtime::Current()->GetJit()->GetCodeCache()->LookupOsrMethodHeader(m);
       if (header != nullptr && header == GetCurrentOatQuickMethodHeader()) {
@@ -91,7 +92,8 @@ class ProfilingInfoVisitor : public StackVisitor {
     ArtMethod* m = GetMethod();
     std::string m_name(m->GetName());
 
-    if (m_name.compare("$noinline$inlineCache") == 0) {
+    if ((m_name.compare("$noinline$inlineCache") == 0) ||
+        (m_name.compare("$noinline$stackOverflow") == 0)) {
       ProfilingInfo::Create(Thread::Current(), m, /* retry_allocation */ true);
       return false;
     }
@@ -119,7 +121,8 @@ class OsrCheckVisitor : public StackVisitor {
     std::string m_name(m->GetName());
 
     jit::Jit* jit = Runtime::Current()->GetJit();
-    if (m_name.compare("$noinline$inlineCache") == 0 && jit != nullptr) {
+    if ((m_name.compare("$noinline$inlineCache") == 0) ||
+        (m_name.compare("$noinline$stackOverflow") == 0)) {
       while (jit->GetCodeCache()->LookupOsrMethodHeader(m) == nullptr) {
         // Sleep to yield to the compiler thread.
         sleep(0);
