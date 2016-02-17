@@ -2732,16 +2732,18 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   std::ostringstream oss;
   Runtime* const runtime = Runtime::Current();
-  const ArenaPool* arena_pool = runtime->GetArenaPool();
-  gc::Heap* const heap = runtime->GetHeap();
-  oss << "arena alloc=" << PrettySize(arena_pool->GetBytesAllocated());
-  oss << " java alloc=" << PrettySize(heap->GetBytesAllocated());
+  const ArenaPool* const arena_pool = runtime->GetArenaPool();
+  const gc::Heap* const heap = runtime->GetHeap();
+  const size_t arena_alloc = arena_pool->GetBytesAllocated();
+  const size_t java_alloc = heap->GetBytesAllocated();
+  oss << "arena alloc=" << PrettySize(arena_alloc) << " (" << arena_alloc << "B)";
+  oss << " java alloc=" << PrettySize(java_alloc) << " (" << java_alloc << "B)";
 #if defined(__BIONIC__) || defined(__GLIBC__)
-  struct mallinfo info = mallinfo();
+  const struct mallinfo info = mallinfo();
   const size_t allocated_space = static_cast<size_t>(info.uordblks);
   const size_t free_space = static_cast<size_t>(info.fordblks);
-  oss << " native alloc=" << PrettySize(allocated_space) << " free="
-      << PrettySize(free_space);
+  oss << " native alloc=" << PrettySize(allocated_space) << " (" << allocated_space << "B)"
+      << " free=" << PrettySize(free_space) << " (" << free_space << "B)";
 #endif
   compiled_method_storage_.DumpMemoryUsage(oss, extended);
   return oss.str();

@@ -877,4 +877,22 @@ std::ostream& operator<<(std::ostream& os, const MemMap& mem_map) {
   return os;
 }
 
+void MemMap::TryReadable() {
+  if (base_begin_ == nullptr && base_size_ == 0) {
+    return;
+  }
+  CHECK_NE(prot_ & PROT_READ, 0);
+  volatile uint8_t* begin = reinterpret_cast<volatile uint8_t*>(base_begin_);
+  volatile uint8_t* end = begin + base_size_;
+  DCHECK(IsAligned<kPageSize>(begin));
+  DCHECK(IsAligned<kPageSize>(end));
+  // Read the first byte of each page. Use volatile to prevent the compiler from optimizing away the
+  // reads.
+  for (volatile uint8_t* ptr = begin; ptr < end; ptr += kPageSize) {
+    // This read could fault if protection wasn't set correctly.
+    uint8_t value = *ptr;
+    UNUSED(value);
+  }
+}
+
 }  // namespace art

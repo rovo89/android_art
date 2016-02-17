@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_EXPRESSION_H_
-#define ART_COMPILER_DWARF_EXPRESSION_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_EXPRESSION_H_
+#define ART_COMPILER_DEBUG_DWARF_EXPRESSION_H_
 
 #include <cstddef>
 #include <cstdint>
 
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/writer.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/writer.h"
 
 namespace art {
 namespace dwarf {
@@ -118,4 +118,4 @@ class Expression : private Writer<> {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_EXPRESSION_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_EXPRESSION_H_

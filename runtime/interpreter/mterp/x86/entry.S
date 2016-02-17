@@ -18,8 +18,8 @@
  */
 
     .text
-    .global ExecuteMterpImpl
-    .type   ExecuteMterpImpl, %function
+    .global SYMBOL(ExecuteMterpImpl)
+    FUNCTION_TYPE(ExecuteMterpImpl)
 
 /*
  * On entry:
@@ -30,7 +30,7 @@
  *
  */
 
-ExecuteMterpImpl:
+SYMBOL(ExecuteMterpImpl):
     .cfi_startproc
     /* Allocate frame */
     subl    $$FRAME_SIZE, %esp

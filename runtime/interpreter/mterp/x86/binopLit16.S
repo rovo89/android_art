@@ -11,9 +11,9 @@
     /* binop/lit16 vA, vB, #+CCCC */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $$4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $$0xf, rINSTbl                  # rINST <- A
     $instr                                  # for example: addl %ecx, %eax
-    SET_VREG $result rINST
+    SET_VREG $result, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

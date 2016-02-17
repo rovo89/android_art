@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
-#define ART_COMPILER_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
+#ifndef ART_COMPILER_DEBUG_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
+#define ART_COMPILER_DEBUG_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
 
 #include <cstdint>
 
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/writer.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/writer.h"
 
 namespace art {
 namespace dwarf {
@@ -252,4 +252,4 @@ class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
+#endif  // ART_COMPILER_DEBUG_DWARF_DEBUG_LINE_OPCODE_WRITER_H_

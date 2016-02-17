@@ -8,10 +8,11 @@
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    ubfx    r9, rINST, #8, #4           @ r9<- A
+    ubfx    rINST, rINST, #8, #4        @ rINST<- A
     add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
     ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+    CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     $preinstr                           @ optional op; may set condition codes
     $instr                              @ r0/r1<- op, r2-r3 changed

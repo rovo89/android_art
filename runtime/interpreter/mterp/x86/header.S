@@ -89,6 +89,22 @@ unspecified registers or condition codes.
  */
 #include "asm_support.h"
 
+/*
+ * Handle mac compiler specific
+ */
+#if defined(__APPLE__)
+    #define MACRO_LITERAL(value) $$(value)
+    #define FUNCTION_TYPE(name)
+    #define SIZE(start,end)
+    // Mac OS' symbols have an _ prefix.
+    #define SYMBOL(name) _ ## name
+#else
+    #define MACRO_LITERAL(value) $$value
+    #define FUNCTION_TYPE(name) .type name, @function
+    #define SIZE(start,end) .size start, .-end
+    #define SYMBOL(name) name
+#endif
+
 /* Frame size must be 16-byte aligned.
  * Remember about 4 bytes for return address
  */
@@ -192,7 +208,7 @@ unspecified registers or condition codes.
  */
 .macro REFRESH_INST _opnum
     movb    rINSTbl, rINSTbh
-    movb    $$\_opnum, rINSTbl
+    movb    MACRO_LITERAL(\_opnum), rINSTbl
 .endm
 
 /*
@@ -208,7 +224,7 @@ unspecified registers or condition codes.
 .macro GOTO_NEXT
     movzx   rINSTbl,%eax
     movzbl  rINSTbh,rINST
-    shll    $$${handler_size_bits}, %eax
+    shll    MACRO_LITERAL(${handler_size_bits}), %eax
     addl    rIBASE, %eax
     jmp     *%eax
 .endm
@@ -248,7 +264,7 @@ unspecified registers or condition codes.
 
 .macro SET_VREG _reg _vreg
     movl    \_reg, (rFP,\_vreg,4)
-    movl    $$0, (rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0), (rREFS,\_vreg,4)
 .endm
 
 /* Write wide value from xmm. xmm is clobbered. */
@@ -269,14 +285,14 @@ unspecified registers or condition codes.
 
 .macro SET_VREG_HIGH _reg _vreg
     movl    \_reg, 4(rFP,\_vreg,4)
-    movl    $$0, 4(rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0), 4(rREFS,\_vreg,4)
 .endm
 
 .macro CLEAR_REF _vreg
-    movl    $$0,  (rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0),  (rREFS,\_vreg,4)
 .endm
 
 .macro CLEAR_WIDE_REF _vreg
-    movl    $$0,  (rREFS,\_vreg,4)
-    movl    $$0, 4(rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0),  (rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0), 4(rREFS,\_vreg,4)
 .endm

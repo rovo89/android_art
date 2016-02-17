@@ -13,7 +13,7 @@
     movl    rPC, OUT_ARG1(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)
-    call    $helper
+    call    SYMBOL($helper)
     REFRESH_IBASE
     testl   %eax, %eax                      # 0 means an exception is thrown
     jz      MterpPossibleException

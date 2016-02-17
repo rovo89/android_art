@@ -22,9 +22,9 @@
 #include <sstream>
 
 #include "arch/instruction_set.h"
-#include "dwarf/dwarf_constants.h"
-#include "dwarf/dwarf_test.h"
-#include "dwarf/headers.h"
+#include "debug/dwarf/dwarf_constants.h"
+#include "debug/dwarf/dwarf_test.h"
+#include "debug/dwarf/headers.h"
 #include "disassembler/disassembler.h"
 #include "gtest/gtest.h"
 

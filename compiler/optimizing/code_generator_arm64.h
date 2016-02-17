@@ -350,8 +350,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return CommonGetLabelOf<vixl::Label>(block_labels_, block);
   }
 
-  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
-
   size_t GetWordSize() const OVERRIDE {
     return kArm64WordSize;
   }

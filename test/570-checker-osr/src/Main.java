@@ -16,6 +16,7 @@
 
 public class Main {
   public static void main(String[] args) {
+    new SubMain();
     System.loadLibrary(args[0]);
     if ($noinline$returnInt() != 53) {
       throw new Error("Unexpected return value");
@@ -33,12 +34,21 @@ public class Main {
     try {
       $noinline$deopt();
     } catch (Exception e) {}
+    DeoptimizationController.stopDeoptimization();
+
+    $noinline$inlineCache(new Main(), /* isSecondInvocation */ false);
+    if ($noinline$inlineCache(new SubMain(), /* isSecondInvocation */ true) != SubMain.class) {
+      throw new Error("Unexpected return value");
+    }
+
+    $noinline$stackOverflow(new Main(), /* isSecondInvocation */ false);
+    $noinline$stackOverflow(new SubMain(), /* isSecondInvocation */ true);
   }
 
   public static int $noinline$returnInt() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 100000000; ++i) {
+    for (; i < 100000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -48,7 +58,7 @@ public class Main {
   public static float $noinline$returnFloat() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 200000000; ++i) {
+    for (; i < 200000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -58,7 +68,7 @@ public class Main {
   public static double $noinline$returnDouble() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 300000000; ++i) {
+    for (; i < 300000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -67,8 +77,8 @@ public class Main {
 
   public static long $noinline$returnLong() {
     if (doThrow) throw new Error("");
-    int i = 1000000;
-    for (; i < 400000000; ++i) {
+    int i = 0;
+    for (; i < 400000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     System.out.println(i);
@@ -78,15 +88,95 @@ public class Main {
   public static void $noinline$deopt() {
     if (doThrow) throw new Error("");
     int i = 0;
-    for (; i < 100000000; ++i) {
+    for (; i < 100000; ++i) {
     }
     while (!ensureInOsrCode()) {}
     DeoptimizationController.startDeoptimization();
   }
 
-  public static int[] array = new int[4];
+  public static Class $noinline$inlineCache(Main m, boolean isSecondInvocation) {
+    // If we are running in non-JIT mode, or were unlucky enough to get this method
+    // already JITted, just return the expected value.
+    if (!ensureInInterpreter()) {
+      return SubMain.class;
+    }
 
+    ensureHasProfilingInfo();
+
+    // Ensure that we have OSR code to jump to.
+    if (isSecondInvocation) {
+      ensureHasOsrCode();
+    }
+
+    // This call will be optimized in the OSR compiled code
+    // to check and deoptimize if m is not of type 'Main'.
+    Main other = m.inlineCache();
+
+    // Jump to OSR compiled code. The second run
+    // of this method will have 'm' as a SubMain, and the compiled
+    // code we are jumping to will have wrongly optimize other as being a
+    // 'Main'.
+    if (isSecondInvocation) {
+      while (!ensureInOsrCode()) {}
+    }
+
+    // We used to wrongly optimize this call and assume 'other' was a 'Main'.
+    return other.returnClass();
+  }
+
+  public Main inlineCache() {
+    return new Main();
+  }
+
+  public Class returnClass() {
+    return Main.class;
+  }
+
+  public void otherInlineCache() {
+    return;
+  }
+
+  public static void $noinline$stackOverflow(Main m, boolean isSecondInvocation) {
+    // If we are running in non-JIT mode, or were unlucky enough to get this method
+    // already JITted, just return the expected value.
+    if (!ensureInInterpreter()) {
+      return;
+    }
+
+    // We need a ProfilingInfo object to populate the 'otherInlineCache' call.
+    ensureHasProfilingInfo();
+
+    if (isSecondInvocation) {
+      // Ensure we have an OSR code and we jump to it.
+      while (!ensureInOsrCode()) {}
+    }
+
+    for (int i = 0; i < (isSecondInvocation ? 10000000 : 1); ++i) {
+      // The first invocation of $noinline$stackOverflow will populate the inline
+      // cache with Main. The second invocation of the method, will see a SubMain
+      // and will therefore trigger deoptimization.
+      m.otherInlineCache();
+    }
+  }
+
+  public static native boolean ensureInInterpreter();
   public static native boolean ensureInOsrCode();
+  public static native void ensureHasProfilingInfo();
+  public static native void ensureHasOsrCode();
 
   public static boolean doThrow = false;
+}
+
+class SubMain extends Main {
+  public Class returnClass() {
+    return SubMain.class;
+  }
+
+  public Main inlineCache() {
+    return new SubMain();
+  }
+
+  public void otherInlineCache() {
+    return;
+  }
 }

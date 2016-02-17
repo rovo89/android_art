@@ -326,6 +326,14 @@ void X86Assembler::cmovl(Condition condition, Register dst, Register src) {
 }
 
 
+void X86Assembler::cmovl(Condition condition, Register dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x40 + condition);
+  EmitOperand(dst, src);
+}
+
+
 void X86Assembler::setb(Condition condition, Register dst) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);

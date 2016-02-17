@@ -38,11 +38,7 @@ class RegisterAllocatorTest : public CommonCompilerTest {};
 static bool Check(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateGraph(&allocator);
-  HGraphBuilder builder(graph);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  builder.BuildGraph(*item);
-  TransformToSsa(graph);
+  HGraph* graph = CreateCFG(&allocator, data);
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
@@ -254,15 +250,6 @@ TEST_F(RegisterAllocatorTest, Loop2) {
   ASSERT_TRUE(Check(data));
 }
 
-static HGraph* BuildSSAGraph(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraph* graph = CreateGraph(allocator);
-  HGraphBuilder builder(graph);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  builder.BuildGraph(*item);
-  TransformToSsa(graph);
-  return graph;
-}
-
 TEST_F(RegisterAllocatorTest, Loop3) {
   /*
    * Test the following snippet:
@@ -302,7 +289,7 @@ TEST_F(RegisterAllocatorTest, Loop3) {
 
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = BuildSSAGraph(data, &allocator);
+  HGraph* graph = CreateCFG(&allocator, data);
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
@@ -336,7 +323,7 @@ TEST_F(RegisterAllocatorTest, FirstRegisterUse) {
 
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = BuildSSAGraph(data, &allocator);
+  HGraph* graph = CreateCFG(&allocator, data);
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
@@ -390,7 +377,7 @@ TEST_F(RegisterAllocatorTest, DeadPhi) {
 
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = BuildSSAGraph(data, &allocator);
+  HGraph* graph = CreateCFG(&allocator, data);
   SsaDeadPhiElimination(graph).Run();
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
@@ -414,7 +401,7 @@ TEST_F(RegisterAllocatorTest, FreeUntil) {
 
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = BuildSSAGraph(data, &allocator);
+  HGraph* graph = CreateCFG(&allocator, data);
   SsaDeadPhiElimination(graph).Run();
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());

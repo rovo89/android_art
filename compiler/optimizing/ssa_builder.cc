@@ -430,8 +430,6 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
   }
 
   for (HNewInstance* new_instance : uninitialized_strings_) {
-    DCHECK(new_instance->IsStringAlloc());
-
     // Replace NewInstance of String with NullConstant if not used prior to
     // calling StringFactory. In case of deoptimization, the interpreter is
     // expected to skip null check on the `this` argument of the StringFactory call.
@@ -440,10 +438,26 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
       new_instance->GetBlock()->RemoveInstruction(new_instance);
 
       // Remove LoadClass if not needed any more.
-      HLoadClass* load_class = new_instance->InputAt(0)->AsLoadClass();
+      HInstruction* input = new_instance->InputAt(0);
+      HLoadClass* load_class = nullptr;
+
+      // If the class was not present in the dex cache at the point of building
+      // the graph, the builder inserted a HClinitCheck in between. Since the String
+      // class is always initialized at the point of running Java code, we can remove
+      // that check.
+      if (input->IsClinitCheck()) {
+        load_class = input->InputAt(0)->AsLoadClass();
+        input->ReplaceWith(load_class);
+        input->GetBlock()->RemoveInstruction(input);
+      } else {
+        load_class = input->AsLoadClass();
+        DCHECK(new_instance->IsStringAlloc());
+        DCHECK(!load_class->NeedsAccessCheck()) << "String class is always accessible";
+      }
       DCHECK(load_class != nullptr);
-      DCHECK(!load_class->NeedsAccessCheck()) << "String class is always accessible";
       if (!load_class->HasUses()) {
+        // Even if the HLoadClass needs access check, we can remove it, as we know the
+        // String class does not need it.
         load_class->GetBlock()->RemoveInstruction(load_class);
       }
     }
@@ -451,6 +465,8 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
 }
 
 GraphAnalysisResult SsaBuilder::BuildSsa() {
+  DCHECK(!GetGraph()->IsInSsaForm());
+
   // 1) Visit in reverse post order. We need to have all predecessors of a block
   // visited (with the exception of loops) in order to create the right environment
   // for that block. For loops, we create phis whose inputs will be set in 2).
@@ -483,7 +499,7 @@ GraphAnalysisResult SsaBuilder::BuildSsa() {
 
   // 6) Compute type of reference type instructions. The pass assumes that
   // NullConstant has been fixed up.
-  ReferenceTypePropagation(GetGraph(), handles_).Run();
+  ReferenceTypePropagation(GetGraph(), handles_, /* is_first_run */ true).Run();
 
   // 7) Step 1) duplicated ArrayGet instructions with ambiguous type (int/float
   // or long/double) and marked ArraySets with ambiguous input type. Now that RTP
@@ -533,6 +549,7 @@ GraphAnalysisResult SsaBuilder::BuildSsa() {
     }
   }
 
+  GetGraph()->SetInSsaForm();
   return kAnalysisSuccess;
 }
 
@@ -897,11 +914,6 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
       }
     }
   }
-}
-
-void SsaBuilder::VisitTemporary(HTemporary* temp) {
-  // Temporaries are only used by the baseline register allocator.
-  temp->GetBlock()->RemoveInstruction(temp);
 }
 
 void SsaBuilder::VisitArrayGet(HArrayGet* aget) {

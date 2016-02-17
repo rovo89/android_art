@@ -1195,90 +1195,6 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
   }
 }
 
-void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  if (instruction->IsCurrentMethod()) {
-    Move32(location, Location::StackSlot(kCurrentMethodStackOffset));
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (locations != nullptr && locations->Out().IsConstant()) {
-    HConstant* const_to_move = locations->Out().GetConstant();
-    if (const_to_move->IsIntConstant() || const_to_move->IsNullConstant()) {
-      int32_t value = GetInt32ValueOf(const_to_move);
-      if (location.IsRegister()) {
-        __ LoadImmediate(location.AsRegister<Register>(), value);
-      } else {
-        DCHECK(location.IsStackSlot());
-        __ LoadImmediate(IP, value);
-        __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
-      }
-    } else {
-      DCHECK(const_to_move->IsLongConstant()) << const_to_move->DebugName();
-      int64_t value = const_to_move->AsLongConstant()->GetValue();
-      if (location.IsRegisterPair()) {
-        __ LoadImmediate(location.AsRegisterPairLow<Register>(), Low32Bits(value));
-        __ LoadImmediate(location.AsRegisterPairHigh<Register>(), High32Bits(value));
-      } else {
-        DCHECK(location.IsDoubleStackSlot());
-        __ LoadImmediate(IP, Low32Bits(value));
-        __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
-        __ LoadImmediate(IP, High32Bits(value));
-        __ StoreToOffset(kStoreWord, IP, SP, location.GetHighStackIndex(kArmWordSize));
-      }
-    }
-  } else if (instruction->IsLoadLocal()) {
-    uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimFloat:
-        Move32(location, Location::StackSlot(stack_slot));
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        Move64(location, Location::DoubleStackSlot(stack_slot));
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected type " << instruction->GetType();
-    }
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    if (temp_location.IsStackSlot()) {
-      Move32(location, temp_location);
-    } else {
-      DCHECK(temp_location.IsDoubleStackSlot());
-      Move64(location, temp_location);
-    }
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimFloat:
-        Move32(location, locations->Out());
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        Move64(location, locations->Out());
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected type " << instruction->GetType();
-    }
-  }
-}
-
 void CodeGeneratorARM::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ LoadImmediate(location.AsRegister<Register>(), value);
@@ -2163,6 +2079,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2181,6 +2099,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2265,6 +2185,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2364,6 +2286,10 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
+          __ sbfx(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>(), 0, 8);
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2381,6 +2307,10 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
+          __ sbfx(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>(), 0, 16);
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2482,6 +2412,10 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
+          __ ubfx(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>(), 0, 16);
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -4931,14 +4865,6 @@ void CodeGeneratorARM::MarkGCCard(Register temp,
   if (can_be_null) {
     __ Bind(&is_null);
   }
-}
-
-void LocationsBuilderARM::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorARM::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction ATTRIBUTE_UNUSED) {

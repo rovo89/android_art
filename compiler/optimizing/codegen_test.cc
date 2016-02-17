@@ -206,10 +206,13 @@ static void RunCode(CodeGenerator* codegen,
                     std::function<void(HGraph*)> hook_before_codegen,
                     bool has_result,
                     Expected expected) {
-  ASSERT_TRUE(graph->IsInSsaForm());
-
-  SSAChecker graph_checker(graph);
+  GraphChecker graph_checker(graph);
   graph_checker.Run();
+  if (!graph_checker.IsValid()) {
+    for (auto error : graph_checker.GetErrors()) {
+      std::cout << error << std::endl;
+    }
+  }
   ASSERT_TRUE(graph_checker.IsValid());
 
   SsaLivenessAnalysis liveness(graph, codegen);
@@ -292,14 +295,9 @@ static void TestCode(const uint16_t* data,
   for (InstructionSet target_isa : GetTargetISAs()) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
-    HGraph* graph = CreateGraph(&arena);
-    HGraphBuilder builder(graph);
-    const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-    bool graph_built = builder.BuildGraph(*item);
-    ASSERT_TRUE(graph_built);
+    HGraph* graph = CreateCFG(&arena, data);
     // Remove suspend checks, they cannot be executed in this context.
     RemoveSuspendChecks(graph);
-    TransformToSsa(graph);
     RunCode(target_isa, graph, [](HGraph*) {}, has_result, expected);
   }
 }
@@ -310,14 +308,9 @@ static void TestCodeLong(const uint16_t* data,
   for (InstructionSet target_isa : GetTargetISAs()) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
-    HGraph* graph = CreateGraph(&arena);
-    HGraphBuilder builder(graph, Primitive::kPrimLong);
-    const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-    bool graph_built = builder.BuildGraph(*item);
-    ASSERT_TRUE(graph_built);
+    HGraph* graph = CreateCFG(&arena, data, Primitive::kPrimLong);
     // Remove suspend checks, they cannot be executed in this context.
     RemoveSuspendChecks(graph);
-    TransformToSsa(graph);
     RunCode(target_isa, graph, [](HGraph*) {}, has_result, expected);
   }
 }
@@ -640,6 +633,7 @@ TEST_F(CodegenTest, NonMaterializedCondition) {
     ArenaAllocator allocator(&pool);
 
     HGraph* graph = CreateGraph(&allocator);
+
     HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
     graph->AddBlock(entry);
     graph->SetEntryBlock(entry);
@@ -672,7 +666,7 @@ TEST_F(CodegenTest, NonMaterializedCondition) {
     else_block->AddInstruction(new (&allocator) HReturn(constant1));
 
     ASSERT_FALSE(equal->IsEmittedAtUseSite());
-    TransformToSsa(graph);
+    graph->BuildDominatorTree();
     PrepareForRegisterAllocation(graph).Run();
     ASSERT_TRUE(equal->IsEmittedAtUseSite());
 
@@ -723,7 +717,7 @@ TEST_F(CodegenTest, MaterializedCondition1) {
       HReturn ret(&cmp_lt);
       code_block->AddInstruction(&ret);
 
-      TransformToSsa(graph);
+      graph->BuildDominatorTree();
       auto hook_before_codegen = [](HGraph* graph_in) {
         HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors()[0];
         HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
@@ -777,9 +771,9 @@ TEST_F(CodegenTest, MaterializedCondition2) {
       HIntConstant* cst_rhs = graph->GetIntConstant(rhs[i]);
       HLessThan cmp_lt(cst_lhs, cst_rhs);
       if_block->AddInstruction(&cmp_lt);
-      // We insert a temporary to separate the HIf from the HLessThan and force
-      // the materialization of the condition.
-      HTemporary force_materialization(0);
+      // We insert a dummy instruction to separate the HIf from the HLessThan
+      // and force the materialization of the condition.
+      HMemoryBarrier force_materialization(MemBarrierKind::kAnyAny, 0);
       if_block->AddInstruction(&force_materialization);
       HIf if_lt(&cmp_lt);
       if_block->AddInstruction(&if_lt);
@@ -791,7 +785,7 @@ TEST_F(CodegenTest, MaterializedCondition2) {
       HReturn ret_ge(cst_ge);
       if_false_block->AddInstruction(&ret_ge);
 
-      TransformToSsa(graph);
+      graph->BuildDominatorTree();
       auto hook_before_codegen = [](HGraph* graph_in) {
         HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors()[0];
         HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
@@ -907,7 +901,7 @@ static void TestComparison(IfCondition condition,
   block->AddInstruction(comparison);
   block->AddInstruction(new (&allocator) HReturn(comparison));
 
-  TransformToSsa(graph);
+  graph->BuildDominatorTree();
   RunCode(target_isa, graph, [](HGraph*) {}, true, expected_result);
 }
 

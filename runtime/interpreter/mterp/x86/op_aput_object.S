@@ -8,7 +8,7 @@
     movl    rPC, OUT_ARG1(%esp)
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG2(%esp)
-    call    MterpAputObject            # (array, index)
+    call    SYMBOL(MterpAputObject)         # (array, index)
     REFRESH_IBASE
     testl   %eax, %eax
     jz      MterpPossibleException

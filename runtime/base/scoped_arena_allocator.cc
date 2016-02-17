@@ -99,7 +99,7 @@ void* ArenaStack::AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind) {
   if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
     ptr = AllocateFromNextArena(rounded_bytes);
     CHECK(ptr != nullptr) << "Failed to allocate memory";
-    MEMORY_TOOL_MAKE_NOACCESS(ptr, top_end_);
+    MEMORY_TOOL_MAKE_NOACCESS(ptr, top_end_ - ptr);
   }
   CurrentStats()->RecordAlloc(bytes, kind);
   top_ptr_ = ptr + rounded_bytes;

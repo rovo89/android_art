@@ -12,10 +12,10 @@
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
     fldd    d1, [r3]                    @ d1<- vB
+    CLEAR_SHADOW_PAIR r9, ip, r0        @ Zero out shadow regs
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     fldd    d0, [r9]                    @ d0<- vA
-
     $instr                              @ d2<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     fstd    d2, [r9]                    @ vAA<- d2

@@ -366,6 +366,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void cmov(Condition c, CpuRegister dst, CpuRegister src);  // This is the 64b version.
   void cmov(Condition c, CpuRegister dst, CpuRegister src, bool is64bit);
+  void cmov(Condition c, CpuRegister dst, const Address& src, bool is64bit);
 
   void movzxb(CpuRegister dst, CpuRegister src);
   void movzxb(CpuRegister dst, const Address& src);

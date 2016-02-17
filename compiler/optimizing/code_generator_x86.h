@@ -297,6 +297,7 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
                                    HBasicBlock* default_block);
 
   void GenerateFPCompare(Location lhs, Location rhs, HInstruction* insn, bool is_double);
+  void GenerateIntCompare(Location lhs, Location rhs);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
@@ -317,7 +318,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
   void Bind(HBasicBlock* block) OVERRIDE;
-  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
   void MoveLocation(Location dst, Location src, Primitive::Type dst_type) OVERRIDE;
   void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;

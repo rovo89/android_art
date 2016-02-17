@@ -76,11 +76,15 @@ class InstanceUtils {
    * If maxChars is negative, the returned string is not truncated.
    */
   public static String asString(Instance inst, int maxChars) {
-    if (!isInstanceOfClass(inst, "java.lang.String")) {
-      return null;
+    // The inst object could either be a java.lang.String or a char[]. If it
+    // is a char[], use that directly as the value, otherwise use the value
+    // field of the string object. The field accesses for count and offset
+    // later on will work okay regardless of what type the inst object is.
+    Object value = inst;
+    if (isInstanceOfClass(inst, "java.lang.String")) {
+      value = getField(inst, "value");
     }
 
-    Object value = getField(inst, "value");
     if (!(value instanceof ArrayInstance)) {
       return null;
     }

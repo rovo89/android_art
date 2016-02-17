@@ -1960,8 +1960,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   // We need to ensure the work line is consistent while performing validation. When we spot a
   // peephole pattern we compute a new line for either the fallthrough instruction or the
   // branch target.
-  ArenaUniquePtr<RegisterLine> branch_line;
-  ArenaUniquePtr<RegisterLine> fallthrough_line;
+  RegisterLineArenaUniquePtr branch_line;
+  RegisterLineArenaUniquePtr fallthrough_line;
 
   switch (inst->Opcode()) {
     case Instruction::NOP:
@@ -2411,6 +2411,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(res_type)) {
         if (res_type.IsUninitializedTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown exception not initialized";
+        } else if (!res_type.IsReferenceTypes()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown value of non-reference type " << res_type;
         } else {
           Fail(res_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS : VERIFY_ERROR_BAD_CLASS_SOFT)
                 << "thrown class " << res_type << " not instanceof Throwable";
@@ -4524,6 +4526,19 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
     if (UNLIKELY(have_pending_hard_failure_)) {
       return;
     }
+    if (should_adjust) {
+      if (field == nullptr) {
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Might be accessing a superclass instance field prior "
+                                          << "to the superclass being initialized in "
+                                          << PrettyMethod(dex_method_idx_, *dex_file_);
+      } else if (field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access superclass instance field "
+                                          << PrettyField(field) << " of a not fully initialized "
+                                          << "object within the context of "
+                                          << PrettyMethod(dex_method_idx_, *dex_file_);
+        return;
+      }
+    }
   }
   const RegType* field_type = nullptr;
   if (field != nullptr) {
@@ -4809,7 +4824,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       AdjustReturnLine(this, ret_inst, target_line);
     }
   } else {
-    ArenaUniquePtr<RegisterLine> copy;
+    RegisterLineArenaUniquePtr copy;
     if (kDebugVerify) {
       copy.reset(RegisterLine::Create(target_line->NumRegs(), this));
       copy->CopyFromLine(target_line);

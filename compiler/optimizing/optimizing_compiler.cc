@@ -45,15 +45,14 @@
 #include "compiler.h"
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
+#include "debug/elf_debug_writer.h"
+#include "debug/method_debug_info.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
-#include "dex/verified_method.h"
 #include "dex/verification_results.h"
-#include "driver/compiler_driver.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
-#include "dwarf/method_debug_info.h"
-#include "elf_writer_debug.h"
 #include "elf_writer_quick.h"
 #include "graph_checker.h"
 #include "graph_visualizer.h"
@@ -64,20 +63,20 @@
 #include "intrinsics.h"
 #include "jit/debugger_interface.h"
 #include "jit/jit_code_cache.h"
-#include "licm.h"
 #include "jni/quick/jni_compiler.h"
+#include "licm.h"
 #include "load_store_elimination.h"
 #include "nodes.h"
+#include "oat_quick_method_header.h"
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
-#include "oat_quick_method_header.h"
 #include "select_generator.h"
 #include "sharpening.h"
 #include "side_effects_analysis.h"
 #include "ssa_builder.h"
-#include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
+#include "ssa_phi_elimination.h"
 #include "utils/assembler.h"
 #include "verifier/method_verifier.h"
 
@@ -187,18 +186,10 @@ class PassObserver : public ValueObject {
     // Validate the HGraph if running in debug mode.
     if (kIsDebugBuild) {
       if (!graph_in_bad_state_) {
-        if (graph_->IsInSsaForm()) {
-          SSAChecker checker(graph_);
-          checker.Run();
-          if (!checker.IsValid()) {
-            LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<SSAChecker>(checker);
-          }
-        } else {
-          GraphChecker checker(graph_);
-          checker.Run();
-          if (!checker.IsValid()) {
-            LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<GraphChecker>(checker);
-          }
+        GraphChecker checker(graph_);
+        checker.Run();
+        if (!checker.IsValid()) {
+          LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<GraphChecker>(checker);
         }
       }
     }
@@ -666,6 +657,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
                                                      dex_compilation_unit.GetDexFile(),
                                                      dex_compilation_unit.GetClassDefIndex());
+
   HGraph* graph = new (arena) HGraph(
       arena,
       dex_file,
@@ -675,6 +667,21 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       kInvalidInvokeType,
       compiler_driver->GetCompilerOptions().GetDebuggable(),
       osr);
+
+  const uint8_t* interpreter_metadata = nullptr;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::ClassLoader> loader(hs.NewHandle(
+        soa.Decode<mirror::ClassLoader*>(class_loader)));
+    ArtMethod* art_method = compiler_driver->ResolveMethod(
+        soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
+    // We may not get a method, for example if its class is erroneous.
+    if (art_method != nullptr) {
+      graph->SetArtMethod(art_method);
+      interpreter_metadata = art_method->GetQuickenedInfo();
+    }
+  }
 
   std::unique_ptr<CodeGenerator> codegen(
       CodeGenerator::Create(graph,
@@ -693,73 +700,54 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                              visualizer_output_.get(),
                              compiler_driver);
 
-  const uint8_t* interpreter_metadata = nullptr;
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::ClassLoader> loader(hs.NewHandle(
-        soa.Decode<mirror::ClassLoader*>(class_loader)));
-    ArtMethod* art_method = compiler_driver->ResolveMethod(
-        soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
-    // We may not get a method, for example if its class is erroneous.
-    if (art_method != nullptr) {
-      graph->SetArtMethod(art_method);
-      interpreter_metadata = art_method->GetQuickenedInfo();
-    }
-  }
-  HGraphBuilder builder(graph,
-                        &dex_compilation_unit,
-                        &dex_compilation_unit,
-                        &dex_file,
-                        compiler_driver,
-                        compilation_stats_.get(),
-                        interpreter_metadata,
-                        dex_cache);
-
   VLOG(compiler) << "Building " << pass_observer.GetMethodName();
 
   {
-    PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
-    if (!builder.BuildGraph(*code_item)) {
-      pass_observer.SetGraphInBadState();
-      return nullptr;
-    }
-  }
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScopeCollection handles(soa.Self());
+    // Do not hold `mutator_lock_` between optimizations.
+    ScopedThreadSuspension sts(soa.Self(), kNative);
 
-  VLOG(compiler) << "Optimizing " << pass_observer.GetMethodName();
-
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
-  ScopedThreadSuspension sts(soa.Self(), kNative);
-
-  {
-    PassScope scope(SsaBuilder::kSsaBuilderPassName, &pass_observer);
-    GraphAnalysisResult result = graph->TryBuildingSsa(&handles);
-    if (result != kAnalysisSuccess) {
-      switch (result) {
-        case kAnalysisFailThrowCatchLoop:
-          MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
-          break;
-        case kAnalysisFailAmbiguousArrayOp:
-          MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
-          break;
-        case kAnalysisSuccess:
-          UNREACHABLE();
+    {
+      PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
+      HGraphBuilder builder(graph,
+                            &dex_compilation_unit,
+                            &dex_compilation_unit,
+                            &dex_file,
+                            compiler_driver,
+                            compilation_stats_.get(),
+                            interpreter_metadata,
+                            dex_cache);
+      GraphAnalysisResult result = builder.BuildGraph(*code_item, &handles);
+      if (result != kAnalysisSuccess) {
+        switch (result) {
+          case kAnalysisInvalidBytecode:
+            break;
+          case kAnalysisFailThrowCatchLoop:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
+            break;
+          case kAnalysisFailAmbiguousArrayOp:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
+            break;
+          case kAnalysisSuccess:
+            UNREACHABLE();
+        }
+        pass_observer.SetGraphInBadState();
+        return nullptr;
       }
-      pass_observer.SetGraphInBadState();
-      return nullptr;
     }
-  }
 
-  RunOptimizations(graph,
-                   codegen.get(),
-                   compiler_driver,
-                   compilation_stats_.get(),
-                   dex_compilation_unit,
-                   &pass_observer,
-                   &handles);
-  codegen->Compile(code_allocator);
-  pass_observer.DumpDisassembly();
+    RunOptimizations(graph,
+                     codegen.get(),
+                     compiler_driver,
+                     compilation_stats_.get(),
+                     dex_compilation_unit,
+                     &pass_observer,
+                     &handles);
+
+    codegen->Compile(code_allocator);
+    pass_observer.DumpDisassembly();
+  }
 
   if (kArenaAllocatorCountAllocations) {
     if (arena->BytesAllocated() > 4 * MB) {
@@ -933,7 +921,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         ArrayRef<const uint8_t>(),  // native_gc_map.
         ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
         ArrayRef<const LinkerPatch>());
-    dwarf::MethodDebugInfo method_debug_info {
+    debug::MethodDebugInfo method_debug_info {
         dex_file,
         class_def_idx,
         method_idx,
@@ -944,7 +932,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         code_address + code_allocator.GetSize(),
         &compiled_method
     };
-    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFileForMethod(method_debug_info);
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethod(method_debug_info);
     CreateJITCodeEntryForAddress(code_address,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());

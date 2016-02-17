@@ -16,10 +16,7 @@
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -98,9 +95,12 @@ public class Main implements Comparator<Main> {
               throw new RuntimeException("Couldn't parse process");
           }
 
-          // Wait a bit, so the forked process has time to run until its sleep phase.
+          // Wait until the forked process had time to run until its sleep phase.
           try {
-              Thread.sleep(5000);
+              InputStreamReader stdout = new InputStreamReader(p.getInputStream(), "UTF-8");
+              BufferedReader lineReader = new BufferedReader(stdout);
+              while (!lineReader.readLine().contains("Going to sleep")) {
+              }
           } catch (Exception e) {
               throw new RuntimeException(e);
           }

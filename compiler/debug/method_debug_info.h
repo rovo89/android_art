@@ -14,28 +14,35 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DWARF_METHOD_DEBUG_INFO_H_
-#define ART_COMPILER_DWARF_METHOD_DEBUG_INFO_H_
+#ifndef ART_COMPILER_DEBUG_METHOD_DEBUG_INFO_H_
+#define ART_COMPILER_DEBUG_METHOD_DEBUG_INFO_H_
 
+#include "compiled_method.h"
 #include "dex_file.h"
 
 namespace art {
-class CompiledMethod;
-namespace dwarf {
+namespace debug {
 
 struct MethodDebugInfo {
-  const DexFile* dex_file_;
-  size_t class_def_index_;
-  uint32_t dex_method_index_;
-  uint32_t access_flags_;
-  const DexFile::CodeItem* code_item_;
-  bool deduped_;
-  uintptr_t low_pc_;
-  uintptr_t high_pc_;
-  CompiledMethod* compiled_method_;
+  const DexFile* dex_file;
+  size_t class_def_index;
+  uint32_t dex_method_index;
+  uint32_t access_flags;
+  const DexFile::CodeItem* code_item;
+  bool deduped;
+  uintptr_t low_pc;
+  uintptr_t high_pc;
+  CompiledMethod* compiled_method;
+
+  bool IsFromOptimizingCompiler() const {
+    return compiled_method->GetQuickCode().size() > 0 &&
+           compiled_method->GetVmapTable().size() > 0 &&
+           compiled_method->GetGcMap().size() == 0 &&
+           code_item != nullptr;
+  }
 };
 
-}  // namespace dwarf
+}  // namespace debug
 }  // namespace art
 
-#endif  // ART_COMPILER_DWARF_METHOD_DEBUG_INFO_H_
+#endif  // ART_COMPILER_DEBUG_METHOD_DEBUG_INFO_H_

@@ -241,13 +241,14 @@ public class Main {
 
   /// CHECK-START-ARM64: void Main.$opt$validateExtendByteInt1(int, byte) instruction_simplifier_arm64 (after)
   /// CHECK:                            Arm64DataProcWithShifterOp
-  /// CHECK:                            Arm64DataProcWithShifterOp
+  /// CHECK-NOT:                        Arm64DataProcWithShifterOp
 
   /// CHECK-START-ARM64: void Main.$opt$validateExtendByteInt1(int, byte) instruction_simplifier_arm64 (after)
   /// CHECK-NOT:                        TypeConversion
 
   public static void $opt$validateExtendByteInt1(int a, byte b) {
     assertIntEquals(a + $noinline$byteToChar (b), a +  (char)b);
+    // Conversions byte->short and short->int are implicit; nothing to merge.
     assertIntEquals(a + $noinline$byteToShort(b), a + (short)b);
   }
 
@@ -266,17 +267,24 @@ public class Main {
   /// CHECK:                            Arm64DataProcWithShifterOp
   /// CHECK:                            Arm64DataProcWithShifterOp
   /// CHECK:                            Arm64DataProcWithShifterOp
+  /// CHECK:                            Arm64DataProcWithShifterOp
+  /// CHECK:                            Arm64DataProcWithShifterOp
+  /// CHECK-NOT:                        Arm64DataProcWithShifterOp
 
   /// CHECK-START-ARM64: void Main.$opt$validateExtendByteLong(long, byte) instruction_simplifier_arm64 (after)
-  /// CHECK:                            TypeConversion
   /// CHECK:                            TypeConversion
   /// CHECK-NOT:                        TypeConversion
 
   public static void $opt$validateExtendByteLong(long a, byte b) {
-    // The first two tests have a type conversion.
+    // In each of the following tests, there will be a merge on the LHS.
+
+    // The first test has an explicit byte->char conversion on RHS,
+    // followed by a conversion that is merged with the Add.
     assertLongEquals(a + $noinline$byteToChar (b), a +  (char)b);
+    // Since conversions byte->short and byte->int are implicit, the RHS
+    // for the two tests below is the same and one is eliminated by GVN.
+    // The other is then merged to a shifter operand instruction.
     assertLongEquals(a + $noinline$byteToShort(b), a + (short)b);
-    // This test does not because the conversion to `int` is optimized away.
     assertLongEquals(a + $noinline$byteToInt  (b), a +  (int)b);
   }
 

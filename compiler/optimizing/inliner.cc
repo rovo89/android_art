@@ -258,8 +258,9 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   }
 
   if (actual_method != nullptr) {
-    return TryInline(invoke_instruction, actual_method);
+    return TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ true);
   }
+
   DCHECK(!invoke_instruction->IsInvokeStaticOrDirect());
 
   // Check if we can use an inline cache.
@@ -344,7 +345,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-  if (!TryInline(invoke_instruction, resolved_method, /* do_rtp */ false)) {
+  if (!TryInlineAndReplace(invoke_instruction, resolved_method, /* do_rtp */ false)) {
     return false;
   }
 
@@ -378,7 +379,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
 
   // Run type propagation to get the guard typed, and eventually propagate the
   // type of the receiver.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_);
+  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
   rtp_fixup.Run();
 
   MaybeRecordStat(kInlinedMonomorphicCall);
@@ -420,6 +421,9 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
       actual_method = new_method;
     } else if (actual_method != new_method) {
       // Different methods, bailout.
+      VLOG(compiler) << "Call to " << PrettyMethod(resolved_method)
+                     << " from inline cache is not inlined because it resolves"
+                     << " to different methods";
       return false;
     }
   }
@@ -428,7 +432,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-  if (!TryInline(invoke_instruction, actual_method, /* do_rtp */ false)) {
+  if (!TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ false)) {
     return false;
   }
 
@@ -474,7 +478,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
   deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
 
   // Run type propagation to get the guard typed.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_);
+  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
   rtp_fixup.Run();
 
   MaybeRecordStat(kInlinedPolymorphicCall);
@@ -482,14 +486,29 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
   return true;
 }
 
-bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {
+bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {
+  HInstruction* return_replacement = nullptr;
+  if (!TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
+    return false;
+  }
+  if (return_replacement != nullptr) {
+    invoke_instruction->ReplaceWith(return_replacement);
+  }
+  invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
+  FixUpReturnReferenceType(invoke_instruction, method, return_replacement, do_rtp);
+  return true;
+}
+
+bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
+                                 ArtMethod* method,
+                                 HInstruction** return_replacement) {
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
 
   // Check whether we're allowed to inline. The outermost compilation unit is the relevant
   // dex file here (though the transitivity of an inline chain would allow checking the calller).
   if (!compiler_driver_->MayInline(method->GetDexFile(),
                                    outer_compilation_unit_.GetDexFile())) {
-    if (TryPatternSubstitution(invoke_instruction, method, do_rtp)) {
+    if (TryPatternSubstitution(invoke_instruction, method, return_replacement)) {
       VLOG(compiler) << "Successfully replaced pattern of invoke " << PrettyMethod(method);
       MaybeRecordStat(kReplacedInvokeWithSimplePattern);
       return true;
@@ -556,7 +575,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction, ArtMethod* method, bool do
     return false;
   }
 
-  if (!TryBuildAndInline(method, invoke_instruction, same_dex_file, do_rtp)) {
+  if (!TryBuildAndInlineHelper(invoke_instruction, method, same_dex_file, return_replacement)) {
     return false;
   }
 
@@ -583,27 +602,27 @@ static HInstruction* GetInvokeInputForArgVRegIndex(HInvoke* invoke_instruction,
 // Try to recognize known simple patterns and replace invoke call with appropriate instructions.
 bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
                                       ArtMethod* resolved_method,
-                                      bool do_rtp) {
+                                      HInstruction** return_replacement) {
   InlineMethod inline_method;
   if (!InlineMethodAnalyser::AnalyseMethodCode(resolved_method, &inline_method)) {
     return false;
   }
 
-  HInstruction* return_replacement = nullptr;
   switch (inline_method.opcode) {
     case kInlineOpNop:
       DCHECK_EQ(invoke_instruction->GetType(), Primitive::kPrimVoid);
+      *return_replacement = nullptr;
       break;
     case kInlineOpReturnArg:
-      return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction,
-                                                         inline_method.d.return_data.arg);
+      *return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction,
+                                                          inline_method.d.return_data.arg);
       break;
     case kInlineOpNonWideConst:
       if (resolved_method->GetShorty()[0] == 'L') {
         DCHECK_EQ(inline_method.d.data, 0u);
-        return_replacement = graph_->GetNullConstant();
+        *return_replacement = graph_->GetNullConstant();
       } else {
-        return_replacement = graph_->GetIntConstant(static_cast<int32_t>(inline_method.d.data));
+        *return_replacement = graph_->GetIntConstant(static_cast<int32_t>(inline_method.d.data));
       }
       break;
     case kInlineOpIGet: {
@@ -618,7 +637,7 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
       DCHECK_EQ(iget->GetFieldOffset().Uint32Value(), data.field_offset);
       DCHECK_EQ(iget->IsVolatile() ? 1u : 0u, data.is_volatile);
       invoke_instruction->GetBlock()->InsertInstructionBefore(iget, invoke_instruction);
-      return_replacement = iget;
+      *return_replacement = iget;
       break;
     }
     case kInlineOpIPut: {
@@ -636,7 +655,7 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
       invoke_instruction->GetBlock()->InsertInstructionBefore(iput, invoke_instruction);
       if (data.return_arg_plus1 != 0u) {
         size_t return_arg = data.return_arg_plus1 - 1u;
-        return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction, return_arg);
+        *return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction, return_arg);
       }
       break;
     }
@@ -691,19 +710,13 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
         HMemoryBarrier* barrier = new (graph_->GetArena()) HMemoryBarrier(kStoreStore, kNoDexPc);
         invoke_instruction->GetBlock()->InsertInstructionBefore(barrier, invoke_instruction);
       }
+      *return_replacement = nullptr;
       break;
     }
     default:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
   }
-
-  if (return_replacement != nullptr) {
-    invoke_instruction->ReplaceWith(return_replacement);
-  }
-  invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
-
-  FixUpReturnReferenceType(resolved_method, invoke_instruction, return_replacement, do_rtp);
   return true;
 }
 
@@ -727,7 +740,7 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);
   if (iget->GetType() == Primitive::kPrimNot) {
-    ReferenceTypePropagation rtp(graph_, handles_);
+    ReferenceTypePropagation rtp(graph_, handles_, /* is_first_run */ false);
     rtp.Visit(iget);
   }
   return iget;
@@ -756,10 +769,11 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex
       /* dex_pc */ 0);
   return iput;
 }
-bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
-                                 HInvoke* invoke_instruction,
-                                 bool same_dex_file,
-                                 bool do_rtp) {
+
+bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
+                                       ArtMethod* resolved_method,
+                                       bool same_dex_file,
+                                       HInstruction** return_replacement) {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
   const DexFile& callee_dex_file = *resolved_method->GetDexFile();
@@ -825,7 +839,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                         resolved_method->GetQuickenedInfo(),
                         dex_cache);
 
-  if (!builder.BuildGraph(*code_item)) {
+  if (builder.BuildGraph(*code_item, handles_) != kAnalysisSuccess) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " could not be built, so cannot be inlined";
     return false;
@@ -835,12 +849,6 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                                                   compiler_driver_->GetInstructionSet())) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " cannot be inlined because of the register allocator";
-    return false;
-  }
-
-  if (callee_graph->TryBuildingSsa(handles_) != kAnalysisSuccess) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
-                   << " could not be transformed to SSA";
     return false;
   }
 
@@ -988,12 +996,18 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
 
       if (current->IsNewInstance() &&
           (current->AsNewInstance()->GetEntrypoint() == kQuickAllocObjectWithAccessCheck)) {
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " could not be inlined because it is using an entrypoint"
+                       << " with access checks";
         // Allocation entrypoint does not handle inlined frames.
         return false;
       }
 
       if (current->IsNewArray() &&
           (current->AsNewArray()->GetEntrypoint() == kQuickAllocArrayWithAccessCheck)) {
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " could not be inlined because it is using an entrypoint"
+                       << " with access checks";
         // Allocation entrypoint does not handle inlined frames.
         return false;
       }
@@ -1003,22 +1017,21 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
           current->IsUnresolvedStaticFieldSet() ||
           current->IsUnresolvedInstanceFieldSet()) {
         // Entrypoint for unresolved fields does not handle inlined frames.
+        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
+                       << " could not be inlined because it is using an unresolved"
+                       << " entrypoint";
         return false;
       }
     }
   }
   number_of_inlined_instructions_ += number_of_instructions;
 
-  HInstruction* return_replacement = callee_graph->InlineInto(graph_, invoke_instruction);
-  if (return_replacement != nullptr) {
-    DCHECK_EQ(graph_, return_replacement->GetBlock()->GetGraph());
-  }
-  FixUpReturnReferenceType(resolved_method, invoke_instruction, return_replacement, do_rtp);
+  *return_replacement = callee_graph->InlineInto(graph_, invoke_instruction);
   return true;
 }
 
-void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
-                                        HInvoke* invoke_instruction,
+void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
+                                        ArtMethod* resolved_method,
                                         HInstruction* return_replacement,
                                         bool do_rtp) {
   // Check the integrity of reference types and run another type propagation if needed.
@@ -1044,13 +1057,13 @@ void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
         if (invoke_rti.IsStrictSupertypeOf(return_rti)
             || (return_rti.IsExact() && !invoke_rti.IsExact())
             || !return_replacement->CanBeNull()) {
-          ReferenceTypePropagation(graph_, handles_).Run();
+          ReferenceTypePropagation(graph_, handles_, /* is_first_run */ false).Run();
         }
       }
     } else if (return_replacement->IsInstanceOf()) {
       if (do_rtp) {
         // Inlining InstanceOf into an If may put a tighter bound on reference types.
-        ReferenceTypePropagation(graph_, handles_).Run();
+        ReferenceTypePropagation(graph_, handles_, /* is_first_run */ false).Run();
       }
     }
   }

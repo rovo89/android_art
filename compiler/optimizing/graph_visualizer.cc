@@ -22,6 +22,7 @@
 #include <sstream>
 
 #include "bounds_check_elimination.h"
+#include "builder.h"
 #include "code_generator.h"
 #include "dead_code_elimination.h"
 #include "disassembler.h"
@@ -31,7 +32,6 @@
 #include "optimization.h"
 #include "reference_type_propagation.h"
 #include "register_allocator.h"
-#include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
 
@@ -368,11 +368,13 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
   void VisitCheckCast(HCheckCast* check_cast) OVERRIDE {
+    StartAttributeStream("check_kind") << check_cast->GetTypeCheckKind();
     StartAttributeStream("must_do_null_check") << std::boolalpha
         << check_cast->MustDoNullCheck() << std::noboolalpha;
   }
 
   void VisitInstanceOf(HInstanceOf* instance_of) OVERRIDE {
+    StartAttributeStream("check_kind") << instance_of->GetTypeCheckKind();
     StartAttributeStream("must_do_null_check") << std::boolalpha
         << instance_of->MustDoNullCheck() << std::noboolalpha;
   }
@@ -508,7 +510,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         || IsPass(HDeadCodeElimination::kInitialDeadCodeEliminationPassName)
         || IsPass(BoundsCheckElimination::kBoundsCheckEliminationPassName)
         || IsPass(RegisterAllocator::kRegisterAllocatorPassName)
-        || IsPass(SsaBuilder::kSsaBuilderPassName)) {
+        || IsPass(HGraphBuilder::kBuilderPassName)) {
       HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
       if (info == nullptr) {
         StartAttributeStream("loop") << "none";
@@ -525,7 +527,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       }
     }
 
-    if ((IsPass(SsaBuilder::kSsaBuilderPassName)
+    if ((IsPass(HGraphBuilder::kBuilderPassName)
         || IsPass(HInliner::kInlinerPassName))
         && (instruction->GetType() == Primitive::kPrimNot)) {
       ReferenceTypeInfo info = instruction->IsLoadClass()
@@ -545,7 +547,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         // doesn't run or doesn't inline anything, the NullConstant remains untyped.
         // So we should check NullConstants for validity only after reference type propagation.
         DCHECK(graph_in_bad_state_ ||
-               (!is_after_pass_ && IsPass(SsaBuilder::kSsaBuilderPassName)))
+               (!is_after_pass_ && IsPass(HGraphBuilder::kBuilderPassName)))
             << instruction->DebugName() << instruction->GetId() << " has invalid rti "
             << (is_after_pass_ ? "after" : "before") << " pass " << pass_name_;
       }

@@ -16,10 +16,10 @@
      */
     /* binop vAA, vBB, vCC */
     FETCH r0, 1                         @ r0<- CCBB
-    mov     r9, rINST, lsr #8           @ r9<- AA
+    mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
     add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
     add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
@@ -28,8 +28,8 @@
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
     .endif
+    CLEAR_SHADOW_PAIR rINST, lr, ip     @ Zero out the shadow regs
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-
     $preinstr                           @ optional op; may set condition codes
     $instr                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST

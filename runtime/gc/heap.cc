@@ -2622,6 +2622,10 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
     }
     if (collector != mark_compact_collector_ && collector != concurrent_copying_collector_) {
       temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
+      if (kIsDebugBuild) {
+        // Try to read each page of the memory map in case mprotect didn't work properly b/19894268.
+        temp_space_->GetMemMap()->TryReadable();
+      }
       CHECK(temp_space_->IsEmpty());
     }
     gc_type = collector::kGcTypeFull;  // TODO: Not hard code this in.

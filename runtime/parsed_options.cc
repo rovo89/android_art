@@ -146,6 +146,10 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define({"-XX:EnableHSpaceCompactForOOM", "-XX:DisableHSpaceCompactForOOM"})
           .WithValues({true, false})
           .IntoKey(M::EnableHSpaceCompactForOOM)
+      .Define("-XX:DumpNativeStackOnSigQuit:_")
+          .WithType<bool>()
+          .WithValueMap({{"false", false}, {"true", true}})
+          .IntoKey(M::DumpNativeStackOnSigQuit)
       .Define("-Xusejit:_")
           .WithType<bool>()
           .WithValueMap({{"false", false}, {"true", true}})
@@ -667,6 +671,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:BackgroundGC=none\n");
   UsageMessage(stream, "  -XX:LargeObjectSpace={disabled,map,freelist}\n");
   UsageMessage(stream, "  -XX:LargeObjectThreshold=N\n");
+  UsageMessage(stream, "  -XX:DumpNativeStackOnSigQuit=booleanvalue\n");
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");

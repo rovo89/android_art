@@ -98,6 +98,7 @@ enum IfCondition {
 };
 
 enum GraphAnalysisResult {
+  kAnalysisInvalidBytecode,
   kAnalysisFailThrowCatchLoop,
   kAnalysisFailAmbiguousArrayOp,
   kAnalysisSuccess,
@@ -308,10 +309,14 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     blocks_.reserve(kDefaultNumberOfBlocks);
   }
 
+  // Acquires and stores RTI of inexact Object to be used when creating HNullConstant.
+  void InitializeInexactObjectRTI(StackHandleScopeCollection* handles);
+
   ArenaAllocator* GetArena() const { return arena_; }
   const ArenaVector<HBasicBlock*>& GetBlocks() const { return blocks_; }
 
   bool IsInSsaForm() const { return in_ssa_form_; }
+  void SetInSsaForm() { in_ssa_form_ = true; }
 
   HBasicBlock* GetEntryBlock() const { return entry_block_; }
   HBasicBlock* GetExitBlock() const { return exit_block_; }
@@ -321,11 +326,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   void SetExitBlock(HBasicBlock* block) { exit_block_ = block; }
 
   void AddBlock(HBasicBlock* block);
-
-  // Try building the SSA form of this graph, with dominance computation and
-  // loop recognition. Returns a code specifying that it was successful or the
-  // reason for failure.
-  GraphAnalysisResult TryBuildingSsa(StackHandleScopeCollection* handles);
 
   void ComputeDominanceInformation();
   void ClearDominanceInformation();
@@ -345,8 +345,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   void ComputeTryBlockInformation();
 
   // Inline this graph in `outer_graph`, replacing the given `invoke` instruction.
-  // Returns the instruction used to replace the invoke expression or null if the
-  // invoke is for a void method.
+  // Returns the instruction to replace the invoke expression or null if the
+  // invoke is for a void method. Note that the caller is responsible for replacing
+  // and removing the invoke instruction.
   HInstruction* InlineInto(HGraph* outer_graph, HInvoke* invoke);
 
   // Need to add a couple of blocks to test if the loop body is entered and
@@ -1235,7 +1236,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(StoreLocal, Instruction)                                            \
   M(Sub, BinaryOperation)                                               \
   M(SuspendCheck, Instruction)                                          \
-  M(Temporary, Instruction)                                             \
   M(Throw, Instruction)                                                 \
   M(TryBoundary, Instruction)                                           \
   M(TypeConversion, Instruction)                                        \
@@ -3672,6 +3672,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   // method pointer; otherwise there may be one platform-specific special input,
   // such as PC-relative addressing base.
   uint32_t GetSpecialInputIndex() const { return GetNumberOfArguments(); }
+  bool HasSpecialInput() const { return GetNumberOfArguments() != InputCount(); }
 
   InvokeType GetOptimizedInvokeType() const { return optimized_invoke_type_; }
   void SetOptimizedInvokeType(InvokeType invoke_type) {
@@ -4941,33 +4942,6 @@ class HBoundsCheck : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
 };
 
-/**
- * Some DEX instructions are folded into multiple HInstructions that need
- * to stay live until the last HInstruction. This class
- * is used as a marker for the baseline compiler to ensure its preceding
- * HInstruction stays live. `index` represents the stack location index of the
- * instruction (the actual offset is computed as index * vreg_size).
- */
-class HTemporary : public HTemplateInstruction<0> {
- public:
-  explicit HTemporary(size_t index, uint32_t dex_pc = kNoDexPc)
-      : HTemplateInstruction(SideEffects::None(), dex_pc), index_(index) {}
-
-  size_t GetIndex() const { return index_; }
-
-  Primitive::Type GetType() const OVERRIDE {
-    // The previous instruction is the one that will be stored in the temporary location.
-    DCHECK(GetPrevious() != nullptr);
-    return GetPrevious()->GetType();
-  }
-
-  DECLARE_INSTRUCTION(Temporary);
-
- private:
-  const size_t index_;
-  DISALLOW_COPY_AND_ASSIGN(HTemporary);
-};
-
 class HSuspendCheck : public HTemplateInstruction<0> {
  public:
   explicit HSuspendCheck(uint32_t dex_pc)
@@ -5450,6 +5424,8 @@ enum class TypeCheckKind {
   kArrayObjectCheck,      // Can just check if the array is not primitive.
   kArrayCheck             // No optimization yet when checking against a generic array.
 };
+
+std::ostream& operator<<(std::ostream& os, TypeCheckKind rhs);
 
 class HInstanceOf : public HExpression<2> {
  public:
@@ -6023,9 +5999,14 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
 };
 
 inline int64_t Int64FromConstant(HConstant* constant) {
-  DCHECK(constant->IsIntConstant() || constant->IsLongConstant());
-  return constant->IsIntConstant() ? constant->AsIntConstant()->GetValue()
-                                   : constant->AsLongConstant()->GetValue();
+  if (constant->IsIntConstant()) {
+    return constant->AsIntConstant()->GetValue();
+  } else if (constant->IsLongConstant()) {
+    return constant->AsLongConstant()->GetValue();
+  } else {
+    DCHECK(constant->IsNullConstant());
+    return 0;
+  }
 }
 
 inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {

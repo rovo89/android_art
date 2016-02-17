@@ -36,8 +36,6 @@ static void TestCode(const uint16_t* data,
   HGraph* graph = CreateCFG(&allocator, data);
   ASSERT_NE(graph, nullptr);
 
-  TransformToSsa(graph);
-
   StringPrettyPrinter printer_before(graph);
   printer_before.VisitInsertionOrder();
   std::string actual_before = printer_before.str();
@@ -47,9 +45,9 @@ static void TestCode(const uint16_t* data,
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), CompilerOptions());
   HDeadCodeElimination(graph).Run();
-  SSAChecker ssa_checker(graph);
-  ssa_checker.Run();
-  ASSERT_TRUE(ssa_checker.IsValid());
+  GraphChecker graph_checker(graph);
+  graph_checker.Run();
+  ASSERT_TRUE(graph_checker.IsValid());
 
   StringPrettyPrinter printer_after(graph);
   printer_after.VisitInsertionOrder();

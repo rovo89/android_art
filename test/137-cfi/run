@@ -20,4 +20,5 @@ ${RUN} "$@" -Xcompiler-option --generate-debug-info --args --full-signatures
 
 # Test with minimal compressed debugging information.
 # Check only method names (parameters are omitted to save space).
-${RUN} "$@" -Xcompiler-option --generate-mini-debug-info
+# Temporarily disable due to bug 27172087 (leak/race in libunwind).
+# ${RUN} "$@" -Xcompiler-option --generate-mini-debug-info

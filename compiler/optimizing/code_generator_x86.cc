@@ -26,7 +26,6 @@
 #include "intrinsics_x86.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
-#include "pc_relative_fixups_x86.h"
 #include "thread.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
@@ -1127,91 +1126,6 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
   }
 }
 
-void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  if (instruction->IsCurrentMethod()) {
-    Move32(location, Location::StackSlot(kCurrentMethodStackOffset));
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (locations != nullptr && locations->Out().IsConstant()) {
-    HConstant* const_to_move = locations->Out().GetConstant();
-    if (const_to_move->IsIntConstant() || const_to_move->IsNullConstant()) {
-      Immediate imm(GetInt32ValueOf(const_to_move));
-      if (location.IsRegister()) {
-        __ movl(location.AsRegister<Register>(), imm);
-      } else if (location.IsStackSlot()) {
-        __ movl(Address(ESP, location.GetStackIndex()), imm);
-      } else {
-        DCHECK(location.IsConstant());
-        DCHECK_EQ(location.GetConstant(), const_to_move);
-      }
-    } else if (const_to_move->IsLongConstant()) {
-      int64_t value = const_to_move->AsLongConstant()->GetValue();
-      if (location.IsRegisterPair()) {
-        __ movl(location.AsRegisterPairLow<Register>(), Immediate(Low32Bits(value)));
-        __ movl(location.AsRegisterPairHigh<Register>(), Immediate(High32Bits(value)));
-      } else if (location.IsDoubleStackSlot()) {
-        __ movl(Address(ESP, location.GetStackIndex()), Immediate(Low32Bits(value)));
-        __ movl(Address(ESP, location.GetHighStackIndex(kX86WordSize)),
-                Immediate(High32Bits(value)));
-      } else {
-        DCHECK(location.IsConstant());
-        DCHECK_EQ(location.GetConstant(), instruction);
-      }
-    }
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    if (temp_location.IsStackSlot()) {
-      Move32(location, temp_location);
-    } else {
-      DCHECK(temp_location.IsDoubleStackSlot());
-      Move64(location, temp_location);
-    }
-  } else if (instruction->IsLoadLocal()) {
-    int slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimFloat:
-        Move32(location, Location::StackSlot(slot));
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        Move64(location, Location::DoubleStackSlot(slot));
-        break;
-
-      default:
-        LOG(FATAL) << "Unimplemented local type " << instruction->GetType();
-    }
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimFloat:
-        Move32(location, locations->Out());
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        Move64(location, locations->Out());
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected type " << instruction->GetType();
-    }
-  }
-}
-
 void CodeGeneratorX86::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ movl(location.AsRegister<Register>(), Immediate(value));
@@ -1361,7 +1275,7 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
     }
     // Must be equal high, so compare the lows.
     codegen_->Compare32BitValue(left_low, val_low);
-  } else {
+  } else if (right.IsRegisterPair()) {
     Register right_high = right.AsRegisterPairHigh<Register>();
     Register right_low = right.AsRegisterPairLow<Register>();
 
@@ -1376,6 +1290,19 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
     }
     // Must be equal high, so compare the lows.
     __ cmpl(left_low, right_low);
+  } else {
+    DCHECK(right.IsDoubleStackSlot());
+    __ cmpl(left_high, Address(ESP, right.GetHighStackIndex(kX86WordSize)));
+    if (if_cond == kCondNE) {
+      __ j(X86Condition(true_high_cond), true_label);
+    } else if (if_cond == kCondEQ) {
+      __ j(X86Condition(false_high_cond), false_label);
+    } else {
+      __ j(X86Condition(true_high_cond), true_label);
+      __ j(X86Condition(false_high_cond), false_label);
+    }
+    // Must be equal high, so compare the lows.
+    __ cmpl(left_low, Address(ESP, right.GetStackIndex()));
   }
   // The last comparison might be unsigned.
   __ j(final_condition, true_label);
@@ -1590,30 +1517,131 @@ void InstructionCodeGeneratorX86::VisitDeoptimize(HDeoptimize* deoptimize) {
                                /* false_target */ nullptr);
 }
 
+static bool SelectCanUseCMOV(HSelect* select) {
+  // There are no conditional move instructions for XMMs.
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    return false;
+  }
+
+  // A FP condition doesn't generate the single CC that we need.
+  // In 32 bit mode, a long condition doesn't generate a single CC either.
+  HInstruction* condition = select->GetCondition();
+  if (condition->IsCondition()) {
+    Primitive::Type compare_type = condition->InputAt(0)->GetType();
+    if (compare_type == Primitive::kPrimLong ||
+        Primitive::IsFloatingPointType(compare_type)) {
+      return false;
+    }
+  }
+
+  // We can generate a CMOV for this Select.
+  return true;
+}
+
 void LocationsBuilderX86::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
-  Primitive::Type select_type = select->GetType();
-  HInstruction* cond = select->GetCondition();
-
-  if (Primitive::IsFloatingPointType(select_type)) {
+  if (Primitive::IsFloatingPointType(select->GetType())) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::Any());
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
+    if (SelectCanUseCMOV(select)) {
+      if (select->InputAt(1)->IsConstant()) {
+        // Cmov can't handle a constant value.
+        locations->SetInAt(1, Location::RequiresRegister());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
+    } else {
+      locations->SetInAt(1, Location::Any());
+    }
   }
-  locations->SetInAt(1, Location::Any());
-  if (IsBooleanValueOrMaterializedCondition(cond)) {
-    locations->SetInAt(2, Location::Any());
+  if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
+    locations->SetInAt(2, Location::RequiresRegister());
   }
   locations->SetOut(Location::SameAsFirstInput());
 }
 
+void InstructionCodeGeneratorX86::GenerateIntCompare(Location lhs, Location rhs) {
+  Register lhs_reg = lhs.AsRegister<Register>();
+  if (rhs.IsConstant()) {
+    int32_t value = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
+    codegen_->Compare32BitValue(lhs_reg, value);
+  } else if (rhs.IsStackSlot()) {
+    __ cmpl(lhs_reg, Address(ESP, rhs.GetStackIndex()));
+  } else {
+    __ cmpl(lhs_reg, rhs.AsRegister<Register>());
+  }
+}
+
 void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
   LocationSummary* locations = select->GetLocations();
-  NearLabel false_target;
-  GenerateTestAndBranch<NearLabel>(
-      select, /* condition_input_index */ 2, /* true_target */ nullptr, &false_target);
-  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
-  __ Bind(&false_target);
+  DCHECK(locations->InAt(0).Equals(locations->Out()));
+  if (SelectCanUseCMOV(select)) {
+    // If both the condition and the source types are integer, we can generate
+    // a CMOV to implement Select.
+
+    HInstruction* select_condition = select->GetCondition();
+    Condition cond = kNotEqual;
+
+    // Figure out how to test the 'condition'.
+    if (select_condition->IsCondition()) {
+      HCondition* condition = select_condition->AsCondition();
+      if (!condition->IsEmittedAtUseSite()) {
+        // This was a previously materialized condition.
+        // Can we use the existing condition code?
+        if (AreEflagsSetFrom(condition, select)) {
+          // Materialization was the previous instruction. Condition codes are right.
+          cond = X86Condition(condition->GetCondition());
+        } else {
+          // No, we have to recreate the condition code.
+          Register cond_reg = locations->InAt(2).AsRegister<Register>();
+          __ testl(cond_reg, cond_reg);
+        }
+      } else {
+        // We can't handle FP or long here.
+        DCHECK_NE(condition->InputAt(0)->GetType(), Primitive::kPrimLong);
+        DCHECK(!Primitive::IsFloatingPointType(condition->InputAt(0)->GetType()));
+        LocationSummary* cond_locations = condition->GetLocations();
+        GenerateIntCompare(cond_locations->InAt(0), cond_locations->InAt(1));
+        cond = X86Condition(condition->GetCondition());
+      }
+    } else {
+      // Must be a boolean condition, which needs to be compared to 0.
+      Register cond_reg = locations->InAt(2).AsRegister<Register>();
+      __ testl(cond_reg, cond_reg);
+    }
+
+    // If the condition is true, overwrite the output, which already contains false.
+    Location false_loc = locations->InAt(0);
+    Location true_loc = locations->InAt(1);
+    if (select->GetType() == Primitive::kPrimLong) {
+      // 64 bit conditional move.
+      Register false_high = false_loc.AsRegisterPairHigh<Register>();
+      Register false_low = false_loc.AsRegisterPairLow<Register>();
+      if (true_loc.IsRegisterPair()) {
+        __ cmovl(cond, false_high, true_loc.AsRegisterPairHigh<Register>());
+        __ cmovl(cond, false_low, true_loc.AsRegisterPairLow<Register>());
+      } else {
+        __ cmovl(cond, false_high, Address(ESP, true_loc.GetHighStackIndex(kX86WordSize)));
+        __ cmovl(cond, false_low, Address(ESP, true_loc.GetStackIndex()));
+      }
+    } else {
+      // 32 bit conditional move.
+      Register false_reg = false_loc.AsRegister<Register>();
+      if (true_loc.IsRegister()) {
+        __ cmovl(cond, false_reg, true_loc.AsRegister<Register>());
+      } else {
+        __ cmovl(cond, false_reg, Address(ESP, true_loc.GetStackIndex()));
+      }
+    }
+  } else {
+    NearLabel false_target;
+    GenerateTestAndBranch<NearLabel>(
+        select, /* condition_input_index */ 2, /* true_target */ nullptr, &false_target);
+    codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
+    __ Bind(&false_target);
+  }
 }
 
 void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
@@ -1678,7 +1706,7 @@ void LocationsBuilderX86::HandleCondition(HCondition* cond) {
   switch (cond->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
+      locations->SetInAt(1, Location::Any());
       if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister());
       }
@@ -1727,15 +1755,7 @@ void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
 
       // Clear output register: setb only sets the low byte.
       __ xorl(reg, reg);
-
-      if (rhs.IsRegister()) {
-        __ cmpl(lhs.AsRegister<Register>(), rhs.AsRegister<Register>());
-      } else if (rhs.IsConstant()) {
-        int32_t constant = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
-        codegen_->Compare32BitValue(lhs.AsRegister<Register>(), constant);
-      } else {
-        __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
-      }
+      GenerateIntCompare(lhs, rhs);
       __ setb(X86Condition(cond->GetCondition()), reg);
       return;
     }
@@ -2230,6 +2250,18 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong: {
+          // Type conversion from long to byte is a result of code transformations.
+          HInstruction* input = conversion->InputAt(0);
+          Location input_location = input->IsConstant()
+              ? Location::ConstantLocation(input->AsConstant())
+              : Location::RegisterPairLocation(EAX, EDX);
+          locations->SetInAt(0, input_location);
+          // Make the output overlap to please the register allocator. This greatly simplifies
+          // the validation of the linear scan implementation
+          locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+          break;
+        }
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2250,6 +2282,8 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2327,6 +2361,8 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2421,6 +2457,16 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
+          if (in.IsRegisterPair()) {
+            __ movsxb(out.AsRegister<Register>(), in.AsRegisterPairLow<ByteRegister>());
+          } else {
+            DCHECK(in.GetConstant()->IsLongConstant());
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ movl(out.AsRegister<Register>(), Immediate(static_cast<int8_t>(value)));
+          }
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2444,6 +2490,18 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
+          if (in.IsRegisterPair()) {
+            __ movsxw(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>());
+          } else if (in.IsDoubleStackSlot()) {
+            __ movsxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
+          } else {
+            DCHECK(in.GetConstant()->IsLongConstant());
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ movl(out.AsRegister<Register>(), Immediate(static_cast<int16_t>(value)));
+          }
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2580,6 +2638,18 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
+          if (in.IsRegisterPair()) {
+            __ movzxw(out.AsRegister<Register>(), in.AsRegisterPairLow<Register>());
+          } else if (in.IsDoubleStackSlot()) {
+            __ movzxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
+          } else {
+            DCHECK(in.GetConstant()->IsLongConstant());
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ movl(out.AsRegister<Register>(), Immediate(static_cast<uint16_t>(value)));
+          }
+          break;
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -4163,15 +4233,7 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
 
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimInt: {
-      Register left_reg = left.AsRegister<Register>();
-      if (right.IsConstant()) {
-        int32_t value = right.GetConstant()->AsIntConstant()->GetValue();
-        codegen_->Compare32BitValue(left_reg, value);
-      } else if (right.IsStackSlot()) {
-        __ cmpl(left_reg, Address(ESP, right.GetStackIndex()));
-      } else {
-        __ cmpl(left_reg, right.AsRegister<Register>());
-      }
+      GenerateIntCompare(left, right);
       break;
     }
     case Primitive::kPrimLong: {
@@ -5511,14 +5573,6 @@ void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
     codegen_->AddSlowPath(slow_path);
     __ j(kBelowEqual, slow_path->GetEntryLabel());
   }
-}
-
-void LocationsBuilderX86::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorX86::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderX86::VisitParallelMove(HParallelMove* instruction ATTRIBUTE_UNUSED) {

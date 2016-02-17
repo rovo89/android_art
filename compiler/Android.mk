@@ -20,6 +20,7 @@ include art/build/Android.common_build.mk
 
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
+	debug/elf_debug_writer.cc \
 	dex/global_value_numbering.cc \
 	dex/gvn_dead_code_elimination.cc \
 	dex/local_value_numbering.cc \
@@ -89,7 +90,6 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/optimization.cc \
 	optimizing/optimizing_compiler.cc \
 	optimizing/parallel_move_resolver.cc \
-	optimizing/pc_relative_fixups_x86.cc \
 	optimizing/prepare_for_register_allocation.cc \
 	optimizing/reference_type_propagation.cc \
 	optimizing/register_allocator.cc \
@@ -105,7 +105,6 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/swap_space.cc \
 	compiler.cc \
 	elf_writer.cc \
-	elf_writer_debug.cc \
 	elf_writer_quick.cc \
 	image_writer.cc \
 	oat_writer.cc \
@@ -182,6 +181,7 @@ LIBART_COMPILER_SRC_FILES_x86 := \
 	linker/x86/relative_patcher_x86_base.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/intrinsics_x86.cc \
+	optimizing/pc_relative_fixups_x86.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
 

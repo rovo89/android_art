@@ -3,11 +3,11 @@
  */
     /* monitor-enter vAA */
     EXPORT_PC
-    GET_VREG %ecx rINST
+    GET_VREG %ecx, rINST
     movl    %ecx, OUT_ARG0(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    artLockObjectFromCode           # (object, self)
+    call    SYMBOL(artLockObjectFromCode)   # (object, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpException

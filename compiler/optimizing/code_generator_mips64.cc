@@ -869,65 +869,6 @@ void CodeGeneratorMIPS64::SwapLocations(Location loc1, Location loc2, Primitive:
   }
 }
 
-void CodeGeneratorMIPS64::Move(HInstruction* instruction,
-                               Location location,
-                               HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  Primitive::Type type = instruction->GetType();
-  DCHECK_NE(type, Primitive::kPrimVoid);
-
-  if (instruction->IsCurrentMethod()) {
-    MoveLocation(location, Location::DoubleStackSlot(kCurrentMethodStackOffset), type);
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (instruction->IsIntConstant()
-             || instruction->IsLongConstant()
-             || instruction->IsNullConstant()) {
-    if (location.IsRegister()) {
-      // Move to GPR from constant
-      GpuRegister dst = location.AsRegister<GpuRegister>();
-      if (instruction->IsNullConstant() || instruction->IsIntConstant()) {
-        __ LoadConst32(dst, GetInt32ValueOf(instruction->AsConstant()));
-      } else {
-        __ LoadConst64(dst, instruction->AsLongConstant()->GetValue());
-      }
-    } else {
-      DCHECK(location.IsStackSlot() || location.IsDoubleStackSlot());
-      // Move to stack from constant
-      GpuRegister gpr = ZERO;
-      if (location.IsStackSlot()) {
-        int32_t value = GetInt32ValueOf(instruction->AsConstant());
-        if (value != 0) {
-          gpr = TMP;
-          __ LoadConst32(gpr, value);
-        }
-        __ StoreToOffset(kStoreWord, gpr, SP, location.GetStackIndex());
-      } else {
-        DCHECK(location.IsDoubleStackSlot());
-        int64_t value = instruction->AsLongConstant()->GetValue();
-        if (value != 0) {
-          gpr = TMP;
-          __ LoadConst64(gpr, value);
-        }
-        __ StoreToOffset(kStoreDoubleword, gpr, SP, location.GetStackIndex());
-      }
-    }
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    MoveLocation(location, temp_location, type);
-  } else if (instruction->IsLoadLocal()) {
-    uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
-    if (Primitive::Is64BitType(type)) {
-      MoveLocation(location, Location::DoubleStackSlot(stack_slot), type);
-    } else {
-      MoveLocation(location, Location::StackSlot(stack_slot), type);
-    }
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    MoveLocation(location, locations->Out(), type);
-  }
-}
-
 void CodeGeneratorMIPS64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ LoadConst32(location.AsRegister<GpuRegister>(), value);
@@ -3946,14 +3887,6 @@ void InstructionCodeGeneratorMIPS64::VisitSuspendCheck(HSuspendCheck* instructio
   GenerateSuspendCheck(instruction, nullptr);
 }
 
-void LocationsBuilderMIPS64::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorMIPS64::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
-}
-
 void LocationsBuilderMIPS64::VisitThrow(HThrow* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
@@ -4010,18 +3943,26 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
         __ Andi(dst, src, 0xFFFF);
         break;
       case Primitive::kPrimByte:
-        // long is never converted into types narrower than int directly,
-        // so SEB and SEH can be used without ever causing unpredictable results
-        // on 64-bit inputs
-        DCHECK(input_type != Primitive::kPrimLong);
-        __ Seb(dst, src);
+        if (input_type == Primitive::kPrimLong) {
+          // Type conversion from long to types narrower than int is a result of code
+          // transformations. To avoid unpredictable results for SEB and SEH, we first
+          // need to sign-extend the low 32-bit value into bits 32 through 63.
+          __ Sll(dst, src, 0);
+          __ Seb(dst, dst);
+        } else {
+          __ Seb(dst, src);
+        }
         break;
       case Primitive::kPrimShort:
-        // long is never converted into types narrower than int directly,
-        // so SEB and SEH can be used without ever causing unpredictable results
-        // on 64-bit inputs
-        DCHECK(input_type != Primitive::kPrimLong);
-        __ Seh(dst, src);
+        if (input_type == Primitive::kPrimLong) {
+          // Type conversion from long to types narrower than int is a result of code
+          // transformations. To avoid unpredictable results for SEB and SEH, we first
+          // need to sign-extend the low 32-bit value into bits 32 through 63.
+          __ Sll(dst, src, 0);
+          __ Seh(dst, dst);
+        } else {
+          __ Seh(dst, src);
+        }
         break;
       case Primitive::kPrimInt:
       case Primitive::kPrimLong:

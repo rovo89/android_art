@@ -757,11 +757,97 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
   }
 }
 
+static bool IsTypeConversionImplicit(Primitive::Type input_type, Primitive::Type result_type) {
+  // Besides conversion to the same type, widening integral conversions are implicit,
+  // excluding conversions to long and the byte->char conversion where we need to
+  // clear the high 16 bits of the 32-bit sign-extended representation of byte.
+  return result_type == input_type ||
+      (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimByte) ||
+      (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimShort) ||
+      (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimChar) ||
+      (result_type == Primitive::kPrimShort && input_type == Primitive::kPrimByte);
+}
+
+static bool IsTypeConversionLossless(Primitive::Type input_type, Primitive::Type result_type) {
+  // The conversion to a larger type is loss-less with the exception of two cases,
+  //   - conversion to char, the only unsigned type, where we may lose some bits, and
+  //   - conversion from float to long, the only FP to integral conversion with smaller FP type.
+  // For integral to FP conversions this holds because the FP mantissa is large enough.
+  DCHECK_NE(input_type, result_type);
+  return Primitive::ComponentSize(result_type) > Primitive::ComponentSize(input_type) &&
+      result_type != Primitive::kPrimChar &&
+      !(result_type == Primitive::kPrimLong && input_type == Primitive::kPrimFloat);
+}
+
 void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruction) {
-  if (instruction->GetResultType() == instruction->GetInputType()) {
-    // Remove the instruction if it's converting to the same type.
-    instruction->ReplaceWith(instruction->GetInput());
+  HInstruction* input = instruction->GetInput();
+  Primitive::Type input_type = input->GetType();
+  Primitive::Type result_type = instruction->GetResultType();
+  if (IsTypeConversionImplicit(input_type, result_type)) {
+    // Remove the implicit conversion; this includes conversion to the same type.
+    instruction->ReplaceWith(input);
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
+    return;
+  }
+
+  if (input->IsTypeConversion()) {
+    HTypeConversion* input_conversion = input->AsTypeConversion();
+    HInstruction* original_input = input_conversion->GetInput();
+    Primitive::Type original_type = original_input->GetType();
+
+    // When the first conversion is lossless, a direct conversion from the original type
+    // to the final type yields the same result, even for a lossy second conversion, for
+    // example float->double->int or int->double->float.
+    bool is_first_conversion_lossless = IsTypeConversionLossless(original_type, input_type);
+
+    // For integral conversions, see if the first conversion loses only bits that the second
+    // doesn't need, i.e. the final type is no wider than the intermediate. If so, direct
+    // conversion yields the same result, for example long->int->short or int->char->short.
+    bool integral_conversions_with_non_widening_second =
+        Primitive::IsIntegralType(input_type) &&
+        Primitive::IsIntegralType(original_type) &&
+        Primitive::IsIntegralType(result_type) &&
+        Primitive::ComponentSize(result_type) <= Primitive::ComponentSize(input_type);
+
+    if (is_first_conversion_lossless || integral_conversions_with_non_widening_second) {
+      // If the merged conversion is implicit, do the simplification unconditionally.
+      if (IsTypeConversionImplicit(original_type, result_type)) {
+        instruction->ReplaceWith(original_input);
+        instruction->GetBlock()->RemoveInstruction(instruction);
+        if (!input_conversion->HasUses()) {
+          // Don't wait for DCE.
+          input_conversion->GetBlock()->RemoveInstruction(input_conversion);
+        }
+        RecordSimplification();
+        return;
+      }
+      // Otherwise simplify only if the first conversion has no other use.
+      if (input_conversion->HasOnlyOneNonEnvironmentUse()) {
+        input_conversion->ReplaceWith(original_input);
+        input_conversion->GetBlock()->RemoveInstruction(input_conversion);
+        RecordSimplification();
+        return;
+      }
+    }
+  } else if (input->IsAnd() &&
+      Primitive::IsIntegralType(result_type) &&
+      input->HasOnlyOneNonEnvironmentUse()) {
+    DCHECK(Primitive::IsIntegralType(input_type));
+    HAnd* input_and = input->AsAnd();
+    HConstant* constant = input_and->GetConstantRight();
+    if (constant != nullptr) {
+      int64_t value = Int64FromConstant(constant);
+      DCHECK_NE(value, -1);  // "& -1" would have been optimized away in VisitAnd().
+      size_t trailing_ones = CTZ(~static_cast<uint64_t>(value));
+      if (trailing_ones >= kBitsPerByte * Primitive::ComponentSize(result_type)) {
+        // The `HAnd` is useless, for example in `(byte) (x & 0xff)`, get rid of it.
+        input_and->ReplaceWith(input_and->GetLeastConstantLeft());
+        input_and->GetBlock()->RemoveInstruction(input_and);
+        RecordSimplification();
+        return;
+      }
+    }
   }
 }
 

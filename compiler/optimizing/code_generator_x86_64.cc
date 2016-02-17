@@ -1206,82 +1206,6 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
   }
 }
 
-void CodeGeneratorX86_64::Move(HInstruction* instruction,
-                               Location location,
-                               HInstruction* move_for) {
-  LocationSummary* locations = instruction->GetLocations();
-  if (instruction->IsCurrentMethod()) {
-    Move(location, Location::DoubleStackSlot(kCurrentMethodStackOffset));
-  } else if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  } else if (locations != nullptr && locations->Out().IsConstant()) {
-    HConstant* const_to_move = locations->Out().GetConstant();
-    if (const_to_move->IsIntConstant() || const_to_move->IsNullConstant()) {
-      Immediate imm(GetInt32ValueOf(const_to_move));
-      if (location.IsRegister()) {
-        __ movl(location.AsRegister<CpuRegister>(), imm);
-      } else if (location.IsStackSlot()) {
-        __ movl(Address(CpuRegister(RSP), location.GetStackIndex()), imm);
-      } else {
-        DCHECK(location.IsConstant());
-        DCHECK_EQ(location.GetConstant(), const_to_move);
-      }
-    } else if (const_to_move->IsLongConstant()) {
-      int64_t value = const_to_move->AsLongConstant()->GetValue();
-      if (location.IsRegister()) {
-        Load64BitValue(location.AsRegister<CpuRegister>(), value);
-      } else if (location.IsDoubleStackSlot()) {
-        Store64BitValueToStack(location, value);
-      } else {
-        DCHECK(location.IsConstant());
-        DCHECK_EQ(location.GetConstant(), const_to_move);
-      }
-    }
-  } else if (instruction->IsLoadLocal()) {
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimFloat:
-        Move(location, Location::StackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        Move(location,
-             Location::DoubleStackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected local type " << instruction->GetType();
-    }
-  } else if (instruction->IsTemporary()) {
-    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    Move(location, temp_location);
-  } else {
-    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    switch (instruction->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimLong:
-      case Primitive::kPrimFloat:
-      case Primitive::kPrimDouble:
-        Move(location, locations->Out());
-        break;
-
-      default:
-        LOG(FATAL) << "Unexpected type " << instruction->GetType();
-    }
-  }
-}
-
 void CodeGeneratorX86_64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   Load64BitValue(location.AsRegister<CpuRegister>(), static_cast<int64_t>(value));
@@ -1627,14 +1551,16 @@ void LocationsBuilderX86_64::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
   if (Primitive::IsFloatingPointType(select->GetType())) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
-    // Since we can't use CMOV, there is no need to force 'true' into a register.
     locations->SetInAt(1, Location::Any());
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
     if (SelectCanUseCMOV(select)) {
-      locations->SetInAt(1, Location::RequiresRegister());
+      if (select->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::RequiresRegister());
+      } else {
+        locations->SetInAt(1, Location::Any());
+      }
     } else {
-      // Since we can't use CMOV, there is no need to force 'true' into a register.
       locations->SetInAt(1, Location::Any());
     }
   }
@@ -1650,7 +1576,7 @@ void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
     // If both the condition and the source types are integer, we can generate
     // a CMOV to implement Select.
     CpuRegister value_false = locations->InAt(0).AsRegister<CpuRegister>();
-    CpuRegister value_true = locations->InAt(1).AsRegister<CpuRegister>();
+    Location value_true_loc = locations->InAt(1);
     DCHECK(locations->InAt(0).Equals(locations->Out()));
 
     HInstruction* select_condition = select->GetCondition();
@@ -1682,7 +1608,14 @@ void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
 
     // If the condition is true, overwrite the output, which already contains false.
     // Generate the correct sized CMOV.
-    __ cmov(cond, value_false, value_true, select->GetType() == Primitive::kPrimLong);
+    bool is_64_bit = Primitive::Is64BitType(select->GetType());
+    if (value_true_loc.IsRegister()) {
+      __ cmov(cond, value_false, value_true_loc.AsRegister<CpuRegister>(), is_64_bit);
+    } else {
+      __ cmov(cond,
+              value_false,
+              Address(CpuRegister(RSP), value_true_loc.GetStackIndex()), is_64_bit);
+    }
   } else {
     NearLabel false_target;
     GenerateTestAndBranch<NearLabel>(select,
@@ -2439,6 +2372,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2457,6 +2392,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2534,6 +2471,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2628,6 +2567,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to byte is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
@@ -2636,13 +2577,12 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `int-to-byte' instruction.
           if (in.IsRegister()) {
             __ movsxb(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
-          } else if (in.IsStackSlot()) {
+          } else if (in.IsStackSlot() || in.IsDoubleStackSlot()) {
             __ movsxb(out.AsRegister<CpuRegister>(),
                       Address(CpuRegister(RSP), in.GetStackIndex()));
           } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.AsRegister<CpuRegister>(),
-                    Immediate(static_cast<int8_t>(in.GetConstant()->AsIntConstant()->GetValue())));
+                    Immediate(static_cast<int8_t>(Int64FromConstant(in.GetConstant()))));
           }
           break;
 
@@ -2654,6 +2594,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to short is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2662,13 +2604,12 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `int-to-short' instruction.
           if (in.IsRegister()) {
             __ movsxw(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
-          } else if (in.IsStackSlot()) {
+          } else if (in.IsStackSlot() || in.IsDoubleStackSlot()) {
             __ movsxw(out.AsRegister<CpuRegister>(),
                       Address(CpuRegister(RSP), in.GetStackIndex()));
           } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.AsRegister<CpuRegister>(),
-                    Immediate(static_cast<int16_t>(in.GetConstant()->AsIntConstant()->GetValue())));
+                    Immediate(static_cast<int16_t>(Int64FromConstant(in.GetConstant()))));
           }
           break;
 
@@ -2811,6 +2752,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimLong:
+          // Type conversion from long to char is a result of code transformations.
         case Primitive::kPrimBoolean:
           // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
@@ -2819,14 +2762,12 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `int-to-char' instruction.
           if (in.IsRegister()) {
             __ movzxw(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
-          } else if (in.IsStackSlot()) {
+          } else if (in.IsStackSlot() || in.IsDoubleStackSlot()) {
             __ movzxw(out.AsRegister<CpuRegister>(),
                       Address(CpuRegister(RSP), in.GetStackIndex()));
           } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.AsRegister<CpuRegister>(),
-                    Immediate(static_cast<uint16_t>(
-                        in.GetConstant()->AsIntConstant()->GetValue())));
+                    Immediate(static_cast<uint16_t>(Int64FromConstant(in.GetConstant()))));
           }
           break;
 
@@ -5142,14 +5083,6 @@ void CodeGeneratorX86_64::MarkGCCard(CpuRegister temp,
   }
 }
 
-void LocationsBuilderX86_64::VisitTemporary(HTemporary* temp) {
-  temp->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorX86_64::VisitTemporary(HTemporary* temp ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
-}
-
 void LocationsBuilderX86_64::VisitParallelMove(HParallelMove* instruction ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unimplemented";
 }
@@ -5840,19 +5773,20 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                                            is_type_check_slow_path_fatal);
   codegen_->AddSlowPath(type_check_slow_path);
 
-  NearLabel done;
-  // Avoid null check if we know obj is not null.
-  if (instruction->MustDoNullCheck()) {
-    __ testl(obj, obj);
-    __ j(kEqual, &done);
-  }
-
-  // /* HeapReference<Class> */ temp = obj->klass_
-  GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
-
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kArrayCheck: {
+      NearLabel done;
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
+
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<CpuRegister>());
       } else {
@@ -5862,10 +5796,22 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // Jump to slow path for throwing the exception or doing a
       // more involved array check.
       __ j(kNotEqual, type_check_slow_path->GetEntryLabel());
+      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kAbstractClassCheck: {
+      NearLabel done;
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
+
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       NearLabel loop, compare_classes;
@@ -5896,10 +5842,22 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
         __ cmpl(temp, Address(CpuRegister(RSP), cls.GetStackIndex()));
       }
       __ j(kNotEqual, &loop);
+      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kClassHierarchyCheck: {
+      NearLabel done;
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
+
       // Walk over the class hierarchy to find a match.
       NearLabel loop;
       __ Bind(&loop);
@@ -5927,10 +5885,26 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       GenerateReferenceLoadTwoRegisters(
           instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ jmp(type_check_slow_path->GetEntryLabel());
+      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kArrayObjectCheck: {
+      // We cannot use a NearLabel here, as its range might be too
+      // short in some cases when read barriers are enabled.  This has
+      // been observed for instance when the code emitted for this
+      // case uses high x86-64 registers (R8-R15).
+      Label done;
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
+
       // Do an exact check.
       NearLabel check_non_primitive_component_type;
       if (cls.IsRegister()) {
@@ -5969,11 +5943,23 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       GenerateReferenceLoadTwoRegisters(
           instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ jmp(type_check_slow_path->GetEntryLabel());
+      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
+      NearLabel done;
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
+
       // We always go into the type check slow path for the unresolved
       // and interface check cases.
       //
@@ -5992,9 +5978,9 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // call to the runtime not using a type checking slow path).
       // This should also be beneficial for the other cases above.
       __ jmp(type_check_slow_path->GetEntryLabel());
+      __ Bind(&done);
       break;
   }
-  __ Bind(&done);
 
   __ Bind(type_check_slow_path->GetExitLabel());
 }

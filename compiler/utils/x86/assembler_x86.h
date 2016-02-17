@@ -363,6 +363,7 @@ class X86Assembler FINAL : public Assembler {
   void leal(Register dst, const Address& src);
 
   void cmovl(Condition condition, Register dst, Register src);
+  void cmovl(Condition condition, Register dst, const Address& src);
 
   void setb(Condition condition, Register dst);
 

@@ -444,11 +444,12 @@ ENTRY art_quick_osr_stub
     mov    r10, r1                         @ Save size of stack
     ldr    r9, [r11, #40]                  @ Move managed thread pointer into r9
     mov    r8, r2                          @ Save the pc to call
-    sub    r7, sp, #12                     @ Reserve space for stack pointer, JValue result, and ArtMethod* slot
+    sub    r7, sp, #12                     @ Reserve space for stack pointer,
+                                           @    JValue* result, and ArtMethod* slot.
     and    r7, #0xFFFFFFF0                 @ Align stack pointer
     mov    sp, r7                          @ Update stack pointer
     str    r11, [sp, #4]                   @ Save old stack pointer
-    str    r3, [sp, #8]                    @ Save JValue result
+    str    r3, [sp, #8]                    @ Save JValue* result
     mov    ip, #0
     str    ip, [sp]                        @ Store null for ArtMethod* at bottom of frame
     sub    sp, sp, r1                      @ Reserve space for callee stack
@@ -457,9 +458,8 @@ ENTRY art_quick_osr_stub
     mov    r0, sp
     bl     memcpy                          @ memcpy (dest r0, src r1, bytes r2)
     bl     .Losr_entry                     @ Call the method
-    ldr    r11, [sp, #4]                   @ Restore saved stack pointer
-    ldr    r10, [sp, #8]                   @ Restore JValue result
-    mov    sp, r11                         @ Restore stack pointer.
+    ldr    r10, [sp, #8]                   @ Restore JValue* result
+    ldr    sp, [sp, #4]                    @ Restore saved stack pointer
     ldr    r4, [sp, #36]                   @ load shorty
     ldrb   r4, [r4, #0]                    @ load return type
     cmp    r4, #68                         @ Test if result type char == 'D'.

@@ -96,6 +96,22 @@ unspecified registers or condition codes.
  */
 #include "asm_support.h"
 
+/*
+ * Handle mac compiler specific
+ */
+#if defined(__APPLE__)
+    #define MACRO_LITERAL(value) $(value)
+    #define FUNCTION_TYPE(name)
+    #define SIZE(start,end)
+    // Mac OS' symbols have an _ prefix.
+    #define SYMBOL(name) _ ## name
+#else
+    #define MACRO_LITERAL(value) $value
+    #define FUNCTION_TYPE(name) .type name, @function
+    #define SIZE(start,end) .size start, .-end
+    #define SYMBOL(name) name
+#endif
+
 /* Frame size must be 16-byte aligned.
  * Remember about 4 bytes for return address
  */
@@ -199,7 +215,7 @@ unspecified registers or condition codes.
  */
 .macro REFRESH_INST _opnum
     movb    rINSTbl, rINSTbh
-    movb    $\_opnum, rINSTbl
+    movb    MACRO_LITERAL(\_opnum), rINSTbl
 .endm
 
 /*
@@ -215,7 +231,7 @@ unspecified registers or condition codes.
 .macro GOTO_NEXT
     movzx   rINSTbl,%eax
     movzbl  rINSTbh,rINST
-    shll    $7, %eax
+    shll    MACRO_LITERAL(7), %eax
     addl    rIBASE, %eax
     jmp     *%eax
 .endm
@@ -255,7 +271,7 @@ unspecified registers or condition codes.
 
 .macro SET_VREG _reg _vreg
     movl    \_reg, (rFP,\_vreg,4)
-    movl    $0, (rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0), (rREFS,\_vreg,4)
 .endm
 
 /* Write wide value from xmm. xmm is clobbered. */
@@ -276,16 +292,16 @@ unspecified registers or condition codes.
 
 .macro SET_VREG_HIGH _reg _vreg
     movl    \_reg, 4(rFP,\_vreg,4)
-    movl    $0, 4(rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0), 4(rREFS,\_vreg,4)
 .endm
 
 .macro CLEAR_REF _vreg
-    movl    $0,  (rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0),  (rREFS,\_vreg,4)
 .endm
 
 .macro CLEAR_WIDE_REF _vreg
-    movl    $0,  (rREFS,\_vreg,4)
-    movl    $0, 4(rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0),  (rREFS,\_vreg,4)
+    movl    MACRO_LITERAL(0), 4(rREFS,\_vreg,4)
 .endm
 
 /* File: x86/entry.S */
@@ -309,8 +325,8 @@ unspecified registers or condition codes.
  */
 
     .text
-    .global ExecuteMterpImpl
-    .type   ExecuteMterpImpl, %function
+    .global SYMBOL(ExecuteMterpImpl)
+    FUNCTION_TYPE(ExecuteMterpImpl)
 
 /*
  * On entry:
@@ -321,7 +337,7 @@ unspecified registers or condition codes.
  *
  */
 
-ExecuteMterpImpl:
+SYMBOL(ExecuteMterpImpl):
     .cfi_startproc
     /* Allocate frame */
     subl    $FRAME_SIZE, %esp
@@ -362,9 +378,9 @@ ExecuteMterpImpl:
     /* NOTE: no fallthrough */
 
 
-    .global artMterpAsmInstructionStart
-    .type   artMterpAsmInstructionStart, %function
-artMterpAsmInstructionStart = .L_op_nop
+    .global SYMBOL(artMterpAsmInstructionStart)
+    FUNCTION_TYPE(SYMBOL(artMterpAsmInstructionStart))
+SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     .text
 
 /* ------------------------------ */
@@ -382,11 +398,11 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  rINSTbl, %eax                   # eax <- BA
     andb    $0xf, %al                      # eax <- A
     shrl    $4, rINST                      # rINST <- B
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     .if 0
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -398,11 +414,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBBBB */
     movzx   rINSTbl, %eax                   # eax <- AA
     movw    2(rPC), rINSTw                  # rINSTw <- BBBB
-    GET_VREG rINST rINST                    # rINST <- fp[BBBB]
+    GET_VREG rINST, rINST                   # rINST <- fp[BBBB]
     .if 0
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -414,11 +430,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAAAA, vBBBB */
     movzwl  4(rPC), %ecx                    # ecx <- BBBB
     movzwl  2(rPC), %eax                    # eax <- AAAA
-    GET_VREG rINST %ecx
+    GET_VREG rINST, %ecx
     .if 0
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -431,8 +447,8 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, rINST                      # rINST <- B
     andb    $0xf, %cl                      # ecx <- A
-    GET_WIDE_FP_VREG %xmm0 rINST            # xmm0 <- v[B]
-    SET_WIDE_FP_VREG %xmm0 %ecx             # v[A] <- xmm0
+    GET_WIDE_FP_VREG %xmm0, rINST           # xmm0 <- v[B]
+    SET_WIDE_FP_VREG %xmm0, %ecx            # v[A] <- xmm0
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -443,8 +459,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     movzwl  2(rPC), %ecx                    # ecx <- BBBB
     movzbl  rINSTbl, %eax                   # eax <- AAAA
-    GET_WIDE_FP_VREG %xmm0 %ecx             # xmm0 <- v[B]
-    SET_WIDE_FP_VREG %xmm0 %eax             # v[A] <- xmm0
+    GET_WIDE_FP_VREG %xmm0, %ecx            # xmm0 <- v[B]
+    SET_WIDE_FP_VREG %xmm0, %eax            # v[A] <- xmm0
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -455,8 +471,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     movzwl  4(rPC), %ecx                    # ecx<- BBBB
     movzwl  2(rPC), %eax                    # eax<- AAAA
-    GET_WIDE_FP_VREG %xmm0 %ecx             # xmm0 <- v[B]
-    SET_WIDE_FP_VREG %xmm0 %eax             # v[A] <- xmm0
+    GET_WIDE_FP_VREG %xmm0, %ecx            # xmm0 <- v[B]
+    SET_WIDE_FP_VREG %xmm0, %eax            # v[A] <- xmm0
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 /* ------------------------------ */
@@ -469,11 +485,11 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  rINSTbl, %eax                   # eax <- BA
     andb    $0xf, %al                      # eax <- A
     shrl    $4, rINST                      # rINST <- B
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     .if 1
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -487,11 +503,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBBBB */
     movzx   rINSTbl, %eax                   # eax <- AA
     movw    2(rPC), rINSTw                  # rINSTw <- BBBB
-    GET_VREG rINST rINST                    # rINST <- fp[BBBB]
+    GET_VREG rINST, rINST                   # rINST <- fp[BBBB]
     .if 1
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -505,11 +521,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAAAA, vBBBB */
     movzwl  4(rPC), %ecx                    # ecx <- BBBB
     movzwl  2(rPC), %eax                    # eax <- AAAA
-    GET_VREG rINST %ecx
+    GET_VREG rINST, %ecx
     .if 1
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -523,9 +539,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    OFF_FP_RESULT_REGISTER(rFP), %eax    # get pointer to result JType.
     movl    (%eax), %eax                    # r0 <- result.i.
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- fp[B]
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- fp[B]
     .else
-    SET_VREG %eax rINST                     # fp[A] <- fp[B]
+    SET_VREG %eax, rINST                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -537,8 +553,8 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    OFF_FP_RESULT_REGISTER(rFP), %eax    # get pointer to result JType.
     movl    4(%eax), %ecx                   # Get high
     movl    (%eax), %eax                    # Get low
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
-    SET_VREG_HIGH %ecx rINST                # v[AA+1] <- ecx
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
+    SET_VREG_HIGH %ecx, rINST               # v[AA+1] <- ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -551,9 +567,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    OFF_FP_RESULT_REGISTER(rFP), %eax    # get pointer to result JType.
     movl    (%eax), %eax                    # r0 <- result.i.
     .if 1
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- fp[B]
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- fp[B]
     .else
-    SET_VREG %eax rINST                     # fp[A] <- fp[B]
+    SET_VREG %eax, rINST                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -565,7 +581,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* move-exception vAA */
     movl    rSELF, %ecx
     movl    THREAD_EXCEPTION_OFFSET(%ecx), %eax
-    SET_VREG_OBJECT %eax rINST              # fp[AA] <- exception object
+    SET_VREG_OBJECT %eax, rINST             # fp[AA] <- exception object
     movl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -574,12 +590,12 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_return_void: /* 0x0e */
 /* File: x86/op_return_void.S */
     .extern MterpThreadFenceForConstructor
-    call    MterpThreadFenceForConstructor
+    call    SYMBOL(MterpThreadFenceForConstructor)
     movl    rSELF, %eax
     testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
 1:
     xorl    %eax, %eax
     xorl    %ecx, %ecx
@@ -596,14 +612,14 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* op vAA */
     .extern MterpThreadFenceForConstructor
-    call    MterpThreadFenceForConstructor
+    call    SYMBOL(MterpThreadFenceForConstructor)
     movl    rSELF, %eax
     testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
 1:
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     xorl    %ecx, %ecx
     jmp     MterpReturn
 
@@ -616,15 +632,15 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* return-wide vAA */
     .extern MterpThreadFenceForConstructor
-    call    MterpThreadFenceForConstructor
+    call    SYMBOL(MterpThreadFenceForConstructor)
     movl    rSELF, %eax
     testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
 1:
-    GET_VREG %eax rINST                     # eax <- v[AA+0]
-    GET_VREG_HIGH %ecx rINST                # ecx <- v[AA+1]
+    GET_VREG %eax, rINST                    # eax <- v[AA+0]
+    GET_VREG_HIGH %ecx, rINST               # ecx <- v[AA+1]
     jmp     MterpReturn
 
 /* ------------------------------ */
@@ -639,14 +655,14 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* op vAA */
     .extern MterpThreadFenceForConstructor
-    call    MterpThreadFenceForConstructor
+    call    SYMBOL(MterpThreadFenceForConstructor)
     movl    rSELF, %eax
     testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
 1:
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     xorl    %ecx, %ecx
     jmp     MterpReturn
 
@@ -660,7 +676,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    $0xf, rINST
     andl    %eax, rINST                     # rINST <- A
     sarl    $4, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -669,7 +685,7 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: x86/op_const_16.S */
     /* const/16 vAA, #+BBBB */
     movswl  2(rPC), %ecx                    # ecx <- ssssBBBB
-    SET_VREG %ecx rINST                     # vAA <- ssssBBBB
+    SET_VREG %ecx, rINST                    # vAA <- ssssBBBB
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -678,7 +694,7 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: x86/op_const.S */
     /* const vAA, #+BBBBbbbb */
     movl    2(rPC), %eax                    # grab all 32 bits at once
-    SET_VREG %eax rINST                     # vAA<- eax
+    SET_VREG %eax, rINST                    # vAA<- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 /* ------------------------------ */
@@ -688,7 +704,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* const/high16 vAA, #+BBBB0000 */
     movzwl  2(rPC), %eax                    # eax <- 0000BBBB
     sall    $16, %eax                      # eax <- BBBB0000
-    SET_VREG %eax rINST                     # vAA <- eax
+    SET_VREG %eax, rINST                    # vAA <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -699,8 +715,8 @@ artMterpAsmInstructionStart = .L_op_nop
     movswl  2(rPC), %eax                    # eax <- ssssBBBB
     movl    rIBASE, %ecx                    # preserve rIBASE (cltd trashes it)
     cltd                                    # rIBASE:eax <- ssssssssssssBBBB
-    SET_VREG_HIGH rIBASE rINST              # store msw
-    SET_VREG %eax rINST                     # store lsw
+    SET_VREG_HIGH rIBASE, rINST             # store msw
+    SET_VREG %eax, rINST                    # store lsw
     movl    %ecx, rIBASE                    # restore rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -712,8 +728,8 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    2(rPC), %eax                    # eax <- BBBBbbbb
     movl    rIBASE, %ecx                    # preserve rIBASE (cltd trashes it)
     cltd                                    # rIBASE:eax <- ssssssssssssBBBB
-    SET_VREG_HIGH rIBASE rINST              # store msw
-    SET_VREG %eax rINST                     # store lsw
+    SET_VREG_HIGH rIBASE, rINST             # store msw
+    SET_VREG %eax, rINST                    # store lsw
     movl    %ecx, rIBASE                    # restore rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -725,8 +741,8 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    2(rPC), %eax                    # eax <- lsw
     movzbl  rINSTbl, %ecx                   # ecx <- AA
     movl    6(rPC), rINST                   # rINST <- msw
-    SET_VREG %eax %ecx
-    SET_VREG_HIGH  rINST %ecx
+    SET_VREG %eax, %ecx
+    SET_VREG_HIGH  rINST, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 5
 
 /* ------------------------------ */
@@ -736,9 +752,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* const-wide/high16 vAA, #+BBBB000000000000 */
     movzwl  2(rPC), %eax                    # eax <- 0000BBBB
     sall    $16, %eax                      # eax <- BBBB0000
-    SET_VREG_HIGH %eax rINST                # v[AA+1] <- eax
+    SET_VREG_HIGH %eax, rINST               # v[AA+1] <- eax
     xorl    %eax, %eax
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -754,7 +770,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
-    call    MterpConstString                # (index, tgt_reg, shadow_frame, self)
+    call    SYMBOL(MterpConstString)        # (index, tgt_reg, shadow_frame, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpPossibleException
@@ -773,7 +789,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
-    call    MterpConstString                # (index, tgt_reg, shadow_frame, self)
+    call    SYMBOL(MterpConstString)        # (index, tgt_reg, shadow_frame, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpPossibleException
@@ -792,7 +808,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
-    call    MterpConstClass                 # (index, tgt_reg, shadow_frame, self)
+    call    SYMBOL(MterpConstClass)         # (index, tgt_reg, shadow_frame, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpPossibleException
@@ -807,11 +823,11 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* monitor-enter vAA */
     EXPORT_PC
-    GET_VREG %ecx rINST
+    GET_VREG %ecx, rINST
     movl    %ecx, OUT_ARG0(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    artLockObjectFromCode           # (object, self)
+    call    SYMBOL(artLockObjectFromCode)   # (object, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpException
@@ -830,11 +846,11 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* monitor-exit vAA */
     EXPORT_PC
-    GET_VREG %ecx rINST
+    GET_VREG %ecx, rINST
     movl    %ecx, OUT_ARG0(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    artUnlockObjectFromCode         # (object, self)
+    call    SYMBOL(artUnlockObjectFromCode) # (object, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpException
@@ -857,7 +873,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpCheckCast                  # (index, &obj, method, self)
+    call    SYMBOL(MterpCheckCast)          # (index, &obj, method, self)
     REFRESH_IBASE
     testl   %eax, %eax
     jnz     MterpPossibleException
@@ -885,13 +901,13 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpInstanceOf                 # (index, &obj, method, self)
+    call    SYMBOL(MterpInstanceOf)         # (index, &obj, method, self)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     andb    $0xf, rINSTbl                  # rINSTbl <- A
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -903,12 +919,12 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     mov     rINST, %eax                     # eax <- BA
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %ecx rINST                     # ecx <- vB (object ref)
+    GET_VREG %ecx, rINST                    # ecx <- vB (object ref)
     testl   %ecx, %ecx                      # is null?
     je      common_errNullObject
     andb    $0xf, %al                      # eax <- A
     movl    MIRROR_ARRAY_LENGTH_OFFSET(%ecx), rINST
-    SET_VREG rINST %eax
+    SET_VREG rINST, %eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -926,7 +942,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %ecx, OUT_ARG1(%esp)
     REFRESH_INST 34
     movl    rINST, OUT_ARG2(%esp)
-    call    MterpNewInstance
+    call    SYMBOL(MterpNewInstance)
     REFRESH_IBASE
     testl   %eax, %eax                 # 0 means an exception is thrown
     jz      MterpPossibleException
@@ -952,7 +968,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rINST, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpNewArray
+    call    SYMBOL(MterpNewArray)
     REFRESH_IBASE
     testl   %eax, %eax                      # 0 means an exception is thrown
     jz      MterpPossibleException
@@ -976,7 +992,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG1(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)
-    call    MterpFilledNewArray
+    call    SYMBOL(MterpFilledNewArray)
     REFRESH_IBASE
     testl   %eax, %eax                      # 0 means an exception is thrown
     jz      MterpPossibleException
@@ -1001,7 +1017,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG1(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)
-    call    MterpFilledNewArrayRange
+    call    SYMBOL(MterpFilledNewArrayRange)
     REFRESH_IBASE
     testl   %eax, %eax                      # 0 means an exception is thrown
     jz      MterpPossibleException
@@ -1016,10 +1032,10 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     movl    2(rPC), %ecx                    # ecx <- BBBBbbbb
     leal    (rPC,%ecx,2), %ecx              # ecx <- PC + BBBBbbbb*2
-    GET_VREG %eax rINST                     # eax <- vAA (array object)
+    GET_VREG %eax, rINST                    # eax <- vAA (array object)
     movl    %eax, OUT_ARG0(%esp)
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpFillArrayData              # (obj, payload)
+    call    SYMBOL(MterpFillArrayData)      # (obj, payload)
     REFRESH_IBASE
     testl   %eax, %eax                      # 0 means an exception is thrown
     jz      MterpPossibleException
@@ -1034,7 +1050,7 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* throw vAA */
     EXPORT_PC
-    GET_VREG %eax rINST                     # eax<- vAA (exception object)
+    GET_VREG %eax, rINST                    # eax<- vAA (exception object)
     testl   %eax, %eax
     jz      common_errNullObject
     movl    rSELF,%ecx
@@ -1133,11 +1149,11 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* op vAA, +BBBB */
     movl    2(rPC), %ecx                    # ecx <- BBBBbbbb
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     leal    (rPC,%ecx,2), %ecx              # ecx <- PC + BBBBbbbb*2
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
-    call    MterpDoPackedSwitch
+    call    SYMBOL(MterpDoPackedSwitch)
     addl    %eax, %eax
     leal    (rPC, %eax), rPC
     FETCH_INST
@@ -1167,11 +1183,11 @@ artMterpAsmInstructionStart = .L_op_nop
  */
     /* op vAA, +BBBB */
     movl    2(rPC), %ecx                    # ecx <- BBBBbbbb
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     leal    (rPC,%ecx,2), %ecx              # ecx <- PC + BBBBbbbb*2
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
-    call    MterpDoSparseSwitch
+    call    SYMBOL(MterpDoSparseSwitch)
     addl    %eax, %eax
     leal    (rPC, %eax), rPC
     FETCH_INST
@@ -1223,7 +1239,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .Lop_cmpl_float_less:
     decl    %eax
 .Lop_cmpl_float_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -1264,7 +1280,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .Lop_cmpg_float_less:
     decl    %eax
 .Lop_cmpg_float_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -1305,7 +1321,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .Lop_cmpl_double_less:
     decl    %eax
 .Lop_cmpl_double_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -1346,7 +1362,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .Lop_cmpg_double_less:
     decl    %eax
 .Lop_cmpg_double_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -1361,17 +1377,17 @@ artMterpAsmInstructionStart = .L_op_nop
     /* cmp-long vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG_HIGH %eax %eax                 # eax <- v[BB+1], BB is clobbered
+    GET_VREG_HIGH %eax, %eax                # eax <- v[BB+1], BB is clobbered
     cmpl    VREG_HIGH_ADDRESS(%ecx), %eax
     jl      .Lop_cmp_long_smaller
     jg      .Lop_cmp_long_bigger
     movzbl  2(rPC), %eax                    # eax <- BB, restore BB
-    GET_VREG %eax %eax                      # eax <- v[BB]
+    GET_VREG %eax, %eax                     # eax <- v[BB]
     sub     VREG_ADDRESS(%ecx), %eax
     ja      .Lop_cmp_long_bigger
     jb      .Lop_cmp_long_smaller
 .Lop_cmp_long_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 .Lop_cmp_long_bigger:
@@ -1397,7 +1413,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $2, %eax                       # assume not taken
@@ -1432,7 +1448,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $2, %eax                       # assume not taken
@@ -1467,7 +1483,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $2, %eax                       # assume not taken
@@ -1502,7 +1518,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $2, %eax                       # assume not taken
@@ -1537,7 +1553,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $2, %eax                       # assume not taken
@@ -1572,7 +1588,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* if-cmp vA, vB, +CCCC */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     andb    $0xf, %cl                      # ecx <- A
-    GET_VREG %eax %ecx                      # eax <- vA
+    GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
     movl    $2, %eax                       # assume not taken
@@ -1857,14 +1873,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     movl   MIRROR_INT_ARRAY_DATA_OFFSET(%eax,%ecx,4), %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -1877,15 +1893,15 @@ artMterpAsmInstructionStart = .L_op_nop
     /* aget-wide vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_WIDE_ARRAY_DATA_OFFSET(%eax,%ecx,8), %eax
     movq    (%eax), %xmm0                   # xmm0 <- vBB[vCC]
-    SET_WIDE_FP_VREG %xmm0 rINST            # vAA <- xmm0
+    SET_WIDE_FP_VREG %xmm0, rINST           # vAA <- xmm0
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -1900,17 +1916,17 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecs <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecs <- vCC (requested index)
     EXPORT_PC
     movl    %eax, OUT_ARG0(%esp)
     movl    %ecx, OUT_ARG1(%esp)
-    call    artAGetObjectFromMterp          # (array, index)
+    call    SYMBOL(artAGetObjectFromMterp)  # (array, index)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
-    SET_VREG_OBJECT %eax rINST
+    SET_VREG_OBJECT %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -1927,14 +1943,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     movzbl   MIRROR_BOOLEAN_ARRAY_DATA_OFFSET(%eax,%ecx,1), %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -1952,14 +1968,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     movsbl   MIRROR_BYTE_ARRAY_DATA_OFFSET(%eax,%ecx,1), %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -1977,14 +1993,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     movzwl   MIRROR_CHAR_ARRAY_DATA_OFFSET(%eax,%ecx,2), %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2002,14 +2018,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     movswl   MIRROR_SHORT_ARRAY_DATA_OFFSET(%eax,%ecx,2), %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2026,14 +2042,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_INT_ARRAY_DATA_OFFSET(%eax,%ecx,4), %eax
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl  rINST, (%eax)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2048,14 +2064,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* aput-wide vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_WIDE_ARRAY_DATA_OFFSET(%eax,%ecx,8), %eax
-    GET_WIDE_FP_VREG %xmm0 rINST            # xmm0 <- vAA
+    GET_WIDE_FP_VREG %xmm0, rINST           # xmm0 <- vAA
     movq    %xmm0, (%eax)                   # vBB[vCC] <- xmm0
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2073,7 +2089,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG1(%esp)
     REFRESH_INST 77
     movl    rINST, OUT_ARG2(%esp)
-    call    MterpAputObject            # (array, index)
+    call    SYMBOL(MterpAputObject)         # (array, index)
     REFRESH_IBASE
     testl   %eax, %eax
     jz      MterpPossibleException
@@ -2093,14 +2109,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_BOOLEAN_ARRAY_DATA_OFFSET(%eax,%ecx,1), %eax
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movb  rINSTbl, (%eax)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2119,14 +2135,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_BYTE_ARRAY_DATA_OFFSET(%eax,%ecx,1), %eax
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movb  rINSTbl, (%eax)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2145,14 +2161,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_CHAR_ARRAY_DATA_OFFSET(%eax,%ecx,2), %eax
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movw  rINSTw, (%eax)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2171,14 +2187,14 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB (array object)
-    GET_VREG %ecx %ecx                      # ecx <- vCC (requested index)
+    GET_VREG %eax, %eax                     # eax <- vBB (array object)
+    GET_VREG %ecx, %ecx                     # ecx <- vCC (requested index)
     testl   %eax, %eax                      # null array object?
     je      common_errNullObject            # bail if so
     cmpl    MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ecx
     jae     common_errArrayIndex            # index >= length, bail.
     leal    MIRROR_SHORT_ARRAY_DATA_OFFSET(%eax,%ecx,2), %eax
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movw  rINSTw, (%eax)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2203,16 +2219,16 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGet32InstanceFromCode
+    call    SYMBOL(artGet32InstanceFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <-value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <-value
     .else
-    SET_VREG %eax rINST                     # fp[A] <-value
+    SET_VREG %eax, rINST                    # fp[A] <-value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2236,13 +2252,13 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGet64InstanceFromCode
+    call    SYMBOL(artGet64InstanceFromCode)
     mov     rSELF, %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
-    SET_VREG %eax rINST
-    SET_VREG_HIGH %edx rINST
+    SET_VREG %eax, rINST
+    SET_VREG_HIGH %edx, rINST
     REFRESH_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2267,16 +2283,16 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGetObjInstanceFromCode
+    call    SYMBOL(artGetObjInstanceFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 1
-    SET_VREG_OBJECT %eax rINST              # fp[A] <-value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <-value
     .else
-    SET_VREG %eax rINST                     # fp[A] <-value
+    SET_VREG %eax, rINST                    # fp[A] <-value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2302,16 +2318,16 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGetBooleanInstanceFromCode
+    call    SYMBOL(artGetBooleanInstanceFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <-value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <-value
     .else
-    SET_VREG %eax rINST                     # fp[A] <-value
+    SET_VREG %eax, rINST                    # fp[A] <-value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2337,16 +2353,16 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGetByteInstanceFromCode
+    call    SYMBOL(artGetByteInstanceFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <-value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <-value
     .else
-    SET_VREG %eax rINST                     # fp[A] <-value
+    SET_VREG %eax, rINST                    # fp[A] <-value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2372,16 +2388,16 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGetCharInstanceFromCode
+    call    SYMBOL(artGetCharInstanceFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <-value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <-value
     .else
-    SET_VREG %eax rINST                     # fp[A] <-value
+    SET_VREG %eax, rINST                    # fp[A] <-value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2407,16 +2423,16 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # referrer
     mov     rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artGetShortInstanceFromCode
+    call    SYMBOL(artGetShortInstanceFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <-value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <-value
     .else
-    SET_VREG %eax rINST                     # fp[A] <-value
+    SET_VREG %eax, rINST                    # fp[A] <-value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2444,7 +2460,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet32InstanceFromMterp
+    call    SYMBOL(artSet32InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE
@@ -2468,7 +2484,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # &fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet64InstanceFromMterp
+    call    SYMBOL(artSet64InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE
@@ -2486,7 +2502,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rINST, OUT_ARG2(%esp)
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
-    call    MterpIputObject
+    call    SYMBOL(MterpIputObject)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -2516,7 +2532,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet8InstanceFromMterp
+    call    SYMBOL(artSet8InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE
@@ -2547,7 +2563,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet8InstanceFromMterp
+    call    SYMBOL(artSet8InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE
@@ -2578,7 +2594,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet16InstanceFromMterp
+    call    SYMBOL(artSet16InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE
@@ -2609,7 +2625,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet16InstanceFromMterp
+    call    SYMBOL(artSet16InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE
@@ -2634,15 +2650,15 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGet32StaticFromCode
+    call    SYMBOL(artGet32StaticFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     .else
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2663,12 +2679,12 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGet64StaticFromCode
+    call    SYMBOL(artGet64StaticFromCode)
     movl    rSELF, %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
-    SET_VREG %eax rINST                     # fp[A]<- low part
-    SET_VREG_HIGH %edx rINST                # fp[A+1]<- high part
+    SET_VREG %eax, rINST                    # fp[A]<- low part
+    SET_VREG_HIGH %edx, rINST               # fp[A+1]<- high part
     REFRESH_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2691,15 +2707,15 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGetObjStaticFromCode
+    call    SYMBOL(artGetObjStaticFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 1
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     .else
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2723,15 +2739,15 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGetBooleanStaticFromCode
+    call    SYMBOL(artGetBooleanStaticFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     .else
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2755,15 +2771,15 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGetByteStaticFromCode
+    call    SYMBOL(artGetByteStaticFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     .else
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2787,15 +2803,15 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGetCharStaticFromCode
+    call    SYMBOL(artGetCharStaticFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     .else
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2819,15 +2835,15 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    artGetShortStaticFromCode
+    call    SYMBOL(artGetShortStaticFromCode)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     .else
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2846,13 +2862,13 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref BBBB
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl    rINST, OUT_ARG1(%esp)           # fp[AA]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG2(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet32StaticFromCode
+    call    SYMBOL(artSet32StaticFromCode)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE
@@ -2877,7 +2893,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, OUT_ARG2(%esp)            # &fp[AA]
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet64IndirectStaticFromMterp
+    call    SYMBOL(artSet64IndirectStaticFromMterp)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE
@@ -2895,7 +2911,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rINST, OUT_ARG2(%esp)
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
-    call    MterpSputObject
+    call    SYMBOL(MterpSputObject)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -2916,13 +2932,13 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref BBBB
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl    rINST, OUT_ARG1(%esp)           # fp[AA]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG2(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet8StaticFromCode
+    call    SYMBOL(artSet8StaticFromCode)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE
@@ -2944,13 +2960,13 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref BBBB
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl    rINST, OUT_ARG1(%esp)           # fp[AA]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG2(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet8StaticFromCode
+    call    SYMBOL(artSet8StaticFromCode)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE
@@ -2972,13 +2988,13 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref BBBB
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl    rINST, OUT_ARG1(%esp)           # fp[AA]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG2(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet16StaticFromCode
+    call    SYMBOL(artSet16StaticFromCode)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE
@@ -3000,13 +3016,13 @@ artMterpAsmInstructionStart = .L_op_nop
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref BBBB
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     movl    rINST, OUT_ARG1(%esp)           # fp[AA]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG2(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet16StaticFromCode
+    call    SYMBOL(artSet16StaticFromCode)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE
@@ -3032,7 +3048,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 110
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeVirtual
+    call    SYMBOL(MterpInvokeVirtual)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3065,7 +3081,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 111
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeSuper
+    call    SYMBOL(MterpInvokeSuper)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3098,7 +3114,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 112
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeDirect
+    call    SYMBOL(MterpInvokeDirect)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3124,7 +3140,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 113
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeStatic
+    call    SYMBOL(MterpInvokeStatic)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3151,7 +3167,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 114
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeInterface
+    call    SYMBOL(MterpInvokeInterface)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3173,7 +3189,7 @@ artMterpAsmInstructionStart = .L_op_nop
     testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
 1:
     xorl    %eax, %eax
     xorl    %ecx, %ecx
@@ -3198,7 +3214,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 116
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeVirtualRange
+    call    SYMBOL(MterpInvokeVirtualRange)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3224,7 +3240,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 117
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeSuperRange
+    call    SYMBOL(MterpInvokeSuperRange)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3250,7 +3266,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 118
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeDirectRange
+    call    SYMBOL(MterpInvokeDirectRange)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3276,7 +3292,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 119
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeStaticRange
+    call    SYMBOL(MterpInvokeStaticRange)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3302,7 +3318,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 120
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeInterfaceRange
+    call    SYMBOL(MterpInvokeInterfaceRange)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -3343,10 +3359,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     movzbl  rINSTbl,%ecx                    # ecx <- A+
     sarl    $4,rINST                       # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf,%cl                       # ecx <- A
     negl    %eax
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -3362,10 +3378,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     movzbl  rINSTbl,%ecx                    # ecx <- A+
     sarl    $4,rINST                       # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf,%cl                       # ecx <- A
     notl %eax
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -3377,13 +3393,13 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax %ecx                      # eax <- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # ecx <- v[B+1]
+    GET_VREG %eax, %ecx                     # eax <- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # ecx <- v[B+1]
     negl    %eax
     adcl    $0, %ecx
     negl    %ecx
-    SET_VREG %eax rINST                     # v[A+0] <- eax
-    SET_VREG_HIGH %ecx rINST                # v[A+1] <- ecx
+    SET_VREG %eax, rINST                    # v[A+0] <- eax
+    SET_VREG_HIGH %ecx, rINST               # v[A+1] <- ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -3395,12 +3411,12 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax %ecx                      # eax <- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # ecx <- v[B+1]
+    GET_VREG %eax, %ecx                     # eax <- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # ecx <- v[B+1]
     notl    %eax
     notl    %ecx
-    SET_VREG %eax rINST                     # v[A+0] <- eax
-    SET_VREG_HIGH %ecx rINST                # v[A+1] <- ecx
+    SET_VREG %eax, rINST                    # v[A+0] <- eax
+    SET_VREG_HIGH %ecx, rINST               # v[A+1] <- ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -3456,12 +3472,12 @@ artMterpAsmInstructionStart = .L_op_nop
     /* int to long vA, vB */
     movzbl  rINSTbl, %eax                   # eax <- +A
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     andb    $0xf, rINSTbl                  # rINST <- A
     movl    rIBASE, %ecx                    # cltd trashes rIBASE/edx
     cltd                                    # rINST:eax<- sssssssBBBBBBBB
-    SET_VREG_HIGH rIBASE rINST              # v[A+1] <- rIBASE
-    SET_VREG %eax rINST                     # v[A+0] <- %eax
+    SET_VREG_HIGH rIBASE, rINST             # v[A+1] <- rIBASE
+    SET_VREG %eax, rINST                    # v[A+0] <- %eax
     movl    %ecx, rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -3523,11 +3539,11 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  rINSTbl, %eax                   # eax <- BA
     andb    $0xf, %al                      # eax <- A
     shrl    $4, rINST                      # rINST <- B
-    GET_VREG rINST rINST
+    GET_VREG rINST, rINST
     .if 0
-    SET_VREG_OBJECT rINST %eax              # fp[A] <- fp[B]
+    SET_VREG_OBJECT rINST, %eax             # fp[A] <- fp[B]
     .else
-    SET_VREG rINST %eax                     # fp[A] <- fp[B]
+    SET_VREG rINST, %eax                    # fp[A] <- fp[B]
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -3904,10 +3920,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     movzbl  rINSTbl,%ecx                    # ecx <- A+
     sarl    $4,rINST                       # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf,%cl                       # ecx <- A
     movsbl  %al, %eax
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -3923,10 +3939,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     movzbl  rINSTbl,%ecx                    # ecx <- A+
     sarl    $4,rINST                       # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf,%cl                       # ecx <- A
     movzwl  %ax,%eax
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -3942,10 +3958,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     movzbl  rINSTbl,%ecx                    # ecx <- A+
     sarl    $4,rINST                       # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf,%cl                       # ecx <- A
     movswl %ax, %eax
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -3966,9 +3982,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
     addl    (rFP,%ecx,4), %eax                                  # ex: addl    (rFP,%ecx,4),%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -3989,9 +4005,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
     subl    (rFP,%ecx,4), %eax                                  # ex: addl    (rFP,%ecx,4),%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4005,11 +4021,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* mul vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
     mov     rIBASE, LOCAL0(%esp)
     imull   (rFP,%ecx,4), %eax              # trashes rIBASE/edx
     mov     LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -4024,8 +4040,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* div/rem vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
     mov     rIBASE, LOCAL0(%esp)
     testl   %ecx, %ecx
     je      common_errDivideByZero
@@ -4061,7 +4077,7 @@ artMterpAsmInstructionStart = .L_op_nop
     xorl    %edx, %edx                      # Clear %edx before divide
     div     %cx
 .Lop_div_int_finish:
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -4078,8 +4094,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* div/rem vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
     mov     rIBASE, LOCAL0(%esp)
     testl   %ecx, %ecx
     je      common_errDivideByZero
@@ -4115,7 +4131,7 @@ artMterpAsmInstructionStart = .L_op_nop
     xorl    %edx, %edx                      # Clear %edx before divide
     div     %cx
 .Lop_rem_int_finish:
-    SET_VREG rIBASE rINST
+    SET_VREG rIBASE, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -4137,9 +4153,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
     andl    (rFP,%ecx,4), %eax                                  # ex: addl    (rFP,%ecx,4),%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4160,9 +4176,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
     orl     (rFP,%ecx,4), %eax                                  # ex: addl    (rFP,%ecx,4),%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4183,9 +4199,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
     xorl    (rFP,%ecx,4), %eax                                  # ex: addl    (rFP,%ecx,4),%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4201,10 +4217,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC),%eax                     # eax <- BB
     movzbl  3(rPC),%ecx                     # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     sall    %cl, %eax                                  # ex: addl    %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4220,10 +4236,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC),%eax                     # eax <- BB
     movzbl  3(rPC),%ecx                     # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     sarl    %cl, %eax                                  # ex: addl    %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4239,10 +4255,10 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop vAA, vBB, vCC */
     movzbl  2(rPC),%eax                     # eax <- BB
     movzbl  3(rPC),%ecx                     # ecx <- CC
-    GET_VREG %eax %eax                      # eax <- vBB
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %eax, %eax                     # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     shrl    %cl, %eax                                  # ex: addl    %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4255,16 +4271,16 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop vAA, vBB, vCC */
-    movzbl  2(rPC),%eax                     # eax <- BB
-    movzbl  3(rPC),%ecx                     # ecx <- CC
-    movl    rIBASE,LOCAL0(%esp)             # save rIBASE
-    GET_VREG rIBASE %eax                    # rIBASE <- v[BB+0]
-    GET_VREG_HIGH %eax %eax                 # eax <- v[BB+1]
+    movzbl  2(rPC), %eax                    # eax <- BB
+    movzbl  3(rPC), %ecx                    # ecx <- CC
+    movl    rIBASE, LOCAL0(%esp)            # save rIBASE
+    GET_VREG rIBASE, %eax                   # rIBASE <- v[BB+0]
+    GET_VREG_HIGH %eax, %eax                # eax <- v[BB+1]
     addl    (rFP,%ecx,4), rIBASE                                 # ex: addl   (rFP,%ecx,4),rIBASE
     adcl    4(rFP,%ecx,4), %eax                                 # ex: adcl   4(rFP,%ecx,4),%eax
-    SET_VREG rIBASE rINST                   # v[AA+0] <- rIBASE
-    movl    LOCAL0(%esp),rIBASE             # restore rIBASE
-    SET_VREG_HIGH %eax rINST                # v[AA+1] <- eax
+    SET_VREG rIBASE, rINST                  # v[AA+0] <- rIBASE
+    movl    LOCAL0(%esp), rIBASE            # restore rIBASE
+    SET_VREG_HIGH %eax, rINST               # v[AA+1] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4277,16 +4293,16 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop vAA, vBB, vCC */
-    movzbl  2(rPC),%eax                     # eax <- BB
-    movzbl  3(rPC),%ecx                     # ecx <- CC
-    movl    rIBASE,LOCAL0(%esp)             # save rIBASE
-    GET_VREG rIBASE %eax                    # rIBASE <- v[BB+0]
-    GET_VREG_HIGH %eax %eax                 # eax <- v[BB+1]
+    movzbl  2(rPC), %eax                    # eax <- BB
+    movzbl  3(rPC), %ecx                    # ecx <- CC
+    movl    rIBASE, LOCAL0(%esp)            # save rIBASE
+    GET_VREG rIBASE, %eax                   # rIBASE <- v[BB+0]
+    GET_VREG_HIGH %eax, %eax                # eax <- v[BB+1]
     subl    (rFP,%ecx,4), rIBASE                                 # ex: addl   (rFP,%ecx,4),rIBASE
     sbbl    4(rFP,%ecx,4), %eax                                 # ex: adcl   4(rFP,%ecx,4),%eax
-    SET_VREG rIBASE rINST                   # v[AA+0] <- rIBASE
-    movl    LOCAL0(%esp),rIBASE             # restore rIBASE
-    SET_VREG_HIGH %eax rINST                # v[AA+1] <- eax
+    SET_VREG rIBASE, rINST                  # v[AA+0] <- rIBASE
+    movl    LOCAL0(%esp), rIBASE            # restore rIBASE
+    SET_VREG_HIGH %eax, rINST               # v[AA+1] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4323,9 +4339,9 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     LOCAL0(%esp), rPC               # restore Interpreter PC
     mov     LOCAL1(%esp), rFP               # restore FP
     leal    (%ecx,rIBASE), rIBASE           # full result now in rIBASE:%eax
-    SET_VREG_HIGH rIBASE rINST              # v[B+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[B+1] <- rIBASE
     mov     LOCAL2(%esp), rIBASE            # restore IBASE
-    SET_VREG %eax rINST                     # v[B] <- eax
+    SET_VREG %eax, rINST                    # v[B] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -4340,18 +4356,18 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     rIBASE, LOCAL0(%esp)            # save rIBASE/%edx
     mov     rINST, LOCAL1(%esp)             # save rINST/%ebx
     movzbl  3(rPC), %eax                    # eax <- CC
-    GET_VREG %ecx %eax
-    GET_VREG_HIGH %ebx %eax
+    GET_VREG %ecx, %eax
+    GET_VREG_HIGH %ebx, %eax
     movl    %ecx, %edx
     orl     %ebx, %ecx
     jz      common_errDivideByZero
     movzbl  2(rPC), %eax                    # eax <- BB
-    GET_VREG_HIGH %ecx %eax
-    GET_VREG %eax %eax
-    call    art_quick_ldiv
+    GET_VREG_HIGH %ecx, %eax
+    GET_VREG %eax, %eax
+    call    SYMBOL(art_quick_ldiv)
     mov     LOCAL1(%esp), rINST             # restore rINST/%ebx
-    SET_VREG_HIGH rIBASE rINST
-    SET_VREG %eax rINST
+    SET_VREG_HIGH rIBASE, rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE            # restore rIBASE/%edx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -4368,18 +4384,18 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     rIBASE, LOCAL0(%esp)            # save rIBASE/%edx
     mov     rINST, LOCAL1(%esp)             # save rINST/%ebx
     movzbl  3(rPC), %eax                    # eax <- CC
-    GET_VREG %ecx %eax
-    GET_VREG_HIGH %ebx %eax
+    GET_VREG %ecx, %eax
+    GET_VREG_HIGH %ebx, %eax
     movl    %ecx, %edx
     orl     %ebx, %ecx
     jz      common_errDivideByZero
     movzbl  2(rPC), %eax                    # eax <- BB
-    GET_VREG_HIGH %ecx %eax
-    GET_VREG %eax %eax
-    call    art_quick_lmod
+    GET_VREG_HIGH %ecx, %eax
+    GET_VREG %eax, %eax
+    call    SYMBOL(art_quick_lmod)
     mov     LOCAL1(%esp), rINST             # restore rINST/%ebx
-    SET_VREG_HIGH rIBASE rINST
-    SET_VREG %eax rINST
+    SET_VREG_HIGH rIBASE, rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE            # restore rIBASE/%edx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -4393,16 +4409,16 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop vAA, vBB, vCC */
-    movzbl  2(rPC),%eax                     # eax <- BB
-    movzbl  3(rPC),%ecx                     # ecx <- CC
-    movl    rIBASE,LOCAL0(%esp)             # save rIBASE
-    GET_VREG rIBASE %eax                    # rIBASE <- v[BB+0]
-    GET_VREG_HIGH %eax %eax                 # eax <- v[BB+1]
+    movzbl  2(rPC), %eax                    # eax <- BB
+    movzbl  3(rPC), %ecx                    # ecx <- CC
+    movl    rIBASE, LOCAL0(%esp)            # save rIBASE
+    GET_VREG rIBASE, %eax                   # rIBASE <- v[BB+0]
+    GET_VREG_HIGH %eax, %eax                # eax <- v[BB+1]
     andl    (rFP,%ecx,4), rIBASE                                 # ex: addl   (rFP,%ecx,4),rIBASE
     andl    4(rFP,%ecx,4), %eax                                 # ex: adcl   4(rFP,%ecx,4),%eax
-    SET_VREG rIBASE rINST                   # v[AA+0] <- rIBASE
-    movl    LOCAL0(%esp),rIBASE             # restore rIBASE
-    SET_VREG_HIGH %eax rINST                # v[AA+1] <- eax
+    SET_VREG rIBASE, rINST                  # v[AA+0] <- rIBASE
+    movl    LOCAL0(%esp), rIBASE            # restore rIBASE
+    SET_VREG_HIGH %eax, rINST               # v[AA+1] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4415,16 +4431,16 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop vAA, vBB, vCC */
-    movzbl  2(rPC),%eax                     # eax <- BB
-    movzbl  3(rPC),%ecx                     # ecx <- CC
-    movl    rIBASE,LOCAL0(%esp)             # save rIBASE
-    GET_VREG rIBASE %eax                    # rIBASE <- v[BB+0]
-    GET_VREG_HIGH %eax %eax                 # eax <- v[BB+1]
+    movzbl  2(rPC), %eax                    # eax <- BB
+    movzbl  3(rPC), %ecx                    # ecx <- CC
+    movl    rIBASE, LOCAL0(%esp)            # save rIBASE
+    GET_VREG rIBASE, %eax                   # rIBASE <- v[BB+0]
+    GET_VREG_HIGH %eax, %eax                # eax <- v[BB+1]
     orl     (rFP,%ecx,4), rIBASE                                 # ex: addl   (rFP,%ecx,4),rIBASE
     orl     4(rFP,%ecx,4), %eax                                 # ex: adcl   4(rFP,%ecx,4),%eax
-    SET_VREG rIBASE rINST                   # v[AA+0] <- rIBASE
-    movl    LOCAL0(%esp),rIBASE             # restore rIBASE
-    SET_VREG_HIGH %eax rINST                # v[AA+1] <- eax
+    SET_VREG rIBASE, rINST                  # v[AA+0] <- rIBASE
+    movl    LOCAL0(%esp), rIBASE            # restore rIBASE
+    SET_VREG_HIGH %eax, rINST               # v[AA+1] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4437,16 +4453,16 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop vAA, vBB, vCC */
-    movzbl  2(rPC),%eax                     # eax <- BB
-    movzbl  3(rPC),%ecx                     # ecx <- CC
-    movl    rIBASE,LOCAL0(%esp)             # save rIBASE
-    GET_VREG rIBASE %eax                    # rIBASE <- v[BB+0]
-    GET_VREG_HIGH %eax %eax                 # eax <- v[BB+1]
+    movzbl  2(rPC), %eax                    # eax <- BB
+    movzbl  3(rPC), %ecx                    # ecx <- CC
+    movl    rIBASE, LOCAL0(%esp)            # save rIBASE
+    GET_VREG rIBASE, %eax                   # rIBASE <- v[BB+0]
+    GET_VREG_HIGH %eax, %eax                # eax <- v[BB+1]
     xorl    (rFP,%ecx,4), rIBASE                                 # ex: addl   (rFP,%ecx,4),rIBASE
     xorl    4(rFP,%ecx,4), %eax                                 # ex: adcl   4(rFP,%ecx,4),%eax
-    SET_VREG rIBASE rINST                   # v[AA+0] <- rIBASE
-    movl    LOCAL0(%esp),rIBASE             # restore rIBASE
-    SET_VREG_HIGH %eax rINST                # v[AA+1] <- eax
+    SET_VREG rIBASE, rINST                  # v[AA+0] <- rIBASE
+    movl    LOCAL0(%esp), rIBASE            # restore rIBASE
+    SET_VREG_HIGH %eax, rINST               # v[AA+1] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -4469,9 +4485,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE %eax               # ecx <- v[BB+1]
-    GET_VREG %ecx %ecx                      # ecx <- vCC
-    GET_VREG %eax %eax                      # eax <- v[BB+0]
+    GET_VREG_HIGH rIBASE, %eax              # ecx <- v[BB+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- v[BB+0]
     shldl   %eax,rIBASE
     sall    %cl, %eax
     testb   $32, %cl
@@ -4479,9 +4495,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, rIBASE
     xorl    %eax, %eax
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[AA+0] <- %eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- %eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -4503,9 +4519,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE %eax               # rIBASE<- v[BB+1]
-    GET_VREG %ecx %ecx                      # ecx <- vCC
-    GET_VREG %eax %eax                      # eax <- v[BB+0]
+    GET_VREG_HIGH rIBASE, %eax              # rIBASE<- v[BB+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- v[BB+0]
     shrdl   rIBASE, %eax
     sarl    %cl, rIBASE
     testb   $32, %cl
@@ -4513,9 +4529,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rIBASE, %eax
     sarl    $31, rIBASE
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -4537,9 +4553,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE %eax               # rIBASE <- v[BB+1]
-    GET_VREG %ecx %ecx                      # ecx <- vCC
-    GET_VREG %eax %eax                      # eax <- v[BB+0]
+    GET_VREG_HIGH rIBASE, %eax              # rIBASE <- v[BB+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- v[BB+0]
     shrdl   rIBASE, %eax
     shrl    %cl, rIBASE
     testb   $32, %cl
@@ -4547,9 +4563,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rIBASE, %eax
     xorl    rIBASE, rIBASE
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[BB+0] <- eax
+    SET_VREG %eax, rINST                    # v[BB+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -4728,7 +4744,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
     addl    %eax, (rFP,%ecx,4)                                  # for ex: addl   %eax,(rFP,%ecx,4)
     CLEAR_REF %ecx
@@ -4753,7 +4769,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
     subl    %eax, (rFP,%ecx,4)                                  # for ex: addl   %eax,(rFP,%ecx,4)
     CLEAR_REF %ecx
@@ -4767,12 +4783,12 @@ artMterpAsmInstructionStart = .L_op_nop
     /* mul vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
     mov     rIBASE, LOCAL0(%esp)
     imull   (rFP,%ecx,4), %eax              # trashes rIBASE/edx
     mov     LOCAL0(%esp), rIBASE
-    SET_VREG %eax %ecx
+    SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -4788,9 +4804,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movzx   rINSTbl, %ecx                   # eax <- BA
     mov     rIBASE, LOCAL0(%esp)
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- vBB
+    GET_VREG %eax, rINST                    # eax <- vBB
     testl   %ecx, %ecx
     je      common_errDivideByZero
     cmpl    $-1, %ecx
@@ -4798,14 +4814,14 @@ artMterpAsmInstructionStart = .L_op_nop
     cmpl    $0x80000000, %eax
     jne     .Lop_div_int_2addr_continue_div2addr
     movl    $0x80000000, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 .Lop_div_int_2addr_continue_div2addr:
     cltd
     idivl   %ecx
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -4823,9 +4839,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movzx   rINSTbl, %ecx                   # eax <- BA
     mov     rIBASE, LOCAL0(%esp)
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- vBB
+    GET_VREG %eax, rINST                    # eax <- vBB
     testl   %ecx, %ecx
     je      common_errDivideByZero
     cmpl    $-1, %ecx
@@ -4833,14 +4849,14 @@ artMterpAsmInstructionStart = .L_op_nop
     cmpl    $0x80000000, %eax
     jne     .Lop_rem_int_2addr_continue_div2addr
     movl    $0, rIBASE
-    SET_VREG rIBASE rINST
+    SET_VREG rIBASE, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 .Lop_rem_int_2addr_continue_div2addr:
     cltd
     idivl   %ecx
-    SET_VREG rIBASE rINST
+    SET_VREG rIBASE, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -4863,7 +4879,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
     andl    %eax, (rFP,%ecx,4)                                  # for ex: addl   %eax,(rFP,%ecx,4)
     CLEAR_REF %ecx
@@ -4888,7 +4904,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
     orl     %eax, (rFP,%ecx,4)                                  # for ex: addl   %eax,(rFP,%ecx,4)
     CLEAR_REF %ecx
@@ -4913,7 +4929,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # ecx <- A+
     sarl    $4, rINST                      # rINST <- B
-    GET_VREG %eax rINST                     # eax <- vB
+    GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
     xorl    %eax, (rFP,%ecx,4)                                  # for ex: addl   %eax,(rFP,%ecx,4)
     CLEAR_REF %ecx
@@ -4931,11 +4947,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* shift/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # eax <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     sall    %cl, %eax                                  # ex: sarl %cl, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -4950,11 +4966,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* shift/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # eax <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     sarl    %cl, %eax                                  # ex: sarl %cl, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -4969,11 +4985,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* shift/2addr vA, vB */
     movzx   rINSTbl, %ecx                   # eax <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # eax <- vBB
+    GET_VREG %ecx, %ecx                     # eax <- vBB
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- vAA
+    GET_VREG %eax, rINST                    # eax <- vAA
     shrl    %cl, %eax                                  # ex: sarl %cl, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 
@@ -4986,11 +5002,11 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop/2addr vA, vB */
-    movzbl  rINSTbl,%ecx                    # ecx<- BA
-    sarl    $4,%ecx                        # ecx<- B
-    GET_VREG %eax %ecx                      # eax<- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # eax<- v[B+1]
-    andb    $0xF,rINSTbl                   # rINST<- A
+    movzbl  rINSTbl, %ecx                   # ecx<- BA
+    sarl    $4, %ecx                       # ecx<- B
+    GET_VREG %eax, %ecx                     # eax<- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # eax<- v[B+1]
+    andb    $0xF, rINSTbl                  # rINST<- A
     addl    %eax, (rFP,rINST,4)                                 # ex: addl   %eax,(rFP,rINST,4)
     adcl    %ecx, 4(rFP,rINST,4)                                 # ex: adcl   %ecx,4(rFP,rINST,4)
     CLEAR_WIDE_REF rINST
@@ -5006,11 +5022,11 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop/2addr vA, vB */
-    movzbl  rINSTbl,%ecx                    # ecx<- BA
-    sarl    $4,%ecx                        # ecx<- B
-    GET_VREG %eax %ecx                      # eax<- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # eax<- v[B+1]
-    andb    $0xF,rINSTbl                   # rINST<- A
+    movzbl  rINSTbl, %ecx                   # ecx<- BA
+    sarl    $4, %ecx                       # ecx<- B
+    GET_VREG %eax, %ecx                     # eax<- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # eax<- v[B+1]
+    andb    $0xF, rINSTbl                  # rINST<- A
     subl    %eax, (rFP,rINST,4)                                 # ex: addl   %eax,(rFP,rINST,4)
     sbbl    %ecx, 4(rFP,rINST,4)                                 # ex: adcl   %ecx,4(rFP,rINST,4)
     CLEAR_WIDE_REF rINST
@@ -5072,17 +5088,17 @@ artMterpAsmInstructionStart = .L_op_nop
     andb    $0xf, rINSTbl                  # rINST <- A
     mov     rINST, LOCAL1(%esp)             # save rINST/%ebx
     movl    %ebx, %ecx
-    GET_VREG %edx %eax
-    GET_VREG_HIGH %ebx %eax
+    GET_VREG %edx, %eax
+    GET_VREG_HIGH %ebx, %eax
     movl    %edx, %eax
     orl     %ebx, %eax
     jz      common_errDivideByZero
-    GET_VREG %eax %ecx
-    GET_VREG_HIGH %ecx %ecx
-    call    art_quick_ldiv
+    GET_VREG %eax, %ecx
+    GET_VREG_HIGH %ecx, %ecx
+    call    SYMBOL(art_quick_ldiv)
     mov     LOCAL1(%esp), rINST             # restore rINST/%ebx
-    SET_VREG_HIGH rIBASE rINST
-    SET_VREG %eax rINST
+    SET_VREG_HIGH rIBASE, rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE            # restore rIBASE/%edx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -5102,17 +5118,17 @@ artMterpAsmInstructionStart = .L_op_nop
     andb    $0xf, rINSTbl                  # rINST <- A
     mov     rINST, LOCAL1(%esp)             # save rINST/%ebx
     movl    %ebx, %ecx
-    GET_VREG %edx %eax
-    GET_VREG_HIGH %ebx %eax
+    GET_VREG %edx, %eax
+    GET_VREG_HIGH %ebx, %eax
     movl    %edx, %eax
     orl     %ebx, %eax
     jz      common_errDivideByZero
-    GET_VREG %eax %ecx
-    GET_VREG_HIGH %ecx %ecx
-    call    art_quick_lmod
+    GET_VREG %eax, %ecx
+    GET_VREG_HIGH %ecx, %ecx
+    call    SYMBOL(art_quick_lmod)
     mov     LOCAL1(%esp), rINST             # restore rINST/%ebx
-    SET_VREG_HIGH rIBASE rINST
-    SET_VREG %eax rINST
+    SET_VREG_HIGH rIBASE, rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE            # restore rIBASE/%edx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -5126,11 +5142,11 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop/2addr vA, vB */
-    movzbl  rINSTbl,%ecx                    # ecx<- BA
-    sarl    $4,%ecx                        # ecx<- B
-    GET_VREG %eax %ecx                      # eax<- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # eax<- v[B+1]
-    andb    $0xF,rINSTbl                   # rINST<- A
+    movzbl  rINSTbl, %ecx                   # ecx<- BA
+    sarl    $4, %ecx                       # ecx<- B
+    GET_VREG %eax, %ecx                     # eax<- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # eax<- v[B+1]
+    andb    $0xF, rINSTbl                  # rINST<- A
     andl    %eax, (rFP,rINST,4)                                 # ex: addl   %eax,(rFP,rINST,4)
     andl    %ecx, 4(rFP,rINST,4)                                 # ex: adcl   %ecx,4(rFP,rINST,4)
     CLEAR_WIDE_REF rINST
@@ -5146,11 +5162,11 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop/2addr vA, vB */
-    movzbl  rINSTbl,%ecx                    # ecx<- BA
-    sarl    $4,%ecx                        # ecx<- B
-    GET_VREG %eax %ecx                      # eax<- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # eax<- v[B+1]
-    andb    $0xF,rINSTbl                   # rINST<- A
+    movzbl  rINSTbl, %ecx                   # ecx<- BA
+    sarl    $4, %ecx                       # ecx<- B
+    GET_VREG %eax, %ecx                     # eax<- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # eax<- v[B+1]
+    andb    $0xF, rINSTbl                  # rINST<- A
     orl     %eax, (rFP,rINST,4)                                 # ex: addl   %eax,(rFP,rINST,4)
     orl     %ecx, 4(rFP,rINST,4)                                 # ex: adcl   %ecx,4(rFP,rINST,4)
     CLEAR_WIDE_REF rINST
@@ -5166,11 +5182,11 @@ artMterpAsmInstructionStart = .L_op_nop
  * Generic 64-bit binary operation.
  */
     /* binop/2addr vA, vB */
-    movzbl  rINSTbl,%ecx                    # ecx<- BA
-    sarl    $4,%ecx                        # ecx<- B
-    GET_VREG %eax %ecx                      # eax<- v[B+0]
-    GET_VREG_HIGH %ecx %ecx                 # eax<- v[B+1]
-    andb    $0xF,rINSTbl                   # rINST<- A
+    movzbl  rINSTbl, %ecx                   # ecx<- BA
+    sarl    $4, %ecx                       # ecx<- B
+    GET_VREG %eax, %ecx                     # eax<- v[B+0]
+    GET_VREG_HIGH %ecx, %ecx                # eax<- v[B+1]
+    andb    $0xF, rINSTbl                  # rINST<- A
     xorl    %eax, (rFP,rINST,4)                                 # ex: addl   %eax,(rFP,rINST,4)
     xorl    %ecx, 4(rFP,rINST,4)                                 # ex: adcl   %ecx,4(rFP,rINST,4)
     CLEAR_WIDE_REF rINST
@@ -5191,11 +5207,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* rINSTw gets AA */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- v[AA+0]
+    GET_VREG %eax, rINST                    # eax <- v[AA+0]
     sarl    $4, %ecx                       # ecx <- B
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE rINST              # rIBASE <- v[AA+1]
-    GET_VREG %ecx %ecx                      # ecx <- vBB
+    GET_VREG_HIGH rIBASE, rINST             # rIBASE <- v[AA+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vBB
     shldl   %eax, rIBASE
     sall    %cl, %eax
     testb   $32, %cl
@@ -5203,9 +5219,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    %eax, rIBASE
     xorl    %eax, %eax
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -5222,11 +5238,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* rINSTw gets AA */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- v[AA+0]
+    GET_VREG %eax, rINST                    # eax <- v[AA+0]
     sarl    $4, %ecx                       # ecx <- B
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE rINST              # rIBASE <- v[AA+1]
-    GET_VREG %ecx %ecx                      # ecx <- vBB
+    GET_VREG_HIGH rIBASE, rINST             # rIBASE <- v[AA+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vBB
     shrdl   rIBASE, %eax
     sarl    %cl, rIBASE
     testb   $32, %cl
@@ -5234,9 +5250,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rIBASE, %eax
     sarl    $31, rIBASE
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -5253,11 +5269,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* rINSTw gets AA */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG %eax rINST                     # eax <- v[AA+0]
+    GET_VREG %eax, rINST                    # eax <- v[AA+0]
     sarl    $4, %ecx                       # ecx <- B
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE rINST              # rIBASE <- v[AA+1]
-    GET_VREG %ecx %ecx                      # ecx <- vBB
+    GET_VREG_HIGH rIBASE, rINST             # rIBASE <- v[AA+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vBB
     shrdl   rIBASE, %eax
     shrl    %cl, rIBASE
     testb   $32, %cl
@@ -5265,9 +5281,9 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rIBASE, %eax
     xorl    rIBASE, rIBASE
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -5455,11 +5471,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit16 vA, vB, #+CCCC */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     addl    %ecx, %eax                                  # for example: addl %ecx, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5481,11 +5497,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit16 vA, vB, #+CCCC */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     subl    %eax, %ecx                                  # for example: addl %ecx, %eax
-    SET_VREG %ecx rINST
+    SET_VREG %ecx, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5497,13 +5513,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* Need A in rINST, ssssCCCC in ecx, vB in eax */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     mov     rIBASE, LOCAL0(%esp)
     imull   %ecx, %eax                      # trashes rIBASE/edx
     mov     LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -5519,7 +5535,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* Need A in rINST, ssssCCCC in ecx, vB in eax */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     testl   %ecx, %ecx
@@ -5529,14 +5545,14 @@ artMterpAsmInstructionStart = .L_op_nop
     cmpl    $0x80000000, %eax
     jne     .Lop_div_int_lit16_continue_div
     movl    $0x80000000, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 .Lop_div_int_lit16_continue_div:
     mov     rIBASE, LOCAL0(%esp)
     cltd
     idivl   %ecx
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -5554,7 +5570,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* Need A in rINST, ssssCCCC in ecx, vB in eax */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     testl   %ecx, %ecx
@@ -5564,14 +5580,14 @@ artMterpAsmInstructionStart = .L_op_nop
     cmpl    $0x80000000, %eax
     jne     .Lop_rem_int_lit16_continue_div
     movl    $0, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 .Lop_rem_int_lit16_continue_div:
     mov     rIBASE, LOCAL0(%esp)
     cltd
     idivl   %ecx
-    SET_VREG rIBASE rINST
+    SET_VREG rIBASE, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -5593,11 +5609,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit16 vA, vB, #+CCCC */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     andl    %ecx, %eax                                  # for example: addl %ecx, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5618,11 +5634,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit16 vA, vB, #+CCCC */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     orl     %ecx, %eax                                  # for example: addl %ecx, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5643,11 +5659,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit16 vA, vB, #+CCCC */
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
-    GET_VREG %eax %eax                      # eax <- vB
+    GET_VREG %eax, %eax                     # eax <- vB
     movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
     xorl    %ecx, %eax                                  # for example: addl %ecx, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5669,9 +5685,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     addl    %ecx, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5693,9 +5709,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     subl    %eax, %ecx                                  # ex: addl %ecx,%eax
-    SET_VREG %ecx rINST
+    SET_VREG %ecx, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5706,11 +5722,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* mul/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG  %eax  %eax                    # eax <- rBB
+    GET_VREG  %eax, %eax                    # eax <- rBB
     mov     rIBASE, LOCAL0(%esp)
     imull   %ecx, %eax                      # trashes rIBASE/edx
     mov     LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -5725,7 +5741,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* div/rem/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG  %eax %eax                     # eax <- rBB
+    GET_VREG  %eax, %eax                    # eax <- rBB
     testl   %ecx, %ecx
     je      common_errDivideByZero
     cmpl    $0x80000000, %eax
@@ -5733,14 +5749,14 @@ artMterpAsmInstructionStart = .L_op_nop
     cmpl    $-1, %ecx
     jne     .Lop_div_int_lit8_continue_div
     movl    $0x80000000, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 .Lop_div_int_lit8_continue_div:
     mov     rIBASE, LOCAL0(%esp)
     cltd
     idivl   %ecx
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -5757,7 +5773,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* div/rem/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG  %eax %eax                     # eax <- rBB
+    GET_VREG  %eax, %eax                    # eax <- rBB
     testl   %ecx, %ecx
     je      common_errDivideByZero
     cmpl    $0x80000000, %eax
@@ -5765,14 +5781,14 @@ artMterpAsmInstructionStart = .L_op_nop
     cmpl    $-1, %ecx
     jne     .Lop_rem_int_lit8_continue_div
     movl    $0, %eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 .Lop_rem_int_lit8_continue_div:
     mov     rIBASE, LOCAL0(%esp)
     cltd
     idivl   %ecx
-    SET_VREG rIBASE rINST
+    SET_VREG rIBASE, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -5795,9 +5811,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     andl    %ecx, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5819,9 +5835,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     orl     %ecx, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5843,9 +5859,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     xorl    %ecx, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5867,9 +5883,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     sall    %cl, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5891,9 +5907,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     sarl    %cl, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5915,9 +5931,9 @@ artMterpAsmInstructionStart = .L_op_nop
     /* binop/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
     movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
-    GET_VREG %eax %eax                      # eax <- rBB
+    GET_VREG %eax, %eax                     # eax <- rBB
     shrl    %cl, %eax                                  # ex: addl %ecx,%eax
-    SET_VREG %eax rINST
+    SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -5929,13 +5945,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     movl (%ecx,%eax,1), %eax
     andb    $0xf,rINSTbl                   # rINST <- A
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -5945,13 +5961,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* iget-wide-quick vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     movq    (%ecx,%eax,1), %xmm0
     andb    $0xf, rINSTbl                  # rINST <- A
-    SET_WIDE_FP_VREG %xmm0 rINST
+    SET_WIDE_FP_VREG %xmm0, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -5962,18 +5978,18 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     movl    %ecx, OUT_ARG0(%esp)
     movl    %eax, OUT_ARG1(%esp)
     EXPORT_PC
-    call    artIGetObjectFromMterp          # (obj, offset)
+    call    SYMBOL(artIGetObjectFromMterp)  # (obj, offset)
     movl    rSELF, %ecx
     REFRESH_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf,rINSTbl                   # rINST <- A
-    SET_VREG_OBJECT %eax rINST              # fp[A] <- value
+    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -5984,11 +6000,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG rINST rINST                    # rINST <- v[A]
+    GET_VREG rINST, rINST                   # rINST <- v[A]
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     movl    rINST, (%ecx,%eax,1)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -6000,13 +6016,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* iput-wide-quick vA, vB, offset@CCCC */
     movzbl    rINSTbl, %ecx                 # ecx<- BA
     sarl      $4, %ecx                     # ecx<- B
-    GET_VREG  %ecx %ecx                     # vB (object we're operating on)
+    GET_VREG  %ecx, %ecx                    # vB (object we're operating on)
     testl     %ecx, %ecx                    # is object null?
     je        common_errNullObject
     movzwl    2(rPC), %eax                  # eax<- field byte offset
     leal      (%ecx,%eax,1), %ecx           # ecx<- Address of 64-bit target
     andb      $0xf, rINSTbl                # rINST<- A
-    GET_WIDE_FP_VREG %xmm0 rINST            # xmm0<- fp[A]/fp[A+1]
+    GET_WIDE_FP_VREG %xmm0, rINST           # xmm0<- fp[A]/fp[A+1]
     movq      %xmm0, (%ecx)                 # obj.field<- r0/r1
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -6020,7 +6036,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG1(%esp)
     REFRESH_INST 232
     movl    rINST, OUT_ARG2(%esp)
-    call    MterpIputObjectQuick
+    call    SYMBOL(MterpIputObjectQuick)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -6045,7 +6061,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 233
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeVirtualQuick
+    call    SYMBOL(MterpInvokeVirtualQuick)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -6071,7 +6087,7 @@ artMterpAsmInstructionStart = .L_op_nop
     movl    rPC, OUT_ARG2(%esp)
     REFRESH_INST 234
     movl    rINST, OUT_ARG3(%esp)
-    call    MterpInvokeVirtualQuickRange
+    call    SYMBOL(MterpInvokeVirtualQuickRange)
     testl   %eax, %eax
     jz      MterpException
     REFRESH_IBASE
@@ -6087,11 +6103,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG rINST rINST                    # rINST <- v[A]
+    GET_VREG rINST, rINST                   # rINST <- v[A]
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     movb    rINSTbl, (%ecx,%eax,1)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -6106,11 +6122,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG rINST rINST                    # rINST <- v[A]
+    GET_VREG rINST, rINST                   # rINST <- v[A]
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     movb    rINSTbl, (%ecx,%eax,1)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -6125,11 +6141,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG rINST rINST                    # rINST <- v[A]
+    GET_VREG rINST, rINST                   # rINST <- v[A]
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     movw    rINSTw, (%ecx,%eax,1)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -6144,11 +6160,11 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     andb    $0xf, rINSTbl                  # rINST <- A
-    GET_VREG rINST rINST                    # rINST <- v[A]
+    GET_VREG rINST, rINST                   # rINST <- v[A]
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     movw    rINSTw, (%ecx,%eax,1)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -6163,13 +6179,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     movsbl (%ecx,%eax,1), %eax
     andb    $0xf,rINSTbl                   # rINST <- A
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -6182,13 +6198,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     movsbl (%ecx,%eax,1), %eax
     andb    $0xf,rINSTbl                   # rINST <- A
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -6201,13 +6217,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     movzwl (%ecx,%eax,1), %eax
     andb    $0xf,rINSTbl                   # rINST <- A
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -6220,13 +6236,13 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vA, vB, offset@CCCC */
     movzbl  rINSTbl, %ecx                   # ecx <- BA
     sarl    $4, %ecx                       # ecx <- B
-    GET_VREG %ecx %ecx                      # vB (object we're operating on)
+    GET_VREG %ecx, %ecx                     # vB (object we're operating on)
     movzwl  2(rPC), %eax                    # eax <- field byte offset
     testl   %ecx, %ecx                      # is object null?
     je      common_errNullObject
     movswl (%ecx,%eax,1), %eax
     andb    $0xf,rINSTbl                   # rINST <- A
-    SET_VREG %eax rINST                     # fp[A] <- value
+    SET_VREG %eax, rINST                    # fp[A] <- value
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -6350,31 +6366,31 @@ artMterpAsmInstructionStart = .L_op_nop
 
 
     .balign 128
-    .size   artMterpAsmInstructionStart, .-artMterpAsmInstructionStart
-    .global artMterpAsmInstructionEnd
-artMterpAsmInstructionEnd:
+    SIZE(SYMBOL(artMterpAsmInstructionStart),SYMBOL(artMterpAsmInstructionStart))
+    .global SYMBOL(artMterpAsmInstructionEnd)
+SYMBOL(artMterpAsmInstructionEnd):
 
 /*
  * ===========================================================================
  *  Sister implementations
  * ===========================================================================
  */
-    .global artMterpAsmSisterStart
-    .type   artMterpAsmSisterStart, %function
+    .global SYMBOL(artMterpAsmSisterStart)
+    FUNCTION_TYPE(SYMBOL(artMterpAsmSisterStart))
     .text
     .balign 4
-artMterpAsmSisterStart:
+SYMBOL(artMterpAsmSisterStart):
 
-    .size   artMterpAsmSisterStart, .-artMterpAsmSisterStart
-    .global artMterpAsmSisterEnd
-artMterpAsmSisterEnd:
+    SIZE(SYMBOL(artMterpAsmSisterStart),SYMBOL(artMterpAsmSisterStart))
+    .global SYMBOL(artMterpAsmSisterEnd)
+SYMBOL(artMterpAsmSisterEnd):
 
 
-    .global artMterpAsmAltInstructionStart
-    .type   artMterpAsmAltInstructionStart, %function
+    .global SYMBOL(artMterpAsmAltInstructionStart)
+    FUNCTION_TYPE(SYMBOL(artMterpAsmAltInstructionStart))
     .text
 
-artMterpAsmAltInstructionStart = .L_ALT_op_nop
+SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 /* ------------------------------ */
     .balign 128
 .L_ALT_op_nop: /* 0x00 */
@@ -6396,7 +6412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(0*128)
 
@@ -6421,7 +6437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(1*128)
 
@@ -6446,7 +6462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(2*128)
 
@@ -6471,7 +6487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(3*128)
 
@@ -6496,7 +6512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(4*128)
 
@@ -6521,7 +6537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(5*128)
 
@@ -6546,7 +6562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(6*128)
 
@@ -6571,7 +6587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(7*128)
 
@@ -6596,7 +6612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(8*128)
 
@@ -6621,7 +6637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(9*128)
 
@@ -6646,7 +6662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(10*128)
 
@@ -6671,7 +6687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(11*128)
 
@@ -6696,7 +6712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(12*128)
 
@@ -6721,7 +6737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(13*128)
 
@@ -6746,7 +6762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(14*128)
 
@@ -6771,7 +6787,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(15*128)
 
@@ -6796,7 +6812,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(16*128)
 
@@ -6821,7 +6837,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(17*128)
 
@@ -6846,7 +6862,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(18*128)
 
@@ -6871,7 +6887,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(19*128)
 
@@ -6896,7 +6912,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(20*128)
 
@@ -6921,7 +6937,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(21*128)
 
@@ -6946,7 +6962,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(22*128)
 
@@ -6971,7 +6987,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(23*128)
 
@@ -6996,7 +7012,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(24*128)
 
@@ -7021,7 +7037,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(25*128)
 
@@ -7046,7 +7062,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(26*128)
 
@@ -7071,7 +7087,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(27*128)
 
@@ -7096,7 +7112,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(28*128)
 
@@ -7121,7 +7137,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(29*128)
 
@@ -7146,7 +7162,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(30*128)
 
@@ -7171,7 +7187,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(31*128)
 
@@ -7196,7 +7212,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(32*128)
 
@@ -7221,7 +7237,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(33*128)
 
@@ -7246,7 +7262,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(34*128)
 
@@ -7271,7 +7287,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(35*128)
 
@@ -7296,7 +7312,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(36*128)
 
@@ -7321,7 +7337,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(37*128)
 
@@ -7346,7 +7362,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(38*128)
 
@@ -7371,7 +7387,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(39*128)
 
@@ -7396,7 +7412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(40*128)
 
@@ -7421,7 +7437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(41*128)
 
@@ -7446,7 +7462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(42*128)
 
@@ -7471,7 +7487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(43*128)
 
@@ -7496,7 +7512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(44*128)
 
@@ -7521,7 +7537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(45*128)
 
@@ -7546,7 +7562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(46*128)
 
@@ -7571,7 +7587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(47*128)
 
@@ -7596,7 +7612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(48*128)
 
@@ -7621,7 +7637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(49*128)
 
@@ -7646,7 +7662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(50*128)
 
@@ -7671,7 +7687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(51*128)
 
@@ -7696,7 +7712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(52*128)
 
@@ -7721,7 +7737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(53*128)
 
@@ -7746,7 +7762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(54*128)
 
@@ -7771,7 +7787,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(55*128)
 
@@ -7796,7 +7812,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(56*128)
 
@@ -7821,7 +7837,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(57*128)
 
@@ -7846,7 +7862,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(58*128)
 
@@ -7871,7 +7887,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(59*128)
 
@@ -7896,7 +7912,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(60*128)
 
@@ -7921,7 +7937,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(61*128)
 
@@ -7946,7 +7962,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(62*128)
 
@@ -7971,7 +7987,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(63*128)
 
@@ -7996,7 +8012,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(64*128)
 
@@ -8021,7 +8037,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(65*128)
 
@@ -8046,7 +8062,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(66*128)
 
@@ -8071,7 +8087,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(67*128)
 
@@ -8096,7 +8112,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(68*128)
 
@@ -8121,7 +8137,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(69*128)
 
@@ -8146,7 +8162,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(70*128)
 
@@ -8171,7 +8187,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(71*128)
 
@@ -8196,7 +8212,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(72*128)
 
@@ -8221,7 +8237,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(73*128)
 
@@ -8246,7 +8262,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(74*128)
 
@@ -8271,7 +8287,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(75*128)
 
@@ -8296,7 +8312,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(76*128)
 
@@ -8321,7 +8337,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(77*128)
 
@@ -8346,7 +8362,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(78*128)
 
@@ -8371,7 +8387,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(79*128)
 
@@ -8396,7 +8412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(80*128)
 
@@ -8421,7 +8437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(81*128)
 
@@ -8446,7 +8462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(82*128)
 
@@ -8471,7 +8487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(83*128)
 
@@ -8496,7 +8512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(84*128)
 
@@ -8521,7 +8537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(85*128)
 
@@ -8546,7 +8562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(86*128)
 
@@ -8571,7 +8587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(87*128)
 
@@ -8596,7 +8612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(88*128)
 
@@ -8621,7 +8637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(89*128)
 
@@ -8646,7 +8662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(90*128)
 
@@ -8671,7 +8687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(91*128)
 
@@ -8696,7 +8712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(92*128)
 
@@ -8721,7 +8737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(93*128)
 
@@ -8746,7 +8762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(94*128)
 
@@ -8771,7 +8787,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(95*128)
 
@@ -8796,7 +8812,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(96*128)
 
@@ -8821,7 +8837,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(97*128)
 
@@ -8846,7 +8862,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(98*128)
 
@@ -8871,7 +8887,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(99*128)
 
@@ -8896,7 +8912,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(100*128)
 
@@ -8921,7 +8937,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(101*128)
 
@@ -8946,7 +8962,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(102*128)
 
@@ -8971,7 +8987,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(103*128)
 
@@ -8996,7 +9012,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(104*128)
 
@@ -9021,7 +9037,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(105*128)
 
@@ -9046,7 +9062,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(106*128)
 
@@ -9071,7 +9087,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(107*128)
 
@@ -9096,7 +9112,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(108*128)
 
@@ -9121,7 +9137,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(109*128)
 
@@ -9146,7 +9162,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(110*128)
 
@@ -9171,7 +9187,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(111*128)
 
@@ -9196,7 +9212,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(112*128)
 
@@ -9221,7 +9237,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(113*128)
 
@@ -9246,7 +9262,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(114*128)
 
@@ -9271,7 +9287,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(115*128)
 
@@ -9296,7 +9312,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(116*128)
 
@@ -9321,7 +9337,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(117*128)
 
@@ -9346,7 +9362,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(118*128)
 
@@ -9371,7 +9387,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(119*128)
 
@@ -9396,7 +9412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(120*128)
 
@@ -9421,7 +9437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(121*128)
 
@@ -9446,7 +9462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(122*128)
 
@@ -9471,7 +9487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(123*128)
 
@@ -9496,7 +9512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(124*128)
 
@@ -9521,7 +9537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(125*128)
 
@@ -9546,7 +9562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(126*128)
 
@@ -9571,7 +9587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(127*128)
 
@@ -9596,7 +9612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(128*128)
 
@@ -9621,7 +9637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(129*128)
 
@@ -9646,7 +9662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(130*128)
 
@@ -9671,7 +9687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(131*128)
 
@@ -9696,7 +9712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(132*128)
 
@@ -9721,7 +9737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(133*128)
 
@@ -9746,7 +9762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(134*128)
 
@@ -9771,7 +9787,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(135*128)
 
@@ -9796,7 +9812,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(136*128)
 
@@ -9821,7 +9837,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(137*128)
 
@@ -9846,7 +9862,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(138*128)
 
@@ -9871,7 +9887,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(139*128)
 
@@ -9896,7 +9912,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(140*128)
 
@@ -9921,7 +9937,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(141*128)
 
@@ -9946,7 +9962,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(142*128)
 
@@ -9971,7 +9987,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(143*128)
 
@@ -9996,7 +10012,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(144*128)
 
@@ -10021,7 +10037,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(145*128)
 
@@ -10046,7 +10062,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(146*128)
 
@@ -10071,7 +10087,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(147*128)
 
@@ -10096,7 +10112,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(148*128)
 
@@ -10121,7 +10137,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(149*128)
 
@@ -10146,7 +10162,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(150*128)
 
@@ -10171,7 +10187,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(151*128)
 
@@ -10196,7 +10212,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(152*128)
 
@@ -10221,7 +10237,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(153*128)
 
@@ -10246,7 +10262,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(154*128)
 
@@ -10271,7 +10287,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(155*128)
 
@@ -10296,7 +10312,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(156*128)
 
@@ -10321,7 +10337,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(157*128)
 
@@ -10346,7 +10362,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(158*128)
 
@@ -10371,7 +10387,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(159*128)
 
@@ -10396,7 +10412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(160*128)
 
@@ -10421,7 +10437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(161*128)
 
@@ -10446,7 +10462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(162*128)
 
@@ -10471,7 +10487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(163*128)
 
@@ -10496,7 +10512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(164*128)
 
@@ -10521,7 +10537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(165*128)
 
@@ -10546,7 +10562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(166*128)
 
@@ -10571,7 +10587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(167*128)
 
@@ -10596,7 +10612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(168*128)
 
@@ -10621,7 +10637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(169*128)
 
@@ -10646,7 +10662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(170*128)
 
@@ -10671,7 +10687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(171*128)
 
@@ -10696,7 +10712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(172*128)
 
@@ -10721,7 +10737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(173*128)
 
@@ -10746,7 +10762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(174*128)
 
@@ -10771,7 +10787,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(175*128)
 
@@ -10796,7 +10812,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(176*128)
 
@@ -10821,7 +10837,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(177*128)
 
@@ -10846,7 +10862,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(178*128)
 
@@ -10871,7 +10887,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(179*128)
 
@@ -10896,7 +10912,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(180*128)
 
@@ -10921,7 +10937,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(181*128)
 
@@ -10946,7 +10962,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(182*128)
 
@@ -10971,7 +10987,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(183*128)
 
@@ -10996,7 +11012,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(184*128)
 
@@ -11021,7 +11037,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(185*128)
 
@@ -11046,7 +11062,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(186*128)
 
@@ -11071,7 +11087,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(187*128)
 
@@ -11096,7 +11112,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(188*128)
 
@@ -11121,7 +11137,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(189*128)
 
@@ -11146,7 +11162,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(190*128)
 
@@ -11171,7 +11187,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(191*128)
 
@@ -11196,7 +11212,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(192*128)
 
@@ -11221,7 +11237,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(193*128)
 
@@ -11246,7 +11262,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(194*128)
 
@@ -11271,7 +11287,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(195*128)
 
@@ -11296,7 +11312,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(196*128)
 
@@ -11321,7 +11337,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(197*128)
 
@@ -11346,7 +11362,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(198*128)
 
@@ -11371,7 +11387,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(199*128)
 
@@ -11396,7 +11412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(200*128)
 
@@ -11421,7 +11437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(201*128)
 
@@ -11446,7 +11462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(202*128)
 
@@ -11471,7 +11487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(203*128)
 
@@ -11496,7 +11512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(204*128)
 
@@ -11521,7 +11537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(205*128)
 
@@ -11546,7 +11562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(206*128)
 
@@ -11571,7 +11587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(207*128)
 
@@ -11596,7 +11612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(208*128)
 
@@ -11621,7 +11637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(209*128)
 
@@ -11646,7 +11662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(210*128)
 
@@ -11671,7 +11687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(211*128)
 
@@ -11696,7 +11712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(212*128)
 
@@ -11721,7 +11737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(213*128)
 
@@ -11746,7 +11762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(214*128)
 
@@ -11771,7 +11787,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(215*128)
 
@@ -11796,7 +11812,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(216*128)
 
@@ -11821,7 +11837,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(217*128)
 
@@ -11846,7 +11862,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(218*128)
 
@@ -11871,7 +11887,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(219*128)
 
@@ -11896,7 +11912,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(220*128)
 
@@ -11921,7 +11937,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(221*128)
 
@@ -11946,7 +11962,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(222*128)
 
@@ -11971,7 +11987,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(223*128)
 
@@ -11996,7 +12012,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(224*128)
 
@@ -12021,7 +12037,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(225*128)
 
@@ -12046,7 +12062,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(226*128)
 
@@ -12071,7 +12087,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(227*128)
 
@@ -12096,7 +12112,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(228*128)
 
@@ -12121,7 +12137,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(229*128)
 
@@ -12146,7 +12162,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(230*128)
 
@@ -12171,7 +12187,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(231*128)
 
@@ -12196,7 +12212,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(232*128)
 
@@ -12221,7 +12237,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(233*128)
 
@@ -12246,7 +12262,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(234*128)
 
@@ -12271,7 +12287,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(235*128)
 
@@ -12296,7 +12312,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(236*128)
 
@@ -12321,7 +12337,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(237*128)
 
@@ -12346,7 +12362,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(238*128)
 
@@ -12371,7 +12387,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(239*128)
 
@@ -12396,7 +12412,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(240*128)
 
@@ -12421,7 +12437,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(241*128)
 
@@ -12446,7 +12462,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(242*128)
 
@@ -12471,7 +12487,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(243*128)
 
@@ -12496,7 +12512,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(244*128)
 
@@ -12521,7 +12537,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(245*128)
 
@@ -12546,7 +12562,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(246*128)
 
@@ -12571,7 +12587,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(247*128)
 
@@ -12596,7 +12612,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(248*128)
 
@@ -12621,7 +12637,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(249*128)
 
@@ -12646,7 +12662,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(250*128)
 
@@ -12671,7 +12687,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(251*128)
 
@@ -12696,7 +12712,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(252*128)
 
@@ -12721,7 +12737,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(253*128)
 
@@ -12746,7 +12762,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(254*128)
 
@@ -12771,14 +12787,14 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     movl    %ecx, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %eax
     movl    %eax, OUT_ARG1(%esp)
-    call    MterpCheckBefore                # (self, shadow_frame)
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
     REFRESH_IBASE
     jmp     .L_op_nop+(255*128)
 
     .balign 128
-    .size   artMterpAsmAltInstructionStart, .-artMterpAsmAltInstructionStart
-    .global artMterpAsmAltInstructionEnd
-artMterpAsmAltInstructionEnd:
+    SIZE(SYMBOL(artMterpAsmAltInstructionStart),SYMBOL(artMterpAsmAltInstructionStart))
+    .global SYMBOL(artMterpAsmAltInstructionEnd)
+SYMBOL(artMterpAsmAltInstructionEnd):
 /* File: x86/footer.S */
 /*
  * ===========================================================================
@@ -12802,7 +12818,7 @@ common_errDivideByZero:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogDivideByZeroException
+    call    SYMBOL(MterpLogDivideByZeroException)
 #endif
     jmp     MterpCommonFallback
 
@@ -12813,7 +12829,7 @@ common_errArrayIndex:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogArrayIndexException
+    call    SYMBOL(MterpLogArrayIndexException)
 #endif
     jmp     MterpCommonFallback
 
@@ -12824,7 +12840,7 @@ common_errNegativeArraySize:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogNegativeArraySizeException
+    call    SYMBOL(MterpLogNegativeArraySizeException)
 #endif
     jmp     MterpCommonFallback
 
@@ -12835,7 +12851,7 @@ common_errNoSuchMethod:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogNoSuchMethodException
+    call    SYMBOL(MterpLogNoSuchMethodException)
 #endif
     jmp     MterpCommonFallback
 
@@ -12846,7 +12862,7 @@ common_errNullObject:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogNullObjectException
+    call    SYMBOL(MterpLogNullObjectException)
 #endif
     jmp     MterpCommonFallback
 
@@ -12857,7 +12873,7 @@ common_exceptionThrown:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG0(%esp)
-    call    MterpLogExceptionThrownException
+    call    SYMBOL(MterpLogExceptionThrownException)
 #endif
     jmp     MterpCommonFallback
 
@@ -12870,7 +12886,7 @@ MterpSuspendFallback:
     movl    %ecx, OUT_ARG0(%esp)
     movl    THREAD_FLAGS_OFFSET(%eax), %eax
     movl    %eax, OUT_ARG2(%esp)
-    call    MterpLogSuspendFallback
+    call    SYMBOL(MterpLogSuspendFallback)
 #endif
     jmp     MterpCommonFallback
 
@@ -12895,7 +12911,7 @@ MterpException:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpHandleException
+    call    SYMBOL(MterpHandleException)
     testl   %eax, %eax
     jz      MterpExceptionReturn
     REFRESH_IBASE
@@ -12919,7 +12935,7 @@ MterpCheckSuspendAndContinue:
     testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
     jz      1f
     movl    %eax, OUT_ARG0(%esp)
-    call    MterpSuspendCheck
+    call    SYMBOL(MterpSuspendCheck)
     REFRESH_IBASE
 1:
     GOTO_NEXT
@@ -12934,7 +12950,7 @@ MterpFallback:
     movl    %eax, OUT_ARG0(%esp)
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    call    MterpLogFallback
+    call    SYMBOL(MterpLogFallback)
 #endif
 MterpCommonFallback:
     xor     %eax, %eax
@@ -12965,5 +12981,5 @@ MterpDone:
     ret
 
     .cfi_endproc
-    .size   ExecuteMterpImpl, .-ExecuteMterpImpl
+    SIZE(ExecuteMterpImpl,ExecuteMterpImpl)
 

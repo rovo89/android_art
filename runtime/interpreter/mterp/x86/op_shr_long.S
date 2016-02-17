@@ -13,9 +13,9 @@
     movzbl  2(rPC), %eax                    # eax <- BB
     movzbl  3(rPC), %ecx                    # ecx <- CC
     movl    rIBASE, LOCAL0(%esp)
-    GET_VREG_HIGH rIBASE %eax               # rIBASE<- v[BB+1]
-    GET_VREG %ecx %ecx                      # ecx <- vCC
-    GET_VREG %eax %eax                      # eax <- v[BB+0]
+    GET_VREG_HIGH rIBASE, %eax              # rIBASE<- v[BB+1]
+    GET_VREG %ecx, %ecx                     # ecx <- vCC
+    GET_VREG %eax, %eax                     # eax <- v[BB+0]
     shrdl   rIBASE, %eax
     sarl    %cl, rIBASE
     testb   $$32, %cl
@@ -23,7 +23,7 @@
     movl    rIBASE, %eax
     sarl    $$31, rIBASE
 2:
-    SET_VREG_HIGH rIBASE rINST              # v[AA+1] <- rIBASE
+    SET_VREG_HIGH rIBASE, rINST             # v[AA+1] <- rIBASE
     movl    LOCAL0(%esp), rIBASE
-    SET_VREG %eax rINST                     # v[AA+0] <- eax
+    SET_VREG %eax, rINST                    # v[AA+0] <- eax
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

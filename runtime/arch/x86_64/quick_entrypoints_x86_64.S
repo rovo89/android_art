@@ -1755,6 +1755,8 @@ END_FUNCTION art_quick_read_barrier_for_root_slow
      *   rcx = JValue* result
      *   r8 = shorty
      *   r9 = thread
+     *
+     * Note that the native C ABI already aligned the stack to 16-byte.
      */
 DEFINE_FUNCTION art_quick_osr_stub
     // Save the non-volatiles.

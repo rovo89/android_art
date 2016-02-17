@@ -16,19 +16,19 @@
 
 #include "jit_compiler.h"
 
-#include "art_method-inl.h"
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "art_method-inl.h"
 #include "base/stringpiece.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "compiler_callbacks.h"
+#include "debug/elf_debug_writer.h"
 #include "dex/pass_manager.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
-#include "elf_writer_debug.h"
 #include "jit/debugger_interface.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
@@ -74,7 +74,7 @@ extern "C" void jit_types_loaded(void* handle, mirror::Class** types, size_t cou
   DCHECK(jit_compiler != nullptr);
   if (jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo()) {
     const ArrayRef<mirror::Class*> types_array(types, count);
-    ArrayRef<const uint8_t> elf_file = dwarf::WriteDebugElfFileForClasses(kRuntimeISA, types_array);
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForClasses(kRuntimeISA, types_array);
     CreateJITCodeEntry(std::unique_ptr<const uint8_t[]>(elf_file.data()), elf_file.size());
   }
 }
@@ -203,6 +203,7 @@ JitCompiler::~JitCompiler() {
 }
 
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
+  DCHECK(!method->IsProxyMethod());
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
   const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
@@ -220,20 +221,17 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   bool success = false;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
-    // If we get a request to compile a proxy method, we pass the actual Java method
-    // of that proxy method, as the compiler does not expect a proxy method.
-    ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
     JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
-    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method_to_compile, osr);
+    success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method, osr);
     if (success && (perf_file_ != nullptr)) {
-      const void* ptr = method_to_compile->GetEntryPointFromQuickCompiledCode();
+      const void* ptr = method->GetEntryPointFromQuickCompiledCode();
       std::ostringstream stream;
       stream << std::hex
              << reinterpret_cast<uintptr_t>(ptr)
              << " "
              << code_cache->GetMemorySizeOfCodePointer(ptr)
              << " "
-             << PrettyMethod(method_to_compile)
+             << PrettyMethod(method)
              << std::endl;
       std::string str = stream.str();
       bool res = perf_file_->WriteFully(str.c_str(), str.size());

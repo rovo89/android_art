@@ -12,7 +12,7 @@
     movl    %eax, OUT_ARG2(%esp)            # &fp[A]
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
-    call    artSet64InstanceFromMterp
+    call    SYMBOL(artSet64InstanceFromMterp)
     testl   %eax, %eax
     jnz     MterpPossibleException
     REFRESH_IBASE

@@ -205,7 +205,7 @@ public class Main {
   public static boolean $inline$InstanceofSubclassB(Object o) { return o instanceof SubclassB; }
   public static boolean $inline$InstanceofSubclassC(Object o) { return o instanceof SubclassC; }
 
-  /// CHECK-START: void Main.testInstanceOf_NotInlined(java.lang.Object) ssa_builder (after)
+  /// CHECK-START: void Main.testInstanceOf_NotInlined(java.lang.Object) builder (after)
   /// CHECK-DAG:     <<Cst0:i\d+>> IntConstant 0
   /// CHECK-DAG:     <<Cst1:i\d+>> IntConstant 1
   /// CHECK-DAG:     <<IOf1:z\d+>> InstanceOf
@@ -229,7 +229,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.testNotInstanceOf_NotInlined(java.lang.Object) ssa_builder (after)
+  /// CHECK-START: void Main.testNotInstanceOf_NotInlined(java.lang.Object) builder (after)
   /// CHECK-DAG:     <<Cst0:i\d+>> IntConstant 0
   /// CHECK-DAG:     <<Cst1:i\d+>> IntConstant 1
   /// CHECK-DAG:     <<IOf1:z\d+>> InstanceOf
@@ -487,7 +487,7 @@ public class Main {
     ((SubclassA)a[0]).$noinline$g();
   }
 
-  /// CHECK-START: int Main.testLoadExceptionInCatchNonExact(int, int) ssa_builder (after)
+  /// CHECK-START: int Main.testLoadExceptionInCatchNonExact(int, int) builder (after)
   /// CHECK:         LoadException klass:java.lang.ArithmeticException can_be_null:false exact:false
   public int testLoadExceptionInCatchNonExact(int x, int y) {
     try {
@@ -497,7 +497,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: int Main.testLoadExceptionInCatchExact(int) ssa_builder (after)
+  /// CHECK-START: int Main.testLoadExceptionInCatchExact(int) builder (after)
   /// CHECK:         LoadException klass:FinalException can_be_null:false exact:true
   public int testLoadExceptionInCatchExact(int x) {
     try {
@@ -511,7 +511,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: int Main.testLoadExceptionInCatchAll(int, int) ssa_builder (after)
+  /// CHECK-START: int Main.testLoadExceptionInCatchAll(int, int) builder (after)
   /// CHECK:         LoadException klass:java.lang.Throwable can_be_null:false exact:false
   public int testLoadExceptionInCatchAll(int x, int y) {
     try {
@@ -532,7 +532,7 @@ public class Main {
     return genericFinal.get();
   }
 
-  /// CHECK-START: SubclassC Main.inlineGenerics() ssa_builder (after)
+  /// CHECK-START: SubclassC Main.inlineGenerics() builder (after)
   /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:SubclassC exact:false
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
@@ -544,7 +544,7 @@ public class Main {
     return c;
   }
 
-  /// CHECK-START: Final Main.inlineGenericsFinal() ssa_builder (after)
+  /// CHECK-START: Final Main.inlineGenericsFinal() builder (after)
   /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:Final exact:true
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
@@ -586,7 +586,7 @@ public class Main {
     return new SubclassA();
   }
 
-  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) ssa_builder (after)
+  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) builder (after)
   /// CHECK:      <<Phi:l\d+>> Phi klass:Super
   /// CHECK:                   NullCheck [<<Phi>>] klass:Super
 
@@ -620,7 +620,7 @@ public class Main {
   }
 
 
-  /// CHECK-START: void Main.argumentCheck(Super, double, SubclassA, Final) ssa_builder (after)
+  /// CHECK-START: void Main.argumentCheck(Super, double, SubclassA, Final) builder (after)
   /// CHECK:      ParameterValue klass:Main can_be_null:false exact:false
   /// CHECK:      ParameterValue klass:Super can_be_null:true exact:false
   /// CHECK:      ParameterValue
@@ -636,7 +636,7 @@ public class Main {
 
   private int mainField = 0;
 
-  /// CHECK-START: SuperInterface Main.getWiderType(boolean, Interface, OtherInterface) ssa_builder (after)
+  /// CHECK-START: SuperInterface Main.getWiderType(boolean, Interface, OtherInterface) builder (after)
   /// CHECK:      <<Phi:l\d+>>       Phi klass:java.lang.Object
   /// CHECK:                         Return [<<Phi>>]
   private SuperInterface getWiderType(boolean cond, Interface a, OtherInterface b) {
@@ -692,7 +692,7 @@ public class Main {
     getSuper();
   }
 
-  /// CHECK-START: void Main.testLoopPhiWithNullFirstInput(boolean) ssa_builder (after)
+  /// CHECK-START: void Main.testLoopPhiWithNullFirstInput(boolean) builder (after)
   /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
   /// CHECK-DAG:  <<Main:l\d+>>      NewInstance klass:Main exact:true
   /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<LoopPhi>>,<<Main>>] klass:Main exact:true
@@ -705,7 +705,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START: java.lang.Object[] Main.testInstructionsWithUntypedParent() ssa_builder (after)
+  /// CHECK-START: java.lang.Object[] Main.testInstructionsWithUntypedParent() builder (after)
   /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
   /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<Phi:l\d+>>] klass:java.lang.Object[] exact:true
   /// CHECK-DAG:  <<Array:l\d+>>     NewArray klass:java.lang.Object[] exact:true

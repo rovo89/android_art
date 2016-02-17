@@ -13,7 +13,7 @@
     movl    %eax, OUT_ARG2(%esp)            # &fp[AA]
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
-    call    artSet64IndirectStaticFromMterp
+    call    SYMBOL(artSet64IndirectStaticFromMterp)
     testl   %eax, %eax
     jnz     MterpException
     REFRESH_IBASE

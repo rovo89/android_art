@@ -80,7 +80,8 @@ class HGraphBuilder : public ValueObject {
         null_dex_cache_(),
         dex_cache_(null_dex_cache_) {}
 
-  bool BuildGraph(const DexFile::CodeItem& code);
+  GraphAnalysisResult BuildGraph(const DexFile::CodeItem& code,
+                                 StackHandleScopeCollection* handles);
 
   static constexpr const char* kBuilderPassName = "builder";
 

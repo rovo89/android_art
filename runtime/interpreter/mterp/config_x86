@@ -19,6 +19,10 @@
 handler-style computed-goto
 handler-size 128
 
+function-type-format FUNCTION_TYPE(%s)
+function-size-format SIZE(%s,%s)
+global-name-format SYMBOL(%s)
+
 # source for alternate entry stub
 asm-alt-stub x86/alt_stub.S
 

@@ -1152,8 +1152,10 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             args << Rd << ", #" << imm16;
             break;
           }
-          case 0x16: {
+          case 0x16: case 0x14: case 0x1C: {
             // BFI Rd, Rn, #lsb, #width - 111 10 0 11 011 0 nnnn 0 iii dddd ii 0 iiiii
+            // SBFX Rd, Rn, #lsb, #width - 111 10 0 11 010 0 nnnn 0 iii dddd ii 0 iiiii
+            // UBFX Rd, Rn, #lsb, #width - 111 10 0 11 110 0 nnnn 0 iii dddd ii 0 iiiii
             ArmRegister Rd(instr, 8);
             ArmRegister Rn(instr, 16);
             uint32_t msb = instr & 0x1F;
@@ -1161,12 +1163,21 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             uint32_t imm3 = (instr >> 12) & 0x7;
             uint32_t lsb = (imm3 << 2) | imm2;
             uint32_t width = msb - lsb + 1;
-            if (Rn.r != 0xF) {
-              opcode << "bfi";
-              args << Rd << ", " << Rn << ", #" << lsb << ", #" << width;
+            if (op3 == 0x16) {
+              if (Rn.r != 0xF) {
+                opcode << "bfi";
+                args << Rd << ", " << Rn << ", #" << lsb << ", #" << width;
+              } else {
+                opcode << "bfc";
+                args << Rd << ", #" << lsb << ", #" << width;
+              }
             } else {
-              opcode << "bfc";
-              args << Rd << ", #" << lsb << ", #" << width;
+              opcode << ((op3 & 0x8) != 0u ? "ubfx" : "sbfx");
+              args << Rd << ", " << Rn << ", #" << lsb << ", #" << width;
+              if (Rd.r == 13 || Rd.r == 15 || Rn.r == 13 || Rn.r == 15 ||
+                  (instr & 0x04000020) != 0u) {
+                args << " (UNPREDICTABLE)";
+              }
             }
             break;
           }
