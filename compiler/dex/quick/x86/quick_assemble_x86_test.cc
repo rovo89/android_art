@@ -64,17 +64,18 @@ class QuickAssembleX86TestBase : public testing::Test {
         method_inliner_map_.get(),
         Compiler::kQuick,
         isa_,
-        /* instruction_set_features*/ nullptr,
-        /* boot_image */ false,
-        /* image_classes */ nullptr,
-        /* compiled_classes */ nullptr,
-        /* compiled_methods */ nullptr,
-        /* thread_count */ 0,
-        /* dump_stats */ false,
-        /* dump_passes */ false,
-        /* timer */ nullptr,
-        /* swap_fd */ -1,
-        /* profile_compilation_info */ nullptr));
+        nullptr,
+        false,
+        nullptr,
+        nullptr,
+        nullptr,
+        0,
+        false,
+        false,
+        0,
+        -1,
+        nullptr,
+        nullptr));
     cu_.reset(new CompilationUnit(pool_.get(), isa_, compiler_driver_.get(), nullptr));
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(
         cu_->arena.Alloc(sizeof(DexFile::CodeItem), kArenaAllocMisc));
