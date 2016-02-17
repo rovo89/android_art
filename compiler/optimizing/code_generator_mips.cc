@@ -3953,28 +3953,19 @@ void InstructionCodeGeneratorMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDire
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
-void InstructionCodeGeneratorMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
-    return;
-  }
-
+void CodeGeneratorMIPS::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_location) {
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
+  Register temp = temp_location.AsRegister<Register>();
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kMipsPointerSize).SizeValue();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsWordSize);
 
   // temp = object->GetClass();
-  if (receiver.IsStackSlot()) {
-    __ LoadFromOffset(kLoadWord, temp, SP, receiver.GetStackIndex());
-    __ LoadFromOffset(kLoadWord, temp, temp, class_offset);
-  } else {
-    DCHECK(receiver.IsRegister());
-    __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
-  }
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  DCHECK(receiver.IsRegister());
+  __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
+  MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // T9 = temp->GetEntryPoint();
@@ -3982,6 +3973,14 @@ void InstructionCodeGeneratorMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   // T9();
   __ Jalr(T9);
   __ Nop();
+}
+
+void InstructionCodeGeneratorMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
