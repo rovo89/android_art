@@ -1727,7 +1727,6 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   GpuRegister res = locations->Out().AsRegister<GpuRegister>();
   Primitive::Type in_type = instruction->InputAt(0)->GetType();
-  bool gt_bias = instruction->IsGtBias();
 
   //  0 if: left == right
   //  1 if: left  > right
@@ -1769,7 +1768,7 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
       __ CmpEqS(FTMP, lhs, rhs);
       __ LoadConst32(res, 0);
       __ Bc1nez(FTMP, &done);
-      if (gt_bias) {
+      if (instruction->IsGtBias()) {
         __ CmpLtS(FTMP, lhs, rhs);
         __ LoadConst32(res, -1);
         __ Bc1nez(FTMP, &done);
@@ -1791,7 +1790,7 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
       __ CmpEqD(FTMP, lhs, rhs);
       __ LoadConst32(res, 0);
       __ Bc1nez(FTMP, &done);
-      if (gt_bias) {
+      if (instruction->IsGtBias()) {
         __ CmpLtD(FTMP, lhs, rhs);
         __ LoadConst32(res, -1);
         __ Bc1nez(FTMP, &done);
@@ -4258,4 +4257,3 @@ void InstructionCodeGeneratorMIPS64::VisitClassTableGet(HClassTableGet*) {
 
 }  // namespace mips64
 }  // namespace art
-
