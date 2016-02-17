@@ -269,6 +269,14 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
       }
     }
   }
+  for (auto it = osr_code_map_.begin(); it != osr_code_map_.end();) {
+    if (alloc.ContainsUnsafe(it->first)) {
+      // Note that the code has already been removed in the loop above.
+      it = osr_code_map_.erase(it);
+    } else {
+      ++it;
+    }
+  }
   for (auto it = profiling_infos_.begin(); it != profiling_infos_.end();) {
     ProfilingInfo* info = *it;
     if (alloc.ContainsUnsafe(info->GetMethod())) {
