@@ -16,7 +16,7 @@
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL($helper)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

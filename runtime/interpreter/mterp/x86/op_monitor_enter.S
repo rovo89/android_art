@@ -8,7 +8,7 @@
     movl    rSELF, %eax
     movl    %eax, OUT_ARG1(%esp)
     call    SYMBOL(artLockObjectFromCode)   # (object, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1

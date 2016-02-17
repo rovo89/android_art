@@ -7,6 +7,6 @@
     movl    %ecx, OUT_ARG1(%esp)
     call    SYMBOL(MterpFillArrayData)      # (obj, payload)
     REFRESH_IBASE
-    testl   %eax, %eax                      # 0 means an exception is thrown
+    testb   %al, %al                        # 0 means an exception is thrown
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3

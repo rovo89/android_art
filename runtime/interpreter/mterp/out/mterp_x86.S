@@ -189,11 +189,6 @@ unspecified registers or condition codes.
 
 /*
  * Refresh handler table.
- * IBase handles uses the caller save register so we must restore it after each call.
- * Also it is used as a result of some 64-bit operations (like imul) and we should
- * restore it in such cases also.
- *
- * TODO: Consider spilling the IBase instead of restoring it from Thread structure.
  */
 .macro REFRESH_IBASE
     movl    rSELF, rIBASE
@@ -201,9 +196,22 @@ unspecified registers or condition codes.
 .endm
 
 /*
+ * Refresh handler table.
+ * IBase handles uses the caller save register so we must restore it after each call.
+ * Also it is used as a result of some 64-bit operations (like imul) and we should
+ * restore it in such cases also.
+ *
+ * TODO: Consider spilling the IBase instead of restoring it from Thread structure.
+ */
+.macro RESTORE_IBASE
+    movl    rSELF, rIBASE
+    movl    THREAD_CURRENT_IBASE_OFFSET(rIBASE), rIBASE
+.endm
+
+/*
  * If rSELF is already loaded then we can use it from known reg.
  */
-.macro REFRESH_IBASE_FROM_SELF _reg
+.macro RESTORE_IBASE_FROM_SELF _reg
     movl    THREAD_CURRENT_IBASE_OFFSET(\_reg), rIBASE
 .endm
 
@@ -771,8 +779,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
     call    SYMBOL(MterpConstString)        # (index, tgt_reg, shadow_frame, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -790,8 +798,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
     call    SYMBOL(MterpConstString)        # (index, tgt_reg, shadow_frame, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -809,8 +817,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
     call    SYMBOL(MterpConstClass)         # (index, tgt_reg, shadow_frame, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -828,8 +836,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %eax
     movl    %eax, OUT_ARG1(%esp)
     call    SYMBOL(artLockObjectFromCode)   # (object, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -851,8 +859,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %eax
     movl    %eax, OUT_ARG1(%esp)
     call    SYMBOL(artUnlockObjectFromCode) # (object, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -874,8 +882,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
     call    SYMBOL(MterpCheckCast)          # (index, &obj, method, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -903,7 +911,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)
     call    SYMBOL(MterpInstanceOf)         # (index, &obj, method, self)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     andb    $0xf, rINSTbl                  # rINSTbl <- A
@@ -943,8 +951,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 34
     movl    rINST, OUT_ARG2(%esp)
     call    SYMBOL(MterpNewInstance)
-    REFRESH_IBASE
-    testl   %eax, %eax                 # 0 means an exception is thrown
+    RESTORE_IBASE
+    testb   %al, %al                        # 0 means an exception is thrown
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -969,8 +977,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
     call    SYMBOL(MterpNewArray)
-    REFRESH_IBASE
-    testl   %eax, %eax                      # 0 means an exception is thrown
+    RESTORE_IBASE
+    testb   %al, %al                        # 0 means an exception is thrown
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -994,7 +1002,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)
     call    SYMBOL(MterpFilledNewArray)
     REFRESH_IBASE
-    testl   %eax, %eax                      # 0 means an exception is thrown
+    testb   %al, %al                        # 0 means an exception is thrown
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -1019,7 +1027,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)
     call    SYMBOL(MterpFilledNewArrayRange)
     REFRESH_IBASE
-    testl   %eax, %eax                      # 0 means an exception is thrown
+    testb   %al, %al                        # 0 means an exception is thrown
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -1037,7 +1045,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG1(%esp)
     call    SYMBOL(MterpFillArrayData)      # (obj, payload)
     REFRESH_IBASE
-    testl   %eax, %eax                      # 0 means an exception is thrown
+    testb   %al, %al                        # 0 means an exception is thrown
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
@@ -1923,7 +1931,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG1(%esp)
     call    SYMBOL(artAGetObjectFromMterp)  # (array, index)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     SET_VREG_OBJECT %eax, rINST
@@ -2090,8 +2098,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 77
     movl    rINST, OUT_ARG2(%esp)
     call    SYMBOL(MterpAputObject)         # (array, index)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -2221,7 +2229,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artGet32InstanceFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
@@ -2259,7 +2267,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, rINSTbl                  # rINST <- A
     SET_VREG %eax, rINST
     SET_VREG_HIGH %edx, rINST
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2285,7 +2293,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artGetObjInstanceFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
@@ -2320,7 +2328,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artGetBooleanInstanceFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
@@ -2355,7 +2363,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artGetByteInstanceFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
@@ -2390,7 +2398,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artGetCharInstanceFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
@@ -2425,7 +2433,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artGetShortInstanceFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
@@ -2461,9 +2469,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL(artSet32InstanceFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2485,9 +2493,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL(artSet64InstanceFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2503,9 +2511,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
     call    SYMBOL(MterpIputObject)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2533,9 +2541,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL(artSet8InstanceFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2564,9 +2572,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL(artSet8InstanceFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2595,9 +2603,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL(artSet16InstanceFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2626,9 +2634,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL(artSet16InstanceFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2652,7 +2660,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL(artGet32StaticFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
@@ -2685,7 +2693,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     jnz     MterpException
     SET_VREG %eax, rINST                    # fp[A]<- low part
     SET_VREG_HIGH %edx, rINST               # fp[A+1]<- high part
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2709,7 +2717,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL(artGetObjStaticFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 1
@@ -2741,7 +2749,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL(artGetBooleanStaticFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
@@ -2773,7 +2781,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL(artGetByteStaticFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
@@ -2805,7 +2813,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL(artGetCharStaticFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
@@ -2837,7 +2845,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL(artGetShortStaticFromCode)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if 0
@@ -2869,9 +2877,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artSet32StaticFromCode)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2894,9 +2902,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artSet64IndirectStaticFromMterp)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2912,9 +2920,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
     call    SYMBOL(MterpSputObject)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -2939,9 +2947,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artSet8StaticFromCode)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2967,9 +2975,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artSet8StaticFromCode)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -2995,9 +3003,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artSet16StaticFromCode)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -3023,9 +3031,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)            # self
     call    SYMBOL(artSet16StaticFromCode)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
@@ -3049,9 +3057,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 110
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeVirtual)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 /*
@@ -3082,9 +3090,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 111
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeSuper)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 /*
@@ -3115,9 +3123,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 112
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeDirect)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -3141,9 +3149,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 113
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeStatic)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -3168,9 +3176,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 114
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeInterface)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 /*
@@ -3215,9 +3223,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 116
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeVirtualRange)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -3241,9 +3249,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 117
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeSuperRange)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -3267,9 +3275,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 118
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeDirectRange)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -3293,9 +3301,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 119
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeStaticRange)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -3319,9 +3327,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 120
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeInterfaceRange)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -4047,10 +4055,10 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     je      common_errDivideByZero
     movl    %eax, %edx
     orl     %ecx, %edx
-    test    $0xFFFFFF00, %edx              # If both arguments are less
+    testl   $0xFFFFFF00, %edx              # If both arguments are less
                                             #   than 8-bit and +ve
     jz      .Lop_div_int_8                   # Do 8-bit divide
-    test    $0xFFFF0000, %edx              # If both arguments are less
+    testl   $0xFFFF0000, %edx              # If both arguments are less
                                             #   than 16-bit and +ve
     jz      .Lop_div_int_16                  # Do 16-bit divide
     cmpl    $-1, %ecx
@@ -4101,10 +4109,10 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     je      common_errDivideByZero
     movl    %eax, %edx
     orl     %ecx, %edx
-    test    $0xFFFFFF00, %edx              # If both arguments are less
+    testl   $0xFFFFFF00, %edx              # If both arguments are less
                                             #   than 8-bit and +ve
     jz      .Lop_rem_int_8                   # Do 8-bit divide
-    test    $0xFFFF0000, %edx              # If both arguments are less
+    testl   $0xFFFF0000, %edx              # If both arguments are less
                                             #   than 16-bit and +ve
     jz      .Lop_rem_int_16                  # Do 16-bit divide
     cmpl    $-1, %ecx
@@ -4785,9 +4793,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     sarl    $4, rINST                      # rINST <- B
     GET_VREG %eax, rINST                    # eax <- vB
     andb    $0xf, %cl                      # ecx <- A
-    mov     rIBASE, LOCAL0(%esp)
+    movl    rIBASE, rINST
     imull   (rFP,%ecx,4), %eax              # trashes rIBASE/edx
-    mov     LOCAL0(%esp), rIBASE
+    movl    rINST, rIBASE
     SET_VREG %eax, %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
@@ -5514,11 +5522,11 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $4, %eax                       # eax <- B
     GET_VREG %eax, %eax                     # eax <- vB
-    movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
+    movl    rIBASE, %ecx
+    movswl  2(rPC), rIBASE                  # rIBASE <- ssssCCCC
     andb    $0xf, rINSTbl                  # rINST <- A
-    mov     rIBASE, LOCAL0(%esp)
-    imull   %ecx, %eax                      # trashes rIBASE/edx
-    mov     LOCAL0(%esp), rIBASE
+    imull   rIBASE, %eax                    # trashes rIBASE/edx
+    movl    %ecx, rIBASE
     SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -5721,11 +5729,11 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
 /* File: x86/op_mul_int_lit8.S */
     /* mul/lit8 vAA, vBB, #+CC */
     movzbl  2(rPC), %eax                    # eax <- BB
-    movsbl  3(rPC), %ecx                    # ecx <- ssssssCC
+    movl    rIBASE, %ecx
     GET_VREG  %eax, %eax                    # eax <- rBB
-    mov     rIBASE, LOCAL0(%esp)
-    imull   %ecx, %eax                      # trashes rIBASE/edx
-    mov     LOCAL0(%esp), rIBASE
+    movsbl  3(rPC), rIBASE                  # rIBASE <- ssssssCC
+    imull   rIBASE, %eax                    # trashes rIBASE/edx
+    movl    %ecx, rIBASE
     SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
@@ -5985,7 +5993,7 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     EXPORT_PC
     call    SYMBOL(artIGetObjectFromMterp)  # (obj, offset)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $0xf,rINSTbl                   # rINST <- A
@@ -6037,9 +6045,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 232
     movl    rINST, OUT_ARG2(%esp)
     call    SYMBOL(MterpIputObjectQuick)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /* ------------------------------ */
@@ -6062,9 +6070,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 233
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeVirtualQuick)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -6088,9 +6096,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     REFRESH_INST 234
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL(MterpInvokeVirtualQuickRange)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
 
 
@@ -12912,7 +12920,7 @@ MterpException:
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
     call    SYMBOL(MterpHandleException)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpExceptionReturn
     REFRESH_IBASE
     movl    OFF_FP_CODE_ITEM(rFP), %eax
