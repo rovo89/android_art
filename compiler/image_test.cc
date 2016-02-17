@@ -124,10 +124,6 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
           &opened_dex_files);
       ASSERT_TRUE(dex_files_ok);
       oat_writer.PrepareLayout(compiler_driver_.get(), writer.get(), dex_files);
-      size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
-      size_t text_size = oat_writer.GetSize() - rodata_size;
-      elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer.GetBssSize());
-
       bool image_space_ok = writer->PrepareImageAddressSpace();
       ASSERT_TRUE(image_space_ok);
 
@@ -143,6 +139,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       bool header_ok = oat_writer.WriteHeader(elf_writer->GetStream(), 0u, 0u, 0u);
       ASSERT_TRUE(header_ok);
 
+      elf_writer->SetBssSize(oat_writer.GetBssSize());
       elf_writer->WriteDynamicSection();
       elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
       elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
