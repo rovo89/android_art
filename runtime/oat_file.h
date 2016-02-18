@@ -40,6 +40,12 @@ class OatMethodOffsets;
 class OatHeader;
 class OatDexFile;
 
+namespace gc {
+namespace collector {
+class DummyOatFile;
+}  // namespace collector
+}  // namespace gc
+
 class OatFile {
  public:
   typedef art::OatDexFile OatDexFile;
@@ -312,6 +318,7 @@ class OatFile {
   // elements. std::list<> and std::deque<> satisfy this requirement, std::vector<> doesn't.
   mutable std::list<std::string> string_cache_ GUARDED_BY(secondary_lookup_lock_);
 
+  friend class gc::collector::DummyOatFile;  // For modifying begin_ and end_.
   friend class OatClass;
   friend class art::OatDexFile;
   friend class OatDumper;  // For GetBase and GetLimit

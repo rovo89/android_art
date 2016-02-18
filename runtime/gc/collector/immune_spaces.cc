@@ -18,6 +18,7 @@
 
 #include "gc/space/space-inl.h"
 #include "mirror/object.h"
+#include "oat_file.h"
 
 namespace art {
 namespace gc {
@@ -45,11 +46,16 @@ void ImmuneSpaces::CreateLargestImmuneRegion() {
       space::ImageSpace* image_space = space->AsImageSpace();
       // Update the end to include the other non-heap sections.
       space_end = RoundUp(reinterpret_cast<uintptr_t>(image_space->GetImageEnd()), kPageSize);
-      uintptr_t oat_begin = reinterpret_cast<uintptr_t>(image_space->GetOatFileBegin());
-      uintptr_t oat_end = reinterpret_cast<uintptr_t>(image_space->GetOatFileEnd());
-      if (space_end == oat_begin) {
-        DCHECK_GE(oat_end, oat_begin);
-        space_end = oat_end;
+      // For the app image case, GetOatFileBegin is where the oat file was mapped during image
+      // creation, the actual oat file could be somewhere else.
+      const OatFile* const image_oat_file = image_space->GetOatFile();
+      if (image_oat_file != nullptr) {
+        uintptr_t oat_begin = reinterpret_cast<uintptr_t>(image_oat_file->Begin());
+        uintptr_t oat_end = reinterpret_cast<uintptr_t>(image_oat_file->End());
+        if (space_end == oat_begin) {
+          DCHECK_GE(oat_end, oat_begin);
+          space_end = oat_end;
+        }
       }
     }
     if (cur_begin == 0u) {
@@ -71,6 +77,8 @@ void ImmuneSpaces::CreateLargestImmuneRegion() {
   }
   largest_immune_region_.SetBegin(reinterpret_cast<mirror::Object*>(best_begin));
   largest_immune_region_.SetEnd(reinterpret_cast<mirror::Object*>(best_end));
+  VLOG(gc) << "Immune region " << largest_immune_region_.Begin() << "-"
+           << largest_immune_region_.End();
 }
 
 void ImmuneSpaces::AddSpace(space::ContinuousSpace* space) {
