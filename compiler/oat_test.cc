@@ -415,7 +415,9 @@ TEST_F(OatTest, WriteRead) {
     size_t visited_virtuals = 0;
     // TODO We should also check copied methods in this test.
     for (auto& m : klass->GetDeclaredVirtualMethods(pointer_size)) {
-      EXPECT_FALSE(m.IsMiranda());
+      if (!klass->IsInterface()) {
+        EXPECT_FALSE(m.MightBeCopied());
+      }
       CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
       ++method_index;
       ++visited_virtuals;

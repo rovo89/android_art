@@ -759,7 +759,7 @@ static void SanityCheckArtMethod(ArtMethod* m,
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
     CHECK(m->GetDeclaringClass() == nullptr) << PrettyMethod(m);
-  } else if (m->IsMiranda()) {
+  } else if (m->MightBeCopied()) {
     CHECK(m->GetDeclaringClass() != nullptr) << PrettyMethod(m);
   } else if (expected_class != nullptr) {
     CHECK_EQ(m->GetDeclaringClassUnchecked(), expected_class) << PrettyMethod(m);
@@ -1137,18 +1137,18 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
 
   virtual void Visit(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
     GcRoot<mirror::Class>* resolved_types = method->GetDexCacheResolvedTypes(sizeof(void*));
-    const bool is_miranda = method->IsMiranda();
+    const bool maybe_copied = method->MightBeCopied();
     if (resolved_types != nullptr) {
       bool in_image_space = false;
-      if (kIsDebugBuild || is_miranda) {
+      if (kIsDebugBuild || maybe_copied) {
         in_image_space = header_.GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
             reinterpret_cast<const uint8_t*>(resolved_types) - header_.GetImageBegin());
       }
       // Must be in image space for non-miranda method.
-      DCHECK(is_miranda || in_image_space)
+      DCHECK(maybe_copied || in_image_space)
           << resolved_types << " is not in image starting at "
           << reinterpret_cast<void*>(header_.GetImageBegin());
-      if (!is_miranda || in_image_space) {
+      if (!maybe_copied || in_image_space) {
         // Go through the array so that we don't need to do a slow map lookup.
         method->SetDexCacheResolvedTypes(*reinterpret_cast<GcRoot<mirror::Class>**>(resolved_types),
                                          sizeof(void*));
@@ -1157,15 +1157,15 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
     ArtMethod** resolved_methods = method->GetDexCacheResolvedMethods(sizeof(void*));
     if (resolved_methods != nullptr) {
       bool in_image_space = false;
-      if (kIsDebugBuild || is_miranda) {
+      if (kIsDebugBuild || maybe_copied) {
         in_image_space = header_.GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
               reinterpret_cast<const uint8_t*>(resolved_methods) - header_.GetImageBegin());
       }
       // Must be in image space for non-miranda method.
-      DCHECK(is_miranda || in_image_space)
+      DCHECK(maybe_copied || in_image_space)
           << resolved_methods << " is not in image starting at "
           << reinterpret_cast<void*>(header_.GetImageBegin());
-      if (!is_miranda || in_image_space) {
+      if (!maybe_copied || in_image_space) {
         // Go through the array so that we don't need to do a slow map lookup.
         method->SetDexCacheResolvedMethods(*reinterpret_cast<ArtMethod***>(resolved_methods),
                                            sizeof(void*));
