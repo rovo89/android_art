@@ -26,6 +26,13 @@ namespace art {
  * Optimization pass performing a simple constant-expression
  * evaluation on the SSA form.
  *
+ * Note that graph simplifications producing a constant should be
+ * implemented in art::HConstantFolding, while graph simplifications
+ * not producing constants should be implemented in
+ * art::InstructionSimplifier.  (This convention is a choice that was
+ * made during the development of these parts of the compiler and is
+ * not bound by any technical requirement.)
+ *
  * This class is named art::HConstantFolding to avoid name
  * clashes with the art::ConstantPropagation class defined in
  * compiler/dex/post_opt_passes.h.
