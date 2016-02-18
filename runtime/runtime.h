@@ -94,8 +94,6 @@ struct TraceConfig;
 class Transaction;
 
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
-typedef SafeMap<MethodReference, SafeMap<uint32_t, std::set<uint32_t>>,
-    MethodReferenceComparator> MethodRefToStringInitRegMap;
 
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
 // (no logical reason to do this). You also may not start logging new roots and stop logging new
@@ -574,10 +572,6 @@ class Runtime {
     return jit_options_.get();
   }
 
-  MethodRefToStringInitRegMap& GetStringInitMap() {
-    return method_ref_string_init_reg_map_;
-  }
-
   bool IsDebuggable() const;
 
   // Returns the build fingerprint, if set. Otherwise an empty string is returned.
@@ -802,8 +796,6 @@ class Runtime {
   //
   // Experimental opcodes should not be used by other production code.
   ExperimentalFlags experimental_flags_;
-
-  MethodRefToStringInitRegMap method_ref_string_init_reg_map_;
 
   // Contains the build fingerprint, if given as a parameter.
   std::string fingerprint_;
