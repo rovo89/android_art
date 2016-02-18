@@ -453,7 +453,8 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     HInstruction* cursor = invoke_instruction->GetPrevious();
     HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-    uint32_t class_index = FindClassIndexIn(ic.GetTypeAt(i), caller_dex_file);
+    uint32_t class_index = FindClassIndexIn(
+        ic.GetTypeAt(i), caller_dex_file, caller_compilation_unit_.GetDexCache());
     HInstruction* return_replacement = nullptr;
     if (class_index == DexFile::kDexNoIndex ||
         !TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
