@@ -2068,6 +2068,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   }
 
   SideEffects GetSideEffects() const { return side_effects_; }
+  void SetSideEffects(SideEffects other) { side_effects_ = other; }
   void AddSideEffects(SideEffects other) { side_effects_.Add(other); }
 
   size_t GetLifetimePosition() const { return lifetime_position_; }
@@ -2106,7 +2107,6 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
  protected:
   virtual const HUserRecord<HInstruction*> InputRecordAt(size_t i) const = 0;
   virtual void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) = 0;
-  void SetSideEffects(SideEffects other) { side_effects_ = other; }
 
  private:
   void RemoveEnvironmentUser(HUseListNode<HEnvironment*>* use_node) { env_uses_.Remove(use_node); }
