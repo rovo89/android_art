@@ -428,7 +428,7 @@ class ImageWriter FINAL {
 
   // Location of where the object will be when the image is loaded at runtime.
   template <typename T>
-  T* NativeLocationInImage(T* obj, const char* oat_filename) SHARED_REQUIRES(Locks::mutator_lock_);
+  T* NativeLocationInImage(T* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Location of where the temporary copy of the object currently is.
   template <typename T>
