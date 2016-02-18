@@ -131,6 +131,7 @@ class HInstructionList : public ValueObject {
   void SetBlockOfInstructions(HBasicBlock* block) const;
 
   void AddAfter(HInstruction* cursor, const HInstructionList& instruction_list);
+  void AddBefore(HInstruction* cursor, const HInstructionList& instruction_list);
   void Add(const HInstructionList& instruction_list);
 
   // Return the number of instructions in the list. This is an expensive operation.
@@ -618,6 +619,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
+  friend class HInliner;             // For the reverse post order.
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
@@ -972,12 +974,15 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // loop and try/catch information.
   HBasicBlock* SplitBefore(HInstruction* cursor);
 
-  // Split the block into two blocks just after `cursor`. Returns the newly
+  // Split the block into two blocks just before `cursor`. Returns the newly
   // created block. Note that this method just updates raw block information,
   // like predecessors, successors, dominators, and instruction list. It does not
   // update the graph, reverse post order, loop information, nor make sure the
   // blocks are consistent (for example ending with a control flow instruction).
-  HBasicBlock* SplitAfter(HInstruction* cursor);
+  HBasicBlock* SplitBeforeForInlining(HInstruction* cursor);
+
+  // Similar to `SplitBeforeForInlining` but does it after `cursor`.
+  HBasicBlock* SplitAfterForInlining(HInstruction* cursor);
 
   // Split catch block into two blocks after the original move-exception bytecode
   // instruction, or at the beginning if not present. Returns the newly created,
@@ -6098,6 +6103,18 @@ class SwitchTable : public ValueObject {
 
   DISALLOW_COPY_AND_ASSIGN(SwitchTable);
 };
+
+// Create space in `blocks` for adding `number_of_new_blocks` entries
+// starting at location `at`. Blocks after `at` are moved accordingly.
+inline void MakeRoomFor(ArenaVector<HBasicBlock*>* blocks,
+                        size_t number_of_new_blocks,
+                        size_t after) {
+  DCHECK_LT(after, blocks->size());
+  size_t old_size = blocks->size();
+  size_t new_size = old_size + number_of_new_blocks;
+  blocks->resize(new_size);
+  std::copy_backward(blocks->begin() + after + 1u, blocks->begin() + old_size, blocks->end());
+}
 
 }  // namespace art
 
