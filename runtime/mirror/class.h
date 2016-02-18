@@ -1119,6 +1119,9 @@ class MANAGED Class FINAL : public Object {
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx);
   }
 
+  uint32_t FindTypeIndexInOtherDexFile(const DexFile& dex_file)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   static Class* GetJavaLangClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(HasJavaLangClass());
     return java_lang_Class_.Read();

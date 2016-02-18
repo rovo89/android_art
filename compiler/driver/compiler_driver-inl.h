@@ -186,13 +186,7 @@ inline std::pair<bool, bool> CompilerDriver::IsClassOfStaticMemberAvailableToRef
       } else {
         // Search dex file for localized ssb index, may fail if member's class is a parent
         // of the class mentioned in the dex file and there is no dex cache entry.
-        std::string temp;
-        const DexFile::TypeId* type_id =
-           dex_file->FindTypeId(resolved_member->GetDeclaringClass()->GetDescriptor(&temp));
-        if (type_id != nullptr) {
-          // medium path, needs check of static storage base being initialized
-          storage_idx = dex_file->GetIndexForTypeId(*type_id);
-        }
+        storage_idx = resolved_member->GetDeclaringClass()->FindTypeIndexInOtherDexFile(*dex_file);
       }
       if (storage_idx != DexFile::kDexNoIndex) {
         *storage_index = storage_idx;
