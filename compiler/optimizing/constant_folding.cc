@@ -18,8 +18,28 @@
 
 namespace art {
 
-// This visitor tries to simplify operations that yield a constant. For example
-// `input * 0` is replaced by a null constant.
+// This visitor tries to simplify instructions that can be evaluated
+// as constants.
+class HConstantFoldingVisitor : public HGraphDelegateVisitor {
+ public:
+  explicit HConstantFoldingVisitor(HGraph* graph)
+      : HGraphDelegateVisitor(graph) {}
+
+ private:
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
+
+  void VisitUnaryOperation(HUnaryOperation* inst) OVERRIDE;
+  void VisitBinaryOperation(HBinaryOperation* inst) OVERRIDE;
+
+  void VisitTypeConversion(HTypeConversion* inst) OVERRIDE;
+  void VisitDivZeroCheck(HDivZeroCheck* inst) OVERRIDE;
+
+  DISALLOW_COPY_AND_ASSIGN(HConstantFoldingVisitor);
+};
+
+// This visitor tries to simplify operations with an absorbing input,
+// yielding a constant. For example `input * 0` is replaced by a
+// null constant.
 class InstructionWithAbsorbingInputSimplifier : public HGraphVisitor {
  public:
   explicit InstructionWithAbsorbingInputSimplifier(HGraph* graph) : HGraphVisitor(graph) {}
@@ -44,58 +64,68 @@ class InstructionWithAbsorbingInputSimplifier : public HGraphVisitor {
   void VisitXor(HXor* instruction) OVERRIDE;
 };
 
+
 void HConstantFolding::Run() {
-  InstructionWithAbsorbingInputSimplifier simplifier(graph_);
+  HConstantFoldingVisitor visitor(graph_);
   // Process basic blocks in reverse post-order in the dominator tree,
   // so that an instruction turned into a constant, used as input of
   // another instruction, may possibly be used to turn that second
   // instruction into a constant as well.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
-    // Traverse this block's instructions in (forward) order and
-    // replace the ones that can be statically evaluated by a
-    // compile-time counterpart.
-    for (HInstructionIterator inst_it(block->GetInstructions());
-         !inst_it.Done(); inst_it.Advance()) {
-      HInstruction* inst = inst_it.Current();
-      if (inst->IsBinaryOperation()) {
-        // Constant folding: replace `op(a, b)' with a constant at
-        // compile time if `a' and `b' are both constants.
-        HConstant* constant = inst->AsBinaryOperation()->TryStaticEvaluation();
-        if (constant != nullptr) {
-          inst->ReplaceWith(constant);
-          inst->GetBlock()->RemoveInstruction(inst);
-        } else {
-          inst->Accept(&simplifier);
-        }
-      } else if (inst->IsUnaryOperation()) {
-        // Constant folding: replace `op(a)' with a constant at compile
-        // time if `a' is a constant.
-        HConstant* constant = inst->AsUnaryOperation()->TryStaticEvaluation();
-        if (constant != nullptr) {
-          inst->ReplaceWith(constant);
-          inst->GetBlock()->RemoveInstruction(inst);
-        }
-      } else if (inst->IsTypeConversion()) {
-        // Constant folding: replace `TypeConversion(a)' with a constant at
-        // compile time if `a' is a constant.
-        HConstant* constant = inst->AsTypeConversion()->TryStaticEvaluation();
-        if (constant != nullptr) {
-          inst->ReplaceWith(constant);
-          inst->GetBlock()->RemoveInstruction(inst);
-        }
-      } else if (inst->IsDivZeroCheck()) {
-        // We can safely remove the check if the input is a non-null constant.
-        HDivZeroCheck* check = inst->AsDivZeroCheck();
-        HInstruction* check_input = check->InputAt(0);
-        if (check_input->IsConstant() && !check_input->AsConstant()->IsZero()) {
-          check->ReplaceWith(check_input);
-          check->GetBlock()->RemoveInstruction(check);
-        }
-      }
-    }
+  visitor.VisitReversePostOrder();
+}
+
+
+void HConstantFoldingVisitor::VisitBasicBlock(HBasicBlock* block) {
+  // Traverse this block's instructions (phis don't need to be
+  // processed) in (forward) order and replace the ones that can be
+  // statically evaluated by a compile-time counterpart.
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    it.Current()->Accept(this);
   }
 }
+
+void HConstantFoldingVisitor::VisitUnaryOperation(HUnaryOperation* inst) {
+  // Constant folding: replace `op(a)' with a constant at compile
+  // time if `a' is a constant.
+  HConstant* constant = inst->TryStaticEvaluation();
+  if (constant != nullptr) {
+    inst->ReplaceWith(constant);
+    inst->GetBlock()->RemoveInstruction(inst);
+  }
+}
+
+void HConstantFoldingVisitor::VisitBinaryOperation(HBinaryOperation* inst) {
+  // Constant folding: replace `op(a, b)' with a constant at
+  // compile time if `a' and `b' are both constants.
+  HConstant* constant = inst->TryStaticEvaluation();
+  if (constant != nullptr) {
+    inst->ReplaceWith(constant);
+    inst->GetBlock()->RemoveInstruction(inst);
+  } else {
+    InstructionWithAbsorbingInputSimplifier simplifier(GetGraph());
+    inst->Accept(&simplifier);
+  }
+}
+
+void HConstantFoldingVisitor::VisitTypeConversion(HTypeConversion* inst) {
+  // Constant folding: replace `TypeConversion(a)' with a constant at
+  // compile time if `a' is a constant.
+  HConstant* constant = inst->AsTypeConversion()->TryStaticEvaluation();
+  if (constant != nullptr) {
+    inst->ReplaceWith(constant);
+    inst->GetBlock()->RemoveInstruction(inst);
+  }
+}
+
+void HConstantFoldingVisitor::VisitDivZeroCheck(HDivZeroCheck* inst) {
+  // We can safely remove the check if the input is a non-null constant.
+  HInstruction* check_input = inst->InputAt(0);
+  if (check_input->IsConstant() && !check_input->AsConstant()->IsZero()) {
+    inst->ReplaceWith(check_input);
+    inst->GetBlock()->RemoveInstruction(inst);
+  }
+}
+
 
 void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instruction) {
   DCHECK(instruction->IsShl() || instruction->IsShr() || instruction->IsUShr());
