@@ -36,7 +36,6 @@
 #include "image.h"
 #include "oat.h"
 #include "os.h"
-#include "profiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedFd.h"
@@ -45,28 +44,19 @@
 namespace art {
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
+                                   const int target_compilation_type_mask,
                                    const InstructionSet isa,
                                    bool load_executable)
-    : OatFileAssistant(dex_location, nullptr, isa, load_executable, nullptr) { }
+    : OatFileAssistant(dex_location, nullptr, target_compilation_type_mask, isa, load_executable)
+{ }
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const char* oat_location,
+                                   const int target_compilation_type_mask,
                                    const InstructionSet isa,
                                    bool load_executable)
-    : OatFileAssistant(dex_location, oat_location, isa, load_executable, nullptr) { }
-
-OatFileAssistant::OatFileAssistant(const char* dex_location,
-                                   const InstructionSet isa,
-                                   bool load_executable,
-                                   const char* package_name)
-    : OatFileAssistant(dex_location, nullptr, isa, load_executable, package_name) { }
-
-OatFileAssistant::OatFileAssistant(const char* dex_location,
-                                   const char* oat_location,
-                                   const InstructionSet isa,
-                                   bool load_executable,
-                                   const char* package_name)
-    : isa_(isa), package_name_(package_name), load_executable_(load_executable) {
+    : target_compilation_type_mask_(target_compilation_type_mask), isa_(isa),
+      load_executable_(load_executable) {
   CHECK(dex_location != nullptr) << "OatFileAssistant: null dex location";
   dex_location_.assign(dex_location);
 
@@ -82,18 +72,6 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
     cached_oat_file_name_ = std::string(oat_location);
     cached_oat_file_name_attempted_ = true;
     cached_oat_file_name_found_ = true;
-  }
-
-  // If there is no package name given, we will not be able to find any
-  // profiles associated with this dex location. Preemptively mark that to
-  // be the case, rather than trying to find and load the profiles later.
-  // Similarly, if profiling is disabled.
-  if (package_name == nullptr
-      || !Runtime::Current()->GetProfilerOptions().IsEnabled()) {
-    profile_load_attempted_ = true;
-    profile_load_succeeded_ = false;
-    old_profile_load_attempted_ = true;
-    old_profile_load_succeeded_ = false;
   }
 }
 
@@ -138,10 +116,23 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   return true;
 }
 
-OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded() {
-  // TODO: If the profiling code is ever restored, it's worth considering
-  // whether we should check to see if the profile is out of date here.
+// Returns the compilation mode of the given oat file.
+static OatFileAssistant::CompilationType GetCompilationType(const OatFile& oat_file) {
+    if (oat_file.IsExtractOnly()) {
+      return OatFileAssistant::kExtractOnly;
+    }
+    if (oat_file.IsProfileGuideCompiled()) {
+      return OatFileAssistant::kProfileGuideCompilation;
+    }
+    // Assume that if the oat files is not extract-only or profile-guide compiled
+    // then it must be fully compiled.
+    // NB: this does not necessary mean that the oat file is actually fully compiled. It
+    // might have been compiled in a different way (e.g. interpret-only) which does
+    // not record a type in the header.
+    return OatFileAssistant::kFullCompilation;
+}
 
+OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded() {
   if (OatFileIsUpToDate() || OdexFileIsUpToDate()) {
     return kNoDexOptNeeded;
   }
@@ -419,6 +410,11 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
 }
 
 bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
+  // Verify the file satisfies the desired compilation type.
+  if ((target_compilation_type_mask_ & GetCompilationType(file)) == 0) {
+    return true;
+  }
+
   // Verify the dex checksum.
   // Note: GetOatDexFile will return null if the dex checksum doesn't match
   // what we provide, which verifies the primary dex checksum for us.
@@ -541,104 +537,6 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
   return true;
 }
 
-bool OatFileAssistant::ProfileExists() {
-  return GetProfile() != nullptr;
-}
-
-bool OatFileAssistant::OldProfileExists() {
-  return GetOldProfile() != nullptr;
-}
-
-// TODO: The IsProfileChangeSignificant implementation was copied from likely
-// bit-rotted code.
-bool OatFileAssistant::IsProfileChangeSignificant() {
-  ProfileFile* profile = GetProfile();
-  if (profile == nullptr) {
-    return false;
-  }
-
-  ProfileFile* old_profile = GetOldProfile();
-  if (old_profile == nullptr) {
-    return false;
-  }
-
-  // TODO: The following code to compare two profile files should live with
-  // the rest of the profiler code, not the oat file assistant code.
-
-  // A change in profile is considered significant if X% (change_thr property)
-  // of the top K% (compile_thr property) samples has changed.
-  const ProfilerOptions& options = Runtime::Current()->GetProfilerOptions();
-  const double top_k_threshold = options.GetTopKThreshold();
-  const double change_threshold = options.GetTopKChangeThreshold();
-  std::set<std::string> top_k, old_top_k;
-  profile->GetTopKSamples(top_k, top_k_threshold);
-  old_profile->GetTopKSamples(old_top_k, top_k_threshold);
-  std::set<std::string> diff;
-  std::set_difference(top_k.begin(), top_k.end(), old_top_k.begin(),
-      old_top_k.end(), std::inserter(diff, diff.end()));
-
-  // TODO: consider using the usedPercentage instead of the plain diff count.
-  double change_percent = 100.0 * static_cast<double>(diff.size())
-                                / static_cast<double>(top_k.size());
-  std::set<std::string>::iterator end = diff.end();
-  for (std::set<std::string>::iterator it = diff.begin(); it != end; it++) {
-    VLOG(oat) << "Profile new in topK: " << *it;
-  }
-
-  if (change_percent > change_threshold) {
-      VLOG(oat) << "Oat File Assistant: Profile for " << dex_location_
-        << "has changed significantly: (top "
-        << top_k_threshold << "% samples changed in proportion of "
-        << change_percent << "%)";
-      return true;
-  }
-  return false;
-}
-
-// TODO: The CopyProfileFile implementation was copied from likely bit-rotted
-// code.
-void OatFileAssistant::CopyProfileFile() {
-  if (!ProfileExists()) {
-    return;
-  }
-
-  std::string profile_name = ProfileFileName();
-  std::string old_profile_name = OldProfileFileName();
-
-  ScopedFd src(open(old_profile_name.c_str(), O_RDONLY));
-  if (src.get() == -1) {
-    PLOG(WARNING) << "Failed to open profile file " << old_profile_name
-      << ". My uid:gid is " << getuid() << ":" << getgid();
-    return;
-  }
-
-  struct stat stat_src;
-  if (fstat(src.get(), &stat_src) == -1) {
-    PLOG(WARNING) << "Failed to get stats for profile file  " << old_profile_name
-      << ". My uid:gid is " << getuid() << ":" << getgid();
-    return;
-  }
-
-  // Create the copy with rw------- (only accessible by system)
-  ScopedFd dst(open(profile_name.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0600));
-  if (dst.get()  == -1) {
-    PLOG(WARNING) << "Failed to create/write prev profile file " << profile_name
-      << ".  My uid:gid is " << getuid() << ":" << getgid();
-    return;
-  }
-
-#ifdef __linux__
-  if (sendfile(dst.get(), src.get(), nullptr, stat_src.st_size) == -1) {
-#else
-  off_t len;
-  if (sendfile(dst.get(), src.get(), 0, &len, nullptr, 0) == -1) {
-#endif
-    PLOG(WARNING) << "Failed to copy profile file " << old_profile_name
-      << " to " << profile_name << ". My uid:gid is " << getuid()
-      << ":" << getgid();
-  }
-}
-
 bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
                                        std::string* error_msg) {
   CHECK(error_msg != nullptr);
@@ -693,6 +591,15 @@ bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
 
 bool OatFileAssistant::GenerateOatFile(std::string* error_msg) {
   CHECK(error_msg != nullptr);
+
+  // TODO: Currently we only know how to make a fully-compiled oat file.
+  // Perhaps we should support generating other kinds of oat files?
+  if ((target_compilation_type_mask_ & kFullCompilation) == 0) {
+    *error_msg = "Generation of oat file for dex location " + dex_location_
+      + " not attempted because full compilation was not specified"
+      + " as an acceptable target compilation type.";
+    return false;
+  }
 
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsDex2OatEnabled()) {
@@ -861,21 +768,6 @@ std::string OatFileAssistant::DalvikCacheDirectory() {
   return result;
 }
 
-std::string OatFileAssistant::ProfileFileName() {
-  if (package_name_ != nullptr) {
-    return DalvikCacheDirectory() + std::string("profiles/") + package_name_;
-  }
-  return "";
-}
-
-std::string OatFileAssistant::OldProfileFileName() {
-  std::string profile_name = ProfileFileName();
-  if (profile_name.empty()) {
-    return "";
-  }
-  return profile_name + "@old";
-}
-
 std::string OatFileAssistant::ImageLocation() {
   Runtime* runtime = Runtime::Current();
   const std::vector<gc::space::ImageSpace*>& image_spaces =
@@ -1005,34 +897,6 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
     image_info_load_succeeded_ = (!image_spaces.empty());
   }
   return image_info_load_succeeded_ ? &cached_image_info_ : nullptr;
-}
-
-ProfileFile* OatFileAssistant::GetProfile() {
-  if (!profile_load_attempted_) {
-    CHECK(package_name_ != nullptr)
-      << "pakage_name_ is nullptr: "
-      << "profile_load_attempted_ should have been true";
-    profile_load_attempted_ = true;
-    std::string profile_name = ProfileFileName();
-    if (!profile_name.empty()) {
-      profile_load_succeeded_ = cached_profile_.LoadFile(profile_name);
-    }
-  }
-  return profile_load_succeeded_ ? &cached_profile_ : nullptr;
-}
-
-ProfileFile* OatFileAssistant::GetOldProfile() {
-  if (!old_profile_load_attempted_) {
-    CHECK(package_name_ != nullptr)
-      << "pakage_name_ is nullptr: "
-      << "old_profile_load_attempted_ should have been true";
-    old_profile_load_attempted_ = true;
-    std::string old_profile_name = OldProfileFileName();
-    if (!old_profile_name.empty()) {
-      old_profile_load_succeeded_ = cached_old_profile_.LoadFile(old_profile_name);
-    }
-  }
-  return old_profile_load_succeeded_ ? &cached_old_profile_ : nullptr;
 }
 
 gc::space::ImageSpace* OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
