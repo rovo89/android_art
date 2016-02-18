@@ -505,12 +505,12 @@ static void RunOptimizations(HGraph* graph,
       graph, stats, HDeadCodeElimination::kFinalDeadCodeEliminationPassName);
   HConstantFolding* fold1 = new (arena) HConstantFolding(graph);
   InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(graph, stats);
-  HSelectGenerator* select_generator = new (arena) HSelectGenerator(graph);
+  HSelectGenerator* select_generator = new (arena) HSelectGenerator(graph, stats);
   HConstantFolding* fold2 = new (arena) HConstantFolding(graph, "constant_folding_after_inlining");
   HConstantFolding* fold3 = new (arena) HConstantFolding(graph, "constant_folding_after_bce");
   SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
   GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects);
-  LICM* licm = new (arena) LICM(graph, *side_effects);
+  LICM* licm = new (arena) LICM(graph, *side_effects, stats);
   LoadStoreElimination* lse = new (arena) LoadStoreElimination(graph, *side_effects);
   HInductionVarAnalysis* induction = new (arena) HInductionVarAnalysis(graph);
   BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, *side_effects, induction);
@@ -519,7 +519,7 @@ static void RunOptimizations(HGraph* graph,
       graph, stats, "instruction_simplifier_after_bce");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_before_codegen");
-  IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver);
+  IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver, stats);
 
   HOptimization* optimizations1[] = {
     intrinsics,
