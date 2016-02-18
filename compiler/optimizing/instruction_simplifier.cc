@@ -1558,6 +1558,7 @@ void InstructionSimplifierVisitor::SimplifyIsNaN(HInvoke* invoke) {
   // IsNaN(x) is the same as x != x.
   HInstruction* x = invoke->InputAt(0);
   HCondition* condition = new (GetGraph()->GetArena()) HNotEqual(x, x, dex_pc);
+  condition->SetBias(ComparisonBias::kLtBias);
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, condition);
 }
 
