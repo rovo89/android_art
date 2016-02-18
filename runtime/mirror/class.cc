@@ -1048,5 +1048,11 @@ uint32_t Class::Depth() {
   return depth;
 }
 
+uint32_t Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
+  std::string temp;
+  const DexFile::TypeId* type_id = dex_file.FindTypeId(GetDescriptor(&temp));
+  return (type_id == nullptr) ? DexFile::kDexNoIndex : dex_file.GetIndexForTypeId(*type_id);
+}
+
 }  // namespace mirror
 }  // namespace art
