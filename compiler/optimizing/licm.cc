@@ -141,6 +141,7 @@ void LICM::Run() {
             DCHECK(!instruction->HasEnvironment());
           }
           instruction->MoveBefore(pre_header->GetLastInstruction());
+          MaybeRecordStat(MethodCompilationStat::kLoopInvariantMoved);
         } else if (instruction->CanThrow()) {
           // If `instruction` can throw, we cannot move further instructions
           // that can throw as well.
