@@ -190,28 +190,34 @@ static uint32_t FindMethodIndexIn(ArtMethod* method,
   }
 }
 
-static uint32_t FindClassIndexIn(mirror::Class* cls, const DexFile& dex_file)
+static uint32_t FindClassIndexIn(mirror::Class* cls,
+                                 const DexFile& dex_file,
+                                 Handle<mirror::DexCache> dex_cache)
     SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t index = DexFile::kDexNoIndex;
   if (cls->GetDexCache() == nullptr) {
-    DCHECK(cls->IsArrayClass());
-    // TODO: find the class in `dex_file`.
-    return DexFile::kDexNoIndex;
+    DCHECK(cls->IsArrayClass()) << PrettyClass(cls);
+    index = cls->FindTypeIndexInOtherDexFile(dex_file);
   } else if (cls->GetDexTypeIndex() == DexFile::kDexNoIndex16) {
+    DCHECK(cls->IsProxyClass()) << PrettyClass(cls);
     // TODO: deal with proxy classes.
-    return DexFile::kDexNoIndex;
   } else if (IsSameDexFile(cls->GetDexFile(), dex_file)) {
+    index = cls->GetDexTypeIndex();
+  } else {
+    index = cls->FindTypeIndexInOtherDexFile(dex_file);
+  }
+
+  if (index != DexFile::kDexNoIndex) {
     // Update the dex cache to ensure the class is in. The generated code will
     // consider it is. We make it safe by updating the dex cache, as other
     // dex files might also load the class, and there is no guarantee the dex
     // cache of the dex file of the class will be updated.
-    if (cls->GetDexCache()->GetResolvedType(cls->GetDexTypeIndex()) == nullptr) {
-      cls->GetDexCache()->SetResolvedType(cls->GetDexTypeIndex(), cls);
+    if (dex_cache->GetResolvedType(index) == nullptr) {
+      dex_cache->SetResolvedType(index, cls);
     }
-    return cls->GetDexTypeIndex();
-  } else {
-    // TODO: find the class in `dex_file`.
-    return DexFile::kDexNoIndex;
   }
+
+  return index;
 }
 
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
@@ -303,7 +309,7 @@ HInstanceFieldGet* HInliner::BuildGetReceiverClass(ClassLinker* class_linker,
                                                    uint32_t dex_pc) const {
   ArtField* field = class_linker->GetClassRoot(ClassLinker::kJavaLangObject)->GetInstanceField(0);
   DCHECK_EQ(std::string(field->GetName()), "shadow$_klass_");
-  return new (graph_->GetArena()) HInstanceFieldGet(
+  HInstanceFieldGet* result = new (graph_->GetArena()) HInstanceFieldGet(
       receiver,
       Primitive::kPrimNot,
       field->GetOffset(),
@@ -313,6 +319,9 @@ HInstanceFieldGet* HInliner::BuildGetReceiverClass(ClassLinker* class_linker,
       *field->GetDexFile(),
       handles_->NewHandle(field->GetDexCache()),
       dex_pc);
+  // The class of a field is effectively final, and does not have any memory dependencies.
+  result->SetSideEffects(SideEffects::None());
+  return result;
 }
 
 bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
@@ -322,7 +331,8 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
       << invoke_instruction->DebugName();
 
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
-  uint32_t class_index = FindClassIndexIn(ic.GetMonomorphicType(), caller_dex_file);
+  uint32_t class_index = FindClassIndexIn(
+      ic.GetMonomorphicType(), caller_dex_file, caller_compilation_unit_.GetDexCache());
   if (class_index == DexFile::kDexNoIndex) {
     VLOG(compiler) << "Call to " << PrettyMethod(resolved_method)
                    << " from inline cache is not inlined because its class is not"
