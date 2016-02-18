@@ -47,8 +47,8 @@ namespace art {
 
 class HSelectGenerator : public HOptimization {
  public:
-  explicit HSelectGenerator(HGraph* graph)
-    : HOptimization(graph, kSelectGeneratorPassName) {}
+  HSelectGenerator(HGraph* graph, OptimizingCompilerStats* stats)
+    : HOptimization(graph, kSelectGeneratorPassName, stats) {}
 
   void Run() OVERRIDE;
 

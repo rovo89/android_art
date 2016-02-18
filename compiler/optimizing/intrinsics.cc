@@ -570,6 +570,7 @@ void IntrinsicsRecognizer::Run() {
                                    NeedsEnvironmentOrCache(intrinsic),
                                    GetSideEffects(intrinsic),
                                    GetExceptions(intrinsic));
+              MaybeRecordStat(MethodCompilationStat::kIntrinsicRecognized);
             }
           }
         }

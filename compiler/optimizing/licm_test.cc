@@ -79,7 +79,7 @@ class LICMTest : public CommonCompilerTest {
     graph_->BuildDominatorTree();
     SideEffectsAnalysis side_effects(graph_);
     side_effects.Run();
-    LICM(graph_, side_effects).Run();
+    LICM(graph_, side_effects, nullptr).Run();
   }
 
   // General building fields.
