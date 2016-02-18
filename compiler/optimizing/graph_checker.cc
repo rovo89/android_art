@@ -593,8 +593,9 @@ void GraphChecker::HandleLoop(HBasicBlock* loop_header) {
       HBasicBlock* predecessor = loop_header->GetPredecessors()[i];
       if (!loop_information->IsBackEdge(*predecessor)) {
         AddError(StringPrintf(
-            "Loop header %d has multiple incoming (non back edge) blocks.",
-            id));
+            "Loop header %d has multiple incoming (non back edge) blocks: %d.",
+            id,
+            predecessor->GetBlockId()));
       }
     }
   }
