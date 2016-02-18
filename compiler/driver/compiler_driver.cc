@@ -378,7 +378,6 @@ CompilerDriver::CompilerDriver(
       compiled_method_storage_(swap_fd),
       profile_compilation_info_(profile_compilation_info) {
   DCHECK(compiler_options_ != nullptr);
-  DCHECK(verification_results_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
 
   compiler_->Init();

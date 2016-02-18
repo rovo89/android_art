@@ -32,7 +32,6 @@
 namespace art {
 
 class ArtMethod;
-class CompilerCallbacks;
 struct RuntimeArgumentMap;
 
 namespace jit {
@@ -55,9 +54,6 @@ class Jit {
                                   size_t warmup_threshold,
                                   size_t osr_threshold);
   void CreateThreadPool();
-  CompilerCallbacks* GetCompilerCallbacks() {
-    return compiler_callbacks_;
-  }
   const JitCodeCache* GetCodeCache() const {
     return code_cache_.get();
   }
@@ -108,7 +104,7 @@ class Jit {
   // JIT compiler
   void* jit_library_handle_;
   void* jit_compiler_handle_;
-  void* (*jit_load_)(CompilerCallbacks**, bool*);
+  void* (*jit_load_)(bool*);
   void (*jit_unload_)(void*);
   bool (*jit_compile_method_)(void*, ArtMethod*, Thread*, bool);
   void (*jit_types_loaded_)(void*, mirror::Class**, size_t count);
@@ -119,7 +115,6 @@ class Jit {
 
   std::unique_ptr<jit::JitInstrumentationCache> instrumentation_cache_;
   std::unique_ptr<jit::JitCodeCache> code_cache_;
-  CompilerCallbacks* compiler_callbacks_;  // Owned by the jit compiler.
 
   bool save_profiling_info_;
   bool generate_debug_info_;

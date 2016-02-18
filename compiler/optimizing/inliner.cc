@@ -557,8 +557,9 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
 
   if (!method->GetDeclaringClass()->IsVerified()) {
     uint16_t class_def_idx = method->GetDeclaringClass()->GetDexClassDefIndex();
-    if (!compiler_driver_->IsMethodVerifiedWithoutFailures(
-          method->GetDexMethodIndex(), class_def_idx, *method->GetDexFile())) {
+    if (Runtime::Current()->UseJit() ||
+        !compiler_driver_->IsMethodVerifiedWithoutFailures(
+            method->GetDexMethodIndex(), class_def_idx, *method->GetDexFile())) {
       VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                      << " couldn't be verified, so it cannot be inlined";
       return false;
@@ -781,16 +782,16 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
   DexCompilationUnit dex_compilation_unit(
-    nullptr,
-    caller_compilation_unit_.GetClassLoader(),
-    class_linker,
-    callee_dex_file,
-    code_item,
-    resolved_method->GetDeclaringClass()->GetDexClassDefIndex(),
-    method_index,
-    resolved_method->GetAccessFlags(),
-    compiler_driver_->GetVerifiedMethod(&callee_dex_file, method_index),
-    dex_cache);
+      nullptr,
+      caller_compilation_unit_.GetClassLoader(),
+      class_linker,
+      callee_dex_file,
+      code_item,
+      resolved_method->GetDeclaringClass()->GetDexClassDefIndex(),
+      method_index,
+      resolved_method->GetAccessFlags(),
+      /* verified_method */ nullptr,
+      dex_cache);
 
   bool requires_ctor_barrier = false;
 
