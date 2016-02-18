@@ -152,7 +152,6 @@ SwapSpace::SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
   }
   size_ += next_part;
   SpaceChunk new_chunk = {ptr, next_part};
-  maps_.push_back(new_chunk);
   return new_chunk;
 #else
   UNUSED(min_size, kMininumMapSize);
