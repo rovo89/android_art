@@ -75,7 +75,7 @@ class QuickCompiler : public Compiler {
   explicit QuickCompiler(CompilerDriver* driver);
 
  private:
-  bool CanCompileInstruction(const MIR* mir, const DexFile& dex_file) const;
+  bool CanCompileInstruction(const MIR* mir, const DexFile& dex_file, CompilationUnit* cu) const;
 
   std::unique_ptr<PassManager> pre_opt_pass_manager_;
   std::unique_ptr<PassManager> post_opt_pass_manager_;

@@ -733,39 +733,21 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   }
 
   if (string_init && !self->IsExceptionPending()) {
-    // Set the new string result of the StringFactory.
-    shadow_frame.SetVRegReference(string_init_vreg_this, result->GetL());
-    // Overwrite all potential copies of the original result of the new-instance of string with the
-    // new result of the StringFactory. Use the verifier to find this set of registers.
-    ArtMethod* method = shadow_frame.GetMethod();
-    MethodReference method_ref = method->ToMethodReference();
-    SafeMap<uint32_t, std::set<uint32_t>>* string_init_map_ptr = nullptr;
-    MethodRefToStringInitRegMap& method_to_string_init_map = Runtime::Current()->GetStringInitMap();
-    {
-      MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
-      auto it = method_to_string_init_map.find(method_ref);
-      if (it != method_to_string_init_map.end()) {
-        string_init_map_ptr = &it->second;
-      }
-    }
-    if (string_init_map_ptr == nullptr) {
-      SafeMap<uint32_t, std::set<uint32_t>> string_init_map =
-          verifier::MethodVerifier::FindStringInitMap(method);
-      MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
-      auto it = method_to_string_init_map.lower_bound(method_ref);
-      if (it == method_to_string_init_map.end() ||
-          method_to_string_init_map.key_comp()(method_ref, it->first)) {
-        it = method_to_string_init_map.PutBefore(it, method_ref, std::move(string_init_map));
-      }
-      string_init_map_ptr = &it->second;
-    }
-    if (string_init_map_ptr->size() != 0) {
-      uint32_t dex_pc = shadow_frame.GetDexPC();
-      auto map_it = string_init_map_ptr->find(dex_pc);
-      if (map_it != string_init_map_ptr->end()) {
-        const std::set<uint32_t>& reg_set = map_it->second;
-        for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
-          shadow_frame.SetVRegReference(*set_it, result->GetL());
+    mirror::Object* existing = shadow_frame.GetVRegReference(string_init_vreg_this);
+    if (existing == nullptr) {
+      // If it's null, we come from compiled code that was deoptimized. Nothing to do,
+      // as the compiler verified there was no alias.
+      // Set the new string result of the StringFactory.
+      shadow_frame.SetVRegReference(string_init_vreg_this, result->GetL());
+    } else {
+      // Replace the fake string that was allocated with the StringFactory result.
+      for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
+        if (shadow_frame.GetVRegReference(i) == existing) {
+          DCHECK_EQ(shadow_frame.GetVRegReference(i),
+                    reinterpret_cast<mirror::Object*>(shadow_frame.GetVReg(i)));
+          shadow_frame.SetVRegReference(i, result->GetL());
+          DCHECK_EQ(shadow_frame.GetVRegReference(i),
+                    reinterpret_cast<mirror::Object*>(shadow_frame.GetVReg(i)));
         }
       }
     }
