@@ -161,10 +161,7 @@ class RegisterLine {
    * reference type. This is called when an appropriate constructor is invoked -- all copies of
    * the reference must be marked as initialized.
    */
-  void MarkRefsAsInitialized(MethodVerifier* verifier,
-                             const RegType& uninit_type,
-                             uint32_t this_reg,
-                             uint32_t dex_pc)
+  void MarkRefsAsInitialized(MethodVerifier* verifier, const RegType& uninit_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*

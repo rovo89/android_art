@@ -1009,10 +1009,6 @@ void Locks::Init() {
     DCHECK(alloc_tracker_lock_ == nullptr);
     alloc_tracker_lock_ = new Mutex("AllocTracker lock", current_lock_level);
 
-    UPDATE_CURRENT_LOCK_LEVEL(kInterpreterStringInitMapLock);
-    DCHECK(interpreter_string_init_map_lock_ == nullptr);
-    interpreter_string_init_map_lock_ = new Mutex("Interpreter String initializer reference map lock", current_lock_level);
-
     UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
     DCHECK(thread_list_lock_ == nullptr);
     thread_list_lock_ = new Mutex("thread list lock", current_lock_level);
