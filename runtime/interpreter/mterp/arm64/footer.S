@@ -10,7 +10,6 @@
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -99,8 +98,11 @@ MterpException:
     ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]
     add     xPC, x0, #CODEITEM_INSNS_OFFSET
     add     xPC, xPC, x1, lsl #1                    // generate new dex_pc_ptr
-    str     xPC, [xFP, #OFF_FP_DEX_PC_PTR]
+    /* Do we need to switch interpreters? */
+    bl      MterpShouldSwitchInterpreters
+    cbnz    w0, MterpFallback
     /* resume execution at catch block */
+    EXPORT_PC
     FETCH_INST
     GET_INST_OPCODE ip
     GOTO_OPCODE ip
@@ -120,8 +122,22 @@ check1:
     EXPORT_PC
     mov     x0, xSELF
     bl      MterpSuspendCheck           // (self)
+    cbnz    x0, MterpFallback           // Something in the environment changed, switch interpreters
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm x2, xINST, 0, 31
+    bl MterpLogOSR
+#endif
+    mov  x0, #1                         // Signal normal return
+    b    MterpDone
 
 /*
  * Bail out to reference interpreter.

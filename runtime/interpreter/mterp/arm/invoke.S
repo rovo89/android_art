@@ -14,6 +14,9 @@
     cmp     r0, #0
     beq     MterpException
     FETCH_ADVANCE_INST 3
+    bl      MterpShouldSwitchInterpreters
+    cmp     r0, #0
+    bne     MterpFallback
     GET_INST_OPCODE ip
     GOTO_OPCODE ip
 

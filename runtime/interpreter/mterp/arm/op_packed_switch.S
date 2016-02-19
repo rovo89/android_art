@@ -9,7 +9,7 @@
      * for: packed-switch, sparse-switch
      */
     /* op vAA, +BBBB */
-#if MTERP_SUSPEND
+#if MTERP_PROFILE_BRANCHES
     FETCH r0, 1                         @ r0<- bbbb (lo)
     FETCH r1, 2                         @ r1<- BBBB (hi)
     mov     r3, rINST, lsr #8           @ r3<- AA
@@ -17,9 +17,18 @@
     GET_VREG r1, r3                     @ r1<- vAA
     add     r0, rPC, r0, lsl #1         @ r0<- PC + BBBBbbbb*2
     bl      $func                       @ r0<- code-unit branch offset
-    adds    r1, r0, r0                  @ r1<- byte offset; clear V
-    ldrle   rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET] @ refresh handler base
+    mov     rINST, r0
+    EXPORT_PC
+    mov     r0, rSELF
+    add     r1, rFP, #OFF_FP_SHADOWFRAME
+    mov     r2, rINST
+    bl      MterpProfileBranch          @ (self, shadow_frame, offset)
+    cmp     r0, #0
+    bne     MterpOnStackReplacement     @ Note: offset must be in rINST
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    adds    r1, rINST, rINST            @ r1<- byte offset; clear V
     FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    ble     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
 #else
@@ -30,8 +39,9 @@
     GET_VREG r1, r3                     @ r1<- vAA
     add     r0, rPC, r0, lsl #1         @ r0<- PC + BBBBbbbb*2
     bl      $func                       @ r0<- code-unit branch offset
+    mov     rINST, r0
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    adds    r1, r0, r0                  @ r1<- byte offset; clear V
+    adds    r1, rINST, rINST            @ r1<- byte offset; clear V
     FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
     ble     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  @ extract opcode from rINST
