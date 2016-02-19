@@ -410,16 +410,18 @@ class ImageWriter FINAL {
   // Return true if klass is loaded by the boot class loader but not in the boot image.
   bool IsBootClassLoaderNonImageClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Return true if klass depends on a boot class loader non image class live. We want to prune
-  // these classes since we do not want any boot class loader classes in the image. This means that
+  // Return true if klass depends on a boot class loader non image class. We want to prune these
+  // classes since we do not want any boot class loader classes in the image. This means that
   // we also cannot have any classes which refer to these boot class loader non image classes.
-  bool ContainsBootClassLoaderNonImageClass(mirror::Class* klass)
+  // PruneAppImageClass also prunes if klass depends on a non-image class according to the compiler
+  // driver.
+  bool PruneAppImageClass(mirror::Class* klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // early_exit is true if we had a cyclic dependency anywhere down the chain.
-  bool ContainsBootClassLoaderNonImageClassInternal(mirror::Class* klass,
-                                                    bool* early_exit,
-                                                    std::unordered_set<mirror::Class*>* visited)
+  bool PruneAppImageClassInternal(mirror::Class* klass,
+                                  bool* early_exit,
+                                  std::unordered_set<mirror::Class*>* visited)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
