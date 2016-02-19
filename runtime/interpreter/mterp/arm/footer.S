@@ -12,7 +12,6 @@
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -103,8 +102,12 @@ MterpException:
     ldr     rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]
     add     rPC, r0, #CODEITEM_INSNS_OFFSET
     add     rPC, rPC, r1, lsl #1                    @ generate new dex_pc_ptr
-    str     rPC, [rFP, #OFF_FP_DEX_PC_PTR]
+    /* Do we need to switch interpreters? */
+    bl      MterpShouldSwitchInterpreters
+    cmp     r0, #0
+    bne     MterpFallback
     /* resume execution at catch block */
+    EXPORT_PC
     FETCH_INST
     GET_INST_OPCODE ip
     GOTO_OPCODE ip
@@ -116,12 +119,31 @@ MterpException:
  */
 MterpCheckSuspendAndContinue:
     ldr     rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]  @ refresh rIBASE
-    EXPORT_PC
-    mov     r0, rSELF
     ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    blne    MterpSuspendCheck           @ (self)
+    bne     1f
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
+1:
+    EXPORT_PC
+    mov     r0, rSELF
+    bl      MterpSuspendCheck           @ (self)
+    cmp     r0, #0
+    bne     MterpFallback
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    mov r0, rSELF
+    add r1, rFP, #OFF_FP_SHADOWFRAME
+    mov r2, rINST
+    bl MterpLogOSR
+#endif
+    mov r0, #1                          @ Signal normal return
+    b MterpDone
 
 /*
  * Bail out to reference interpreter.
