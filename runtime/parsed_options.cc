@@ -394,6 +394,7 @@ bool ParsedOptions::ProcessSpecialOptions(const RuntimeOptions& options,
 // Intended for local changes only.
 static void MaybeOverrideVerbosity() {
   //  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
+  //  gLogVerbosity.collector = true;  // TODO: don't check this in!
   //  gLogVerbosity.compiler = true;  // TODO: don't check this in!
   //  gLogVerbosity.deopt = true;  // TODO: don't check this in!
   //  gLogVerbosity.gc = true;  // TODO: don't check this in!

@@ -584,6 +584,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
     for (size_t j = 0; j < verbose_options.size(); ++j) {
       if (verbose_options[j] == "class") {
         log_verbosity.class_linker = true;
+      } else if (verbose_options[j] == "collector") {
+        log_verbosity.collector = true;
       } else if (verbose_options[j] == "compiler") {
         log_verbosity.compiler = true;
       } else if (verbose_options[j] == "deopt") {

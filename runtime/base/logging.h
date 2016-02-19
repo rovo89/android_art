@@ -37,6 +37,7 @@ enum LogSeverity {
 // and the "-verbose:" command line argument.
 struct LogVerbosity {
   bool class_linker;  // Enabled with "-verbose:class".
+  bool collector;
   bool compiler;
   bool deopt;
   bool gc;
