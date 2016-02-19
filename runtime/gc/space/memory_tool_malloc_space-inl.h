@@ -240,9 +240,9 @@ MemoryToolMallocSpace<S,
                     kAdjustForRedzoneInAllocSize,
                     kUseObjSizeForUsable>::MemoryToolMallocSpace(
     MemMap* mem_map, size_t initial_size, Params... params) : S(mem_map, initial_size, params...) {
-  MEMORY_TOOL_MAKE_DEFINED(mem_map->Begin(), initial_size);
-  MEMORY_TOOL_MAKE_UNDEFINED(mem_map->Begin() + initial_size,
-                     mem_map->Size() - initial_size);
+  // Don't want to change the valgrind states of the mem map here as the allocator is already
+  // initialized at this point and that may interfere with what the allocator does internally. Note
+  // that the tail beyond the initial size is mprotected.
 }
 
 template <typename S,

@@ -192,6 +192,7 @@ class RosAlloc {
         Verify();
       }
       DCHECK(slot != nullptr);
+      DCHECK(slot->Next() == nullptr);
       Slot** headp = reinterpret_cast<Slot**>(&head_);
       Slot** tailp = kUseTail ? reinterpret_cast<Slot**>(&tail_) : nullptr;
       Slot* old_head = *headp;
