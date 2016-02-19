@@ -66,6 +66,10 @@ class ImmuneRegion {
     return end_;
   }
 
+  size_t Size() const {
+    return size_;
+  }
+
  private:
   void UpdateSize() {
     size_ = reinterpret_cast<uintptr_t>(end_) - reinterpret_cast<uintptr_t>(begin_);
