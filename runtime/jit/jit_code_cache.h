@@ -276,6 +276,17 @@ class JitCodeCache {
   // Whether we can do garbage collection.
   const bool garbage_collect_code_;
 
+  // The size in bytes of used memory for the data portion of the code cache.
+  size_t used_memory_for_data_ GUARDED_BY(lock_);
+
+  // The size in bytes of used memory for the code portion of the code cache.
+  size_t used_memory_for_code_ GUARDED_BY(lock_);
+
+  void FreeCode(uint8_t* code) REQUIRES(lock_);
+  uint8_t* AllocateCode(size_t code_size) REQUIRES(lock_);
+  void FreeData(uint8_t* data) REQUIRES(lock_);
+  uint8_t* AllocateData(size_t data_size) REQUIRES(lock_);
+
   // Number of compilations done throughout the lifetime of the JIT.
   size_t number_of_compilations_ GUARDED_BY(lock_);
 
