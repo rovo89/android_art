@@ -291,6 +291,13 @@ TEST_F(CmdlineParserTest, TestLogVerbosity) {
   }
 
   {
+    const char* log_args = "-verbose:collector";
+    LogVerbosity log_verbosity = LogVerbosity();
+    log_verbosity.collector = true;
+    EXPECT_SINGLE_PARSE_VALUE(log_verbosity, log_args, M::Verbose);
+  }
+
+  {
     const char* log_args = "-verbose:oat";
     LogVerbosity log_verbosity = LogVerbosity();
     log_verbosity.oat = true;
