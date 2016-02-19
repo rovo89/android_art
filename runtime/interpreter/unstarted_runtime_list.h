@@ -24,6 +24,7 @@
   V(ClassClassForName, "java.lang.Class java.lang.Class.classForName(java.lang.String, boolean, java.lang.ClassLoader)") \
   V(ClassNewInstance, "java.lang.Object java.lang.Class.newInstance()") \
   V(ClassGetDeclaredField, "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") \
+  V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
   V(SystemArraycopy, "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") \
