@@ -77,8 +77,8 @@ void ImmuneSpaces::CreateLargestImmuneRegion() {
   }
   largest_immune_region_.SetBegin(reinterpret_cast<mirror::Object*>(best_begin));
   largest_immune_region_.SetEnd(reinterpret_cast<mirror::Object*>(best_end));
-  VLOG(gc) << "Immune region " << largest_immune_region_.Begin() << "-"
-           << largest_immune_region_.End();
+  VLOG(collector) << "Immune region " << largest_immune_region_.Begin() << "-"
+                  << largest_immune_region_.End();
 }
 
 void ImmuneSpaces::AddSpace(space::ContinuousSpace* space) {
