@@ -47,6 +47,10 @@ namespace debug {
 struct MethodDebugInfo;
 }  // namespace debug
 
+namespace linker {
+class MultiOatRelativePatcher;
+}  // namespace linker
+
 // OatHeader         variable length with count of D OatDexFiles
 //
 // OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
@@ -153,7 +157,8 @@ class OatWriter {
   // Prepare layout of remaining data.
   void PrepareLayout(const CompilerDriver* compiler,
                      ImageWriter* image_writer,
-                     const std::vector<const DexFile*>& dex_files);
+                     const std::vector<const DexFile*>& dex_files,
+                     linker::MultiOatRelativePatcher* relative_patcher);
   // Write the rest of .rodata section (ClassOffsets[], OatClass[], maps).
   bool WriteRodata(OutputStream* out);
   // Write the code to the .text section.
@@ -185,6 +190,10 @@ class OatWriter {
 
   size_t GetBssSize() const {
     return bss_size_;
+  }
+
+  size_t GetOatDataOffset() const {
+    return oat_data_offset_;
   }
 
   ArrayRef<const uintptr_t> GetAbsolutePatchLocations() const {
@@ -249,7 +258,7 @@ class OatWriter {
   size_t WriteCode(OutputStream* out, const size_t file_offset, size_t relative_offset);
   size_t WriteCodeDexFiles(OutputStream* out, const size_t file_offset, size_t relative_offset);
 
-  bool GetOatDataOffset(OutputStream* out);
+  bool RecordOatDataOffset(OutputStream* out);
   bool ReadDexFileHeader(File* file, OatDexFile* oat_dex_file);
   bool ValidateDexFileHeader(const uint8_t* raw_header, const char* location);
   bool WriteDexFiles(OutputStream* rodata, File* file);
@@ -268,6 +277,7 @@ class OatWriter {
                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
   bool WriteData(OutputStream* out, const void* data, size_t size);
+  void SetMultiOatRelativePatcherAdjustment();
 
   enum class WriteState {
     kAddingDexFileSources,
@@ -358,19 +368,11 @@ class OatWriter {
   uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
 
-  std::unique_ptr<linker::RelativePatcher> relative_patcher_;
+  // The helper for processing relative patches is external so that we can patch across oat files.
+  linker::MultiOatRelativePatcher* relative_patcher_;
 
   // The locations of absolute patches relative to the start of the executable section.
   dchecked_vector<uintptr_t> absolute_patch_locations_;
-
-  // Map method reference to assigned offset.
-  // Wrap the map in a class implementing linker::RelativePatcherTargetProvider.
-  class MethodOffsetMap FINAL : public linker::RelativePatcherTargetProvider {
-   public:
-    std::pair<bool, uint32_t> FindMethodOffset(MethodReference ref) OVERRIDE;
-    SafeMap<MethodReference, uint32_t, MethodReferenceComparator> map;
-  };
-  MethodOffsetMap method_offset_map_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };
