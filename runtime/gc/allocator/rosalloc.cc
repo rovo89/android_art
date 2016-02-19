@@ -58,10 +58,16 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
       page_release_mode_(page_release_mode),
       page_release_size_threshold_(page_release_size_threshold),
       is_running_on_memory_tool_(running_on_memory_tool) {
+  DCHECK_ALIGNED(base, kPageSize);
   DCHECK_EQ(RoundUp(capacity, kPageSize), capacity);
   DCHECK_EQ(RoundUp(max_capacity, kPageSize), max_capacity);
   CHECK_LE(capacity, max_capacity);
   CHECK_ALIGNED(page_release_size_threshold_, kPageSize);
+  // Zero the memory explicitly (don't rely on that the mem map is zero-initialized).
+  if (!kMadviseZeroes) {
+    memset(base_, 0, max_capacity);
+  }
+  CHECK_EQ(madvise(base_, max_capacity, MADV_DONTNEED), 0);
   if (!initialized_) {
     Initialize();
   }
