@@ -143,6 +143,8 @@ class PACKED(4) ImageHeader {
     oat_checksum_ = oat_checksum;
   }
 
+  // The location that the oat file was expected to be when the image was created. The actual
+  // oat file may be at a different location for application images.
   uint8_t* GetOatFileBegin() const {
     return reinterpret_cast<uint8_t*>(oat_file_begin_);
   }
