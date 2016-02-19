@@ -677,9 +677,9 @@ function arch_supports_read_barrier() {
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
-  # Jack does not necessarily generate the same DEX output than dx. Because these tests depend
-  # on a particular DEX output, keep building them with dx for now (b/19467889).
-  USE_JACK="false"
+  # Disable optimizations where Jack may simplify statements with constants
+  # (like 'null instanceof SomeType').
+  JACK="$JACK -D jack.optimization.expression-simplifier=false"
 
   if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" ]; then
     # Optimizing has read barrier support for certain architectures
