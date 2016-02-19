@@ -1820,12 +1820,16 @@ uintptr_t ImageWriter::NativeOffsetInImage(void* obj) {
 }
 
 template <typename T>
-T* ImageWriter::NativeLocationInImage(T* obj, const char* oat_filename) {
+T* ImageWriter::NativeLocationInImage(T* obj) {
   if (obj == nullptr || IsInBootImage(obj)) {
     return obj;
   } else {
-    ImageInfo& image_info = GetImageInfo(oat_filename);
-    return reinterpret_cast<T*>(image_info.image_begin_ + NativeOffsetInImage(obj));
+    auto it = native_object_relocations_.find(obj);
+    CHECK(it != native_object_relocations_.end()) << obj << " spaces "
+        << Runtime::Current()->GetHeap()->DumpSpaces();
+    const NativeObjectRelocation& relocation = it->second;
+    ImageInfo& image_info = GetImageInfo(relocation.oat_filename);
+    return reinterpret_cast<T*>(image_info.image_begin_ + relocation.offset);
   }
 }
 
@@ -1842,33 +1846,19 @@ T* ImageWriter::NativeCopyLocation(T* obj, mirror::DexCache* dex_cache) {
 
 class NativeLocationVisitor {
  public:
-  explicit NativeLocationVisitor(ImageWriter* image_writer, const char* oat_filename)
-      : image_writer_(image_writer), oat_filename_(oat_filename) {}
+  explicit NativeLocationVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
   template <typename T>
   T* operator()(T* ptr) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return image_writer_->NativeLocationInImage(ptr, oat_filename_);
-  }
-
-  ArtMethod* operator()(ArtMethod* method) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    const char* oat_filename = method->IsRuntimeMethod() ? image_writer_->GetDefaultOatFilename() :
-        image_writer_->GetOatFilenameForDexCache(method->GetDexCache());
-    return image_writer_->NativeLocationInImage(method, oat_filename);
-  }
-
-  ArtField* operator()(ArtField* field) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    const char* oat_filename = image_writer_->GetOatFilenameForDexCache(field->GetDexCache());
-    return image_writer_->NativeLocationInImage(field, oat_filename);
+    return image_writer_->NativeLocationInImage(ptr);
   }
 
  private:
   ImageWriter* const image_writer_;
-  const char* oat_filename_;
 };
 
 void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
-  const char* oat_filename = GetOatFilename(orig);
-  orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this, oat_filename));
+  orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this));
   FixupClassVisitor visitor(this, copy);
   static_cast<mirror::Object*>(orig)->VisitReferences(visitor, visitor);
 
@@ -1952,11 +1942,10 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   // 64-bit values here, clearing the top 32 bits for 32-bit targets. The zero-extension is
   // done by casting to the unsigned type uintptr_t before casting to int64_t, i.e.
   //     static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + offset))).
-  const char* oat_filename = GetOatFilenameForDexCache(orig_dex_cache);
   GcRoot<mirror::String>* orig_strings = orig_dex_cache->GetStrings();
   if (orig_strings != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::StringsOffset(),
-                                               NativeLocationInImage(orig_strings, oat_filename),
+                                               NativeLocationInImage(orig_strings),
                                                /*pointer size*/8u);
     orig_dex_cache->FixupStrings(NativeCopyLocation(orig_strings, orig_dex_cache),
                                  ImageAddressVisitor(this));
@@ -1964,7 +1953,7 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   GcRoot<mirror::Class>* orig_types = orig_dex_cache->GetResolvedTypes();
   if (orig_types != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedTypesOffset(),
-                                               NativeLocationInImage(orig_types, oat_filename),
+                                               NativeLocationInImage(orig_types),
                                                /*pointer size*/8u);
     orig_dex_cache->FixupResolvedTypes(NativeCopyLocation(orig_types, orig_dex_cache),
                                        ImageAddressVisitor(this));
@@ -1972,32 +1961,25 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   ArtMethod** orig_methods = orig_dex_cache->GetResolvedMethods();
   if (orig_methods != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedMethodsOffset(),
-                                               NativeLocationInImage(orig_methods, oat_filename),
+                                               NativeLocationInImage(orig_methods),
                                                /*pointer size*/8u);
     ArtMethod** copy_methods = NativeCopyLocation(orig_methods, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedMethods(); i != num; ++i) {
       ArtMethod* orig = mirror::DexCache::GetElementPtrSize(orig_methods, i, target_ptr_size_);
-      const char* method_oat_filename;
-      if (orig == nullptr || orig->IsRuntimeMethod()) {
-        method_oat_filename = default_oat_filename_;
-      } else {
-        method_oat_filename = GetOatFilenameForDexCache(orig->GetDexCache());
-      }
-      ArtMethod* copy = NativeLocationInImage(orig, method_oat_filename);
+      // NativeLocationInImage also handles runtime methods since these have relocation info.
+      ArtMethod* copy = NativeLocationInImage(orig);
       mirror::DexCache::SetElementPtrSize(copy_methods, i, copy, target_ptr_size_);
     }
   }
   ArtField** orig_fields = orig_dex_cache->GetResolvedFields();
   if (orig_fields != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedFieldsOffset(),
-                                               NativeLocationInImage(orig_fields, oat_filename),
+                                               NativeLocationInImage(orig_fields),
                                                /*pointer size*/8u);
     ArtField** copy_fields = NativeCopyLocation(orig_fields, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedFields(); i != num; ++i) {
       ArtField* orig = mirror::DexCache::GetElementPtrSize(orig_fields, i, target_ptr_size_);
-      const char* field_oat_filename =
-          orig == nullptr ? default_oat_filename_ : GetOatFilenameForDexCache(orig->GetDexCache());
-      ArtField* copy = NativeLocationInImage(orig, field_oat_filename);
+      ArtField* copy = NativeLocationInImage(orig);
       mirror::DexCache::SetElementPtrSize(copy_fields, i, copy, target_ptr_size_);
     }
   }
@@ -2089,20 +2071,10 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
 
   copy->SetDeclaringClass(GetImageAddress(orig->GetDeclaringClassUnchecked()));
 
-  const char* oat_filename;
-  if (orig->IsRuntimeMethod() || compile_app_image_) {
-    oat_filename = default_oat_filename_;
-  } else {
-    auto it = dex_file_oat_filename_map_.find(orig->GetDexFile());
-    DCHECK(it != dex_file_oat_filename_map_.end()) << orig->GetDexFile()->GetLocation();
-    oat_filename = it->second;
-  }
   ArtMethod** orig_resolved_methods = orig->GetDexCacheResolvedMethods(target_ptr_size_);
-  copy->SetDexCacheResolvedMethods(NativeLocationInImage(orig_resolved_methods, oat_filename),
-                                   target_ptr_size_);
+  copy->SetDexCacheResolvedMethods(NativeLocationInImage(orig_resolved_methods), target_ptr_size_);
   GcRoot<mirror::Class>* orig_resolved_types = orig->GetDexCacheResolvedTypes(target_ptr_size_);
-  copy->SetDexCacheResolvedTypes(NativeLocationInImage(orig_resolved_types, oat_filename),
-                                 target_ptr_size_);
+  copy->SetDexCacheResolvedTypes(NativeLocationInImage(orig_resolved_types), target_ptr_size_);
 
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
   // oat_begin_
