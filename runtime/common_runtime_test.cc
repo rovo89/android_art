@@ -406,6 +406,7 @@ void CommonRuntimeTestImpl::TearDown() {
   int rmdir_cache_result = rmdir(dalvik_cache_.c_str());
   ASSERT_EQ(0, rmdir_cache_result);
   TearDownAndroidData(android_data_, true);
+  dalvik_cache_.clear();
 
   // icu4c has a fixed 10-element array "gCommonICUDataArray".
   // If we run > 10 tests, we fill that array and u_setCommonData fails.
