@@ -138,6 +138,7 @@ class CompilerDriver {
       REQUIRES(!compiled_methods_lock_, !compiled_classes_lock_);
 
   VerificationResults* GetVerificationResults() const {
+    DCHECK(Runtime::Current()->IsAotCompiler());
     return verification_results_;
   }
 

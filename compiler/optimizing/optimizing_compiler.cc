@@ -651,7 +651,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
-    compiler_driver->GetVerifiedMethod(&dex_file, method_idx), dex_cache);
+    nullptr, dex_cache);
 
   bool requires_barrier = dex_compilation_unit.IsConstructor()
       && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
