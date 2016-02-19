@@ -1622,7 +1622,9 @@ class ConcurrentCopyingRefFieldsVisitor {
 inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
   DCHECK(!region_space_->IsInFromSpace(to_ref));
   ConcurrentCopyingRefFieldsVisitor visitor(this);
-  to_ref->VisitReferences(visitor, visitor);
+  // Disable the read barrier for a performance reason.
+  to_ref->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
+      visitor, visitor);
 }
 
 // Process a field.

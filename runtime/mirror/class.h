@@ -1006,6 +1006,8 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the offset of the first reference instance field. Other reference instance fields follow.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   MemberOffset GetFirstReferenceInstanceFieldOffset()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
