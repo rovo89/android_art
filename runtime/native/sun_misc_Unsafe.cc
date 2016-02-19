@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <atomic>
 
 namespace art {
 
@@ -473,6 +474,18 @@ static void Unsafe_putDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset
   obj->SetField64<false>(MemberOffset(offset), conv.converted);
 }
 
+static void Unsafe_loadFence(JNIEnv*, jobject) {
+  std::atomic_thread_fence(std::memory_order_acquire);
+}
+
+static void Unsafe_storeFence(JNIEnv*, jobject) {
+  std::atomic_thread_fence(std::memory_order_release);
+}
+
+static void Unsafe_fullFence(JNIEnv*, jobject) {
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, compareAndSwapInt, "!(Ljava/lang/Object;JII)Z"),
   NATIVE_METHOD(Unsafe, compareAndSwapLong, "!(Ljava/lang/Object;JJJ)Z"),
@@ -532,6 +545,11 @@ static JNINativeMethod gMethods[] = {
   OVERLOADED_NATIVE_METHOD(Unsafe, putLong, "!(JJ)V", putLongJJ),
   OVERLOADED_NATIVE_METHOD(Unsafe, putFloat, "!(JF)V", putFloatJF),
   OVERLOADED_NATIVE_METHOD(Unsafe, putDouble, "!(JD)V", putDoubleJD),
+
+  // CAS
+  NATIVE_METHOD(Unsafe, loadFence, "!()V"),
+  NATIVE_METHOD(Unsafe, storeFence, "!()V"),
+  NATIVE_METHOD(Unsafe, fullFence, "!()V"),
 };
 
 void register_sun_misc_Unsafe(JNIEnv* env) {
