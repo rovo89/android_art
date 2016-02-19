@@ -290,11 +290,16 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         stacked_shadow_frame_pushed_(false),
         single_frame_deopt_(single_frame),
         single_frame_done_(false),
-        single_frame_deopt_method_(nullptr) {
+        single_frame_deopt_method_(nullptr),
+        single_frame_deopt_quick_method_header_(nullptr) {
   }
 
   ArtMethod* GetSingleFrameDeoptMethod() const {
     return single_frame_deopt_method_;
+  }
+
+  const OatQuickMethodHeader* GetSingleFrameDeoptQuickMethodHeader() const {
+    return single_frame_deopt_quick_method_header_;
   }
 
   bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -368,6 +373,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         exception_handler_->SetHandlerQuickArg0(reinterpret_cast<uintptr_t>(method));
         single_frame_done_ = true;
         single_frame_deopt_method_ = method;
+        single_frame_deopt_quick_method_header_ = GetCurrentOatQuickMethodHeader();
       }
       return true;
     }
@@ -603,6 +609,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   const bool single_frame_deopt_;
   bool single_frame_done_;
   ArtMethod* single_frame_deopt_method_;
+  const OatQuickMethodHeader* single_frame_deopt_quick_method_header_;
 
   DISALLOW_COPY_AND_ASSIGN(DeoptimizeStackVisitor);
 };
@@ -636,7 +643,7 @@ void QuickExceptionHandler::DeoptimizeSingleFrame() {
   DCHECK(deopt_method != nullptr);
   if (Runtime::Current()->UseJit()) {
     Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
-        deopt_method, handler_method_header_);
+        deopt_method, visitor.GetSingleFrameDeoptQuickMethodHeader());
   } else {
     // Transfer the code to interpreter.
     Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
