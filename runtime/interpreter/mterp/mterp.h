@@ -30,6 +30,7 @@ namespace interpreter {
 
 void InitMterpTls(Thread* self);
 void CheckMterpAsmConstants();
+extern "C" bool MterpShouldSwitchInterpreters();
 
 }  // namespace interpreter
 }  // namespace art
