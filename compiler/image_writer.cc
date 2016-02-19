@@ -124,7 +124,10 @@ bool ImageWriter::PrepareImageAddressSpace() {
   {
     ScopedObjectAccess soa(Thread::Current());
     PruneNonImageClasses();  // Remove junk
-    ComputeLazyFieldsForImageClasses();  // Add useful information
+    if (!compile_app_image_) {
+      // Avoid for app image since this may increase RAM and image size.
+      ComputeLazyFieldsForImageClasses();  // Add useful information
+    }
   }
   heap->CollectGarbage(false);  // Remove garbage.
 
@@ -735,20 +738,20 @@ bool ImageWriter::IsBootClassLoaderNonImageClass(mirror::Class* klass) {
   return IsBootClassLoaderClass(klass) && !IsInBootImage(klass);
 }
 
-bool ImageWriter::ContainsBootClassLoaderNonImageClass(mirror::Class* klass) {
+bool ImageWriter::PruneAppImageClass(mirror::Class* klass) {
   bool early_exit = false;
   std::unordered_set<mirror::Class*> visited;
-  return ContainsBootClassLoaderNonImageClassInternal(klass, &early_exit, &visited);
+  return PruneAppImageClassInternal(klass, &early_exit, &visited);
 }
 
-bool ImageWriter::ContainsBootClassLoaderNonImageClassInternal(
+bool ImageWriter::PruneAppImageClassInternal(
     mirror::Class* klass,
     bool* early_exit,
     std::unordered_set<mirror::Class*>* visited) {
   DCHECK(early_exit != nullptr);
   DCHECK(visited != nullptr);
   DCHECK(compile_app_image_);
-  if (klass == nullptr) {
+  if (klass == nullptr || IsInBootImage(klass)) {
     return false;
   }
   auto found = prune_class_memo_.find(klass);
@@ -762,7 +765,11 @@ bool ImageWriter::ContainsBootClassLoaderNonImageClassInternal(
     return false;
   }
   visited->emplace(klass);
-  bool result = IsBootClassLoaderNonImageClass(klass);
+  bool result = IsBootClassLoaderClass(klass);
+  std::string temp;
+  // Prune if not an image class, this handles any broken sets of image classes such as having a
+  // class in the set but not it's superclass.
+  result = result || !compiler_driver_.IsImageClass(klass->GetDescriptor(&temp));
   bool my_early_exit = false;  // Only for ourselves, ignore caller.
   // Remove classes that failed to verify since we don't want to have java.lang.VerifyError in the
   // app image.
@@ -775,17 +782,15 @@ bool ImageWriter::ContainsBootClassLoaderNonImageClassInternal(
     // Check interfaces since these wont be visited through VisitReferences.)
     mirror::IfTable* if_table = klass->GetIfTable();
     for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
-      result = result || ContainsBootClassLoaderNonImageClassInternal(
-          if_table->GetInterface(i),
-          &my_early_exit,
-          visited);
+      result = result || PruneAppImageClassInternal(if_table->GetInterface(i),
+                                                    &my_early_exit,
+                                                    visited);
     }
   }
   if (klass->IsObjectArrayClass()) {
-    result = result || ContainsBootClassLoaderNonImageClassInternal(
-        klass->GetComponentType(),
-        &my_early_exit,
-        visited);
+    result = result || PruneAppImageClassInternal(klass->GetComponentType(),
+                                                  &my_early_exit,
+                                                  visited);
   }
   // Check static fields and their classes.
   size_t num_static_fields = klass->NumReferenceStaticFields();
@@ -798,27 +803,22 @@ bool ImageWriter::ContainsBootClassLoaderNonImageClassInternal(
       mirror::Object* ref = klass->GetFieldObject<mirror::Object>(field_offset);
       if (ref != nullptr) {
         if (ref->IsClass()) {
-          result = result ||
-                   ContainsBootClassLoaderNonImageClassInternal(
-                       ref->AsClass(),
-                       &my_early_exit,
-                       visited);
+          result = result || PruneAppImageClassInternal(ref->AsClass(),
+                                                        &my_early_exit,
+                                                        visited);
+        } else {
+          result = result || PruneAppImageClassInternal(ref->GetClass(),
+                                                        &my_early_exit,
+                                                        visited);
         }
-        result = result ||
-                 ContainsBootClassLoaderNonImageClassInternal(
-                     ref->GetClass(),
-                     &my_early_exit,
-                     visited);
       }
       field_offset = MemberOffset(field_offset.Uint32Value() +
                                   sizeof(mirror::HeapReference<mirror::Object>));
     }
   }
-  result = result ||
-           ContainsBootClassLoaderNonImageClassInternal(
-               klass->GetSuperClass(),
-               &my_early_exit,
-               visited);
+  result = result || PruneAppImageClassInternal(klass->GetSuperClass(),
+                                                &my_early_exit,
+                                                visited);
   // Erase the element we stored earlier since we are exiting the function.
   auto it = visited->find(klass);
   DCHECK(it != visited->end());
@@ -837,15 +837,21 @@ bool ImageWriter::KeepClass(Class* klass) {
   if (klass == nullptr) {
     return false;
   }
+  if (compile_app_image_ && Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
+    // Already in boot image, return true.
+    return true;
+  }
+  std::string temp;
+  if (!compiler_driver_.IsImageClass(klass->GetDescriptor(&temp))) {
+    return false;
+  }
   if (compile_app_image_) {
     // For app images, we need to prune boot loader classes that are not in the boot image since
     // these may have already been loaded when the app image is loaded.
     // Keep classes in the boot image space since we don't want to re-resolve these.
-    return Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass) ||
-        !ContainsBootClassLoaderNonImageClass(klass);
+    return !PruneAppImageClass(klass);
   }
-  std::string temp;
-  return compiler_driver_.IsImageClass(klass->GetDescriptor(&temp));
+  return true;
 }
 
 class NonImageClassesVisitor : public ClassVisitor {
@@ -873,6 +879,7 @@ void ImageWriter::PruneNonImageClasses() {
   class_linker->VisitClasses(&visitor);
 
   // Remove the undesired classes from the class roots.
+  VLOG(compiler) << "Pruning " << visitor.classes_to_prune_.size() << " classes";
   for (mirror::Class* klass : visitor.classes_to_prune_) {
     std::string temp;
     const char* name = klass->GetDescriptor(&temp);
@@ -891,10 +898,10 @@ void ImageWriter::PruneNonImageClasses() {
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);  // For ClassInClassTable
   ReaderMutexLock mu2(self, *class_linker->DexLock());
   for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
-    if (dex_cache == nullptr) {
+    if (self->IsJWeakCleared(data.weak_root)) {
       continue;
     }
+    mirror::DexCache* dex_cache = self->DecodeJObject(data.weak_root)->AsDexCache();
     for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
       Class* klass = dex_cache->GetResolvedType(i);
       if (klass != nullptr && !KeepClass(klass)) {
@@ -2296,6 +2303,8 @@ ImageWriter::ImageWriter(
     image_info_map_.emplace(oat_filename, ImageInfo());
   }
   std::fill_n(image_methods_, arraysize(image_methods_), nullptr);
+  CHECK_EQ(compile_app_image, !Runtime::Current()->GetHeap()->GetBootImageSpaces().empty())
+      << "Compiling a boot image should occur iff there are no boot image spaces loaded";
 }
 
 ImageWriter::ImageInfo::ImageInfo()
