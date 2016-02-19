@@ -118,8 +118,7 @@ endif
 ART_TARGET_CLANG_arm := false
 ART_TARGET_CLANG_arm64 :=
 ART_TARGET_CLANG_mips :=
-# b/25928358, illegal instruction on mips64r6 with -O0
-ART_TARGET_CLANG_mips64 := false
+ART_TARGET_CLANG_mips64 :=
 ART_TARGET_CLANG_x86 :=
 ART_TARGET_CLANG_x86_64 :=
 
