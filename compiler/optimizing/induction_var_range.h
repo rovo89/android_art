@@ -69,7 +69,8 @@ class InductionVarRange {
                          /*out*/ bool* needs_finite_test);
 
   /** Refines the values with induction of next outer loop. Returns true on change. */
-  bool RefineOuter(/*in-out*/Value* min_val, /*in-out*/Value* max_val) const;
+  bool RefineOuter(/*in-out*/ Value* min_val,
+                   /*in-out*/ Value* max_val) const;
 
   /**
    * Returns true if range analysis is able to generate code for the lower and upper
@@ -116,6 +117,23 @@ class InductionVarRange {
                          /*out*/ HInstruction** taken_test);
 
  private:
+  /*
+   * Enum used in IsConstant() request.
+   */
+  enum ConstantRequest {
+    kExact,
+    kAtMost,
+    kAtLeast
+  };
+
+  /**
+   * Returns true if exact or upper/lower bound on the given induction
+   * information is known as a 64-bit constant, which is returned in value.
+   */
+  bool IsConstant(HInductionVarAnalysis::InductionInfo* info,
+                  ConstantRequest request,
+                  /*out*/ int64_t *value) const;
+
   bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) const;
   bool IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
   bool IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
@@ -143,9 +161,8 @@ class InductionVarRange {
                bool in_body,
                bool is_min) const;
 
-  bool IsConstantRange(HInductionVarAnalysis::InductionInfo* info,
-                       int32_t *min_value,
-                       int32_t *max_value) const;
+  Value MulRangeAndConstant(Value v1, Value v2, Value c, bool is_min) const;
+  Value DivRangeAndConstant(Value v1, Value v2, Value c, bool is_min) const;
 
   Value AddValue(Value v1, Value v2) const;
   Value SubValue(Value v1, Value v2) const;

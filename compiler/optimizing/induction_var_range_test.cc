@@ -215,10 +215,16 @@ class InductionVarRangeTest : public CommonCompilerTest {
     return range_.GetDiv(info1, info2, nullptr, /* in_body */ true, is_min);
   }
 
-  bool IsConstantRange(HInductionVarAnalysis::InductionInfo* info,
-                       int32_t* min_value,
-                       int32_t* max_value) {
-    return range_.IsConstantRange(info, min_value, max_value);
+  bool IsExact(HInductionVarAnalysis::InductionInfo* info, int64_t* value) {
+    return range_.IsConstant(info, InductionVarRange::kExact, value);
+  }
+
+  bool IsAtMost(HInductionVarAnalysis::InductionInfo* info, int64_t* value) {
+    return range_.IsConstant(info, InductionVarRange::kAtMost, value);
+  }
+
+  bool IsAtLeast(HInductionVarAnalysis::InductionInfo* info, int64_t* value) {
+    return range_.IsConstant(info, InductionVarRange::kAtLeast, value);
   }
 
   Value AddValue(Value v1, Value v2) { return range_.AddValue(v1, v2); }
@@ -248,6 +254,34 @@ class InductionVarRangeTest : public CommonCompilerTest {
 //
 // Tests on private methods.
 //
+
+TEST_F(InductionVarRangeTest, IsConstant) {
+  int64_t value;
+  // Constant.
+  EXPECT_TRUE(IsExact(CreateConst(12345), &value));
+  EXPECT_EQ(12345, value);
+  EXPECT_TRUE(IsAtMost(CreateConst(12345), &value));
+  EXPECT_EQ(12345, value);
+  EXPECT_TRUE(IsAtLeast(CreateConst(12345), &value));
+  EXPECT_EQ(12345, value);
+  // Constant trivial range.
+  EXPECT_TRUE(IsExact(CreateRange(111, 111), &value));
+  EXPECT_EQ(111, value);
+  EXPECT_TRUE(IsAtMost(CreateRange(111, 111), &value));
+  EXPECT_EQ(111, value);
+  EXPECT_TRUE(IsAtLeast(CreateRange(111, 111), &value));
+  EXPECT_EQ(111, value);
+  // Constant non-trivial range.
+  EXPECT_FALSE(IsExact(CreateRange(11, 22), &value));
+  EXPECT_TRUE(IsAtMost(CreateRange(11, 22), &value));
+  EXPECT_EQ(22, value);
+  EXPECT_TRUE(IsAtLeast(CreateRange(11, 22), &value));
+  EXPECT_EQ(11, value);
+  // Symbolic.
+  EXPECT_FALSE(IsExact(CreateFetch(x_), &value));
+  EXPECT_FALSE(IsAtMost(CreateFetch(x_), &value));
+  EXPECT_FALSE(IsAtLeast(CreateFetch(x_), &value));
+}
 
 TEST_F(InductionVarRangeTest, TripCountProperties) {
   EXPECT_FALSE(NeedsTripCount(nullptr));
@@ -367,6 +401,10 @@ TEST_F(InductionVarRangeTest, GetMinMaxPeriodic) {
 }
 
 TEST_F(InductionVarRangeTest, GetMulMin) {
+  ExpectEqual(Value(-14), GetMul(CreateConst(2), CreateRange(-7, 8), true));
+  ExpectEqual(Value(-16), GetMul(CreateConst(-2), CreateRange(-7, 8), true));
+  ExpectEqual(Value(-14), GetMul(CreateRange(-7, 8), CreateConst(2), true));
+  ExpectEqual(Value(-16), GetMul(CreateRange(-7, 8), CreateConst(-2), true));
   ExpectEqual(Value(6), GetMul(CreateRange(2, 10), CreateRange(3, 5), true));
   ExpectEqual(Value(-50), GetMul(CreateRange(2, 10), CreateRange(-5, -3), true));
   ExpectEqual(Value(), GetMul(CreateRange(2, 10), CreateRange(-1, 1), true));
@@ -379,6 +417,10 @@ TEST_F(InductionVarRangeTest, GetMulMin) {
 }
 
 TEST_F(InductionVarRangeTest, GetMulMax) {
+  ExpectEqual(Value(16), GetMul(CreateConst(2), CreateRange(-7, 8), false));
+  ExpectEqual(Value(14), GetMul(CreateConst(-2), CreateRange(-7, 8), false));
+  ExpectEqual(Value(16), GetMul(CreateRange(-7, 8), CreateConst(2), false));
+  ExpectEqual(Value(14), GetMul(CreateRange(-7, 8), CreateConst(-2), false));
   ExpectEqual(Value(50), GetMul(CreateRange(2, 10), CreateRange(3, 5), false));
   ExpectEqual(Value(-6), GetMul(CreateRange(2, 10), CreateRange(-5, -3), false));
   ExpectEqual(Value(), GetMul(CreateRange(2, 10), CreateRange(-1, 1), false));
@@ -391,6 +433,8 @@ TEST_F(InductionVarRangeTest, GetMulMax) {
 }
 
 TEST_F(InductionVarRangeTest, GetDivMin) {
+  ExpectEqual(Value(-5), GetDiv(CreateRange(-10, 20), CreateConst(2), true));
+  ExpectEqual(Value(-10), GetDiv(CreateRange(-10, 20), CreateConst(-2), true));
   ExpectEqual(Value(10), GetDiv(CreateRange(40, 1000), CreateRange(2, 4), true));
   ExpectEqual(Value(-500), GetDiv(CreateRange(40, 1000), CreateRange(-4, -2), true));
   ExpectEqual(Value(), GetDiv(CreateRange(40, 1000), CreateRange(-1, 1), true));
@@ -403,6 +447,8 @@ TEST_F(InductionVarRangeTest, GetDivMin) {
 }
 
 TEST_F(InductionVarRangeTest, GetDivMax) {
+  ExpectEqual(Value(10), GetDiv(CreateRange(-10, 20), CreateConst(2), false));
+  ExpectEqual(Value(5), GetDiv(CreateRange(-10, 20), CreateConst(-2), false));
   ExpectEqual(Value(500), GetDiv(CreateRange(40, 1000), CreateRange(2, 4), false));
   ExpectEqual(Value(-10), GetDiv(CreateRange(40, 1000), CreateRange(-4, -2), false));
   ExpectEqual(Value(), GetDiv(CreateRange(40, 1000), CreateRange(-1, 1), false));
@@ -412,18 +458,6 @@ TEST_F(InductionVarRangeTest, GetDivMax) {
   ExpectEqual(Value(), GetDiv(CreateRange(-1, 1), CreateRange(40, 1000), false));
   ExpectEqual(Value(), GetDiv(CreateRange(-1, 1), CreateRange(-1000, 40), false));
   ExpectEqual(Value(), GetDiv(CreateRange(-1, 1), CreateRange(-1, 1), false));
-}
-
-TEST_F(InductionVarRangeTest, IsConstantRange) {
-  int32_t min_value;
-  int32_t max_value;
-  ASSERT_TRUE(IsConstantRange(CreateConst(12345), &min_value, &max_value));
-  EXPECT_EQ(12345, min_value);
-  EXPECT_EQ(12345, max_value);
-  ASSERT_TRUE(IsConstantRange(CreateRange(1, 2), &min_value, &max_value));
-  EXPECT_EQ(1, min_value);
-  EXPECT_EQ(2, max_value);
-  EXPECT_FALSE(IsConstantRange(CreateFetch(x_), &min_value, &max_value));
 }
 
 TEST_F(InductionVarRangeTest, AddValue) {
@@ -459,6 +493,24 @@ TEST_F(InductionVarRangeTest, MulValue) {
   ExpectEqual(Value(), MulValue(Value(90000), Value(-90000)));  // unsafe
 }
 
+TEST_F(InductionVarRangeTest, MulValueSpecial) {
+  const int32_t min_value = std::numeric_limits<int32_t>::min();
+  const int32_t max_value = std::numeric_limits<int32_t>::max();
+
+  // Unsafe.
+  ExpectEqual(Value(), MulValue(Value(min_value), Value(min_value)));
+  ExpectEqual(Value(), MulValue(Value(min_value), Value(-1)));
+  ExpectEqual(Value(), MulValue(Value(min_value), Value(max_value)));
+  ExpectEqual(Value(), MulValue(Value(max_value), Value(max_value)));
+
+  // Safe.
+  ExpectEqual(Value(min_value), MulValue(Value(min_value), Value(1)));
+  ExpectEqual(Value(max_value), MulValue(Value(max_value), Value(1)));
+  ExpectEqual(Value(-max_value), MulValue(Value(max_value), Value(-1)));
+  ExpectEqual(Value(-1), MulValue(Value(1), Value(-1)));
+  ExpectEqual(Value(1), MulValue(Value(-1), Value(-1)));
+}
+
 TEST_F(InductionVarRangeTest, DivValue) {
   ExpectEqual(Value(25), DivValue(Value(100), Value(4)));
   ExpectEqual(Value(), DivValue(Value(x_, 1, -4), Value(x_, 1, -1)));
@@ -466,6 +518,23 @@ TEST_F(InductionVarRangeTest, DivValue) {
   ExpectEqual(Value(), DivValue(Value(x_, 12, 24), Value(3)));
   ExpectEqual(Value(), DivValue(Value(55), Value(y_, 1, -50)));
   ExpectEqual(Value(), DivValue(Value(1), Value(0)));  // unsafe
+}
+
+TEST_F(InductionVarRangeTest, DivValueSpecial) {
+  const int32_t min_value = std::numeric_limits<int32_t>::min();
+  const int32_t max_value = std::numeric_limits<int32_t>::max();
+
+  // Unsafe.
+  ExpectEqual(Value(), DivValue(Value(min_value), Value(-1)));
+
+  // Safe.
+  ExpectEqual(Value(1), DivValue(Value(min_value), Value(min_value)));
+  ExpectEqual(Value(1), DivValue(Value(max_value), Value(max_value)));
+  ExpectEqual(Value(min_value), DivValue(Value(min_value), Value(1)));
+  ExpectEqual(Value(max_value), DivValue(Value(max_value), Value(1)));
+  ExpectEqual(Value(-max_value), DivValue(Value(max_value), Value(-1)));
+  ExpectEqual(Value(-1), DivValue(Value(1), Value(-1)));
+  ExpectEqual(Value(1), DivValue(Value(-1), Value(-1)));
 }
 
 TEST_F(InductionVarRangeTest, MinValue) {
