@@ -1253,4 +1253,63 @@ TEST_F(DexFileVerifierTest, DebugInfoTypeIdxTest) {
       "DBG_START_LOCAL type_idx");
 }
 
+TEST_F(DexFileVerifierTest, SectionAlignment) {
+  {
+    // The input dex file should be good before modification. Any file is fine, as long as it
+    // uses all sections.
+    ScratchFile tmp;
+    std::string error_msg;
+    std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kGoodTestDex,
+                                                         tmp.GetFilename().c_str(),
+                                                         &error_msg));
+    ASSERT_TRUE(raw.get() != nullptr) << error_msg;
+  }
+
+  // Modify all section offsets to be unaligned.
+  constexpr size_t kSections = 7;
+  for (size_t i = 0; i < kSections; ++i) {
+    VerifyModification(
+        kGoodTestDex,
+        "section_align",
+        [&](DexFile* dex_file) {
+          DexFile::Header* header = const_cast<DexFile::Header*>(
+              reinterpret_cast<const DexFile::Header*>(dex_file->Begin()));
+          uint32_t* off_ptr;
+          switch (i) {
+            case 0:
+              off_ptr = &header->map_off_;
+              break;
+            case 1:
+              off_ptr = &header->string_ids_off_;
+              break;
+            case 2:
+              off_ptr = &header->type_ids_off_;
+              break;
+            case 3:
+              off_ptr = &header->proto_ids_off_;
+              break;
+            case 4:
+              off_ptr = &header->field_ids_off_;
+              break;
+            case 5:
+              off_ptr = &header->method_ids_off_;
+              break;
+            case 6:
+              off_ptr = &header->class_defs_off_;
+              break;
+
+            static_assert(kSections == 7, "kSections is wrong");
+            default:
+              LOG(FATAL) << "Unexpected section";
+              UNREACHABLE();
+          }
+          ASSERT_TRUE(off_ptr != nullptr);
+          ASSERT_NE(*off_ptr, 0U) << i;  // Should already contain a value (in use).
+          (*off_ptr)++;                  // Add one, which should misalign it (all the sections
+                                         // above are aligned by 4).
+        },
+        "should be aligned by 4 for");
+  }
+}
+
 }  // namespace art

@@ -230,7 +230,10 @@ bool DexFileVerifier::CheckIndex(uint32_t field, uint32_t limit, const char* lab
   return true;
 }
 
-bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset, uint32_t size, const char* label) {
+bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset,
+                                              uint32_t size,
+                                              size_t alignment,
+                                              const char* label) {
   if (size == 0) {
     if (offset != 0) {
       ErrorStringPrintf("Offset(%d) should be zero when size is zero for %s.", offset, label);
@@ -239,6 +242,10 @@ bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset, uint32_t size, co
   }
   if (size_ <= offset) {
     ErrorStringPrintf("Offset(%d) should be within file size(%zu) for %s.", offset, size_, label);
+    return false;
+  }
+  if (alignment != 0 && !IsAlignedParam(offset, alignment)) {
+    ErrorStringPrintf("Offset(%d) should be aligned by %zu for %s.", offset, alignment, label);
     return false;
   }
   return true;
@@ -275,16 +282,43 @@ bool DexFileVerifier::CheckHeader() {
 
   // Check that all offsets are inside the file.
   bool result =
-      CheckValidOffsetAndSize(header_->link_off_, header_->link_size_, "link") &&
-      CheckValidOffsetAndSize(header_->map_off_, header_->map_off_, "map") &&
-      CheckValidOffsetAndSize(header_->string_ids_off_, header_->string_ids_size_, "string-ids") &&
-      CheckValidOffsetAndSize(header_->type_ids_off_, header_->type_ids_size_, "type-ids") &&
-      CheckValidOffsetAndSize(header_->proto_ids_off_, header_->proto_ids_size_, "proto-ids") &&
-      CheckValidOffsetAndSize(header_->field_ids_off_, header_->field_ids_size_, "field-ids") &&
-      CheckValidOffsetAndSize(header_->method_ids_off_, header_->method_ids_size_, "method-ids") &&
-      CheckValidOffsetAndSize(header_->class_defs_off_, header_->class_defs_size_, "class-defs") &&
-      CheckValidOffsetAndSize(header_->data_off_, header_->data_size_, "data");
-
+      CheckValidOffsetAndSize(header_->link_off_,
+                              header_->link_size_,
+                              0 /* unaligned */,
+                              "link") &&
+      CheckValidOffsetAndSize(header_->map_off_,
+                              header_->map_off_,
+                              4,
+                              "map") &&
+      CheckValidOffsetAndSize(header_->string_ids_off_,
+                              header_->string_ids_size_,
+                              4,
+                              "string-ids") &&
+      CheckValidOffsetAndSize(header_->type_ids_off_,
+                              header_->type_ids_size_,
+                              4,
+                              "type-ids") &&
+      CheckValidOffsetAndSize(header_->proto_ids_off_,
+                              header_->proto_ids_size_,
+                              4,
+                              "proto-ids") &&
+      CheckValidOffsetAndSize(header_->field_ids_off_,
+                              header_->field_ids_size_,
+                              4,
+                              "field-ids") &&
+      CheckValidOffsetAndSize(header_->method_ids_off_,
+                              header_->method_ids_size_,
+                              4,
+                              "method-ids") &&
+      CheckValidOffsetAndSize(header_->class_defs_off_,
+                              header_->class_defs_size_,
+                              4,
+                              "class-defs") &&
+      CheckValidOffsetAndSize(header_->data_off_,
+                              header_->data_size_,
+                              0,  // Unaligned, spec doesn't talk about it, even though size
+                                  // is supposed to be a multiple of 4.
+                              "data");
   return result;
 }
 
@@ -1965,6 +1999,11 @@ bool DexFileVerifier::CheckInterClassDefItem() {
 
   // Check that references in annotations_directory_item are to right class.
   if (item->annotations_off_ != 0) {
+    // annotations_off_ is supposed to be aligned by 4.
+    if (!IsAlignedParam(item->annotations_off_, 4)) {
+      ErrorStringPrintf("Invalid annotations_off_, not aligned by 4");
+      return false;
+    }
     const uint8_t* data = begin_ + item->annotations_off_;
     bool success;
     uint16_t annotations_definer = FindFirstAnnotationsDirectoryDefiner(data, &success);

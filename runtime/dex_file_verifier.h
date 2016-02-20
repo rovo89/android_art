@@ -48,7 +48,7 @@ class DexFileVerifier {
   bool CheckList(size_t element_size, const char* label, const uint8_t* *ptr);
   // Checks whether the offset is zero (when size is zero) or that the offset falls within the area
   // claimed by the file.
-  bool CheckValidOffsetAndSize(uint32_t offset, uint32_t size, const char* label);
+  bool CheckValidOffsetAndSize(uint32_t offset, uint32_t size, size_t alignment, const char* label);
   bool CheckIndex(uint32_t field, uint32_t limit, const char* label);
 
   bool CheckHeader();
