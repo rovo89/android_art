@@ -5,7 +5,7 @@
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG2(%esp)
     call    SYMBOL(MterpIputObjectQuick)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

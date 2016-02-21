@@ -21,5 +21,5 @@
     andb    $$0xf, rINSTbl                  # rINST <- A
     SET_VREG %eax, rINST
     SET_VREG_HIGH %edx, rINST
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

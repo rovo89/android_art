@@ -15,7 +15,7 @@
     movl    %ecx, OUT_ARG2(%esp)            # self
     call    SYMBOL($helper)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     .if $is_object
