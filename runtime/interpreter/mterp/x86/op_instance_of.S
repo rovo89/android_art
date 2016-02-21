@@ -18,7 +18,7 @@
     movl    %ecx, OUT_ARG3(%esp)
     call    SYMBOL(MterpInstanceOf)         # (index, &obj, method, self)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     andb    $$0xf, rINSTbl                  # rINSTbl <- A

@@ -17,5 +17,5 @@
     jnz     MterpException
     SET_VREG %eax, rINST                    # fp[A]<- low part
     SET_VREG_HIGH %edx, rINST               # fp[A+1]<- high part
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

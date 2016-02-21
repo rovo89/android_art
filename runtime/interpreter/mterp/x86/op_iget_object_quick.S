@@ -9,7 +9,7 @@
     EXPORT_PC
     call    SYMBOL(artIGetObjectFromMterp)  # (obj, offset)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException                  # bail out
     andb    $$0xf,rINSTbl                   # rINST <- A

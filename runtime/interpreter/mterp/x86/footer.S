@@ -114,7 +114,7 @@ MterpException:
     lea     OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
     call    SYMBOL(MterpHandleException)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpExceptionReturn
     REFRESH_IBASE
     movl    OFF_FP_CODE_ITEM(rFP), %eax

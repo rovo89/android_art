@@ -182,11 +182,6 @@ unspecified registers or condition codes.
 
 /*
  * Refresh handler table.
- * IBase handles uses the caller save register so we must restore it after each call.
- * Also it is used as a result of some 64-bit operations (like imul) and we should
- * restore it in such cases also.
- *
- * TODO: Consider spilling the IBase instead of restoring it from Thread structure.
  */
 .macro REFRESH_IBASE
     movl    rSELF, rIBASE
@@ -194,9 +189,22 @@ unspecified registers or condition codes.
 .endm
 
 /*
+ * Refresh handler table.
+ * IBase handles uses the caller save register so we must restore it after each call.
+ * Also it is used as a result of some 64-bit operations (like imul) and we should
+ * restore it in such cases also.
+ *
+ * TODO: Consider spilling the IBase instead of restoring it from Thread structure.
+ */
+.macro RESTORE_IBASE
+    movl    rSELF, rIBASE
+    movl    THREAD_CURRENT_IBASE_OFFSET(rIBASE), rIBASE
+.endm
+
+/*
  * If rSELF is already loaded then we can use it from known reg.
  */
-.macro REFRESH_IBASE_FROM_SELF _reg
+.macro RESTORE_IBASE_FROM_SELF _reg
     movl    THREAD_CURRENT_IBASE_OFFSET(\_reg), rIBASE
 .endm
 

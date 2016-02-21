@@ -14,7 +14,7 @@
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG3(%esp)
     call    SYMBOL($helper)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 3

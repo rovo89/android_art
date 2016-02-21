@@ -12,7 +12,7 @@
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG3(%esp)
     call    SYMBOL(MterpCheckCast)          # (index, &obj, method, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
