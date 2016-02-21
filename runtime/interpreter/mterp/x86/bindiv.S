@@ -13,10 +13,10 @@
     je      common_errDivideByZero
     movl    %eax, %edx
     orl     %ecx, %edx
-    test    $$0xFFFFFF00, %edx              # If both arguments are less
+    testl   $$0xFFFFFF00, %edx              # If both arguments are less
                                             #   than 8-bit and +ve
     jz      .L${opcode}_8                   # Do 8-bit divide
-    test    $$0xFFFF0000, %edx              # If both arguments are less
+    testl   $$0xFFFF0000, %edx              # If both arguments are less
                                             #   than 16-bit and +ve
     jz      .L${opcode}_16                  # Do 16-bit divide
     cmpl    $$-1, %ecx

@@ -9,7 +9,7 @@
     REFRESH_INST ${opnum}
     movl    rINST, OUT_ARG2(%esp)
     call    SYMBOL(MterpAputObject)         # (array, index)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jz      MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
