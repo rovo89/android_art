@@ -47,7 +47,9 @@ void CheckMterpAsmConstants() {
 void InitMterpTls(Thread* self) {
   self->SetMterpDefaultIBase(artMterpAsmInstructionStart);
   self->SetMterpAltIBase(artMterpAsmAltInstructionStart);
-  self->SetMterpCurrentIBase(artMterpAsmInstructionStart);
+  self->SetMterpCurrentIBase(TraceExecutionEnabled() ?
+                             artMterpAsmAltInstructionStart :
+                             artMterpAsmInstructionStart);
 }
 
 /*
@@ -445,6 +447,7 @@ extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame)
   } else {
     self->AssertNoPendingException();
   }
+  TraceExecution(*shadow_frame, inst, shadow_frame->GetDexPC());
 }
 
 extern "C" void MterpLogDivideByZeroException(Thread* self, ShadowFrame* shadow_frame)
