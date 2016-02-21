@@ -948,11 +948,15 @@ NO_RETURN void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shad
   __attribute__((cold))
   SHARED_REQUIRES(Locks::mutator_lock_);
 
+static inline bool TraceExecutionEnabled() {
+  // Return true if you want TraceExecution invocation before each bytecode execution.
+  return false;
+}
+
 static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruction* inst,
                                   const uint32_t dex_pc)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  constexpr bool kTracing = false;
-  if (kTracing) {
+  if (TraceExecutionEnabled()) {
 #define TRACE_LOG std::cerr
     std::ostringstream oss;
     oss << PrettyMethod(shadow_frame.GetMethod())
