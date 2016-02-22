@@ -1392,8 +1392,9 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
   return filename;
 }
 
-int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg) {
+bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   const std::string command_line(Join(arg_vector, ' '));
+
   CHECK_GE(arg_vector.size(), 1U) << command_line;
 
   // Convert the args to char pointers.
@@ -1416,6 +1417,7 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_m
     setpgid(0, 0);
 
     execv(program, &args[0]);
+
     PLOG(ERROR) << "Failed to execv(" << command_line << ")";
     // _exit to avoid atexit handlers in child.
     _exit(1);
@@ -1423,32 +1425,23 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_m
     if (pid == -1) {
       *error_msg = StringPrintf("Failed to execv(%s) because fork failed: %s",
                                 command_line.c_str(), strerror(errno));
-      return -1;
+      return false;
     }
 
     // wait for subprocess to finish
-    int status = -1;
+    int status;
     pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
     if (got_pid != pid) {
       *error_msg = StringPrintf("Failed after fork for execv(%s) because waitpid failed: "
                                 "wanted %d, got %d: %s",
                                 command_line.c_str(), pid, got_pid, strerror(errno));
-      return -1;
+      return false;
     }
-    if (WIFEXITED(status)) {
-      return WEXITSTATUS(status);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+      *error_msg = StringPrintf("Failed execv(%s) because non-0 exit status",
+                                command_line.c_str());
+      return false;
     }
-    return -1;
-  }
-}
-
-bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
-  int status = ExecAndReturnCode(arg_vector, error_msg);
-  if (status != 0) {
-    const std::string command_line(Join(arg_vector, ' '));
-    *error_msg = StringPrintf("Failed execv(%s) because non-0 exit status",
-                              command_line.c_str());
-    return false;
   }
   return true;
 }
