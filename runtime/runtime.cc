@@ -554,19 +554,6 @@ bool Runtime::Start() {
 
   started_ = true;
 
-  // Use !IsAotCompiler so that we get test coverage, tests are never the zygote.
-  if (!IsAotCompiler()) {
-    ScopedObjectAccess soa(self);
-    {
-      ScopedTrace trace2("AddImageStringsToTable");
-      GetInternTable()->AddImagesStringsToTable(heap_->GetBootImageSpaces());
-    }
-    {
-      ScopedTrace trace2("MoveImageClassesToClassTable");
-      GetClassLinker()->AddBootImageClassesToClassTable();
-    }
-  }
-
   if (jit_options_->UseJIT()) {
     std::string error_msg;
     if (!IsZygote()) {
@@ -1139,6 +1126,14 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
         dex_locations.push_back(dex_file->GetLocation());
       }
       boot_class_path_string_ = Join(dex_locations, ':');
+    }
+    {
+      ScopedTrace trace2("AddImageStringsToTable");
+      GetInternTable()->AddImagesStringsToTable(heap_->GetBootImageSpaces());
+    }
+    {
+      ScopedTrace trace2("MoveImageClassesToClassTable");
+      GetClassLinker()->AddBootImageClassesToClassTable();
     }
   } else {
     std::vector<std::string> dex_filenames;

@@ -18,6 +18,7 @@
 #define ART_COMPILER_COMPILED_METHOD_H_
 
 #include <memory>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -160,15 +161,23 @@ using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
 
 
 enum LinkerPatchType {
+  kLinkerPatchRecordPosition,   // Just record patch position for patchoat.
   kLinkerPatchMethod,
   kLinkerPatchCall,
-  kLinkerPatchCallRelative,  // NOTE: Actual patching is instruction_set-dependent.
+  kLinkerPatchCallRelative,     // NOTE: Actual patching is instruction_set-dependent.
   kLinkerPatchType,
-  kLinkerPatchDexCacheArray,  // NOTE: Actual patching is instruction_set-dependent.
+  kLinkerPatchString,
+  kLinkerPatchStringRelative,   // NOTE: Actual patching is instruction_set-dependent.
+  kLinkerPatchDexCacheArray,    // NOTE: Actual patching is instruction_set-dependent.
 };
+std::ostream& operator<<(std::ostream& os, const LinkerPatchType& type);
 
 class LinkerPatch {
  public:
+  static LinkerPatch RecordPosition(size_t literal_offset) {
+    return LinkerPatch(literal_offset, kLinkerPatchRecordPosition, /* target_dex_file */ nullptr);
+  }
+
   static LinkerPatch MethodPatch(size_t literal_offset,
                                  const DexFile* target_dex_file,
                                  uint32_t target_method_idx) {
@@ -201,6 +210,24 @@ class LinkerPatch {
     return patch;
   }
 
+  static LinkerPatch StringPatch(size_t literal_offset,
+                                 const DexFile* target_dex_file,
+                                 uint32_t target_string_idx) {
+    LinkerPatch patch(literal_offset, kLinkerPatchString, target_dex_file);
+    patch.string_idx_ = target_string_idx;
+    return patch;
+  }
+
+  static LinkerPatch RelativeStringPatch(size_t literal_offset,
+                                         const DexFile* target_dex_file,
+                                         uint32_t pc_insn_offset,
+                                         uint32_t target_string_idx) {
+    LinkerPatch patch(literal_offset, kLinkerPatchStringRelative, target_dex_file);
+    patch.string_idx_ = target_string_idx;
+    patch.pc_insn_offset_ = pc_insn_offset;
+    return patch;
+  }
+
   static LinkerPatch DexCacheArrayPatch(size_t literal_offset,
                                         const DexFile* target_dex_file,
                                         uint32_t pc_insn_offset,
@@ -224,7 +251,14 @@ class LinkerPatch {
   }
 
   bool IsPcRelative() const {
-    return Type() == kLinkerPatchCallRelative || Type() == kLinkerPatchDexCacheArray;
+    switch (Type()) {
+      case kLinkerPatchCallRelative:
+      case kLinkerPatchStringRelative:
+      case kLinkerPatchDexCacheArray:
+        return true;
+      default:
+        return false;
+    }
   }
 
   MethodReference TargetMethod() const {
@@ -243,6 +277,16 @@ class LinkerPatch {
     return type_idx_;
   }
 
+  const DexFile* TargetStringDexFile() const {
+    DCHECK(patch_type_ == kLinkerPatchString || patch_type_ == kLinkerPatchStringRelative);
+    return target_dex_file_;
+  }
+
+  uint32_t TargetStringIndex() const {
+    DCHECK(patch_type_ == kLinkerPatchString || patch_type_ == kLinkerPatchStringRelative);
+    return string_idx_;
+  }
+
   const DexFile* TargetDexCacheDexFile() const {
     DCHECK(patch_type_ == kLinkerPatchDexCacheArray);
     return target_dex_file_;
@@ -254,7 +298,7 @@ class LinkerPatch {
   }
 
   uint32_t PcInsnOffset() const {
-    DCHECK(patch_type_ == kLinkerPatchDexCacheArray);
+    DCHECK(patch_type_ == kLinkerPatchStringRelative || patch_type_ == kLinkerPatchDexCacheArray);
     return pc_insn_offset_;
   }
 
@@ -277,9 +321,11 @@ class LinkerPatch {
     uint32_t cmp1_;             // Used for relational operators.
     uint32_t method_idx_;       // Method index for Call/Method patches.
     uint32_t type_idx_;         // Type index for Type patches.
+    uint32_t string_idx_;       // String index for String patches.
     uint32_t element_offset_;   // Element offset in the dex cache arrays.
     static_assert(sizeof(method_idx_) == sizeof(cmp1_), "needed by relational operators");
     static_assert(sizeof(type_idx_) == sizeof(cmp1_), "needed by relational operators");
+    static_assert(sizeof(string_idx_) == sizeof(cmp1_), "needed by relational operators");
     static_assert(sizeof(element_offset_) == sizeof(cmp1_), "needed by relational operators");
   };
   union {

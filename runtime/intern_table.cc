@@ -97,6 +97,17 @@ mirror::String* InternTable::LookupStrong(Thread* self, mirror::String* s) {
   return LookupStrongLocked(s);
 }
 
+mirror::String* InternTable::LookupStrong(Thread* self,
+                                          uint32_t utf16_length,
+                                          const char* utf8_data) {
+  DCHECK_EQ(utf16_length, CountModifiedUtf8Chars(utf8_data));
+  Utf8String string(utf16_length,
+                    utf8_data,
+                    ComputeUtf16HashFromModifiedUtf8(utf8_data, utf16_length));
+  MutexLock mu(self, *Locks::intern_table_lock_);
+  return strong_interns_.Find(string);
+}
+
 mirror::String* InternTable::LookupWeakLocked(mirror::String* s) {
   return weak_interns_.Find(s);
 }
@@ -365,6 +376,20 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
   return a.Read()->Equals(b.Read());
 }
 
+bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
+                                               const Utf8String& b) const {
+  if (kIsDebugBuild) {
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  }
+  mirror::String* a_string = a.Read();
+  uint32_t a_length = static_cast<uint32_t>(a_string->GetLength());
+  if (a_length != b.GetUtf16Length()) {
+    return false;
+  }
+  const uint16_t* a_value = a_string->GetValue();
+  return CompareModifiedUtf8ToUtf16AsCodePointValues(b.GetUtf8Data(), a_value, a_length) == 0;
+}
+
 size_t InternTable::Table::AddTableFromMemory(const uint8_t* ptr) {
   size_t read_count = 0;
   UnorderedSet set(ptr, /*make copy*/false, &read_count);
@@ -414,6 +439,17 @@ mirror::String* InternTable::Table::Find(mirror::String* s) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   for (UnorderedSet& table : tables_) {
     auto it = table.Find(GcRoot<mirror::String>(s));
+    if (it != table.end()) {
+      return it->Read();
+    }
+  }
+  return nullptr;
+}
+
+mirror::String* InternTable::Table::Find(const Utf8String& string) {
+  Locks::intern_table_lock_->AssertHeld(Thread::Current());
+  for (UnorderedSet& table : tables_) {
+    auto it = table.Find(string);
     if (it != table.end()) {
       return it->Read();
     }

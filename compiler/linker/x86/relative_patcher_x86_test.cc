@@ -70,15 +70,19 @@ TEST_F(X86RelativePatcherTest, CallOther) {
   uint32_t diff_after = method2_offset - (method1_offset + kCallCode.size() /* PC adjustment */);
   static const uint8_t method1_expected_code[] = {
       0xe8,
-      static_cast<uint8_t>(diff_after), static_cast<uint8_t>(diff_after >> 8),
-      static_cast<uint8_t>(diff_after >> 16), static_cast<uint8_t>(diff_after >> 24)
+      static_cast<uint8_t>(diff_after),
+      static_cast<uint8_t>(diff_after >> 8),
+      static_cast<uint8_t>(diff_after >> 16),
+      static_cast<uint8_t>(diff_after >> 24)
   };
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(method1_expected_code)));
   uint32_t diff_before = method1_offset - (method2_offset + kCallCode.size() /* PC adjustment */);
   static const uint8_t method2_expected_code[] = {
       0xe8,
-      static_cast<uint8_t>(diff_before), static_cast<uint8_t>(diff_before >> 8),
-      static_cast<uint8_t>(diff_before >> 16), static_cast<uint8_t>(diff_before >> 24)
+      static_cast<uint8_t>(diff_before),
+      static_cast<uint8_t>(diff_before >> 8),
+      static_cast<uint8_t>(diff_before >> 16),
+      static_cast<uint8_t>(diff_before >> 24)
   };
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(2u), ArrayRef<const uint8_t>(method2_expected_code)));
 }
@@ -95,8 +99,10 @@ TEST_F(X86RelativePatcherTest, CallTrampoline) {
   uint32_t diff = kTrampolineOffset - (result.second + kCallCode.size());
   static const uint8_t expected_code[] = {
       0xe8,
-      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8),
-      static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24)
+      static_cast<uint8_t>(diff),
+      static_cast<uint8_t>(diff >> 8),
+      static_cast<uint8_t>(diff >> 16),
+      static_cast<uint8_t>(diff >> 24)
   };
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
@@ -125,8 +131,42 @@ TEST_F(X86RelativePatcherTest, DexCacheReference) {
       0xe8, 0x00, 0x00, 0x00, 0x00,         // call +0
       0x5b,                                 // pop ebx
       0x8b, 0x83,                           // mov eax, [ebx + diff]
-      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8),
-      static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24)
+      static_cast<uint8_t>(diff),
+      static_cast<uint8_t>(diff >> 8),
+      static_cast<uint8_t>(diff >> 16),
+      static_cast<uint8_t>(diff >> 24)
+  };
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
+}
+
+TEST_F(X86RelativePatcherTest, StringReference) {
+  constexpr uint32_t kStringIndex = 1u;
+  constexpr uint32_t kStringOffset = 0x12345678;
+  string_index_to_offset_map_.Put(kStringIndex, kStringOffset);
+  static const uint8_t raw_code[] = {
+      0xe8, 0x00, 0x00, 0x00, 0x00,         // call +0
+      0x5b,                                 // pop ebx
+      0x8d, 0x83, 0x00, 0x01, 0x00, 0x00,   // lea eax, [ebx + 256 (kDummy32BitValue)]
+  };
+  constexpr uint32_t anchor_offset = 5u;  // After call +0.
+  ArrayRef<const uint8_t> code(raw_code);
+  LinkerPatch patches[] = {
+      LinkerPatch::RelativeStringPatch(code.size() - 4u, nullptr, anchor_offset, kStringIndex),
+  };
+  AddCompiledMethod(MethodRef(1u), code, ArrayRef<const LinkerPatch>(patches));
+  Link();
+
+  auto result = method_offset_map_.FindMethodOffset(MethodRef(1u));
+  ASSERT_TRUE(result.first);
+  uint32_t diff = kStringOffset - (result.second + anchor_offset);
+  static const uint8_t expected_code[] = {
+      0xe8, 0x00, 0x00, 0x00, 0x00,         // call +0
+      0x5b,                                 // pop ebx
+      0x8d, 0x83,                           // lea eax, [ebx + diff]
+      static_cast<uint8_t>(diff),
+      static_cast<uint8_t>(diff >> 8),
+      static_cast<uint8_t>(diff >> 16),
+      static_cast<uint8_t>(diff >> 24)
   };
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }

@@ -86,10 +86,10 @@ class MultiOatRelativePatcherTest : public testing::Test {
       last_target_offset_ = target_offset;
     }
 
-    void PatchDexCacheReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                const LinkerPatch& patch,
-                                uint32_t patch_offset,
-                                uint32_t target_offset) OVERRIDE {
+    void PatchPcRelativeReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                  const LinkerPatch& patch,
+                                  uint32_t patch_offset,
+                                  uint32_t target_offset) OVERRIDE {
       last_literal_offset_ = patch.LiteralOffset();
       last_patch_offset_ = patch_offset;
       last_target_offset_ = target_offset;
@@ -277,7 +277,7 @@ TEST_F(MultiOatRelativePatcherTest, Patch) {
   uint32_t method2_target_offset = 0xccccu;
   LinkerPatch method2_patch =
       LinkerPatch::DexCacheArrayPatch(method2_literal_offset, nullptr, 0u, 1234u);
-  patcher_.PatchDexCacheReference(
+  patcher_.PatchPcRelativeReference(
       &code, method2_patch, method2_patch_offset, method2_target_offset);
   DCHECK_EQ(method2_literal_offset, mock_->last_literal_offset_);
   DCHECK_EQ(method2_patch_offset + adjustment1, mock_->last_patch_offset_);
