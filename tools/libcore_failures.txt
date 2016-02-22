@@ -272,5 +272,10 @@
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndNoSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNativeAllocationNoAllocatorAndSharedRegistry",
           "libcore.util.NativeAllocationRegistryTest#testNullArguments"]
+},
+{
+  description: "Only work with --mode=activity",
+  result: EXEC_FAILED,
+  names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
 }
 ]
