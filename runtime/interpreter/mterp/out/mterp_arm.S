@@ -1117,7 +1117,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    add     r2, rINST, rINST            @ r2<- byte offset, set flags
+    adds    r2, rINST, rINST            @ r2<- byte offset, set flags
     FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
        @ If backwards branch refresh rIBASE
     bmi     MterpCheckSuspendAndContinue
@@ -1127,7 +1127,7 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     r0, rINST, lsl #16          @ r0<- AAxx0000
     movs    rINST, r0, asr #24          @ rINST<- ssssssAA (sign-extended)
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    add     r2, rINST, rINST            @ r2<- byte offset, set flags
+    adds    r2, rINST, rINST            @ r2<- byte offset, set flags
     FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
        @ If backwards branch refresh rIBASE
     bmi     MterpCheckSuspendAndContinue
