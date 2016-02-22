@@ -261,6 +261,16 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
   }
 }
 
+void UnstartedRuntime::UnstartedClassGetEnclosingClass(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsClass()));
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    result->SetL(nullptr);
+  }
+  result->SetL(klass->GetDexFile().GetEnclosingClass(klass));
+}
+
 void UnstartedRuntime::UnstartedVmClassLoaderFindLoadedClass(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
