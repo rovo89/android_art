@@ -845,6 +845,13 @@ void Heap::DecrementDisableMovingGC(Thread* self) {
 void Heap::IncrementDisableThreadFlip(Thread* self) {
   // Supposed to be called by mutators. If thread_flip_running_ is true, block. Otherwise, go ahead.
   CHECK(kUseReadBarrier);
+  bool is_nested = self->GetDisableThreadFlipCount() > 0;
+  self->IncrementDisableThreadFlipCount();
+  if (is_nested) {
+    // If this is a nested JNI critical section enter, we don't need to wait or increment the global
+    // counter. The global counter is incremented only once for a thread for the outermost enter.
+    return;
+  }
   ScopedThreadStateChange tsc(self, kWaitingForGcThreadFlip);
   MutexLock mu(self, *thread_flip_lock_);
   bool has_waited = false;
@@ -867,10 +874,20 @@ void Heap::DecrementDisableThreadFlip(Thread* self) {
   // Supposed to be called by mutators. Decrement disable_thread_flip_count_ and potentially wake up
   // the GC waiting before doing a thread flip.
   CHECK(kUseReadBarrier);
+  self->DecrementDisableThreadFlipCount();
+  bool is_outermost = self->GetDisableThreadFlipCount() == 0;
+  if (!is_outermost) {
+    // If this is not an outermost JNI critical exit, we don't need to decrement the global counter.
+    // The global counter is decremented only once for a thread for the outermost exit.
+    return;
+  }
   MutexLock mu(self, *thread_flip_lock_);
   CHECK_GT(disable_thread_flip_count_, 0U);
   --disable_thread_flip_count_;
-  thread_flip_cond_->Broadcast(self);
+  if (disable_thread_flip_count_ == 0) {
+    // Potentially notify the GC thread blocking to begin a thread flip.
+    thread_flip_cond_->Broadcast(self);
+  }
 }
 
 void Heap::ThreadFlipBegin(Thread* self) {
@@ -882,7 +899,8 @@ void Heap::ThreadFlipBegin(Thread* self) {
   bool has_waited = false;
   uint64_t wait_start = NanoTime();
   CHECK(!thread_flip_running_);
-  // Set this to true before waiting so that a new mutator entering a JNI critical won't starve GC.
+  // Set this to true before waiting so that frequent JNI critical enter/exits won't starve
+  // GC. This like a writer preference of a reader-writer lock.
   thread_flip_running_ = true;
   while (disable_thread_flip_count_ > 0) {
     has_waited = true;
@@ -904,6 +922,7 @@ void Heap::ThreadFlipEnd(Thread* self) {
   MutexLock mu(self, *thread_flip_lock_);
   CHECK(thread_flip_running_);
   thread_flip_running_ = false;
+  // Potentially notify mutator threads blocking to enter a JNI critical section.
   thread_flip_cond_->Broadcast(self);
 }
 

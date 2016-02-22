@@ -1113,6 +1113,8 @@ class Heap {
   // Used to synchronize between JNI critical calls and the thread flip of the CC collector.
   Mutex* thread_flip_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::unique_ptr<ConditionVariable> thread_flip_cond_ GUARDED_BY(thread_flip_lock_);
+  // This counter keeps track of how many threads are currently in a JNI critical section. This is
+  // incremented once per thread even with nested enters.
   size_t disable_thread_flip_count_ GUARDED_BY(thread_flip_lock_);
   bool thread_flip_running_ GUARDED_BY(thread_flip_lock_);
 
