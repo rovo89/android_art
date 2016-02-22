@@ -34,11 +34,7 @@ int32_t AllocRecordStackTraceElement::ComputeLineNumber() const {
 
 const char* AllocRecord::GetClassDescriptor(std::string* storage) const {
   // klass_ could contain null only if we implement class unloading.
-  if (UNLIKELY(klass_.IsNull())) {
-    return "null";
-  } else {
-    return klass_.Read()->GetDescriptor(storage);
-  }
+  return klass_.IsNull() ? "null" : klass_.Read()->GetDescriptor(storage);
 }
 
 void AllocRecordObjectMap::SetProperties() {
@@ -105,8 +101,19 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
   size_t count = recent_record_max_;
   // Only visit the last recent_record_max_ number of allocation records in entries_ and mark the
   // klass_ fields as strong roots.
-  for (auto it = entries_.rbegin(), end = entries_.rend(); count > 0 && it != end; count--, ++it) {
-    buffered_visitor.VisitRootIfNonNull(it->second->GetClassGcRoot());
+  for (auto it = entries_.rbegin(), end = entries_.rend(); it != end; ++it) {
+    AllocRecord* record = it->second;
+    if (count > 0) {
+      buffered_visitor.VisitRootIfNonNull(record->GetClassGcRoot());
+      --count;
+    }
+    // Visit all of the stack frames to make sure no methods in the stack traces get unloaded by
+    // class unloading.
+    for (size_t i = 0, depth = record->GetDepth(); i < depth; ++i) {
+      const AllocRecordStackTraceElement& element = record->StackElement(i);
+      DCHECK(element.GetMethod() != nullptr);
+      element.GetMethod()->VisitRoots(buffered_visitor, sizeof(void*));
+    }
   }
 }
 
@@ -131,12 +138,7 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedVisitor* visitor) {
   VLOG(heap) << "Start SweepAllocationRecords()";
   size_t count_deleted = 0, count_moved = 0, count = 0;
   // Only the first (size - recent_record_max_) number of records can be deleted.
-  size_t delete_bound;
-  if (entries_.size() <= recent_record_max_) {
-    delete_bound = 0;
-  } else {
-    delete_bound = entries_.size() - recent_record_max_;
-  }
+  const size_t delete_bound = std::max(entries_.size(), recent_record_max_) - recent_record_max_;
   for (auto it = entries_.begin(), end = entries_.end(); it != end;) {
     ++count;
     // This does not need a read barrier because this is called by GC.
@@ -187,7 +189,6 @@ struct AllocRecordStackVisitor : public StackVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         trace(trace_in),
-        depth(0),
         max_depth(max) {}
 
   // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
@@ -209,7 +210,7 @@ struct AllocRecordStackVisitor : public StackVisitor {
   }
 
   AllocRecordStackTrace* trace;
-  size_t depth;
+  size_t depth = 0u;
   const size_t max_depth;
 };
 
