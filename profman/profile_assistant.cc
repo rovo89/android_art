@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,10 @@ namespace art {
 // Minimum number of new methods that profiles must contain to enable recompilation.
 static constexpr const uint32_t kMinNewMethodsForCompilation = 10;
 
-bool ProfileAssistant::ProcessProfilesInternal(
+ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
         const std::vector<ScopedFlock>& profile_files,
-        const std::vector<ScopedFlock>& reference_profile_files,
-        /*out*/ ProfileCompilationInfo** profile_compilation_info) {
+        const ScopedFlock& reference_profile_file) {
   DCHECK(!profile_files.empty());
-  DCHECK(!reference_profile_files.empty() ||
-      (profile_files.size() == reference_profile_files.size()));
 
   std::vector<ProfileCompilationInfo> new_info(profile_files.size());
   bool should_compile = false;
@@ -38,51 +35,53 @@ bool ProfileAssistant::ProcessProfilesInternal(
   for (size_t i = 0; i < new_info.size(); i++) {
     if (!new_info[i].Load(profile_files[i].GetFile()->Fd())) {
       LOG(WARNING) << "Could not load profile file at index " << i;
-      return false;
+      return kErrorBadProfiles;
     }
     // Do we have enough new profiled methods that will make the compilation worthwhile?
     should_compile |= (new_info[i].GetNumberOfMethods() > kMinNewMethodsForCompilation);
   }
 
   if (!should_compile) {
-    return true;
+    return kSkipCompilation;
   }
 
-  std::unique_ptr<ProfileCompilationInfo> result(new ProfileCompilationInfo());
   // Merge information.
-  for (size_t i = 0; i < new_info.size(); i++) {
-    if (!reference_profile_files.empty()) {
-      if (!new_info[i].Load(reference_profile_files[i].GetFile()->Fd())) {
-        LOG(WARNING) << "Could not load reference profile file at index " << i;
-        return false;
-      }
-    }
-    // Merge all data into a single object.
-    if (!result->Load(new_info[i])) {
-      LOG(WARNING) << "Could not merge profile data at index " << i;
-      return false;
-    }
-  }
-  // We were successful in merging all profile information. Update the files.
-  for (size_t i = 0; i < new_info.size(); i++) {
-    if (!reference_profile_files.empty()) {
-      if (!reference_profile_files[i].GetFile()->ClearContent()) {
-        PLOG(WARNING) << "Could not clear reference profile file at index " << i;
-        return false;
-      }
-      if (!new_info[i].Save(reference_profile_files[i].GetFile()->Fd())) {
-        LOG(WARNING) << "Could not save reference profile file at index " << i;
-        return false;
-      }
-      if (!profile_files[i].GetFile()->ClearContent()) {
-        PLOG(WARNING) << "Could not clear profile file at index " << i;
-        return false;
-      }
-    }
+  ProfileCompilationInfo info;
+  if (!info.Load(reference_profile_file.GetFile()->Fd())) {
+    LOG(WARNING) << "Could not load reference profile file";
+    return kErrorBadProfiles;
   }
 
-  *profile_compilation_info = result.release();
-  return true;
+  for (size_t i = 0; i < new_info.size(); i++) {
+    // Merge all data into a single object.
+    if (!info.Load(new_info[i])) {
+      LOG(WARNING) << "Could not merge profile data at index " << i;
+      return kErrorBadProfiles;
+    }
+  }
+  // We were successful in merging all profile information. Update the reference profile.
+  if (!reference_profile_file.GetFile()->ClearContent()) {
+    PLOG(WARNING) << "Could not clear reference profile file";
+    return kErrorIO;
+  }
+  if (!info.Save(reference_profile_file.GetFile()->Fd())) {
+    LOG(WARNING) << "Could not save reference profile file";
+    return kErrorIO;
+  }
+
+  return kCompile;
+}
+
+static bool InitFlock(const std::string& filename, ScopedFlock& flock, std::string* error) {
+  return flock.Init(filename.c_str(), O_RDWR, /* block */ true, error);
+}
+
+static bool InitFlock(int fd, ScopedFlock& flock, std::string* error) {
+  DCHECK_GE(fd, 0);
+  // We do not own the descriptor, so disable auto-close and don't check usage.
+  File file(fd, false);
+  file.DisableAutoClose();
+  return flock.Init(&file, error);
 }
 
 class ScopedCollectionFlock {
@@ -92,7 +91,7 @@ class ScopedCollectionFlock {
   // Will block until all the locks are acquired.
   bool Init(const std::vector<std::string>& filenames, /* out */ std::string* error) {
     for (size_t i = 0; i < filenames.size(); i++) {
-      if (!flocks_[i].Init(filenames[i].c_str(), O_RDWR, /* block */ true, error)) {
+      if (!InitFlock(filenames[i], flocks_[i], error)) {
         *error += " (index=" + std::to_string(i) + ")";
         return false;
       }
@@ -101,12 +100,10 @@ class ScopedCollectionFlock {
   }
 
   // Will block until all the locks are acquired.
-  bool Init(const std::vector<uint32_t>& fds, /* out */ std::string* error) {
+  bool Init(const std::vector<int>& fds, /* out */ std::string* error) {
     for (size_t i = 0; i < fds.size(); i++) {
-      // We do not own the descriptor, so disable auto-close and don't check usage.
-      File file(fds[i], false);
-      file.DisableAutoClose();
-      if (!flocks_[i].Init(&file, error)) {
+      DCHECK_GE(fds[i], 0);
+      if (!InitFlock(fds[i], flocks_[i], error)) {
         *error += " (index=" + std::to_string(i) + ")";
         return false;
       }
@@ -120,50 +117,43 @@ class ScopedCollectionFlock {
   std::vector<ScopedFlock> flocks_;
 };
 
-bool ProfileAssistant::ProcessProfiles(
-        const std::vector<uint32_t>& profile_files_fd,
-        const std::vector<uint32_t>& reference_profile_files_fd,
-        /*out*/ ProfileCompilationInfo** profile_compilation_info) {
-  *profile_compilation_info = nullptr;
-
+ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
+        const std::vector<int>& profile_files_fd,
+        int reference_profile_file_fd) {
+  DCHECK_GE(reference_profile_file_fd, 0);
   std::string error;
   ScopedCollectionFlock profile_files_flocks(profile_files_fd.size());
   if (!profile_files_flocks.Init(profile_files_fd, &error)) {
     LOG(WARNING) << "Could not lock profile files: " << error;
-    return false;
+    return kErrorCannotLock;
   }
-  ScopedCollectionFlock reference_profile_files_flocks(reference_profile_files_fd.size());
-  if (!reference_profile_files_flocks.Init(reference_profile_files_fd, &error)) {
-    LOG(WARNING) << "Could not lock reference profile files: " << error;
-    return false;
+  ScopedFlock reference_profile_file_flock;
+  if (!InitFlock(reference_profile_file_fd, reference_profile_file_flock, &error)) {
+    LOG(WARNING) << "Could not lock reference profiled files: " << error;
+    return kErrorCannotLock;
   }
 
   return ProcessProfilesInternal(profile_files_flocks.Get(),
-                                 reference_profile_files_flocks.Get(),
-                                 profile_compilation_info);
+                                 reference_profile_file_flock);
 }
 
-bool ProfileAssistant::ProcessProfiles(
+ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
         const std::vector<std::string>& profile_files,
-        const std::vector<std::string>& reference_profile_files,
-        /*out*/ ProfileCompilationInfo** profile_compilation_info) {
-  *profile_compilation_info = nullptr;
-
+        const std::string& reference_profile_file) {
   std::string error;
   ScopedCollectionFlock profile_files_flocks(profile_files.size());
   if (!profile_files_flocks.Init(profile_files, &error)) {
     LOG(WARNING) << "Could not lock profile files: " << error;
-    return false;
+    return kErrorCannotLock;
   }
-  ScopedCollectionFlock reference_profile_files_flocks(reference_profile_files.size());
-  if (!reference_profile_files_flocks.Init(reference_profile_files, &error)) {
+  ScopedFlock reference_profile_file_flock;
+  if (!InitFlock(reference_profile_file, reference_profile_file_flock, &error)) {
     LOG(WARNING) << "Could not lock reference profile files: " << error;
-    return false;
+    return kErrorCannotLock;
   }
 
   return ProcessProfilesInternal(profile_files_flocks.Get(),
-                                 reference_profile_files_flocks.Get(),
-                                 profile_compilation_info);
+                                 reference_profile_file_flock);
 }
 
 }  // namespace art
