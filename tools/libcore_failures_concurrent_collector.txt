@@ -29,6 +29,7 @@
   modes: [host],
   names: ["libcore.java.util.zip.DeflaterOutputStreamTest#testSyncFlushEnabled",
           "libcore.java.util.zip.DeflaterOutputStreamTest#testSyncFlushDisabled",
+          "libcore.java.util.zip.GZIPInputStreamTest#testLongMessage",
           "libcore.java.util.zip.GZIPOutputStreamTest#testSyncFlushEnabled",
           "libcore.java.util.zip.OldAndroidGZIPStreamTest#testGZIPStream",
           "libcore.java.util.zip.OldAndroidZipStreamTest#testZipStream",
