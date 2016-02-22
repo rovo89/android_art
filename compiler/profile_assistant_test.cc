@@ -18,9 +18,8 @@
 
 #include "base/unix_file/fd_file.h"
 #include "common_runtime_test.h"
-#include "profile_assistant.h"
+#include "compiler/profile_assistant.h"
 #include "jit/offline_profiling_info.h"
-#include "utils.h"
 
 namespace art {
 
@@ -45,51 +44,23 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(profile.GetFile()->ResetOffset());
   }
 
-  int GetFd(const ScratchFile& file) const {
-    return static_cast<int>(file.GetFd());
-  }
-
-  void CheckProfileInfo(ScratchFile& file, const ProfileCompilationInfo& info) {
-    ProfileCompilationInfo file_info;
-    ASSERT_TRUE(file.GetFile()->ResetOffset());
-    ASSERT_TRUE(file_info.Load(GetFd(file)));
-    ASSERT_TRUE(file_info.Equals(info));
-  }
-
-    // Runs test with given arguments.
-  int ProcessProfiles(const std::vector<int>& profiles_fd, int reference_profile_fd) {
-    std::string file_path = GetTestAndroidRoot();
-    if (IsHost()) {
-      file_path += "/bin/profman";
-    } else {
-      file_path += "/xbin/profman";
-    }
-    if (kIsDebugBuild) {
-      file_path += "d";
-    }
-
-    EXPECT_TRUE(OS::FileExists(file_path.c_str())) << file_path << " should be a valid file path";
-    std::vector<std::string> argv_str;
-    argv_str.push_back(file_path);
-    for (size_t k = 0; k < profiles_fd.size(); k++) {
-      argv_str.push_back("--profile-file-fd=" + std::to_string(profiles_fd[k]));
-    }
-    argv_str.push_back("--reference-profile-file-fd=" + std::to_string(reference_profile_fd));
-
-    std::string error;
-    return ExecAndReturnCode(argv_str, &error);
+  uint32_t GetFd(const ScratchFile& file) const {
+    return static_cast<uint32_t>(file.GetFd());
   }
 };
 
 TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
   ScratchFile profile1;
   ScratchFile profile2;
-  ScratchFile reference_profile;
+  ScratchFile reference_profile1;
+  ScratchFile reference_profile2;
 
-  std::vector<int> profile_fds({
+  std::vector<uint32_t> profile_fds({
       GetFd(profile1),
       GetFd(profile2)});
-  int reference_profile_fd = GetFd(reference_profile);
+  std::vector<uint32_t> reference_profile_fds({
+      GetFd(reference_profile1),
+      GetFd(reference_profile2)});
 
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   ProfileCompilationInfo info1;
@@ -98,32 +69,44 @@ TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
   SetupProfile("p2", 2, kNumberOfMethodsToEnableCompilation, profile2, &info2);
 
   // We should advise compilation.
-  ASSERT_EQ(ProfileAssistant::kCompile,
-            ProcessProfiles(profile_fds, reference_profile_fd));
-  // The resulting compilation info must be equal to the merge of the inputs.
-  ProfileCompilationInfo result;
-  ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
-  ASSERT_TRUE(result.Load(reference_profile_fd));
+  ProfileCompilationInfo* result;
+  ASSERT_TRUE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
+  ASSERT_TRUE(result != nullptr);
 
+  // The resulting compilation info must be equal to the merge of the inputs.
   ProfileCompilationInfo expected;
   ASSERT_TRUE(expected.Load(info1));
   ASSERT_TRUE(expected.Load(info2));
-  ASSERT_TRUE(expected.Equals(result));
+  ASSERT_TRUE(expected.Equals(*result));
 
-  // The information from profiles must remain the same.
-  CheckProfileInfo(profile1, info1);
-  CheckProfileInfo(profile2, info2);
+  // The information from profiles must be transfered to the reference profiles.
+  ProfileCompilationInfo file_info1;
+  ASSERT_TRUE(reference_profile1.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info1.Load(GetFd(reference_profile1)));
+  ASSERT_TRUE(file_info1.Equals(info1));
+
+  ProfileCompilationInfo file_info2;
+  ASSERT_TRUE(reference_profile2.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info2.Load(GetFd(reference_profile2)));
+  ASSERT_TRUE(file_info2.Equals(info2));
+
+  // Initial profiles must be cleared.
+  ASSERT_EQ(0, profile1.GetFile()->GetLength());
+  ASSERT_EQ(0, profile2.GetFile()->GetLength());
 }
 
 TEST_F(ProfileAssistantTest, AdviseCompilationNonEmptyReferences) {
   ScratchFile profile1;
   ScratchFile profile2;
-  ScratchFile reference_profile;
+  ScratchFile reference_profile1;
+  ScratchFile reference_profile2;
 
-  std::vector<int> profile_fds({
+  std::vector<uint32_t> profile_fds({
       GetFd(profile1),
       GetFd(profile2)});
-  int reference_profile_fd = GetFd(reference_profile);
+  std::vector<uint32_t> reference_profile_fds({
+      GetFd(reference_profile1),
+      GetFd(reference_profile2)});
 
   // The new profile info will contain the methods with indices 0-100.
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
@@ -135,39 +118,60 @@ TEST_F(ProfileAssistantTest, AdviseCompilationNonEmptyReferences) {
 
   // The reference profile info will contain the methods with indices 50-150.
   const uint16_t kNumberOfMethodsAlreadyCompiled = 100;
-  ProfileCompilationInfo reference_info;
-  SetupProfile("p1", 1, kNumberOfMethodsAlreadyCompiled, reference_profile,
-      &reference_info, kNumberOfMethodsToEnableCompilation / 2);
+  ProfileCompilationInfo reference_info1;
+  SetupProfile("p1", 1, kNumberOfMethodsAlreadyCompiled, reference_profile1,
+      &reference_info1, kNumberOfMethodsToEnableCompilation / 2);
+  ProfileCompilationInfo reference_info2;
+  SetupProfile("p2", 2, kNumberOfMethodsAlreadyCompiled, reference_profile2,
+      &reference_info2, kNumberOfMethodsToEnableCompilation / 2);
 
   // We should advise compilation.
-  ASSERT_EQ(ProfileAssistant::kCompile,
-            ProcessProfiles(profile_fds, reference_profile_fd));
+  ProfileCompilationInfo* result;
+  ASSERT_TRUE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
+  ASSERT_TRUE(result != nullptr);
 
   // The resulting compilation info must be equal to the merge of the inputs
-  ProfileCompilationInfo result;
-  ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
-  ASSERT_TRUE(result.Load(reference_profile_fd));
-
   ProfileCompilationInfo expected;
   ASSERT_TRUE(expected.Load(info1));
   ASSERT_TRUE(expected.Load(info2));
-  ASSERT_TRUE(expected.Load(reference_info));
-  ASSERT_TRUE(expected.Equals(result));
+  ASSERT_TRUE(expected.Load(reference_info1));
+  ASSERT_TRUE(expected.Load(reference_info2));
+  ASSERT_TRUE(expected.Equals(*result));
 
-  // The information from profiles must remain the same.
-  CheckProfileInfo(profile1, info1);
-  CheckProfileInfo(profile2, info2);
+  // The information from profiles must be transfered to the reference profiles.
+  ProfileCompilationInfo file_info1;
+  ProfileCompilationInfo merge1;
+  ASSERT_TRUE(merge1.Load(info1));
+  ASSERT_TRUE(merge1.Load(reference_info1));
+  ASSERT_TRUE(reference_profile1.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info1.Load(GetFd(reference_profile1)));
+  ASSERT_TRUE(file_info1.Equals(merge1));
+
+  ProfileCompilationInfo file_info2;
+  ProfileCompilationInfo merge2;
+  ASSERT_TRUE(merge2.Load(info2));
+  ASSERT_TRUE(merge2.Load(reference_info2));
+  ASSERT_TRUE(reference_profile2.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info2.Load(GetFd(reference_profile2)));
+  ASSERT_TRUE(file_info2.Equals(merge2));
+
+  // Initial profiles must be cleared.
+  ASSERT_EQ(0, profile1.GetFile()->GetLength());
+  ASSERT_EQ(0, profile2.GetFile()->GetLength());
 }
 
 TEST_F(ProfileAssistantTest, DoNotAdviseCompilation) {
   ScratchFile profile1;
   ScratchFile profile2;
-  ScratchFile reference_profile;
+  ScratchFile reference_profile1;
+  ScratchFile reference_profile2;
 
-  std::vector<int> profile_fds({
+  std::vector<uint32_t> profile_fds({
       GetFd(profile1),
       GetFd(profile2)});
-  int reference_profile_fd = GetFd(reference_profile);
+  std::vector<uint32_t> reference_profile_fds({
+      GetFd(reference_profile1),
+      GetFd(reference_profile2)});
 
   const uint16_t kNumberOfMethodsToSkipCompilation = 1;
   ProfileCompilationInfo info1;
@@ -176,8 +180,9 @@ TEST_F(ProfileAssistantTest, DoNotAdviseCompilation) {
   SetupProfile("p2", 2, kNumberOfMethodsToSkipCompilation, profile2, &info2);
 
   // We should not advise compilation.
-  ASSERT_EQ(ProfileAssistant::kSkipCompilation,
-            ProcessProfiles(profile_fds, reference_profile_fd));
+  ProfileCompilationInfo* result = nullptr;
+  ASSERT_TRUE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
+  ASSERT_TRUE(result == nullptr);
 
   // The information from profiles must remain the same.
   ProfileCompilationInfo file_info1;
@@ -191,22 +196,22 @@ TEST_F(ProfileAssistantTest, DoNotAdviseCompilation) {
   ASSERT_TRUE(file_info2.Equals(info2));
 
   // Reference profile files must remain empty.
-  ASSERT_EQ(0, reference_profile.GetFile()->GetLength());
-
-  // The information from profiles must remain the same.
-  CheckProfileInfo(profile1, info1);
-  CheckProfileInfo(profile2, info2);
+  ASSERT_EQ(0, reference_profile1.GetFile()->GetLength());
+  ASSERT_EQ(0, reference_profile2.GetFile()->GetLength());
 }
 
 TEST_F(ProfileAssistantTest, FailProcessingBecauseOfProfiles) {
   ScratchFile profile1;
   ScratchFile profile2;
-  ScratchFile reference_profile;
+  ScratchFile reference_profile1;
+  ScratchFile reference_profile2;
 
-  std::vector<int> profile_fds({
+  std::vector<uint32_t> profile_fds({
       GetFd(profile1),
       GetFd(profile2)});
-  int reference_profile_fd = GetFd(reference_profile);
+  std::vector<uint32_t> reference_profile_fds({
+      GetFd(reference_profile1),
+      GetFd(reference_profile2)});
 
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   // Assign different hashes for the same dex file. This will make merging of information to fail.
@@ -216,24 +221,34 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfProfiles) {
   SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, profile2, &info2);
 
   // We should fail processing.
-  ASSERT_EQ(ProfileAssistant::kErrorBadProfiles,
-            ProcessProfiles(profile_fds, reference_profile_fd));
+  ProfileCompilationInfo* result = nullptr;
+  ASSERT_FALSE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
+  ASSERT_TRUE(result == nullptr);
 
-  // The information from profiles must remain the same.
-  CheckProfileInfo(profile1, info1);
-  CheckProfileInfo(profile2, info2);
+  // The information from profiles must still remain the same.
+  ProfileCompilationInfo file_info1;
+  ASSERT_TRUE(profile1.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info1.Load(GetFd(profile1)));
+  ASSERT_TRUE(file_info1.Equals(info1));
+
+  ProfileCompilationInfo file_info2;
+  ASSERT_TRUE(profile2.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info2.Load(GetFd(profile2)));
+  ASSERT_TRUE(file_info2.Equals(info2));
 
   // Reference profile files must still remain empty.
-  ASSERT_EQ(0, reference_profile.GetFile()->GetLength());
+  ASSERT_EQ(0, reference_profile1.GetFile()->GetLength());
+  ASSERT_EQ(0, reference_profile2.GetFile()->GetLength());
 }
 
 TEST_F(ProfileAssistantTest, FailProcessingBecauseOfReferenceProfiles) {
   ScratchFile profile1;
   ScratchFile reference_profile;
 
-  std::vector<int> profile_fds({
+  std::vector<uint32_t> profile_fds({
       GetFd(profile1)});
-  int reference_profile_fd = GetFd(reference_profile);
+  std::vector<uint32_t> reference_profile_fds({
+      GetFd(reference_profile)});
 
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   // Assign different hashes for the same dex file. This will make merging of information to fail.
@@ -243,13 +258,22 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfReferenceProfiles) {
   SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, reference_profile, &reference_info);
 
   // We should not advise compilation.
+  ProfileCompilationInfo* result = nullptr;
   ASSERT_TRUE(profile1.GetFile()->ResetOffset());
   ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
-  ASSERT_EQ(ProfileAssistant::kErrorBadProfiles,
-            ProcessProfiles(profile_fds, reference_profile_fd));
+  ASSERT_FALSE(ProfileAssistant::ProcessProfiles(profile_fds, reference_profile_fds, &result));
+  ASSERT_TRUE(result == nullptr);
 
-  // The information from profiles must remain the same.
-  CheckProfileInfo(profile1, info1);
+  // The information from profiles must still remain the same.
+  ProfileCompilationInfo file_info1;
+  ASSERT_TRUE(profile1.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info1.Load(GetFd(profile1)));
+  ASSERT_TRUE(file_info1.Equals(info1));
+
+  ProfileCompilationInfo file_info2;
+  ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(file_info2.Load(GetFd(reference_profile)));
+  ASSERT_TRUE(file_info2.Equals(reference_info));
 }
 
 }  // namespace art
