@@ -804,6 +804,7 @@ public class Main {
     Assert.assertEquals(Math.round(-2.9d), -3l);
     Assert.assertEquals(Math.round(-3.0d), -3l);
     Assert.assertEquals(Math.round(0.49999999999999994d), 0l);
+    Assert.assertEquals(Math.round(9007199254740991.0d), 9007199254740991l);  // 2^53 - 1
     Assert.assertEquals(Math.round(Double.NaN), (long)+0.0d);
     Assert.assertEquals(Math.round(Long.MAX_VALUE + 1.0d), Long.MAX_VALUE);
     Assert.assertEquals(Math.round(Long.MIN_VALUE - 1.0d), Long.MIN_VALUE);
@@ -825,6 +826,7 @@ public class Main {
     Assert.assertEquals(Math.round(-2.5f), -2);
     Assert.assertEquals(Math.round(-2.9f), -3);
     Assert.assertEquals(Math.round(-3.0f), -3);
+    Assert.assertEquals(Math.round(16777215.0f), 16777215);  // 2^24 - 1
     Assert.assertEquals(Math.round(Float.NaN), (int)+0.0f);
     Assert.assertEquals(Math.round(Integer.MAX_VALUE + 1.0f), Integer.MAX_VALUE);
     Assert.assertEquals(Math.round(Integer.MIN_VALUE - 1.0f), Integer.MIN_VALUE);
