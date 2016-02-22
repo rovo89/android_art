@@ -133,7 +133,7 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
       --classpath $test_jack \
-      --toolchain jack \
+      --toolchain jack --language JN \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
       $test
 
