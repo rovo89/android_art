@@ -1054,5 +1054,89 @@ uint32_t Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
   return (type_id == nullptr) ? DexFile::kDexNoIndex : dex_file.GetIndexForTypeId(*type_id);
 }
 
+template <bool kTransactionActive>
+mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
+                                                 mirror::Class* klass,
+                                                 mirror::String* name,
+                                                 mirror::ObjectArray<mirror::Class>* args) {
+  // Covariant return types permit the class to define multiple
+  // methods with the same name and parameter types. Prefer to
+  // return a non-synthetic method in such situations. We may
+  // still return a synthetic method to handle situations like
+  // escalated visibility. We never return miranda methods that
+  // were synthesized by the runtime.
+  constexpr uint32_t kSkipModifiers = kAccMiranda | kAccSynthetic;
+  StackHandleScope<3> hs(self);
+  auto h_method_name = hs.NewHandle(name);
+  if (UNLIKELY(h_method_name.Get() == nullptr)) {
+    ThrowNullPointerException("name == null");
+    return nullptr;
+  }
+  auto h_args = hs.NewHandle(args);
+  Handle<mirror::Class> h_klass = hs.NewHandle(klass);
+  ArtMethod* result = nullptr;
+  const size_t pointer_size = kTransactionActive
+                                  ? Runtime::Current()->GetClassLinker()->GetImagePointerSize()
+                                  : sizeof(void*);
+  for (auto& m : h_klass->GetDeclaredVirtualMethods(pointer_size)) {
+    auto* np_method = m.GetInterfaceMethodIfProxy(pointer_size);
+    // May cause thread suspension.
+    mirror::String* np_name = np_method->GetNameAsString(self);
+    if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
+      if (UNLIKELY(self->IsExceptionPending())) {
+        return nullptr;
+      }
+      continue;
+    }
+    auto modifiers = m.GetAccessFlags();
+    if ((modifiers & kSkipModifiers) == 0) {
+      return mirror::Method::CreateFromArtMethod<kTransactionActive>(self, &m);
+    }
+    if ((modifiers & kAccMiranda) == 0) {
+      result = &m;  // Remember as potential result if it's not a miranda method.
+    }
+  }
+  if (result == nullptr) {
+    for (auto& m : h_klass->GetDirectMethods(pointer_size)) {
+      auto modifiers = m.GetAccessFlags();
+      if ((modifiers & kAccConstructor) != 0) {
+        continue;
+      }
+      auto* np_method = m.GetInterfaceMethodIfProxy(pointer_size);
+      // May cause thread suspension.
+      mirror::String* np_name = np_method->GetNameAsString(self);
+      if (np_name == nullptr) {
+        self->AssertPendingException();
+        return nullptr;
+      }
+      if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
+        if (UNLIKELY(self->IsExceptionPending())) {
+          return nullptr;
+        }
+        continue;
+      }
+      if ((modifiers & kSkipModifiers) == 0) {
+        return mirror::Method::CreateFromArtMethod<kTransactionActive>(self, &m);
+      }
+      // Direct methods cannot be miranda methods, so this potential result must be synthetic.
+      result = &m;
+    }
+  }
+  return result != nullptr
+      ? mirror::Method::CreateFromArtMethod<kTransactionActive>(self, result)
+      : nullptr;
+}
+
+template
+mirror::Method* Class::GetDeclaredMethodInternal<false>(Thread* self,
+                                                        mirror::Class* klass,
+                                                        mirror::String* name,
+                                                        mirror::ObjectArray<mirror::Class>* args);
+template
+mirror::Method* Class::GetDeclaredMethodInternal<true>(Thread* self,
+                                                       mirror::Class* klass,
+                                                       mirror::String* name,
+                                                       mirror::ObjectArray<mirror::Class>* args);
+
 }  // namespace mirror
 }  // namespace art

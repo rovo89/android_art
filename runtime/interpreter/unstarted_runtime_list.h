@@ -24,6 +24,7 @@
   V(ClassClassForName, "java.lang.Class java.lang.Class.classForName(java.lang.String, boolean, java.lang.ClassLoader)") \
   V(ClassNewInstance, "java.lang.Object java.lang.Class.newInstance()") \
   V(ClassGetDeclaredField, "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") \
+  V(ClassGetDeclaredMethod, "java.lang.reflect.Method java.lang.Class.getDeclaredMethodInternal(java.lang.String, java.lang.Class[])") \
   V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
@@ -40,6 +41,8 @@
   V(MemoryPeekInt, "int libcore.io.Memory.peekIntNative(long)") \
   V(MemoryPeekLong, "long libcore.io.Memory.peekLongNative(long)") \
   V(MemoryPeekByteArray, "void libcore.io.Memory.peekByteArray(long, byte[], int, int)") \
+  V(ReferenceGetReferent, "java.lang.Object java.lang.ref.Reference.getReferent()") \
+  V(RuntimeAvailableProcessors, "int java.lang.Runtime.availableProcessors()") \
   V(SecurityGetSecurityPropertiesReader, "java.io.Reader java.security.Security.getSecurityPropertiesReader()") \
   V(StringGetCharsNoCheck, "void java.lang.String.getCharsNoCheck(int, int, char[], int)") \
   V(StringCharAt, "char java.lang.String.charAt(int)") \
@@ -47,7 +50,11 @@
   V(StringFactoryNewStringFromChars, "java.lang.String java.lang.StringFactory.newStringFromChars(int, int, char[])") \
   V(StringFactoryNewStringFromString, "java.lang.String java.lang.StringFactory.newStringFromString(java.lang.String)") \
   V(StringFastSubstring, "java.lang.String java.lang.String.fastSubstring(int, int)") \
-  V(StringToCharArray, "char[] java.lang.String.toCharArray()")
+  V(StringToCharArray, "char[] java.lang.String.toCharArray()") \
+  V(UnsafeCompareAndSwapLong, "boolean sun.misc.Unsafe.compareAndSwapLong(java.lang.Object, long, long, long)") \
+  V(UnsafeCompareAndSwapObject, "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") \
+  V(UnsafeGetObjectVolatile, "java.lang.Object sun.misc.Unsafe.getObjectVolatile(java.lang.Object, long)") \
+  V(UnsafePutOrderedObject, "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)")
 
 // Methods that are native.
 #define UNSTARTED_RUNTIME_JNI_LIST(V)           \
@@ -56,7 +63,9 @@
   V(VMStackGetStackClass2, "java.lang.Class dalvik.system.VMStack.getStackClass2()") \
   V(MathLog, "double java.lang.Math.log(double)") \
   V(MathExp, "double java.lang.Math.exp(double)") \
+  V(AtomicLongVMSupportsCS8, "boolean java.util.concurrent.atomic.AtomicLong.VMSupportsCS8()") \
   V(ClassGetNameNative, "java.lang.String java.lang.Class.getNameNative()") \
+  V(DoubleLongBitsToDouble, "double java.lang.Double.longBitsToDouble(long)") \
   V(FloatFloatToRawIntBits, "int java.lang.Float.floatToRawIntBits(float)") \
   V(FloatIntBitsToFloat, "float java.lang.Float.intBitsToFloat(int)") \
   V(ObjectInternalClone, "java.lang.Object java.lang.Object.internalClone()") \
