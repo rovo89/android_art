@@ -263,7 +263,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     for (ArtMethod& method : klass->GetCopiedMethods(sizeof(void*))) {
       AssertMethod(&method);
       EXPECT_FALSE(method.IsDirect());
-      EXPECT_TRUE(method.MightBeCopied());
+      EXPECT_TRUE(method.IsCopied());
       EXPECT_TRUE(method.GetDeclaringClass()->IsInterface())
           << "declaring class: " << PrettyClass(method.GetDeclaringClass());
       EXPECT_TRUE(method.GetDeclaringClass()->IsAssignableFrom(klass.Get()))

@@ -39,7 +39,10 @@ public class Main {
         testRemoveLocalObject();
         testProxyGetMethodID();
         testJniCriticalSectionAndGc();
+        testCallDefaultMethods();
     }
+
+    private static native void testCallDefaultMethods();
 
     private static native void testFindClassOnAttachedNativeThread();
 
@@ -121,7 +124,7 @@ public class Main {
     private static void testRemoveLocalObject() {
         removeLocalObject(new Object());
     }
-    
+
     private static native short shortMethod(short s1, short s2, short s3, short s4, short s5, short s6, short s7,
         short s8, short s9, short s10);
 

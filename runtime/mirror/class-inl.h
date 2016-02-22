@@ -502,7 +502,7 @@ inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* metho
   if (method->IsDirect()) {
     return method;
   }
-  if (method->GetDeclaringClass()->IsInterface() && !method->IsMiranda()) {
+  if (method->GetDeclaringClass()->IsInterface() && !method->IsCopied()) {
     return FindVirtualMethodForInterface(method, pointer_size);
   }
   return FindVirtualMethodForVirtual(method, pointer_size);
