@@ -22,6 +22,7 @@
 #include <limits>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/logging.h"
 #include "base/macros.h"
 
@@ -44,14 +45,10 @@ class Mutex;
 // quasiatomic operations that are performed on partially-overlapping
 // memory.
 class QuasiAtomic {
-#if defined(__mips__) && !defined(__LP64__)
-  static constexpr bool kNeedSwapMutexes = true;
-#elif defined(__mips__) && defined(__LP64__)
-  // TODO - mips64 still need this for Cas64 ???
-  static constexpr bool kNeedSwapMutexes = true;
-#else
-  static constexpr bool kNeedSwapMutexes = false;
-#endif
+  static constexpr bool NeedSwapMutexes(InstructionSet isa) {
+    // TODO - mips64 still need this for Cas64 ???
+    return (isa == kMips) || (isa == kMips64);
+  }
 
  public:
   static void Startup();
@@ -60,7 +57,7 @@ class QuasiAtomic {
 
   // Reads the 64-bit value at "addr" without tearing.
   static int64_t Read64(volatile const int64_t* addr) {
-    if (!kNeedSwapMutexes) {
+    if (!NeedSwapMutexes(kRuntimeISA)) {
       int64_t value;
 #if defined(__LP64__)
       value = *addr;
@@ -96,7 +93,7 @@ class QuasiAtomic {
 
   // Writes to the 64-bit value at "addr" without tearing.
   static void Write64(volatile int64_t* addr, int64_t value) {
-    if (!kNeedSwapMutexes) {
+    if (!NeedSwapMutexes(kRuntimeISA)) {
 #if defined(__LP64__)
       *addr = value;
 #else
@@ -142,7 +139,7 @@ class QuasiAtomic {
   // at some point during the execution of Cas64, *addr was not equal to
   // old_value.
   static bool Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
-    if (!kNeedSwapMutexes) {
+    if (!NeedSwapMutexes(kRuntimeISA)) {
       return __sync_bool_compare_and_swap(addr, old_value, new_value);
     } else {
       return SwapMutexCas64(old_value, new_value, addr);
@@ -150,8 +147,8 @@ class QuasiAtomic {
   }
 
   // Does the architecture provide reasonable atomic long operations or do we fall back on mutexes?
-  static bool LongAtomicsUseMutexes() {
-    return kNeedSwapMutexes;
+  static bool LongAtomicsUseMutexes(InstructionSet isa) {
+    return NeedSwapMutexes(isa);
   }
 
   static void ThreadFenceAcquire() {

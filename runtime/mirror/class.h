@@ -55,6 +55,7 @@ class ClassLoader;
 class Constructor;
 class DexCache;
 class IfTable;
+class Method;
 
 // C++ mirror of java.lang.Class
 class MANAGED Class FINAL : public Object {
@@ -757,6 +758,13 @@ class MANAGED Class FINAL : public Object {
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredMethods(
         size_t pointer_size)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  template <bool kTransactionActive = false>
+  static Method* GetDeclaredMethodInternal(Thread* self,
+                                           mirror::Class* klass,
+                                           mirror::String* name,
+                                           mirror::ObjectArray<mirror::Class>* args)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
