@@ -38,6 +38,7 @@ public class Main {
         testNewStringObject();
         testRemoveLocalObject();
         testProxyGetMethodID();
+        testJniCriticalSectionAndGc();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -222,6 +223,35 @@ public class Main {
     }
 
     private static native long testGetMethodID(Class<?> c);
+
+    // Exercise GC and JNI critical sections in parallel.
+    private static void testJniCriticalSectionAndGc() {
+        Thread runGcThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 10; ++i) {
+                    Runtime.getRuntime().gc();
+                }
+            }
+        });
+        Thread jniCriticalThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final int arraySize = 32;
+                byte[] array0 = new byte[arraySize];
+                byte[] array1 = new byte[arraySize];
+                enterJniCriticalSection(arraySize, array0, array1);
+            }
+        });
+        jniCriticalThread.start();
+        runGcThread.start();
+        try {
+            jniCriticalThread.join();
+            runGcThread.join();
+        } catch (InterruptedException ignored) {}
+    }
+
+    private static native void enterJniCriticalSection(int arraySize, byte[] array0, byte[] array);
 }
 
 class JniCallNonvirtualTest {

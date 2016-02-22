@@ -639,3 +639,23 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testNewStringObject(JNIEnv* env, jcl
 extern "C" JNIEXPORT jlong JNICALL Java_Main_testGetMethodID(JNIEnv* env, jclass, jclass c) {
   return reinterpret_cast<jlong>(env->GetMethodID(c, "a", "()V"));
 }
+
+extern "C" JNIEXPORT void JNICALL Java_Main_enterJniCriticalSection(JNIEnv* env, jclass,
+                                                                    jint arraySize,
+                                                                    jbyteArray array0,
+                                                                    jbyteArray array1) {
+  for (int i = 0; i < 50000; ++i) {
+    char* data0 = reinterpret_cast<char*>(env->GetPrimitiveArrayCritical(array0, nullptr));
+    char* data1 = reinterpret_cast<char*>(env->GetPrimitiveArrayCritical(array1, nullptr));
+    bool up = i % 2 == 0;
+    for (int j = 0; j < arraySize; ++j) {
+      if (up) {
+        data1[j] = data0[j] + 1;
+      } else {
+        data0[j] = data1[j] + 1;
+      }
+    }
+    env->ReleasePrimitiveArrayCritical(array1, data1, 0);
+    env->ReleasePrimitiveArrayCritical(array0, data0, 0);
+  }
+}
