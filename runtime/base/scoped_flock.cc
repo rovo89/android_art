@@ -83,7 +83,7 @@ bool ScopedFlock::Init(const char* filename, int flags, bool block, std::string*
 }
 
 bool ScopedFlock::Init(File* file, std::string* error_msg) {
-  file_.reset(new File(dup(file->Fd()), file->GetPath(), file->CheckUsage(), file->ReadOnlyMode()));
+  file_.reset(new File(dup(file->Fd()), true));
   if (file_->Fd() == -1) {
     file_.reset();
     *error_msg = StringPrintf("Failed to duplicate open file '%s': %s",
@@ -114,13 +114,7 @@ ScopedFlock::~ScopedFlock() {
   if (file_.get() != nullptr) {
     int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
     CHECK_EQ(0, flock_result);
-    int close_result = -1;
-    if (file_->ReadOnlyMode()) {
-      close_result = file_->Close();
-    } else {
-      close_result = file_->FlushCloseOrErase();
-    }
-    if (close_result != 0) {
+    if (file_->FlushCloseOrErase() != 0) {
       PLOG(WARNING) << "Could not close scoped file lock file.";
     }
   }

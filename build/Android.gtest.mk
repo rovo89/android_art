@@ -144,12 +144,6 @@ ART_GTEST_oatdump_test_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_32) \
   oatdump
 
-# Profile assistant tests requires profman utility.
-ART_GTEST_profile_assistant_test_HOST_DEPS := \
-  $(HOST_OUT_EXECUTABLES)/profmand
-ART_GTEST_profile_assistant_test_TARGET_DEPS := \
-  profman
-
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
 
@@ -159,7 +153,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   dexlist/dexlist_test.cc \
   imgdiag/imgdiag_test.cc \
   oatdump/oatdump_test.cc \
-  profman/profile_assistant_test.cc \
   runtime/arch/arch_test.cc \
   runtime/arch/instruction_set_test.cc \
   runtime/arch/instruction_set_features_test.cc \
@@ -277,6 +270,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
   compiler/optimizing/suspend_check_test.cc \
+  compiler/profile_assistant_test.cc \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
   compiler/utils/swap_space_test.cc \
