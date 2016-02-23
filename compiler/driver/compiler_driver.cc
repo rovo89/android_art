@@ -2492,6 +2492,7 @@ void CompilerDriver::Compile(jobject class_loader,
                    parallel_thread_pool_.get(),
                    parallel_thread_count_,
                    timings);
+    Runtime::Current()->ReclaimArenaPoolMemory();
   }
   VLOG(compiler) << "Compile: " << GetMemoryUsageString(false);
 }
