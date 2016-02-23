@@ -542,7 +542,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   // we hold the lock.
   {
     MutexLock mu(self, lock_);
-    if (!garbage_collect_code_) {
+    if (!garbage_collect_code_ || current_capacity_ < kReservedCapacity) {
       IncreaseCodeCacheCapacity();
       NotifyCollectionDone(self);
       return;
