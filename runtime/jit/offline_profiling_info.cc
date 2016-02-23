@@ -125,8 +125,8 @@ static constexpr const char kLineSeparator = '\n';
  *    app.apk,131232145,11,23,454,54
  *    app.apk:classes5.dex,218490184,39,13,49,1
  **/
-bool ProfileCompilationInfo::Save(uint32_t fd) {
-  DCHECK_GE(fd, 0u);
+bool ProfileCompilationInfo::Save(int fd) {
+  DCHECK_GE(fd, 0);
   // TODO(calin): Profile this and see how much memory it takes. If too much,
   // write to file directly.
   std::ostringstream os;
@@ -232,8 +232,8 @@ static int GetLineFromBuffer(char* buffer, int n, int start_from, std::string& l
   return new_line_pos == -1 ? new_line_pos : new_line_pos + 1;
 }
 
-bool ProfileCompilationInfo::Load(uint32_t fd) {
-  DCHECK_GE(fd, 0u);
+bool ProfileCompilationInfo::Load(int fd) {
+  DCHECK_GE(fd, 0);
 
   std::string current_line;
   const int kBufferSize = 1024;
@@ -343,7 +343,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
   return os.str();
 }
 
-bool ProfileCompilationInfo::Equals(ProfileCompilationInfo& other) {
+bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
   return info_.Equals(other.info_);
 }
 

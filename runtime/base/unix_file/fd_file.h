@@ -37,6 +37,7 @@ class FdFile : public RandomAccessFile {
   // file descriptor. (Use DisableAutoClose to retain ownership.)
   FdFile(int fd, bool checkUsage);
   FdFile(int fd, const std::string& path, bool checkUsage);
+  FdFile(int fd, const std::string& path, bool checkUsage, bool read_only_mode);
 
   // Destroys an FdFile, closing the file descriptor if Close hasn't already
   // been called. (If you care about the return value of Close, call it
@@ -68,6 +69,8 @@ class FdFile : public RandomAccessFile {
 
   // Bonus API.
   int Fd() const;
+  bool ReadOnlyMode() const;
+  bool CheckUsage() const;
   bool IsOpened() const;
   const std::string& GetPath() const {
     return file_path_;
@@ -119,6 +122,7 @@ class FdFile : public RandomAccessFile {
   int fd_;
   std::string file_path_;
   bool auto_close_;
+  bool read_only_mode_;
 
   DISALLOW_COPY_AND_ASSIGN(FdFile);
 };
