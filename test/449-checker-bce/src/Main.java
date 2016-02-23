@@ -391,6 +391,36 @@ public class Main {
       array[base + 1] = 1;
   }
 
+  /// CHECK-START: void Main.constantIndexing10(int[], int) BCE (before)
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+
+  /// CHECK-START: void Main.constantIndexing10(int[], int) BCE (after)
+  /// CHECK: Deoptimize
+  /// CHECK: Deoptimize
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+
+  static void constantIndexing10(int[] array, int base) {
+    // Offset hidden in incremented base.
+    array[base] = 1;
+    array[++base] = 2;
+    array[++base] = 3;
+    array[++base] = 4;
+  }
+
   static void runAllConstantIndices() {
     int[] a1 = { 0 };
     int[] a6 = { 0, 0, 0, 0, 0, 0 };
@@ -501,6 +531,12 @@ public class Main {
     if (a6[0] != 0 || a6[1] != 1  || a6[2] != 2  ||
         a6[3] != 3 || a6[4] != 40 || a6[5] != 10) {
       System.out.println("constant indices 9 failed!");
+    }
+
+    constantIndexing10(a6, 0);
+    if (a6[0] != 1 || a6[1] != 2  || a6[2] != 3  ||
+        a6[3] != 4 || a6[4] != 40 || a6[5] != 10) {
+      System.out.println("constant indices 10 failed!");
     }
   }
 
