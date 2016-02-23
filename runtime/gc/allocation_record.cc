@@ -238,9 +238,12 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
                 << records->max_stack_depth_ << " frames, taking up to "
                 << PrettySize(sz * records->alloc_record_max_) << ")";
       heap->SetAllocationRecords(records);
-      heap->SetAllocTrackingEnabled(true);
     }
     Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
+    {
+      MutexLock mu(self, *Locks::alloc_tracker_lock_);
+      heap->SetAllocTrackingEnabled(true);
+    }
   } else {
     {
       MutexLock mu(self, *Locks::alloc_tracker_lock_);
