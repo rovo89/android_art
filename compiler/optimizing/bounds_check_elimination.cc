@@ -67,20 +67,28 @@ class ValueBound : public ValueObject {
   static bool IsAddOrSubAConstant(HInstruction* instruction,
                                   /* out */ HInstruction** left_instruction,
                                   /* out */ int32_t* right_constant) {
-    if (instruction->IsAdd() || instruction->IsSub()) {
+    HInstruction* left_so_far = nullptr;
+    int32_t right_so_far = 0;
+    while (instruction->IsAdd() || instruction->IsSub()) {
       HBinaryOperation* bin_op = instruction->AsBinaryOperation();
       HInstruction* left = bin_op->GetLeft();
       HInstruction* right = bin_op->GetRight();
       if (right->IsIntConstant()) {
-        *left_instruction = left;
-        int32_t c = right->AsIntConstant()->GetValue();
-        *right_constant = instruction->IsAdd() ? c : -c;
-        return true;
+        int32_t v = right->AsIntConstant()->GetValue();
+        int32_t c = instruction->IsAdd() ? v : -v;
+        if (!WouldAddOverflowOrUnderflow(right_so_far, c)) {
+          instruction = left;
+          left_so_far = left;
+          right_so_far += c;
+          continue;
+        }
       }
+      break;
     }
-    *left_instruction = nullptr;
-    *right_constant = 0;
-    return false;
+    // Return result: either false and "null+0" or true and "instr+constant".
+    *left_instruction = left_so_far;
+    *right_constant = right_so_far;
+    return left_so_far != nullptr;
   }
 
   // Expresses any instruction as a value bound.
