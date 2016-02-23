@@ -28,3 +28,30 @@ Subclass.<init>
 RUNNING sub object, sub class, sub nonstatic
 Subclass.nonstaticMethod
 PASSED sub object, sub class, sub nonstatic
+Calling method ConcreteClass->JniCallNonOverridenDefaultMethod on object of type ConcreteClass
+DefaultInterface.JniCallNonOverridenDefaultMethod
+Calling method ConcreteClass->JniCallOverridenDefaultMethod on object of type ConcreteClass
+ConcreteClass.JniCallOverridenDefaultMethod
+Calling method ConcreteClass->JniCallOverridenDefaultMethodWithSuper on object of type ConcreteClass
+ConcreteClass.JniCallOverridenDefaultMethodWithSuper
+DefaultInterface.JniCallOverridenDefaultMethod
+Calling method ConcreteClass->JniCallOverridenAbstractMethod on object of type ConcreteClass
+ConcreteClass.JniCallOverridenAbstractMethod
+Calling method ConcreteClass->JniCallConflictDefaultMethod on object of type ConcreteClass
+EXCEPTION OCCURED: java.lang.IncompatibleClassChangeError: Conflicting default method implementations void ConflictInterface.JniCallConflictDefaultMethod()
+Calling method ConcreteClass->JniCallSoftConflictMethod on object of type ConcreteClass
+DefaultInterface.JniCallSoftConflictMethod
+Calling method DefaultInterface->JniCallNonOverridenDefaultMethod on object of type ConcreteClass
+DefaultInterface.JniCallNonOverridenDefaultMethod
+Calling method DefaultInterface->JniCallOverridenDefaultMethod on object of type ConcreteClass
+ConcreteClass.JniCallOverridenDefaultMethod
+Calling method DefaultInterface->JniCallOverridenAbstractMethod on object of type ConcreteClass
+ConcreteClass.JniCallOverridenAbstractMethod
+Calling method DefaultInterface->JniCallConflictDefaultMethod on object of type ConcreteClass
+EXCEPTION OCCURED: java.lang.IncompatibleClassChangeError: Conflicting default method implementations void ConflictInterface.JniCallConflictDefaultMethod()
+Calling method DefaultInterface->JniCallSoftConflictMethod on object of type ConcreteClass
+DefaultInterface.JniCallSoftConflictMethod
+Calling method AbstractInterface->JniCallSoftConflictMethod on object of type ConcreteClass
+DefaultInterface.JniCallSoftConflictMethod
+Calling method ConflictInterface->JniCallConflictDefaultMethod on object of type ConcreteClass
+EXCEPTION OCCURED: java.lang.IncompatibleClassChangeError: Conflicting default method implementations void ConflictInterface.JniCallConflictDefaultMethod()
