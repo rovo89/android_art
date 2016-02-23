@@ -234,6 +234,18 @@ class JitCodeCache {
   // Set the footprint limit of the code cache.
   void SetFootprintLimit(size_t new_footprint) REQUIRES(lock_);
 
+  void DoFullCollection(Thread* self)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void RemoveUnusedCode(Thread* self)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void MarkCompiledCodeOnThreadStacks(Thread* self)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Lock for guarding allocations, collections, and the method_code_map_.
   Mutex lock_;
   // Condition to wait on during collection.
@@ -269,8 +281,8 @@ class JitCodeCache {
   // The current footprint in bytes of the data portion of the code cache.
   size_t data_end_ GUARDED_BY(lock_);
 
-  // Whether a collection has already been done on the current capacity.
-  bool has_done_one_collection_ GUARDED_BY(lock_);
+  // Whether a full collection has already been done on the current capacity.
+  bool has_done_full_collection_ GUARDED_BY(lock_);
 
   // Last time the the code_cache was updated.
   // It is atomic to avoid locking when reading it.
