@@ -564,6 +564,9 @@ class Runtime {
   const ArenaPool* GetArenaPool() const {
     return arena_pool_.get();
   }
+
+  void ReclaimArenaPoolMemory();
+
   LinearAlloc* GetLinearAlloc() {
     return linear_alloc_.get();
   }
