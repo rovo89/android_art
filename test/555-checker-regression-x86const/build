@@ -27,14 +27,12 @@ mkdir classes-ex
 mv classes/UnresolvedClass.class classes-ex
 
 if [ ${USE_JACK} = "true" ]; then
-  # Create .jack files from classes generated with javac.
-  ${JILL} classes --output classes.jack
-  ${JILL} classes-ex --output classes-ex.jack
+  jar cf classes.jill.jar -C classes .
+  jar cf classes-ex.jill.jar -C classes-ex .
 
-  # Create DEX files from .jack files.
-  ${JACK} --import classes.jack --output-dex .
+  ${JACK} --import classes.jill.jar --output-dex .
   zip $TEST_NAME.jar classes.dex
-  ${JACK} --import classes-ex.jack --output-dex .
+  ${JACK} --import classes-ex.jill.jar --output-dex .
   zip ${TEST_NAME}-ex.jar classes.dex
 else
   if [ ${NEED_DEX} = "true" ]; then
