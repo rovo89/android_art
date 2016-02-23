@@ -59,11 +59,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     // Runs test with given arguments.
   int ProcessProfiles(const std::vector<int>& profiles_fd, int reference_profile_fd) {
     std::string file_path = GetTestAndroidRoot();
-    if (IsHost()) {
-      file_path += "/bin/profman";
-    } else {
-      file_path += "/xbin/profman";
-    }
+    file_path += "/bin/profman";
     if (kIsDebugBuild) {
       file_path += "d";
     }
