@@ -12,7 +12,6 @@
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -141,6 +140,21 @@ MterpCheckSuspendAndContinue:
     REFRESH_IBASE
 1:
     GOTO_NEXT
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    movl    rSELF, %eax
+    movl    %eax, OUT_ARG0(%esp)
+    lea     OFF_FP_SHADOWFRAME(rFP), %ecx
+    movl    %ecx, OUT_ARG1(%esp)
+    movl    rINST, OUT_ARG2(%esp)
+    call    SYMBOL(MterpLogOSR)
+#endif
+    movl    $$1, %eax
+    jmp     MterpDone
 
 /*
  * Bail out to reference interpreter.

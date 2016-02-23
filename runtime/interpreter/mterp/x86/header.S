@@ -156,13 +156,26 @@ unspecified registers or condition codes.
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
 #define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
 
+#define MTERP_PROFILE_BRANCHES 1
+#define MTERP_LOGGING 0
+
 /*
- *
- * The reference interpreter performs explicit suspect checks, which is somewhat wasteful.
- * Dalvik's interpreter folded suspend checks into the jump table mechanism, and eventually
- * mterp should do so as well.
+ * Profile branch. rINST should contain the offset. %eax is scratch.
  */
-#define MTERP_SUSPEND 0
+.macro MTERP_PROFILE_BRANCH
+#ifdef MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    movl    rSELF, %eax
+    movl    %eax, OUT_ARG0(%esp)
+    leal    OFF_FP_SHADOWFRAME(rFP), %eax
+    movl    %eax, OUT_ARG1(%esp)
+    movl    rINST, OUT_ARG2(%esp)
+    call    SYMBOL(MterpProfileBranch)
+    testb   %al, %al
+    jnz     MterpOnStackReplacement
+    RESTORE_IBASE
+#endif
+.endm
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must
