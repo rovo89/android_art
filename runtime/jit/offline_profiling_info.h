@@ -46,11 +46,11 @@ class ProfileCompilationInfo {
                                 const std::vector<ArtMethod*>& methods);
 
   // Loads profile information from the given file descriptor.
-  bool Load(uint32_t fd);
+  bool Load(int fd);
   // Loads the data from another ProfileCompilationInfo object.
   bool Load(const ProfileCompilationInfo& info);
   // Saves the profile data to the given file descriptor.
-  bool Save(uint32_t fd);
+  bool Save(int fd);
   // Returns the number of methods that were profiled.
   uint32_t GetNumberOfMethods() const;
 
@@ -65,8 +65,7 @@ class ProfileCompilationInfo {
                        bool print_full_dex_location = true) const;
 
   // For testing purposes.
-  bool Equals(ProfileCompilationInfo& other);
-  // Exposed for testing purpose.
+  bool Equals(const ProfileCompilationInfo& other);
   static std::string GetProfileDexFileKey(const std::string& dex_location);
 
  private:
