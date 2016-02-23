@@ -40,6 +40,7 @@
 #include "art_method-inl.h"
 #include "base/dumpable.h"
 #include "base/macros.h"
+#include "base/scoped_flock.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
 #include "base/time_utils.h"
@@ -71,7 +72,6 @@
 #include "mirror/object_array-inl.h"
 #include "oat_writer.h"
 #include "os.h"
-#include "profile_assistant.h"
 #include "runtime.h"
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
@@ -339,23 +339,10 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Example: --runtime-arg -Xms256m");
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
-  UsageError("      Can be specified multiple time, in which case the data from the different");
-  UsageError("      profiles will be aggregated.");
-  UsageError("");
-  UsageError("  --reference-profile-file=<filename>: specify a reference profile file to use when");
-  UsageError("      compiling. The data in this file will be compared with the data in the");
-  UsageError("      associated --profile-file and the compilation will proceed only if there is");
-  UsageError("      a significant difference (--reference-profile-file is paired with");
-  UsageError("      --profile-file in the natural order). If the compilation was attempted then");
-  UsageError("      --profile-file will be merged into --reference-profile-file. Valid only when");
-  UsageError("      specified together with --profile-file.");
   UsageError("");
   UsageError("  --profile-file-fd=<number>: same as --profile-file but accepts a file descriptor.");
   UsageError("      Cannot be used together with --profile-file.");
   UsageError("");
-  UsageError("  --reference-profile-file-fd=<number>: same as --reference-profile-file but");
-  UsageError("      accepts a file descriptor. Cannot be used together with");
-  UsageError("       --reference-profile-file.");
   UsageError("  --print-pass-names: print a list of pass names");
   UsageError("");
   UsageError("  --disable-passes=<pass-names>:  disable one or more passes separated by comma.");
@@ -517,14 +504,6 @@ static bool UseSwap(bool is_image, std::vector<const DexFile*>& dex_files) {
   return dex_files_size >= kMinDexFileCumulativeSizeForSwap;
 }
 
-static void CloseAllFds(const std::vector<uint32_t>& fds, const char* descriptor) {
-  for (size_t i = 0; i < fds.size(); i++) {
-    if (close(fds[i]) < 0) {
-      PLOG(WARNING) << "Failed to close descriptor for " << descriptor << " at index " << i;
-    }
-  }
-}
-
 class Dex2Oat FINAL {
  public:
   explicit Dex2Oat(TimingLogger* timings) :
@@ -567,10 +546,12 @@ class Dex2Oat FINAL {
       dump_passes_(false),
       dump_timing_(false),
       dump_slow_timing_(kIsDebugBuild),
-      swap_fd_(-1),
+      swap_fd_(kInvalidFd),
       app_image_fd_(kInvalidFd),
+      profile_file_fd_(kInvalidFd),
       timings_(timings),
-      force_determinism_(false) {}
+      force_determinism_(false)
+      {}
 
   ~Dex2Oat() {
     // Log completion time before deleting the runtime_, because this accesses
@@ -824,25 +805,8 @@ class Dex2Oat FINAL {
       }
     }
 
-    if (!profile_files_.empty() && !profile_files_fd_.empty()) {
-      Usage("Profile files should not be specified with both --profile-file-fd and --profile-file");
-    }
-    if (!profile_files_.empty()) {
-      if (!reference_profile_files_.empty() &&
-          (reference_profile_files_.size() != profile_files_.size())) {
-        Usage("If specified, --reference-profile-file should match the number of --profile-file.");
-      }
-    } else if (!reference_profile_files_.empty()) {
-      Usage("--reference-profile-file should only be supplied with --profile-file");
-    }
-    if (!profile_files_fd_.empty()) {
-      if (!reference_profile_files_fd_.empty() &&
-          (reference_profile_files_fd_.size() != profile_files_fd_.size())) {
-        Usage("If specified, --reference-profile-file-fd should match the number",
-              " of --profile-file-fd.");
-      }
-    } else if (!reference_profile_files_fd_.empty()) {
-      Usage("--reference-profile-file-fd should only be supplied with --profile-file-fd");
+    if (!profile_file_.empty() && (profile_file_fd_ != kInvalidFd)) {
+      Usage("Profile file should not be specified with both --profile-file-fd and --profile-file");
     }
 
     if (!parser_options->oat_symbols.empty()) {
@@ -1153,16 +1117,9 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--compiler-backend=")) {
         ParseCompilerBackend(option, parser_options.get());
       } else if (option.starts_with("--profile-file=")) {
-        profile_files_.push_back(option.substr(strlen("--profile-file=")).ToString());
-      } else if (option.starts_with("--reference-profile-file=")) {
-        reference_profile_files_.push_back(
-            option.substr(strlen("--reference-profile-file=")).ToString());
+        profile_file_ = option.substr(strlen("--profile-file=")).ToString();
       } else if (option.starts_with("--profile-file-fd=")) {
-        ParseFdForCollection(option, "--profile-file-fd", &profile_files_fd_);
-      } else if (option.starts_with("--reference-profile-file-fd=")) {
-        ParseFdForCollection(option, "--reference_profile-file-fd", &reference_profile_files_fd_);
-      } else if (option == "--no-profile-file") {
-        // No profile
+        ParseUintOption(option, "--profile-file-fd", &profile_file_fd_, Usage);
       } else if (option == "--host") {
         is_host_ = true;
       } else if (option == "--runtime-arg") {
@@ -1865,33 +1822,44 @@ class Dex2Oat FINAL {
   }
 
   bool UseProfileGuidedCompilation() const {
-    return !profile_files_.empty() || !profile_files_fd_.empty();
+    return !profile_file_.empty() || (profile_file_fd_ != kInvalidFd);
   }
 
-  bool ProcessProfiles() {
+  bool LoadProfile() {
     DCHECK(UseProfileGuidedCompilation());
-    ProfileCompilationInfo* info = nullptr;
-    bool result = false;
-    if (profile_files_.empty()) {
-      DCHECK(!profile_files_fd_.empty());
-      result = ProfileAssistant::ProcessProfiles(
-          profile_files_fd_, reference_profile_files_fd_, &info);
-      CloseAllFds(profile_files_fd_, "profile_files_fd_");
-      CloseAllFds(reference_profile_files_fd_, "reference_profile_files_fd_");
+
+    profile_compilation_info_.reset(new ProfileCompilationInfo());
+    ScopedFlock flock;
+    bool success = false;
+    std::string error;
+    if (profile_file_fd_ != -1) {
+      // The file doesn't need to be flushed so don't check the usage.
+      // Pass a bogus path so that we can easily attribute any reported error.
+      File file(profile_file_fd_, "profile", /*check_usage*/ false, /*read_only_mode*/ true);
+      if (flock.Init(&file, &error)) {
+        success = profile_compilation_info_->Load(profile_file_fd_);
+      }
     } else {
-      result = ProfileAssistant::ProcessProfiles(
-          profile_files_, reference_profile_files_, &info);
+      if (flock.Init(profile_file_.c_str(), O_RDONLY, /* block */ true, &error)) {
+        success = profile_compilation_info_->Load(flock.GetFile()->Fd());
+      }
+    }
+    if (!error.empty()) {
+      LOG(WARNING) << "Cannot lock profiles: " << error;
     }
 
-    profile_compilation_info_.reset(info);
+    if (!success) {
+      profile_compilation_info_.reset(nullptr);
+    }
 
-    return result;
+    return success;
   }
 
   bool ShouldCompileBasedOnProfiles() const {
     DCHECK(UseProfileGuidedCompilation());
-    // If we are given profiles, compile only if we have new information.
-    return profile_compilation_info_ != nullptr;
+    // If we are given a profile, compile only if we have some data in it.
+    return (profile_compilation_info_ != nullptr) &&
+        (profile_compilation_info_->GetNumberOfMethods() != 0);
   }
 
  private:
@@ -2460,10 +2428,8 @@ class Dex2Oat FINAL {
   int swap_fd_;
   std::string app_image_file_name_;
   int app_image_fd_;
-  std::vector<std::string> profile_files_;
-  std::vector<std::string> reference_profile_files_;
-  std::vector<uint32_t> profile_files_fd_;
-  std::vector<uint32_t> reference_profile_files_fd_;
+  std::string profile_file_;
+  int profile_file_fd_;
   std::unique_ptr<ProfileCompilationInfo> profile_compilation_info_;
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
@@ -2592,7 +2558,7 @@ static int dex2oat(int argc, char** argv) {
   // Process profile information and assess if we need to do a profile guided compilation.
   // This operation involves I/O.
   if (dex2oat.UseProfileGuidedCompilation()) {
-    if (dex2oat.ProcessProfiles()) {
+    if (dex2oat.LoadProfile()) {
       if (!dex2oat.ShouldCompileBasedOnProfiles()) {
         LOG(INFO) << "Skipped compilation because of insignificant profile delta";
         return EXIT_SUCCESS;
