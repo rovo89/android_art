@@ -276,6 +276,8 @@ class ArenaPool {
   Arena* AllocArena(size_t size) REQUIRES(!lock_);
   void FreeArenaChain(Arena* first) REQUIRES(!lock_);
   size_t GetBytesAllocated() const REQUIRES(!lock_);
+  void ReclaimMemory() NO_THREAD_SAFETY_ANALYSIS;
+  void LockReclaimMemory() REQUIRES(!lock_);
   // Trim the maps in arenas by madvising, used by JIT to reduce memory usage. This only works
   // use_malloc is false.
   void TrimMaps() REQUIRES(!lock_);
