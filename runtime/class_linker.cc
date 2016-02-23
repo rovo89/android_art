@@ -759,7 +759,7 @@ static void SanityCheckArtMethod(ArtMethod* m,
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
     CHECK(m->GetDeclaringClass() == nullptr) << PrettyMethod(m);
-  } else if (m->MightBeCopied()) {
+  } else if (m->IsCopied()) {
     CHECK(m->GetDeclaringClass() != nullptr) << PrettyMethod(m);
   } else if (expected_class != nullptr) {
     CHECK_EQ(m->GetDeclaringClassUnchecked(), expected_class) << PrettyMethod(m);
@@ -1137,18 +1137,18 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
 
   virtual void Visit(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
     GcRoot<mirror::Class>* resolved_types = method->GetDexCacheResolvedTypes(sizeof(void*));
-    const bool maybe_copied = method->MightBeCopied();
+    const bool is_copied = method->IsCopied();
     if (resolved_types != nullptr) {
       bool in_image_space = false;
-      if (kIsDebugBuild || maybe_copied) {
+      if (kIsDebugBuild || is_copied) {
         in_image_space = header_.GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
             reinterpret_cast<const uint8_t*>(resolved_types) - header_.GetImageBegin());
       }
       // Must be in image space for non-miranda method.
-      DCHECK(maybe_copied || in_image_space)
+      DCHECK(is_copied || in_image_space)
           << resolved_types << " is not in image starting at "
           << reinterpret_cast<void*>(header_.GetImageBegin());
-      if (!maybe_copied || in_image_space) {
+      if (!is_copied || in_image_space) {
         // Go through the array so that we don't need to do a slow map lookup.
         method->SetDexCacheResolvedTypes(*reinterpret_cast<GcRoot<mirror::Class>**>(resolved_types),
                                          sizeof(void*));
@@ -1157,15 +1157,15 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
     ArtMethod** resolved_methods = method->GetDexCacheResolvedMethods(sizeof(void*));
     if (resolved_methods != nullptr) {
       bool in_image_space = false;
-      if (kIsDebugBuild || maybe_copied) {
+      if (kIsDebugBuild || is_copied) {
         in_image_space = header_.GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
               reinterpret_cast<const uint8_t*>(resolved_methods) - header_.GetImageBegin());
       }
       // Must be in image space for non-miranda method.
-      DCHECK(maybe_copied || in_image_space)
+      DCHECK(is_copied || in_image_space)
           << resolved_methods << " is not in image starting at "
           << reinterpret_cast<void*>(header_.GetImageBegin());
-      if (!maybe_copied || in_image_space) {
+      if (!is_copied || in_image_space) {
         // Go through the array so that we don't need to do a slow map lookup.
         method->SetDexCacheResolvedMethods(*reinterpret_cast<ArtMethod***>(resolved_methods),
                                            sizeof(void*));
@@ -6459,7 +6459,7 @@ bool ClassLinker::LinkInterfaceMethods(
     for (ArtMethod* mir_method : miranda_methods) {
       ArtMethod& new_method = *out;
       new_method.CopyFrom(mir_method, image_pointer_size_);
-      new_method.SetAccessFlags(new_method.GetAccessFlags() | kAccMiranda);
+      new_method.SetAccessFlags(new_method.GetAccessFlags() | kAccMiranda | kAccCopied);
       DCHECK_NE(new_method.GetAccessFlags() & kAccAbstract, 0u)
           << "Miranda method should be abstract!";
       move_table.emplace(mir_method, &new_method);
@@ -6478,7 +6478,9 @@ bool ClassLinker::LinkInterfaceMethods(
       // yet it shouldn't have methods that are skipping access checks.
       // TODO This is rather arbitrary. We should maybe support classes where only some of its
       // methods are skip_access_checks.
-      new_method.SetAccessFlags((new_method.GetAccessFlags() | kAccDefault) & ~kAccSkipAccessChecks);
+      constexpr uint32_t kSetFlags = kAccDefault | kAccCopied;
+      constexpr uint32_t kMaskFlags = ~kAccSkipAccessChecks;
+      new_method.SetAccessFlags((new_method.GetAccessFlags() | kSetFlags) & kMaskFlags);
       move_table.emplace(def_method, &new_method);
       ++out;
     }
@@ -6489,7 +6491,7 @@ bool ClassLinker::LinkInterfaceMethods(
       // this as a default, non-abstract method, since thats what it is. Also clear the
       // kAccSkipAccessChecks bit since this class hasn't been verified yet it shouldn't have
       // methods that are skipping access checks.
-      constexpr uint32_t kSetFlags = kAccDefault | kAccDefaultConflict;
+      constexpr uint32_t kSetFlags = kAccDefault | kAccDefaultConflict | kAccCopied;
       constexpr uint32_t kMaskFlags = ~(kAccAbstract | kAccSkipAccessChecks);
       new_method.SetAccessFlags((new_method.GetAccessFlags() | kSetFlags) & kMaskFlags);
       DCHECK(new_method.IsDefaultConflicting());

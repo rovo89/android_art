@@ -1077,10 +1077,8 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
                              image_classes);
     }
     for (auto& m : c->GetVirtualMethods(pointer_size)) {
-      if (m.IsMiranda() || (true)) {
-        StackHandleScope<1> hs2(self);
-        MaybeAddToImageClasses(hs2.NewHandle(m.GetDeclaringClass()), image_classes);
-      }
+      StackHandleScope<1> hs2(self);
+      MaybeAddToImageClasses(hs2.NewHandle(m.GetDeclaringClass()), image_classes);
     }
     if (klass->IsArrayClass()) {
       StackHandleScope<1> hs2(self);

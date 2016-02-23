@@ -917,7 +917,7 @@ void ImageWriter::PruneNonImageClasses() {
       // Copied methods may be held live by a class which was not an image class but have a
       // declaring class which is an image class. Set it to the resolution method to be safe and
       // prevent dangling pointers.
-      if (method->MightBeCopied() || !KeepClass(declaring_class)) {
+      if (method->IsCopied() || !KeepClass(declaring_class)) {
         mirror::DexCache::SetElementPtrSize(resolved_methods,
                                             i,
                                             resolution_method,
