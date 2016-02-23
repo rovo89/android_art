@@ -287,6 +287,7 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
 // Wrapper on fork/execv to run a command in a subprocess.
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
+int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg);
 
 // Returns true if the file exists.
 bool FileExists(const std::string& filename);
@@ -343,7 +344,7 @@ static void ParseUintOption(const StringPiece& option,
                             UsageFn Usage,
                             bool is_long_option = true) {
   std::string option_prefix = option_name + (is_long_option ? "=" : "");
-  DCHECK(option.starts_with(option_prefix));
+  DCHECK(option.starts_with(option_prefix)) << option << " " << option_prefix;
   const char* value_string = option.substr(option_prefix.size()).data();
   int64_t parsed_integer_value = 0;
   if (!ParseInt(value_string, &parsed_integer_value)) {

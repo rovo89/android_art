@@ -108,8 +108,7 @@ LIBART_COMPILER_SRC_FILES := \
 	elf_writer.cc \
 	elf_writer_quick.cc \
 	image_writer.cc \
-	oat_writer.cc \
-	profile_assistant.cc
+	oat_writer.cc
 
 LIBART_COMPILER_SRC_FILES_arm := \
 	dex/quick/arm/assemble_arm.cc \
