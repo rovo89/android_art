@@ -2049,7 +2049,7 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method,
   const uint8_t* quick_code;
 
   if (UNLIKELY(IsInBootImage(method->GetDeclaringClass()))) {
-    DCHECK(method->MightBeCopied());
+    DCHECK(method->IsCopied());
     // If the code is not in the oat file corresponding to this image (e.g. default methods)
     quick_code = reinterpret_cast<const uint8_t*>(quick_oat_entry_point);
   } else {
