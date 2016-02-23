@@ -132,9 +132,12 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  // Returns true if this method might be copied from another class.
-  bool MightBeCopied() {
-    return IsMiranda() || IsDefault() || IsDefaultConflicting();
+  bool IsCopied() {
+    const bool copied = (GetAccessFlags() & kAccCopied) != 0;
+    // (IsMiranda() || IsDefaultConflicting()) implies copied
+    DCHECK(!(IsMiranda() || IsDefaultConflicting()) || copied)
+        << "Miranda or default-conflict methods must always be copied.";
+    return copied;
   }
 
   bool IsMiranda() {

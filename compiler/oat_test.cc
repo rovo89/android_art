@@ -416,7 +416,7 @@ TEST_F(OatTest, WriteRead) {
     // TODO We should also check copied methods in this test.
     for (auto& m : klass->GetDeclaredVirtualMethods(pointer_size)) {
       if (!klass->IsInterface()) {
-        EXPECT_FALSE(m.MightBeCopied());
+        EXPECT_FALSE(m.IsCopied());
       }
       CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
       ++method_index;

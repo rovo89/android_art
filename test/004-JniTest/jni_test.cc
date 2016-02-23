@@ -659,3 +659,65 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enterJniCriticalSection(JNIEnv* env,
     env->ReleasePrimitiveArrayCritical(array0, data0, 0);
   }
 }
+
+class JniCallDefaultMethodsTest {
+ public:
+  explicit JniCallDefaultMethodsTest(JNIEnv* env)
+      : env_(env), concrete_class_(env_->FindClass("ConcreteClass")) {
+    assert(!env_->ExceptionCheck());
+    assert(concrete_class_ != nullptr);
+  }
+
+  void Test() {
+    TestCalls("ConcreteClass", { "JniCallNonOverridenDefaultMethod",
+                                 "JniCallOverridenDefaultMethod",
+                                 "JniCallOverridenDefaultMethodWithSuper",
+                                 "JniCallOverridenAbstractMethod",
+                                 "JniCallConflictDefaultMethod",
+                                 "JniCallSoftConflictMethod" });
+    TestCalls("DefaultInterface", { "JniCallNonOverridenDefaultMethod",
+                                    "JniCallOverridenDefaultMethod",
+                                    "JniCallOverridenAbstractMethod",
+                                    "JniCallConflictDefaultMethod",
+                                    "JniCallSoftConflictMethod" });
+    TestCalls("AbstractInterface", { "JniCallSoftConflictMethod" });
+    TestCalls("ConflictInterface", { "JniCallConflictDefaultMethod" });
+  }
+
+ private:
+  void TestCalls(const char* declaring_class, std::vector<const char*> methods) {
+    jmethodID new_method = env_->GetMethodID(concrete_class_, "<init>", "()V");
+    jobject obj = env_->NewObject(concrete_class_, new_method);
+    assert(!env_->ExceptionCheck());
+    assert(obj != nullptr);
+    jclass decl_class = env_->FindClass(declaring_class);
+    assert(!env_->ExceptionCheck());
+    assert(decl_class != nullptr);
+    for (const char* method : methods) {
+      jmethodID method_id = env_->GetMethodID(decl_class, method, "()V");
+      assert(!env_->ExceptionCheck());
+      printf("Calling method %s->%s on object of type ConcreteClass\n", declaring_class, method);
+      env_->CallVoidMethod(obj, method_id);
+      if (env_->ExceptionCheck()) {
+        jthrowable thrown = env_->ExceptionOccurred();
+        env_->ExceptionClear();
+        jmethodID to_string = env_->GetMethodID(
+            env_->FindClass("java/lang/Object"), "toString", "()Ljava/lang/String;");
+        jstring exception_string = (jstring) env_->CallObjectMethod(thrown, to_string);
+        assert(!env_->ExceptionCheck());
+        const char* exception_string_utf8 = env_->GetStringUTFChars(exception_string, nullptr);
+        assert(!env_->ExceptionCheck());
+        assert(exception_string_utf8 != nullptr);
+        printf("EXCEPTION OCCURED: %s\n", exception_string_utf8);
+        env_->ReleaseStringUTFChars(exception_string, exception_string_utf8);
+      }
+    }
+  }
+
+  JNIEnv* env_;
+  jclass concrete_class_;
+};
+
+extern "C" JNIEXPORT void JNICALL Java_Main_testCallDefaultMethods(JNIEnv* env) {
+  JniCallDefaultMethodsTest(env).Test();
+}

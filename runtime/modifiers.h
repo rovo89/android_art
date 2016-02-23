@@ -50,6 +50,11 @@ static constexpr uint32_t kAccSkipAccessChecks =      0x00080000;  // method (de
 // Used by a class to denote that the verifier has attempted to check it at least once.
 static constexpr uint32_t kAccVerificationAttempted = 0x00080000;  // class (runtime)
 static constexpr uint32_t kAccFastNative =            0x00080000;  // method (dex only)
+// This is set by the class linker during LinkInterfaceMethods. It is used by a method to represent
+// that it was copied from its declaring class into another class. All methods marked kAccMiranda
+// and kAccDefaultConflict will have this bit set. Any kAccDefault method contained in the methods_
+// array of a concrete class will also have this bit set.
+static constexpr uint32_t kAccCopied =                0x00100000;  // method (runtime)
 static constexpr uint32_t kAccMiranda =               0x00200000;  // method (dex only)
 static constexpr uint32_t kAccDefault =               0x00400000;  // method (runtime)
 // This is set by the class linker during LinkInterfaceMethods. Prior to that point we do not know
