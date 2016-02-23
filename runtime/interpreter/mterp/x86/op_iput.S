@@ -19,7 +19,7 @@
     movl    OFF_FP_METHOD(rFP), %eax
     movl    %eax, OUT_ARG3(%esp)            # referrer
     call    SYMBOL($handler)
-    testl   %eax, %eax
+    testb   %al, %al
     jnz     MterpPossibleException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

@@ -113,8 +113,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = oss.str();
     return false;
   }
-  jit_load_ = reinterpret_cast<void* (*)(CompilerCallbacks**, bool*)>(
-      dlsym(jit_library_handle_, "jit_load"));
+  jit_load_ = reinterpret_cast<void* (*)(bool*)>(dlsym(jit_library_handle_, "jit_load"));
   if (jit_load_ == nullptr) {
     dlclose(jit_library_handle_);
     *error_msg = "JIT couldn't find jit_load entry point";
@@ -141,23 +140,15 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = "JIT couldn't find jit_types_loaded entry point";
     return false;
   }
-  CompilerCallbacks* callbacks = nullptr;
   bool will_generate_debug_symbols = false;
   VLOG(jit) << "Calling JitLoad interpreter_only="
       << Runtime::Current()->GetInstrumentation()->InterpretOnly();
-  jit_compiler_handle_ = (jit_load_)(&callbacks, &will_generate_debug_symbols);
+  jit_compiler_handle_ = (jit_load_)(&will_generate_debug_symbols);
   if (jit_compiler_handle_ == nullptr) {
     dlclose(jit_library_handle_);
     *error_msg = "JIT couldn't load compiler";
     return false;
   }
-  if (callbacks == nullptr) {
-    dlclose(jit_library_handle_);
-    *error_msg = "JIT compiler callbacks were not set";
-    jit_compiler_handle_ = nullptr;
-    return false;
-  }
-  compiler_callbacks_ = callbacks;
   generate_debug_info_ = will_generate_debug_symbols;
   return true;
 }

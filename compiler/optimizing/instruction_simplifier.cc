@@ -92,6 +92,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
   void SimplifyCompare(HInvoke* invoke, bool has_zero_op);
+  void SimplifyIsNaN(HInvoke* invoke);
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -1551,6 +1552,16 @@ void InstructionSimplifierVisitor::SimplifyCompare(HInvoke* invoke, bool is_sign
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, compare);
 }
 
+void InstructionSimplifierVisitor::SimplifyIsNaN(HInvoke* invoke) {
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  uint32_t dex_pc = invoke->GetDexPc();
+  // IsNaN(x) is the same as x != x.
+  HInstruction* x = invoke->InputAt(0);
+  HCondition* condition = new (GetGraph()->GetArena()) HNotEqual(x, x, dex_pc);
+  condition->SetBias(ComparisonBias::kLtBias);
+  invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, condition);
+}
+
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   if (instruction->GetIntrinsic() == Intrinsics::kStringEquals) {
     SimplifyStringEquals(instruction);
@@ -1568,6 +1579,9 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerSignum ||
              instruction->GetIntrinsic() == Intrinsics::kLongSignum) {
     SimplifyCompare(instruction, /* is_signum */ true);
+  } else if (instruction->GetIntrinsic() == Intrinsics::kFloatIsNaN ||
+             instruction->GetIntrinsic() == Intrinsics::kDoubleIsNaN) {
+    SimplifyIsNaN(instruction);
   }
 }
 

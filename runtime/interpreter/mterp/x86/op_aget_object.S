@@ -13,7 +13,7 @@
     movl    %ecx, OUT_ARG1(%esp)
     call    SYMBOL(artAGetObjectFromMterp)  # (array, index)
     movl    rSELF, %ecx
-    REFRESH_IBASE_FROM_SELF %ecx
+    RESTORE_IBASE_FROM_SELF %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
     SET_VREG_OBJECT %eax, rINST

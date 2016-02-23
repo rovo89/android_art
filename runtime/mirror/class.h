@@ -1006,6 +1006,8 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the offset of the first reference instance field. Other reference instance fields follow.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   MemberOffset GetFirstReferenceInstanceFieldOffset()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1118,6 +1120,9 @@ class MANAGED Class FINAL : public Object {
     // Not called within a transaction.
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx);
   }
+
+  uint32_t FindTypeIndexInOtherDexFile(const DexFile& dex_file)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static Class* GetJavaLangClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(HasJavaLangClass());

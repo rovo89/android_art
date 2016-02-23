@@ -422,6 +422,34 @@ bool SsaBuilder::FixAmbiguousArrayOps() {
   return true;
 }
 
+static bool HasAliasInEnvironments(HInstruction* instruction) {
+  for (HUseIterator<HEnvironment*> use_it(instruction->GetEnvUses());
+       !use_it.Done();
+       use_it.Advance()) {
+    HEnvironment* use = use_it.Current()->GetUser();
+    HUseListNode<HEnvironment*>* next = use_it.Current()->GetNext();
+    if (next != nullptr && next->GetUser() == use) {
+      return true;
+    }
+  }
+
+  if (kIsDebugBuild) {
+    // Do a quadratic search to ensure same environment uses are next
+    // to each other.
+    for (HUseIterator<HEnvironment*> use_it(instruction->GetEnvUses());
+         !use_it.Done();
+         use_it.Advance()) {
+      HUseListNode<HEnvironment*>* current = use_it.Current();
+      HUseListNode<HEnvironment*>* next = current->GetNext();
+      while (next != nullptr) {
+        DCHECK(next->GetUser() != current->GetUser());
+        next = next->GetNext();
+      }
+    }
+  }
+  return false;
+}
+
 void SsaBuilder::RemoveRedundantUninitializedStrings() {
   if (GetGraph()->IsDebuggable()) {
     // Do not perform the optimization for consistency with the interpreter
@@ -433,7 +461,7 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
     // Replace NewInstance of String with NullConstant if not used prior to
     // calling StringFactory. In case of deoptimization, the interpreter is
     // expected to skip null check on the `this` argument of the StringFactory call.
-    if (!new_instance->HasNonEnvironmentUses()) {
+    if (!new_instance->HasNonEnvironmentUses() && !HasAliasInEnvironments(new_instance)) {
       new_instance->ReplaceWith(GetGraph()->GetNullConstant());
       new_instance->GetBlock()->RemoveInstruction(new_instance);
 

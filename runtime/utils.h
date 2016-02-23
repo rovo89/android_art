@@ -111,6 +111,11 @@ template <typename T> T AbsOrMin(T value) {
       : std::abs(value);
 }
 
+template <typename T>
+inline typename std::make_unsigned<T>::type MakeUnsigned(T x) {
+  return static_cast<typename std::make_unsigned<T>::type>(x);
+}
+
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
@@ -287,7 +292,6 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
 // Wrapper on fork/execv to run a command in a subprocess.
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
-int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg);
 
 // Returns true if the file exists.
 bool FileExists(const std::string& filename);
@@ -344,7 +348,7 @@ static void ParseUintOption(const StringPiece& option,
                             UsageFn Usage,
                             bool is_long_option = true) {
   std::string option_prefix = option_name + (is_long_option ? "=" : "");
-  DCHECK(option.starts_with(option_prefix)) << option << " " << option_prefix;
+  DCHECK(option.starts_with(option_prefix));
   const char* value_string = option.substr(option_prefix.size()).data();
   int64_t parsed_integer_value = 0;
   if (!ParseInt(value_string, &parsed_integer_value)) {

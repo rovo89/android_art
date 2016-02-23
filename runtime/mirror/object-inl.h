@@ -1068,7 +1068,7 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
       MemberOffset field_offset = kIsStatic
           ? klass->GetFirstReferenceStaticFieldOffset<kVerifyFlags, kReadBarrierOption>(
               Runtime::Current()->GetClassLinker()->GetImagePointerSize())
-          : klass->GetFirstReferenceInstanceFieldOffset();
+          : klass->GetFirstReferenceInstanceFieldOffset<kVerifyFlags, kReadBarrierOption>();
       for (size_t i = 0u; i < num_reference_fields; ++i) {
         // TODO: Do a simpler check?
         if (field_offset.Uint32Value() != ClassOffset().Uint32Value()) {

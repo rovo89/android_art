@@ -101,11 +101,17 @@ class HInliner : public HOptimization {
                                 const InlineCache& ic)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Try to inline targets of a polymorphic call. Currently unimplemented.
+  // Try to inline targets of a polymorphic call.
   bool TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                                 ArtMethod* resolved_method,
                                 const InlineCache& ic)
     SHARED_REQUIRES(Locks::mutator_lock_);
+
+  bool TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
+                                            ArtMethod* resolved_method,
+                                            const InlineCache& ic)
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
 
   HInstanceFieldGet* BuildGetReceiverClass(ClassLinker* class_linker,
                                            HInstruction* receiver,
@@ -117,6 +123,57 @@ class HInliner : public HOptimization {
                                 HInstruction* return_replacement,
                                 bool do_rtp)
     SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Add a type guard on the given `receiver`. This will add to the graph:
+  // i0 = HFieldGet(receiver, klass)
+  // i1 = HLoadClass(class_index, is_referrer)
+  // i2 = HNotEqual(i0, i1)
+  //
+  // And if `with_deoptimization` is true:
+  // HDeoptimize(i2)
+  //
+  // The method returns the `HNotEqual`, that will be used for polymorphic inlining.
+  HInstruction* AddTypeGuard(HInstruction* receiver,
+                             HInstruction* cursor,
+                             HBasicBlock* bb_cursor,
+                             uint32_t class_index,
+                             bool is_referrer,
+                             HInstruction* invoke_instruction,
+                             bool with_deoptimization)
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
+  /*
+   * Ad-hoc implementation for implementing a diamond pattern in the graph for
+   * polymorphic inlining:
+   * 1) `compare` becomes the input of the new `HIf`.
+   * 2) Everything up until `invoke_instruction` is in the then branch (could
+   *    contain multiple blocks).
+   * 3) `invoke_instruction` is moved to the otherwise block.
+   * 4) If `return_replacement` is not null, the merge block will have
+   *    a phi whose inputs are `return_replacement` and `invoke_instruction`.
+   *
+   * Before:
+   *             Block1
+   *             compare
+   *              ...
+   *         invoke_instruction
+   *
+   * After:
+   *            Block1
+   *            compare
+   *              if
+   *          /        \
+   *         /          \
+   *   Then block    Otherwise block
+   *      ...       invoke_instruction
+   *       \              /
+   *        \            /
+   *          Merge block
+   *  phi(return_replacement, invoke_instruction)
+   */
+  void CreateDiamondPatternForPolymorphicInline(HInstruction* compare,
+                                                HInstruction* return_replacement,
+                                                HInstruction* invoke_instruction);
 
   HGraph* const outermost_graph_;
   const DexCompilationUnit& outer_compilation_unit_;

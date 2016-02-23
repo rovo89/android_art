@@ -6511,8 +6511,8 @@ void CodeGeneratorX86_64::Load64BitValue(CpuRegister dest, int64_t value) {
   if (value == 0) {
     // Clears upper bits too.
     __ xorl(dest, dest);
-  } else if (value > 0 && IsInt<32>(value)) {
-    // We can use a 32 bit move, as it will zero-extend and is one byte shorter.
+  } else if (IsUint<32>(value)) {
+    // We can use a 32 bit move, as it will zero-extend and is shorter.
     __ movl(dest, Immediate(static_cast<int32_t>(value)));
   } else {
     __ movq(dest, Immediate(value));

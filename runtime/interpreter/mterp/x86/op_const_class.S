@@ -8,7 +8,7 @@
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
     call    SYMBOL(MterpConstClass)         # (index, tgt_reg, shadow_frame, self)
-    REFRESH_IBASE
-    testl   %eax, %eax
+    RESTORE_IBASE
+    testb   %al, %al
     jnz     MterpPossibleException
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

@@ -213,9 +213,6 @@ class MethodVerifier {
   static ArtMethod* FindInvokedMethodAtDexPc(ArtMethod* m, uint32_t dex_pc)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static SafeMap<uint32_t, std::set<uint32_t>> FindStringInitMap(ArtMethod* m)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   static void Init() SHARED_REQUIRES(Locks::mutator_lock_);
   static void Shutdown();
 
@@ -293,10 +290,6 @@ class MethodVerifier {
   // if it cannot be found.
   ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  SafeMap<uint32_t, std::set<uint32_t>>& GetStringInitPcRegMap() {
-    return string_init_pc_reg_map_;
-  }
 
   uint32_t GetEncounteredFailureTypes() {
     return encountered_failure_types_;
@@ -874,11 +867,6 @@ class MethodVerifier {
   MethodVerifier* link_;
 
   friend class art::Thread;
-
-  // Map of dex pcs of invocations of java.lang.String.<init> to the set of other registers that
-  // contain the uninitialized this pointer to that invoke. Will contain no entry if there are
-  // no other registers.
-  SafeMap<uint32_t, std::set<uint32_t>> string_init_pc_reg_map_;
 
   DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };

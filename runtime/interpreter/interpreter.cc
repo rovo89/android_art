@@ -320,12 +320,13 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
         // No Mterp variant - just use the switch interpreter.
         return ExecuteSwitchImpl<false, true>(self, code_item, shadow_frame, result_register,
                                               false);
+      } else if (UNLIKELY(!Runtime::Current()->IsStarted())) {
+        return ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame, result_register,
+                                               false);
       } else {
-        const instrumentation::Instrumentation* const instrumentation =
-            Runtime::Current()->GetInstrumentation();
         while (true) {
-          if (instrumentation->IsActive() || !Runtime::Current()->IsStarted()) {
-            // TODO: allow JIT profiling instrumentation.  Now, just punt on all instrumentation.
+          // Mterp does not support all instrumentation/debugging.
+          if (MterpShouldSwitchInterpreters()) {
 #if !defined(__clang__)
             return ExecuteGotoImpl<false, false>(self, code_item, shadow_frame, result_register);
 #else

@@ -113,11 +113,10 @@ class IntrinsicSlowPathMIPS : public SlowPathCodeMIPS {
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
                                           Location::RegisterLocation(A0));
-      codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
     } else {
-      UNIMPLEMENTED(FATAL) << "Non-direct intrinsic slow-path not yet implemented";
-      UNREACHABLE();
+      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), Location::RegisterLocation(A0));
     }
+    codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
 
     // Copy the result back to the expected output.
     Location out = invoke_->GetLocations()->Out();
@@ -825,6 +824,220 @@ void IntrinsicCodeGeneratorMIPS::VisitLongReverse(HInvoke* invoke) {
              GetAssembler());
 }
 
+// byte libcore.io.Memory.peekByte(long address)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPeekByte(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPeekByte(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register out = invoke->GetLocations()->Out().AsRegister<Register>();
+
+  __ Lb(out, adr, 0);
+}
+
+// short libcore.io.Memory.peekShort(long address)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPeekShortNative(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPeekShortNative(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register out = invoke->GetLocations()->Out().AsRegister<Register>();
+
+  if (IsR6()) {
+    __ Lh(out, adr, 0);
+  } else if (IsR2OrNewer()) {
+    // Unlike for words, there are no lhl/lhr instructions to load
+    // unaligned halfwords so the code loads individual bytes, in case
+    // the address isn't halfword-aligned, and assembles them into a
+    // signed halfword.
+    __ Lb(AT, adr, 1);   // This byte must be sign-extended.
+    __ Lb(out, adr, 0);  // This byte can be either sign-extended, or
+                         // zero-extended because the following
+                         // instruction overwrites the sign bits.
+    __ Ins(out, AT, 8, 24);
+  } else {
+    __ Lbu(AT, adr, 0);  // This byte must be zero-extended.  If it's not
+                         // the "or" instruction below will destroy the upper
+                         // 24 bits of the final result.
+    __ Lb(out, adr, 1);  // This byte must be sign-extended.
+    __ Sll(out, out, 8);
+    __ Or(out, out, AT);
+  }
+}
+
+// int libcore.io.Memory.peekInt(long address)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPeekIntNative(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke, Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPeekIntNative(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register out = invoke->GetLocations()->Out().AsRegister<Register>();
+
+  if (IsR6()) {
+    __ Lw(out, adr, 0);
+  } else {
+    __ Lwr(out, adr, 0);
+    __ Lwl(out, adr, 3);
+  }
+}
+
+// long libcore.io.Memory.peekLong(long address)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPeekLongNative(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke, Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPeekLongNative(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register out_lo = invoke->GetLocations()->Out().AsRegisterPairLow<Register>();
+  Register out_hi = invoke->GetLocations()->Out().AsRegisterPairHigh<Register>();
+
+  if (IsR6()) {
+    __ Lw(out_lo, adr, 0);
+    __ Lw(out_hi, adr, 4);
+  } else {
+    __ Lwr(out_lo, adr, 0);
+    __ Lwl(out_lo, adr, 3);
+    __ Lwr(out_hi, adr, 4);
+    __ Lwl(out_hi, adr, 7);
+  }
+}
+
+static void CreateIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+}
+
+// void libcore.io.Memory.pokeByte(long address, byte value)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPokeByte(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPokeByte(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register val = invoke->GetLocations()->InAt(1).AsRegister<Register>();
+
+  __ Sb(val, adr, 0);
+}
+
+// void libcore.io.Memory.pokeShort(long address, short value)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPokeShortNative(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPokeShortNative(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register val = invoke->GetLocations()->InAt(1).AsRegister<Register>();
+
+  if (IsR6()) {
+    __ Sh(val, adr, 0);
+  } else {
+    // Unlike for words, there are no shl/shr instructions to store
+    // unaligned halfwords so the code stores individual bytes, in case
+    // the address isn't halfword-aligned.
+    __ Sb(val, adr, 0);
+    __ Srl(AT, val, 8);
+    __ Sb(AT, adr, 1);
+  }
+}
+
+// void libcore.io.Memory.pokeInt(long address, int value)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPokeIntNative(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPokeIntNative(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register val = invoke->GetLocations()->InAt(1).AsRegister<Register>();
+
+  if (IsR6()) {
+    __ Sw(val, adr, 0);
+  } else {
+    __ Swr(val, adr, 0);
+    __ Swl(val, adr, 3);
+  }
+}
+
+// void libcore.io.Memory.pokeLong(long address, long value)
+void IntrinsicLocationsBuilderMIPS::VisitMemoryPokeLongNative(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMemoryPokeLongNative(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  Register adr = invoke->GetLocations()->InAt(0).AsRegisterPairLow<Register>();
+  Register val_lo = invoke->GetLocations()->InAt(1).AsRegisterPairLow<Register>();
+  Register val_hi = invoke->GetLocations()->InAt(1).AsRegisterPairHigh<Register>();
+
+  if (IsR6()) {
+    __ Sw(val_lo, adr, 0);
+    __ Sw(val_hi, adr, 4);
+  } else {
+    __ Swr(val_lo, adr, 0);
+    __ Swl(val_lo, adr, 3);
+    __ Swr(val_hi, adr, 4);
+    __ Swl(val_hi, adr, 7);
+  }
+}
+
+// char java.lang.String.charAt(int index)
+void IntrinsicLocationsBuilderMIPS::VisitStringCharAt(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnSlowPath,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitStringCharAt(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  MipsAssembler* assembler = GetAssembler();
+
+  // Location of reference to data array
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count
+  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
+
+  Register obj = locations->InAt(0).AsRegister<Register>();
+  Register idx = locations->InAt(1).AsRegister<Register>();
+  Register out = locations->Out().AsRegister<Register>();
+
+  // TODO: Maybe we can support range check elimination. Overall,
+  //       though, I think it's not worth the cost.
+  // TODO: For simplicity, the index parameter is requested in a
+  //       register, so different from Quick we will not optimize the
+  //       code for constants (which would save a register).
+
+  SlowPathCodeMIPS* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Load the string size
+  __ Lw(TMP, obj, count_offset);
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  // Revert to slow path if idx is too large, or negative
+  __ Bgeu(idx, TMP, slow_path->GetEntryLabel());
+
+  // out = obj[2*idx].
+  __ Sll(TMP, idx, 1);                  // idx * 2
+  __ Addu(TMP, TMP, obj);               // Address of char at location idx
+  __ Lhu(out, TMP, value_offset);       // Load char at location idx
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
 // boolean java.lang.String.equals(Object anObject)
 void IntrinsicLocationsBuilderMIPS::VisitStringEquals(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
@@ -956,14 +1169,6 @@ UNIMPLEMENTED_INTRINSIC(MathFloor)
 UNIMPLEMENTED_INTRINSIC(MathRint)
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekByte)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekIntNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekLongNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekShortNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeByte)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeIntNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeLongNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeShortNative)
 UNIMPLEMENTED_INTRINSIC(ThreadCurrentThread)
 UNIMPLEMENTED_INTRINSIC(UnsafeGet)
 UNIMPLEMENTED_INTRINSIC(UnsafeGetVolatile)
@@ -983,7 +1188,6 @@ UNIMPLEMENTED_INTRINSIC(UnsafePutLongVolatile)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASInt)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)
 UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
-UNIMPLEMENTED_INTRINSIC(StringCharAt)
 UNIMPLEMENTED_INTRINSIC(StringCompareTo)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
@@ -1016,8 +1220,6 @@ UNIMPLEMENTED_INTRINSIC(MathTanh)
 
 UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
 
 UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
@@ -1025,6 +1227,8 @@ UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
 UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
 
 // Handled as HIR instructions.
+UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
+UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
 UNIMPLEMENTED_INTRINSIC(IntegerCompare)
 UNIMPLEMENTED_INTRINSIC(LongCompare)
 UNIMPLEMENTED_INTRINSIC(IntegerSignum)

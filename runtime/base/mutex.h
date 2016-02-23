@@ -102,7 +102,6 @@ enum LockLevel {
   kMonitorListLock,
   kJniLoadLibraryLock,
   kThreadListLock,
-  kInterpreterStringInitMapLock,
   kAllocTrackerLock,
   kDeoptimizationLock,
   kProfilerLock,

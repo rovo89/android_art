@@ -7,7 +7,7 @@
     movl    rSELF, %eax
     movl    %eax, OUT_ARG3(%esp)
     call    SYMBOL(MterpIputObject)
-    testl   %eax, %eax
+    testb   %al, %al
     jz      MterpException
-    REFRESH_IBASE
+    RESTORE_IBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

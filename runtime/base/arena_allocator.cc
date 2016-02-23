@@ -222,11 +222,20 @@ ArenaPool::ArenaPool(bool use_malloc, bool low_4gb)
 }
 
 ArenaPool::~ArenaPool() {
+  ReclaimMemory();
+}
+
+void ArenaPool::ReclaimMemory() {
   while (free_arenas_ != nullptr) {
     auto* arena = free_arenas_;
     free_arenas_ = free_arenas_->next_;
     delete arena;
   }
+}
+
+void ArenaPool::LockReclaimMemory() {
+  MutexLock lock(Thread::Current(), lock_);
+  ReclaimMemory();
 }
 
 Arena* ArenaPool::AllocArena(size_t size) {

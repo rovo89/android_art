@@ -99,11 +99,14 @@ class RegisterLine {
   // available now. An example is sharpening types after a check-cast. Note that when given kKeep,
   // the new_type is dchecked to be a reference type.
   template <LockOp kLockOp>
-  ALWAYS_INLINE bool SetRegisterType(MethodVerifier* verifier, uint32_t vdst,
+  ALWAYS_INLINE bool SetRegisterType(MethodVerifier* verifier,
+                                     uint32_t vdst,
                                      const RegType& new_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool SetRegisterTypeWide(MethodVerifier* verifier, uint32_t vdst, const RegType& new_type1,
+  bool SetRegisterTypeWide(MethodVerifier* verifier,
+                           uint32_t vdst,
+                           const RegType& new_type1,
                            const RegType& new_type2)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -117,11 +120,14 @@ class RegisterLine {
   // Get the type of register vsrc.
   const RegType& GetRegisterType(MethodVerifier* verifier, uint32_t vsrc) const;
 
-  ALWAYS_INLINE bool VerifyRegisterType(MethodVerifier* verifier, uint32_t vsrc,
+  ALWAYS_INLINE bool VerifyRegisterType(MethodVerifier* verifier,
+                                        uint32_t vsrc,
                                         const RegType& check_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool VerifyRegisterTypeWide(MethodVerifier* verifier, uint32_t vsrc, const RegType& check_type1,
+  bool VerifyRegisterTypeWide(MethodVerifier* verifier,
+                              uint32_t vsrc,
+                              const RegType& check_type1,
                               const RegType& check_type2)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -155,8 +161,7 @@ class RegisterLine {
    * reference type. This is called when an appropriate constructor is invoked -- all copies of
    * the reference must be marked as initialized.
    */
-  void MarkRefsAsInitialized(MethodVerifier* verifier, const RegType& uninit_type,
-                             uint32_t this_reg, uint32_t dex_pc)
+  void MarkRefsAsInitialized(MethodVerifier* verifier, const RegType& uninit_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
@@ -210,31 +215,42 @@ class RegisterLine {
    * allow_failure will return Conflict() instead of causing a verification failure if there is an
    * error.
    */
-  const RegType& GetInvocationThis(MethodVerifier* verifier, const Instruction* inst,
-                                   bool is_range, bool allow_failure = false)
+  const RegType& GetInvocationThis(MethodVerifier* verifier,
+                                   const Instruction* inst,
+                                   bool is_range,
+                                   bool allow_failure = false)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
    * Verify types for a simple two-register instruction (e.g. "neg-int").
    * "dst_type" is stored into vA, and "src_type" is verified against vB.
    */
-  void CheckUnaryOp(MethodVerifier* verifier, const Instruction* inst, const RegType& dst_type,
+  void CheckUnaryOp(MethodVerifier* verifier,
+                    const Instruction* inst,
+                    const RegType& dst_type,
                     const RegType& src_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckUnaryOpWide(MethodVerifier* verifier, const Instruction* inst,
-                        const RegType& dst_type1, const RegType& dst_type2,
-                        const RegType& src_type1, const RegType& src_type2)
+  void CheckUnaryOpWide(MethodVerifier* verifier,
+                        const Instruction* inst,
+                        const RegType& dst_type1,
+                        const RegType& dst_type2,
+                        const RegType& src_type1,
+                        const RegType& src_type2)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckUnaryOpToWide(MethodVerifier* verifier, const Instruction* inst,
-                          const RegType& dst_type1, const RegType& dst_type2,
+  void CheckUnaryOpToWide(MethodVerifier* verifier,
+                          const Instruction* inst,
+                          const RegType& dst_type1,
+                          const RegType& dst_type2,
                           const RegType& src_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckUnaryOpFromWide(MethodVerifier* verifier, const Instruction* inst,
+  void CheckUnaryOpFromWide(MethodVerifier* verifier,
+                            const Instruction* inst,
                             const RegType& dst_type,
-                            const RegType& src_type1, const RegType& src_type2)
+                            const RegType& src_type1,
+                            const RegType& src_type2)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
@@ -242,19 +258,28 @@ class RegisterLine {
    * "dst_type" is stored into vA, and "src_type1"/"src_type2" are verified
    * against vB/vC.
    */
-  void CheckBinaryOp(MethodVerifier* verifier, const Instruction* inst,
-                     const RegType& dst_type, const RegType& src_type1, const RegType& src_type2,
+  void CheckBinaryOp(MethodVerifier* verifier,
+                     const Instruction* inst,
+                     const RegType& dst_type,
+                     const RegType& src_type1,
+                     const RegType& src_type2,
                      bool check_boolean_op)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckBinaryOpWide(MethodVerifier* verifier, const Instruction* inst,
-                         const RegType& dst_type1, const RegType& dst_type2,
-                         const RegType& src_type1_1, const RegType& src_type1_2,
-                         const RegType& src_type2_1, const RegType& src_type2_2)
+  void CheckBinaryOpWide(MethodVerifier* verifier,
+                         const Instruction* inst,
+                         const RegType& dst_type1,
+                         const RegType& dst_type2,
+                         const RegType& src_type1_1,
+                         const RegType& src_type1_2,
+                         const RegType& src_type2_1,
+                         const RegType& src_type2_2)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckBinaryOpWideShift(MethodVerifier* verifier, const Instruction* inst,
-                              const RegType& long_lo_type, const RegType& long_hi_type,
+  void CheckBinaryOpWideShift(MethodVerifier* verifier,
+                              const Instruction* inst,
+                              const RegType& long_lo_type,
+                              const RegType& long_hi_type,
                               const RegType& int_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -262,20 +287,28 @@ class RegisterLine {
    * Verify types for a binary "2addr" operation. "src_type1"/"src_type2"
    * are verified against vA/vB, then "dst_type" is stored into vA.
    */
-  void CheckBinaryOp2addr(MethodVerifier* verifier, const Instruction* inst,
+  void CheckBinaryOp2addr(MethodVerifier* verifier,
+                          const Instruction* inst,
                           const RegType& dst_type,
-                          const RegType& src_type1, const RegType& src_type2,
+                          const RegType& src_type1,
+                          const RegType& src_type2,
                           bool check_boolean_op)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckBinaryOp2addrWide(MethodVerifier* verifier, const Instruction* inst,
-                              const RegType& dst_type1, const RegType& dst_type2,
-                              const RegType& src_type1_1, const RegType& src_type1_2,
-                              const RegType& src_type2_1, const RegType& src_type2_2)
+  void CheckBinaryOp2addrWide(MethodVerifier* verifier,
+                              const Instruction* inst,
+                              const RegType& dst_type1,
+                              const RegType& dst_type2,
+                              const RegType& src_type1_1,
+                              const RegType& src_type1_2,
+                              const RegType& src_type2_1,
+                              const RegType& src_type2_2)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CheckBinaryOp2addrWideShift(MethodVerifier* verifier, const Instruction* inst,
-                                   const RegType& long_lo_type, const RegType& long_hi_type,
+  void CheckBinaryOp2addrWideShift(MethodVerifier* verifier,
+                                   const Instruction* inst,
+                                   const RegType& long_lo_type,
+                                   const RegType& long_hi_type,
                                    const RegType& int_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -285,9 +318,12 @@ class RegisterLine {
    *
    * If "check_boolean_op" is set, we use the constant value in vC.
    */
-  void CheckLiteralOp(MethodVerifier* verifier, const Instruction* inst,
-                      const RegType& dst_type, const RegType& src_type,
-                      bool check_boolean_op, bool is_lit16)
+  void CheckLiteralOp(MethodVerifier* verifier,
+                      const Instruction* inst,
+                      const RegType& dst_type,
+                      const RegType& src_type,
+                      bool check_boolean_op,
+                      bool is_lit16)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Verify/push monitor onto the monitor stack, locking the value in reg_idx at location insn_idx.
@@ -408,8 +444,6 @@ class RegisterLineArenaDelete : public ArenaDelete<RegisterLine> {
  public:
   void operator()(RegisterLine* ptr) const;
 };
-
-
 
 }  // namespace verifier
 }  // namespace art

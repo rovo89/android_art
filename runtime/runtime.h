@@ -94,8 +94,6 @@ struct TraceConfig;
 class Transaction;
 
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
-typedef SafeMap<MethodReference, SafeMap<uint32_t, std::set<uint32_t>>,
-    MethodReferenceComparator> MethodRefToStringInitRegMap;
 
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
 // (no logical reason to do this). You also may not start logging new roots and stop logging new
@@ -566,16 +564,15 @@ class Runtime {
   const ArenaPool* GetArenaPool() const {
     return arena_pool_.get();
   }
+
+  void ReclaimArenaPoolMemory();
+
   LinearAlloc* GetLinearAlloc() {
     return linear_alloc_.get();
   }
 
   jit::JitOptions* GetJITOptions() {
     return jit_options_.get();
-  }
-
-  MethodRefToStringInitRegMap& GetStringInitMap() {
-    return method_ref_string_init_reg_map_;
   }
 
   bool IsDebuggable() const;
@@ -802,8 +799,6 @@ class Runtime {
   //
   // Experimental opcodes should not be used by other production code.
   ExperimentalFlags experimental_flags_;
-
-  MethodRefToStringInitRegMap method_ref_string_init_reg_map_;
 
   // Contains the build fingerprint, if given as a parameter.
   std::string fingerprint_;

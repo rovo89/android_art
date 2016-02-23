@@ -232,25 +232,20 @@ static uintptr_t FromCodeToAllocation(const void* code) {
 void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UNUSED) {
   uintptr_t allocation = FromCodeToAllocation(code_ptr);
   const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-  const uint8_t* data = method_header->GetNativeGcMap();
   // Notify native debugger that we are about to remove the code.
   // It does nothing if we are not using native debugger.
   DeleteJITCodeEntryForAddress(reinterpret_cast<uintptr_t>(code_ptr));
-  if (data != nullptr) {
-    mspace_free(data_mspace_, const_cast<uint8_t*>(data));
-  }
-  data = method_header->GetMappingTable();
-  if (data != nullptr) {
-    mspace_free(data_mspace_, const_cast<uint8_t*>(data));
-  }
+
+  FreeData(const_cast<uint8_t*>(method_header->GetNativeGcMap()));
+  FreeData(const_cast<uint8_t*>(method_header->GetMappingTable()));
   // Use the offset directly to prevent sanity check that the method is
   // compiled with optimizing.
   // TODO(ngeoffray): Clean up.
   if (method_header->vmap_table_offset_ != 0) {
-    data = method_header->code_ - method_header->vmap_table_offset_;
-    mspace_free(data_mspace_, const_cast<uint8_t*>(data));
+    const uint8_t* data = method_header->code_ - method_header->vmap_table_offset_;
+    FreeData(const_cast<uint8_t*>(data));
   }
-  mspace_free(code_mspace_, reinterpret_cast<uint8_t*>(allocation));
+  FreeCode(reinterpret_cast<uint8_t*>(allocation));
 }
 
 void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
@@ -281,7 +276,7 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
     ProfilingInfo* info = *it;
     if (alloc.ContainsUnsafe(info->GetMethod())) {
       info->GetMethod()->SetProfilingInfo(nullptr);
-      mspace_free(data_mspace_, reinterpret_cast<uint8_t*>(info));
+      FreeData(reinterpret_cast<uint8_t*>(info));
       it = profiling_infos_.erase(it);
     } else {
       ++it;
@@ -307,19 +302,18 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
 
   OatQuickMethodHeader* method_header = nullptr;
   uint8_t* code_ptr = nullptr;
+  uint8_t* memory = nullptr;
   {
     ScopedThreadSuspension sts(self, kSuspended);
     MutexLock mu(self, lock_);
     WaitForPotentialCollectionToComplete(self);
     {
       ScopedCodeCacheWrite scc(code_map_.get());
-      uint8_t* result = reinterpret_cast<uint8_t*>(
-          mspace_memalign(code_mspace_, alignment, total_size));
-      if (result == nullptr) {
+      memory = AllocateCode(total_size);
+      if (memory == nullptr) {
         return nullptr;
       }
-      code_ptr = result + header_size;
-      DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(code_ptr), alignment);
+      code_ptr = memory + header_size;
 
       std::copy(code, code + code_size, code_ptr);
       method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
@@ -376,9 +370,7 @@ size_t JitCodeCache::CodeCacheSize() {
 }
 
 size_t JitCodeCache::CodeCacheSizeLocked() {
-  size_t bytes_allocated = 0;
-  mspace_inspect_all(code_mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
-  return bytes_allocated;
+  return used_memory_for_code_;
 }
 
 size_t JitCodeCache::DataCacheSize() {
@@ -387,9 +379,7 @@ size_t JitCodeCache::DataCacheSize() {
 }
 
 size_t JitCodeCache::DataCacheSizeLocked() {
-  size_t bytes_allocated = 0;
-  mspace_inspect_all(data_mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
-  return bytes_allocated;
+  return used_memory_for_data_;
 }
 
 size_t JitCodeCache::NumberOfCompiledCode() {
@@ -399,7 +389,7 @@ size_t JitCodeCache::NumberOfCompiledCode() {
 
 void JitCodeCache::ClearData(Thread* self, void* data) {
   MutexLock mu(self, lock_);
-  mspace_free(data_mspace_, data);
+  FreeData(reinterpret_cast<uint8_t*>(data));
 }
 
 uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
@@ -410,7 +400,7 @@ uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
     ScopedThreadSuspension sts(self, kSuspended);
     MutexLock mu(self, lock_);
     WaitForPotentialCollectionToComplete(self);
-    result = reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, size));
+    result = AllocateData(size);
   }
 
   if (result == nullptr) {
@@ -419,7 +409,7 @@ uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
     ScopedThreadSuspension sts(self, kSuspended);
     MutexLock mu(self, lock_);
     WaitForPotentialCollectionToComplete(self);
-    result = reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, size));
+    result = AllocateData(size);
   }
 
   return result;
@@ -552,7 +542,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   // we hold the lock.
   {
     MutexLock mu(self, lock_);
-    if (!garbage_collect_code_) {
+    if (!garbage_collect_code_ || current_capacity_ < kReservedCapacity) {
       IncreaseCodeCacheCapacity();
       NotifyCollectionDone(self);
       return;
@@ -628,12 +618,11 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       }
     }
 
-    void* data_mspace = data_mspace_;
     // Free all profiling infos of methods that were not being compiled.
     auto profiling_kept_end = std::remove_if(profiling_infos_.begin(), profiling_infos_.end(),
-      [data_mspace] (ProfilingInfo* info) {
+      [this] (ProfilingInfo* info) NO_THREAD_SAFETY_ANALYSIS {
         if (info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
-          mspace_free(data_mspace, reinterpret_cast<uint8_t*>(info));
+          FreeData(reinterpret_cast<uint8_t*>(info));
           return true;
         }
         return false;
@@ -718,7 +707,7 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
     return info;
   }
 
-  uint8_t* data = reinterpret_cast<uint8_t*>(mspace_malloc(data_mspace_, profile_info_size));
+  uint8_t* data = AllocateData(profile_info_size);
   if (data == nullptr) {
     return nullptr;
   }
@@ -807,6 +796,33 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
       osr_code_map_.erase(it);
     }
   }
+}
+
+uint8_t* JitCodeCache::AllocateCode(size_t code_size) {
+  size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
+  uint8_t* result = reinterpret_cast<uint8_t*>(
+      mspace_memalign(code_mspace_, alignment, code_size));
+  size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
+  // Ensure the header ends up at expected instruction alignment.
+  DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(result + header_size), alignment);
+  used_memory_for_code_ += mspace_usable_size(result);
+  return result;
+}
+
+void JitCodeCache::FreeCode(uint8_t* code) {
+  used_memory_for_code_ -= mspace_usable_size(code);
+  mspace_free(code_mspace_, code);
+}
+
+uint8_t* JitCodeCache::AllocateData(size_t data_size) {
+  void* result = mspace_malloc(data_mspace_, data_size);
+  used_memory_for_data_ += mspace_usable_size(result);
+  return reinterpret_cast<uint8_t*>(result);
+}
+
+void JitCodeCache::FreeData(uint8_t* data) {
+  used_memory_for_data_ -= mspace_usable_size(data);
+  mspace_free(data_mspace_, data);
 }
 
 }  // namespace jit

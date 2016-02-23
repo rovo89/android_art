@@ -23,10 +23,7 @@
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
-#include "compiler_callbacks.h"
 #include "debug/elf_debug_writer.h"
-#include "dex/pass_manager.h"
-#include "dex/quick_compiler_callbacks.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "jit/debugger_interface.h"
@@ -36,7 +33,6 @@
 #include "oat_quick_method_header.h"
 #include "object_lock.h"
 #include "thread_list.h"
-#include "verifier/method_verifier-inl.h"
 
 namespace art {
 namespace jit {
@@ -45,11 +41,10 @@ JitCompiler* JitCompiler::Create() {
   return new JitCompiler();
 }
 
-extern "C" void* jit_load(CompilerCallbacks** callbacks, bool* generate_debug_info) {
+extern "C" void* jit_load(bool* generate_debug_info) {
   VLOG(jit) << "loading jit compiler";
   auto* const jit_compiler = JitCompiler::Create();
   CHECK(jit_compiler != nullptr);
-  *callbacks = jit_compiler->GetCompilerCallbacks();
   *generate_debug_info = jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo();
   VLOG(jit) << "Done loading jit compiler";
   return jit_compiler;
@@ -151,14 +146,10 @@ JitCompiler::JitCompiler() : total_time_(0) {
     instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
   }
   cumulative_logger_.reset(new CumulativeLogger("jit times"));
-  verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
-  callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                              method_inliner_map_.get(),
-                                              CompilerCallbacks::CallbackMode::kCompileApp));
   compiler_driver_.reset(new CompilerDriver(
       compiler_options_.get(),
-      verification_results_.get(),
+      /* verification_results */ nullptr,
       method_inliner_map_.get(),
       Compiler::kOptimizing,
       instruction_set,
@@ -249,10 +240,6 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   total_time_ += NanoTime() - start_time;
   runtime->GetJit()->AddTimingLogger(logger);
   return success;
-}
-
-CompilerCallbacks* JitCompiler::GetCompilerCallbacks() const {
-  return callbacks_.get();
 }
 
 }  // namespace jit

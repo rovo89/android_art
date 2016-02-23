@@ -56,6 +56,10 @@ enum MethodCompilationStat {
   kMonomorphicCall,
   kPolymorphicCall,
   kMegamorphicCall,
+  kBooleanSimplified,
+  kIntrinsicRecognized,
+  kLoopInvariantMoved,
+  kSelectGenerated,
   kLastStat
 };
 
@@ -124,7 +128,11 @@ class OptimizingCompilerStats {
       case kInlinedPolymorphicCall: name = "InlinedPolymorphicCall"; break;
       case kMonomorphicCall: name = "MonomorphicCall"; break;
       case kPolymorphicCall: name = "PolymorphicCall"; break;
-      case kMegamorphicCall: name = "kMegamorphicCall"; break;
+      case kMegamorphicCall: name = "MegamorphicCall"; break;
+      case kBooleanSimplified : name = "BooleanSimplified"; break;
+      case kIntrinsicRecognized : name = "IntrinsicRecognized"; break;
+      case kLoopInvariantMoved : name = "LoopInvariantMoved"; break;
+      case kSelectGenerated : name = "SelectGenerated"; break;
 
       case kLastStat:
         LOG(FATAL) << "invalid stat "

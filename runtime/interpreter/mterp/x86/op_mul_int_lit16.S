@@ -3,10 +3,10 @@
     movzbl  rINSTbl, %eax                   # eax <- 000000BA
     sarl    $$4, %eax                       # eax <- B
     GET_VREG %eax, %eax                     # eax <- vB
-    movswl  2(rPC), %ecx                    # ecx <- ssssCCCC
+    movl    rIBASE, %ecx
+    movswl  2(rPC), rIBASE                  # rIBASE <- ssssCCCC
     andb    $$0xf, rINSTbl                  # rINST <- A
-    mov     rIBASE, LOCAL0(%esp)
-    imull   %ecx, %eax                      # trashes rIBASE/edx
-    mov     LOCAL0(%esp), rIBASE
+    imull   rIBASE, %eax                    # trashes rIBASE/edx
+    movl    %ecx, rIBASE
     SET_VREG %eax, rINST
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2

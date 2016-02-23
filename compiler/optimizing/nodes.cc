@@ -15,6 +15,8 @@
  */
 #include "nodes.h"
 
+#include <cfloat>
+
 #include "code_generator.h"
 #include "common_dominator.h"
 #include "ssa_builder.h"
@@ -26,6 +28,12 @@
 #include "scoped_thread_state_change.h"
 
 namespace art {
+
+// Enable floating-point static evaluation during constant folding
+// only if all floating-point operations and constants evaluate in the
+// range and precision of the type used (i.e., 32-bit float, 64-bit
+// double).
+static constexpr bool kEnableFloatingPointStaticEvaluation = (FLT_EVAL_METHOD == 0);
 
 void HGraph::InitializeInexactObjectRTI(StackHandleScopeCollection* handles) {
   ScopedObjectAccess soa(Thread::Current());
@@ -1159,6 +1167,12 @@ HConstant* HUnaryOperation::TryStaticEvaluation() const {
     return Evaluate(GetInput()->AsIntConstant());
   } else if (GetInput()->IsLongConstant()) {
     return Evaluate(GetInput()->AsLongConstant());
+  } else if (kEnableFloatingPointStaticEvaluation) {
+    if (GetInput()->IsFloatConstant()) {
+      return Evaluate(GetInput()->AsFloatConstant());
+    } else if (GetInput()->IsDoubleConstant()) {
+      return Evaluate(GetInput()->AsDoubleConstant());
+    }
   }
   return nullptr;
 }
@@ -1178,6 +1192,12 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
     }
   } else if (GetLeft()->IsNullConstant() && GetRight()->IsNullConstant()) {
     return Evaluate(GetLeft()->AsNullConstant(), GetRight()->AsNullConstant());
+  } else if (kEnableFloatingPointStaticEvaluation) {
+    if (GetLeft()->IsFloatConstant() && GetRight()->IsFloatConstant()) {
+      return Evaluate(GetLeft()->AsFloatConstant(), GetRight()->AsFloatConstant());
+    } else if (GetLeft()->IsDoubleConstant() && GetRight()->IsDoubleConstant()) {
+      return Evaluate(GetLeft()->AsDoubleConstant(), GetRight()->AsDoubleConstant());
+    }
   }
   return nullptr;
 }
@@ -1202,6 +1222,20 @@ HInstruction* HBinaryOperation::GetLeastConstantLeft() const {
     return GetRight();
   } else {
     return GetLeft();
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, const ComparisonBias& rhs) {
+  switch (rhs) {
+    case ComparisonBias::kNoBias:
+      return os << "no_bias";
+    case ComparisonBias::kGtBias:
+      return os << "gt_bias";
+    case ComparisonBias::kLtBias:
+      return os << "lt_bias";
+    default:
+      LOG(FATAL) << "Unknown ComparisonBias: " << static_cast<int>(rhs);
+      UNREACHABLE();
   }
 }
 
@@ -1386,7 +1420,38 @@ HBasicBlock* HBasicBlock::SplitCatchBlockAfterMoveException() {
   }
 }
 
-HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {
+HBasicBlock* HBasicBlock::SplitBeforeForInlining(HInstruction* cursor) {
+  DCHECK_EQ(cursor->GetBlock(), this);
+
+  HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(),
+                                                                    cursor->GetDexPc());
+  new_block->instructions_.first_instruction_ = cursor;
+  new_block->instructions_.last_instruction_ = instructions_.last_instruction_;
+  instructions_.last_instruction_ = cursor->previous_;
+  if (cursor->previous_ == nullptr) {
+    instructions_.first_instruction_ = nullptr;
+  } else {
+    cursor->previous_->next_ = nullptr;
+    cursor->previous_ = nullptr;
+  }
+
+  new_block->instructions_.SetBlockOfInstructions(new_block);
+
+  for (HBasicBlock* successor : GetSuccessors()) {
+    new_block->successors_.push_back(successor);
+    successor->predecessors_[successor->GetPredecessorIndexOf(this)] = new_block;
+  }
+  successors_.clear();
+
+  for (HBasicBlock* dominated : GetDominatedBlocks()) {
+    dominated->dominator_ = new_block;
+    new_block->dominated_blocks_.push_back(dominated);
+  }
+  dominated_blocks_.clear();
+  return new_block;
+}
+
+HBasicBlock* HBasicBlock::SplitAfterForInlining(HInstruction* cursor) {
   DCHECK(!cursor->IsControlFlow());
   DCHECK_NE(instructions_.last_instruction_, cursor);
   DCHECK_EQ(cursor->GetBlock(), this);
@@ -1536,6 +1601,20 @@ void HInstructionList::AddAfter(HInstruction* cursor, const HInstructionList& in
     instruction_list.last_instruction_->next_ = cursor->next_;
     cursor->next_ = instruction_list.first_instruction_;
     instruction_list.first_instruction_->previous_ = cursor;
+  }
+}
+
+void HInstructionList::AddBefore(HInstruction* cursor, const HInstructionList& instruction_list) {
+  DCHECK(Contains(cursor));
+  if (!instruction_list.IsEmpty()) {
+    if (cursor == first_instruction_) {
+      first_instruction_ = instruction_list.first_instruction_;
+    } else {
+      cursor->previous_->next_ = instruction_list.first_instruction_;
+    }
+    instruction_list.last_instruction_->next_ = cursor;
+    instruction_list.first_instruction_->previous_ = cursor->previous_;
+    cursor->previous_ = instruction_list.last_instruction_;
   }
 }
 
@@ -1781,18 +1860,6 @@ void HBasicBlock::ReplaceWith(HBasicBlock* other) {
   graph_ = nullptr;
 }
 
-// Create space in `blocks` for adding `number_of_new_blocks` entries
-// starting at location `at`. Blocks after `at` are moved accordingly.
-static void MakeRoomFor(ArenaVector<HBasicBlock*>* blocks,
-                        size_t number_of_new_blocks,
-                        size_t after) {
-  DCHECK_LT(after, blocks->size());
-  size_t old_size = blocks->size();
-  size_t new_size = old_size + number_of_new_blocks;
-  blocks->resize(new_size);
-  std::copy_backward(blocks->begin() + after + 1u, blocks->begin() + old_size, blocks->end());
-}
-
 void HGraph::DeleteDeadEmptyBlock(HBasicBlock* block) {
   DCHECK_EQ(block->GetGraph(), this);
   DCHECK(block->GetSuccessors().empty());
@@ -1846,7 +1913,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     DCHECK(!body->IsInLoop());
     HInstruction* last = body->GetLastInstruction();
 
-    invoke->GetBlock()->instructions_.AddAfter(invoke, body->GetInstructions());
+    // Note that we add instructions before the invoke only to simplify polymorphic inlining.
+    invoke->GetBlock()->instructions_.AddBefore(invoke, body->GetInstructions());
     body->GetInstructions().SetBlockOfInstructions(invoke->GetBlock());
 
     // Replace the invoke with the return value of the inlined graph.
@@ -1864,7 +1932,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     // with the second half.
     ArenaAllocator* allocator = outer_graph->GetArena();
     HBasicBlock* at = invoke->GetBlock();
-    HBasicBlock* to = at->SplitAfter(invoke);
+    // Note that we split before the invoke only to simplify polymorphic inlining.
+    HBasicBlock* to = at->SplitBeforeForInlining(invoke);
 
     HBasicBlock* first = entry_block_->GetSuccessors()[0];
     DCHECK(!first->IsInLoop());
