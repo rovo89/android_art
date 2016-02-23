@@ -20,9 +20,9 @@ if [ ! -d libcore ]; then
 fi
 
 # Jar containing all the tests.
-test_jar=${OUT_DIR-out}/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
+test_jack=${OUT_DIR-out}/host/common/obj/JAVA_LIBRARIES/apache-harmony-jdwp-tests-hostdex_intermediates/classes.jack
 
-if [ ! -f $test_jar ]; then
+if [ ! -f $test_jack ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
        "make apache-harmony-jdwp-tests-hostdex vogar vogar.jar"
   exit 1
@@ -117,6 +117,9 @@ if [[ $verbose == "yes" ]]; then
   art_debugee="$art_debugee -verbose:jdwp"
 fi
 
+# Use Jack with "1.8" configuration.
+export JACK_VERSION=`basename prebuilts/sdk/tools/jacks/*ALPHA* | sed 's/^jack-//' | sed 's/.jar$//'`
+
 # Run the tests using vogar.
 vogar $vm_command \
       $vm_args \
@@ -129,7 +132,8 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.syncPort=34016 \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
-      --classpath $test_jar \
+      --classpath $test_jack \
+      --toolchain jack --language JN \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
       $test
 
