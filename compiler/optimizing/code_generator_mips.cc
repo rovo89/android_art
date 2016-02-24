@@ -39,9 +39,6 @@ namespace mips {
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = A0;
 
-// We need extra temporary/scratch registers (in addition to AT) in some cases.
-static constexpr FRegister FTMP = F8;
-
 Location MipsReturnLocation(Primitive::Type return_type) {
   switch (return_type) {
     case Primitive::kPrimBoolean:

@@ -537,10 +537,18 @@ void MipsAssembler::Bgtz(Register rt, uint16_t imm16) {
   EmitI(0x7, rt, static_cast<Register>(0), imm16);
 }
 
+void MipsAssembler::Bc1f(uint16_t imm16) {
+  Bc1f(0, imm16);
+}
+
 void MipsAssembler::Bc1f(int cc, uint16_t imm16) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitI(0x11, static_cast<Register>(0x8), static_cast<Register>(cc << 2), imm16);
+}
+
+void MipsAssembler::Bc1t(uint16_t imm16) {
+  Bc1t(0, imm16);
 }
 
 void MipsAssembler::Bc1t(int cc, uint16_t imm16) {
@@ -843,6 +851,22 @@ void MipsAssembler::DivD(FRegister fd, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x11, ft, fs, fd, 0x3);
 }
 
+void MipsAssembler::SqrtS(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x4);
+}
+
+void MipsAssembler::SqrtD(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0x4);
+}
+
+void MipsAssembler::AbsS(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x5);
+}
+
+void MipsAssembler::AbsD(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0x5);
+}
+
 void MipsAssembler::MovS(FRegister fd, FRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x6);
 }
@@ -859,10 +883,18 @@ void MipsAssembler::NegD(FRegister fd, FRegister fs) {
   EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0x7);
 }
 
+void MipsAssembler::CunS(FRegister fs, FRegister ft) {
+  CunS(0, fs, ft);
+}
+
 void MipsAssembler::CunS(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x31);
+}
+
+void MipsAssembler::CeqS(FRegister fs, FRegister ft) {
+  CeqS(0, fs, ft);
 }
 
 void MipsAssembler::CeqS(int cc, FRegister fs, FRegister ft) {
@@ -871,10 +903,18 @@ void MipsAssembler::CeqS(int cc, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x32);
 }
 
+void MipsAssembler::CueqS(FRegister fs, FRegister ft) {
+  CueqS(0, fs, ft);
+}
+
 void MipsAssembler::CueqS(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x33);
+}
+
+void MipsAssembler::ColtS(FRegister fs, FRegister ft) {
+  ColtS(0, fs, ft);
 }
 
 void MipsAssembler::ColtS(int cc, FRegister fs, FRegister ft) {
@@ -883,10 +923,18 @@ void MipsAssembler::ColtS(int cc, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x34);
 }
 
+void MipsAssembler::CultS(FRegister fs, FRegister ft) {
+  CultS(0, fs, ft);
+}
+
 void MipsAssembler::CultS(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x35);
+}
+
+void MipsAssembler::ColeS(FRegister fs, FRegister ft) {
+  ColeS(0, fs, ft);
 }
 
 void MipsAssembler::ColeS(int cc, FRegister fs, FRegister ft) {
@@ -895,10 +943,18 @@ void MipsAssembler::ColeS(int cc, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x36);
 }
 
+void MipsAssembler::CuleS(FRegister fs, FRegister ft) {
+  CuleS(0, fs, ft);
+}
+
 void MipsAssembler::CuleS(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x10, ft, fs, static_cast<FRegister>(cc << 2), 0x37);
+}
+
+void MipsAssembler::CunD(FRegister fs, FRegister ft) {
+  CunD(0, fs, ft);
 }
 
 void MipsAssembler::CunD(int cc, FRegister fs, FRegister ft) {
@@ -907,10 +963,18 @@ void MipsAssembler::CunD(int cc, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x11, ft, fs, static_cast<FRegister>(cc << 2), 0x31);
 }
 
+void MipsAssembler::CeqD(FRegister fs, FRegister ft) {
+  CeqD(0, fs, ft);
+}
+
 void MipsAssembler::CeqD(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x11, ft, fs, static_cast<FRegister>(cc << 2), 0x32);
+}
+
+void MipsAssembler::CueqD(FRegister fs, FRegister ft) {
+  CueqD(0, fs, ft);
 }
 
 void MipsAssembler::CueqD(int cc, FRegister fs, FRegister ft) {
@@ -919,10 +983,18 @@ void MipsAssembler::CueqD(int cc, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x11, ft, fs, static_cast<FRegister>(cc << 2), 0x33);
 }
 
+void MipsAssembler::ColtD(FRegister fs, FRegister ft) {
+  ColtD(0, fs, ft);
+}
+
 void MipsAssembler::ColtD(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x11, ft, fs, static_cast<FRegister>(cc << 2), 0x34);
+}
+
+void MipsAssembler::CultD(FRegister fs, FRegister ft) {
+  CultD(0, fs, ft);
 }
 
 void MipsAssembler::CultD(int cc, FRegister fs, FRegister ft) {
@@ -931,10 +1003,18 @@ void MipsAssembler::CultD(int cc, FRegister fs, FRegister ft) {
   EmitFR(0x11, 0x11, ft, fs, static_cast<FRegister>(cc << 2), 0x35);
 }
 
+void MipsAssembler::ColeD(FRegister fs, FRegister ft) {
+  ColeD(0, fs, ft);
+}
+
 void MipsAssembler::ColeD(int cc, FRegister fs, FRegister ft) {
   CHECK(!IsR6());
   CHECK(IsUint<3>(cc)) << cc;
   EmitFR(0x11, 0x11, ft, fs, static_cast<FRegister>(cc << 2), 0x36);
+}
+
+void MipsAssembler::CuleD(FRegister fs, FRegister ft) {
+  CuleD(0, fs, ft);
 }
 
 void MipsAssembler::CuleD(int cc, FRegister fs, FRegister ft) {
@@ -1055,6 +1135,70 @@ void MipsAssembler::Movt(Register rd, Register rs, int cc) {
   EmitR(0, rs, static_cast<Register>((cc << 2) | 1), rd, 0, 0x01);
 }
 
+void MipsAssembler::MovfS(FRegister fd, FRegister fs, int cc) {
+  CHECK(!IsR6());
+  CHECK(IsUint<3>(cc)) << cc;
+  EmitFR(0x11, 0x10, static_cast<FRegister>(cc << 2), fs, fd, 0x11);
+}
+
+void MipsAssembler::MovfD(FRegister fd, FRegister fs, int cc) {
+  CHECK(!IsR6());
+  CHECK(IsUint<3>(cc)) << cc;
+  EmitFR(0x11, 0x11, static_cast<FRegister>(cc << 2), fs, fd, 0x11);
+}
+
+void MipsAssembler::MovtS(FRegister fd, FRegister fs, int cc) {
+  CHECK(!IsR6());
+  CHECK(IsUint<3>(cc)) << cc;
+  EmitFR(0x11, 0x10, static_cast<FRegister>((cc << 2) | 1), fs, fd, 0x11);
+}
+
+void MipsAssembler::MovtD(FRegister fd, FRegister fs, int cc) {
+  CHECK(!IsR6());
+  CHECK(IsUint<3>(cc)) << cc;
+  EmitFR(0x11, 0x11, static_cast<FRegister>((cc << 2) | 1), fs, fd, 0x11);
+}
+
+void MipsAssembler::SelS(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x10, ft, fs, fd, 0x10);
+}
+
+void MipsAssembler::SelD(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x11, ft, fs, fd, 0x10);
+}
+
+void MipsAssembler::ClassS(FRegister fd, FRegister fs) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x1b);
+}
+
+void MipsAssembler::ClassD(FRegister fd, FRegister fs) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0x1b);
+}
+
+void MipsAssembler::MinS(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x10, ft, fs, fd, 0x1c);
+}
+
+void MipsAssembler::MinD(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x11, ft, fs, fd, 0x1c);
+}
+
+void MipsAssembler::MaxS(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x10, ft, fs, fd, 0x1e);
+}
+
+void MipsAssembler::MaxD(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  EmitFR(0x11, 0x11, ft, fs, fd, 0x1e);
+}
+
 void MipsAssembler::TruncLS(FRegister fd, FRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0x09);
 }
@@ -1093,6 +1237,14 @@ void MipsAssembler::Cvtsl(FRegister fd, FRegister fs) {
 
 void MipsAssembler::Cvtdl(FRegister fd, FRegister fs) {
   EmitFR(0x11, 0x15, static_cast<FRegister>(0), fs, fd, 0x21);
+}
+
+void MipsAssembler::FloorWS(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FRegister>(0), fs, fd, 0xf);
+}
+
+void MipsAssembler::FloorWD(FRegister fd, FRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), fs, fd, 0xf);
 }
 
 void MipsAssembler::Mfc1(Register rt, FRegister fs) {
@@ -2062,9 +2214,17 @@ void MipsAssembler::Bgeu(Register rs, Register rt, MipsLabel* label) {
   }
 }
 
+void MipsAssembler::Bc1f(MipsLabel* label) {
+  Bc1f(0, label);
+}
+
 void MipsAssembler::Bc1f(int cc, MipsLabel* label) {
   CHECK(IsUint<3>(cc)) << cc;
   Bcond(label, kCondF, static_cast<Register>(cc), ZERO);
+}
+
+void MipsAssembler::Bc1t(MipsLabel* label) {
+  Bc1t(0, label);
 }
 
 void MipsAssembler::Bc1t(int cc, MipsLabel* label) {
