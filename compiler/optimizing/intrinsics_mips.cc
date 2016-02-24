@@ -99,7 +99,7 @@ static void MoveArguments(HInvoke* invoke, CodeGeneratorMIPS* codegen) {
 //       restored!
 class IntrinsicSlowPathMIPS : public SlowPathCodeMIPS {
  public:
-  explicit IntrinsicSlowPathMIPS(HInvoke* invoke) : invoke_(invoke) { }
+  explicit IntrinsicSlowPathMIPS(HInvoke* invoke) : SlowPathCodeMIPS(invoke), invoke_(invoke) { }
 
   void EmitNativeCode(CodeGenerator* codegen_in) OVERRIDE {
     CodeGeneratorMIPS* codegen = down_cast<CodeGeneratorMIPS*>(codegen_in);
