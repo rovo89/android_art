@@ -2550,16 +2550,20 @@ static int dex2oat(int argc, char** argv) {
 
   TimingLogger timings("compiler", false, false);
 
-  Dex2Oat dex2oat(&timings);
+  // Allocate `dex2oat` on the heap instead of on the stack, as Clang
+  // might produce a stack frame too large for this function or for
+  // functions inlining it (such as main), that would not fit the
+  // requirements of the `-Wframe-larger-than` option.
+  std::unique_ptr<Dex2Oat> dex2oat = MakeUnique<Dex2Oat>(&timings);
 
   // Parse arguments. Argument mistakes will lead to exit(EXIT_FAILURE) in UsageError.
-  dex2oat.ParseArgs(argc, argv);
+  dex2oat->ParseArgs(argc, argv);
 
   // Process profile information and assess if we need to do a profile guided compilation.
   // This operation involves I/O.
-  if (dex2oat.UseProfileGuidedCompilation()) {
-    if (dex2oat.LoadProfile()) {
-      if (!dex2oat.ShouldCompileBasedOnProfiles()) {
+  if (dex2oat->UseProfileGuidedCompilation()) {
+    if (dex2oat->LoadProfile()) {
+      if (!dex2oat->ShouldCompileBasedOnProfiles()) {
         LOG(INFO) << "Skipped compilation because of insignificant profile delta";
         return EXIT_SUCCESS;
       }
@@ -2570,7 +2574,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   // Check early that the result of compilation can be written
-  if (!dex2oat.OpenFile()) {
+  if (!dex2oat->OpenFile()) {
     return EXIT_FAILURE;
   }
 
@@ -2580,25 +2584,25 @@ static int dex2oat(int argc, char** argv) {
   //   3) Compiling with --host
   //   4) Compiling on the host (not a target build)
   // Otherwise, print a stripped command line.
-  if (kIsDebugBuild || dex2oat.IsBootImage() || dex2oat.IsHost() || !kIsTargetBuild) {
+  if (kIsDebugBuild || dex2oat->IsBootImage() || dex2oat->IsHost() || !kIsTargetBuild) {
     LOG(INFO) << CommandLine();
   } else {
     LOG(INFO) << StrippedCommandLine();
   }
 
-  if (!dex2oat.Setup()) {
-    dex2oat.EraseOatFiles();
+  if (!dex2oat->Setup()) {
+    dex2oat->EraseOatFiles();
     return EXIT_FAILURE;
   }
 
   bool result;
-  if (dex2oat.IsImage()) {
-    result = CompileImage(dex2oat);
+  if (dex2oat->IsImage()) {
+    result = CompileImage(*dex2oat);
   } else {
-    result = CompileApp(dex2oat);
+    result = CompileApp(*dex2oat);
   }
 
-  dex2oat.Shutdown();
+  dex2oat->Shutdown();
   return result;
 }
 }  // namespace art
