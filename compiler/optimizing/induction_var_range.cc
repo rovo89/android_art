@@ -216,6 +216,14 @@ bool InductionVarRange::IsConstant(HInductionVarAnalysis::InductionInfo* info,
         }
       }
     } while (RefineOuter(&v_min, &v_max));
+    // Exploit array length + c >= c, with c <= 0 to avoid arithmetic wrap-around anomalies
+    // (e.g. array length == maxint and c == 1 would yield minint).
+    if (request == kAtLeast) {
+      if (v_min.a_constant == 1 && v_min.b_constant <= 0 && v_min.instruction->IsArrayLength()) {
+        *value = v_min.b_constant;
+        return true;
+      }
+    }
   }
   return false;
 }
