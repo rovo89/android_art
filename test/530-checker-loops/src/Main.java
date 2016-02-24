@@ -914,7 +914,7 @@ public class Main {
     int[] a = { 1 } ;
     for (int i = 0; i < hi; i++) {
       // Dangerous loop where careless static range analysis would yield strict lower bound
-      // on index j of 5. When, for instance, lo and thus i = 2147483647, the upper bound
+      // on index j of 5. When, for instance, hi and thus i = 2147483647, the upper bound
       // becomes really negative due to arithmetic wrap-around, causing OOB.
       // Dynamic BCE is feasible though, since it checks the range.
       for (int j = 6; j > i + 5; j--) {
@@ -1325,6 +1325,9 @@ public class Main {
   //
 
   public static void main(String[] args) {
+    // Set to run expensive tests for correctness too.
+    boolean HEAVY = false;
+
     int[] empty = { };
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -1510,13 +1513,15 @@ public class Main {
       sResult += 1000;
     }
     expectEquals(1, sResult);
-    sResult = 0;
-    try {
-      hiddenOOB2(2147483647);  // OOB
-    } catch (ArrayIndexOutOfBoundsException e) {
-      sResult += 1000;
+    if (HEAVY) {
+      sResult = 0;
+      try {
+        hiddenOOB2(2147483647);  // OOB
+      } catch (ArrayIndexOutOfBoundsException e) {
+        sResult += 1000;
+      }
+      expectEquals(1002, sResult);
     }
-    expectEquals(1002, sResult);
     sResult = 0;
     try {
       hiddenInfiniteOOB();
