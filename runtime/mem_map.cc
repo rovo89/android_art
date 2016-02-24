@@ -230,17 +230,16 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
     PLOG(WARNING) << StringPrintf("munmap(%p, %zd) failed", actual_ptr, byte_count);
   }
 
-  // We call this here so that we can try and generate a full error
-  // message with the overlapping mapping. There's no guarantee that
-  // that there will be an overlap though, since
-  // - The kernel is not *required* to honor expected_ptr unless MAP_FIXED is
-  //   true, even if there is no overlap
-  // - There might have been an overlap at the point of mmap, but the
-  //   overlapping region has since been unmapped.
-  std::string error_detail;
-  CheckNonOverlapping(expected, limit, &error_detail);
-
   if (error_msg != nullptr) {
+    // We call this here so that we can try and generate a full error
+    // message with the overlapping mapping. There's no guarantee that
+    // that there will be an overlap though, since
+    // - The kernel is not *required* to honor expected_ptr unless MAP_FIXED is
+    //   true, even if there is no overlap
+    // - There might have been an overlap at the point of mmap, but the
+    //   overlapping region has since been unmapped.
+    std::string error_detail;
+    CheckNonOverlapping(expected, limit, &error_detail);
     std::ostringstream os;
     os <<  StringPrintf("Failed to mmap at expected address, mapped at "
                         "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR,
@@ -338,11 +337,18 @@ MemMap* MemMap::MapAnonymous(const char* name,
   saved_errno = errno;
 
   if (actual == MAP_FAILED) {
-    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    if (error_msg != nullptr) {
+      PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
 
-    *error_msg = StringPrintf("Failed anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0): %s. See process "
-                              "maps in the log.", expected_ptr, page_aligned_byte_count, prot,
-                              flags, fd.get(), strerror(saved_errno));
+      *error_msg = StringPrintf("Failed anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0): %s. "
+                                    "See process maps in the log.",
+                                expected_ptr,
+                                page_aligned_byte_count,
+                                prot,
+                                flags,
+                                fd.get(),
+                                strerror(saved_errno));
+    }
     return nullptr;
   }
   std::ostringstream check_map_request_error_msg;
