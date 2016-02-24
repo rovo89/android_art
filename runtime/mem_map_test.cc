@@ -164,6 +164,19 @@ TEST_F(MemMapTest, MapAnonymousEmpty) {
   ASSERT_TRUE(error_msg.empty());
 }
 
+TEST_F(MemMapTest, MapAnonymousFailNullError) {
+  CommonInit();
+  // Test that we don't crash with a null error_str when mapping at an invalid location.
+  std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousInvalid",
+                                                    reinterpret_cast<uint8_t*>(kPageSize),
+                                                    0x20000,
+                                                    PROT_READ | PROT_WRITE,
+                                                    false,
+                                                    false,
+                                                    nullptr));
+  ASSERT_EQ(nullptr, map.get());
+}
+
 #ifdef __LP64__
 TEST_F(MemMapTest, MapAnonymousEmpty32bit) {
   CommonInit();
