@@ -226,6 +226,10 @@ void CodeGenerator::Compile(CodeAllocator* allocator) {
     // errors where we reference that label.
     if (block->IsSingleJump()) continue;
     Bind(block);
+    // This ensures that we have correct native line mapping for all native instructions.
+    // It is necessary to make stepping over a statement work. Otherwise, any initial
+    // instructions (e.g. moves) would be assumed to be the start of next statement.
+    MaybeRecordNativeDebugInfo(nullptr /* instruction */, block->GetDexPc());
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       DisassemblyScope disassembly_scope(current, *this);
@@ -733,7 +737,8 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   uint32_t native_pc = GetAssembler()->CodeSize();
 
   if (instruction == nullptr) {
-    // For stack overflow checks.
+    // For stack overflow checks and native-debug-info entries without dex register
+    // mapping (i.e. start of basic block or start of slow path).
     stack_map_stream_.BeginStackMapEntry(outer_dex_pc, native_pc, 0, 0, 0, 0);
     stack_map_stream_.EndStackMapEntry();
     return;
@@ -806,6 +811,16 @@ bool CodeGenerator::HasStackMapAtCurrentPc() {
   uint32_t pc = GetAssembler()->CodeSize();
   size_t count = stack_map_stream_.GetNumberOfStackMaps();
   return count > 0 && stack_map_stream_.GetStackMap(count - 1).native_pc_offset == pc;
+}
+
+void CodeGenerator::MaybeRecordNativeDebugInfo(HInstruction* instruction, uint32_t dex_pc) {
+  if (GetCompilerOptions().GetNativeDebuggable() && dex_pc != kNoDexPc) {
+    if (HasStackMapAtCurrentPc()) {
+      // Ensure that we do not collide with the stack map of the previous instruction.
+      GenerateNop();
+    }
+    RecordPcInfo(instruction, dex_pc);
+  }
 }
 
 void CodeGenerator::RecordCatchBlockInfo() {
