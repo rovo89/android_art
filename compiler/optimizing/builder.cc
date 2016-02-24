@@ -368,7 +368,6 @@ GraphAnalysisResult HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item
   if (native_debuggable) {
     const uint32_t num_instructions = code_item.insns_size_in_code_units_;
     native_debug_info_locations = new (arena_) ArenaBitVector (arena_, num_instructions, false);
-    native_debug_info_locations->ClearAllBits();
     FindNativeDebugInfoLocations(code_item, native_debug_info_locations);
   }
 
@@ -443,23 +442,15 @@ void HGraphBuilder::FindNativeDebugInfoLocations(const DexFile::CodeItem& code_i
     }
   };
   dex_file_->DecodeDebugPositionInfo(&code_item, Callback::Position, locations);
-  // Add native debug info at the start of every basic block.
-  for (uint32_t pc = 0; pc < code_item.insns_size_in_code_units_; pc++) {
-    if (FindBlockStartingAt(pc) != nullptr) {
-      locations->SetBit(pc);
-    }
-  }
   // Instruction-specific tweaks.
   const Instruction* const begin = Instruction::At(code_item.insns_);
   const Instruction* const end = begin->RelativeAt(code_item.insns_size_in_code_units_);
   for (const Instruction* inst = begin; inst < end; inst = inst->Next()) {
     switch (inst->Opcode()) {
-      case Instruction::MOVE_EXCEPTION:
-      case Instruction::MOVE_RESULT:
-      case Instruction::MOVE_RESULT_WIDE:
-      case Instruction::MOVE_RESULT_OBJECT: {
-        // The compiler checks that there are no instructions before those.
-        // So generate HNativeDebugInfo after them instead.
+      case Instruction::MOVE_EXCEPTION: {
+        // Stop in native debugger after the exception has been moved.
+        // The compiler also expects the move at the start of basic block so
+        // we do not want to interfere by inserting native-debug-info before it.
         locations->ClearBit(inst->GetDexPc(code_item.insns_));
         const Instruction* next = inst->Next();
         if (next < end) {

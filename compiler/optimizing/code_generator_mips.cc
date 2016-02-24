@@ -3407,11 +3407,11 @@ void LocationsBuilderMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
 }
 
 void InstructionCodeGeneratorMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  if (codegen_->HasStackMapAtCurrentPc()) {
-    // Ensure that we do not collide with the stack map of the previous instruction.
-    __ Nop();
-  }
-  codegen_->RecordPcInfo(info, info->GetDexPc());
+  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+}
+
+void CodeGeneratorMIPS::GenerateNop() {
+  __ Nop();
 }
 
 void LocationsBuilderMIPS::HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info) {
