@@ -51,6 +51,20 @@ enum StoreOperandType {
   kStoreDoubleword
 };
 
+// Used to test the values returned by ClassS/ClassD.
+enum FPClassMaskType {
+  kSignalingNaN      = 0x001,
+  kQuietNaN          = 0x002,
+  kNegativeInfinity  = 0x004,
+  kNegativeNormal    = 0x008,
+  kNegativeSubnormal = 0x010,
+  kNegativeZero      = 0x020,
+  kPositiveInfinity  = 0x040,
+  kPositiveNormal    = 0x080,
+  kPositiveSubnormal = 0x100,
+  kPositiveZero      = 0x200,
+};
+
 class MipsLabel : public Label {
  public:
   MipsLabel() : prev_branch_id_plus_one_(0) {}
@@ -191,7 +205,9 @@ class MipsAssembler FINAL : public Assembler {
   void Bgez(Register rt, uint16_t imm16);
   void Blez(Register rt, uint16_t imm16);
   void Bgtz(Register rt, uint16_t imm16);
+  void Bc1f(uint16_t imm16);  // R2
   void Bc1f(int cc, uint16_t imm16);  // R2
+  void Bc1t(uint16_t imm16);  // R2
   void Bc1t(int cc, uint16_t imm16);  // R2
   void J(uint32_t addr26);
   void Jal(uint32_t addr26);
@@ -227,24 +243,42 @@ class MipsAssembler FINAL : public Assembler {
   void SubD(FRegister fd, FRegister fs, FRegister ft);
   void MulD(FRegister fd, FRegister fs, FRegister ft);
   void DivD(FRegister fd, FRegister fs, FRegister ft);
+  void SqrtS(FRegister fd, FRegister fs);
+  void SqrtD(FRegister fd, FRegister fs);
+  void AbsS(FRegister fd, FRegister fs);
+  void AbsD(FRegister fd, FRegister fs);
   void MovS(FRegister fd, FRegister fs);
   void MovD(FRegister fd, FRegister fs);
   void NegS(FRegister fd, FRegister fs);
   void NegD(FRegister fd, FRegister fs);
 
+  void CunS(FRegister fs, FRegister ft);  // R2
   void CunS(int cc, FRegister fs, FRegister ft);  // R2
+  void CeqS(FRegister fs, FRegister ft);  // R2
   void CeqS(int cc, FRegister fs, FRegister ft);  // R2
+  void CueqS(FRegister fs, FRegister ft);  // R2
   void CueqS(int cc, FRegister fs, FRegister ft);  // R2
+  void ColtS(FRegister fs, FRegister ft);  // R2
   void ColtS(int cc, FRegister fs, FRegister ft);  // R2
+  void CultS(FRegister fs, FRegister ft);  // R2
   void CultS(int cc, FRegister fs, FRegister ft);  // R2
+  void ColeS(FRegister fs, FRegister ft);  // R2
   void ColeS(int cc, FRegister fs, FRegister ft);  // R2
+  void CuleS(FRegister fs, FRegister ft);  // R2
   void CuleS(int cc, FRegister fs, FRegister ft);  // R2
+  void CunD(FRegister fs, FRegister ft);  // R2
   void CunD(int cc, FRegister fs, FRegister ft);  // R2
+  void CeqD(FRegister fs, FRegister ft);  // R2
   void CeqD(int cc, FRegister fs, FRegister ft);  // R2
+  void CueqD(FRegister fs, FRegister ft);  // R2
   void CueqD(int cc, FRegister fs, FRegister ft);  // R2
+  void ColtD(FRegister fs, FRegister ft);  // R2
   void ColtD(int cc, FRegister fs, FRegister ft);  // R2
+  void CultD(FRegister fs, FRegister ft);  // R2
   void CultD(int cc, FRegister fs, FRegister ft);  // R2
+  void ColeD(FRegister fs, FRegister ft);  // R2
   void ColeD(int cc, FRegister fs, FRegister ft);  // R2
+  void CuleD(FRegister fs, FRegister ft);  // R2
   void CuleD(int cc, FRegister fs, FRegister ft);  // R2
   void CmpUnS(FRegister fd, FRegister fs, FRegister ft);  // R6
   void CmpEqS(FRegister fd, FRegister fs, FRegister ft);  // R6
@@ -266,8 +300,20 @@ class MipsAssembler FINAL : public Assembler {
   void CmpOrD(FRegister fd, FRegister fs, FRegister ft);  // R6
   void CmpUneD(FRegister fd, FRegister fs, FRegister ft);  // R6
   void CmpNeD(FRegister fd, FRegister fs, FRegister ft);  // R6
-  void Movf(Register rd, Register rs, int cc);  // R2
-  void Movt(Register rd, Register rs, int cc);  // R2
+  void Movf(Register rd, Register rs, int cc = 0);  // R2
+  void Movt(Register rd, Register rs, int cc = 0);  // R2
+  void MovfS(FRegister fd, FRegister fs, int cc = 0);  // R2
+  void MovfD(FRegister fd, FRegister fs, int cc = 0);  // R2
+  void MovtS(FRegister fd, FRegister fs, int cc = 0);  // R2
+  void MovtD(FRegister fd, FRegister fs, int cc = 0);  // R2
+  void SelS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void SelD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void ClassS(FRegister fd, FRegister fs);  // R6
+  void ClassD(FRegister fd, FRegister fs);  // R6
+  void MinS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void MinD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void MaxS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void MaxD(FRegister fd, FRegister fs, FRegister ft);  // R6
 
   void TruncLS(FRegister fd, FRegister fs);  // R2+, FR=1
   void TruncLD(FRegister fd, FRegister fs);  // R2+, FR=1
@@ -279,6 +325,8 @@ class MipsAssembler FINAL : public Assembler {
   void Cvtds(FRegister fd, FRegister fs);
   void Cvtsl(FRegister fd, FRegister fs);  // R2+, FR=1
   void Cvtdl(FRegister fd, FRegister fs);  // R2+, FR=1
+  void FloorWS(FRegister fd, FRegister fs);
+  void FloorWD(FRegister fd, FRegister fs);
 
   void Mfc1(Register rt, FRegister fs);
   void Mtc1(Register rt, FRegister fs);
@@ -322,7 +370,9 @@ class MipsAssembler FINAL : public Assembler {
   void Bge(Register rs, Register rt, MipsLabel* label);
   void Bltu(Register rs, Register rt, MipsLabel* label);
   void Bgeu(Register rs, Register rt, MipsLabel* label);
+  void Bc1f(MipsLabel* label);  // R2
   void Bc1f(int cc, MipsLabel* label);  // R2
+  void Bc1t(MipsLabel* label);  // R2
   void Bc1t(int cc, MipsLabel* label);  // R2
   void Bc1eqz(FRegister ft, MipsLabel* label);  // R6
   void Bc1nez(FRegister ft, MipsLabel* label);  // R6

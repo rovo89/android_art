@@ -101,6 +101,7 @@ enum FpuRegister {
   F29 = 29,
   F30 = 30,
   F31 = 31,
+  FTMP = F8,  // scratch register
   kNumberOfFpuRegisters = 32,
   kNoFpuRegister = -1,
 };

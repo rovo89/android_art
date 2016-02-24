@@ -407,7 +407,7 @@ void IntrinsicCodeGeneratorMIPS::VisitIntegerReverseBytes(HInvoke* invoke) {
              Primitive::kPrimInt,
              IsR2OrNewer(),
              IsR6(),
-             false,
+             /* reverseBits */ false,
              GetAssembler());
 }
 
@@ -421,7 +421,7 @@ void IntrinsicCodeGeneratorMIPS::VisitLongReverseBytes(HInvoke* invoke) {
              Primitive::kPrimLong,
              IsR2OrNewer(),
              IsR6(),
-             false,
+             /* reverseBits */ false,
              GetAssembler());
 }
 
@@ -435,7 +435,7 @@ void IntrinsicCodeGeneratorMIPS::VisitShortReverseBytes(HInvoke* invoke) {
              Primitive::kPrimShort,
              IsR2OrNewer(),
              IsR6(),
-             false,
+             /* reverseBits */ false,
              GetAssembler());
 }
 
@@ -475,7 +475,7 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerNumberOfLeadingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeroes(invoke->GetLocations(), false, IsR6(), GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), /* is64bit */ false, IsR6(), GetAssembler());
 }
 
 // int java.lang.Long.numberOfLeadingZeros(long i)
@@ -484,7 +484,7 @@ void IntrinsicLocationsBuilderMIPS::VisitLongNumberOfLeadingZeros(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeroes(invoke->GetLocations(), true, IsR6(), GetAssembler());
+  GenNumberOfLeadingZeroes(invoke->GetLocations(), /* is64bit */ true, IsR6(), GetAssembler());
 }
 
 static void GenNumberOfTrailingZeroes(LocationSummary* locations,
@@ -497,7 +497,6 @@ static void GenNumberOfTrailingZeroes(LocationSummary* locations,
   Register in;
 
   if (is64bit) {
-    MipsLabel done;
     Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
 
     in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
@@ -588,7 +587,11 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* i
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(), false, IsR6(), IsR2OrNewer(), GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(),
+                            /* is64bit */ false,
+                            IsR6(),
+                            IsR2OrNewer(),
+                            GetAssembler());
 }
 
 // int java.lang.Long.numberOfTrailingZeros(long i)
@@ -597,7 +600,11 @@ void IntrinsicLocationsBuilderMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(), true, IsR6(), IsR2OrNewer(), GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(),
+                            /* is64bit */ true,
+                            IsR6(),
+                            IsR2OrNewer(),
+                            GetAssembler());
 }
 
 enum RotationDirection {
@@ -806,7 +813,7 @@ void IntrinsicCodeGeneratorMIPS::VisitIntegerReverse(HInvoke* invoke) {
              Primitive::kPrimInt,
              IsR2OrNewer(),
              IsR6(),
-             true,
+             /* reverseBits */ true,
              GetAssembler());
 }
 
@@ -820,8 +827,559 @@ void IntrinsicCodeGeneratorMIPS::VisitLongReverse(HInvoke* invoke) {
              Primitive::kPrimLong,
              IsR2OrNewer(),
              IsR6(),
-             true,
+             /* reverseBits */ true,
              GetAssembler());
+}
+
+static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+}
+
+static void MathAbsFP(LocationSummary* locations, bool is64bit, MipsAssembler* assembler) {
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  if (is64bit) {
+    __ AbsD(out, in);
+  } else {
+    __ AbsS(out, in);
+  }
+}
+
+// double java.lang.Math.abs(double)
+void IntrinsicLocationsBuilderMIPS::VisitMathAbsDouble(HInvoke* invoke) {
+  CreateFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAbsDouble(HInvoke* invoke) {
+  MathAbsFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
+}
+
+// float java.lang.Math.abs(float)
+void IntrinsicLocationsBuilderMIPS::VisitMathAbsFloat(HInvoke* invoke) {
+  CreateFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAbsFloat(HInvoke* invoke) {
+  MathAbsFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
+}
+
+static void GenAbsInteger(LocationSummary* locations, bool is64bit, MipsAssembler* assembler) {
+  if (is64bit) {
+    Register in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+    Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+    Register out_lo = locations->Out().AsRegisterPairLow<Register>();
+    Register out_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+    // The comments in this section show the analogous operations which would
+    // be performed if we had 64-bit registers "in", and "out".
+    // __ Dsra32(AT, in, 31);
+    __ Sra(AT, in_hi, 31);
+    // __ Xor(out, in, AT);
+    __ Xor(TMP, in_lo, AT);
+    __ Xor(out_hi, in_hi, AT);
+    // __ Dsubu(out, out, AT);
+    __ Subu(out_lo, TMP, AT);
+    __ Sltu(TMP, out_lo, TMP);
+    __ Addu(out_hi, out_hi, TMP);
+  } else {
+    Register in = locations->InAt(0).AsRegister<Register>();
+    Register out = locations->Out().AsRegister<Register>();
+
+    __ Sra(AT, in, 31);
+    __ Xor(out, in, AT);
+    __ Subu(out, out, AT);
+  }
+}
+
+// int java.lang.Math.abs(int)
+void IntrinsicLocationsBuilderMIPS::VisitMathAbsInt(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAbsInt(HInvoke* invoke) {
+  GenAbsInteger(invoke->GetLocations(), /* is64bit */ false, GetAssembler());
+}
+
+// long java.lang.Math.abs(long)
+void IntrinsicLocationsBuilderMIPS::VisitMathAbsLong(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAbsLong(HInvoke* invoke) {
+  GenAbsInteger(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
+}
+
+static void GenMinMaxFP(LocationSummary* locations,
+                        bool is_min,
+                        Primitive::Type type,
+                        bool is_R6,
+                        MipsAssembler* assembler) {
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  FRegister a = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister b = locations->InAt(1).AsFpuRegister<FRegister>();
+
+  if (is_R6) {
+    MipsLabel noNaNs;
+    MipsLabel done;
+    FRegister ftmp = ((out != a) && (out != b)) ? out : FTMP;
+
+    // When Java computes min/max it prefers a NaN to a number; the
+    // behavior of MIPSR6 is to prefer numbers to NaNs, i.e., if one of
+    // the inputs is a NaN and the other is a valid number, the MIPS
+    // instruction will return the number; Java wants the NaN value
+    // returned. This is why there is extra logic preceding the use of
+    // the MIPS min.fmt/max.fmt instructions. If either a, or b holds a
+    // NaN, return the NaN, otherwise return the min/max.
+    if (type == Primitive::kPrimDouble) {
+      __ CmpUnD(FTMP, a, b);
+      __ Bc1eqz(FTMP, &noNaNs);
+
+      // One of the inputs is a NaN
+      __ CmpEqD(ftmp, a, a);
+      // If a == a then b is the NaN, otherwise a is the NaN.
+      __ SelD(ftmp, a, b);
+
+      if (ftmp != out) {
+        __ MovD(out, ftmp);
+      }
+
+      __ B(&done);
+
+      __ Bind(&noNaNs);
+
+      if (is_min) {
+        __ MinD(out, a, b);
+      } else {
+        __ MaxD(out, a, b);
+      }
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimFloat);
+      __ CmpUnS(FTMP, a, b);
+      __ Bc1eqz(FTMP, &noNaNs);
+
+      // One of the inputs is a NaN
+      __ CmpEqS(ftmp, a, a);
+      // If a == a then b is the NaN, otherwise a is the NaN.
+      __ SelS(ftmp, a, b);
+
+      if (ftmp != out) {
+        __ MovS(out, ftmp);
+      }
+
+      __ B(&done);
+
+      __ Bind(&noNaNs);
+
+      if (is_min) {
+        __ MinS(out, a, b);
+      } else {
+        __ MaxS(out, a, b);
+      }
+    }
+
+    __ Bind(&done);
+  } else {
+    MipsLabel ordered;
+    MipsLabel compare;
+    MipsLabel select;
+    MipsLabel done;
+
+    if (type == Primitive::kPrimDouble) {
+      __ CunD(a, b);
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimFloat);
+      __ CunS(a, b);
+    }
+    __ Bc1f(&ordered);
+
+    // a or b (or both) is a NaN. Return one, which is a NaN.
+    if (type == Primitive::kPrimDouble) {
+      __ CeqD(b, b);
+    } else {
+      __ CeqS(b, b);
+    }
+    __ B(&select);
+
+    __ Bind(&ordered);
+
+    // Neither is a NaN.
+    // a == b? (-0.0 compares equal with +0.0)
+    // If equal, handle zeroes, else compare further.
+    if (type == Primitive::kPrimDouble) {
+      __ CeqD(a, b);
+    } else {
+      __ CeqS(a, b);
+    }
+    __ Bc1f(&compare);
+
+    // a == b either bit for bit or one is -0.0 and the other is +0.0.
+    if (type == Primitive::kPrimDouble) {
+      __ MoveFromFpuHigh(TMP, a);
+      __ MoveFromFpuHigh(AT, b);
+    } else {
+      __ Mfc1(TMP, a);
+      __ Mfc1(AT, b);
+    }
+
+    if (is_min) {
+      // -0.0 prevails over +0.0.
+      __ Or(TMP, TMP, AT);
+    } else {
+      // +0.0 prevails over -0.0.
+      __ And(TMP, TMP, AT);
+    }
+
+    if (type == Primitive::kPrimDouble) {
+      __ Mfc1(AT, a);
+      __ Mtc1(AT, out);
+      __ MoveToFpuHigh(TMP, out);
+    } else {
+      __ Mtc1(TMP, out);
+    }
+    __ B(&done);
+
+    __ Bind(&compare);
+
+    if (type == Primitive::kPrimDouble) {
+      if (is_min) {
+        // return (a <= b) ? a : b;
+        __ ColeD(a, b);
+      } else {
+        // return (a >= b) ? a : b;
+        __ ColeD(b, a);  // b <= a
+      }
+    } else {
+      if (is_min) {
+        // return (a <= b) ? a : b;
+        __ ColeS(a, b);
+      } else {
+        // return (a >= b) ? a : b;
+        __ ColeS(b, a);  // b <= a
+      }
+    }
+
+    __ Bind(&select);
+
+    if (type == Primitive::kPrimDouble) {
+      __ MovtD(out, a);
+      __ MovfD(out, b);
+    } else {
+      __ MovtS(out, a);
+      __ MovfS(out, b);
+    }
+
+    __ Bind(&done);
+  }
+}
+
+static void CreateFPFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kOutputOverlap);
+}
+
+// double java.lang.Math.min(double, double)
+void IntrinsicLocationsBuilderMIPS::VisitMathMinDoubleDouble(HInvoke* invoke) {
+  CreateFPFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMinDoubleDouble(HInvoke* invoke) {
+  GenMinMaxFP(invoke->GetLocations(),
+              /* is_min */ true,
+              Primitive::kPrimDouble,
+              IsR6(),
+              GetAssembler());
+}
+
+// float java.lang.Math.min(float, float)
+void IntrinsicLocationsBuilderMIPS::VisitMathMinFloatFloat(HInvoke* invoke) {
+  CreateFPFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMinFloatFloat(HInvoke* invoke) {
+  GenMinMaxFP(invoke->GetLocations(),
+              /* is_min */ true,
+              Primitive::kPrimFloat,
+              IsR6(),
+              GetAssembler());
+}
+
+// double java.lang.Math.max(double, double)
+void IntrinsicLocationsBuilderMIPS::VisitMathMaxDoubleDouble(HInvoke* invoke) {
+  CreateFPFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMaxDoubleDouble(HInvoke* invoke) {
+  GenMinMaxFP(invoke->GetLocations(),
+              /* is_min */ false,
+              Primitive::kPrimDouble,
+              IsR6(),
+              GetAssembler());
+}
+
+// float java.lang.Math.max(float, float)
+void IntrinsicLocationsBuilderMIPS::VisitMathMaxFloatFloat(HInvoke* invoke) {
+  CreateFPFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMaxFloatFloat(HInvoke* invoke) {
+  GenMinMaxFP(invoke->GetLocations(),
+              /* is_min */ false,
+              Primitive::kPrimFloat,
+              IsR6(),
+              GetAssembler());
+}
+
+static void CreateIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+static void GenMinMax(LocationSummary* locations,
+                      bool is_min,
+                      Primitive::Type type,
+                      bool is_R6,
+                      MipsAssembler* assembler) {
+  if (is_R6) {
+    // Some architectures, such as ARM and MIPS (prior to r6), have a
+    // conditional move instruction which only changes the target
+    // (output) register if the condition is true (MIPS prior to r6 had
+    // MOVF, MOVT, MOVN, and MOVZ). The SELEQZ and SELNEZ instructions
+    // always change the target (output) register.  If the condition is
+    // true the output register gets the contents of the "rs" register;
+    // otherwise, the output register is set to zero. One consequence
+    // of this is that to implement something like "rd = c==0 ? rs : rt"
+    // MIPS64r6 needs to use a pair of SELEQZ/SELNEZ instructions.
+    // After executing this pair of instructions one of the output
+    // registers from the pair will necessarily contain zero. Then the
+    // code ORs the output registers from the SELEQZ/SELNEZ instructions
+    // to get the final result.
+    //
+    // The initial test to see if the output register is same as the
+    // first input register is needed to make sure that value in the
+    // first input register isn't clobbered before we've finished
+    // computing the output value. The logic in the corresponding else
+    // clause performs the same task but makes sure the second input
+    // register isn't clobbered in the event that it's the same register
+    // as the output register; the else clause also handles the case
+    // where the output register is distinct from both the first, and the
+    // second input registers.
+    if (type == Primitive::kPrimLong) {
+      Register a_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+      Register a_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+      Register b_lo = locations->InAt(1).AsRegisterPairLow<Register>();
+      Register b_hi = locations->InAt(1).AsRegisterPairHigh<Register>();
+      Register out_lo = locations->Out().AsRegisterPairLow<Register>();
+      Register out_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+      MipsLabel compare_done;
+
+      if (a_lo == b_lo) {
+        if (out_lo != a_lo) {
+          __ Move(out_lo, a_lo);
+          __ Move(out_hi, a_hi);
+        }
+      } else {
+        __ Slt(TMP, b_hi, a_hi);
+        __ Bne(b_hi, a_hi, &compare_done);
+
+        __ Sltu(TMP, b_lo, a_lo);
+
+        __ Bind(&compare_done);
+
+        if (is_min) {
+          __ Seleqz(AT, a_lo, TMP);
+          __ Selnez(out_lo, b_lo, TMP);  // Safe even if out_lo == a_lo/b_lo
+                                         // because at this point we're
+                                         // done using a_lo/b_lo.
+        } else {
+          __ Selnez(AT, a_lo, TMP);
+          __ Seleqz(out_lo, b_lo, TMP);  // ditto
+        }
+        __ Or(out_lo, out_lo, AT);
+        if (is_min) {
+          __ Seleqz(AT, a_hi, TMP);
+          __ Selnez(out_hi, b_hi, TMP);  // ditto but for out_hi & a_hi/b_hi
+        } else {
+          __ Selnez(AT, a_hi, TMP);
+          __ Seleqz(out_hi, b_hi, TMP);  // ditto but for out_hi & a_hi/b_hi
+        }
+        __ Or(out_hi, out_hi, AT);
+      }
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimInt);
+      Register a = locations->InAt(0).AsRegister<Register>();
+      Register b = locations->InAt(1).AsRegister<Register>();
+      Register out = locations->Out().AsRegister<Register>();
+
+      if (a == b) {
+        if (out != a) {
+          __ Move(out, a);
+        }
+      } else {
+        __ Slt(AT, b, a);
+        if (is_min) {
+          __ Seleqz(TMP, a, AT);
+          __ Selnez(AT, b, AT);
+        } else {
+          __ Selnez(TMP, a, AT);
+          __ Seleqz(AT, b, AT);
+        }
+        __ Or(out, TMP, AT);
+      }
+    }
+  } else {
+    if (type == Primitive::kPrimLong) {
+      Register a_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+      Register a_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+      Register b_lo = locations->InAt(1).AsRegisterPairLow<Register>();
+      Register b_hi = locations->InAt(1).AsRegisterPairHigh<Register>();
+      Register out_lo = locations->Out().AsRegisterPairLow<Register>();
+      Register out_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+      MipsLabel compare_done;
+
+      if (a_lo == b_lo) {
+        if (out_lo != a_lo) {
+          __ Move(out_lo, a_lo);
+          __ Move(out_hi, a_hi);
+        }
+      } else {
+        __ Slt(TMP, a_hi, b_hi);
+        __ Bne(a_hi, b_hi, &compare_done);
+
+        __ Sltu(TMP, a_lo, b_lo);
+
+        __ Bind(&compare_done);
+
+        if (is_min) {
+          if (out_lo != a_lo) {
+            __ Movn(out_hi, a_hi, TMP);
+            __ Movn(out_lo, a_lo, TMP);
+          }
+          if (out_lo != b_lo) {
+            __ Movz(out_hi, b_hi, TMP);
+            __ Movz(out_lo, b_lo, TMP);
+          }
+        } else {
+          if (out_lo != a_lo) {
+            __ Movz(out_hi, a_hi, TMP);
+            __ Movz(out_lo, a_lo, TMP);
+          }
+          if (out_lo != b_lo) {
+            __ Movn(out_hi, b_hi, TMP);
+            __ Movn(out_lo, b_lo, TMP);
+          }
+        }
+      }
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimInt);
+      Register a = locations->InAt(0).AsRegister<Register>();
+      Register b = locations->InAt(1).AsRegister<Register>();
+      Register out = locations->Out().AsRegister<Register>();
+
+      if (a == b) {
+        if (out != a) {
+          __ Move(out, a);
+        }
+      } else {
+        __ Slt(AT, a, b);
+        if (is_min) {
+          if (out != a) {
+            __ Movn(out, a, AT);
+          }
+          if (out != b) {
+            __ Movz(out, b, AT);
+          }
+        } else {
+          if (out != a) {
+            __ Movz(out, a, AT);
+          }
+          if (out != b) {
+            __ Movn(out, b, AT);
+          }
+        }
+      }
+    }
+  }
+}
+
+// int java.lang.Math.min(int, int)
+void IntrinsicLocationsBuilderMIPS::VisitMathMinIntInt(HInvoke* invoke) {
+  CreateIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMinIntInt(HInvoke* invoke) {
+  GenMinMax(invoke->GetLocations(),
+            /* is_min */ true,
+            Primitive::kPrimInt,
+            IsR6(),
+            GetAssembler());
+}
+
+// long java.lang.Math.min(long, long)
+void IntrinsicLocationsBuilderMIPS::VisitMathMinLongLong(HInvoke* invoke) {
+  CreateIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMinLongLong(HInvoke* invoke) {
+  GenMinMax(invoke->GetLocations(),
+            /* is_min */ true,
+            Primitive::kPrimLong,
+            IsR6(),
+            GetAssembler());
+}
+
+// int java.lang.Math.max(int, int)
+void IntrinsicLocationsBuilderMIPS::VisitMathMaxIntInt(HInvoke* invoke) {
+  CreateIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMaxIntInt(HInvoke* invoke) {
+  GenMinMax(invoke->GetLocations(),
+            /* is_min */ false,
+            Primitive::kPrimInt,
+            IsR6(),
+            GetAssembler());
+}
+
+// long java.lang.Math.max(long, long)
+void IntrinsicLocationsBuilderMIPS::VisitMathMaxLongLong(HInvoke* invoke) {
+  CreateIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathMaxLongLong(HInvoke* invoke) {
+  GenMinMax(invoke->GetLocations(),
+            /* is_min */ false,
+            Primitive::kPrimLong,
+            IsR6(),
+            GetAssembler());
+}
+
+// double java.lang.Math.sqrt(double)
+void IntrinsicLocationsBuilderMIPS::VisitMathSqrt(HInvoke* invoke) {
+  CreateFPToFPLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathSqrt(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  MipsAssembler* assembler = GetAssembler();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ SqrtD(out, in);
 }
 
 // byte libcore.io.Memory.peekByte(long address)
@@ -1151,19 +1709,6 @@ void IntrinsicCodeGeneratorMIPS::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED)
 UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
 UNIMPLEMENTED_INTRINSIC(LongBitCount)
 
-UNIMPLEMENTED_INTRINSIC(MathAbsDouble)
-UNIMPLEMENTED_INTRINSIC(MathAbsFloat)
-UNIMPLEMENTED_INTRINSIC(MathAbsInt)
-UNIMPLEMENTED_INTRINSIC(MathAbsLong)
-UNIMPLEMENTED_INTRINSIC(MathMinDoubleDouble)
-UNIMPLEMENTED_INTRINSIC(MathMinFloatFloat)
-UNIMPLEMENTED_INTRINSIC(MathMaxDoubleDouble)
-UNIMPLEMENTED_INTRINSIC(MathMaxFloatFloat)
-UNIMPLEMENTED_INTRINSIC(MathMinIntInt)
-UNIMPLEMENTED_INTRINSIC(MathMinLongLong)
-UNIMPLEMENTED_INTRINSIC(MathMaxIntInt)
-UNIMPLEMENTED_INTRINSIC(MathMaxLongLong)
-UNIMPLEMENTED_INTRINSIC(MathSqrt)
 UNIMPLEMENTED_INTRINSIC(MathCeil)
 UNIMPLEMENTED_INTRINSIC(MathFloor)
 UNIMPLEMENTED_INTRINSIC(MathRint)
