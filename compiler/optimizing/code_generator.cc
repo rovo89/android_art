@@ -195,6 +195,8 @@ void CodeGenerator::GenerateSlowPaths() {
     if (disasm_info_ != nullptr) {
       code_start = GetAssembler()->CodeSize();
     }
+    // Record the dex pc at start of slow path (required for java line number mapping).
+    MaybeRecordNativeDebugInfo(nullptr /* instruction */, slow_path->GetDexPc());
     slow_path->EmitNativeCode(this);
     if (disasm_info_ != nullptr) {
       disasm_info_->AddSlowPathInterval(slow_path, code_start, GetAssembler()->CodeSize());

@@ -69,7 +69,7 @@ class CodeAllocator {
 
 class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
  public:
-  SlowPathCode() {
+  explicit SlowPathCode(HInstruction* instruction) : instruction_(instruction) {
     for (size_t i = 0; i < kMaximumNumberOfExpectedRegisters; ++i) {
       saved_core_stack_offsets_[i] = kRegisterNotSaved;
       saved_fpu_stack_offsets_[i] = kRegisterNotSaved;
@@ -106,9 +106,15 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
   Label* GetEntryLabel() { return &entry_label_; }
   Label* GetExitLabel() { return &exit_label_; }
 
+  uint32_t GetDexPc() const {
+    return instruction_ != nullptr ? instruction_->GetDexPc() : kNoDexPc;
+  }
+
  protected:
   static constexpr size_t kMaximumNumberOfExpectedRegisters = 32;
   static constexpr uint32_t kRegisterNotSaved = -1;
+  // The instruction where this slow path is happening.
+  HInstruction* instruction_;
   uint32_t saved_core_stack_offsets_[kMaximumNumberOfExpectedRegisters];
   uint32_t saved_fpu_stack_offsets_[kMaximumNumberOfExpectedRegisters];
 
