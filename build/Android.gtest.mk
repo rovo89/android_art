@@ -578,9 +578,6 @@ define define-art-gtest
     LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
     LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
-    # clang fails to compile art/runtime/arch/stub_test.cc for arm64 without -O1
-    # b/26275713
-    LOCAL_CLANG_CFLAGS_arm64 += -O1
     include $$(BUILD_EXECUTABLE)
     library_path :=
     2nd_library_path :=
