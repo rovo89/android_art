@@ -2821,20 +2821,15 @@ class HBinaryOperation : public HExpression<2> {
   // Apply this operation to `x` and `y`.
   virtual HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
                               HNullConstant* y ATTRIBUTE_UNUSED) const {
-    VLOG(compiler) << DebugName() << " is not defined for the (null, null) case.";
-    return nullptr;
+    LOG(FATAL) << DebugName() << " is not defined for the (null, null) case.";
+    UNREACHABLE();
   }
   virtual HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const = 0;
   virtual HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const = 0;
-  virtual HConstant* Evaluate(HIntConstant* x ATTRIBUTE_UNUSED,
-                              HLongConstant* y ATTRIBUTE_UNUSED) const {
-    VLOG(compiler) << DebugName() << " is not defined for the (int, long) case.";
-    return nullptr;
-  }
   virtual HConstant* Evaluate(HLongConstant* x ATTRIBUTE_UNUSED,
                               HIntConstant* y ATTRIBUTE_UNUSED) const {
-    VLOG(compiler) << DebugName() << " is not defined for the (long, int) case.";
-    return nullptr;
+    LOG(FATAL) << DebugName() << " is not defined for the (long, int) case.";
+    UNREACHABLE();
   }
   virtual HConstant* Evaluate(HFloatConstant* x, HFloatConstant* y) const = 0;
   virtual HConstant* Evaluate(HDoubleConstant* x, HDoubleConstant* y) const = 0;
@@ -4305,8 +4300,6 @@ class HShl : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetIntConstant(
         Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
   }
-  // There is no `Evaluate(HIntConstant* x, HLongConstant* y)`, as this
-  // case is handled as `x << static_cast<int>(y)`.
   HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
@@ -4351,8 +4344,6 @@ class HShr : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetIntConstant(
         Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
   }
-  // There is no `Evaluate(HIntConstant* x, HLongConstant* y)`, as this
-  // case is handled as `x >> static_cast<int>(y)`.
   HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
@@ -4398,8 +4389,6 @@ class HUShr : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetIntConstant(
         Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
   }
-  // There is no `Evaluate(HIntConstant* x, HLongConstant* y)`, as this
-  // case is handled as `x >>> static_cast<int>(y)`.
   HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
@@ -4435,19 +4424,10 @@ class HAnd : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T, typename U>
-  auto Compute(T x, U y) const -> decltype(x & y) { return x & y; }
+  template <typename T> T Compute(T x, T y) const { return x & y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-  HConstant* Evaluate(HIntConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
@@ -4481,19 +4461,10 @@ class HOr : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T, typename U>
-  auto Compute(T x, U y) const -> decltype(x | y) { return x | y; }
+  template <typename T> T Compute(T x, T y) const { return x | y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-  HConstant* Evaluate(HIntConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
@@ -4527,19 +4498,10 @@ class HXor : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T, typename U>
-  auto Compute(T x, U y) const -> decltype(x ^ y) { return x ^ y; }
+  template <typename T> T Compute(T x, T y) const { return x ^ y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-  HConstant* Evaluate(HIntConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
