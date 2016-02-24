@@ -28,8 +28,10 @@ Thumb2RelativePatcher::Thumb2RelativePatcher(RelativePatcherTargetProvider* prov
                              kMaxPositiveDisplacement, kMaxNegativeDisplacement) {
 }
 
-void Thumb2RelativePatcher::PatchCall(std::vector<uint8_t>* code, uint32_t literal_offset,
-                                      uint32_t patch_offset, uint32_t target_offset) {
+void Thumb2RelativePatcher::PatchCall(std::vector<uint8_t>* code,
+                                      uint32_t literal_offset,
+                                      uint32_t patch_offset,
+                                      uint32_t target_offset) {
   DCHECK_LE(literal_offset + 4u, code->size());
   DCHECK_EQ(literal_offset & 1u, 0u);
   DCHECK_EQ(patch_offset & 1u, 0u);

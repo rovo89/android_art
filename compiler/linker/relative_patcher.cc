@@ -34,7 +34,8 @@ namespace art {
 namespace linker {
 
 std::unique_ptr<RelativePatcher> RelativePatcher::Create(
-    InstructionSet instruction_set, const InstructionSetFeatures* features,
+    InstructionSet instruction_set,
+    const InstructionSetFeatures* features,
     RelativePatcherTargetProvider* provider) {
   class RelativePatcherNone FINAL : public RelativePatcher {
    public:

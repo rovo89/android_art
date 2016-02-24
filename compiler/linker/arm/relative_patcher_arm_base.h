@@ -27,18 +27,23 @@ namespace linker {
 
 class ArmBaseRelativePatcher : public RelativePatcher {
  public:
-  uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method,
+  uint32_t ReserveSpace(uint32_t offset,
+                        const CompiledMethod* compiled_method,
                         MethodReference method_ref) OVERRIDE;
   uint32_t ReserveSpaceEnd(uint32_t offset) OVERRIDE;
   uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE;
 
  protected:
   ArmBaseRelativePatcher(RelativePatcherTargetProvider* provider,
-                         InstructionSet instruction_set, std::vector<uint8_t> thunk_code,
-                         uint32_t max_positive_displacement, uint32_t max_negative_displacement);
+                         InstructionSet instruction_set,
+                         std::vector<uint8_t> thunk_code,
+                         uint32_t max_positive_displacement,
+                         uint32_t max_negative_displacement);
 
-  uint32_t ReserveSpaceInternal(uint32_t offset, const CompiledMethod* compiled_method,
-                                MethodReference method_ref, uint32_t max_extra_space);
+  uint32_t ReserveSpaceInternal(uint32_t offset,
+                                const CompiledMethod* compiled_method,
+                                MethodReference method_ref,
+                                uint32_t max_extra_space);
   uint32_t CalculateDisplacement(uint32_t patch_offset, uint32_t target_offset);
 
  private:

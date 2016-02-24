@@ -258,6 +258,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/elf_writer_test.cc \
   compiler/image_test.cc \
   compiler/jni/jni_compiler_test.cc \
+  compiler/linker/multi_oat_relative_patcher_test.cc \
   compiler/linker/output_stream_test.cc \
   compiler/oat_test.cc \
   compiler/optimizing/bounds_check_elimination_test.cc \
