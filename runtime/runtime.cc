@@ -120,6 +120,7 @@
 #include "os.h"
 #include "parsed_options.h"
 #include "profiler.h"
+#include "jit/profile_saver.h"
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
 #include "runtime_options.h"
@@ -1717,7 +1718,9 @@ void Runtime::SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type) {
 }
 
 void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,
-                              const std::string& profile_output_filename) {
+                              const std::string& profile_output_filename,
+                              const std::string& foreign_dex_profile_path,
+                              const std::string& app_dir) {
   if (jit_.get() == nullptr) {
     // We are not JITing. Nothing to do.
     return;
@@ -1740,7 +1743,18 @@ void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,
   }
 
   profile_output_filename_ = profile_output_filename;
-  jit_->StartProfileSaver(profile_output_filename, code_paths);
+  jit_->StartProfileSaver(profile_output_filename,
+                          code_paths,
+                          foreign_dex_profile_path,
+                          app_dir);
+}
+
+void Runtime::NotifyDexLoaded(const std::string& dex_location) {
+  VLOG(profiler) << "Notify dex loaded: " << dex_location;
+  // We know that if the ProfileSaver is started then we can record profile information.
+  if (ProfileSaver::IsStarted()) {
+    ProfileSaver::NotifyDexUse(dex_location);
+  }
 }
 
 // Transaction support.

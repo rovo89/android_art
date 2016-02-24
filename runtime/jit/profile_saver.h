@@ -30,7 +30,9 @@ class ProfileSaver {
   // If the saver is already running it adds (output_filename, code_paths) to its tracked locations.
   static void Start(const std::string& output_filename,
                     jit::JitCodeCache* jit_code_cache,
-                    const std::vector<std::string>& code_paths)
+                    const std::vector<std::string>& code_paths,
+                    const std::string& foreign_dex_profile_path,
+                    const std::string& app_data_dir)
       REQUIRES(!Locks::profiler_lock_, !wait_lock_);
 
   // Stops the profile saver thread.
@@ -42,10 +44,14 @@ class ProfileSaver {
   // Returns true if the profile saver is started.
   static bool IsStarted() REQUIRES(!Locks::profiler_lock_);
 
+  static void NotifyDexUse(const std::string& dex_location);
+
  private:
   ProfileSaver(const std::string& output_filename,
                jit::JitCodeCache* jit_code_cache,
-               const std::vector<std::string>& code_paths);
+               const std::vector<std::string>& code_paths,
+               const std::string& foreign_dex_profile_path,
+               const std::string& app_data_dir);
 
   // NO_THREAD_SAFETY_ANALYSIS for static function calling into member function with excludes lock.
   static void* RunProfileSaverThread(void* arg)
@@ -64,6 +70,12 @@ class ProfileSaver {
                            const std::vector<std::string>& code_paths)
       REQUIRES(Locks::profiler_lock_);
 
+  static void MaybeRecordDexUseInternal(
+      const std::string& dex_location,
+      const std::set<std::string>& tracked_locations,
+      const std::string& foreign_dex_profile_path,
+      const std::string& app_data_dir);
+
   // The only instance of the saver.
   static ProfileSaver* instance_ GUARDED_BY(Locks::profiler_lock_);
   // Profile saver thread.
@@ -72,6 +84,8 @@ class ProfileSaver {
   jit::JitCodeCache* jit_code_cache_;
   SafeMap<std::string, std::set<std::string>> tracked_dex_base_locations_
       GUARDED_BY(Locks::profiler_lock_);
+  std::string foreign_dex_profile_path_;
+  std::string app_data_dir_;
   uint64_t code_cache_last_update_time_ns_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
   bool first_profile_ = true;
