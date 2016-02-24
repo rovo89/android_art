@@ -83,23 +83,31 @@ class RelativePatcher {
   }
 
   // Reserve space for thunks if needed before a method, return adjusted offset.
-  virtual uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method,
+  virtual uint32_t ReserveSpace(uint32_t offset,
+                                const CompiledMethod* compiled_method,
                                 MethodReference method_ref) = 0;
 
   // Reserve space for thunks if needed after the last method, return adjusted offset.
+  // The caller may use this method to preemptively force thunk space reservation and
+  // then resume reservation for more methods. This is useful when there is a gap in
+  // the .text segment, for example when going to the next oat file for multi-image.
   virtual uint32_t ReserveSpaceEnd(uint32_t offset) = 0;
 
-  // Write relative call thunks if needed, return adjusted offset.
+  // Write relative call thunks if needed, return adjusted offset. Returns 0 on write failure.
   virtual uint32_t WriteThunks(OutputStream* out, uint32_t offset) = 0;
 
   // Patch method code. The input displacement is relative to the patched location,
   // the patcher may need to adjust it if the correct base is different.
-  virtual void PatchCall(std::vector<uint8_t>* code, uint32_t literal_offset,
-                         uint32_t patch_offset, uint32_t target_offset) = 0;
+  virtual void PatchCall(std::vector<uint8_t>* code,
+                         uint32_t literal_offset,
+                         uint32_t patch_offset,
+                         uint32_t target_offset) = 0;
 
   // Patch a reference to a dex cache location.
-  virtual void PatchDexCacheReference(std::vector<uint8_t>* code, const LinkerPatch& patch,
-                                      uint32_t patch_offset, uint32_t target_offset) = 0;
+  virtual void PatchDexCacheReference(std::vector<uint8_t>* code,
+                                      const LinkerPatch& patch,
+                                      uint32_t patch_offset,
+                                      uint32_t target_offset) = 0;
 
  protected:
   RelativePatcher()

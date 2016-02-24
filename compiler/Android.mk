@@ -61,6 +61,7 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/dex_compilation_unit.cc \
 	linker/buffered_output_stream.cc \
 	linker/file_output_stream.cc \
+	linker/multi_oat_relative_patcher.cc \
 	linker/output_stream.cc \
 	linker/vector_output_stream.cc \
 	linker/relative_patcher.cc \

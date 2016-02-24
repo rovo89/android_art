@@ -34,8 +34,10 @@ uint32_t X86BaseRelativePatcher::WriteThunks(OutputStream* out ATTRIBUTE_UNUSED,
   return offset;  // No thunks added; no limit on relative call distance.
 }
 
-void X86BaseRelativePatcher::PatchCall(std::vector<uint8_t>* code, uint32_t literal_offset,
-                                       uint32_t patch_offset, uint32_t target_offset) {
+void X86BaseRelativePatcher::PatchCall(std::vector<uint8_t>* code,
+                                       uint32_t literal_offset,
+                                       uint32_t patch_offset,
+                                       uint32_t target_offset) {
   DCHECK_LE(literal_offset + 4u, code->size());
   // Unsigned arithmetic with its well-defined overflow behavior is just fine here.
   uint32_t displacement = target_offset - patch_offset;

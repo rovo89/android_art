@@ -40,6 +40,11 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceEnd(uint32_t offset) {
                                                 MethodReference(nullptr, 0u),
                                                 aligned_offset);
   if (needs_thunk) {
+    // All remaining patches will be handled by this thunk.
+    DCHECK(!unprocessed_patches_.empty());
+    DCHECK_LE(aligned_offset - unprocessed_patches_.front().second, max_positive_displacement_);
+    unprocessed_patches_.clear();
+
     thunk_locations_.push_back(aligned_offset);
     offset = CompiledMethod::AlignCode(aligned_offset + thunk_code_.size(), instruction_set_);
   }
