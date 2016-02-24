@@ -44,10 +44,22 @@ class RelativePatcherTest : public testing::Test {
       : compiler_options_(),
         verification_results_(&compiler_options_),
         inliner_map_(),
-        driver_(&compiler_options_, &verification_results_, &inliner_map_,
-                Compiler::kQuick, instruction_set, nullptr,
-                false, nullptr, nullptr, nullptr, 1u,
-                false, false, nullptr, -1, nullptr, nullptr),
+        driver_(&compiler_options_,
+                &verification_results_,
+                &inliner_map_,
+                Compiler::kQuick,
+                instruction_set,
+                /* instruction_set_features*/ nullptr,
+                /* boot_image */ false,
+                /* image_classes */ nullptr,
+                /* compiled_classes */ nullptr,
+                /* compiled_methods */ nullptr,
+                /* thread_count */ 1u,
+                /* dump_stats */ false,
+                /* dump_passes */ false,
+                /* timer */ nullptr,
+                /* swap_fd */ -1,
+                /* profile_compilation_info */ nullptr),
         error_msg_(),
         instruction_set_(instruction_set),
         features_(InstructionSetFeatures::FromVariant(instruction_set, variant, &error_msg_)),
@@ -138,8 +150,10 @@ class RelativePatcherTest : public testing::Test {
                                 offset + patch.LiteralOffset(), target_offset);
           } else if (patch.Type() == kLinkerPatchDexCacheArray) {
             uint32_t target_offset = dex_cache_arrays_begin_ + patch.TargetDexCacheElementOffset();
-            patcher_->PatchDexCacheReference(&patched_code_, patch,
-                                             offset + patch.LiteralOffset(), target_offset);
+            patcher_->PatchDexCacheReference(&patched_code_,
+                                             patch,
+                                             offset + patch.LiteralOffset(),
+                                             target_offset);
           } else {
             LOG(FATAL) << "Bad patch type.";
           }

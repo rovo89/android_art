@@ -26,10 +26,14 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
  public:
   explicit Thumb2RelativePatcher(RelativePatcherTargetProvider* provider);
 
-  void PatchCall(std::vector<uint8_t>* code, uint32_t literal_offset,
-                 uint32_t patch_offset, uint32_t target_offset) OVERRIDE;
-  void PatchDexCacheReference(std::vector<uint8_t>* code, const LinkerPatch& patch,
-                              uint32_t patch_offset, uint32_t target_offset) OVERRIDE;
+  void PatchCall(std::vector<uint8_t>* code,
+                 uint32_t literal_offset,
+                 uint32_t patch_offset,
+                 uint32_t target_offset) OVERRIDE;
+  void PatchDexCacheReference(std::vector<uint8_t>* code,
+                              const LinkerPatch& patch,
+                              uint32_t patch_offset,
+                              uint32_t target_offset) OVERRIDE;
 
  private:
   static std::vector<uint8_t> CompileThunkCode();
