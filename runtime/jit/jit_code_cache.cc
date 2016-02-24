@@ -126,6 +126,8 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       has_done_full_collection_(false),
       last_update_time_ns_(0),
       garbage_collect_code_(garbage_collect_code),
+      used_memory_for_data_(0),
+      used_memory_for_code_(0),
       number_of_compilations_(0) {
 
   DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
