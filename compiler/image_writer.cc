@@ -1951,9 +1951,19 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method,
   // trampoline.
 
   // Quick entrypoint:
-  uint32_t quick_oat_code_offset = PointerToLowMemUInt32(
-      method->GetEntryPointFromQuickCompiledCodePtrSize(target_ptr_size_));
-  const uint8_t* quick_code = GetOatAddressForOffset(quick_oat_code_offset, image_info);
+  const void* quick_oat_entry_point =
+      method->GetEntryPointFromQuickCompiledCodePtrSize(target_ptr_size_);
+  const uint8_t* quick_code;
+
+  if (UNLIKELY(IsInBootImage(method->GetDeclaringClass()))) {
+    DCHECK(method->IsCopied());
+    // If the code is not in the oat file corresponding to this image (e.g. default methods)
+    quick_code = reinterpret_cast<const uint8_t*>(quick_oat_entry_point);
+  } else {
+    uint32_t quick_oat_code_offset = PointerToLowMemUInt32(quick_oat_entry_point);
+    quick_code = GetOatAddressForOffset(quick_oat_code_offset, image_info);
+  }
+
   *quick_is_interpreted = false;
   if (quick_code != nullptr && (!method->IsStatic() || method->IsConstructor() ||
       method->GetDeclaringClass()->IsInitialized())) {
