@@ -1178,19 +1178,19 @@ HConstant* HUnaryOperation::TryStaticEvaluation() const {
 }
 
 HConstant* HBinaryOperation::TryStaticEvaluation() const {
-  if (GetLeft()->IsIntConstant()) {
-    if (GetRight()->IsIntConstant()) {
-      return Evaluate(GetLeft()->AsIntConstant(), GetRight()->AsIntConstant());
-    } else if (GetRight()->IsLongConstant()) {
-      return Evaluate(GetLeft()->AsIntConstant(), GetRight()->AsLongConstant());
-    }
+  if (GetLeft()->IsIntConstant() && GetRight()->IsIntConstant()) {
+    return Evaluate(GetLeft()->AsIntConstant(), GetRight()->AsIntConstant());
   } else if (GetLeft()->IsLongConstant()) {
     if (GetRight()->IsIntConstant()) {
+      // The binop(long, int) case is only valid for shifts and rotations.
+      DCHECK(IsShl() || IsShr() || IsUShr() || IsRor()) << DebugName();
       return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsIntConstant());
     } else if (GetRight()->IsLongConstant()) {
       return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsLongConstant());
     }
   } else if (GetLeft()->IsNullConstant() && GetRight()->IsNullConstant()) {
+    // The binop(null, null) case is only valid for equal and not-equal conditions.
+    DCHECK(IsEqual() || IsNotEqual()) << DebugName();
     return Evaluate(GetLeft()->AsNullConstant(), GetRight()->AsNullConstant());
   } else if (kEnableFloatingPointStaticEvaluation) {
     if (GetLeft()->IsFloatConstant() && GetRight()->IsFloatConstant()) {
