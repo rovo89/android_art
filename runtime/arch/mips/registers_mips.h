@@ -100,6 +100,7 @@ enum FRegister {
   F29 = 29,
   F30 = 30,
   F31 = 31,
+  FTMP = F8,  // scratch register
   kNumberOfFRegisters = 32,
   kNoFRegister = -1,
 };
