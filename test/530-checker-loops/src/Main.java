@@ -471,7 +471,7 @@ public class Main {
   //
   /// CHECK-START: void Main.linearTriangularOnTwoArrayLengths(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  /// CHECK-NOT: Deoptimize
+  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
   private static void linearTriangularOnTwoArrayLengths(int n) {
     int[] a = new int[n];
     for (int i = 0; i < a.length; i++) {
@@ -513,7 +513,7 @@ public class Main {
   //
   /// CHECK-START: void Main.linearTriangularOnParameter(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  /// CHECK-NOT: Deoptimize
+  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
   private static void linearTriangularOnParameter(int n) {
     int[] a = new int[n];
     for (int i = 0; i < n; i++) {
@@ -528,28 +528,56 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.linearTriangularVariations(int) BCE (before)
+  /// CHECK-START: void Main.linearTriangularVariationsInnerStrict(int) BCE (before)
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   //
-  /// CHECK-START: void Main.linearTriangularVariations(int) BCE (after)
+  /// CHECK-START: void Main.linearTriangularVariationsInnerStrict(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  /// CHECK-NOT: Deoptimize
-  private static void linearTriangularVariations(int n) {
+  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
+  private static void linearTriangularVariationsInnerStrict(int n) {
     int[] a = new int[n];
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < i; j++) {
         a[j] += 1;
       }
-      for (int j = i - 1; j >= 0; j--) {
+      for (int j = i - 1; j > -1; j--) {
         a[j] += 1;
       }
       for (int j = i; j < n; j++) {
         a[j] += 1;
       }
       for (int j = n - 1; j > i - 1; j--) {
+        a[j] += 1;
+      }
+    }
+    verifyTriangular(a);
+  }
+
+  /// CHECK-START: void Main.linearTriangularVariationsInnerNonStrict(int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.linearTriangularVariationsInnerNonStrict(int) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
+  private static void linearTriangularVariationsInnerNonStrict(int n) {
+    int[] a = new int[n];
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j <= i - 1; j++) {
+        a[j] += 1;
+      }
+      for (int j = i - 1; j >= 0; j--) {
+        a[j] += 1;
+      }
+      for (int j = i; j <= n - 1; j++) {
+        a[j] += 1;
+      }
+      for (int j = n - 1; j >= i; j--) {
         a[j] += 1;
       }
     }
@@ -583,7 +611,7 @@ public class Main {
   //
   /// CHECK-START: void Main.bubble(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  /// CHECK-NOT: Deoptimize
+  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
   private static void bubble(int[] a) {
     for (int i = a.length; --i >= 0;) {
       for (int j = 0; j < i; j++) {
@@ -853,6 +881,104 @@ public class Main {
     } while (-1 <= i);
   }
 
+  /// CHECK-START: void Main.hiddenOOB1(int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.hiddenOOB1(int) BCE (after)
+  /// CHECK-DAG: Deoptimize
+  //
+  /// CHECK-START: void Main.hiddenOOB1(int) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static void hiddenOOB1(int lo) {
+    int[] a = { 1 } ;
+    for (int i = lo; i <= 10; i++) {
+      // Dangerous loop where careless static range analysis would yield strict upper bound
+      // on index j of 5. When, for instance, lo and thus i = -2147483648, the upper bound
+      // becomes really positive due to arithmetic wrap-around, causing OOB.
+      // Dynamic BCE is feasible though, since it checks the range.
+      for (int j = 4; j < i - 5; j++) {
+        sResult += a[j - 4];
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.hiddenOOB2(int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.hiddenOOB2(int) BCE (after)
+  /// CHECK-DAG: Deoptimize
+  //
+  /// CHECK-START: void Main.hiddenOOB2(int) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static void hiddenOOB2(int hi) {
+    int[] a = { 1 } ;
+    for (int i = 0; i < hi; i++) {
+      // Dangerous loop where careless static range analysis would yield strict lower bound
+      // on index j of 5. When, for instance, lo and thus i = 2147483647, the upper bound
+      // becomes really negative due to arithmetic wrap-around, causing OOB.
+      // Dynamic BCE is feasible though, since it checks the range.
+      for (int j = 6; j > i + 5; j--) {
+        sResult += a[j - 6];
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.hiddenInfiniteOOB() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.hiddenInfiniteOOB() BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.hiddenInfiniteOOB() BCE (after)
+  /// CHECK-NOT: Deoptimize
+  private static void hiddenInfiniteOOB() {
+    int[] a = { 11 } ;
+    for (int i = -1; i <= 0; i++) {
+      // Dangerous loop where careless static range analysis would yield a safe upper bound
+      // of -3. In reality, due to arithmetic wrap-around (when i = -1, j <= 2147483647;
+      // whereas when i = 0, j <= -3), this is an infinite loop that goes OOB.
+      for (int j = -3; j <= 2147483646 * i - 3; j++) {
+        sResult += a[j + 3];
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.hiddenFiniteOOB() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.hiddenFiniteOOB() BCE (after)
+  /// CHECK-DAG: Deoptimize
+  //
+  /// CHECK-START: void Main.hiddenFiniteOOB() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static void hiddenFiniteOOB() {
+    int[] a = { 111 } ;
+    for (int i = -1; i <= 0; i++) {
+      // Dangerous loop similar as above where the loop is now finite, but the
+      // loop still goes out of bounds for i = -1 due to the large upper bound.
+      // Dynamic BCE is feasible though, since it checks the range.
+      for (int j = -4; j < 2147483646 * i - 3; j++) {
+        sResult += a[j + 4];
+      }
+    }
+  }
+
+  /// CHECK-START: int[] Main.add() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int[] Main.add() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int[] add() {
+    int[] a = new int[10];
+    for (int i = 0; i <= 3; i++) {
+      for (int j = 0; j <= 6; j++) {
+        a[i + j] += 1;
+      }
+    }
+    return a;
+  }
+
   /// CHECK-START: int[] Main.multiply1() BCE (before)
   /// CHECK-DAG: BoundsCheck
   //
@@ -1053,6 +1179,37 @@ public class Main {
     return result;
   }
 
+  /// CHECK-START: int Main.dynamicBCEConstantRange(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:<<InnerLoop:B\d+>>
+  /// CHECK-DAG: ArrayGet    loop:<<InnerLoop>>
+  /// CHECK-DAG: If          loop:<<InnerLoop>>
+  /// CHECK-DAG: If          loop:<<OuterLoop:B\d+>>
+  /// CHECK-EVAL: "<<InnerLoop>>" != "<<OuterLoop>>"
+  //
+  /// CHECK-START: int Main.dynamicBCEConstantRange(int[]) BCE (after)
+  /// CHECK-DAG: ArrayGet   loop:<<InnerLoop:B\d+>>
+  /// CHECK-DAG: Deoptimize loop:<<OuterLoop:B\d+>>
+  /// CHECK-EVAL: "<<InnerLoop>>" != "<<OuterLoop>>"
+  //
+  /// CHECK-START: int Main.dynamicBCEConstantRange(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  //
+  //  No additional top tests were introduced.
+  /// CHECK-START: int Main.dynamicBCEConstantRange(int[]) BCE (after)
+  /// CHECK-DAG: If
+  /// CHECK-DAG: If
+  /// CHECK-NOT: If
+  static int dynamicBCEConstantRange(int[] x) {
+    int result = 0;
+    for (int i = 2; i <= 6; i++) {
+      // Range analysis sees that innermost loop is finite and always taken.
+      for (int j = i - 2; j <= i + 2; j++) {
+        result += x[j];
+      }
+    }
+    return result;
+  }
+
   /// CHECK-START: int Main.dynamicBCEAndConstantIndices(int[], int[][], int, int) BCE (before)
   /// CHECK-DAG: {{l\d+}} ArrayGet loop:<<Loop:B\d+>>
   /// CHECK-DAG: {{l\d+}} ArrayGet loop:<<Loop>>
@@ -1239,7 +1396,8 @@ public class Main {
     linearTriangularOnTwoArrayLengths(10);
     linearTriangularOnOneArrayLength(10);
     linearTriangularOnParameter(10);
-    linearTriangularVariations(10);
+    linearTriangularVariationsInnerStrict(10);
+    linearTriangularVariationsInnerNonStrict(10);
 
     // Sorting.
     int[] sort = { 5, 4, 1, 9, 10, 2, 7, 6, 3, 8 };
@@ -1330,6 +1488,59 @@ public class Main {
     }
     expectEquals(1055, sResult);
 
+    // Hidden OOB.
+    sResult = 0;
+    try {
+      hiddenOOB1(10);  // no OOB
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1, sResult);
+    sResult = 0;
+    try {
+      hiddenOOB1(-2147483648);  // OOB
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1001, sResult);
+    sResult = 0;
+    try {
+      hiddenOOB2(1);  // no OOB
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1, sResult);
+    sResult = 0;
+    try {
+      hiddenOOB2(2147483647);  // OOB
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1002, sResult);
+    sResult = 0;
+    try {
+      hiddenInfiniteOOB();
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1011, sResult);
+    sResult = 0;
+    try {
+      hiddenFiniteOOB();
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1111, sResult);
+
+    // Addition.
+    {
+      int[] e1 ={ 1, 2, 3, 4, 4, 4, 4, 3, 2, 1 };
+      int[] a1 = add();
+      for (int i = 0; i < 10; i++) {
+        expectEquals(a1[i], e1[i]);
+      }
+    }
+
     // Multiplication.
     {
       int[] e1 = { 7, 1, 2, 2, 1, 0, 2, 0, 0, 1 };
@@ -1388,6 +1599,7 @@ public class Main {
     expectEquals(55, dynamicBCEPossiblyInfiniteLoop(x, 0, 9));
     expectEquals(55, noDynamicBCEPossiblyInfiniteLoop(x, 0, 9));
     expectEquals(55, noDynamicBCEMixedInductionTypes(x, 0, 10));
+    expectEquals(125, dynamicBCEConstantRange(x));
 
     // Dynamic BCE combined with constant indices.
     int[][] a;
