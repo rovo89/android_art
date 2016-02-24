@@ -115,13 +115,17 @@ MterpException:
     call    SYMBOL(MterpHandleException)
     testb   %al, %al
     jz      MterpExceptionReturn
-    REFRESH_IBASE
     movl    OFF_FP_CODE_ITEM(rFP), %eax
     movl    OFF_FP_DEX_PC(rFP), %ecx
     lea     CODEITEM_INSNS_OFFSET(%eax), rPC
     lea     (rPC, %ecx, 2), rPC
     movl    rPC, OFF_FP_DEX_PC_PTR(rFP)
+    /* Do we need to switch interpreters? */
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     /* resume execution at catch block */
+    REFRESH_IBASE
     FETCH_INST
     GOTO_NEXT
     /* NOTE: no fallthrough */
