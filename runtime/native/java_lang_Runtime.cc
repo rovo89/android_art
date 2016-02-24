@@ -67,9 +67,11 @@ static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
 #endif
 }
 
-static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader,
-                                  jboolean isSharedNamespace, jstring javaLibrarySearchPath,
-                                  jstring javaLibraryPermittedPath) {
+static jstring Runtime_nativeLoad(JNIEnv* env,
+                                  jclass,
+                                  jstring javaFilename,
+                                  jobject javaLoader,
+                                  jstring javaLibrarySearchPath) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == nullptr) {
     return nullptr;
@@ -79,7 +81,9 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
 
   // Starting with N nativeLoad uses classloader local
   // linker namespace instead of global LD_LIBRARY_PATH
-  // (23 is Marshmallow)
+  // (23 is Marshmallow). This call is here to preserve
+  // backwards compatibility for the apps targeting sdk
+  // version <= 23
   if (target_sdk_version == 0) {
     SetLdLibraryPath(env, javaLibrarySearchPath);
   }
@@ -90,9 +94,7 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
     bool success = vm->LoadNativeLibrary(env,
                                          filename.c_str(),
                                          javaLoader,
-                                         isSharedNamespace == JNI_TRUE,
                                          javaLibrarySearchPath,
-                                         javaLibraryPermittedPath,
                                          &error_msg);
     if (success) {
       return nullptr;
@@ -121,7 +123,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Runtime, gc, "()V"),
   NATIVE_METHOD(Runtime, maxMemory, "!()J"),
   NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
-  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;ZLjava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(Runtime, totalMemory, "!()J"),
 };
 
