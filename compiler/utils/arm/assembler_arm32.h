@@ -91,6 +91,9 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void movw(Register rd, uint16_t imm16, Condition cond = AL) OVERRIDE;
   void movt(Register rd, uint16_t imm16, Condition cond = AL) OVERRIDE;
   void rbit(Register rd, Register rm, Condition cond = AL) OVERRIDE;
+  void rev(Register rd, Register rm, Condition cond = AL) OVERRIDE;
+  void rev16(Register rd, Register rm, Condition cond = AL) OVERRIDE;
+  void revsh(Register rd, Register rm, Condition cond = AL) OVERRIDE;
 
   // Multiply instructions.
   void mul(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
@@ -387,6 +390,11 @@ class Arm32Assembler FINAL : public ArmAssembler {
                  SRegister sm);
 
   void EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl, Condition cond);
+
+  void EmitMiscellaneous(Condition cond, uint8_t op1, uint8_t op2,
+                         uint32_t a_part, uint32_t rest);
+  void EmitReverseBytes(Register rd, Register rm, Condition cond,
+                        uint8_t op1, uint8_t op2);
 
   void EmitBranch(Condition cond, Label* label, bool link);
   static int32_t EncodeBranchOffset(int offset, int32_t inst);

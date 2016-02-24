@@ -1825,6 +1825,90 @@ void IntrinsicCodeGeneratorARM::VisitMathNextAfter(HInvoke* invoke) {
   GenFPFPToFPCall(invoke, GetAssembler(), codegen_, kQuickNextAfter);
 }
 
+void IntrinsicLocationsBuilderARM::VisitIntegerReverse(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitIntegerReverse(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register in  = locations->InAt(0).AsRegister<Register>();
+
+  __ rbit(out, in);
+}
+
+void IntrinsicLocationsBuilderARM::VisitLongReverse(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM::VisitLongReverse(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register in_reg_lo  = locations->InAt(0).AsRegisterPairLow<Register>();
+  Register in_reg_hi  = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Register out_reg_lo = locations->Out().AsRegisterPairLow<Register>();
+  Register out_reg_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+  __ rbit(out_reg_lo, in_reg_hi);
+  __ rbit(out_reg_hi, in_reg_lo);
+}
+
+void IntrinsicLocationsBuilderARM::VisitIntegerReverseBytes(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitIntegerReverseBytes(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register in  = locations->InAt(0).AsRegister<Register>();
+
+  __ rev(out, in);
+}
+
+void IntrinsicLocationsBuilderARM::VisitLongReverseBytes(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM::VisitLongReverseBytes(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register in_reg_lo  = locations->InAt(0).AsRegisterPairLow<Register>();
+  Register in_reg_hi  = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Register out_reg_lo = locations->Out().AsRegisterPairLow<Register>();
+  Register out_reg_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+  __ rev(out_reg_lo, in_reg_hi);
+  __ rev(out_reg_hi, in_reg_lo);
+}
+
+void IntrinsicLocationsBuilderARM::VisitShortReverseBytes(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitShortReverseBytes(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register in  = locations->InAt(0).AsRegister<Register>();
+
+  __ revsh(out, in);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -1834,12 +1918,7 @@ void IntrinsicCodeGeneratorARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 }
 
 UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(IntegerReverse)
-UNIMPLEMENTED_INTRINSIC(IntegerReverseBytes)
 UNIMPLEMENTED_INTRINSIC(LongBitCount)
-UNIMPLEMENTED_INTRINSIC(LongReverse)
-UNIMPLEMENTED_INTRINSIC(LongReverseBytes)
-UNIMPLEMENTED_INTRINSIC(ShortReverseBytes)
 UNIMPLEMENTED_INTRINSIC(MathMinDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(MathMinFloatFloat)
 UNIMPLEMENTED_INTRINSIC(MathMaxDoubleDouble)
