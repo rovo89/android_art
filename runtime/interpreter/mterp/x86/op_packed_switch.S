@@ -15,15 +15,11 @@
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
     call    SYMBOL($func)
-    addl    %eax, %eax
-    leal    (rPC, %eax), rPC
+    movl    %eax, rINST
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST
+    leal    (rPC, rINST), rPC
     FETCH_INST
     REFRESH_IBASE
-    jg      1f
-#if MTERP_SUSPEND
-    #     REFRESH_IBASE - we did it above.
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue
     GOTO_NEXT
