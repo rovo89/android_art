@@ -566,8 +566,9 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 static void VMRuntime_registerAppInfo(JNIEnv* env,
                                       jclass clazz ATTRIBUTE_UNUSED,
                                       jstring profile_file,
-                                      jstring app_dir ATTRIBUTE_UNUSED,  // TODO: remove argument
-                                      jobjectArray code_paths) {
+                                      jstring app_dir,
+                                      jobjectArray code_paths,
+                                      jstring foreign_dex_profile_path) {
   std::vector<std::string> code_paths_vec;
   int code_paths_length = env->GetArrayLength(code_paths);
   for (int i = 0; i < code_paths_length; i++) {
@@ -581,7 +582,22 @@ static void VMRuntime_registerAppInfo(JNIEnv* env,
   std::string profile_file_str(raw_profile_file);
   env->ReleaseStringUTFChars(profile_file, raw_profile_file);
 
-  Runtime::Current()->RegisterAppInfo(code_paths_vec, profile_file_str);
+  std::string foreign_dex_profile_path_str = "";
+  if (foreign_dex_profile_path != nullptr) {
+    const char* raw_foreign_dex_profile_path =
+        env->GetStringUTFChars(foreign_dex_profile_path, nullptr);
+    foreign_dex_profile_path_str.assign(raw_foreign_dex_profile_path);
+    env->ReleaseStringUTFChars(foreign_dex_profile_path, raw_foreign_dex_profile_path);
+  }
+
+  const char* raw_app_dir = env->GetStringUTFChars(app_dir, nullptr);
+  std::string app_dir_str(raw_app_dir);
+  env->ReleaseStringUTFChars(app_dir, raw_app_dir);
+
+  Runtime::Current()->RegisterAppInfo(code_paths_vec,
+                                      profile_file_str,
+                                      foreign_dex_profile_path_str,
+                                      app_dir_str);
 }
 
 static jboolean VMRuntime_isBootClassPathOnDisk(JNIEnv* env, jclass, jstring java_instruction_set) {
@@ -638,7 +654,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, isCheckJniEnabled, "!()Z"),
   NATIVE_METHOD(VMRuntime, preloadDexCaches, "()V"),
   NATIVE_METHOD(VMRuntime, registerAppInfo,
-                "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;)V"),
+                "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)V"),
   NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
 };

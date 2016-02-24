@@ -193,9 +193,11 @@ void Jit::DeleteThreadPool() {
 }
 
 void Jit::StartProfileSaver(const std::string& filename,
-                            const std::vector<std::string>& code_paths) {
+                            const std::vector<std::string>& code_paths,
+                            const std::string& foreign_dex_profile_path,
+                            const std::string& app_dir) {
   if (save_profiling_info_) {
-    ProfileSaver::Start(filename, code_cache_.get(), code_paths);
+    ProfileSaver::Start(filename, code_cache_.get(), code_paths, foreign_dex_profile_path, app_dir);
   }
 }
 
