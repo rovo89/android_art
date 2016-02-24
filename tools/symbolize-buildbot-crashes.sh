@@ -18,3 +18,6 @@
 # script expect things to be in '/'. So we just remove the
 # '/data/local/tmp' prefix.
 adb logcat -d | sed 's,/data/local/tmp,,g' | development/scripts/stack
+
+# Always return 0 to avoid having the buildbot complain about wrong stacks.
+exit 0
