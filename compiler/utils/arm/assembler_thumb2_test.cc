@@ -1331,4 +1331,28 @@ TEST_F(AssemblerThumb2Test, rbit) {
   DriverStr(expected, "rbit");
 }
 
+TEST_F(AssemblerThumb2Test, rev) {
+  __ rev(arm::R1, arm::R0);
+
+  const char* expected = "rev r1, r0\n";
+
+  DriverStr(expected, "rev");
+}
+
+TEST_F(AssemblerThumb2Test, rev16) {
+  __ rev16(arm::R1, arm::R0);
+
+  const char* expected = "rev16 r1, r0\n";
+
+  DriverStr(expected, "rev16");
+}
+
+TEST_F(AssemblerThumb2Test, revsh) {
+  __ revsh(arm::R1, arm::R0);
+
+  const char* expected = "revsh r1, r0\n";
+
+  DriverStr(expected, "revsh");
+}
+
 }  // namespace art

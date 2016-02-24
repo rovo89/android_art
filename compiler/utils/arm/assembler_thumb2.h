@@ -117,6 +117,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void movw(Register rd, uint16_t imm16, Condition cond = AL) OVERRIDE;
   void movt(Register rd, uint16_t imm16, Condition cond = AL) OVERRIDE;
   void rbit(Register rd, Register rm, Condition cond = AL) OVERRIDE;
+  void rev(Register rd, Register rm, Condition cond = AL) OVERRIDE;
+  void rev16(Register rd, Register rm, Condition cond = AL) OVERRIDE;
+  void revsh(Register rd, Register rm, Condition cond = AL) OVERRIDE;
 
   // Multiply instructions.
   void mul(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
@@ -643,6 +646,17 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                           Register rn,
                           Register rd,
                           const ShifterOperand& so);
+
+  // Emit a single 32 bit miscellaneous instruction.
+  void Emit32Miscellaneous(uint8_t op1,
+                           uint8_t op2,
+                           uint32_t rest_encoding);
+
+  // Emit reverse byte instructions: rev, rev16, revsh.
+  void EmitReverseBytes(Register rd, Register rm, uint32_t op);
+
+  // Emit a single 16 bit miscellaneous instruction.
+  void Emit16Miscellaneous(uint32_t rest_encoding);
 
   // Must the instruction be 32 bits or can it possibly be encoded
   // in 16 bits?
