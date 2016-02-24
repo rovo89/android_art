@@ -360,6 +360,8 @@ class CodeGeneratorMIPS : public CodeGenerator {
     UNIMPLEMENTED(FATAL) << "Not implemented on MIPS";
   }
 
+  void GenerateNop();
+
  private:
   // Labels for each block that will be compiled.
   MipsLabel* block_labels_;
