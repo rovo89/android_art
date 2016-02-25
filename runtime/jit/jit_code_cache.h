@@ -73,6 +73,7 @@ class JitCodeCache {
 
   // Number of compilations done throughout the lifetime of the JIT.
   size_t NumberOfCompilations() REQUIRES(!lock_);
+  size_t NumberOfOsrCompilations() REQUIRES(!lock_);
 
   bool NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr)
       SHARED_REQUIRES(Locks::mutator_lock_)
@@ -304,6 +305,7 @@ class JitCodeCache {
 
   // Number of compilations done throughout the lifetime of the JIT.
   size_t number_of_compilations_ GUARDED_BY(lock_);
+  size_t number_of_osr_compilations_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };
