@@ -229,6 +229,11 @@ class BitVector {
    */
   int GetHighestBitSet() const;
 
+  // Minimum number of bits required to store this vector, 0 if none are set.
+  size_t GetNumberOfBits() const {
+    return GetHighestBitSet() + 1;
+  }
+
   // Is bit set in storage. (No range check.)
   static bool IsBitSet(const uint32_t* storage, uint32_t idx) {
     return (storage[WordIndex(idx)] & BitMask(idx)) != 0;
