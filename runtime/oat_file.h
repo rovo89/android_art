@@ -228,6 +228,10 @@ class OatFile {
     return End() - Begin();
   }
 
+  bool Contains(const void* p) const {
+    return p >= Begin() && p < End();
+  }
+
   size_t BssSize() const {
     return BssEnd() - BssBegin();
   }
