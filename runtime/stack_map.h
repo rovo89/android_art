@@ -110,30 +110,6 @@ class DexRegisterLocation {
       sizeof(Kind) == 1u,
       "art::DexRegisterLocation::Kind has a size different from one byte.");
 
-  static const char* PrettyDescriptor(Kind kind) {
-    switch (kind) {
-      case Kind::kNone:
-        return "none";
-      case Kind::kInStack:
-        return "in stack";
-      case Kind::kInRegister:
-        return "in register";
-      case Kind::kInRegisterHigh:
-        return "in register high";
-      case Kind::kInFpuRegister:
-        return "in fpu register";
-      case Kind::kInFpuRegisterHigh:
-        return "in fpu register high";
-      case Kind::kConstant:
-        return "as constant";
-      case Kind::kInStackLargeOffset:
-        return "in stack (large offset)";
-      case Kind::kConstantLargeValue:
-        return "as constant (large value)";
-    }
-    UNREACHABLE();
-  }
-
   static bool IsShortLocationKind(Kind kind) {
     switch (kind) {
       case Kind::kInStack:
@@ -149,7 +125,7 @@ class DexRegisterLocation {
         return false;
 
       case Kind::kNone:
-        LOG(FATAL) << "Unexpected location kind " << PrettyDescriptor(kind);
+        LOG(FATAL) << "Unexpected location kind";
     }
     UNREACHABLE();
   }
@@ -214,6 +190,8 @@ class DexRegisterLocation {
 
   friend class DexRegisterLocationHashFn;
 };
+
+std::ostream& operator<<(std::ostream& stream, const DexRegisterLocation::Kind& kind);
 
 /**
  * Store information on unique Dex register locations used in a method.
@@ -349,7 +327,7 @@ class DexRegisterLocationCatalog {
       case DexRegisterLocation::Kind::kConstantLargeValue:
       case DexRegisterLocation::Kind::kInStackLargeOffset:
       case DexRegisterLocation::Kind::kNone:
-        LOG(FATAL) << "Unexpected location kind " << DexRegisterLocation::PrettyDescriptor(kind);
+        LOG(FATAL) << "Unexpected location kind " << kind;
     }
     UNREACHABLE();
   }
@@ -373,7 +351,7 @@ class DexRegisterLocationCatalog {
       case DexRegisterLocation::Kind::kConstantLargeValue:
       case DexRegisterLocation::Kind::kInStackLargeOffset:
       case DexRegisterLocation::Kind::kNone:
-        LOG(FATAL) << "Unexpected location kind " << DexRegisterLocation::PrettyDescriptor(kind);
+        LOG(FATAL) << "Unexpected location kind " << kind;
     }
     UNREACHABLE();
   }
@@ -515,8 +493,7 @@ class DexRegisterMap {
                       const StackMapEncoding& enc) const {
     DexRegisterLocation location =
         GetDexRegisterLocation(dex_register_number, number_of_dex_registers, code_info, enc);
-    DCHECK(location.GetKind() == DexRegisterLocation::Kind::kConstant)
-        << DexRegisterLocation::PrettyDescriptor(location.GetKind());
+    DCHECK_EQ(location.GetKind(), DexRegisterLocation::Kind::kConstant);
     return location.GetValue();
   }
 
@@ -530,7 +507,7 @@ class DexRegisterMap {
            location.GetInternalKind() == DexRegisterLocation::Kind::kInRegisterHigh ||
            location.GetInternalKind() == DexRegisterLocation::Kind::kInFpuRegister ||
            location.GetInternalKind() == DexRegisterLocation::Kind::kInFpuRegisterHigh)
-        << DexRegisterLocation::PrettyDescriptor(location.GetInternalKind());
+        << location.GetInternalKind();
     return location.GetValue();
   }
 
