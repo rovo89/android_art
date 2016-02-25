@@ -4058,6 +4058,15 @@ bool Heap::ObjectIsInBootImageSpace(mirror::Object* obj) const {
   return false;
 }
 
+bool Heap::IsInBootImageOatFile(const void* p) const {
+  for (gc::space::ImageSpace* space : boot_image_spaces_) {
+    if (space->GetOatFile()->Contains(p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void Heap::GetBootImagesSize(uint32_t* boot_image_begin,
                              uint32_t* boot_image_end,
                              uint32_t* boot_oat_begin,
