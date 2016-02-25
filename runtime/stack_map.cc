@@ -27,6 +27,31 @@ constexpr size_t DexRegisterLocationCatalog::kNoLocationEntryIndex;
 constexpr uint32_t StackMap::kNoDexRegisterMap;
 constexpr uint32_t StackMap::kNoInlineInfo;
 
+std::ostream& operator<<(std::ostream& stream, const DexRegisterLocation::Kind& kind) {
+  using Kind = DexRegisterLocation::Kind;
+  switch (kind) {
+    case Kind::kNone:
+      return stream << "none";
+    case Kind::kInStack:
+      return stream << "in stack";
+    case Kind::kInRegister:
+      return stream << "in register";
+    case Kind::kInRegisterHigh:
+      return stream << "in register high";
+    case Kind::kInFpuRegister:
+      return stream << "in fpu register";
+    case Kind::kInFpuRegisterHigh:
+      return stream << "in fpu register high";
+    case Kind::kConstant:
+      return stream << "as constant";
+    case Kind::kInStackLargeOffset:
+      return stream << "in stack (large offset)";
+    case Kind::kConstantLargeValue:
+      return stream << "as constant (large value)";
+  }
+  return stream << "Kind<" << static_cast<uint32_t>(kind) << ">";
+}
+
 DexRegisterLocation::Kind DexRegisterMap::GetLocationInternalKind(
     uint16_t dex_register_number,
     uint16_t number_of_dex_registers,
@@ -97,7 +122,7 @@ static void DumpRegisterMapping(std::ostream& os,
                                 const std::string& prefix = "v",
                                 const std::string& suffix = "") {
   os << prefix << dex_register_num << ": "
-     << DexRegisterLocation::PrettyDescriptor(location.GetInternalKind())
+     << location.GetInternalKind()
      << " (" << location.GetValue() << ")" << suffix << '\n';
 }
 
