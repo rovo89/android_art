@@ -1,0 +1,70 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*
+ * Interpreter entry point.
+ */
+
+    .text
+    .global SYMBOL(ExecuteMterpImpl)
+    FUNCTION_TYPE(ExecuteMterpImpl)
+
+/*
+ * On entry:
+ *  0  Thread* self
+ *  1  code_item
+ *  2  ShadowFrame
+ *  3  JValue* result_register
+ *
+ */
+
+SYMBOL(ExecuteMterpImpl):
+    .cfi_startproc
+
+    /* Allocate frame */
+    subq    $$FRAME_SIZE, %rsp
+    .cfi_adjust_cfa_offset FRAME_SIZE
+
+    /* Spill callee save regs */
+    movq    %rbx, RBX_SPILL(%rsp)
+    movq    %rbp, RBP_SPILL(%rsp)
+    movq    %r12, R12_SPILL(%rsp)
+    movq    %r13, R13_SPILL(%rsp)
+    movq    %r14, R14_SPILL(%rsp)
+    movq    %r15, R15_SPILL(%rsp)
+
+    /* Remember the return register */
+    movq    IN_ARG3, SHADOWFRAME_RESULT_REGISTER_OFFSET(IN_ARG2)
+
+    /* Remember the code_item */
+    movq    IN_ARG1, SHADOWFRAME_CODE_ITEM_OFFSET(IN_ARG2)
+
+    /* set up "named" registers */
+    movl    SHADOWFRAME_NUMBER_OF_VREGS_OFFSET(IN_ARG2), %eax
+    leaq    SHADOWFRAME_VREGS_OFFSET(IN_ARG2), rFP
+    leaq    (rFP, %rax, 4), rREFS
+    movl    SHADOWFRAME_DEX_PC_OFFSET(IN_ARG2), %eax
+    leaq    CODEITEM_INSNS_OFFSET(IN_ARG1), rPC
+    leaq    (rPC, %rax, 2), rPC
+    EXPORT_PC
+
+    /* Starting ibase */
+    movq    IN_ARG0, rSELF
+    REFRESH_IBASE
+
+    /* start executing the instruction at rPC */
+    FETCH_INST
+    GOTO_NEXT
+    /* NOTE: no fallthrough */
