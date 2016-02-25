@@ -3998,7 +3998,7 @@ void LocationsBuilderX86_64::VisitClassTableGet(HClassTableGet* instruction) {
 void InstructionCodeGeneratorX86_64::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   uint32_t method_offset = 0;
-  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kX86_64PointerSize).SizeValue();
   } else {
