@@ -394,6 +394,34 @@ public class Main {
     return result;
   }
 
+  /// CHECK-START: int Main.linearForNEArrayLengthUp(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.linearForNEArrayLengthUp(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearForNEArrayLengthUp(int[] x) {
+    int result = 0;
+    for (int i = 0; i != x.length; i++) {
+      result += x[i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearForNEArrayLengthDown(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.linearForNEArrayLengthDown(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearForNEArrayLengthDown(int[] x) {
+    int result = 0;
+    for (int i = x.length - 1; i != -1; i--) {
+      result += x[i];
+    }
+    return result;
+  }
+
   /// CHECK-START: int Main.linearDoWhileUp() BCE (before)
   /// CHECK-DAG: BoundsCheck
   //
@@ -670,6 +698,8 @@ public class Main {
     // Special forms.
     expectEquals(55, linearForNEUp());
     expectEquals(55, linearForNEDown());
+    expectEquals(55, linearForNEArrayLengthUp(x));
+    expectEquals(55, linearForNEArrayLengthDown(x));
     expectEquals(55, linearDoWhileUp());
     expectEquals(55, linearDoWhileDown());
     expectEquals(55, linearShort());
