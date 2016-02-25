@@ -552,9 +552,11 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
     if (!IsExact(stride_expr, &stride_value)) {
       return;
     }
-    // Rewrite condition i != U into i < U or i > U if end condition is reached exactly.
-    if (cmp == kCondNE && ((stride_value == +1 && IsTaken(lower_expr, upper_expr, kCondLT)) ||
-                           (stride_value == -1 && IsTaken(lower_expr, upper_expr, kCondGT)))) {
+    // Rewrite condition i != U into strict end condition i < U or i > U if this end condition
+    // is reached exactly (tested by verifying if the loop has a unit stride and the non-strict
+    // condition would be always taken).
+    if (cmp == kCondNE && ((stride_value == +1 && IsTaken(lower_expr, upper_expr, kCondLE)) ||
+                           (stride_value == -1 && IsTaken(lower_expr, upper_expr, kCondGE)))) {
       cmp = stride_value > 0 ? kCondLT : kCondGT;
     }
     // Normalize a linear loop control with a nonzero stride:
