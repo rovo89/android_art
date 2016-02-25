@@ -126,7 +126,8 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       has_done_one_collection_(false),
       last_update_time_ns_(0),
       garbage_collect_code_(garbage_collect_code),
-      number_of_compilations_(0) {
+      number_of_compilations_(0),
+      number_of_osr_compilations_(0) {
 
   DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
@@ -336,6 +337,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     MutexLock mu(self, lock_);
     method_code_map_.Put(code_ptr, method);
     if (osr) {
+      number_of_osr_compilations_++;
       osr_code_map_.Put(method, code_ptr);
     } else {
       Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
@@ -362,6 +364,11 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
 size_t JitCodeCache::NumberOfCompilations() {
   MutexLock mu(Thread::Current(), lock_);
   return number_of_compilations_;
+}
+
+size_t JitCodeCache::NumberOfOsrCompilations() {
+  MutexLock mu(Thread::Current(), lock_);
+  return number_of_osr_compilations_;
 }
 
 size_t JitCodeCache::CodeCacheSize() {
