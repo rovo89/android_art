@@ -42,11 +42,12 @@ namespace art {
 template <bool kResolve = true>
 inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
                                     const InlineInfo& inline_info,
+                                    const InlineInfoEncoding& encoding,
                                     uint8_t inlining_depth)
   SHARED_REQUIRES(Locks::mutator_lock_) {
-  uint32_t method_index = inline_info.GetMethodIndexAtDepth(inlining_depth);
+  uint32_t method_index = inline_info.GetMethodIndexAtDepth(encoding, inlining_depth);
   InvokeType invoke_type = static_cast<InvokeType>(
-        inline_info.GetInvokeTypeAtDepth(inlining_depth));
+        inline_info.GetInvokeTypeAtDepth(encoding, inlining_depth));
   ArtMethod* caller = outer_method->GetDexCacheResolvedMethod(method_index, sizeof(void*));
   if (!caller->IsRuntimeMethod()) {
     return caller;
@@ -68,7 +69,10 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   if (inlining_depth == 0) {
     class_loader.Assign(outer_method->GetClassLoader());
   } else {
-    caller = GetResolvedMethod<kResolve>(outer_method, inline_info, inlining_depth - 1);
+    caller = GetResolvedMethod<kResolve>(outer_method,
+                                         inline_info,
+                                         encoding,
+                                         inlining_depth - 1);
     class_loader.Assign(caller->GetClassLoader());
   }
 
