@@ -45,6 +45,8 @@ static constexpr size_t kMagicHandshakeLen = sizeof(kMagicHandshake) - 1;
 static constexpr uint8_t kJDWPClassTypeCmdSet = 3U;
 static constexpr uint8_t kJDWPClassTypeInvokeMethodCmd = 3U;
 static constexpr uint8_t kJDWPClassTypeNewInstanceCmd = 4U;
+static constexpr uint8_t kJDWPInterfaceTypeCmdSet = 5U;
+static constexpr uint8_t kJDWPInterfaceTypeInvokeMethodCmd = 1U;
 static constexpr uint8_t kJDWPObjectReferenceCmdSet = 9U;
 static constexpr uint8_t kJDWPObjectReferenceInvokeCmd = 6U;
 

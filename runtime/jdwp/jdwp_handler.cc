@@ -690,6 +690,19 @@ static JdwpError AT_newInstance(JdwpState*, Request* request, ExpandBuf* pReply)
 }
 
 /*
+ * Invoke a static method on an interface.
+ */
+static JdwpError IT_InvokeMethod(JdwpState* state, Request* request,
+                                 ExpandBuf* pReply ATTRIBUTE_UNUSED)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  RefTypeId class_id = request->ReadRefTypeId();
+  ObjectId thread_id = request->ReadThreadId();
+  MethodId method_id = request->ReadMethodId();
+
+  return RequestInvoke(state, request, thread_id, 0, class_id, method_id, false);
+}
+
+/*
  * Return line number information for the method, if present.
  */
 static JdwpError M_LineTable(JdwpState*, Request* request, ExpandBuf* pReply)
@@ -1481,6 +1494,7 @@ static const JdwpHandlerMap gHandlers[] = {
   { 4,    1,  AT_newInstance,   "ArrayType.NewInstance" },
 
   /* InterfaceType command set (5) */
+  { 5,    1, IT_InvokeMethod,  "InterfaceType.InvokeMethod" },
 
   /* Method command set (6) */
   { 6,    1,  M_LineTable,                "Method.LineTable" },
@@ -1579,6 +1593,8 @@ static bool IsInvokeCommand(uint8_t command_set, uint8_t command) {
     return command == kJDWPClassTypeInvokeMethodCmd || command == kJDWPClassTypeNewInstanceCmd;
   } else if (command_set == kJDWPObjectReferenceCmdSet) {
     return command == kJDWPObjectReferenceInvokeCmd;
+  } else if (command_set == kJDWPInterfaceTypeCmdSet) {
+    return command == kJDWPInterfaceTypeInvokeMethodCmd;
   } else {
     return false;
   }
