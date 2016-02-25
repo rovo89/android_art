@@ -1247,6 +1247,16 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(UShr, BinaryOperation)                                              \
   M(Xor, BinaryOperation)                                               \
 
+/*
+ * Instructions, shared across several (not all) architectures.
+ */
+#if !defined(ART_ENABLE_CODEGEN_arm) && !defined(ART_ENABLE_CODEGEN_arm64)
+#define FOR_EACH_CONCRETE_INSTRUCTION_SHARED(M)
+#else
+#define FOR_EACH_CONCRETE_INSTRUCTION_SHARED(M)                         \
+  M(MultiplyAccumulate, Instruction)
+#endif
+
 #ifndef ART_ENABLE_CODEGEN_arm
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)
 #else
@@ -1259,8 +1269,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
 #else
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                          \
   M(Arm64DataProcWithShifterOp, Instruction)                            \
-  M(Arm64IntermediateAddress, Instruction)                              \
-  M(Arm64MultiplyAccumulate, Instruction)
+  M(Arm64IntermediateAddress, Instruction)
 #endif
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)
@@ -1281,6 +1290,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
 
 #define FOR_EACH_CONCRETE_INSTRUCTION(M)                                \
   FOR_EACH_CONCRETE_INSTRUCTION_COMMON(M)                               \
+  FOR_EACH_CONCRETE_INSTRUCTION_SHARED(M)                               \
   FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)                                  \
   FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                                \
   FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)                                 \
@@ -6022,6 +6032,9 @@ class HParallelMove : public HTemplateInstruction<0> {
 
 }  // namespace art
 
+#if defined(ART_ENABLE_CODEGEN_arm) || defined(ART_ENABLE_CODEGEN_arm64)
+#include "nodes_shared.h"
+#endif
 #ifdef ART_ENABLE_CODEGEN_arm
 #include "nodes_arm.h"
 #endif
