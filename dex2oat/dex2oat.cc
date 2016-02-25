@@ -216,7 +216,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("  --image=<file.art>: specifies an output image filename.");
   UsageError("      Example: --image=/system/framework/boot.art");
   UsageError("");
-  UsageError("  --image-format=(uncompressed|lz4):");
+  UsageError("  --image-format=(uncompressed|lz4|lz4hc):");
   UsageError("      Which format to store the image.");
   UsageError("      Example: --image-format=lz4");
   UsageError("      Default: uncompressed");
@@ -680,6 +680,8 @@ class Dex2Oat FINAL {
     const StringPiece format_str = option.substr(substr.length());
     if (format_str == "lz4") {
       image_storage_mode_ = ImageHeader::kStorageModeLZ4;
+    } else if (format_str == "lz4hc") {
+      image_storage_mode_ = ImageHeader::kStorageModeLZ4HC;
     } else if (format_str == "uncompressed") {
       image_storage_mode_ = ImageHeader::kStorageModeUncompressed;
     } else {

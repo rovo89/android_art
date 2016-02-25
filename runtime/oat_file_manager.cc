@@ -16,6 +16,8 @@
 
 #include "oat_file_manager.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include <cutils/trace.h>
 #include <memory>
 #include <queue>
 #include <vector>
@@ -386,13 +388,15 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             ScopedSuspendAll ssa("Add image space");
             runtime->GetHeap()->AddSpace(image_space.get());
           }
-          added_image_space = true;
-          if (runtime->GetClassLinker()->AddImageSpace(image_space.get(),
-                                                       h_loader,
-                                                       dex_elements,
-                                                       dex_location,
-                                                       /*out*/&dex_files,
-                                                       /*out*/&temp_error_msg)) {
+          ATRACE_BEGIN(StringPrintf("Adding image space for location %s", dex_location).c_str());
+          added_image_space = runtime->GetClassLinker()->AddImageSpace(image_space.get(),
+                                                                       h_loader,
+                                                                       dex_elements,
+                                                                       dex_location,
+                                                                       /*out*/&dex_files,
+                                                                       /*out*/&temp_error_msg);
+          ATRACE_END();
+          if (added_image_space) {
             // Successfully added image space to heap, release the map so that it does not get
             // freed.
             image_space.release();
@@ -407,7 +411,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
               ScopedSuspendAll ssa("Remove image space");
               runtime->GetHeap()->RemoveSpace(image_space.get());
             }
-            added_image_space = false;
             // Non-fatal, don't update error_msg.
           }
         }

@@ -278,6 +278,11 @@ TEST_F(ImageTest, WriteReadLZ4) {
   TestWriteRead(ImageHeader::kStorageModeLZ4);
 }
 
+TEST_F(ImageTest, WriteReadLZ4HC) {
+  TestWriteRead(ImageHeader::kStorageModeLZ4HC);
+}
+
+
 TEST_F(ImageTest, ImageHeaderIsValid) {
     uint32_t image_begin = ART_BASE_ADDRESS;
     uint32_t image_size_ = 16 * KB;
