@@ -2608,18 +2608,6 @@ const void* ClassLinker::GetOatMethodQuickCodeFor(ArtMethod* method) {
   return nullptr;
 }
 
-const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file,
-                                            uint16_t class_def_idx,
-                                            uint32_t method_idx) {
-  bool found;
-  OatFile::OatClass oat_class = FindOatClass(dex_file, class_def_idx, &found);
-  if (!found) {
-    return nullptr;
-  }
-  uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
-  return oat_class.GetOatMethod(oat_method_idx).GetQuickCode();
-}
-
 bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code) {
   if (UNLIKELY(method->IsNative() || method->IsProxyMethod())) {
     return false;
@@ -2648,6 +2636,11 @@ bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* 
   if (runtime->UseJit() && runtime->GetJit()->JitAtFirstUse()) {
     // The force JIT uses the interpreter entry point to execute the JIT.
     return true;
+  }
+
+  if (Dbg::IsDebuggerActive()) {
+    // Boot image classes are AOT-compiled as non-debuggable.
+    return runtime->GetHeap()->IsInBootImageOatFile(quick_code);
   }
 
   return false;

@@ -104,6 +104,14 @@ static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
   method->SetEntryPointFromQuickCompiledCode(quick_code);
 }
 
+bool Instrumentation::NeedDebugVersionForBootImageCode(ArtMethod* method, const void* code) const
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  return Dbg::IsDebuggerActive() &&
+         Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
+         !method->IsNative() &&
+         !method->IsProxyMethod();
+}
+
 void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   if (!method->IsInvokable() || method->IsProxyMethod()) {
     // Do not change stubs for these methods.
@@ -124,6 +132,9 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
       new_quick_code = class_linker->GetQuickOatCodeFor(method);
+      if (NeedDebugVersionForBootImageCode(method, new_quick_code)) {
+        new_quick_code = GetQuickToInterpreterBridge();
+      }
     } else {
       new_quick_code = GetQuickResolutionStub();
     }
@@ -136,10 +147,13 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
       // class, all its static methods code will be set to the instrumentation entry point.
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-        if (entry_exit_stubs_installed_) {
+        new_quick_code = class_linker->GetQuickOatCodeFor(method);
+        if (NeedDebugVersionForBootImageCode(method, new_quick_code)) {
+          // Oat code should not be used. Don't install instrumentation stub and
+          // use interpreter for instrumentation.
+          new_quick_code = GetQuickToInterpreterBridge();
+        } else if (entry_exit_stubs_installed_) {
           new_quick_code = GetQuickInstrumentationEntryPoint();
-        } else {
-          new_quick_code = class_linker->GetQuickOatCodeFor(method);
         }
       } else {
         new_quick_code = GetQuickResolutionStub();
@@ -775,6 +789,9 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
       UpdateEntrypoints(method, GetQuickResolutionStub());
     } else {
       const void* quick_code = class_linker->GetQuickOatCodeFor(method);
+      if (NeedDebugVersionForBootImageCode(method, quick_code)) {
+        quick_code = GetQuickToInterpreterBridge();
+      }
       UpdateEntrypoints(method, quick_code);
     }
 

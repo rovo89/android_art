@@ -247,6 +247,11 @@ class Instrumentation {
     return forced_interpret_only_;
   }
 
+  // Code is in boot image oat file which isn't compiled as debuggable.
+  // Need debug version (interpreter or jitted) if that's the case.
+  bool NeedDebugVersionForBootImageCode(ArtMethod* method, const void* code) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   bool AreExitStubsInstalled() const {
     return instrumentation_stubs_installed_;
   }
