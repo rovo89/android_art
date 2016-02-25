@@ -603,6 +603,10 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
 
   DCHECK(resolved_method != nullptr);
   ArtMethod* actual_method = nullptr;
+  size_t method_index = invoke_instruction->IsInvokeVirtual()
+      ? invoke_instruction->AsInvokeVirtual()->GetVTableIndex()
+      : invoke_instruction->AsInvokeInterface()->GetImtIndex();
+
   // Check whether we are actually calling the same method among
   // the different types seen.
   for (size_t i = 0; i < InlineCache::kIndividualCacheSize; ++i) {
@@ -611,13 +615,18 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
     }
     ArtMethod* new_method = nullptr;
     if (invoke_instruction->IsInvokeInterface()) {
-      new_method = ic.GetTypeAt(i)->FindVirtualMethodForInterface(
-          resolved_method, pointer_size);
+      new_method = ic.GetTypeAt(i)->GetEmbeddedImTableEntry(
+          method_index % mirror::Class::kImtSize, pointer_size);
+      if (new_method->IsRuntimeMethod()) {
+        // Bail out as soon as we see a conflict trampoline in one of the target's
+        // interface table.
+        return false;
+      }
     } else {
       DCHECK(invoke_instruction->IsInvokeVirtual());
-      new_method = ic.GetTypeAt(i)->FindVirtualMethodForVirtual(
-          resolved_method, pointer_size);
+      new_method = ic.GetTypeAt(i)->GetEmbeddedVTableEntry(method_index, pointer_size);
     }
+    DCHECK(new_method != nullptr);
     if (actual_method == nullptr) {
       actual_method = new_method;
     } else if (actual_method != new_method) {
@@ -641,10 +650,6 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   HInstanceFieldGet* receiver_class = BuildGetReceiverClass(
       class_linker, receiver, invoke_instruction->GetDexPc());
 
-  size_t method_offset = invoke_instruction->IsInvokeVirtual()
-      ? actual_method->GetVtableIndex()
-      : invoke_instruction->AsInvokeInterface()->GetImtIndex();
-
   Primitive::Type type = Is64BitInstructionSet(graph_->GetInstructionSet())
       ? Primitive::kPrimLong
       : Primitive::kPrimInt;
@@ -652,7 +657,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
       receiver_class,
       type,
       invoke_instruction->IsInvokeVirtual() ? HClassTableGet::kVTable : HClassTableGet::kIMTable,
-      method_offset,
+      method_index,
       invoke_instruction->GetDexPc());
 
   HConstant* constant;
