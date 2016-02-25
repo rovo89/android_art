@@ -378,8 +378,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
           continue;
         }
 
-        DCHECK(location == DexRegisterLocation::Kind::kInStack)
-            << DexRegisterLocation::PrettyDescriptor(location);
+        DCHECK_EQ(location, DexRegisterLocation::Kind::kInStack);
 
         int32_t vreg_value = shadow_frame->GetVReg(vreg);
         int32_t slot_offset = vreg_map.GetStackOffsetInBytes(vreg,

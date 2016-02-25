@@ -63,8 +63,7 @@ void StackMapStream::EndStackMapEntry() {
 void StackMapStream::AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t value) {
   if (kind != DexRegisterLocation::Kind::kNone) {
     // Ensure we only use non-compressed location kind at this stage.
-    DCHECK(DexRegisterLocation::IsShortLocationKind(kind))
-        << DexRegisterLocation::PrettyDescriptor(kind);
+    DCHECK(DexRegisterLocation::IsShortLocationKind(kind)) << kind;
     DexRegisterLocation location(kind, value);
 
     // Look for Dex register `location` in the location catalog (using the

@@ -232,8 +232,7 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
         // kInStackLargeOffset and kConstantLargeValue are hidden by GetKind().
         // kInRegisterHigh and kInFpuRegisterHigh should be handled by
         // the special cases above and they should not occur alone.
-        LOG(ERROR) << "Unexpected register location kind: "
-                   << DexRegisterLocation::PrettyDescriptor(kind);
+        LOG(ERROR) << "Unexpected register location kind: " << kind;
         break;
       }
       if (is64bitValue) {
