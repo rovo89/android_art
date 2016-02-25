@@ -1213,6 +1213,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
         }
         memcpy(map->Begin(), image_header, sizeof(ImageHeader));
         const uint64_t start = NanoTime();
+        TimingLogger::ScopedTiming timing2("LZ4 decompress image", &logger);
         const size_t decompressed_size = LZ4_decompress_safe(
             reinterpret_cast<char*>(temp_map->Begin()) + sizeof(ImageHeader),
             reinterpret_cast<char*>(map->Begin()) + write_offset,
