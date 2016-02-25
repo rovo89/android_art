@@ -792,6 +792,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -810,6 +811,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -828,6 +830,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -846,6 +849,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -864,6 +868,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -882,6 +887,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -899,6 +905,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -916,6 +923,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -933,6 +941,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -950,6 +959,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -967,6 +977,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }
@@ -984,6 +995,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       }
       ADVANCE(offset);
     } else {
+      BRANCH_INSTRUMENTATION(2);
       ADVANCE(2);
     }
   }

@@ -1372,31 +1372,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w1, wINST, #12              // w1<- B
-    ubfx    w0, wINST, #8, #4           // w0<- A
-    GET_VREG w3, w1                     // w3<- vB
-    GET_VREG w2, w0                     // w2<- vA
-    FETCH_S wINST, 1                    // wINST<- branch offset, in code units
-    cmp     w2, w3                      // compare (vA, vB)
-    b.eq .L_op_if_eq_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_eq_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w1, wINST, #12              // w1<- B
     ubfx    w0, wINST, #8, #4           // w0<- A
     GET_VREG w3, w1                     // w3<- vB
@@ -1405,13 +1380,21 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     w0, #2                      // Offset if branch not taken
     cmp     w2, w3                      // compare (vA, vB)
     csel    wINST, w1, w0, eq // Branch if true, stashing result in callee save reg.
+#if MTERP_PROFILE_BRANCHES
+    // TUINING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes, check sign
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1427,31 +1410,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w1, wINST, #12              // w1<- B
-    ubfx    w0, wINST, #8, #4           // w0<- A
-    GET_VREG w3, w1                     // w3<- vB
-    GET_VREG w2, w0                     // w2<- vA
-    FETCH_S wINST, 1                    // wINST<- branch offset, in code units
-    cmp     w2, w3                      // compare (vA, vB)
-    b.ne .L_op_if_ne_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_ne_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w1, wINST, #12              // w1<- B
     ubfx    w0, wINST, #8, #4           // w0<- A
     GET_VREG w3, w1                     // w3<- vB
@@ -1460,13 +1418,21 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     w0, #2                      // Offset if branch not taken
     cmp     w2, w3                      // compare (vA, vB)
     csel    wINST, w1, w0, ne // Branch if true, stashing result in callee save reg.
+#if MTERP_PROFILE_BRANCHES
+    // TUINING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes, check sign
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1482,31 +1448,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w1, wINST, #12              // w1<- B
-    ubfx    w0, wINST, #8, #4           // w0<- A
-    GET_VREG w3, w1                     // w3<- vB
-    GET_VREG w2, w0                     // w2<- vA
-    FETCH_S wINST, 1                    // wINST<- branch offset, in code units
-    cmp     w2, w3                      // compare (vA, vB)
-    b.lt .L_op_if_lt_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_lt_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w1, wINST, #12              // w1<- B
     ubfx    w0, wINST, #8, #4           // w0<- A
     GET_VREG w3, w1                     // w3<- vB
@@ -1515,13 +1456,21 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     w0, #2                      // Offset if branch not taken
     cmp     w2, w3                      // compare (vA, vB)
     csel    wINST, w1, w0, lt // Branch if true, stashing result in callee save reg.
+#if MTERP_PROFILE_BRANCHES
+    // TUINING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes, check sign
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1537,31 +1486,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w1, wINST, #12              // w1<- B
-    ubfx    w0, wINST, #8, #4           // w0<- A
-    GET_VREG w3, w1                     // w3<- vB
-    GET_VREG w2, w0                     // w2<- vA
-    FETCH_S wINST, 1                    // wINST<- branch offset, in code units
-    cmp     w2, w3                      // compare (vA, vB)
-    b.ge .L_op_if_ge_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_ge_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w1, wINST, #12              // w1<- B
     ubfx    w0, wINST, #8, #4           // w0<- A
     GET_VREG w3, w1                     // w3<- vB
@@ -1570,13 +1494,21 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     w0, #2                      // Offset if branch not taken
     cmp     w2, w3                      // compare (vA, vB)
     csel    wINST, w1, w0, ge // Branch if true, stashing result in callee save reg.
+#if MTERP_PROFILE_BRANCHES
+    // TUINING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes, check sign
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1592,31 +1524,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w1, wINST, #12              // w1<- B
-    ubfx    w0, wINST, #8, #4           // w0<- A
-    GET_VREG w3, w1                     // w3<- vB
-    GET_VREG w2, w0                     // w2<- vA
-    FETCH_S wINST, 1                    // wINST<- branch offset, in code units
-    cmp     w2, w3                      // compare (vA, vB)
-    b.gt .L_op_if_gt_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_gt_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w1, wINST, #12              // w1<- B
     ubfx    w0, wINST, #8, #4           // w0<- A
     GET_VREG w3, w1                     // w3<- vB
@@ -1625,13 +1532,21 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     w0, #2                      // Offset if branch not taken
     cmp     w2, w3                      // compare (vA, vB)
     csel    wINST, w1, w0, gt // Branch if true, stashing result in callee save reg.
+#if MTERP_PROFILE_BRANCHES
+    // TUINING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes, check sign
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1647,31 +1562,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w1, wINST, #12              // w1<- B
-    ubfx    w0, wINST, #8, #4           // w0<- A
-    GET_VREG w3, w1                     // w3<- vB
-    GET_VREG w2, w0                     // w2<- vA
-    FETCH_S wINST, 1                    // wINST<- branch offset, in code units
-    cmp     w2, w3                      // compare (vA, vB)
-    b.le .L_op_if_le_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_le_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w1, wINST, #12              // w1<- B
     ubfx    w0, wINST, #8, #4           // w0<- A
     GET_VREG w3, w1                     // w3<- vB
@@ -1680,13 +1570,21 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     w0, #2                      // Offset if branch not taken
     cmp     w2, w3                      // compare (vA, vB)
     csel    wINST, w1, w0, le // Branch if true, stashing result in callee save reg.
+#if MTERP_PROFILE_BRANCHES
+    // TUINING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31            // Sign extend branch offset
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in xINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes, check sign
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi     MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1702,42 +1600,27 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w0, wINST, #8               // w0<- AA
-    GET_VREG w2, w0                     // w2<- vAA
-    FETCH_S wINST, 1                    // w1<- branch offset, in code units
-    cmp     w2, #0                      // compare (vA, 0)
-    b.eq .L_op_if_eqz_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_eqz_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi    MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S w1, 1                       // w1<- branch offset, in code units
     mov     w0, #2                      // Branch offset if not taken
     cmp     w2, #0                      // compare (vA, 0)
     csel    wINST, w1, w0, eq // Branch if true, stashing result in callee save reg
+#if MTERP_PROFILE_BRANCHES
+    // TUNING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes & set flags
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi    MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1753,42 +1636,27 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w0, wINST, #8               // w0<- AA
-    GET_VREG w2, w0                     // w2<- vAA
-    FETCH_S wINST, 1                    // w1<- branch offset, in code units
-    cmp     w2, #0                      // compare (vA, 0)
-    b.ne .L_op_if_nez_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_nez_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi    MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S w1, 1                       // w1<- branch offset, in code units
     mov     w0, #2                      // Branch offset if not taken
     cmp     w2, #0                      // compare (vA, 0)
     csel    wINST, w1, w0, ne // Branch if true, stashing result in callee save reg
+#if MTERP_PROFILE_BRANCHES
+    // TUNING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes & set flags
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi    MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1804,42 +1672,27 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w0, wINST, #8               // w0<- AA
-    GET_VREG w2, w0                     // w2<- vAA
-    FETCH_S wINST, 1                    // w1<- branch offset, in code units
-    cmp     w2, #0                      // compare (vA, 0)
-    b.lt .L_op_if_ltz_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_ltz_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi    MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S w1, 1                       // w1<- branch offset, in code units
     mov     w0, #2                      // Branch offset if not taken
     cmp     w2, #0                      // compare (vA, 0)
     csel    wINST, w1, w0, lt // Branch if true, stashing result in callee save reg
+#if MTERP_PROFILE_BRANCHES
+    // TUNING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes & set flags
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi    MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1855,42 +1708,27 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w0, wINST, #8               // w0<- AA
-    GET_VREG w2, w0                     // w2<- vAA
-    FETCH_S wINST, 1                    // w1<- branch offset, in code units
-    cmp     w2, #0                      // compare (vA, 0)
-    b.ge .L_op_if_gez_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_gez_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi    MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S w1, 1                       // w1<- branch offset, in code units
     mov     w0, #2                      // Branch offset if not taken
     cmp     w2, #0                      // compare (vA, 0)
     csel    wINST, w1, w0, ge // Branch if true, stashing result in callee save reg
+#if MTERP_PROFILE_BRANCHES
+    // TUNING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes & set flags
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi    MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1906,42 +1744,27 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w0, wINST, #8               // w0<- AA
-    GET_VREG w2, w0                     // w2<- vAA
-    FETCH_S wINST, 1                    // w1<- branch offset, in code units
-    cmp     w2, #0                      // compare (vA, 0)
-    b.gt .L_op_if_gtz_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_gtz_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi    MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S w1, 1                       // w1<- branch offset, in code units
     mov     w0, #2                      // Branch offset if not taken
     cmp     w2, #0                      // compare (vA, 0)
     csel    wINST, w1, w0, gt // Branch if true, stashing result in callee save reg
+#if MTERP_PROFILE_BRANCHES
+    // TUNING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes & set flags
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi    MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
@@ -1957,42 +1780,27 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
-    lsr     w0, wINST, #8               // w0<- AA
-    GET_VREG w2, w0                     // w2<- vAA
-    FETCH_S wINST, 1                    // w1<- branch offset, in code units
-    cmp     w2, #0                      // compare (vA, 0)
-    b.le .L_op_if_lez_taken
-    FETCH_ADVANCE_INST 2                // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-.L_op_if_lez_taken:
-    EXPORT_PC
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm    x2, xINST, 0, 31
-    bl      MterpProfileBranch          // (self, shadow_frame, offset)
-    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
-    ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
-    adds    w2, wINST, wINST            // convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    b.mi    MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-#else
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S w1, 1                       // w1<- branch offset, in code units
     mov     w0, #2                      // Branch offset if not taken
     cmp     w2, #0                      // compare (vA, 0)
     csel    wINST, w1, w0, le // Branch if true, stashing result in callee save reg
+#if MTERP_PROFILE_BRANCHES
+    // TUNING: once measurements are complete, remove #if and hand-schedule.
+    EXPORT_PC
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    sbfm    x2, xINST, 0, 31
+    bl      MterpProfileBranch          // (self, shadow_frame, offset)
+    cbnz    w0, MterpOnStackReplacement // Note: offset must be in wINST
+#endif
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     adds    w2, wINST, wINST            // convert to bytes & set flags
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     b.mi    MterpCheckSuspendAndContinue
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-#endif
 
 
 /* ------------------------------ */
