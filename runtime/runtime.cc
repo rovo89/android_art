@@ -25,6 +25,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 #include <cutils/trace.h>
+#include <nativeloader/native_loader.h>
 #include <signal.h>
 #include <sys/syscall.h>
 #include "base/memory_tool.h"
@@ -550,6 +551,11 @@ bool Runtime::Start() {
     CHECK_EQ(prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY), 0);
   }
 #endif
+
+  // This line makes sure that all public native libraries
+  // are loaded prior to runtime start; saves app load times
+  // and memory.
+  android::PreloadPublicNativeLibraries();
 
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
