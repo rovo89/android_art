@@ -63,7 +63,8 @@ void Jit::DumpInfo(std::ostream& os) {
      << "JIT data cache size=" << PrettySize(code_cache_->DataCacheSize()) << "\n"
      << "JIT current capacity=" << PrettySize(code_cache_->GetCurrentCapacity()) << "\n"
      << "JIT number of compiled code=" << code_cache_->NumberOfCompiledCode() << "\n"
-     << "JIT total number of compilations=" << code_cache_->NumberOfCompilations() << "\n";
+     << "JIT total number of compilations=" << code_cache_->NumberOfCompilations() << "\n"
+     << "JIT total number of osr compilations=" << code_cache_->NumberOfOsrCompilations() << "\n";
   cumulative_timings_.Dump(os);
 }
 
