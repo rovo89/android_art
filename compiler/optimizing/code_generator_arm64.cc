@@ -1862,6 +1862,36 @@ void InstructionCodeGeneratorARM64::VisitAnd(HAnd* instruction) {
   HandleBinaryOp(instruction);
 }
 
+void LocationsBuilderARM64::VisitArm64BitwiseNegatedRight(HArm64BitwiseNegatedRight* instr) {
+  DCHECK(Primitive::IsIntegralType(instr->GetType())) << instr->GetType();
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instr);
+  locations->SetInAt(0, Location::RequiresRegister());
+  // There is no immediate variant of negated bitwise instructions in AArch64.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM64::VisitArm64BitwiseNegatedRight(
+    HArm64BitwiseNegatedRight* instr) {
+  Register dst = OutputRegister(instr);
+  Register lhs = InputRegisterAt(instr, 0);
+  Register rhs = InputRegisterAt(instr, 1);
+
+  switch (instr->GetOpKind()) {
+    case HInstruction::kAnd:
+      __ Bic(dst, lhs, rhs);
+      break;
+    case HInstruction::kOr:
+      __ Orn(dst, lhs, rhs);
+      break;
+    case HInstruction::kXor:
+      __ Eon(dst, lhs, rhs);
+      break;
+    default:
+      LOG(FATAL) << "Unreachable";
+  }
+}
+
 void LocationsBuilderARM64::VisitArm64DataProcWithShifterOp(
     HArm64DataProcWithShifterOp* instruction) {
   DCHECK(instruction->GetType() == Primitive::kPrimInt ||
