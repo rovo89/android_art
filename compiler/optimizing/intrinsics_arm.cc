@@ -1909,6 +1909,69 @@ void IntrinsicCodeGeneratorARM::VisitShortReverseBytes(HInvoke* invoke) {
   __ revsh(out, in);
 }
 
+void IntrinsicLocationsBuilderARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Location of char array data in string.
+  const uint32_t value_offset = mirror::String::ValueOffset().Uint32Value();
+
+  // void getCharsNoCheck(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  // Since getChars() calls getCharsNoCheck() - we use registers rather than constants.
+  Register srcObj = locations->InAt(0).AsRegister<Register>();
+  Register srcBegin = locations->InAt(1).AsRegister<Register>();
+  Register srcEnd = locations->InAt(2).AsRegister<Register>();
+  Register dstObj = locations->InAt(3).AsRegister<Register>();
+  Register dstBegin = locations->InAt(4).AsRegister<Register>();
+
+  Register src_ptr = locations->GetTemp(0).AsRegister<Register>();
+  Register src_ptr_end = locations->GetTemp(1).AsRegister<Register>();
+  Register dst_ptr = locations->GetTemp(2).AsRegister<Register>();
+  Register tmp = locations->GetTemp(3).AsRegister<Register>();
+
+  // src range to copy.
+  __ add(src_ptr, srcObj, ShifterOperand(value_offset));
+  __ add(src_ptr_end, src_ptr, ShifterOperand(srcEnd, LSL, 1));
+  __ add(src_ptr, src_ptr, ShifterOperand(srcBegin, LSL, 1));
+
+  // dst to be copied.
+  __ add(dst_ptr, dstObj, ShifterOperand(data_offset));
+  __ add(dst_ptr, dst_ptr, ShifterOperand(dstBegin, LSL, 1));
+
+  // Do the copy.
+  Label loop, done;
+  __ Bind(&loop);
+  __ cmp(src_ptr, ShifterOperand(src_ptr_end));
+  __ b(&done, EQ);
+  __ ldrh(tmp, Address(src_ptr, char_size, Address::PostIndex));
+  __ strh(tmp, Address(dst_ptr, char_size, Address::PostIndex));
+  __ b(&loop);
+  __ Bind(&done);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -1933,7 +1996,6 @@ UNIMPLEMENTED_INTRINSIC(MathRoundFloat)    // Could be done by changing rounding
 UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 
 UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)

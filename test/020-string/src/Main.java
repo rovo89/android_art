@@ -25,6 +25,7 @@ public class Main {
         basicTest();
         indexTest();
         constructorTest();
+        copyTest();
     }
 
     public static void basicTest() {
@@ -116,5 +117,49 @@ public class Main {
         String s13 = new String(stringBuffer);
         String s14 = new String(codePoints, 1, 3);
         String s15 = new String(stringBuilder);
+    }
+
+    public static void copyTest() {
+        String src = new String("Hello Android");
+        char[] dst = new char[7];
+        char[] tmp = null;
+
+        try {
+            src.getChars(2, 9, tmp, 0);
+            System.out.println("GLITCH: expected exception");
+        } catch (NullPointerException npe) {
+            System.out.println("Got expected exception");
+        }
+
+        try {
+            src.getChars(-1, 9, dst, 0);
+            System.out.println("GLITCH: expected exception");
+        } catch (StringIndexOutOfBoundsException sioobe) {
+            System.out.println("Got expected exception");
+        }
+
+        try {
+            src.getChars(2, 19, dst, 0);
+            System.out.println("GLITCH: expected exception");
+        } catch (StringIndexOutOfBoundsException sioobe) {
+            System.out.println("Got expected exception");
+        }
+
+        try {
+            src.getChars(2, 1, dst, 0);
+            System.out.println("GLITCH: expected exception");
+        } catch (StringIndexOutOfBoundsException sioobe) {
+            System.out.println("Got expected exception");
+        }
+
+        try {
+            src.getChars(2, 10, dst, 0);
+            System.out.println("GLITCH: expected exception");
+        } catch (ArrayIndexOutOfBoundsException aioobe) {
+            System.out.println("Got expected exception");
+        }
+
+        src.getChars(2, 9, dst, 0);
+        System.out.println(new String(dst));
     }
 }
