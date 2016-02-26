@@ -40,6 +40,10 @@ public class Main {
         testProxyGetMethodID();
         testJniCriticalSectionAndGc();
         testCallDefaultMethods();
+        String lambda = "λ";
+        testInvokeLambdaMethod(() -> { System.out.println("hi-lambda: " + lambda); });
+        String def = "δ";
+        testInvokeLambdaDefaultMethod(() -> { System.out.println("hi-default " + def + lambda); });
     }
 
     private static native void testCallDefaultMethods();
@@ -255,6 +259,19 @@ public class Main {
     }
 
     private static native void enterJniCriticalSection(int arraySize, byte[] array0, byte[] array);
+
+    private static native void testInvokeLambdaMethod(LambdaInterface iface);
+
+    private static native void testInvokeLambdaDefaultMethod(LambdaInterface iface);
+}
+
+@FunctionalInterface
+interface LambdaInterface {
+  public void sayHi();
+  public default void sayHiTwice() {
+    sayHi();
+    sayHi();
+  }
 }
 
 class JniCallNonvirtualTest {
