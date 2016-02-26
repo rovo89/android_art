@@ -22,11 +22,13 @@
 #include "ScopedLocalRef.h"
 
 #include "art_method-inl.h"
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "gc/reference_processor.h"
 #include "handle_scope-inl.h"
 #include "interpreter/interpreter_common.h"
 #include "mirror/array-inl.h"
@@ -258,6 +260,25 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
     result->SetL(mirror::Field::CreateFromArtField<true>(self, found, true));
   } else {
     result->SetL(mirror::Field::CreateFromArtField<false>(self, found, true));
+  }
+}
+
+// This is required for Enum(Set) code, as that uses reflection to inspect enum classes.
+void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  // Special managed code cut-out to allow method lookup in a un-started runtime.
+  mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
+  if (klass == nullptr) {
+    ThrowNullPointerExceptionForMethodAccess(shadow_frame->GetMethod(), InvokeType::kVirtual);
+    return;
+  }
+  mirror::String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
+  mirror::ObjectArray<mirror::Class>* args =
+      shadow_frame->GetVRegReference(arg_offset + 2)->AsObjectArray<mirror::Class>();
+  if (Runtime::Current()->IsActiveTransaction()) {
+    result->SetL(mirror::Class::GetDeclaredMethodInternal<true>(self, klass, name, args));
+  } else {
+    result->SetL(mirror::Class::GetDeclaredMethodInternal<false>(self, klass, name, args));
   }
 }
 
@@ -860,6 +881,155 @@ void UnstartedRuntime::UnstartedStringToCharArray(
   result->SetL(string->ToCharArray(self));
 }
 
+// This allows statically initializing ConcurrentHashMap and SynchronousQueue.
+void UnstartedRuntime::UnstartedReferenceGetReferent(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  mirror::Reference* const ref = down_cast<mirror::Reference*>(
+      shadow_frame->GetVRegReference(arg_offset));
+  if (ref == nullptr) {
+    AbortTransactionOrFail(self, "Reference.getReferent() with null object");
+    return;
+  }
+  mirror::Object* const referent =
+      Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(self, ref);
+  result->SetL(referent);
+}
+
+// This allows statically initializing ConcurrentHashMap and SynchronousQueue. We use a somewhat
+// conservative upper bound. We restrict the callers to SynchronousQueue and ConcurrentHashMap,
+// where we can predict the behavior (somewhat).
+// Note: this is required (instead of lazy initialization) as these classes are used in the static
+//       initialization of other classes, so will *use* the value.
+void UnstartedRuntime::UnstartedRuntimeAvailableProcessors(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
+  std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
+  if (caller == "void java.util.concurrent.SynchronousQueue.<clinit>()") {
+    // SynchronousQueue really only separates between single- and multiprocessor case. Return
+    // 8 as a conservative upper approximation.
+    result->SetI(8);
+  } else if (caller == "void java.util.concurrent.ConcurrentHashMap.<clinit>()") {
+    // ConcurrentHashMap uses it for striding. 8 still seems an OK general value, as it's likely
+    // a good upper bound.
+    // TODO: Consider resetting in the zygote?
+    result->SetI(8);
+  } else {
+    // Not supported.
+    AbortTransactionOrFail(self, "Accessing availableProcessors not allowed");
+  }
+}
+
+// This allows accessing ConcurrentHashMap/SynchronousQueue.
+
+void UnstartedRuntime::UnstartedUnsafeCompareAndSwapLong(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  // Argument 0 is the Unsafe instance, skip.
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
+    return;
+  }
+  int64_t offset = shadow_frame->GetVRegLong(arg_offset + 2);
+  int64_t expectedValue = shadow_frame->GetVRegLong(arg_offset + 4);
+  int64_t newValue = shadow_frame->GetVRegLong(arg_offset + 6);
+
+  // Must use non transactional mode.
+  if (kUseReadBarrier) {
+    // Need to make sure the reference stored in the field is a to-space one before attempting the
+    // CAS or the CAS could fail incorrectly.
+    mirror::HeapReference<mirror::Object>* field_addr =
+        reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
+            reinterpret_cast<uint8_t*>(obj) + static_cast<size_t>(offset));
+    ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /*kAlwaysUpdateField*/true>(
+        obj,
+        MemberOffset(offset),
+        field_addr);
+  }
+  bool success;
+  // Check whether we're in a transaction, call accordingly.
+  if (Runtime::Current()->IsActiveTransaction()) {
+    success = obj->CasFieldStrongSequentiallyConsistent64<true>(MemberOffset(offset),
+                                                                expectedValue,
+                                                                newValue);
+  } else {
+    success = obj->CasFieldStrongSequentiallyConsistent64<false>(MemberOffset(offset),
+                                                                 expectedValue,
+                                                                 newValue);
+  }
+  result->SetZ(success ? 1 : 0);
+}
+
+void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  // Argument 0 is the Unsafe instance, skip.
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
+    return;
+  }
+  int64_t offset = shadow_frame->GetVRegLong(arg_offset + 2);
+  mirror::Object* expected_value = shadow_frame->GetVRegReference(arg_offset + 4);
+  mirror::Object* newValue = shadow_frame->GetVRegReference(arg_offset + 5);
+
+  // Must use non transactional mode.
+  if (kUseReadBarrier) {
+    // Need to make sure the reference stored in the field is a to-space one before attempting the
+    // CAS or the CAS could fail incorrectly.
+    mirror::HeapReference<mirror::Object>* field_addr =
+        reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
+            reinterpret_cast<uint8_t*>(obj) + static_cast<size_t>(offset));
+    ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /*kAlwaysUpdateField*/true>(
+        obj,
+        MemberOffset(offset),
+        field_addr);
+  }
+  bool success;
+  // Check whether we're in a transaction, call accordingly.
+  if (Runtime::Current()->IsActiveTransaction()) {
+    success = obj->CasFieldStrongSequentiallyConsistentObject<true>(MemberOffset(offset),
+                                                                    expected_value,
+                                                                    newValue);
+  } else {
+    success = obj->CasFieldStrongSequentiallyConsistentObject<false>(MemberOffset(offset),
+                                                                     expected_value,
+                                                                     newValue);
+  }
+  result->SetZ(success ? 1 : 0);
+}
+
+void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  // Argument 0 is the Unsafe instance, skip.
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
+    return;
+  }
+  int64_t offset = shadow_frame->GetVRegLong(arg_offset + 2);
+  mirror::Object* value = obj->GetFieldObjectVolatile<mirror::Object>(MemberOffset(offset));
+  result->SetL(value);
+}
+
+void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  // Argument 0 is the Unsafe instance, skip.
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
+    return;
+  }
+  int64_t offset = shadow_frame->GetVRegLong(arg_offset + 2);
+  mirror::Object* newValue = shadow_frame->GetVRegReference(arg_offset + 4);
+  QuasiAtomic::ThreadFenceRelease();
+  if (Runtime::Current()->IsActiveTransaction()) {
+    obj->SetFieldObject<true>(MemberOffset(offset), newValue);
+  } else {
+    obj->SetFieldObject<false>(MemberOffset(offset), newValue);
+  }
+}
+
+
 void UnstartedRuntime::UnstartedJNIVMRuntimeNewUnpaddedArray(
     Thread* self, ArtMethod* method ATTRIBUTE_UNUSED, mirror::Object* receiver ATTRIBUTE_UNUSED,
     uint32_t* args, JValue* result) {
@@ -906,11 +1076,29 @@ void UnstartedRuntime::UnstartedJNIMathExp(
   result->SetD(exp(value.GetD()));
 }
 
+void UnstartedRuntime::UnstartedJNIAtomicLongVMSupportsCS8(
+    Thread* self ATTRIBUTE_UNUSED,
+    ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver ATTRIBUTE_UNUSED,
+    uint32_t* args ATTRIBUTE_UNUSED,
+    JValue* result) {
+  result->SetZ(QuasiAtomic::LongAtomicsUseMutexes(Runtime::Current()->GetInstructionSet())
+                   ? 0
+                   : 1);
+}
+
 void UnstartedRuntime::UnstartedJNIClassGetNameNative(
     Thread* self, ArtMethod* method ATTRIBUTE_UNUSED, mirror::Object* receiver,
     uint32_t* args ATTRIBUTE_UNUSED, JValue* result) {
   StackHandleScope<1> hs(self);
   result->SetL(mirror::Class::ComputeName(hs.NewHandle(receiver->AsClass())));
+}
+
+void UnstartedRuntime::UnstartedJNIDoubleLongBitsToDouble(
+    Thread* self ATTRIBUTE_UNUSED, ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver ATTRIBUTE_UNUSED, uint32_t* args, JValue* result) {
+  uint64_t long_input = args[0] | (static_cast<uint64_t>(args[1]) << 32);
+  result->SetD(bit_cast<double>(long_input));
 }
 
 void UnstartedRuntime::UnstartedJNIFloatFloatToRawIntBits(
