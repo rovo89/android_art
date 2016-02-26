@@ -55,3 +55,6 @@ Calling method AbstractInterface->JniCallSoftConflictMethod on object of type Co
 DefaultInterface.JniCallSoftConflictMethod
 Calling method ConflictInterface->JniCallConflictDefaultMethod on object of type ConcreteClass
 EXCEPTION OCCURED: java.lang.IncompatibleClassChangeError: Conflicting default method implementations void ConflictInterface.JniCallConflictDefaultMethod()
+hi-lambda: λ
+hi-default δλ
+hi-default δλ
