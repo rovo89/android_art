@@ -8,15 +8,10 @@
  * to convert from Dalvik offset to byte offset.
  */
     /* goto/32 +AAAAAAAA */
-    movslq  2(rPC), %rax                    # rax <- AAAAAAAA
-    addq    %rax, %rax                      # rax <- AA * 2
-    leaq    (rPC, %rax), rPC
+    movslq  2(rPC), rINSTq                  # rINSTq <- AAAAAAAA
+    MTERP_PROFILE_BRANCH
+    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
+    leaq    (rPC, rINSTq), rPC
     FETCH_INST
-    jg      1f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT

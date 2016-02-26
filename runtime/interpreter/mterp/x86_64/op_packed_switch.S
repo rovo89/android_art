@@ -13,15 +13,10 @@
     leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + BBBBbbbb*2
     GET_VREG OUT_32_ARG1, rINSTq            # eax <- vAA
     call    SYMBOL($func)
-    addl    %eax, %eax
-    movslq  %eax, %rax
-    leaq    (rPC, %rax), rPC
+    movslq  %eax, rINSTq
+    MTERP_PROFILE_BRANCH
+    addq    rINSTq, rINSTq
+    leaq    (rPC, rINSTq), rPC
     FETCH_INST
-    jg      1f
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue
     GOTO_NEXT
