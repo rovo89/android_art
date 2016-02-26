@@ -2206,7 +2206,8 @@ void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
       CheckAgainstUpperBound(rti, AsBoundType()->GetUpperBound());
     }
   }
-  reference_type_info_ = rti;
+  reference_type_handle_ = rti.GetTypeHandle();
+  SetPackedFlag<kFlagReferenceTypeIsExact>(rti.IsExact());
 }
 
 void HBoundType::SetUpperBound(const ReferenceTypeInfo& upper_bound, bool can_be_null) {
@@ -2217,17 +2218,15 @@ void HBoundType::SetUpperBound(const ReferenceTypeInfo& upper_bound, bool can_be
     CheckAgainstUpperBound(GetReferenceTypeInfo(), upper_bound);
   }
   upper_bound_ = upper_bound;
-  upper_can_be_null_ = can_be_null;
+  SetPackedFlag<kFlagUpperCanBeNull>(can_be_null);
 }
 
-ReferenceTypeInfo::ReferenceTypeInfo() : type_handle_(TypeHandle()), is_exact_(false) {}
-
-ReferenceTypeInfo::ReferenceTypeInfo(TypeHandle type_handle, bool is_exact)
-    : type_handle_(type_handle), is_exact_(is_exact) {
+ReferenceTypeInfo ReferenceTypeInfo::Create(TypeHandle type_handle, bool is_exact) {
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
     DCHECK(IsValidHandle(type_handle));
   }
+  return ReferenceTypeInfo(type_handle, is_exact);
 }
 
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {

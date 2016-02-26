@@ -5245,7 +5245,7 @@ void LocationsBuilderMIPS::VisitClassTableGet(HClassTableGet* instruction) {
 void InstructionCodeGeneratorMIPS::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   uint32_t method_offset = 0;
-  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kMipsPointerSize).SizeValue();
   } else {
