@@ -721,3 +721,22 @@ class JniCallDefaultMethodsTest {
 extern "C" JNIEXPORT void JNICALL Java_Main_testCallDefaultMethods(JNIEnv* env) {
   JniCallDefaultMethodsTest(env).Test();
 }
+
+static void InvokeSpecificMethod(JNIEnv* env, jobject obj, const char* method) {
+  jclass lambda_class = env->FindClass("LambdaInterface");
+  assert(!env->ExceptionCheck());
+  assert(lambda_class != nullptr);
+  jmethodID method_id = env->GetMethodID(lambda_class, method, "()V");
+  assert(!env->ExceptionCheck());
+  env->CallVoidMethod(obj, method_id);
+  assert(!env->ExceptionCheck());
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_testInvokeLambdaDefaultMethod(
+    JNIEnv* e, jclass, jobject l) {
+  InvokeSpecificMethod(e, l, "sayHiTwice");
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_testInvokeLambdaMethod(JNIEnv* e, jclass, jobject l) {
+  InvokeSpecificMethod(e, l, "sayHi");
+}

@@ -1,0 +1,28 @@
+#!/bin/bash
+#
+# Copyright 2016 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# Make us exit on a failure.
+#
+set -e
+
+# Hard-wired use of experimental jack.
+# TODO: fix this temporary work-around for lambdas, see b/19467889
+export USE_JACK=true
+# export JACK_SERVER=false
+# export JACK_REPOSITORY="${ANDROID_BUILD_TOP}/prebuilts/sdk/tools/jacks"
+
+# e.g. /foo/bar/jack-3.10.ALPHA.jar -> 3.10.ALPHA
+# export JACK_VERSION="$(find "$JACK_REPOSITORY" -name '*ALPHA*' | sed 's/.*jack-//g' | sed 's/[.]jar//g')"
+./default-build "$@" --experimental lambdas
