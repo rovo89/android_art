@@ -651,7 +651,8 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   HClassTableGet* class_table_get = new (graph_->GetArena()) HClassTableGet(
       receiver_class,
       type,
-      invoke_instruction->IsInvokeVirtual() ? HClassTableGet::kVTable : HClassTableGet::kIMTable,
+      invoke_instruction->IsInvokeVirtual() ? HClassTableGet::TableKind::kVTable
+                                            : HClassTableGet::TableKind::kIMTable,
       method_offset,
       invoke_instruction->GetDexPc());
 
