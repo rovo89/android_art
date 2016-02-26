@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "dex_cache_resolved_classes.h"
 #include "dex_file.h"
 #include "method_reference.h"
 #include "safe_map.h"
@@ -28,6 +29,7 @@
 namespace art {
 
 class ArtMethod;
+class DexCacheProfileData;
 
 // TODO: rename file.
 /**
@@ -43,7 +45,8 @@ class ProfileCompilationInfo {
   // Note that the saving proceeds only if the file can be locked for exclusive access.
   // If not (the locking is not blocking), the function does not save and returns false.
   static bool SaveProfilingInfo(const std::string& filename,
-                                const std::vector<ArtMethod*>& methods);
+                                const std::vector<ArtMethod*>& methods,
+                                const std::set<DexCacheResolvedClasses>& resolved_classes);
 
   // Loads profile information from the given file descriptor.
   bool Load(int fd);
@@ -68,14 +71,17 @@ class ProfileCompilationInfo {
   bool Equals(const ProfileCompilationInfo& other);
   static std::string GetProfileDexFileKey(const std::string& dex_location);
 
- private:
-  bool AddData(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
-  bool ProcessLine(const std::string& line);
+  // Returns the class descriptors for all of the classes in the profiles' class sets.
+  // Note the dex location is actually the profile key, the caller needs to call back in to the
+  // profile info stuff to generate a map back to the dex location.
+  std::set<DexCacheResolvedClasses> GetResolvedClasses() const;
 
+ private:
   struct DexFileData {
     explicit DexFileData(uint32_t location_checksum) : checksum(location_checksum) {}
     uint32_t checksum;
     std::set<uint16_t> method_set;
+    std::set<uint16_t> class_set;
 
     bool operator==(const DexFileData& other) const {
       return checksum == other.checksum && method_set == other.method_set;
@@ -83,6 +89,13 @@ class ProfileCompilationInfo {
   };
 
   using DexFileToProfileInfoMap = SafeMap<const std::string, DexFileData>;
+
+  DexFileData* GetOrAddDexFileData(const std::string& dex_location, uint32_t checksum);
+  bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
+  bool AddClassIndex(const std::string& dex_location, uint32_t checksum, uint16_t class_idx);
+  bool AddResolvedClasses(const DexCacheResolvedClasses& classes)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool ProcessLine(const std::string& line);
 
   friend class ProfileCompilationInfoTest;
   friend class CompilerDriverProfileTest;
