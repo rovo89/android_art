@@ -329,9 +329,10 @@ static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
 }
 
 
-JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject javaLoader,
-                                 jboolean isSharedNamespace, jstring javaLibrarySearchPath,
-                                 jstring javaLibraryPermittedPath) {
+JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env,
+                                 jstring javaFilename,
+                                 jobject javaLoader,
+                                 jstring javaLibrarySearchPath) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
@@ -354,9 +355,7 @@ JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject java
     bool success = vm->LoadNativeLibrary(env,
                                          filename.c_str(),
                                          javaLoader,
-                                         isSharedNamespace == JNI_TRUE,
                                          javaLibrarySearchPath,
-                                         javaLibraryPermittedPath,
                                          &error_msg);
     if (success) {
       return nullptr;
