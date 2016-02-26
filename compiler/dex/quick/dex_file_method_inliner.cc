@@ -37,6 +37,8 @@ namespace {  // anonymous namespace
 static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicDoubleCvt
     true,   // kIntrinsicFloatCvt
+    true,   // kIntrinsicFloat2Int
+    true,   // kIntrinsicDouble2Long
     true,   // kIntrinsicFloatIsInfinite
     true,   // kIntrinsicDoubleIsInfinite
     true,   // kIntrinsicFloatIsNaN
@@ -106,6 +108,8 @@ static_assert(arraysize(kIntrinsicIsStatic) == kInlineOpNop,
               "arraysize of kIntrinsicIsStatic unexpected");
 static_assert(kIntrinsicIsStatic[kIntrinsicDoubleCvt], "DoubleCvt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicFloatCvt], "FloatCvt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloat2Int], "Float2Int must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicDouble2Long], "Double2Long must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicFloatIsInfinite], "FloatIsInfinite must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicDoubleIsInfinite], "DoubleIsInfinite must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicFloatIsNaN], "FloatIsNaN must be static");
@@ -277,6 +281,8 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "equals",                // kNameCacheEquals
     "getCharsNoCheck",       // kNameCacheGetCharsNoCheck
     "isEmpty",               // kNameCacheIsEmpty
+    "floatToIntBits",        // kNameCacheFloatToIntBits
+    "doubleToLongBits",      // kNameCacheDoubleToLongBits
     "isInfinite",            // kNameCacheIsInfinite
     "isNaN",                 // kNameCacheIsNaN
     "indexOf",               // kNameCacheIndexOf
@@ -471,6 +477,9 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangDouble, LongBitsToDouble, J_D, kIntrinsicDoubleCvt, kIntrinsicFlagToFloatingPoint),
     INTRINSIC(JavaLangFloat, FloatToRawIntBits, F_I, kIntrinsicFloatCvt, 0),
     INTRINSIC(JavaLangFloat, IntBitsToFloat, I_F, kIntrinsicFloatCvt, kIntrinsicFlagToFloatingPoint),
+
+    INTRINSIC(JavaLangFloat, FloatToIntBits, F_I, kIntrinsicFloat2Int, 0),
+    INTRINSIC(JavaLangDouble, DoubleToLongBits, D_J, kIntrinsicDouble2Long, 0),
 
     INTRINSIC(JavaLangFloat, IsInfinite, F_Z, kIntrinsicFloatIsInfinite, 0),
     INTRINSIC(JavaLangDouble, IsInfinite, D_Z, kIntrinsicDoubleIsInfinite, 0),
@@ -791,6 +800,8 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
                                           intrinsic.d.data & kIntrinsicFlagIsOrdered);
     case kIntrinsicSystemArrayCopyCharArray:
       return backend->GenInlinedArrayCopyCharArray(info);
+    case kIntrinsicFloat2Int:
+    case kIntrinsicDouble2Long:
     case kIntrinsicFloatIsInfinite:
     case kIntrinsicDoubleIsInfinite:
     case kIntrinsicFloatIsNaN:

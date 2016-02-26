@@ -190,6 +190,8 @@ class DexFileMethodInliner {
       kNameCacheEquals,
       kNameCacheGetCharsNoCheck,
       kNameCacheIsEmpty,
+      kNameCacheFloatToIntBits,
+      kNameCacheDoubleToLongBits,
       kNameCacheIsInfinite,
       kNameCacheIsNaN,
       kNameCacheIndexOf,

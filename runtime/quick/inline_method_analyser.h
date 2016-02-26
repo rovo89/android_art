@@ -37,6 +37,8 @@ class MethodVerifier;
 enum InlineMethodOpcode : uint16_t {
   kIntrinsicDoubleCvt,
   kIntrinsicFloatCvt,
+  kIntrinsicFloat2Int,
+  kIntrinsicDouble2Long,
   kIntrinsicFloatIsInfinite,
   kIntrinsicDoubleIsInfinite,
   kIntrinsicFloatIsNaN,
