@@ -58,6 +58,7 @@
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "jit/offline_profiling_info.h"
 #include "leb128.h"
 #include "linear_alloc.h"
 #include "mirror/class.h"
@@ -1615,7 +1616,8 @@ bool ClassLinker::AddImageSpace(
           VLOG(image) << name->ToModifiedUtf8();
         }
         *error_msg = "Rejecting application image due to class loader mismatch";
-        return false;
+        // Ignore class loader mismatch for now since these would just use possibly incorrect
+        // oat code anyways. The structural class check should be done in the parent.
       }
     }
   }
@@ -7633,6 +7635,116 @@ void ClassLinker::CleanupClassLoaders() {
       it = class_loaders_.erase(it);
     }
   }
+}
+
+std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_boot_classes) {
+  ScopedObjectAccess soa(Thread::Current());
+  ScopedAssertNoThreadSuspension ants(soa.Self(), __FUNCTION__);
+  std::set<DexCacheResolvedClasses> ret;
+  VLOG(class_linker) << "Collecting resolved classes";
+  const uint64_t start_time = NanoTime();
+  ReaderMutexLock mu(soa.Self(), *DexLock());
+  // Loop through all the dex caches and inspect resolved classes.
+  for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
+    if (soa.Self()->IsJWeakCleared(data.weak_root)) {
+      continue;
+    }
+    mirror::DexCache* dex_cache =
+        down_cast<mirror::DexCache*>(soa.Self()->DecodeJObject(data.weak_root));
+    if (dex_cache == nullptr) {
+      continue;
+    }
+    const DexFile* dex_file = dex_cache->GetDexFile();
+    const std::string& location = dex_file->GetLocation();
+    const size_t num_class_defs = dex_file->NumClassDefs();
+    // Use the resolved types, this will miss array classes.
+    const size_t num_types = dex_file->NumTypeIds();
+    VLOG(class_linker) << "Collecting class profile for dex file " << location
+                       << " types=" << num_types << " class_defs=" << num_class_defs;
+    DexCacheResolvedClasses resolved_classes(dex_file->GetLocation(),
+                                             dex_file->GetLocationChecksum());
+    size_t num_resolved = 0;
+    std::unordered_set<uint16_t> class_set;
+    CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
+    for (size_t i = 0; i < num_types; ++i) {
+      mirror::Class* klass = dex_cache->GetResolvedType(i);
+      // Filter out null class loader since that is the boot class loader.
+      if (klass == nullptr || (ignore_boot_classes && klass->GetClassLoader() == nullptr)) {
+        continue;
+      }
+      ++num_resolved;
+      DCHECK(!klass->IsProxyClass());
+      DCHECK(klass->IsResolved());
+      mirror::DexCache* klass_dex_cache = klass->GetDexCache();
+      if (klass_dex_cache == dex_cache) {
+        const size_t class_def_idx = klass->GetDexClassDefIndex();
+        DCHECK(klass->IsResolved());
+        CHECK_LT(class_def_idx, num_class_defs);
+        class_set.insert(class_def_idx);
+      }
+    }
+
+    if (!class_set.empty()) {
+      auto it = ret.find(resolved_classes);
+      if (it != ret.end()) {
+        // Already have the key, union the class def idxs.
+        it->AddClasses(class_set.begin(), class_set.end());
+      } else {
+        resolved_classes.AddClasses(class_set.begin(), class_set.end());
+        ret.insert(resolved_classes);
+      }
+    }
+
+    VLOG(class_linker) << "Dex location " << location << " has " << num_resolved << " / "
+                       << num_class_defs << " resolved classes";
+  }
+  VLOG(class_linker) << "Collecting class profile took " << PrettyDuration(NanoTime() - start_time);
+  return ret;
+}
+
+std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
+    const std::set<DexCacheResolvedClasses>& classes) {
+  std::unordered_set<std::string> ret;
+  Thread* const self = Thread::Current();
+  std::unordered_map<std::string, const DexFile*> location_to_dex_file;
+  ScopedObjectAccess soa(self);
+  ScopedAssertNoThreadSuspension ants(soa.Self(), __FUNCTION__);
+  ReaderMutexLock mu(self, *DexLock());
+  for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
+    if (!self->IsJWeakCleared(data.weak_root)) {
+      mirror::DexCache* dex_cache =
+          down_cast<mirror::DexCache*>(soa.Self()->DecodeJObject(data.weak_root));
+      if (dex_cache != nullptr) {
+        const DexFile* dex_file = dex_cache->GetDexFile();
+        // There could be duplicates if two dex files with the same location are mapped.
+        location_to_dex_file.emplace(
+            ProfileCompilationInfo::GetProfileDexFileKey(dex_file->GetLocation()), dex_file);
+      }
+    }
+  }
+  for (const DexCacheResolvedClasses& info : classes) {
+    const std::string& profile_key = info.GetDexLocation();
+    auto found = location_to_dex_file.find(profile_key);
+    if (found != location_to_dex_file.end()) {
+      const DexFile* dex_file = found->second;
+      VLOG(profiler) << "Found opened dex file for " << dex_file->GetLocation() << " with "
+                     << info.GetClasses().size() << " classes";
+      DCHECK_EQ(dex_file->GetLocationChecksum(), info.GetLocationChecksum());
+      for (uint16_t class_def_idx : info.GetClasses()) {
+        if (class_def_idx >= dex_file->NumClassDefs()) {
+          LOG(WARNING) << "Class def index " << class_def_idx << " >= " << dex_file->NumClassDefs();
+          continue;
+        }
+        const DexFile::TypeId& type_id = dex_file->GetTypeId(
+            dex_file->GetClassDef(class_def_idx).class_idx_);
+        const char* descriptor = dex_file->GetTypeDescriptor(type_id);
+        ret.insert(descriptor);
+      }
+    } else {
+      VLOG(class_linker) << "Failed to find opened dex file for profile key " << profile_key;
+    }
+  }
+  return ret;
 }
 
 // Instantiate ResolveMethod.

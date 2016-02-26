@@ -48,9 +48,11 @@ std::string ProfileCompilationInfo::GetProfileDexFileKey(const std::string& dex_
   }
 }
 
-bool ProfileCompilationInfo::SaveProfilingInfo(const std::string& filename,
-                                               const std::vector<ArtMethod*>& methods) {
-  if (methods.empty()) {
+bool ProfileCompilationInfo::SaveProfilingInfo(
+    const std::string& filename,
+    const std::vector<ArtMethod*>& methods,
+    const std::set<DexCacheResolvedClasses>& resolved_classes) {
+  if (methods.empty() && resolved_classes.empty()) {
     VLOG(profiler) << "No info to save to " << filename;
     return true;
   }
@@ -71,13 +73,16 @@ bool ProfileCompilationInfo::SaveProfilingInfo(const std::string& filename,
   }
   {
     ScopedObjectAccess soa(Thread::Current());
-    for (auto it = methods.begin(); it != methods.end(); it++) {
-      const DexFile* dex_file = (*it)->GetDexFile();
-      if (!info.AddData(GetProfileDexFileKey(dex_file->GetLocation()),
-                        dex_file->GetLocationChecksum(),
-                        (*it)->GetDexMethodIndex())) {
+    for (ArtMethod* method : methods) {
+      const DexFile* dex_file = method->GetDexFile();
+      if (!info.AddMethodIndex(GetProfileDexFileKey(dex_file->GetLocation()),
+                               dex_file->GetLocationChecksum(),
+                               method->GetDexMethodIndex())) {
         return false;
       }
+    }
+    for (const DexCacheResolvedClasses& dex_cache : resolved_classes) {
+      info.AddResolvedClasses(dex_cache);
     }
   }
 
@@ -116,13 +121,14 @@ static bool WriteToFile(int fd, const std::ostringstream& os) {
 
 static constexpr const char kFieldSeparator = ',';
 static constexpr const char kLineSeparator = '\n';
+static constexpr const char* kClassesMarker = "classes";
 
 /**
  * Serialization format:
- *    dex_location1,dex_location_checksum1,method_id11,method_id12...
- *    dex_location2,dex_location_checksum2,method_id21,method_id22...
+ *    dex_location1,dex_location_checksum1,method_id11,method_id12...,classes,class_id1,class_id2...
+ *    dex_location2,dex_location_checksum2,method_id21,method_id22...,classes,class_id1,class_id2...
  * e.g.
- *    app.apk,131232145,11,23,454,54
+ *    app.apk,131232145,11,23,454,54,classes,1,2,4,1234
  *    app.apk:classes5.dex,218490184,39,13,49,1
  **/
 bool ProfileCompilationInfo::Save(int fd) {
@@ -133,10 +139,19 @@ bool ProfileCompilationInfo::Save(int fd) {
   for (const auto& it : info_) {
     const std::string& dex_location = it.first;
     const DexFileData& dex_data = it.second;
+    if (dex_data.method_set.empty() && dex_data.class_set.empty()) {
+      continue;
+    }
 
     os << dex_location << kFieldSeparator << dex_data.checksum;
     for (auto method_it : dex_data.method_set) {
       os << kFieldSeparator << method_it;
+    }
+    if (!dex_data.class_set.empty()) {
+      os << kFieldSeparator << kClassesMarker;
+      for (auto class_id : dex_data.class_set) {
+        os << kFieldSeparator << class_id;
+      }
     }
     os << kLineSeparator;
   }
@@ -168,18 +183,50 @@ static void SplitString(const std::string& s, char separator, std::vector<std::s
   }
 }
 
-bool ProfileCompilationInfo::AddData(const std::string& dex_location,
-                                     uint32_t checksum,
-                                     uint16_t method_idx) {
+ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData(
+    const std::string& dex_location,
+    uint32_t checksum) {
   auto info_it = info_.find(dex_location);
   if (info_it == info_.end()) {
     info_it = info_.Put(dex_location, DexFileData(checksum));
   }
   if (info_it->second.checksum != checksum) {
     LOG(WARNING) << "Checksum mismatch for dex " << dex_location;
+    return nullptr;
+  }
+  return &info_it->second;
+}
+
+bool ProfileCompilationInfo::AddResolvedClasses(const DexCacheResolvedClasses& classes) {
+  const std::string dex_location = GetProfileDexFileKey(classes.GetDexLocation());
+  const uint32_t checksum = classes.GetLocationChecksum();
+  DexFileData* const data = GetOrAddDexFileData(dex_location, checksum);
+  if (data == nullptr) {
     return false;
   }
-  info_it->second.method_set.insert(method_idx);
+  data->class_set.insert(classes.GetClasses().begin(), classes.GetClasses().end());
+  return true;
+}
+
+bool ProfileCompilationInfo::AddMethodIndex(const std::string& dex_location,
+                                            uint32_t checksum,
+                                            uint16_t method_idx) {
+  DexFileData* const data = GetOrAddDexFileData(dex_location, checksum);
+  if (data == nullptr) {
+    return false;
+  }
+  data->method_set.insert(method_idx);
+  return true;
+}
+
+bool ProfileCompilationInfo::AddClassIndex(const std::string& dex_location,
+                                           uint32_t checksum,
+                                           uint16_t class_idx) {
+  DexFileData* const data = GetOrAddDexFileData(dex_location, checksum);
+  if (data == nullptr) {
+    return false;
+  }
+  data->class_set.insert(class_idx);
   return true;
 }
 
@@ -198,12 +245,30 @@ bool ProfileCompilationInfo::ProcessLine(const std::string& line) {
   }
 
   for (size_t i = 2; i < parts.size(); i++) {
+    if (parts[i] == kClassesMarker) {
+      ++i;
+      // All of the remaining idx are class def indexes.
+      for (++i; i < parts.size(); ++i) {
+        uint32_t class_def_idx;
+        if (!ParseInt(parts[i].c_str(), &class_def_idx)) {
+          LOG(WARNING) << "Cannot parse class_def_idx " << parts[i];
+          return false;
+        } else if (class_def_idx >= std::numeric_limits<uint16_t>::max()) {
+          LOG(WARNING) << "Class def idx " << class_def_idx << " is larger than uint16_t max";
+          return false;
+        }
+        if (!AddClassIndex(dex_location, checksum, class_def_idx)) {
+          return false;
+        }
+      }
+      break;
+    }
     uint32_t method_idx;
     if (!ParseInt(parts[i].c_str(), &method_idx)) {
       LOG(WARNING) << "Cannot parse method_idx " << parts[i];
       return false;
     }
-    if (!AddData(dex_location, checksum, method_idx)) {
+    if (!AddMethodIndex(dex_location, checksum, method_idx)) {
       return false;
     }
   }
@@ -280,6 +345,8 @@ bool ProfileCompilationInfo::Load(const ProfileCompilationInfo& other) {
     }
     info_it->second.method_set.insert(other_dex_data.method_set.begin(),
                                       other_dex_data.method_set.end());
+    info_it->second.class_set.insert(other_dex_data.class_set.begin(),
+                                     other_dex_data.class_set.end());
   }
   return true;
 }
@@ -345,6 +412,18 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
 
 bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
   return info_.Equals(other.info_);
+}
+
+std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses() const {
+  std::set<DexCacheResolvedClasses> ret;
+  for (auto&& pair : info_) {
+    const std::string& profile_key = pair.first;
+    const DexFileData& data = pair.second;
+    DexCacheResolvedClasses classes(profile_key, data.checksum);
+    classes.AddClasses(data.class_set.begin(), data.class_set.end());
+    ret.insert(classes);
+  }
+  return ret;
 }
 
 }  // namespace art

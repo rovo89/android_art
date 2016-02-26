@@ -32,6 +32,7 @@ static constexpr const uint64_t kMinimumTimeBetweenCodeCacheUpdatesNs = 2000 * k
 static constexpr const uint64_t kRandomDelayMaxMs = 20 * 1000;  // 20 seconds
 static constexpr const uint64_t kMaxBackoffMs = 5 * 60 * 1000;  // 5 minutes
 static constexpr const uint64_t kSavePeriodMs = 10 * 1000;  // 10 seconds
+static constexpr const uint64_t kInitialDelayMs = 2 * 1000;  // 2 seconds
 static constexpr const double kBackoffCoef = 1.5;
 
 static constexpr const uint32_t kMinimumNrOrMethodsToSave = 10;
@@ -45,6 +46,7 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
     : jit_code_cache_(jit_code_cache),
       code_cache_last_update_time_ns_(0),
       shutting_down_(false),
+      first_profile_(true),
       wait_lock_("ProfileSaver wait lock"),
       period_condition_("ProfileSaver period condition", wait_lock_) {
   AddTrackedLocations(output_filename, code_paths);
@@ -56,13 +58,18 @@ void ProfileSaver::Run() {
 
   uint64_t save_period_ms = kSavePeriodMs;
   VLOG(profiler) << "Save profiling information every " << save_period_ms << " ms";
-  while (true) {
-    if (ShuttingDown(self)) {
-      break;
-    }
 
-    uint64_t random_sleep_delay_ms = rand() % kRandomDelayMaxMs;
-    uint64_t sleep_time_ms = save_period_ms + random_sleep_delay_ms;
+  bool first_iteration = true;
+  while (!ShuttingDown(self)) {
+    uint64_t sleep_time_ms;
+    if (first_iteration) {
+      // Sleep less long for the first iteration since we want to record loaded classes shortly
+      // after app launch.
+      sleep_time_ms = kInitialDelayMs;
+    } else {
+      const uint64_t random_sleep_delay_ms = rand() % kRandomDelayMaxMs;
+      sleep_time_ms = save_period_ms + random_sleep_delay_ms;
+    }
     {
       MutexLock mu(self, wait_lock_);
       period_condition_.TimedWait(self, sleep_time_ms, 0);
@@ -81,13 +88,14 @@ void ProfileSaver::Run() {
       // Reset the period to the initial value as it's highly likely to JIT again.
       save_period_ms = kSavePeriodMs;
     }
+    first_iteration = false;
   }
 }
 
 bool ProfileSaver::ProcessProfilingInfo() {
   uint64_t last_update_time_ns = jit_code_cache_->GetLastUpdateTimeNs();
-  if (last_update_time_ns - code_cache_last_update_time_ns_
-      < kMinimumTimeBetweenCodeCacheUpdatesNs) {
+  if (!first_profile_ && last_update_time_ns - code_cache_last_update_time_ns_
+          < kMinimumTimeBetweenCodeCacheUpdatesNs) {
     VLOG(profiler) << "Not enough time has passed since the last code cache update."
         << "Last update: " << last_update_time_ns
         << " Last save: " << code_cache_last_update_time_ns_;
@@ -113,19 +121,27 @@ bool ProfileSaver::ProcessProfilingInfo() {
       ScopedObjectAccess soa(Thread::Current());
       jit_code_cache_->GetCompiledArtMethods(locations, methods);
     }
-    if (methods.size() < kMinimumNrOrMethodsToSave) {
+    // Always save for the first one for loaded classes profile.
+    if (methods.size() < kMinimumNrOrMethodsToSave && !first_profile_) {
       VLOG(profiler) << "Not enough information to save to: " << filename
           <<" Nr of methods: " << methods.size();
       return false;
     }
 
-    if (!ProfileCompilationInfo::SaveProfilingInfo(filename, methods)) {
+    std::set<DexCacheResolvedClasses> resolved_classes;
+    if (first_profile_) {
+      ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+      resolved_classes = class_linker->GetResolvedClasses(/*ignore boot classes*/true);
+    }
+
+    if (!ProfileCompilationInfo::SaveProfilingInfo(filename, methods, resolved_classes)) {
       LOG(WARNING) << "Could not save profiling info to " << filename;
       return false;
     }
 
     VLOG(profiler) << "Profile process time: " << PrettyDuration(NanoTime() - start);
   }
+  first_profile_ = false;
   return true;
 }
 

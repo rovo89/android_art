@@ -1267,6 +1267,24 @@ class Dex2Oat FINAL {
     dex_caches_.clear();
   }
 
+  void LoadClassProfileDescriptors() {
+    if (profile_compilation_info_ != nullptr && app_image_) {
+      Runtime* runtime = Runtime::Current();
+      CHECK(runtime != nullptr);
+      std::set<DexCacheResolvedClasses> resolved_classes(
+          profile_compilation_info_->GetResolvedClasses());
+      image_classes_.reset(new std::unordered_set<std::string>(
+          runtime->GetClassLinker()->GetClassDescriptorsForProfileKeys(resolved_classes)));
+      VLOG(compiler) << "Loaded " << image_classes_->size()
+                     << " image class descriptors from profile";
+      if (VLOG_IS_ON(compiler)) {
+        for (const std::string& s : *image_classes_) {
+          LOG(INFO) << "Image class " << s;
+        }
+      }
+    }
+  }
+
   // Set up the environment for compilation. Includes starting the runtime and loading/opening the
   // boot class path.
   bool Setup() {
@@ -1615,7 +1633,10 @@ class Dex2Oat FINAL {
         // The non moving space is right after the oat file. Put the preferred app image location
         // right after the non moving space so that we ideally get a continuous immune region for
         // the GC.
-        const size_t non_moving_space_capacity = heap->GetNonMovingSpace()->Capacity();
+        // Use the default non moving space capacity since dex2oat does not have a separate non-
+        // moving space. This means the runtime's non moving space space size will be as large
+        // as the growth limit for dex2oat, but smaller in the zygote.
+        const size_t non_moving_space_capacity = gc::Heap::kDefaultNonMovingSpaceCapacity;
         image_base_ += non_moving_space_capacity;
         VLOG(compiler) << "App image base=" << reinterpret_cast<void*>(image_base_);
       }
@@ -2468,6 +2489,7 @@ static void b13564922() {
 }
 
 static int CompileImage(Dex2Oat& dex2oat) {
+  dex2oat.LoadClassProfileDescriptors();
   dex2oat.Compile();
 
   if (!dex2oat.WriteOatFiles()) {

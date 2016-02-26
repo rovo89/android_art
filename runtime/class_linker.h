@@ -17,8 +17,10 @@
 #ifndef ART_RUNTIME_CLASS_LINKER_H_
 #define ART_RUNTIME_CLASS_LINKER_H_
 
+#include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -27,6 +29,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "class_table.h"
+#include "dex_cache_resolved_classes.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "jni.h"
@@ -594,6 +597,13 @@ class ClassLinker {
 
   static bool ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  std::set<DexCacheResolvedClasses> GetResolvedClasses(bool ignore_boot_classes)
+      REQUIRES(!dex_lock_);
+
+  std::unordered_set<std::string> GetClassDescriptorsForProfileKeys(
+      const std::set<DexCacheResolvedClasses>& classes)
+      REQUIRES(!dex_lock_);
 
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
