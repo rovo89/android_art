@@ -1252,7 +1252,8 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
     // Only care about the error message for the last address in addresses. We want to avoid the
     // overhead of printing the process maps if we can relocate.
     std::string* out_error_msg = (address == addresses.back()) ? &temp_error_msg : nullptr;
-    if (image_header->GetStorageMode() == ImageHeader::kStorageModeUncompressed) {
+    const ImageHeader::StorageMode storage_mode = image_header->GetStorageMode();
+    if (storage_mode == ImageHeader::kStorageModeUncompressed) {
       map.reset(MemMap::MapFileAtAddress(address,
                                          image_header->GetImageSize(),
                                          PROT_READ | PROT_WRITE,
@@ -1264,6 +1265,12 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
                                          image_filename,
                                          /*out*/out_error_msg));
     } else {
+      if (storage_mode != ImageHeader::kStorageModeLZ4 &&
+          storage_mode != ImageHeader::kStorageModeLZ4HC) {
+        *error_msg = StringPrintf("Invalid storage mode in image header %d",
+                                  static_cast<int>(storage_mode));
+        return nullptr;
+      }
       // Reserve output and decompress into it.
       map.reset(MemMap::MapAnonymous(image_location,
                                      address,
@@ -1289,6 +1296,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
         }
         memcpy(map->Begin(), image_header, sizeof(ImageHeader));
         const uint64_t start = NanoTime();
+        // LZ4HC and LZ4 have same internal format, both use LZ4_decompress.
         TimingLogger::ScopedTiming timing2("LZ4 decompress image", &logger);
         const size_t decompressed_size = LZ4_decompress_safe(
             reinterpret_cast<char*>(temp_map->Begin()) + sizeof(ImageHeader),

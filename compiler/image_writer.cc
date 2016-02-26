@@ -18,6 +18,7 @@
 
 #include <sys/stat.h>
 #include <lz4.h>
+#include <lz4hc.h>
 
 #include <memory>
 #include <numeric>
@@ -224,18 +225,28 @@ bool ImageWriter::Write(int image_fd,
     char* image_data = reinterpret_cast<char*>(image_info.image_->Begin()) + sizeof(ImageHeader);
     size_t data_size;
     const char* image_data_to_write;
+    const uint64_t compress_start_time = NanoTime();
 
     CHECK_EQ(image_header->storage_mode_, image_storage_mode_);
     switch (image_storage_mode_) {
       case ImageHeader::kStorageModeLZ4: {
-        size_t compressed_max_size = LZ4_compressBound(image_data_size);
+        const size_t compressed_max_size = LZ4_compressBound(image_data_size);
         compressed_data.reset(new char[compressed_max_size]);
         data_size = LZ4_compress(
             reinterpret_cast<char*>(image_info.image_->Begin()) + sizeof(ImageHeader),
             &compressed_data[0],
             image_data_size);
-        image_data_to_write = &compressed_data[0];
-        VLOG(compiler) << "Compressed from " << image_data_size << " to " << data_size;
+
+        break;
+      }
+      case ImageHeader::kStorageModeLZ4HC: {
+        // Bound is same as non HC.
+        const size_t compressed_max_size = LZ4_compressBound(image_data_size);
+        compressed_data.reset(new char[compressed_max_size]);
+        data_size = LZ4_compressHC(
+            reinterpret_cast<char*>(image_info.image_->Begin()) + sizeof(ImageHeader),
+            &compressed_data[0],
+            image_data_size);
         break;
       }
       case ImageHeader::kStorageModeUncompressed: {
@@ -247,6 +258,12 @@ bool ImageWriter::Write(int image_fd,
         LOG(FATAL) << "Unsupported";
         UNREACHABLE();
       }
+    }
+
+    if (compressed_data != nullptr) {
+      image_data_to_write = &compressed_data[0];
+      VLOG(compiler) << "Compressed from " << image_data_size << " to " << data_size << " in "
+                     << PrettyDuration(NanoTime() - compress_start_time);
     }
 
     // Write header first, as uncompressed.

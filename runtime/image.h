@@ -81,6 +81,7 @@ class PACKED(4) ImageHeader {
   enum StorageMode : uint32_t {
     kStorageModeUncompressed,
     kStorageModeLZ4,
+    kStorageModeLZ4HC,
     kStorageModeCount,  // Number of elements in enum.
   };
   static constexpr StorageMode kDefaultStorageMode = kStorageModeUncompressed;
