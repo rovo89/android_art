@@ -21,24 +21,35 @@
 namespace art {
 namespace mirror {
 
+template <bool kTransactionActive>
 bool AbstractMethod::CreateFromArtMethod(ArtMethod* method) {
-  auto* interface_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
-  SetArtMethod(method);
-  SetFieldObject<false>(DeclaringClassOffset(), method->GetDeclaringClass());
-  SetFieldObject<false>(
+  auto* interface_method = method->GetInterfaceMethodIfProxy(
+      kTransactionActive
+          ? Runtime::Current()->GetClassLinker()->GetImagePointerSize()
+          : sizeof(void*));
+  SetArtMethod<kTransactionActive>(method);
+  SetFieldObject<kTransactionActive>(DeclaringClassOffset(), method->GetDeclaringClass());
+  SetFieldObject<kTransactionActive>(
       DeclaringClassOfOverriddenMethodOffset(), interface_method->GetDeclaringClass());
-  SetField32<false>(AccessFlagsOffset(), method->GetAccessFlags());
-  SetField32<false>(DexMethodIndexOffset(), method->GetDexMethodIndex());
+  SetField32<kTransactionActive>(AccessFlagsOffset(), method->GetAccessFlags());
+  SetField32<kTransactionActive>(DexMethodIndexOffset(), method->GetDexMethodIndex());
   return true;
 }
+
+template bool AbstractMethod::CreateFromArtMethod<false>(ArtMethod* method);
+template bool AbstractMethod::CreateFromArtMethod<true>(ArtMethod* method);
 
 ArtMethod* AbstractMethod::GetArtMethod() {
   return reinterpret_cast<ArtMethod*>(GetField64(ArtMethodOffset()));
 }
 
+template <bool kTransactionActive>
 void AbstractMethod::SetArtMethod(ArtMethod* method) {
-  SetField64<false>(ArtMethodOffset(), reinterpret_cast<uint64_t>(method));
+  SetField64<kTransactionActive>(ArtMethodOffset(), reinterpret_cast<uint64_t>(method));
 }
+
+template void AbstractMethod::SetArtMethod<false>(ArtMethod* method);
+template void AbstractMethod::SetArtMethod<true>(ArtMethod* method);
 
 mirror::Class* AbstractMethod::GetDeclaringClass() {
   return GetFieldObject<mirror::Class>(DeclaringClassOffset());

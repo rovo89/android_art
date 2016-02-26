@@ -371,70 +371,13 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
 
 static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
                                                jobject name, jobjectArray args) {
-  // Covariant return types permit the class to define multiple
-  // methods with the same name and parameter types. Prefer to
-  // return a non-synthetic method in such situations. We may
-  // still return a synthetic method to handle situations like
-  // escalated visibility. We never return miranda methods that
-  // were synthesized by the runtime.
-  constexpr uint32_t kSkipModifiers = kAccMiranda | kAccSynthetic;
   ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<3> hs(soa.Self());
-  auto h_method_name = hs.NewHandle(soa.Decode<mirror::String*>(name));
-  if (UNLIKELY(h_method_name.Get() == nullptr)) {
-    ThrowNullPointerException("name == null");
-    return nullptr;
-  }
-  auto h_args = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
-  Handle<mirror::Class> h_klass = hs.NewHandle(DecodeClass(soa, javaThis));
-  ArtMethod* result = nullptr;
-  for (auto& m : h_klass->GetDeclaredVirtualMethods(sizeof(void*))) {
-    auto* np_method = m.GetInterfaceMethodIfProxy(sizeof(void*));
-    // May cause thread suspension.
-    mirror::String* np_name = np_method->GetNameAsString(soa.Self());
-    if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
-      if (UNLIKELY(soa.Self()->IsExceptionPending())) {
-        return nullptr;
-      }
-      continue;
-    }
-    auto modifiers = m.GetAccessFlags();
-    if ((modifiers & kSkipModifiers) == 0) {
-      return soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(soa.Self(), &m));
-    }
-    if ((modifiers & kAccMiranda) == 0) {
-      result = &m;  // Remember as potential result if it's not a miranda method.
-    }
-  }
-  if (result == nullptr) {
-    for (auto& m : h_klass->GetDirectMethods(sizeof(void*))) {
-      auto modifiers = m.GetAccessFlags();
-      if ((modifiers & kAccConstructor) != 0) {
-        continue;
-      }
-      auto* np_method = m.GetInterfaceMethodIfProxy(sizeof(void*));
-      // May cause thread suspension.
-      mirror::String* np_name = np_method->GetNameAsString(soa.Self());
-      if (np_name == nullptr) {
-        soa.Self()->AssertPendingException();
-        return nullptr;
-      }
-      if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
-        if (UNLIKELY(soa.Self()->IsExceptionPending())) {
-          return nullptr;
-        }
-        continue;
-      }
-      if ((modifiers & kSkipModifiers) == 0) {
-        return soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(soa.Self(), &m));
-      }
-      // Direct methods cannot be miranda methods, so this potential result must be synthetic.
-      result = &m;
-    }
-  }
-  return result != nullptr ?
-      soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(soa.Self(), result)) :
-      nullptr;
+  mirror::Method* result = mirror::Class::GetDeclaredMethodInternal(
+      soa.Self(),
+      DecodeClass(soa, javaThis),
+      soa.Decode<mirror::String*>(name),
+      soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
+  return soa.AddLocalReference<jobject>(result);
 }
 
 static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaThis,
