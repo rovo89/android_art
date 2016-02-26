@@ -384,7 +384,9 @@ CompilerDriver::CompilerDriver(
 
   compiler_->Init();
 
-  CHECK_EQ(boot_image_, image_classes_.get() != nullptr);
+  if (boot_image_) {
+    CHECK(image_classes_.get() != nullptr) << "Expected image classes for boot image";
+  }
 }
 
 CompilerDriver::~CompilerDriver() {
@@ -868,12 +870,13 @@ void CompilerDriver::PreCompile(jobject class_loader,
 }
 
 bool CompilerDriver::IsImageClass(const char* descriptor) const {
-  if (!IsBootImage()) {
-    // NOTE: Currently only reachable from InitImageMethodVisitor for the app image case.
-    return true;
-  } else {
+  if (image_classes_ != nullptr) {
+    // If we have a set of image classes, use those.
     return image_classes_->find(descriptor) != image_classes_->end();
   }
+  // No set of image classes, assume we include all the classes.
+  // NOTE: Currently only reachable from InitImageMethodVisitor for the app image case.
+  return !IsBootImage();
 }
 
 bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
