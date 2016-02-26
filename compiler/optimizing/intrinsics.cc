@@ -130,6 +130,10 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     case kIntrinsicFloatCvt:
       return ((method.d.data & kIntrinsicFlagToFloatingPoint) == 0) ?
           Intrinsics::kFloatFloatToRawIntBits : Intrinsics::kFloatIntBitsToFloat;
+    case kIntrinsicFloat2Int:
+      return Intrinsics::kFloatFloatToIntBits;
+    case kIntrinsicDouble2Long:
+      return Intrinsics::kDoubleDoubleToLongBits;
 
     // Floating-point tests.
     case kIntrinsicFloatIsInfinite:

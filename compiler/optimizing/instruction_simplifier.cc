@@ -93,6 +93,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyStringEquals(HInvoke* invoke);
   void SimplifyCompare(HInvoke* invoke, bool has_zero_op);
   void SimplifyIsNaN(HInvoke* invoke);
+  void SimplifyFP2Int(HInvoke* invoke);
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -1562,26 +1563,71 @@ void InstructionSimplifierVisitor::SimplifyIsNaN(HInvoke* invoke) {
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, condition);
 }
 
+void InstructionSimplifierVisitor::SimplifyFP2Int(HInvoke* invoke) {
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  uint32_t dex_pc = invoke->GetDexPc();
+  HInstruction* x = invoke->InputAt(0);
+  Primitive::Type type = x->GetType();
+  // Set proper bit pattern for NaN and replace intrinsic with raw version.
+  HInstruction* nan;
+  if (type == Primitive::kPrimDouble) {
+    nan = GetGraph()->GetLongConstant(0x7ff8000000000000L);
+    invoke->SetIntrinsic(Intrinsics::kDoubleDoubleToRawLongBits,
+                         kNeedsEnvironmentOrCache,
+                         kNoSideEffects,
+                         kNoThrow);
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimFloat);
+    nan = GetGraph()->GetIntConstant(0x7fc00000);
+    invoke->SetIntrinsic(Intrinsics::kFloatFloatToRawIntBits,
+                         kNeedsEnvironmentOrCache,
+                         kNoSideEffects,
+                         kNoThrow);
+  }
+  // Test IsNaN(x), which is the same as x != x.
+  HCondition* condition = new (GetGraph()->GetArena()) HNotEqual(x, x, dex_pc);
+  condition->SetBias(ComparisonBias::kLtBias);
+  invoke->GetBlock()->InsertInstructionBefore(condition, invoke->GetNext());
+  // Select between the two.
+  HInstruction* select = new (GetGraph()->GetArena()) HSelect(condition, nan, invoke, dex_pc);
+  invoke->GetBlock()->InsertInstructionBefore(select, condition->GetNext());
+  invoke->ReplaceWithExceptInReplacementAtIndex(select, 0);  // false at index 0
+}
+
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
-  if (instruction->GetIntrinsic() == Intrinsics::kStringEquals) {
-    SimplifyStringEquals(instruction);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kSystemArrayCopy) {
-    SimplifySystemArrayCopy(instruction);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateRight ||
-             instruction->GetIntrinsic() == Intrinsics::kLongRotateRight) {
-    SimplifyRotate(instruction, false);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateLeft ||
-             instruction->GetIntrinsic() == Intrinsics::kLongRotateLeft) {
-    SimplifyRotate(instruction, true);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerCompare ||
-             instruction->GetIntrinsic() == Intrinsics::kLongCompare) {
-    SimplifyCompare(instruction, /* is_signum */ false);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerSignum ||
-             instruction->GetIntrinsic() == Intrinsics::kLongSignum) {
-    SimplifyCompare(instruction, /* is_signum */ true);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kFloatIsNaN ||
-             instruction->GetIntrinsic() == Intrinsics::kDoubleIsNaN) {
-    SimplifyIsNaN(instruction);
+  switch (instruction->GetIntrinsic()) {
+    case Intrinsics::kStringEquals:
+      SimplifyStringEquals(instruction);
+      break;
+    case Intrinsics::kSystemArrayCopy:
+      SimplifySystemArrayCopy(instruction);
+      break;
+    case Intrinsics::kIntegerRotateRight:
+    case Intrinsics::kLongRotateRight:
+      SimplifyRotate(instruction, false);
+      break;
+    case Intrinsics::kIntegerRotateLeft:
+    case Intrinsics::kLongRotateLeft:
+      SimplifyRotate(instruction, true);
+      break;
+    case Intrinsics::kIntegerCompare:
+    case Intrinsics::kLongCompare:
+      SimplifyCompare(instruction, /* is_signum */ false);
+      break;
+    case Intrinsics::kIntegerSignum:
+    case Intrinsics::kLongSignum:
+      SimplifyCompare(instruction, /* is_signum */ true);
+      break;
+    case Intrinsics::kFloatIsNaN:
+    case Intrinsics::kDoubleIsNaN:
+      SimplifyIsNaN(instruction);
+      break;
+    case Intrinsics::kFloatFloatToIntBits:
+    case Intrinsics::kDoubleDoubleToLongBits:
+      SimplifyFP2Int(instruction);
+      break;
+    default:
+      break;
   }
 }
 
