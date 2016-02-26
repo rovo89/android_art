@@ -26,9 +26,18 @@ static constexpr uintptr_t kUintPtrTOne = 1U;
 
 // BitField is a template for encoding and decoding a bit field inside
 // an unsigned machine word.
-template<typename T, int position, int size>
+template<typename T, size_t kPosition, size_t kSize>
 class BitField {
  public:
+  typedef T value_type;
+  static constexpr size_t position = kPosition;
+  static constexpr size_t size = kSize;
+
+  static_assert(position < sizeof(uintptr_t) * kBitsPerByte, "Invalid position.");
+  static_assert(size != 0u, "Invalid size.");
+  static_assert(size <= sizeof(uintptr_t) * kBitsPerByte, "Invalid size.");
+  static_assert(size + position <= sizeof(uintptr_t) * kBitsPerByte, "Invalid position + size.");
+
   // Tells whether the provided value fits into the bit field.
   static bool IsValid(T value) {
     return (static_cast<uintptr_t>(value) & ~((kUintPtrTOne << size) - 1)) == 0;
