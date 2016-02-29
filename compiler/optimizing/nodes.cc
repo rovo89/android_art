@@ -1877,6 +1877,42 @@ void HGraph::DeleteDeadEmptyBlock(HBasicBlock* block) {
   blocks_[block->GetBlockId()] = nullptr;
 }
 
+void HGraph::UpdateLoopAndTryInformationOfNewBlock(HBasicBlock* block,
+                                                   HBasicBlock* reference,
+                                                   bool replace_if_back_edge) {
+  if (block->IsLoopHeader()) {
+    // Clear the information of which blocks are contained in that loop. Since the
+    // information is stored as a bit vector based on block ids, we have to update
+    // it, as those block ids were specific to the callee graph and we are now adding
+    // these blocks to the caller graph.
+    block->GetLoopInformation()->ClearAllBlocks();
+  }
+
+  // If not already in a loop, update the loop information.
+  if (!block->IsInLoop()) {
+    block->SetLoopInformation(reference->GetLoopInformation());
+  }
+
+  // If the block is in a loop, update all its outward loops.
+  HLoopInformation* loop_info = block->GetLoopInformation();
+  if (loop_info != nullptr) {
+    for (HLoopInformationOutwardIterator loop_it(*block);
+         !loop_it.Done();
+         loop_it.Advance()) {
+      loop_it.Current()->Add(block);
+    }
+    if (replace_if_back_edge && loop_info->IsBackEdge(*reference)) {
+      loop_info->ReplaceBackEdge(reference, block);
+    }
+  }
+
+  // Copy TryCatchInformation if `reference` is a try block, not if it is a catch block.
+  TryCatchInformation* try_catch_info = reference->IsTryBlock()
+      ? reference->GetTryCatchInformation()
+      : nullptr;
+  block->SetTryCatchInformation(try_catch_info);
+}
+
 HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   DCHECK(HasExitBlock()) << "Unimplemented scenario";
   // Update the environments in this graph to have the invoke's environment
@@ -1991,10 +2027,6 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     size_t index_of_at = IndexOfElement(outer_graph->reverse_post_order_, at);
     MakeRoomFor(&outer_graph->reverse_post_order_, blocks_added, index_of_at);
 
-    HLoopInformation* loop_info = at->GetLoopInformation();
-    // Copy TryCatchInformation if `at` is a try block, not if it is a catch block.
-    TryCatchInformation* try_catch_info = at->IsTryBlock() ? at->GetTryCatchInformation() : nullptr;
-
     // Do a reverse post order of the blocks in the callee and do (1), (2), (3)
     // and (4) to the blocks that apply.
     for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
@@ -2005,23 +2037,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
         current->SetGraph(outer_graph);
         outer_graph->AddBlock(current);
         outer_graph->reverse_post_order_[++index_of_at] = current;
-        if (!current->IsInLoop()) {
-          current->SetLoopInformation(loop_info);
-        } else if (current->IsLoopHeader()) {
-          // Clear the information of which blocks are contained in that loop. Since the
-          // information is stored as a bit vector based on block ids, we have to update
-          // it, as those block ids were specific to the callee graph and we are now adding
-          // these blocks to the caller graph.
-          current->GetLoopInformation()->ClearAllBlocks();
-        }
-        if (current->IsInLoop()) {
-          for (HLoopInformationOutwardIterator loop_it(*current);
-               !loop_it.Done();
-               loop_it.Advance()) {
-            loop_it.Current()->Add(current);
-          }
-        }
-        current->SetTryCatchInformation(try_catch_info);
+        UpdateLoopAndTryInformationOfNewBlock(current, at,  /* replace_if_back_edge */ false);
       }
     }
 
@@ -2029,20 +2045,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     to->SetGraph(outer_graph);
     outer_graph->AddBlock(to);
     outer_graph->reverse_post_order_[++index_of_at] = to;
-    if (loop_info != nullptr) {
-      if (!to->IsInLoop()) {
-        to->SetLoopInformation(loop_info);
-      }
-      for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
-        loop_it.Current()->Add(to);
-      }
-      if (loop_info->IsBackEdge(*at)) {
-        // Only `to` can become a back edge, as the inlined blocks
-        // are predecessors of `to`.
-        loop_info->ReplaceBackEdge(at, to);
-      }
-    }
-    to->SetTryCatchInformation(try_catch_info);
+    // Only `to` can become a back edge, as the inlined blocks
+    // are predecessors of `to`.
+    UpdateLoopAndTryInformationOfNewBlock(to, at, /* replace_if_back_edge */ true);
   }
 
   // Update the next instruction id of the outer graph, so that instructions
@@ -2157,32 +2162,17 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   reverse_post_order_[index_of_header++] = false_block;
   reverse_post_order_[index_of_header++] = new_pre_header;
 
-  // Fix loop information.
-  HLoopInformation* loop_info = old_pre_header->GetLoopInformation();
-  if (loop_info != nullptr) {
-    if_block->SetLoopInformation(loop_info);
-    true_block->SetLoopInformation(loop_info);
-    false_block->SetLoopInformation(loop_info);
-    new_pre_header->SetLoopInformation(loop_info);
-    // Add blocks to all enveloping loops.
-    for (HLoopInformationOutwardIterator loop_it(*old_pre_header);
-         !loop_it.Done();
-         loop_it.Advance()) {
-      loop_it.Current()->Add(if_block);
-      loop_it.Current()->Add(true_block);
-      loop_it.Current()->Add(false_block);
-      loop_it.Current()->Add(new_pre_header);
-    }
-  }
-
-  // Fix try/catch information.
-  TryCatchInformation* try_catch_info = old_pre_header->IsTryBlock()
-      ? old_pre_header->GetTryCatchInformation()
-      : nullptr;
-  if_block->SetTryCatchInformation(try_catch_info);
-  true_block->SetTryCatchInformation(try_catch_info);
-  false_block->SetTryCatchInformation(try_catch_info);
-  new_pre_header->SetTryCatchInformation(try_catch_info);
+  // The pre_header can never be a back edge of a loop.
+  DCHECK((old_pre_header->GetLoopInformation() == nullptr) ||
+         !old_pre_header->GetLoopInformation()->IsBackEdge(*old_pre_header));
+  UpdateLoopAndTryInformationOfNewBlock(
+      if_block, old_pre_header, /* replace_if_back_edge */ false);
+  UpdateLoopAndTryInformationOfNewBlock(
+      true_block, old_pre_header, /* replace_if_back_edge */ false);
+  UpdateLoopAndTryInformationOfNewBlock(
+      false_block, old_pre_header, /* replace_if_back_edge */ false);
+  UpdateLoopAndTryInformationOfNewBlock(
+      new_pre_header, old_pre_header, /* replace_if_back_edge */ false);
 }
 
 static void CheckAgainstUpperBound(ReferenceTypeInfo rti, ReferenceTypeInfo upper_bound_rti)
