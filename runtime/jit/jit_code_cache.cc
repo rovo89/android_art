@@ -123,7 +123,7 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       current_capacity_(initial_code_capacity + initial_data_capacity),
       code_end_(initial_code_capacity),
       data_end_(initial_data_capacity),
-      has_done_one_collection_(false),
+      has_done_full_collection_(false),
       last_update_time_ns_(0),
       garbage_collect_code_(garbage_collect_code),
       number_of_compilations_(0),
@@ -531,8 +531,56 @@ bool JitCodeCache::IncreaseCodeCacheCapacity() {
   return true;
 }
 
+void JitCodeCache::MarkCompiledCodeOnThreadStacks(Thread* self) {
+  Barrier barrier(0);
+  size_t threads_running_checkpoint = 0;
+  MarkCodeClosure closure(this, &barrier);
+  threads_running_checkpoint = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+  // Now that we have run our checkpoint, move to a suspended state and wait
+  // for other threads to run the checkpoint.
+  ScopedThreadSuspension sts(self, kSuspended);
+  if (threads_running_checkpoint != 0) {
+    barrier.Increment(self, threads_running_checkpoint);
+  }
+}
+
+void JitCodeCache::RemoveUnusedCode(Thread* self) {
+  // Clear the osr map, chances are most of the code in it is now dead.
+  {
+    MutexLock mu(self, lock_);
+    osr_code_map_.clear();
+  }
+
+  // Run a checkpoint on all threads to mark the JIT compiled code they are running.
+  MarkCompiledCodeOnThreadStacks(self);
+
+  // Iterate over all compiled code and remove entries that are not marked and not
+  // the entrypoint of their corresponding ArtMethod.
+  {
+    MutexLock mu(self, lock_);
+    ScopedCodeCacheWrite scc(code_map_.get());
+    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+      const void* code_ptr = it->first;
+      ArtMethod* method = it->second;
+      uintptr_t allocation = FromCodeToAllocation(code_ptr);
+      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+      if ((method->GetEntryPointFromQuickCompiledCode() != method_header->GetEntryPoint()) &&
+          !GetLiveBitmap()->Test(allocation)) {
+        FreeCode(code_ptr, method);
+        it = method_code_map_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+}
+
 void JitCodeCache::GarbageCollectCache(Thread* self) {
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (!garbage_collect_code_) {
+    MutexLock mu(self, lock_);
+    IncreaseCodeCacheCapacity();
+    return;
+  }
 
   // Wait for an existing collection, or let everyone know we are starting one.
   {
@@ -541,42 +589,75 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     if (WaitForPotentialCollectionToComplete(self)) {
       return;
     } else {
-      collection_in_progress_ = true;
-    }
-  }
-
-  // Check if we just need to grow the capacity. If we don't, allocate the bitmap while
-  // we hold the lock.
-  {
-    MutexLock mu(self, lock_);
-    if (!garbage_collect_code_ || current_capacity_ < kReservedCapacity) {
-      IncreaseCodeCacheCapacity();
-      NotifyCollectionDone(self);
-      return;
-    } else if (has_done_one_collection_ && IncreaseCodeCacheCapacity()) {
-      has_done_one_collection_ = false;
-      NotifyCollectionDone(self);
-      return;
-    } else {
       live_bitmap_.reset(CodeCacheBitmap::Create(
           "code-cache-bitmap",
           reinterpret_cast<uintptr_t>(code_map_->Begin()),
           reinterpret_cast<uintptr_t>(code_map_->Begin() + current_capacity_ / 2)));
+      collection_in_progress_ = true;
+    }
+  }
+
+  // Check if we want to do a full collection.
+  bool do_full_collection = true;
+  {
+    MutexLock mu(self, lock_);
+    if (current_capacity_ == max_capacity_) {
+      // Always do a full collection when the code cache is full.
+      do_full_collection = true;
+    } else if (current_capacity_ < kReservedCapacity) {
+      // Do a partial collection until we hit the reserved capacity limit.
+      do_full_collection = false;
+    } else if (has_done_full_collection_) {
+      // Do a partial collection if we have done a full collection in the last
+      // collection round.
+      do_full_collection = false;
     }
   }
 
   if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-    LOG(INFO) << "Clearing code cache, code="
+    LOG(INFO) << "Do "
+              << (do_full_collection ? "full" : "partial")
+              << " code cache collection, code="
               << PrettySize(CodeCacheSize())
               << ", data=" << PrettySize(DataCacheSize());
   }
-  // Walk over all compiled methods and set the entry points of these
-  // methods to interpreter.
+
+  if (do_full_collection) {
+    DoFullCollection(self);
+  } else {
+    RemoveUnusedCode(self);
+  }
+
   {
     MutexLock mu(self, lock_);
+    if (!do_full_collection) {
+      has_done_full_collection_ = false;
+      IncreaseCodeCacheCapacity();
+    } else {
+      has_done_full_collection_ = true;
+    }
+    live_bitmap_.reset(nullptr);
+    NotifyCollectionDone(self);
+  }
+
+  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+    LOG(INFO) << "After code cache collection, code="
+              << PrettySize(CodeCacheSize())
+              << ", data=" << PrettySize(DataCacheSize());
+  }
+}
+
+void JitCodeCache::DoFullCollection(Thread* self) {
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  {
+    MutexLock mu(self, lock_);
+    // Walk over all compiled methods and set the entry points of these
+    // methods to interpreter.
     for (auto& it : method_code_map_) {
       instrumentation->UpdateMethodsCode(it.second, GetQuickToInterpreterBridge());
     }
+
+    // Clear the profiling info of methods that are not being compiled.
     for (ProfilingInfo* info : profiling_infos_) {
       if (!info->IsMethodBeingCompiled()) {
         info->GetMethod()->SetProfilingInfo(nullptr);
@@ -589,19 +670,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   }
 
   // Run a checkpoint on all threads to mark the JIT compiled code they are running.
-  {
-    Barrier barrier(0);
-    size_t threads_running_checkpoint = 0;
-    MarkCodeClosure closure(this, &barrier);
-    threads_running_checkpoint =
-        Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
-    // Now that we have run our checkpoint, move to a suspended state and wait
-    // for other threads to run the checkpoint.
-    ScopedThreadSuspension sts(self, kSuspended);
-    if (threads_running_checkpoint != 0) {
-      barrier.Increment(self, threads_running_checkpoint);
-    }
-  }
+  MarkCompiledCodeOnThreadStacks(self);
 
   {
     MutexLock mu(self, lock_);
@@ -635,16 +704,6 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
         return false;
       });
     profiling_infos_.erase(profiling_kept_end, profiling_infos_.end());
-
-    live_bitmap_.reset(nullptr);
-    has_done_one_collection_ = true;
-    NotifyCollectionDone(self);
-  }
-
-  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-    LOG(INFO) << "After clearing code cache, code="
-              << PrettySize(CodeCacheSize())
-              << ", data=" << PrettySize(DataCacheSize());
   }
 }
 
