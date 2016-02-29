@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
+
 public class Main {
 
   public static void assertBooleanEquals(boolean expected, boolean result) {
@@ -826,17 +828,16 @@ public class Main {
 
   /// CHECK-START: long Main.NotNot1(long) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
-  /// CHECK-DAG:     <<ConstF1:j\d+>>  LongConstant -1
-  /// CHECK-DAG:     <<Xor1:j\d+>>     Xor [<<Arg>>,<<ConstF1>>]
-  /// CHECK-DAG:     <<Xor2:j\d+>>     Xor [<<Xor1>>,<<ConstF1>>]
-  /// CHECK-DAG:                       Return [<<Xor2>>]
+  /// CHECK-DAG:     <<Not1:j\d+>>     Not [<<Arg>>]
+  /// CHECK-DAG:     <<Not2:j\d+>>     Not [<<Not1>>]
+  /// CHECK-DAG:                       Return [<<Not2>>]
 
   /// CHECK-START: long Main.NotNot1(long) instruction_simplifier (after)
   /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
   /// CHECK-DAG:                       Return [<<Arg>>]
 
   /// CHECK-START: long Main.NotNot1(long) instruction_simplifier (after)
-  /// CHECK-NOT:                       Xor
+  /// CHECK-NOT:                       Not
 
   public static long NotNot1(long arg) {
     return ~~arg;
@@ -844,10 +845,9 @@ public class Main {
 
   /// CHECK-START: int Main.NotNot2(int) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
-  /// CHECK-DAG:     <<ConstF1:i\d+>>  IntConstant -1
-  /// CHECK-DAG:     <<Xor1:i\d+>>     Xor [<<Arg>>,<<ConstF1>>]
-  /// CHECK-DAG:     <<Xor2:i\d+>>     Xor [<<Xor1>>,<<ConstF1>>]
-  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Xor2>>,<<Xor1>>]
+  /// CHECK-DAG:     <<Not1:i\d+>>     Not [<<Arg>>]
+  /// CHECK-DAG:     <<Not2:i\d+>>     Not [<<Not1>>]
+  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Not2>>,<<Not1>>]
   /// CHECK-DAG:                       Return [<<Add>>]
 
   /// CHECK-START: int Main.NotNot2(int) instruction_simplifier (after)
@@ -857,7 +857,8 @@ public class Main {
   /// CHECK-DAG:                       Return [<<Add>>]
 
   /// CHECK-START: int Main.NotNot2(int) instruction_simplifier (after)
-  /// CHECK-NOT:                       Xor
+  /// CHECK:                           Not
+  /// CHECK-NOT:                       Not
 
   public static int NotNot2(int arg) {
     int temp = ~arg;
@@ -963,174 +964,6 @@ public class Main {
       res += temp - arg2 - i;
     }
     return res;
-  }
-
-  /// CHECK-START: int Main.EqualTrueRhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
-  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<Arg>>,<<Const1>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.EqualTrueRhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.EqualTrueRhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const3>>,<<Const5>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int EqualTrueRhs(boolean arg) {
-    return (arg != true) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.EqualTrueLhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
-  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<Const1>>,<<Arg>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.EqualTrueLhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.EqualTrueLhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const3>>,<<Const5>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int EqualTrueLhs(boolean arg) {
-    return (true != arg) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.EqualFalseRhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<Arg>>,<<Const0>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.EqualFalseRhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.EqualFalseRhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const5>>,<<Const3>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int EqualFalseRhs(boolean arg) {
-    return (arg != false) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<Arg>>,<<Const0>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const5>>,<<Const3>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int EqualFalseLhs(boolean arg) {
-    return (false != arg) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.NotEqualTrueRhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
-  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<Arg>>,<<Const1>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.NotEqualTrueRhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.NotEqualTrueRhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const5>>,<<Const3>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int NotEqualTrueRhs(boolean arg) {
-    return (arg == true) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.NotEqualTrueLhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
-  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<Const1>>,<<Arg>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.NotEqualTrueLhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.NotEqualTrueLhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const5>>,<<Const3>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int NotEqualTrueLhs(boolean arg) {
-    return (true == arg) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.NotEqualFalseRhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<Arg>>,<<Const0>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.NotEqualFalseRhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.NotEqualFalseRhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const3>>,<<Const5>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int NotEqualFalseRhs(boolean arg) {
-    return (arg == false) ? 3 : 5;
-  }
-
-  /// CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<Arg>>,<<Const0>>]
-  /// CHECK-DAG:                       If [<<Cond>>]
-
-  /// CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:                       If [<<Arg>>]
-
-  /// CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier_before_codegen (after)
-  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>>   IntConstant 5
-  /// CHECK-DAG:     <<Select:i\d+>>   Select [<<Const3>>,<<Const5>>,<<Arg>>]
-  /// CHECK-DAG:                       Return [<<Select>>]
-
-  public static int NotEqualFalseLhs(boolean arg) {
-    return (false == arg) ? 3 : 5;
   }
 
   /// CHECK-START: boolean Main.EqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (before)
@@ -1307,17 +1140,16 @@ public class Main {
     return arg * 31;
   }
 
-  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier (before)
+  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier_after_bce (before)
   /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
+  /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
   /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
   /// CHECK-DAG:      <<NE:z\d+>>       NotEqual [<<Field>>,<<Const1>>]
-  /// CHECK-DAG:                        If [<<NE>>]
+  /// CHECK-DAG:      <<Select:i\d+>>   Select [<<Const13>>,<<Const54>>,<<NE>>]
+  /// CHECK-DAG:                        Return [<<Select>>]
 
-  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier (after)
-  /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
-  /// CHECK-DAG:                        If [<<Field>>]
-
-  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier_before_codegen (after)
+  /// CHECK-START: int Main.booleanFieldNotEqualOne() instruction_simplifier_after_bce (after)
   /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
@@ -1325,20 +1157,19 @@ public class Main {
   /// CHECK-DAG:                        Return [<<Select>>]
 
   public static int booleanFieldNotEqualOne() {
-    return (booleanField == true) ? 13 : 54;
+    return (booleanField == $inline$true()) ? 13 : 54;
   }
 
-  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier (before)
+  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier_after_bce (before)
   /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
+  /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
+  /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
   /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
-  /// CHECK-DAG:      <<EQ:z\d+>>       Equal [<<Field>>,<<Const0>>]
-  /// CHECK-DAG:                        If [<<EQ>>]
+  /// CHECK-DAG:      <<NE:z\d+>>       Equal [<<Field>>,<<Const0>>]
+  /// CHECK-DAG:      <<Select:i\d+>>   Select [<<Const13>>,<<Const54>>,<<NE>>]
+  /// CHECK-DAG:                        Return [<<Select>>]
 
-  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier (after)
-  /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
-  /// CHECK-DAG:                        If [<<Field>>]
-
-  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier_before_codegen (after)
+  /// CHECK-START: int Main.booleanFieldEqualZero() instruction_simplifier_after_bce (after)
   /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
@@ -1346,7 +1177,7 @@ public class Main {
   /// CHECK-DAG:                        Return [<<Select>>]
 
   public static int booleanFieldEqualZero() {
-    return (booleanField != false) ? 13 : 54;
+    return (booleanField != $inline$false()) ? 13 : 54;
   }
 
   /// CHECK-START: int Main.intConditionNotEqualOne(int) instruction_simplifier_after_bce (before)
@@ -1374,7 +1205,7 @@ public class Main {
   // LessThanOrEqual instructions.
 
   public static int intConditionNotEqualOne(int i) {
-    return ((i > 42) == true) ? 13 : 54;
+    return ((i > 42) == $inline$true()) ? 13 : 54;
   }
 
   /// CHECK-START: int Main.intConditionEqualZero(int) instruction_simplifier_after_bce (before)
@@ -1402,7 +1233,7 @@ public class Main {
   // LessThanOrEqual instructions.
 
   public static int intConditionEqualZero(int i) {
-    return ((i > 42) != false) ? 13 : 54;
+    return ((i > 42) != $inline$false()) ? 13 : 54;
   }
 
   // Test that conditions on float/double are not flipped.
@@ -1770,6 +1601,16 @@ public class Main {
     return (short) (value & 0x17fff);
   }
 
+  public static int runSmaliTest(String name, boolean input) {
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name, new Class[] { boolean.class });
+      return (Integer) m.invoke(null, input);
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -1804,14 +1645,6 @@ public class Main {
     assertIntEquals(SubNeg1(arg, arg + 1), -(arg + arg + 1));
     assertIntEquals(SubNeg2(arg, arg + 1), -(arg + arg + 1));
     assertLongEquals(SubNeg3(arg, arg + 1), -(2 * arg + 1));
-    assertIntEquals(EqualTrueRhs(true), 5);
-    assertIntEquals(EqualTrueLhs(true), 5);
-    assertIntEquals(EqualFalseRhs(true), 3);
-    assertIntEquals(EqualFalseLhs(true), 3);
-    assertIntEquals(NotEqualTrueRhs(true), 3);
-    assertIntEquals(NotEqualTrueLhs(true), 3);
-    assertIntEquals(NotEqualFalseRhs(true), 5);
-    assertIntEquals(NotEqualFalseLhs(true), 5);
     assertBooleanEquals(EqualBoolVsIntConst(true), true);
     assertBooleanEquals(EqualBoolVsIntConst(true), true);
     assertBooleanEquals(NotEqualBoolVsIntConst(false), false);
@@ -1906,7 +1739,20 @@ public class Main {
     assertIntEquals(intAnd0x17fffToShort(0x88888888), 0x0888);
     assertIntEquals(intAnd0x17fffToShort(Integer.MIN_VALUE), 0);
     assertIntEquals(intAnd0x17fffToShort(Integer.MAX_VALUE), Short.MAX_VALUE);
+
+    for (String condition : new String[] { "Equal", "NotEqual" }) {
+      for (String constant : new String[] { "True", "False" }) {
+        for (String side : new String[] { "Rhs", "Lhs" }) {
+          String name = condition + constant + side;
+          assertIntEquals(runSmaliTest(name, true), 5);
+          assertIntEquals(runSmaliTest(name, false), 3);
+        }
+      }
+    }
   }
+
+  private static boolean $inline$true() { return true; }
+  private static boolean $inline$false() { return false; }
 
   public static boolean booleanField;
 }
