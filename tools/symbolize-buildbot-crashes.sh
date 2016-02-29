@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+if [ "$TARGET_PRODUCT" = 'armv8' ]; then
+  echo "Symbolizing traces on Nexus9 with an L build is currently"
+  echo "bogus, as the system thinks crashes are arm32."
+  exit 0
+fi
+
 # We push art and its dependencies to '/data/local/tmp', but the 'stack'
 # script expect things to be in '/'. So we just remove the
 # '/data/local/tmp' prefix.
