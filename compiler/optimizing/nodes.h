@@ -351,6 +351,13 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // and removing the invoke instruction.
   HInstruction* InlineInto(HGraph* outer_graph, HInvoke* invoke);
 
+  // Update the loop and try membership of `block`, which was spawned from `reference`.
+  // In case `reference` is a back edge, `replace_if_back_edge` notifies whether `block`
+  // should be the new back edge.
+  void UpdateLoopAndTryInformationOfNewBlock(HBasicBlock* block,
+                                             HBasicBlock* reference,
+                                             bool replace_if_back_edge);
+
   // Need to add a couple of blocks to test if the loop body is entered and
   // put deoptimization instructions, etc.
   void TransformLoopHeaderForBCE(HBasicBlock* header);
