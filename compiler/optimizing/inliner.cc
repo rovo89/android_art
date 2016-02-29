@@ -562,31 +562,16 @@ void HInliner::CreateDiamondPatternForPolymorphicInline(HInstruction* compare,
   graph_->reverse_post_order_[++index] = otherwise;
   graph_->reverse_post_order_[++index] = merge;
 
-  // Set the loop information of the newly created blocks.
-  HLoopInformation* loop_info = cursor_block->GetLoopInformation();
-  if (loop_info != nullptr) {
-    then->SetLoopInformation(cursor_block->GetLoopInformation());
-    merge->SetLoopInformation(cursor_block->GetLoopInformation());
-    otherwise->SetLoopInformation(cursor_block->GetLoopInformation());
-    for (HLoopInformationOutwardIterator loop_it(*cursor_block);
-         !loop_it.Done();
-         loop_it.Advance()) {
-      loop_it.Current()->Add(then);
-      loop_it.Current()->Add(merge);
-      loop_it.Current()->Add(otherwise);
-    }
-    // In case the original invoke location was a back edge, we need to update
-    // the loop to now have the merge block as a back edge.
-    if (loop_info->IsBackEdge(*original_invoke_block)) {
-      loop_info->RemoveBackEdge(original_invoke_block);
-      loop_info->AddBackEdge(merge);
-    }
-  }
 
-  // Set the try/catch information of the newly created blocks.
-  then->SetTryCatchInformation(cursor_block->GetTryCatchInformation());
-  merge->SetTryCatchInformation(cursor_block->GetTryCatchInformation());
-  otherwise->SetTryCatchInformation(cursor_block->GetTryCatchInformation());
+  graph_->UpdateLoopAndTryInformationOfNewBlock(
+      then, original_invoke_block, /* replace_if_back_edge */ false);
+  graph_->UpdateLoopAndTryInformationOfNewBlock(
+      otherwise, original_invoke_block, /* replace_if_back_edge */ false);
+
+  // In case the original invoke location was a back edge, we need to update
+  // the loop to now have the merge block as a back edge.
+  graph_->UpdateLoopAndTryInformationOfNewBlock(
+      merge, original_invoke_block, /* replace_if_back_edge */ true);
 }
 
 bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
