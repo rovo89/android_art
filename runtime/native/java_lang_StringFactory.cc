@@ -50,8 +50,10 @@ static jstring StringFactory_newStringFromBytes(JNIEnv* env, jclass, jbyteArray 
   return soa.AddLocalReference<jstring>(result);
 }
 
+// The char array passed as `java_data` must not be a null reference.
 static jstring StringFactory_newStringFromChars(JNIEnv* env, jclass, jint offset,
                                                 jint char_count, jcharArray java_data) {
+  DCHECK(java_data != nullptr);
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::CharArray> char_array(hs.NewHandle(soa.Decode<mirror::CharArray*>(java_data)));

@@ -1685,7 +1685,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
       invoke, GetAssembler(), codegen_, GetAllocator(), /* start_at_zero */ false);
 }
 
-// java.lang.String.String(byte[] bytes)
+// java.lang.StringFactory.newStringFromBytes(byte[] data, int high, int offset, int byteCount)
 void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kCall,
@@ -1719,7 +1719,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke
   __ Bind(slow_path->GetExitLabel());
 }
 
-// java.lang.String.String(char[] value)
+// java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
 void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromChars(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kCall,
@@ -1735,6 +1735,12 @@ void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromChars(HInvoke* inv
 void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke) {
   Mips64Assembler* assembler = GetAssembler();
 
+  // No need to emit code checking whether `locations->InAt(2)` is a null
+  // pointer, as callers of the native method
+  //
+  //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
+  //
+  // all include a null check on `data` before calling that method.
   __ LoadFromOffset(kLoadDoubleword,
                     TMP,
                     TR,
