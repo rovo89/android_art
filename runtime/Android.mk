@@ -306,7 +306,8 @@ LIBART_TARGET_SRC_FILES_x86_64 := \
   $(LIBART_SRC_FILES_x86_64) \
 
 LIBART_TARGET_SRC_FILES_mips := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_mips.S \
   arch/mips/context_mips.cc \
   arch/mips/entrypoints_init_mips.cc \
   arch/mips/jni_entrypoints_mips.S \
