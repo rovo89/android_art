@@ -387,6 +387,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   }
 
   void SetCurrentInstructionId(int32_t id) {
+    DCHECK_GE(id, current_instruction_id_);
     current_instruction_id_ = id;
   }
 

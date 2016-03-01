@@ -1010,6 +1010,8 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     // at runtime, we change this call as if it was a virtual call.
     invoke_type = kVirtual;
   }
+
+  const int32_t caller_instruction_counter = graph_->GetCurrentInstructionId();
   HGraph* callee_graph = new (graph_->GetArena()) HGraph(
       graph_->GetArena(),
       callee_dex_file,
@@ -1019,7 +1021,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       invoke_type,
       graph_->IsDebuggable(),
       /* osr */ false,
-      graph_->GetCurrentInstructionId());
+      caller_instruction_counter);
   callee_graph->SetArtMethod(resolved_method);
 
   OptimizingCompilerStats inline_stats;
@@ -1219,7 +1221,16 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   }
   number_of_inlined_instructions_ += number_of_instructions;
 
+  DCHECK_EQ(caller_instruction_counter, graph_->GetCurrentInstructionId())
+      << "No instructions can be added to the outer graph while inner graph is being built";
+
+  const int32_t callee_instruction_counter = callee_graph->GetCurrentInstructionId();
+  graph_->SetCurrentInstructionId(callee_instruction_counter);
   *return_replacement = callee_graph->InlineInto(graph_, invoke_instruction);
+
+  DCHECK_EQ(callee_instruction_counter, callee_graph->GetCurrentInstructionId())
+      << "No instructions can be added to the inner graph during inlining into the outer graph";
+
   return true;
 }
 
