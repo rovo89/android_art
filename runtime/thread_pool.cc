@@ -16,6 +16,11 @@
 
 #include "thread_pool.h"
 
+#include <pthread.h>
+
+#include <sys/time.h>
+#include <sys/resource.h>
+
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/logging.h"
@@ -51,6 +56,19 @@ ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& n
 
 ThreadPoolWorker::~ThreadPoolWorker() {
   CHECK_PTHREAD_CALL(pthread_join, (pthread_, nullptr), "thread pool worker shutdown");
+}
+
+void ThreadPoolWorker::SetPthreadPriority(int priority) {
+  CHECK_GE(priority, PRIO_MIN);
+  CHECK_LE(priority, PRIO_MAX);
+#if defined(__ANDROID__)
+  int result = setpriority(PRIO_PROCESS, pthread_gettid_np(pthread_), priority);
+  if (result != 0) {
+    PLOG(ERROR) << "Failed to setpriority to :" << priority;
+  }
+#else
+  UNUSED(priority);
+#endif
 }
 
 void ThreadPoolWorker::Run() {
@@ -212,6 +230,12 @@ void ThreadPool::Wait(Thread* self, bool do_work, bool may_hold_locks) {
 size_t ThreadPool::GetTaskCount(Thread* self) {
   MutexLock mu(self, task_queue_lock_);
   return tasks_.size();
+}
+
+void ThreadPool::SetPthreadPriority(int priority) {
+  for (ThreadPoolWorker* worker : threads_) {
+    worker->SetPthreadPriority(priority);
+  }
 }
 
 }  // namespace art
