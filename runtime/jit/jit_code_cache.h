@@ -124,11 +124,6 @@ class JitCodeCache {
     return live_bitmap_.get();
   }
 
-  // Return whether we should do a full collection given the current state of the cache.
-  bool ShouldDoFullCollection()
-      REQUIRES(lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Perform a collection on the code cache.
   void GarbageCollectCache(Thread* self)
       REQUIRES(!lock_)
@@ -240,11 +235,11 @@ class JitCodeCache {
   // Set the footprint limit of the code cache.
   void SetFootprintLimit(size_t new_footprint) REQUIRES(lock_);
 
-  void DoCollection(Thread* self, bool collect_profiling_info)
+  void DoFullCollection(Thread* self)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void RemoveUnusedAndUnmarkedCode(Thread* self)
+  void RemoveUnusedCode(Thread* self)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -287,8 +282,8 @@ class JitCodeCache {
   // The current footprint in bytes of the data portion of the code cache.
   size_t data_end_ GUARDED_BY(lock_);
 
-  // Whether the last collection round increased the code cache.
-  bool last_collection_increased_code_cache_ GUARDED_BY(lock_);
+  // Whether a full collection has already been done on the current capacity.
+  bool has_done_full_collection_ GUARDED_BY(lock_);
 
   // Last time the the code_cache was updated.
   // It is atomic to avoid locking when reading it.
