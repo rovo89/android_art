@@ -109,16 +109,25 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     obj = TryToAllocate<kInstrumented, false>(self, allocator, byte_count, &bytes_allocated,
                                               &usable_size, &bytes_tl_bulk_allocated);
     if (UNLIKELY(obj == nullptr)) {
-      bool is_current_allocator = allocator == GetCurrentAllocator();
-      obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated, &usable_size,
+      // AllocateInternalWithGc can cause thread suspension, if someone instruments the entrypoints
+      // or changes the allocator in a suspend point here, we need to retry the allocation.
+      obj = AllocateInternalWithGc(self,
+                                   allocator,
+                                   kInstrumented,
+                                   byte_count,
+                                   &bytes_allocated,
+                                   &usable_size,
                                    &bytes_tl_bulk_allocated, &klass);
       if (obj == nullptr) {
-        bool after_is_current_allocator = allocator == GetCurrentAllocator();
-        // If there is a pending exception, fail the allocation right away since the next one
-        // could cause OOM and abort the runtime.
-        if (!self->IsExceptionPending() && is_current_allocator && !after_is_current_allocator) {
-          // If the allocator changed, we need to restart the allocation.
-          return AllocObject<kInstrumented>(self, klass, byte_count, pre_fence_visitor);
+        // The only way that we can get a null return if there is no pending exception is if the
+        // allocator or instrumentation changed.
+        if (!self->IsExceptionPending()) {
+          // AllocObject will pick up the new allocator type, and instrumented as true is the safe
+          // default.
+          return AllocObject</*kInstrumented*/true>(self,
+                                                    klass,
+                                                    byte_count,
+                                                    pre_fence_visitor);
         }
         return nullptr;
       }
