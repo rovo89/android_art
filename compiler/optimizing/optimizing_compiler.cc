@@ -861,7 +861,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   const uint32_t access_flags = method->GetAccessFlags();
   const InvokeType invoke_type = method->GetInvokeType();
 
-  ArenaAllocator arena(Runtime::Current()->GetArenaPool());
+  ArenaAllocator arena(Runtime::Current()->GetJitArenaPool());
   CodeVectorAllocator code_allocator(&arena);
   std::unique_ptr<CodeGenerator> codegen;
   {
