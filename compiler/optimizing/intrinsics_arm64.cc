@@ -1672,43 +1672,19 @@ void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
-// Unimplemented intrinsics.
+UNIMPLEMENTED_INTRINSIC(ARM64, IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM64, LongBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM64, SystemArrayCopyChar)
+UNIMPLEMENTED_INTRINSIC(ARM64, SystemArrayCopy)
+UNIMPLEMENTED_INTRINSIC(ARM64, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(ARM64, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM64, DoubleIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM64, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM64, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM64, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM64, LongLowestOneBit)
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
-void IntrinsicLocationsBuilderARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                      \
-void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
-
-UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(LongBitCount)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatFloatToIntBits)
-UNIMPLEMENTED_INTRINSIC(DoubleDoubleToLongBits)
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
-
-#undef UNIMPLEMENTED_INTRINSIC
+UNREACHABLE_INTRINSICS(ARM64)
 
 #undef __
 

@@ -2711,34 +2711,11 @@ void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfTrailingZeros(HInvoke* invok
   GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
-// Unimplemented intrinsics.
+UNIMPLEMENTED_INTRINSIC(X86_64, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(X86_64, DoubleIsInfinite)
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
-void IntrinsicLocationsBuilderX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                       \
-void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
-
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatFloatToIntBits)
-UNIMPLEMENTED_INTRINSIC(DoubleDoubleToLongBits)
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
-
-#undef UNIMPLEMENTED_INTRINSIC
+UNREACHABLE_INTRINSICS(X86_64)
 
 #undef __
 
