@@ -1564,6 +1564,12 @@ void IntrinsicLocationsBuilderX86::VisitStringNewStringFromChars(HInvoke* invoke
 void IntrinsicCodeGeneratorX86::VisitStringNewStringFromChars(HInvoke* invoke) {
   X86Assembler* assembler = GetAssembler();
 
+  // No need to emit code checking whether `locations->InAt(2)` is a null
+  // pointer, as callers of the native method
+  //
+  //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
+  //
+  // all include a null check on `data` before calling that method.
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromChars)));
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }

@@ -1140,6 +1140,12 @@ bool Mir2Lir::GenInlinedStringFactoryNewStringFromChars(CallInfo* info) {
   RegLocation rl_offset = info->args[0];
   RegLocation rl_count = info->args[1];
   RegLocation rl_data = info->args[2];
+  // No need to emit code checking whether `rl_data` is a null
+  // pointer, as callers of the native method
+  //
+  //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
+  //
+  // all include a null check on `data` before calling that method.
   CallRuntimeHelperRegLocationRegLocationRegLocation(
       kQuickAllocStringFromChars, rl_offset, rl_count, rl_data, true);
   RegLocation rl_return = GetReturn(kRefReg);
