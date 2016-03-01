@@ -1151,6 +1151,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
 
   __ LoadFromOffset(kLoadWord, LR, TR,
                     QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pIndexOf).Int32Value());
+  CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ blx(LR);
 
   if (slow_path != nullptr) {
