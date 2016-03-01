@@ -123,7 +123,7 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       current_capacity_(initial_code_capacity + initial_data_capacity),
       code_end_(initial_code_capacity),
       data_end_(initial_data_capacity),
-      has_done_full_collection_(false),
+      last_collection_increased_code_cache_(false),
       last_update_time_ns_(0),
       garbage_collect_code_(garbage_collect_code),
       used_memory_for_data_(0),
@@ -546,34 +546,20 @@ void JitCodeCache::MarkCompiledCodeOnThreadStacks(Thread* self) {
   }
 }
 
-void JitCodeCache::RemoveUnusedCode(Thread* self) {
-  // Clear the osr map, chances are most of the code in it is now dead.
-  {
-    MutexLock mu(self, lock_);
-    osr_code_map_.clear();
-  }
-
-  // Run a checkpoint on all threads to mark the JIT compiled code they are running.
-  MarkCompiledCodeOnThreadStacks(self);
-
-  // Iterate over all compiled code and remove entries that are not marked and not
-  // the entrypoint of their corresponding ArtMethod.
-  {
-    MutexLock mu(self, lock_);
-    ScopedCodeCacheWrite scc(code_map_.get());
-    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
-      const void* code_ptr = it->first;
-      ArtMethod* method = it->second;
-      uintptr_t allocation = FromCodeToAllocation(code_ptr);
-      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-      if ((method->GetEntryPointFromQuickCompiledCode() != method_header->GetEntryPoint()) &&
-          !GetLiveBitmap()->Test(allocation)) {
-        FreeCode(code_ptr, method);
-        it = method_code_map_.erase(it);
-      } else {
-        ++it;
-      }
-    }
+bool JitCodeCache::ShouldDoFullCollection() {
+  if (current_capacity_ == max_capacity_) {
+    // Always do a full collection when the code cache is full.
+    return true;
+  } else if (current_capacity_ < kReservedCapacity) {
+    // Always do partial collection when the code cache size is below the reserved
+    // capacity.
+    return false;
+  } else if (last_collection_increased_code_cache_) {
+    // This time do a full collection.
+    return true;
+  } else {
+    // This time do a partial collection.
+    return false;
   }
 }
 
@@ -599,21 +585,10 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     }
   }
 
-  // Check if we want to do a full collection.
-  bool do_full_collection = true;
+  bool do_full_collection = false;
   {
     MutexLock mu(self, lock_);
-    if (current_capacity_ == max_capacity_) {
-      // Always do a full collection when the code cache is full.
-      do_full_collection = true;
-    } else if (current_capacity_ < kReservedCapacity) {
-      // Do a partial collection until we hit the reserved capacity limit.
-      do_full_collection = false;
-    } else if (has_done_full_collection_) {
-      // Do a partial collection if we have done a full collection in the last
-      // collection round.
-      do_full_collection = false;
-    }
+    do_full_collection = ShouldDoFullCollection();
   }
 
   if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
@@ -624,45 +599,94 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
               << ", data=" << PrettySize(DataCacheSize());
   }
 
-  if (do_full_collection) {
-    DoFullCollection(self);
-  } else {
-    RemoveUnusedCode(self);
-  }
-
-  {
-    MutexLock mu(self, lock_);
-    if (!do_full_collection) {
-      has_done_full_collection_ = false;
-      IncreaseCodeCacheCapacity();
-    } else {
-      has_done_full_collection_ = true;
-    }
-    live_bitmap_.reset(nullptr);
-    NotifyCollectionDone(self);
-  }
+  DoCollection(self, /* collect_profiling_info */ do_full_collection);
 
   if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
     LOG(INFO) << "After code cache collection, code="
               << PrettySize(CodeCacheSize())
               << ", data=" << PrettySize(DataCacheSize());
   }
-}
 
-void JitCodeCache::DoFullCollection(Thread* self) {
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   {
     MutexLock mu(self, lock_);
-    // Walk over all compiled methods and set the entry points of these
-    // methods to interpreter.
-    for (auto& it : method_code_map_) {
-      instrumentation->UpdateMethodsCode(it.second, GetQuickToInterpreterBridge());
+
+    // Increase the code cache only when we do partial collections.
+    // TODO: base this strategy on how full the code cache is?
+    if (do_full_collection) {
+      last_collection_increased_code_cache_ = false;
+    } else {
+      last_collection_increased_code_cache_ = true;
+      IncreaseCodeCacheCapacity();
     }
 
-    // Clear the profiling info of methods that are not being compiled.
-    for (ProfilingInfo* info : profiling_infos_) {
-      if (!info->IsMethodBeingCompiled()) {
-        info->GetMethod()->SetProfilingInfo(nullptr);
+    bool next_collection_will_be_full = ShouldDoFullCollection();
+
+    // Start polling the liveness of compiled code to prepare for the next full collection.
+    if (next_collection_will_be_full) {
+      // Save the entry point of methods we have compiled, and update the entry
+      // point of those methods to the interpreter. If the method is invoked, the
+      // interpreter will update its entry point to the compiled code and call it.
+      for (ProfilingInfo* info : profiling_infos_) {
+        const void* entry_point = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
+        if (ContainsPc(entry_point)) {
+          info->SetSavedEntryPoint(entry_point);
+          info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+        }
+      }
+
+      if (kIsDebugBuild) {
+        // Check that methods we have compiled do have a ProfilingInfo object. We would
+        // have memory leaks of compiled code otherwise.
+        for (const auto& it : method_code_map_) {
+          DCHECK(it.second->GetProfilingInfo(sizeof(void*)) != nullptr);
+        }
+      }
+    }
+    live_bitmap_.reset(nullptr);
+    NotifyCollectionDone(self);
+  }
+}
+
+void JitCodeCache::RemoveUnusedAndUnmarkedCode(Thread* self) {
+  MutexLock mu(self, lock_);
+  ScopedCodeCacheWrite scc(code_map_.get());
+  // Iterate over all compiled code and remove entries that are not marked and not
+  // the entrypoint of their corresponding ArtMethod.
+  for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+    const void* code_ptr = it->first;
+    ArtMethod* method = it->second;
+    uintptr_t allocation = FromCodeToAllocation(code_ptr);
+    const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+    const void* entrypoint = method->GetEntryPointFromQuickCompiledCode();
+    if ((entrypoint == method_header->GetEntryPoint()) || GetLiveBitmap()->Test(allocation)) {
+      ++it;
+    } else {
+      if (entrypoint == GetQuickToInterpreterBridge()) {
+        method->ClearCounter();
+      }
+      FreeCode(code_ptr, method);
+      it = method_code_map_.erase(it);
+    }
+  }
+}
+
+void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
+  {
+    MutexLock mu(self, lock_);
+    if (collect_profiling_info) {
+      // Clear the profiling info of methods that do not have compiled code as entrypoint.
+      // Also remove the saved entry point from the ProfilingInfo objects.
+      for (ProfilingInfo* info : profiling_infos_) {
+        const void* ptr = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
+        if (!ContainsPc(ptr) && !info->IsMethodBeingCompiled()) {
+          info->GetMethod()->SetProfilingInfo(nullptr);
+        }
+        info->SetSavedEntryPoint(nullptr);
+      }
+    } else if (kIsDebugBuild) {
+      // Sanity check that the profiling infos do not have a dangling entry point.
+      for (ProfilingInfo* info : profiling_infos_) {
+        DCHECK(info->GetSavedEntryPoint() == nullptr);
       }
     }
 
@@ -674,32 +698,22 @@ void JitCodeCache::DoFullCollection(Thread* self) {
   // Run a checkpoint on all threads to mark the JIT compiled code they are running.
   MarkCompiledCodeOnThreadStacks(self);
 
-  {
-    MutexLock mu(self, lock_);
-    // Free unused compiled code, and restore the entry point of used compiled code.
-    {
-      ScopedCodeCacheWrite scc(code_map_.get());
-      for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
-        const void* code_ptr = it->first;
-        ArtMethod* method = it->second;
-        uintptr_t allocation = FromCodeToAllocation(code_ptr);
-        const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-        if (GetLiveBitmap()->Test(allocation)) {
-          instrumentation->UpdateMethodsCode(method, method_header->GetEntryPoint());
-          ++it;
-        } else {
-          method->ClearCounter();
-          DCHECK_NE(method->GetEntryPointFromQuickCompiledCode(), method_header->GetEntryPoint());
-          FreeCode(code_ptr, method);
-          it = method_code_map_.erase(it);
-        }
-      }
-    }
+  // Remove compiled code that is not the entrypoint of their method and not in the call
+  // stack.
+  RemoveUnusedAndUnmarkedCode(self);
 
-    // Free all profiling infos of methods that were not being compiled.
+  if (collect_profiling_info) {
+    MutexLock mu(self, lock_);
+    // Free all profiling infos of methods not compiled nor being compiled.
     auto profiling_kept_end = std::remove_if(profiling_infos_.begin(), profiling_infos_.end(),
       [this] (ProfilingInfo* info) NO_THREAD_SAFETY_ANALYSIS {
-        if (info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
+        const void* ptr = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
+        if (ContainsPc(ptr) && info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
+          // Make sure compiled methods have a ProfilingInfo object. It is needed for
+          // code cache collection.
+          info->GetMethod()->SetProfilingInfo(info);
+        } else if (info->GetMethod()->GetProfilingInfo(sizeof(void*)) != info) {
+          // No need for this ProfilingInfo object anymore.
           FreeData(reinterpret_cast<uint8_t*>(info));
           return true;
         }
@@ -849,6 +863,13 @@ size_t JitCodeCache::GetMemorySizeOfCodePointer(const void* ptr) {
 
 void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
                                              const OatQuickMethodHeader* header) {
+  ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
+  if ((profiling_info != nullptr) &&
+      (profiling_info->GetSavedEntryPoint() == header->GetEntryPoint())) {
+    // Prevent future uses of the compiled code.
+    profiling_info->SetSavedEntryPoint(nullptr);
+  }
+
   if (method->GetEntryPointFromQuickCompiledCode() == header->GetEntryPoint()) {
     // The entrypoint is the one to invalidate, so we just update
     // it to the interpreter entry point and clear the counter to get the method
