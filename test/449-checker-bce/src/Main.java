@@ -1260,7 +1260,8 @@ public class Main {
       } else {
         assertIsManaged();
       }
-      array[i] = (array[i-2] + array[i-1] + array[i] + array[i+1] + array[i+2]) / 5;
+      // TODO: order matters, make it not so.
+      array[i] = (array[i] + array[i-2] + array[i-1] + array[i+1] + array[i+2]) / 5;
     }
   }
 
