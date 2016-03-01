@@ -295,7 +295,9 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
     }
 
     jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr && jit->CanInvokeCompiledCode(method)) {
+    if (UNLIKELY(jit != nullptr &&
+                 jit->JitAtFirstUse() &&
+                 jit->GetCodeCache()->ContainsMethod(method))) {
       JValue result;
 
       // Pop the shadow frame before calling into compiled code.
