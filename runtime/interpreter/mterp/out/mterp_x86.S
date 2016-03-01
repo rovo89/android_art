@@ -112,25 +112,32 @@ unspecified registers or condition codes.
     #define SYMBOL(name) name
 #endif
 
+.macro PUSH _reg
+    pushl \_reg
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset \_reg, 0
+.endm
+
+.macro POP _reg
+    popl \_reg
+    .cfi_adjust_cfa_offset -4
+    .cfi_restore \_reg
+.endm
+
 /* Frame size must be 16-byte aligned.
- * Remember about 4 bytes for return address
+ * Remember about 4 bytes for return address + 4 * 4 for spills
  */
-#define FRAME_SIZE     44
+#define FRAME_SIZE     28
 
 /* Frame diagram while executing ExecuteMterpImpl, high to low addresses */
-#define IN_ARG3        (FRAME_SIZE + 16)
-#define IN_ARG2        (FRAME_SIZE + 12)
-#define IN_ARG1        (FRAME_SIZE +  8)
-#define IN_ARG0        (FRAME_SIZE +  4)
-#define CALLER_RP      (FRAME_SIZE +  0)
+#define IN_ARG3        (FRAME_SIZE + 16 + 16)
+#define IN_ARG2        (FRAME_SIZE + 16 + 12)
+#define IN_ARG1        (FRAME_SIZE + 16 +  8)
+#define IN_ARG0        (FRAME_SIZE + 16 +  4)
 /* Spill offsets relative to %esp */
-#define EBP_SPILL      (FRAME_SIZE -  4)
-#define EDI_SPILL      (FRAME_SIZE -  8)
-#define ESI_SPILL      (FRAME_SIZE - 12)
-#define EBX_SPILL      (FRAME_SIZE - 16)
-#define LOCAL0         (FRAME_SIZE - 20)
-#define LOCAL1         (FRAME_SIZE - 24)
-#define LOCAL2         (FRAME_SIZE - 28)
+#define LOCAL0         (FRAME_SIZE -  4)
+#define LOCAL1         (FRAME_SIZE -  8)
+#define LOCAL2         (FRAME_SIZE - 12)
 /* Out Arg offsets, relative to %esp */
 #define OUT_ARG3       ( 12)
 #define OUT_ARG2       (  8)
@@ -360,15 +367,17 @@ unspecified registers or condition codes.
 
 SYMBOL(ExecuteMterpImpl):
     .cfi_startproc
+    .cfi_def_cfa esp, 4
+
+    /* Spill callee save regs */
+    PUSH    %ebp
+    PUSH    %edi
+    PUSH    %esi
+    PUSH    %ebx
+
     /* Allocate frame */
     subl    $FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset FRAME_SIZE
-
-    /* Spill callee save regs */
-    movl    %ebp, EBP_SPILL(%esp)
-    movl    %edi, EDI_SPILL(%esp)
-    movl    %esi, ESI_SPILL(%esp)
-    movl    %ebx, EBX_SPILL(%esp)
 
     /* Load ShadowFrame pointer */
     movl    IN_ARG2(%esp), %edx
@@ -12985,17 +12994,16 @@ MterpReturn:
     movl    %ecx, 4(%edx)
     mov     $1, %eax
 MterpDone:
-    /* Restore callee save register */
-    movl    EBP_SPILL(%esp), %ebp
-    movl    EDI_SPILL(%esp), %edi
-    movl    ESI_SPILL(%esp), %esi
-    movl    EBX_SPILL(%esp), %ebx
-
     /* pop up frame */
     addl    $FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset -FRAME_SIZE
-    ret
 
+    /* Restore callee save register */
+    POP     %ebx
+    POP     %esi
+    POP     %edi
+    POP     %ebp
+    ret
     .cfi_endproc
     SIZE(ExecuteMterpImpl,ExecuteMterpImpl)
 
