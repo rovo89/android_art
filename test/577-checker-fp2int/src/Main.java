@@ -21,7 +21,8 @@ public class Main {
   /// CHECK-DAG: Return [<<Result>>]
   //
   /// CHECK-START: int Main.f2int(float) instruction_simplifier (after)
-  /// CHECK-DAG: <<Raw:i\d+>> InvokeStaticOrDirect [<<Arg:f\d+>>] intrinsic:FloatFloatToRawIntBits
+  // Note: The ArtMethod* (typed as int or long) is optional after sharpening.
+  /// CHECK-DAG: <<Raw:i\d+>> InvokeStaticOrDirect [<<Arg:f\d+>>{{(,[ij]\d+)?}}] intrinsic:FloatFloatToRawIntBits
   /// CHECK-DAG: <<Cond:z\d+>> NotEqual [<<Arg>>,<<Arg>>]
   /// CHECK-DAG: <<Result:i\d+>> Select [<<Raw>>,{{i\d+}},<<Cond>>]
   /// CHECK-DAG: Return [<<Result>>]
@@ -34,7 +35,8 @@ public class Main {
   /// CHECK-DAG: Return [<<Result>>]
   //
   /// CHECK-START: long Main.d2long(double) instruction_simplifier (after)
-  /// CHECK-DAG: <<Raw:j\d+>> InvokeStaticOrDirect [<<Arg:d\d+>>] intrinsic:DoubleDoubleToRawLongBits
+  // Note: The ArtMethod* (typed as int or long) is optional after sharpening.
+  /// CHECK-DAG: <<Raw:j\d+>> InvokeStaticOrDirect [<<Arg:d\d+>>{{(,[ij]\d+)?}}] intrinsic:DoubleDoubleToRawLongBits
   /// CHECK-DAG: <<Cond:z\d+>> NotEqual [<<Arg>>,<<Arg>>]
   /// CHECK-DAG: <<Result:j\d+>> Select [<<Raw>>,{{j\d+}},<<Cond>>]
   /// CHECK-DAG: Return [<<Result>>]
