@@ -59,6 +59,9 @@ class ThreadPoolWorker {
 
   virtual ~ThreadPoolWorker();
 
+  // Set the "nice" priorty for this worker.
+  void SetPthreadPriority(int priority);
+
  protected:
   ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
   static void* Callback(void* arg) REQUIRES(!Locks::mutator_lock_);
@@ -110,6 +113,9 @@ class ThreadPool {
   // Provides a way to bound the maximum number of worker threads, threads must be less the the
   // thread count of the thread pool.
   void SetMaxActiveWorkers(size_t threads) REQUIRES(!task_queue_lock_);
+
+  // Set the "nice" priorty for threads in the pool.
+  void SetPthreadPriority(int priority);
 
  protected:
   // get a task to run, blocks if there are no tasks left
