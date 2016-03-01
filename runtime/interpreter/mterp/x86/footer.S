@@ -189,16 +189,15 @@ MterpReturn:
     movl    %ecx, 4(%edx)
     mov     $$1, %eax
 MterpDone:
-    /* Restore callee save register */
-    movl    EBP_SPILL(%esp), %ebp
-    movl    EDI_SPILL(%esp), %edi
-    movl    ESI_SPILL(%esp), %esi
-    movl    EBX_SPILL(%esp), %ebx
-
     /* pop up frame */
     addl    $$FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset -FRAME_SIZE
-    ret
 
+    /* Restore callee save register */
+    POP     %ebx
+    POP     %esi
+    POP     %edi
+    POP     %ebp
+    ret
     .cfi_endproc
     SIZE(ExecuteMterpImpl,ExecuteMterpImpl)

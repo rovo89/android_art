@@ -32,15 +32,17 @@
 
 SYMBOL(ExecuteMterpImpl):
     .cfi_startproc
+    .cfi_def_cfa esp, 4
+
+    /* Spill callee save regs */
+    PUSH    %ebp
+    PUSH    %edi
+    PUSH    %esi
+    PUSH    %ebx
+
     /* Allocate frame */
     subl    $$FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset FRAME_SIZE
-
-    /* Spill callee save regs */
-    movl    %ebp, EBP_SPILL(%esp)
-    movl    %edi, EDI_SPILL(%esp)
-    movl    %esi, ESI_SPILL(%esp)
-    movl    %ebx, EBX_SPILL(%esp)
 
     /* Load ShadowFrame pointer */
     movl    IN_ARG2(%esp), %edx
