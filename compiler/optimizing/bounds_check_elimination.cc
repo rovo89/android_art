@@ -533,6 +533,8 @@ class BCEVisitor : public HGraphVisitor {
         first_index_bounds_check_map_(
             std::less<int>(),
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
+        dynamic_bce_standby_(
+            graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
         early_exit_loop_(
             std::less<uint32_t>(),
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
@@ -553,6 +555,13 @@ class BCEVisitor : public HGraphVisitor {
   }
 
   void Finish() {
+    // Retry dynamic bce candidates on standby that are still in the graph.
+    for (HBoundsCheck* bounds_check : dynamic_bce_standby_) {
+      if (bounds_check->IsInBlock()) {
+        TryDynamicBCE(bounds_check);
+      }
+    }
+
     // Preserve SSA structure which may have been broken by adding one or more
     // new taken-test structures (see TransformLoopForDeoptimizationIfNeeded()).
     InsertPhiNodes();
@@ -561,6 +570,7 @@ class BCEVisitor : public HGraphVisitor {
     early_exit_loop_.clear();
     taken_test_loop_.clear();
     finite_loop_.clear();
+    dynamic_bce_standby_.clear();
   }
 
  private:
@@ -1301,7 +1311,7 @@ class BCEVisitor : public HGraphVisitor {
     if (DynamicBCESeemsProfitable(loop, instruction->GetBlock()) &&
         induction_range_.CanGenerateCode(
             instruction, index, &needs_finite_test, &needs_taken_test) &&
-        CanHandleInfiniteLoop(loop, index, needs_finite_test) &&
+        CanHandleInfiniteLoop(loop, instruction, index, needs_finite_test) &&
         CanHandleLength(loop, length, needs_taken_test)) {  // do this test last (may code gen)
       HInstruction* lower = nullptr;
       HInstruction* upper = nullptr;
@@ -1433,7 +1443,7 @@ class BCEVisitor : public HGraphVisitor {
    * ensure the loop is finite.
    */
   bool CanHandleInfiniteLoop(
-      HLoopInformation* loop, HInstruction* index, bool needs_infinite_test) {
+      HLoopInformation* loop, HBoundsCheck* check, HInstruction* index, bool needs_infinite_test) {
     if (needs_infinite_test) {
       // If we already forced the loop to be finite, allow directly.
       const uint32_t loop_id = loop->GetHeader()->GetBlockId();
@@ -1455,6 +1465,9 @@ class BCEVisitor : public HGraphVisitor {
           }
         }
       }
+      // If bounds check made it this far, it is worthwhile to check later if
+      // the loop was forced finite by another candidate.
+      dynamic_bce_standby_.push_back(check);
       return false;
     }
     return true;
@@ -1675,6 +1688,9 @@ class BCEVisitor : public HGraphVisitor {
   // Map an HArrayLength instruction's id to the first HBoundsCheck instruction
   // in a block that checks an index against that HArrayLength.
   ArenaSafeMap<int, HBoundsCheck*> first_index_bounds_check_map_;
+
+  // Stand by list for dynamic bce.
+  ArenaVector<HBoundsCheck*> dynamic_bce_standby_;
 
   // Early-exit loop bookkeeping.
   ArenaSafeMap<uint32_t, bool> early_exit_loop_;
