@@ -208,7 +208,7 @@ class JitCodeCache {
   ProfilingInfo* AddProfilingInfoInternal(Thread* self,
                                           ArtMethod* method,
                                           const std::vector<uint32_t>& entries)
-      REQUIRES(!lock_)
+      REQUIRES(lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // If a collection is in progress, wait for it to finish. Return

@@ -751,23 +751,38 @@ OatQuickMethodHeader* JitCodeCache::LookupOsrMethodHeader(ArtMethod* method) {
 ProfilingInfo* JitCodeCache::AddProfilingInfo(Thread* self,
                                               ArtMethod* method,
                                               const std::vector<uint32_t>& entries,
-                                              bool retry_allocation) {
-  ProfilingInfo* info = AddProfilingInfoInternal(self, method, entries);
+                                              bool retry_allocation)
+    // No thread safety analysis as we are using TryLock/Unlock explicitly.
+    NO_THREAD_SAFETY_ANALYSIS {
+  ProfilingInfo* info = nullptr;
+  if (!retry_allocation) {
+    // If we are allocating for the interpreter, just try to lock, to avoid
+    // lock contention with the JIT.
+    if (lock_.ExclusiveTryLock(self)) {
+      info = AddProfilingInfoInternal(self, method, entries);
+      lock_.ExclusiveUnlock(self);
+    }
+  } else {
+    {
+      MutexLock mu(self, lock_);
+      info = AddProfilingInfoInternal(self, method, entries);
+    }
 
-  if (info == nullptr && retry_allocation) {
-    GarbageCollectCache(self);
-    info = AddProfilingInfoInternal(self, method, entries);
+    if (info == nullptr) {
+      GarbageCollectCache(self);
+      MutexLock mu(self, lock_);
+      info = AddProfilingInfoInternal(self, method, entries);
+    }
   }
   return info;
 }
 
-ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
+ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self ATTRIBUTE_UNUSED,
                                                       ArtMethod* method,
                                                       const std::vector<uint32_t>& entries) {
   size_t profile_info_size = RoundUp(
       sizeof(ProfilingInfo) + sizeof(InlineCache) * entries.size(),
       sizeof(void*));
-  MutexLock mu(self, lock_);
 
   // Check whether some other thread has concurrently created it.
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
