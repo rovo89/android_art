@@ -40,6 +40,8 @@ union JValue;
 class Thread;
 
 namespace jit {
+static constexpr int16_t kJitCheckForOSR = -1;
+static constexpr int16_t kJitHotnessDisabled = -2;
 
 class JitInstrumentationCache;
 
@@ -84,7 +86,6 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 
   static constexpr uint32_t kJitEvents =
       instrumentation::Instrumentation::kMethodEntered |
-      instrumentation::Instrumentation::kBranch |
       instrumentation::Instrumentation::kInvokeVirtualOrInterface;
 
  private:
@@ -96,10 +97,10 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 // Keeps track of which methods are hot.
 class JitInstrumentationCache {
  public:
-  JitInstrumentationCache(size_t hot_method_threshold,
-                          size_t warm_method_threshold,
-                          size_t osr_method_threshold);
-  void AddSamples(Thread* self, ArtMethod* method, size_t samples)
+  JitInstrumentationCache(uint16_t hot_method_threshold,
+                          uint16_t warm_method_threshold,
+                          uint16_t osr_method_threshold);
+  void AddSamples(Thread* self, ArtMethod* method, uint16_t samples)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateThreadPool();
   void DeleteThreadPool(Thread* self);
@@ -108,13 +109,17 @@ class JitInstrumentationCache {
     return hot_method_threshold_;
   }
 
+  size_t WarmMethodThreshold() const {
+    return warm_method_threshold_;
+  }
+
   // Wait until there is no more pending compilation tasks.
   void WaitForCompilationToFinish(Thread* self);
 
  private:
-  size_t hot_method_threshold_;
-  size_t warm_method_threshold_;
-  size_t osr_method_threshold_;
+  int16_t hot_method_threshold_;
+  int16_t warm_method_threshold_;
+  int16_t osr_method_threshold_;
   JitInstrumentationListener listener_;
   std::unique_ptr<ThreadPool> thread_pool_;
 
