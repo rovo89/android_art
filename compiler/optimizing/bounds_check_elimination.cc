@@ -1711,21 +1711,18 @@ void BoundsCheckElimination::Run() {
   // that value dominated by that instruction fits in that range. Range of that
   // value can be narrowed further down in the dominator tree.
   BCEVisitor visitor(graph_, side_effects_, induction_analysis_);
-  HBasicBlock* last_visited_block = nullptr;
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* current = it.Current();
-    if (current == last_visited_block) {
-      // We may insert blocks into the reverse post order list when processing
-      // a loop header. Don't process it again.
-      DCHECK(current->IsLoopHeader());
-      continue;
-    }
     if (visitor.IsAddedBlock(current)) {
       // Skip added blocks. Their effects are already taken care of.
       continue;
     }
     visitor.VisitBasicBlock(current);
-    last_visited_block = current;
+    // Skip forward to the current block in case new basic blocks were inserted
+    // (which always appear earlier in reverse post order) to avoid visiting the
+    // same basic block twice.
+    for ( ; !it.Done() && it.Current() != current; it.Advance()) {
+    }
   }
 
   // Perform cleanup.
