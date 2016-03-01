@@ -622,7 +622,10 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     bool next_collection_will_be_full = ShouldDoFullCollection();
 
     // Start polling the liveness of compiled code to prepare for the next full collection.
-    if (next_collection_will_be_full) {
+    // We avoid doing this if exit stubs are installed to not mess with the instrumentation.
+    // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
+    if (!Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
+        next_collection_will_be_full) {
       // Save the entry point of methods we have compiled, and update the entry
       // point of those methods to the interpreter. If the method is invoked, the
       // interpreter will update its entry point to the compiled code and call it.
