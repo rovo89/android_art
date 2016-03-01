@@ -25,6 +25,9 @@
 namespace art {
 namespace jit {
 
+// At what priority to schedule jit threads. 9 is the lowest foreground priority on device.
+static constexpr int kJitPoolThreadPthreadPriority = 9;
+
 class JitCompileTask FINAL : public Task {
  public:
   enum TaskKind {
@@ -92,6 +95,7 @@ void JitInstrumentationCache::CreateThreadPool() {
   // There is a DCHECK in the 'AddSamples' method to ensure the tread pool
   // is not null when we instrument.
   thread_pool_.reset(new ThreadPool("Jit thread pool", 1));
+  thread_pool_->SetPthreadPriority(kJitPoolThreadPthreadPriority);
   thread_pool_->StartWorkers(Thread::Current());
   {
     // Add Jit interpreter instrumentation, tells the interpreter when
