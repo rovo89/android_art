@@ -1650,8 +1650,15 @@ space::RosAllocSpace* Heap::GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) 
   return nullptr;
 }
 
+static inline bool EntrypointsInstrumented() SHARED_REQUIRES(Locks::mutator_lock_) {
+  instrumentation::Instrumentation* const instrumentation =
+      Runtime::Current()->GetInstrumentation();
+  return instrumentation != nullptr && instrumentation->AllocEntrypointsInstrumented();
+}
+
 mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
                                              AllocatorType allocator,
+                                             bool instrumented,
                                              size_t alloc_size,
                                              size_t* bytes_allocated,
                                              size_t* usable_size,
@@ -1667,12 +1674,13 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
   collector::GcType last_gc = WaitForGcToComplete(kGcCauseForAlloc, self);
+  // If we were the default allocator but the allocator changed while we were suspended,
+  // abort the allocation.
+  if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
+      (!instrumented && EntrypointsInstrumented())) {
+    return nullptr;
+  }
   if (last_gc != collector::kGcTypeNone) {
-    // If we were the default allocator but the allocator changed while we were suspended,
-    // abort the allocation.
-    if (was_default_allocator && allocator != GetCurrentAllocator()) {
-      return nullptr;
-    }
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
     mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
                                                      usable_size, bytes_tl_bulk_allocated);
@@ -1684,7 +1692,8 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
   collector::GcType tried_type = next_gc_type_;
   const bool gc_ran =
       CollectGarbageInternal(tried_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
-  if (was_default_allocator && allocator != GetCurrentAllocator()) {
+  if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
+      (!instrumented && EntrypointsInstrumented())) {
     return nullptr;
   }
   if (gc_ran) {
@@ -1703,7 +1712,8 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
     // Attempt to run the collector, if we succeed, re-try the allocation.
     const bool plan_gc_ran =
         CollectGarbageInternal(gc_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
-    if (was_default_allocator && allocator != GetCurrentAllocator()) {
+    if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
+        (!instrumented && EntrypointsInstrumented())) {
       return nullptr;
     }
     if (plan_gc_ran) {
@@ -1732,7 +1742,8 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
   // We don't need a WaitForGcToComplete here either.
   DCHECK(!gc_plan_.empty());
   CollectGarbageInternal(gc_plan_.back(), kGcCauseForAlloc, true);
-  if (was_default_allocator && allocator != GetCurrentAllocator()) {
+  if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
+      (!instrumented && EntrypointsInstrumented())) {
     return nullptr;
   }
   ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size,
@@ -1748,6 +1759,11 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
             min_interval_homogeneous_space_compaction_by_oom_) {
           last_time_homogeneous_space_compaction_by_oom_ = current_time;
           HomogeneousSpaceCompactResult result = PerformHomogeneousSpaceCompact();
+          // Thread suspension could have occurred.
+          if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
+              (!instrumented && EntrypointsInstrumented())) {
+            return nullptr;
+          }
           switch (result) {
             case HomogeneousSpaceCompactResult::kSuccess:
               // If the allocation succeeded, we delayed an oom.
@@ -1788,6 +1804,11 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
           // If we aren't out of memory then the OOM was probably from the non moving space being
           // full. Attempt to disable compaction and turn the main space into a non moving space.
           DisableMovingGc();
+          // Thread suspension could have occurred.
+          if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
+              (!instrumented && EntrypointsInstrumented())) {
+            return nullptr;
+          }
           // If we are still a moving GC then something must have caused the transition to fail.
           if (IsMovingGc(collector_type_)) {
             MutexLock mu(self, *gc_complete_lock_);
