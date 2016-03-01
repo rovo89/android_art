@@ -292,7 +292,8 @@ LIBART_TARGET_SRC_FILES_x86 := \
 # Note that the fault_handler_x86.cc is not a mistake.  This file is
 # shared between the x86 and x86_64 architectures.
 LIBART_SRC_FILES_x86_64 := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_x86_64.S \
   arch/x86_64/context_x86_64.cc \
   arch/x86_64/entrypoints_init_x86_64.cc \
   arch/x86_64/jni_entrypoints_x86_64.S \
