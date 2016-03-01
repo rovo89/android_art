@@ -1636,6 +1636,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
                     TMP,
                     TR,
                     QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pIndexOf).Int32Value());
+  CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ Jalr(TMP);
   __ Nop();
 
