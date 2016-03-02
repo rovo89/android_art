@@ -215,6 +215,10 @@ bool Jit::JitAtFirstUse() {
   return false;
 }
 
+bool Jit::CanInvokeCompiledCode(ArtMethod* method) {
+  return code_cache_->ContainsPc(method->GetEntryPointFromQuickCompiledCode());
+}
+
 Jit::~Jit() {
   DCHECK(!save_profiling_info_ || !ProfileSaver::IsStarted());
   if (dump_info_on_shutdown_) {
