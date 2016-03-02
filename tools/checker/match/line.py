@@ -35,15 +35,13 @@ def getVariable(name, variables, pos):
   if name in variables:
     return variables[name]
   else:
-    Logger.testFailed("Missing definition of variable \"{}\"".format(name),
-                      pos.fileName, pos.lineNo)
+    Logger.testFailed("Missing definition of variable \"{}\"".format(name), pos, variables)
 
 def setVariable(name, value, variables, pos):
   if name not in variables:
     return variables.copyWith(name, value)
   else:
-    Logger.testFailed("Multiple definitions of variable \"{}\"".format(name),
-                      pos.fileName, pos.lineNo)
+    Logger.testFailed("Multiple definitions of variable \"{}\"".format(name), pos, variables)
 
 def matchWords(checkerWord, stringWord, variables, pos):
   """ Attempts to match a list of TestExpressions against a string.
