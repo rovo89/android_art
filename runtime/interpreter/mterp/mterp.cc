@@ -150,7 +150,8 @@ extern "C" bool MterpShouldSwitchInterpreters()
   bool unhandled_instrumentation;
   // TODO: enable for other targets after more extensive testing.
   if ((kRuntimeISA == kArm64) || (kRuntimeISA == kArm) ||
-      (kRuntimeISA == kX86) || (kRuntimeISA == kMips)) {
+      (kRuntimeISA == kX86_64) || (kRuntimeISA == kX86) ||
+      (kRuntimeISA == kMips)) {
     unhandled_instrumentation = instrumentation->NonJitProfilingActive();
   } else {
     unhandled_instrumentation = instrumentation->IsActive();

@@ -5,15 +5,10 @@
  * double to get a byte offset.
  */
     /* goto/16 +AAAA */
-    movswq  2(rPC), %rax                    # rax <- ssssAAAA
-    addq    %rax, %rax                      # rax <- AA * 2
-    leaq    (rPC, %rax), rPC
+    movswq  2(rPC), rINSTq                  # rINSTq <- ssssAAAA
+    MTERP_PROFILE_BRANCH
+    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
+    leaq    (rPC, rINSTq), rPC
     FETCH_INST
-    jg      1f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT

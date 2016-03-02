@@ -12,7 +12,6 @@
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -98,13 +97,17 @@ MterpException:
     call    SYMBOL(MterpHandleException)
     testb   %al, %al
     jz      MterpExceptionReturn
-    REFRESH_IBASE
     movq    OFF_FP_CODE_ITEM(rFP), %rax
     mov     OFF_FP_DEX_PC(rFP), %ecx
     leaq    CODEITEM_INSNS_OFFSET(%rax), rPC
     leaq    (rPC, %rcx, 2), rPC
     movq    rPC, OFF_FP_DEX_PC_PTR(rFP)
+    /* Do we need to switch interpreters? */
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     /* resume execution at catch block */
+    REFRESH_IBASE
     FETCH_INST
     GOTO_NEXT
     /* NOTE: no fallthrough */
@@ -122,6 +125,19 @@ MterpCheckSuspendAndContinue:
     call    SYMBOL(MterpSuspendCheck)
 1:
     GOTO_NEXT
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    movq    rSELF, OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    movl    rINST, OUT_32_ARG2
+    call    SYMBOL(MterpLogOSR)
+#endif
+    movl    $$1, %eax
+    jmp     MterpDone
 
 /*
  * Bail out to reference interpreter.
