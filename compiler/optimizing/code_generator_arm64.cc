@@ -1072,31 +1072,6 @@ void CodeGeneratorARM64::AddLocationAsTemp(Location location, LocationSummary* l
   }
 }
 
-Location CodeGeneratorARM64::GetStackLocation(HLoadLocal* load) const {
-  Primitive::Type type = load->GetType();
-
-  switch (type) {
-    case Primitive::kPrimNot:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
-      return Location::StackSlot(GetStackSlot(load->GetLocal()));
-
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
-      return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
-
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unexpected type " << type;
-  }
-
-  LOG(FATAL) << "Unreachable";
-  return Location::NoLocation();
-}
-
 void CodeGeneratorARM64::MarkGCCard(Register object, Register value, bool value_can_be_null) {
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register card = temps.AcquireX();
@@ -4010,14 +3985,6 @@ void InstructionCodeGeneratorARM64::VisitClearException(HClearException* clear A
   __ Str(wzr, GetExceptionTlsAddress());
 }
 
-void LocationsBuilderARM64::VisitLoadLocal(HLoadLocal* load) {
-  load->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorARM64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
-}
-
 HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
     HLoadString::LoadKind desired_string_load_kind) {
   if (kEmitCompilerReadBarrier) {
@@ -4154,14 +4121,6 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
     __ Cbz(out, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetExitLabel());
   }
-}
-
-void LocationsBuilderARM64::VisitLocal(HLocal* local) {
-  local->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorARM64::VisitLocal(HLocal* local) {
-  DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
 }
 
 void LocationsBuilderARM64::VisitLongConstant(HLongConstant* constant) {
@@ -4554,34 +4513,6 @@ void LocationsBuilderARM64::VisitShr(HShr* shr) {
 
 void InstructionCodeGeneratorARM64::VisitShr(HShr* shr) {
   HandleShift(shr);
-}
-
-void LocationsBuilderARM64::VisitStoreLocal(HStoreLocal* store) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(store);
-  Primitive::Type field_type = store->InputAt(1)->GetType();
-  switch (field_type) {
-    case Primitive::kPrimNot:
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
-      locations->SetInAt(1, Location::StackSlot(codegen_->GetStackSlot(store->GetLocal())));
-      break;
-
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
-      locations->SetInAt(1, Location::DoubleStackSlot(codegen_->GetStackSlot(store->GetLocal())));
-      break;
-
-    default:
-      LOG(FATAL) << "Unimplemented local type " << field_type;
-      UNREACHABLE();
-  }
-}
-
-void InstructionCodeGeneratorARM64::VisitStoreLocal(HStoreLocal* store ATTRIBUTE_UNUSED) {
 }
 
 void LocationsBuilderARM64::VisitSub(HSub* instruction) {
