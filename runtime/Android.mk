@@ -318,7 +318,8 @@ LIBART_TARGET_SRC_FILES_mips := \
   arch/mips/fault_handler_mips.cc
 
 LIBART_TARGET_SRC_FILES_mips64 := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_mips64.S \
   arch/mips64/context_mips64.cc \
   arch/mips64/entrypoints_init_mips64.cc \
   arch/mips64/jni_entrypoints_mips64.S \
