@@ -230,10 +230,10 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   }
 
   // Trim maps to reduce memory usage.
-  // TODO: measure how much this increases compile time.
+  // TODO: move this to an idle phase.
   {
     TimingLogger::ScopedTiming t2("TrimMaps", &logger);
-    runtime->GetArenaPool()->TrimMaps();
+    runtime->GetJitArenaPool()->TrimMaps();
   }
 
   total_time_ += NanoTime() - start_time;
