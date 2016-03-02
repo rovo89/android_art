@@ -28,10 +28,7 @@ public class Main {
   /// CHECK-EVAL:    <<UseInput>> == <<LivSel>> + 1
 
   public static int p(float arg) {
-    if (arg > 5.0f) {
-      return 0;
-    }
-    return -1;
+    return (arg > 5.0f) ? 0 : -1;
   }
 
   /// CHECK-START: void Main.main(java.lang.String[]) liveness (after)
