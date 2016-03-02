@@ -865,6 +865,7 @@ class Heap {
   // an initial allocation attempt failed.
   mirror::Object* AllocateInternalWithGc(Thread* self,
                                          AllocatorType allocator,
+                                         bool instrumented,
                                          size_t num_bytes,
                                          size_t* bytes_allocated,
                                          size_t* usable_size,
