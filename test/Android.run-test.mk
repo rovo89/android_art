@@ -227,7 +227,6 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 # Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
   097-duplicate-method \
-  137-cfi \
   536-checker-needs-access-check \
   537-checker-inline-and-unverified \
   577-profile-foreign-dex \
