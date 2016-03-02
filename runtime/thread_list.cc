@@ -59,10 +59,6 @@ static constexpr useconds_t kThreadSuspendInitialSleepUs = 0;
 static constexpr useconds_t kThreadSuspendMaxYieldUs = 3000;
 static constexpr useconds_t kThreadSuspendMaxSleepUs = 5000;
 
-// Whether we should try to dump the native stack of unattached threads. See commit ed8b723 for
-// some history.
-static constexpr bool kDumpUnattachedThreadNativeStack = true;
-
 ThreadList::ThreadList()
     : suspend_all_count_(0),
       debug_suspend_all_count_(0),
@@ -153,7 +149,9 @@ static void DumpUnattachedThread(std::ostream& os, pid_t tid) NO_THREAD_SAFETY_A
   // refactor DumpState to avoid skipping analysis.
   Thread::DumpState(os, nullptr, tid);
   DumpKernelStack(os, tid, "  kernel: ", false);
-  if (kDumpUnattachedThreadNativeStack) {
+  // TODO: Reenable this when the native code in system_server can handle it.
+  // Currently "adb shell kill -3 `pid system_server`" will cause it to exit.
+  if (false) {
     DumpNativeStack(os, tid, nullptr, "  native: ");
   }
   os << "\n";
