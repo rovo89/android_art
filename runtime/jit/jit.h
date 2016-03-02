@@ -84,7 +84,11 @@ class Jit {
   // into the specified class linker to the jit debug interface,
   void DumpTypeInfoForLoadedTypes(ClassLinker* linker);
 
+  // Return whether we should try to JIT compiled code as soon as an ArtMethod is invoked.
   bool JitAtFirstUse();
+
+  // Return whether we can invoke JIT code for `method`.
+  bool CanInvokeCompiledCode(ArtMethod* method);
 
   // If an OSR compiled version is available for `method`,
   // and `dex_pc + dex_pc_offset` is an entry point of that compiled
