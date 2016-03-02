@@ -23,9 +23,10 @@ MatchScope = namedtuple("MatchScope", ["start", "end"])
 MatchInfo = namedtuple("MatchInfo", ["scope", "variables"])
 
 class MatchFailedException(Exception):
-  def __init__(self, assertion, lineNo):
+  def __init__(self, assertion, lineNo, variables):
     self.assertion = assertion
     self.lineNo = lineNo
+    self.variables = variables
 
 def splitIntoGroups(assertions):
   """ Breaks up a list of assertions, grouping instructions which should be
@@ -58,7 +59,7 @@ def findMatchingLine(assertion, c1Pass, scope, variables, excludeLines=[]):
     newVariables = MatchLines(assertion, c1Pass.body[i], variables)
     if newVariables is not None:
       return MatchInfo(MatchScope(i, i), newVariables)
-  raise MatchFailedException(assertion, scope.start)
+  raise MatchFailedException(assertion, scope.start, variables)
 
 def matchDagGroup(assertions, c1Pass, scope, variables):
   """ Attempts to find matching `c1Pass` lines for a group of DAG assertions.
@@ -92,12 +93,12 @@ def testNotGroup(assertions, c1Pass, scope, variables):
     for assertion in assertions:
       assert assertion.variant == TestAssertion.Variant.Not
       if MatchLines(assertion, line, variables) is not None:
-        raise MatchFailedException(assertion, i)
+        raise MatchFailedException(assertion, i, variables)
 
 def testEvalGroup(assertions, scope, variables):
   for assertion in assertions:
     if not EvaluateLine(assertion, variables):
-      raise MatchFailedException(assertion, scope.start)
+      raise MatchFailedException(assertion, scope.start, variables)
 
 def MatchTestCase(testCase, c1Pass):
   """ Runs a test case against a C1visualizer graph dump.
@@ -181,8 +182,8 @@ def MatchFiles(checkerFile, c1File, targetArch, debuggableMode):
     except MatchFailedException as e:
       lineNo = c1Pass.startLineNo + e.lineNo
       if e.assertion.variant == TestAssertion.Variant.Not:
-        Logger.testFailed("NOT assertion matched line {}".format(lineNo),
-                          e.assertion.fileName, e.assertion.lineNo)
+        msg = "NOT assertion matched line {}"
       else:
-        Logger.testFailed("Assertion could not be matched starting from line {}".format(lineNo),
-                          e.assertion.fileName, e.assertion.lineNo)
+        msg = "Assertion could not be matched starting from line {}"
+      msg = msg.format(lineNo)
+      Logger.testFailed(msg, e.assertion, e.variables)
