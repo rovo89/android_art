@@ -193,6 +193,46 @@ class SystemArrayCopyOptimizations : public IntrinsicOptimizations {
 
 #undef INTRISIC_OPTIMIZATION
 
+//
+// Macros for use in the intrinsics code generators.
+//
+
+// Defines an unimplemented intrinsic: that is, a method call that is recognized as an
+// intrinsic to exploit e.g. no side-effects or exceptions, but otherwise not handled
+// by this architecture-specific intrinsics code generator. Eventually it is implemented
+// as a true method call.
+#define UNIMPLEMENTED_INTRINSIC(Arch, Name)                                               \
+void IntrinsicLocationsBuilder ## Arch::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
+}                                                                                         \
+void IntrinsicCodeGenerator ## Arch::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
+}
+
+// Defines a list of unreached intrinsics: that is, method calls that are recognized as
+// an intrinsic, and then always converted into HIR instructions before they reach any
+// architecture-specific intrinsics code generator.
+#define UNREACHABLE_INTRINSIC(Arch, Name)                                \
+void IntrinsicLocationsBuilder ## Arch::Visit ## Name(HInvoke* invoke) { \
+  LOG(FATAL) << "Unreachable: intrinsic " << invoke->GetIntrinsic()      \
+             << " should have been converted to HIR";                    \
+}                                                                        \
+void IntrinsicCodeGenerator ## Arch::Visit ## Name(HInvoke* invoke) {    \
+  LOG(FATAL) << "Unreachable: intrinsic " << invoke->GetIntrinsic()      \
+             << " should have been converted to HIR";                    \
+}
+#define UNREACHABLE_INTRINSICS(Arch)                \
+UNREACHABLE_INTRINSIC(Arch, FloatFloatToIntBits)    \
+UNREACHABLE_INTRINSIC(Arch, DoubleDoubleToLongBits) \
+UNREACHABLE_INTRINSIC(Arch, FloatIsNaN)             \
+UNREACHABLE_INTRINSIC(Arch, DoubleIsNaN)            \
+UNREACHABLE_INTRINSIC(Arch, IntegerRotateLeft)      \
+UNREACHABLE_INTRINSIC(Arch, LongRotateLeft)         \
+UNREACHABLE_INTRINSIC(Arch, IntegerRotateRight)     \
+UNREACHABLE_INTRINSIC(Arch, LongRotateRight)        \
+UNREACHABLE_INTRINSIC(Arch, IntegerCompare)         \
+UNREACHABLE_INTRINSIC(Arch, LongCompare)            \
+UNREACHABLE_INTRINSIC(Arch, IntegerSignum)          \
+UNREACHABLE_INTRINSIC(Arch, LongSignum)
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_H_

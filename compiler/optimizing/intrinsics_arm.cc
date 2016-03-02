@@ -1979,54 +1979,30 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
-// Unimplemented intrinsics.
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM, LongBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMinDoubleDouble)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMinFloatFloat)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMaxDoubleDouble)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMaxFloatFloat)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMinLongLong)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMaxLongLong)
+UNIMPLEMENTED_INTRINSIC(ARM, MathCeil)          // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, MathFloor)         // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, MathRint)
+UNIMPLEMENTED_INTRINSIC(ARM, MathRoundDouble)   // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, MathRoundFloat)    // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeCASLong)     // High register pressure.
+UNIMPLEMENTED_INTRINSIC(ARM, SystemArrayCopyChar)
+UNIMPLEMENTED_INTRINSIC(ARM, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(ARM, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM, DoubleIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM, LongLowestOneBit)
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
-void IntrinsicLocationsBuilderARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                      \
-void IntrinsicCodeGeneratorARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
-
-UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(LongBitCount)
-UNIMPLEMENTED_INTRINSIC(MathMinDoubleDouble)
-UNIMPLEMENTED_INTRINSIC(MathMinFloatFloat)
-UNIMPLEMENTED_INTRINSIC(MathMaxDoubleDouble)
-UNIMPLEMENTED_INTRINSIC(MathMaxFloatFloat)
-UNIMPLEMENTED_INTRINSIC(MathMinLongLong)
-UNIMPLEMENTED_INTRINSIC(MathMaxLongLong)
-UNIMPLEMENTED_INTRINSIC(MathCeil)          // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(MathFloor)         // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(MathRint)
-UNIMPLEMENTED_INTRINSIC(MathRoundDouble)   // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(MathRoundFloat)    // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatFloatToIntBits)
-UNIMPLEMENTED_INTRINSIC(DoubleDoubleToLongBits)
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
-
-#undef UNIMPLEMENTED_INTRINSIC
+UNREACHABLE_INTRINSICS(ARM)
 
 #undef __
 
