@@ -261,7 +261,7 @@ class MallocArena FINAL : public Arena {
 
 class MemMapArena FINAL : public Arena {
  public:
-  MemMapArena(size_t size, bool low_4gb);
+  MemMapArena(size_t size, bool low_4gb, const char* name);
   virtual ~MemMapArena();
   void Release() OVERRIDE;
 
@@ -271,7 +271,9 @@ class MemMapArena FINAL : public Arena {
 
 class ArenaPool {
  public:
-  explicit ArenaPool(bool use_malloc = true, bool low_4gb = false);
+  ArenaPool(bool use_malloc = true,
+            bool low_4gb = false,
+            const char* name = "LinearAlloc");
   ~ArenaPool();
   Arena* AllocArena(size_t size) REQUIRES(!lock_);
   void FreeArenaChain(Arena* first) REQUIRES(!lock_);
@@ -287,6 +289,7 @@ class ArenaPool {
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Arena* free_arenas_ GUARDED_BY(lock_);
   const bool low_4gb_;
+  const char* name_;
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
 };
 
