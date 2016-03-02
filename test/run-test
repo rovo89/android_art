@@ -677,11 +677,7 @@ function arch_supports_read_barrier() {
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
-  # Jack does not necessarily generate the same DEX output than dx. Because these tests depend
-  # on a particular DEX output, keep building them with dx for now (b/19467889).
-  USE_JACK="false"
-
-  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" ]; then
+  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$USE_JACK" = "true" ]; then
     # Optimizing has read barrier support for certain architectures
     # only. On other architectures, compiling is disabled when read
     # barriers are enabled, meaning that we do not produce a CFG file
