@@ -43,8 +43,4 @@ function writeFileMethod(name) {
     printf("}\n") > fileName;
 }'
 
-# The test relies on the error message produced by dx, not jack, so keep building with dx for now
-# (b/19467889).
-mkdir classes
-${JAVAC} -d classes `find src -name '*.java'`
-${DX} -JXmx1024m --dex --no-optimize classes
+./default-build
