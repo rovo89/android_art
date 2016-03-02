@@ -316,6 +316,7 @@ Runtime::~Runtime() {
   linear_alloc_.reset();
   low_4gb_arena_pool_.reset();
   arena_pool_.reset();
+  jit_arena_pool_.reset();
   MemMap::Shutdown();
   ATRACE_END();
 
@@ -1019,10 +1020,13 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Use MemMap arena pool for jit, malloc otherwise. Malloc arenas are faster to allocate but
   // can't be trimmed as easily.
   const bool use_malloc = IsAotCompiler();
-  arena_pool_.reset(new ArenaPool(use_malloc, false));
+  arena_pool_.reset(new ArenaPool(use_malloc, /* low_4gb */ false));
+  jit_arena_pool_.reset(
+      new ArenaPool(/* use_malloc */ false, /* low_4gb */ false, "CompilerMetadata"));
+
   if (IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA)) {
     // 4gb, no malloc. Explanation in header.
-    low_4gb_arena_pool_.reset(new ArenaPool(false, true));
+    low_4gb_arena_pool_.reset(new ArenaPool(/* use_malloc */ false, /* low_4gb */ true));
   }
   linear_alloc_.reset(CreateLinearAlloc());
 

@@ -183,10 +183,10 @@ MallocArena::~MallocArena() {
   free(reinterpret_cast<void*>(memory_));
 }
 
-MemMapArena::MemMapArena(size_t size, bool low_4gb) {
+MemMapArena::MemMapArena(size_t size, bool low_4gb, const char* name) {
   std::string error_msg;
   map_.reset(MemMap::MapAnonymous(
-      "LinearAlloc", nullptr, size, PROT_READ | PROT_WRITE, low_4gb, false, &error_msg));
+      name, nullptr, size, PROT_READ | PROT_WRITE, low_4gb, false, &error_msg));
   CHECK(map_.get() != nullptr) << error_msg;
   memory_ = map_->Begin();
   size_ = map_->Size();
@@ -210,9 +210,12 @@ void Arena::Reset() {
   }
 }
 
-ArenaPool::ArenaPool(bool use_malloc, bool low_4gb)
-    : use_malloc_(use_malloc), lock_("Arena pool lock", kArenaPoolLock), free_arenas_(nullptr),
-      low_4gb_(low_4gb) {
+ArenaPool::ArenaPool(bool use_malloc, bool low_4gb, const char* name)
+    : use_malloc_(use_malloc),
+      lock_("Arena pool lock", kArenaPoolLock),
+      free_arenas_(nullptr),
+      low_4gb_(low_4gb),
+      name_(name) {
   if (low_4gb) {
     CHECK(!use_malloc) << "low4gb must use map implementation";
   }
@@ -250,7 +253,7 @@ Arena* ArenaPool::AllocArena(size_t size) {
   }
   if (ret == nullptr) {
     ret = use_malloc_ ? static_cast<Arena*>(new MallocArena(size)) :
-        new MemMapArena(size, low_4gb_);
+        new MemMapArena(size, low_4gb_, name_);
   }
   ret->Reset();
   return ret;
