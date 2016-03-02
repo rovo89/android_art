@@ -205,58 +205,6 @@ public class Main {
   public static boolean $inline$InstanceofSubclassB(Object o) { return o instanceof SubclassB; }
   public static boolean $inline$InstanceofSubclassC(Object o) { return o instanceof SubclassC; }
 
-  /// CHECK-START: void Main.testInstanceOf_NotInlined(java.lang.Object) builder (after)
-  /// CHECK-DAG:     <<Cst0:i\d+>> IntConstant 0
-  /// CHECK-DAG:     <<Cst1:i\d+>> IntConstant 1
-  /// CHECK-DAG:     <<IOf1:z\d+>> InstanceOf
-  /// CHECK-DAG:                   NotEqual [<<IOf1>>,<<Cst1>>]
-  /// CHECK-DAG:     <<IOf2:z\d+>> InstanceOf
-  /// CHECK-DAG:                   Equal [<<IOf2>>,<<Cst0>>]
-
-  /// CHECK-START: void Main.testInstanceOf_NotInlined(java.lang.Object) instruction_simplifier (before)
-  /// CHECK:         CheckCast
-  /// CHECK:         CheckCast
-  /// CHECK-NOT:     CheckCast
-
-  /// CHECK-START: void Main.testInstanceOf_NotInlined(java.lang.Object) instruction_simplifier (after)
-  /// CHECK-NOT:     CheckCast
-  public void testInstanceOf_NotInlined(Object o) {
-    if ((o instanceof SubclassC) == true) {
-      ((SubclassC)o).$noinline$g();
-    }
-    if ((o instanceof SubclassB) != false) {
-      ((SubclassB)o).$noinline$g();
-    }
-  }
-
-  /// CHECK-START: void Main.testNotInstanceOf_NotInlined(java.lang.Object) builder (after)
-  /// CHECK-DAG:     <<Cst0:i\d+>> IntConstant 0
-  /// CHECK-DAG:     <<Cst1:i\d+>> IntConstant 1
-  /// CHECK-DAG:     <<IOf1:z\d+>> InstanceOf
-  /// CHECK-DAG:                   Equal [<<IOf1>>,<<Cst1>>]
-  /// CHECK-DAG:     <<IOf2:z\d+>> InstanceOf
-  /// CHECK-DAG:                   NotEqual [<<IOf2>>,<<Cst0>>]
-
-  /// CHECK-START: void Main.testNotInstanceOf_NotInlined(java.lang.Object) instruction_simplifier (before)
-  /// CHECK:         CheckCast
-  /// CHECK:         CheckCast
-  /// CHECK-NOT:     CheckCast
-
-  /// CHECK-START: void Main.testNotInstanceOf_NotInlined(java.lang.Object) instruction_simplifier (after)
-  /// CHECK-NOT:     CheckCast
-  public void testNotInstanceOf_NotInlined(Object o) {
-    if ((o instanceof SubclassC) != true) {
-      // Empty branch to flip the condition.
-    } else {
-      ((SubclassC)o).$noinline$g();
-    }
-    if ((o instanceof SubclassB) == false) {
-      // Empty branch to flip the condition.
-    } else {
-      ((SubclassB)o).$noinline$g();
-    }
-  }
-
   /// CHECK-START: void Main.testInstanceOf_Inlined(java.lang.Object) inliner (after)
   /// CHECK-DAG:     <<IOf:z\d+>>  InstanceOf
   /// CHECK-DAG:                   If [<<IOf>>]
