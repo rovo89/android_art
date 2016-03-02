@@ -705,9 +705,17 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
     auto profiling_kept_end = std::remove_if(profiling_infos_.begin(), profiling_infos_.end(),
       [this] (ProfilingInfo* info) NO_THREAD_SAFETY_ANALYSIS {
         const void* ptr = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
+        // We have previously cleared the ProfilingInfo pointer in the ArtMethod in the hope
+        // that the compiled code would not get revived. As mutator threads run concurrently,
+        // they may have revived the compiled code, and now we are in the situation where
+        // a method has compiled code but no ProfilingInfo.
+        // We make sure compiled methods have a ProfilingInfo object. It is needed for
+        // code cache collection.
         if (ContainsPc(ptr) && info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
-          // Make sure compiled methods have a ProfilingInfo object. It is needed for
-          // code cache collection.
+          // We clear the inline caches as classes in it might be stalled.
+          info->ClearInlineCaches();
+          // Do a fence to make sure the clearing is seen before attaching to the method.
+          QuasiAtomic::ThreadFenceRelease();
           info->GetMethod()->SetProfilingInfo(info);
         } else if (info->GetMethod()->GetProfilingInfo(sizeof(void*)) != info) {
           // No need for this ProfilingInfo object anymore.
