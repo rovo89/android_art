@@ -2855,8 +2855,9 @@ LinearAlloc* ClassLinker::GetOrCreateAllocatorForClassLoader(mirror::ClassLoader
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   LinearAlloc* allocator = class_loader->GetAllocator();
   if (allocator == nullptr) {
-    allocator = Runtime::Current()->CreateLinearAlloc();
-    class_loader->SetAllocator(allocator);
+    RegisterClassLoader(class_loader);
+    allocator = class_loader->GetAllocator();
+    CHECK(allocator != nullptr);
   }
   return allocator;
 }
@@ -4817,24 +4818,31 @@ void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class,
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(new_class);
 }
 
+void ClassLinker::RegisterClassLoader(mirror::ClassLoader* class_loader) {
+  CHECK(class_loader->GetAllocator() == nullptr);
+  CHECK(class_loader->GetClassTable() == nullptr);
+  Thread* const self = Thread::Current();
+  ClassLoaderData data;
+  data.weak_root = self->GetJniEnv()->vm->AddWeakGlobalRef(self, class_loader);
+  // Create and set the class table.
+  data.class_table = new ClassTable;
+  class_loader->SetClassTable(data.class_table);
+  // Create and set the linear allocator.
+  data.allocator = Runtime::Current()->CreateLinearAlloc();
+  class_loader->SetAllocator(data.allocator);
+  // Add to the list so that we know to free the data later.
+  class_loaders_.push_back(data);
+}
+
 ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* class_loader) {
   if (class_loader == nullptr) {
     return &boot_class_table_;
   }
   ClassTable* class_table = class_loader->GetClassTable();
   if (class_table == nullptr) {
-    class_table = new ClassTable;
-    Thread* const self = Thread::Current();
-    ClassLoaderData data;
-    data.weak_root = self->GetJniEnv()->vm->AddWeakGlobalRef(self, class_loader);
-    data.class_table = class_table;
-    // Don't already have a class table, add it to the class loader.
-    CHECK(class_loader->GetClassTable() == nullptr);
-    class_loader->SetClassTable(data.class_table);
-    // Should have been set when we registered the dex file.
-    data.allocator = class_loader->GetAllocator();
-    CHECK(data.allocator != nullptr);
-    class_loaders_.push_back(data);
+    RegisterClassLoader(class_loader);
+    class_table = class_loader->GetClassTable();
+    DCHECK(class_table != nullptr);
   }
   return class_table;
 }
