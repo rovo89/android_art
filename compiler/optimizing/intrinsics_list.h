@@ -19,7 +19,7 @@
 
 // All intrinsics supported by the optimizing compiler. Format is name, then whether it is expected
 // to be a HInvokeStaticOrDirect node (compared to HInvokeVirtual), then whether it requires an
-// environment.
+// environment, may have side effects, or may throw exceptions.
 
 #define INTRINSICS_LIST(V) \
   V(DoubleDoubleToRawLongBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \

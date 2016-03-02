@@ -340,130 +340,6 @@ void IntrinsicCodeGeneratorMIPS64::VisitLongNumberOfTrailingZeros(HInvoke* invok
   GenNumberOfTrailingZeroes(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
-static void GenRotateRight(HInvoke* invoke,
-                           Primitive::Type type,
-                           Mips64Assembler* assembler) {
-  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
-
-  LocationSummary* locations = invoke->GetLocations();
-  GpuRegister in = locations->InAt(0).AsRegister<GpuRegister>();
-  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-
-  if (invoke->InputAt(1)->IsIntConstant()) {
-    uint32_t shift = static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue());
-    if (type == Primitive::kPrimInt) {
-      shift &= 0x1f;
-      __ Rotr(out, in, shift);
-    } else {
-      shift &= 0x3f;
-      if (shift < 32) {
-        __ Drotr(out, in, shift);
-      } else {
-        shift &= 0x1f;
-        __ Drotr32(out, in, shift);
-      }
-    }
-  } else {
-    GpuRegister shamt = locations->InAt(1).AsRegister<GpuRegister>();
-    if (type == Primitive::kPrimInt) {
-      __ Rotrv(out, in, shamt);
-    } else {
-      __ Drotrv(out, in, shamt);
-    }
-  }
-}
-
-// int java.lang.Integer.rotateRight(int i, int distance)
-void IntrinsicLocationsBuilderMIPS64::VisitIntegerRotateRight(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorMIPS64::VisitIntegerRotateRight(HInvoke* invoke) {
-  GenRotateRight(invoke, Primitive::kPrimInt, GetAssembler());
-}
-
-// long java.lang.Long.rotateRight(long i, int distance)
-void IntrinsicLocationsBuilderMIPS64::VisitLongRotateRight(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorMIPS64::VisitLongRotateRight(HInvoke* invoke) {
-  GenRotateRight(invoke, Primitive::kPrimLong, GetAssembler());
-}
-
-static void GenRotateLeft(HInvoke* invoke,
-                           Primitive::Type type,
-                           Mips64Assembler* assembler) {
-  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
-
-  LocationSummary* locations = invoke->GetLocations();
-  GpuRegister in = locations->InAt(0).AsRegister<GpuRegister>();
-  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-
-  if (invoke->InputAt(1)->IsIntConstant()) {
-    int32_t shift = -static_cast<int32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue());
-    if (type == Primitive::kPrimInt) {
-      shift &= 0x1f;
-      __ Rotr(out, in, shift);
-    } else {
-      shift &= 0x3f;
-      if (shift < 32) {
-        __ Drotr(out, in, shift);
-      } else {
-        shift &= 0x1f;
-        __ Drotr32(out, in, shift);
-      }
-    }
-  } else {
-    GpuRegister shamt = locations->InAt(1).AsRegister<GpuRegister>();
-    if (type == Primitive::kPrimInt) {
-      __ Subu(TMP, ZERO, shamt);
-      __ Rotrv(out, in, TMP);
-    } else {
-      __ Dsubu(TMP, ZERO, shamt);
-      __ Drotrv(out, in, TMP);
-    }
-  }
-}
-
-// int java.lang.Integer.rotateLeft(int i, int distance)
-void IntrinsicLocationsBuilderMIPS64::VisitIntegerRotateLeft(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorMIPS64::VisitIntegerRotateLeft(HInvoke* invoke) {
-  GenRotateLeft(invoke, Primitive::kPrimInt, GetAssembler());
-}
-
-// long java.lang.Long.rotateLeft(long i, int distance)
-void IntrinsicLocationsBuilderMIPS64::VisitLongRotateLeft(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
-                                                           kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorMIPS64::VisitLongRotateLeft(HInvoke* invoke) {
-  GenRotateLeft(invoke, Primitive::kPrimLong, GetAssembler());
-}
-
 static void GenReverse(LocationSummary* locations,
                        Primitive::Type type,
                        Mips64Assembler* assembler) {
@@ -1785,62 +1661,44 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromString(HInvoke* invok
   __ Bind(slow_path->GetExitLabel());
 }
 
-// Unimplemented intrinsics.
+UNIMPLEMENTED_INTRINSIC(MIPS64, IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(MIPS64, LongBitCount)
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
-void IntrinsicLocationsBuilderMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                      \
-void IntrinsicCodeGeneratorMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathRoundDouble)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathRoundFloat)
 
-UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(LongBitCount)
+UNIMPLEMENTED_INTRINSIC(MIPS64, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(MIPS64, StringGetCharsNoCheck)
+UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopyChar)
+UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopy)
 
-UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathCos)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathSin)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathAcos)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathAsin)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathAtan)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathAtan2)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathCbrt)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathCosh)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathExp)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathExpm1)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathHypot)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathLog)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathLog10)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathNextAfter)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathSinh)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathTan)
+UNIMPLEMENTED_INTRINSIC(MIPS64, MathTanh)
 
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
+UNIMPLEMENTED_INTRINSIC(MIPS64, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(MIPS64, DoubleIsInfinite)
 
-UNIMPLEMENTED_INTRINSIC(MathCos)
-UNIMPLEMENTED_INTRINSIC(MathSin)
-UNIMPLEMENTED_INTRINSIC(MathAcos)
-UNIMPLEMENTED_INTRINSIC(MathAsin)
-UNIMPLEMENTED_INTRINSIC(MathAtan)
-UNIMPLEMENTED_INTRINSIC(MathAtan2)
-UNIMPLEMENTED_INTRINSIC(MathCbrt)
-UNIMPLEMENTED_INTRINSIC(MathCosh)
-UNIMPLEMENTED_INTRINSIC(MathExp)
-UNIMPLEMENTED_INTRINSIC(MathExpm1)
-UNIMPLEMENTED_INTRINSIC(MathHypot)
-UNIMPLEMENTED_INTRINSIC(MathLog)
-UNIMPLEMENTED_INTRINSIC(MathLog10)
-UNIMPLEMENTED_INTRINSIC(MathNextAfter)
-UNIMPLEMENTED_INTRINSIC(MathSinh)
-UNIMPLEMENTED_INTRINSIC(MathTan)
-UNIMPLEMENTED_INTRINSIC(MathTanh)
+UNIMPLEMENTED_INTRINSIC(MIPS64, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(MIPS64, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(MIPS64, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(MIPS64, LongLowestOneBit)
 
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatFloatToIntBits)
-UNIMPLEMENTED_INTRINSIC(DoubleDoubleToLongBits)
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
-
-#undef UNIMPLEMENTED_INTRINSIC
+UNREACHABLE_INTRINSICS(MIPS64)
 
 #undef __
 
