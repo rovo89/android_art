@@ -419,6 +419,12 @@ class Instrumentation {
                                size_t inlined_frames_before_frame)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Does not hold lock, used to check if someone changed from not instrumented to instrumented
+  // during a GC suspend point.
+  bool AllocEntrypointsInstrumented() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return quick_alloc_entry_points_instrumentation_counter_ > 0;
+  }
+
  private:
   InstrumentationLevel GetCurrentInstrumentationLevel() const;
 
@@ -572,9 +578,7 @@ class Instrumentation {
   InterpreterHandlerTable interpreter_handler_table_ GUARDED_BY(Locks::mutator_lock_);
 
   // Greater than 0 if quick alloc entry points instrumented.
-  size_t quick_alloc_entry_points_instrumentation_counter_
-      GUARDED_BY(Locks::instrument_entrypoints_lock_);
-
+  size_t quick_alloc_entry_points_instrumentation_counter_;
   friend class InstrumentationTest;  // For GetCurrentInstrumentationLevel and ConfigureStubs.
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
