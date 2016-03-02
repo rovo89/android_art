@@ -134,13 +134,17 @@ class ProfilingInfo {
     return saved_entry_point_;
   }
 
+  void ClearInlineCaches() {
+    memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
+  }
+
  private:
   ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
       : number_of_inline_caches_(entries.size()),
         method_(method),
         is_method_being_compiled_(false),
         saved_entry_point_(nullptr) {
-    memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
+    ClearInlineCaches();
     for (size_t i = 0; i < number_of_inline_caches_; ++i) {
       cache_[i].dex_pc_ = entries[i];
     }
