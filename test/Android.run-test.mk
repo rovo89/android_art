@@ -222,10 +222,8 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 
 # Disable 097-duplicate-method while investigation (broken by latest Jack release, b/27358065)
-# Disable 130-hprof, it has races (b/27337759)
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
-  097-duplicate-method \
-  130-hprof
+  097-duplicate-method
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
