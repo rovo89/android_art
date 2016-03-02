@@ -361,6 +361,7 @@ class OatDumperOptions {
                    const char* method_filter,
                    bool list_classes,
                    bool list_methods,
+                   bool dump_header_only,
                    const char* export_dex_location,
                    uint32_t addr2instr)
     : dump_raw_mapping_table_(dump_raw_mapping_table),
@@ -373,6 +374,7 @@ class OatDumperOptions {
       method_filter_(method_filter),
       list_classes_(list_classes),
       list_methods_(list_methods),
+      dump_header_only_(dump_header_only),
       export_dex_location_(export_dex_location),
       addr2instr_(addr2instr),
       class_loader_(nullptr) {}
@@ -387,6 +389,7 @@ class OatDumperOptions {
   const char* const method_filter_;
   const bool list_classes_;
   const bool list_methods_;
+  const bool dump_header_only_;
   const char* const export_dex_location_;
   uint32_t addr2instr_;
   Handle<mirror::ClassLoader>* class_loader_;
@@ -514,21 +517,24 @@ class OatDumper {
       os << StringPrintf("0x%08x\n\n", resolved_addr2instr_);
     }
 
-    for (size_t i = 0; i < oat_dex_files_.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
-      CHECK(oat_dex_file != nullptr);
+    if (!options_.dump_header_only_) {
+      for (size_t i = 0; i < oat_dex_files_.size(); i++) {
+        const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
+        CHECK(oat_dex_file != nullptr);
 
-      // If file export selected skip file analysis
-      if (options_.export_dex_location_) {
-        if (!ExportDexFile(os, *oat_dex_file)) {
-          success = false;
-        }
-      } else {
-        if (!DumpOatDexFile(os, *oat_dex_file)) {
-          success = false;
+        // If file export selected skip file analysis
+        if (options_.export_dex_location_) {
+          if (!ExportDexFile(os, *oat_dex_file)) {
+            success = false;
+          }
+        } else {
+          if (!DumpOatDexFile(os, *oat_dex_file)) {
+            success = false;
+          }
         }
       }
     }
+
     os << std::flush;
     return success;
   }
@@ -2572,6 +2578,8 @@ struct OatdumpArgs : public CmdlineArgs {
       dump_code_info_stack_maps_ = true;
     } else if (option == "--no-disassemble") {
       disassemble_code_ = false;
+    } else if (option =="--header-only") {
+      dump_header_only_ = true;
     } else if (option.starts_with("--symbolize=")) {
       oat_filename_ = option.substr(strlen("--symbolize=")).data();
       symbolize_ = true;
@@ -2655,6 +2663,9 @@ struct OatdumpArgs : public CmdlineArgs {
         "  --no-disassemble may be used to disable disassembly.\n"
         "      Example: --no-disassemble\n"
         "\n"
+        "  --header-only may be used to print only the oat header.\n"
+        "      Example: --header-only\n"
+        "\n"
         "  --list-classes may be used to list target file classes (can be used with filters).\n"
         "      Example: --list-classes\n"
         "      Example: --list-classes --class-filter=com.example.foo\n"
@@ -2697,6 +2708,7 @@ struct OatdumpArgs : public CmdlineArgs {
   bool symbolize_ = false;
   bool list_classes_ = false;
   bool list_methods_ = false;
+  bool dump_header_only_ = false;
   uint32_t addr2instr_ = 0;
   const char* export_dex_location_ = nullptr;
 };
@@ -2719,6 +2731,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
         args_->method_filter_,
         args_->list_classes_,
         args_->list_methods_,
+        args_->dump_header_only_,
         args_->export_dex_location_,
         args_->addr2instr_));
 
