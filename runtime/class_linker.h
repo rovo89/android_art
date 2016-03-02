@@ -582,12 +582,12 @@ class ClassLinker {
 
   // Unlike GetOrCreateAllocatorForClassLoader, GetAllocatorForClassLoader asserts that the
   // allocator for this class loader is already created.
-  static LinearAlloc* GetAllocatorForClassLoader(mirror::ClassLoader* class_loader)
+  LinearAlloc* GetAllocatorForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return the linear alloc for a class loader if it is already allocated, otherwise allocate and
   // set it. TODO: Consider using a lock other than classlinker_classes_lock_.
-  static LinearAlloc* GetOrCreateAllocatorForClassLoader(mirror::ClassLoader* class_loader)
+  LinearAlloc* GetOrCreateAllocatorForClassLoader(mirror::ClassLoader* class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -986,9 +986,16 @@ class ClassLinker {
   mirror::Class* LookupClassFromBootImage(const char* descriptor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Register a class loader and create its class table and allocator. Should not be called if
+  // these are already created.
+  void RegisterClassLoader(mirror::ClassLoader* class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::classlinker_classes_lock_);
+
   // Returns null if not found.
   ClassTable* ClassTableForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_, Locks::classlinker_classes_lock_);
+
   // Insert a new class table if not found.
   ClassTable* InsertClassTableForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_)
