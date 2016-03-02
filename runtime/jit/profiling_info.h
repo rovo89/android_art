@@ -126,11 +126,20 @@ class ProfilingInfo {
     is_method_being_compiled_ = value;
   }
 
+  void SetSavedEntryPoint(const void* entry_point) {
+    saved_entry_point_ = entry_point;
+  }
+
+  const void* GetSavedEntryPoint() const {
+    return saved_entry_point_;
+  }
+
  private:
   ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
       : number_of_inline_caches_(entries.size()),
         method_(method),
-        is_method_being_compiled_(false) {
+        is_method_being_compiled_(false),
+        saved_entry_point_(nullptr) {
     memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
     for (size_t i = 0; i < number_of_inline_caches_; ++i) {
       cache_[i].dex_pc_ = entries[i];
@@ -147,6 +156,10 @@ class ProfilingInfo {
   // is implicitly guarded by the JIT code cache lock.
   // TODO: Make the JIT code cache lock global.
   bool is_method_being_compiled_;
+
+  // Entry point of the corresponding ArtMethod, while the JIT code cache
+  // is poking for the liveness of compiled code.
+  const void* saved_entry_point_;
 
   // Dynamically allocated array of size `number_of_inline_caches_`.
   InlineCache cache_[0];
