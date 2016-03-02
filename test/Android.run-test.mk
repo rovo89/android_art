@@ -224,11 +224,13 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 # Disable 097-duplicate-method while investigation (broken by latest Jack release, b/27358065)
 # Disable 137-cfi (b/27391690).
 # Disable 536-checker-needs-access-check and 537-checker-inline-and-unverified (b/27425061)
+# Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
   097-duplicate-method \
   137-cfi \
   536-checker-needs-access-check \
   537-checker-inline-and-unverified \
+  577-profile-foreign-dex \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
