@@ -739,7 +739,7 @@ void StackVisitor::SanityCheckFrame() const {
       // Check class linker linear allocs.
       mirror::Class* klass = method->GetDeclaringClass();
       LinearAlloc* const class_linear_alloc = (klass != nullptr)
-          ? ClassLinker::GetAllocatorForClassLoader(klass->GetClassLoader())
+          ? runtime->GetClassLinker()->GetAllocatorForClassLoader(klass->GetClassLoader())
           : linear_alloc;
       if (!class_linear_alloc->Contains(method)) {
         // Check image space.
