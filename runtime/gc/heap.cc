@@ -3947,6 +3947,10 @@ void Heap::SetAllocationRecords(AllocRecordObjectMap* records) {
   allocation_records_.reset(records);
 }
 
+std::unique_ptr<AllocRecordObjectMap> Heap::ReleaseAllocationRecords() {
+  return std::move(allocation_records_);
+}
+
 void Heap::VisitAllocationRecords(RootVisitor* visitor) const {
   if (IsAllocTrackingEnabled()) {
     MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
