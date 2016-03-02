@@ -35,14 +35,11 @@ public class Main {
    * Test transformation of Not/Not/And into Or/Not.
    */
 
-  // Note: before the instruction_simplifier pass, Xor's are used instead of
-  // Not's (the simplification happens during the same pass).
   /// CHECK-START: int Main.$opt$noinline$andToOr(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
-  /// CHECK:       <<CstM1:i\d+>>       IntConstant -1
-  /// CHECK:       <<Not1:i\d+>>        Xor [<<P1>>,<<CstM1>>]
-  /// CHECK:       <<Not2:i\d+>>        Xor [<<P2>>,<<CstM1>>]
+  /// CHECK:       <<Not1:i\d+>>        Not [<<P1>>]
+  /// CHECK:       <<Not2:i\d+>>        Not [<<P2>>]
   /// CHECK:       <<And:i\d+>>         And [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<And>>]
 
@@ -106,14 +103,11 @@ public class Main {
    * Test transformation of Not/Not/Or into And/Not.
    */
 
-  // See note above.
-  // The second Xor has its arguments reversed for no obvious reason.
   /// CHECK-START: long Main.$opt$noinline$orToAnd(long, long) instruction_simplifier (before)
   /// CHECK:       <<P1:j\d+>>          ParameterValue
   /// CHECK:       <<P2:j\d+>>          ParameterValue
-  /// CHECK:       <<CstM1:j\d+>>       LongConstant -1
-  /// CHECK:       <<Not1:j\d+>>        Xor [<<P1>>,<<CstM1>>]
-  /// CHECK:       <<Not2:j\d+>>        Xor [<<CstM1>>,<<P2>>]
+  /// CHECK:       <<Not1:j\d+>>        Not [<<P1>>]
+  /// CHECK:       <<Not2:j\d+>>        Not [<<P2>>]
   /// CHECK:       <<Or:j\d+>>          Or [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<Or>>]
 
@@ -183,12 +177,11 @@ public class Main {
   /// CHECK-START: int Main.$opt$noinline$regressInputsAway(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
-  /// CHECK-DAG:   <<Cst1:i\d+>>        IntConstant 1
-  /// CHECK-DAG:   <<CstM1:i\d+>>       IntConstant -1
+  /// CHECK:       <<Cst1:i\d+>>        IntConstant 1
   /// CHECK:       <<AddP1:i\d+>>       Add [<<P1>>,<<Cst1>>]
-  /// CHECK:       <<Not1:i\d+>>        Xor [<<AddP1>>,<<CstM1>>]
+  /// CHECK:       <<Not1:i\d+>>        Not [<<AddP1>>]
   /// CHECK:       <<AddP2:i\d+>>       Add [<<P2>>,<<Cst1>>]
-  /// CHECK:       <<Not2:i\d+>>        Xor [<<AddP2>>,<<CstM1>>]
+  /// CHECK:       <<Not2:i\d+>>        Not [<<AddP2>>]
   /// CHECK:       <<Or:i\d+>>          Or [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<Or>>]
 
@@ -226,9 +219,8 @@ public class Main {
   /// CHECK-START: int Main.$opt$noinline$notXorToXor(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
-  /// CHECK:       <<CstM1:i\d+>>       IntConstant -1
-  /// CHECK:       <<Not1:i\d+>>        Xor [<<P1>>,<<CstM1>>]
-  /// CHECK:       <<Not2:i\d+>>        Xor [<<P2>>,<<CstM1>>]
+  /// CHECK:       <<Not1:i\d+>>        Not [<<P1>>]
+  /// CHECK:       <<Not2:i\d+>>        Not [<<P2>>]
   /// CHECK:       <<Xor:i\d+>>         Xor [<<Not1>>,<<Not2>>]
   /// CHECK:                            Return [<<Xor>>]
 
@@ -285,11 +277,10 @@ public class Main {
   /// CHECK-START: int Main.$opt$noinline$notMultipleUses(int, int) instruction_simplifier (before)
   /// CHECK:       <<P1:i\d+>>          ParameterValue
   /// CHECK:       <<P2:i\d+>>          ParameterValue
-  /// CHECK:       <<CstM1:i\d+>>       IntConstant -1
   /// CHECK:       <<One:i\d+>>         IntConstant 1
-  /// CHECK:       <<Not2:i\d+>>        Xor [<<P2>>,<<CstM1>>]
+  /// CHECK:       <<Not2:i\d+>>        Not [<<P2>>]
   /// CHECK:       <<And2:i\d+>>        And [<<Not2>>,<<One>>]
-  /// CHECK:       <<Not1:i\d+>>        Xor [<<P1>>,<<CstM1>>]
+  /// CHECK:       <<Not1:i\d+>>        Not [<<P1>>]
   /// CHECK:       <<And1:i\d+>>        And [<<Not1>>,<<Not2>>]
   /// CHECK:       <<Add:i\d+>>         Add [<<And2>>,<<And1>>]
   /// CHECK:                            Return [<<Add>>]

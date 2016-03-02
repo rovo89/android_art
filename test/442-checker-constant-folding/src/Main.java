@@ -51,6 +51,21 @@ public class Main {
     }
   }
 
+  private static int $inline$int(int x) {
+    return x;
+  }
+
+  private static long $inline$long(long x) {
+    return x;
+  }
+
+  private static float $inline$float(float x) {
+    return x;
+  }
+
+  private static double $inline$double(double x) {
+    return x;
+  }
 
   // Wrappers around methods located in file TestCmp.smali.
 
@@ -194,121 +209,119 @@ public class Main {
     return y;
   }
 
-
   /**
    * Exercise constant folding on addition.
    */
 
-  /// CHECK-START: int Main.IntAddition1() constant_folding (before)
+  /// CHECK-START: int Main.IntAddition1() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const1:i\d+>>  IntConstant 1
   /// CHECK-DAG:     <<Const2:i\d+>>  IntConstant 2
   /// CHECK-DAG:     <<Add:i\d+>>     Add [<<Const1>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Add>>]
 
-  /// CHECK-START: int Main.IntAddition1() constant_folding (after)
+  /// CHECK-START: int Main.IntAddition1() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const3:i\d+>>  IntConstant 3
   /// CHECK-DAG:                      Return [<<Const3>>]
 
-  /// CHECK-START: int Main.IntAddition1() constant_folding (after)
+  /// CHECK-START: int Main.IntAddition1() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Add
 
   public static int IntAddition1() {
     int a, b, c;
-    a = 1;
-    b = 2;
+    a = $inline$int(1);
+    b = $inline$int(2);
     c = a + b;
     return c;
   }
 
-  /// CHECK-START: int Main.IntAddition2() constant_folding (before)
+  /// CHECK-START: int Main.IntAddition2() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const1:i\d+>>  IntConstant 1
   /// CHECK-DAG:     <<Const2:i\d+>>  IntConstant 2
   /// CHECK-DAG:     <<Const5:i\d+>>  IntConstant 5
   /// CHECK-DAG:     <<Const6:i\d+>>  IntConstant 6
-  /// CHECK-DAG:     <<Const11:i\d+>> IntConstant 11
   /// CHECK-DAG:     <<Add1:i\d+>>    Add [<<Const1>>,<<Const2>>]
-  /// CHECK-DAG:                      Add [<<Const5>>,<<Const6>>]
-  /// CHECK-DAG:     <<Add3:i\d+>>    Add [<<Add1>>,<<Const11>>]
+  /// CHECK-DAG:     <<Add2:i\d+>>    Add [<<Const5>>,<<Const6>>]
+  /// CHECK-DAG:     <<Add3:i\d+>>    Add [<<Add1>>,<<Add2>>]
   /// CHECK-DAG:                      Return [<<Add3>>]
 
-  /// CHECK-START: int Main.IntAddition2() constant_folding (after)
+  /// CHECK-START: int Main.IntAddition2() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const14:i\d+>> IntConstant 14
   /// CHECK-DAG:                      Return [<<Const14>>]
 
-  /// CHECK-START: int Main.IntAddition2() constant_folding (after)
+  /// CHECK-START: int Main.IntAddition2() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Add
 
   public static int IntAddition2() {
     int a, b, c;
-    a = 1;
-    b = 2;
+    a = $inline$int(1);
+    b = $inline$int(2);
     a += b;
-    b = 5;
-    c = 6;
+    b = $inline$int(5);
+    c = $inline$int(6);
     b += c;
     c = a + b;
     return c;
   }
 
-  /// CHECK-START: long Main.LongAddition() constant_folding (before)
+  /// CHECK-START: long Main.LongAddition() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const1:j\d+>>  LongConstant 1
   /// CHECK-DAG:     <<Const2:j\d+>>  LongConstant 2
   /// CHECK-DAG:     <<Add:j\d+>>     Add [<<Const1>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Add>>]
 
-  /// CHECK-START: long Main.LongAddition() constant_folding (after)
+  /// CHECK-START: long Main.LongAddition() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const3:j\d+>>  LongConstant 3
   /// CHECK-DAG:                      Return [<<Const3>>]
 
-  /// CHECK-START: long Main.LongAddition() constant_folding (after)
+  /// CHECK-START: long Main.LongAddition() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Add
 
   public static long LongAddition() {
     long a, b, c;
-    a = 1L;
-    b = 2L;
+    a = $inline$long(1L);
+    b = $inline$long(2L);
     c = a + b;
     return c;
   }
 
-  /// CHECK-START: float Main.FloatAddition() constant_folding (before)
+  /// CHECK-START: float Main.FloatAddition() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const1:f\d+>>  FloatConstant 1
   /// CHECK-DAG:     <<Const2:f\d+>>  FloatConstant 2
   /// CHECK-DAG:     <<Add:f\d+>>     Add [<<Const1>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Add>>]
 
-  /// CHECK-START: float Main.FloatAddition() constant_folding (after)
+  /// CHECK-START: float Main.FloatAddition() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const3:f\d+>>  FloatConstant 3
   /// CHECK-DAG:                      Return [<<Const3>>]
 
-  /// CHECK-START: float Main.FloatAddition() constant_folding (after)
+  /// CHECK-START: float Main.FloatAddition() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Add
 
   public static float FloatAddition() {
     float a, b, c;
-    a = 1F;
-    b = 2F;
+    a = $inline$float(1F);
+    b = $inline$float(2F);
     c = a + b;
     return c;
   }
 
-  /// CHECK-START: double Main.DoubleAddition() constant_folding (before)
+  /// CHECK-START: double Main.DoubleAddition() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const1:d\d+>>  DoubleConstant 1
   /// CHECK-DAG:     <<Const2:d\d+>>  DoubleConstant 2
   /// CHECK-DAG:     <<Add:d\d+>>     Add [<<Const1>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Add>>]
 
-  /// CHECK-START: double Main.DoubleAddition() constant_folding (after)
+  /// CHECK-START: double Main.DoubleAddition() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const3:d\d+>>  DoubleConstant 3
   /// CHECK-DAG:                      Return [<<Const3>>]
 
-  /// CHECK-START: double Main.DoubleAddition() constant_folding (after)
+  /// CHECK-START: double Main.DoubleAddition() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Add
 
   public static double DoubleAddition() {
     double a, b, c;
-    a = 1D;
-    b = 2D;
+    a = $inline$double(1D);
+    b = $inline$double(2D);
     c = a + b;
     return c;
   }
@@ -318,86 +331,86 @@ public class Main {
    * Exercise constant folding on subtraction.
    */
 
-  /// CHECK-START: int Main.IntSubtraction() constant_folding (before)
+  /// CHECK-START: int Main.IntSubtraction() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const6:i\d+>>  IntConstant 6
   /// CHECK-DAG:     <<Const2:i\d+>>  IntConstant 2
   /// CHECK-DAG:     <<Sub:i\d+>>     Sub [<<Const6>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Sub>>]
 
-  /// CHECK-START: int Main.IntSubtraction() constant_folding (after)
+  /// CHECK-START: int Main.IntSubtraction() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const4:i\d+>>  IntConstant 4
   /// CHECK-DAG:                      Return [<<Const4>>]
 
-  /// CHECK-START: int Main.IntSubtraction() constant_folding (after)
+  /// CHECK-START: int Main.IntSubtraction() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Sub
 
   public static int IntSubtraction() {
     int a, b, c;
-    a = 6;
-    b = 2;
+    a = $inline$int(6);
+    b = $inline$int(2);
     c = a - b;
     return c;
   }
 
-  /// CHECK-START: long Main.LongSubtraction() constant_folding (before)
+  /// CHECK-START: long Main.LongSubtraction() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const6:j\d+>>  LongConstant 6
   /// CHECK-DAG:     <<Const2:j\d+>>  LongConstant 2
   /// CHECK-DAG:     <<Sub:j\d+>>     Sub [<<Const6>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Sub>>]
 
-  /// CHECK-START: long Main.LongSubtraction() constant_folding (after)
+  /// CHECK-START: long Main.LongSubtraction() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const4:j\d+>>  LongConstant 4
   /// CHECK-DAG:                      Return [<<Const4>>]
 
-  /// CHECK-START: long Main.LongSubtraction() constant_folding (after)
+  /// CHECK-START: long Main.LongSubtraction() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Sub
 
   public static long LongSubtraction() {
     long a, b, c;
-    a = 6L;
-    b = 2L;
+    a = $inline$long(6L);
+    b = $inline$long(2L);
     c = a - b;
     return c;
   }
 
-  /// CHECK-START: float Main.FloatSubtraction() constant_folding (before)
+  /// CHECK-START: float Main.FloatSubtraction() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const6:f\d+>>  FloatConstant 6
   /// CHECK-DAG:     <<Const2:f\d+>>  FloatConstant 2
   /// CHECK-DAG:     <<Sub:f\d+>>     Sub [<<Const6>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Sub>>]
 
-  /// CHECK-START: float Main.FloatSubtraction() constant_folding (after)
+  /// CHECK-START: float Main.FloatSubtraction() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const4:f\d+>>  FloatConstant 4
   /// CHECK-DAG:                      Return [<<Const4>>]
 
-  /// CHECK-START: float Main.FloatSubtraction() constant_folding (after)
+  /// CHECK-START: float Main.FloatSubtraction() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Sub
 
   public static float FloatSubtraction() {
     float a, b, c;
-    a = 6F;
-    b = 2F;
+    a = $inline$float(6F);
+    b = $inline$float(2F);
     c = a - b;
     return c;
   }
 
-  /// CHECK-START: double Main.DoubleSubtraction() constant_folding (before)
+  /// CHECK-START: double Main.DoubleSubtraction() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const6:d\d+>>  DoubleConstant 6
   /// CHECK-DAG:     <<Const2:d\d+>>  DoubleConstant 2
   /// CHECK-DAG:     <<Sub:d\d+>>     Sub [<<Const6>>,<<Const2>>]
   /// CHECK-DAG:                      Return [<<Sub>>]
 
-  /// CHECK-START: double Main.DoubleSubtraction() constant_folding (after)
+  /// CHECK-START: double Main.DoubleSubtraction() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const4:d\d+>>  DoubleConstant 4
   /// CHECK-DAG:                      Return [<<Const4>>]
 
-  /// CHECK-START: double Main.DoubleSubtraction() constant_folding (after)
+  /// CHECK-START: double Main.DoubleSubtraction() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Sub
 
   public static double DoubleSubtraction() {
     double a, b, c;
-    a = 6D;
-    b = 2D;
+    a = $inline$double(6D);
+    b = $inline$double(2D);
     c = a - b;
     return c;
   }
@@ -407,86 +420,86 @@ public class Main {
    * Exercise constant folding on multiplication.
    */
 
-  /// CHECK-START: int Main.IntMultiplication() constant_folding (before)
+  /// CHECK-START: int Main.IntMultiplication() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const7:i\d+>>  IntConstant 7
   /// CHECK-DAG:     <<Const3:i\d+>>  IntConstant 3
   /// CHECK-DAG:     <<Mul:i\d+>>     Mul [<<Const7>>,<<Const3>>]
   /// CHECK-DAG:                      Return [<<Mul>>]
 
-  /// CHECK-START: int Main.IntMultiplication() constant_folding (after)
+  /// CHECK-START: int Main.IntMultiplication() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const21:i\d+>> IntConstant 21
   /// CHECK-DAG:                      Return [<<Const21>>]
 
-  /// CHECK-START: int Main.IntMultiplication() constant_folding (after)
+  /// CHECK-START: int Main.IntMultiplication() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Mul
 
   public static int IntMultiplication() {
     int a, b, c;
-    a = 7;
-    b = 3;
+    a = $inline$int(7);
+    b = $inline$int(3);
     c = a * b;
     return c;
   }
 
-  /// CHECK-START: long Main.LongMultiplication() constant_folding (before)
+  /// CHECK-START: long Main.LongMultiplication() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const7:j\d+>>  LongConstant 7
   /// CHECK-DAG:     <<Const3:j\d+>>  LongConstant 3
   /// CHECK-DAG:     <<Mul:j\d+>>     Mul [<<Const7>>,<<Const3>>]
   /// CHECK-DAG:                      Return [<<Mul>>]
 
-  /// CHECK-START: long Main.LongMultiplication() constant_folding (after)
+  /// CHECK-START: long Main.LongMultiplication() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const21:j\d+>> LongConstant 21
   /// CHECK-DAG:                      Return [<<Const21>>]
 
-  /// CHECK-START: long Main.LongMultiplication() constant_folding (after)
+  /// CHECK-START: long Main.LongMultiplication() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Mul
 
   public static long LongMultiplication() {
     long a, b, c;
-    a = 7L;
-    b = 3L;
+    a = $inline$long(7L);
+    b = $inline$long(3L);
     c = a * b;
     return c;
   }
 
-  /// CHECK-START: float Main.FloatMultiplication() constant_folding (before)
+  /// CHECK-START: float Main.FloatMultiplication() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const7:f\d+>>  FloatConstant 7
   /// CHECK-DAG:     <<Const3:f\d+>>  FloatConstant 3
   /// CHECK-DAG:     <<Mul:f\d+>>     Mul [<<Const7>>,<<Const3>>]
   /// CHECK-DAG:                      Return [<<Mul>>]
 
-  /// CHECK-START: float Main.FloatMultiplication() constant_folding (after)
+  /// CHECK-START: float Main.FloatMultiplication() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const21:f\d+>> FloatConstant 21
   /// CHECK-DAG:                      Return [<<Const21>>]
 
-  /// CHECK-START: float Main.FloatMultiplication() constant_folding (after)
+  /// CHECK-START: float Main.FloatMultiplication() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Mul
 
   public static float FloatMultiplication() {
     float a, b, c;
-    a = 7F;
-    b = 3F;
+    a = $inline$float(7F);
+    b = $inline$float(3F);
     c = a * b;
     return c;
   }
 
-  /// CHECK-START: double Main.DoubleMultiplication() constant_folding (before)
+  /// CHECK-START: double Main.DoubleMultiplication() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const7:d\d+>>  DoubleConstant 7
   /// CHECK-DAG:     <<Const3:d\d+>>  DoubleConstant 3
   /// CHECK-DAG:     <<Mul:d\d+>>     Mul [<<Const7>>,<<Const3>>]
   /// CHECK-DAG:                      Return [<<Mul>>]
 
-  /// CHECK-START: double Main.DoubleMultiplication() constant_folding (after)
+  /// CHECK-START: double Main.DoubleMultiplication() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const21:d\d+>> DoubleConstant 21
   /// CHECK-DAG:                      Return [<<Const21>>]
 
-  /// CHECK-START: double Main.DoubleMultiplication() constant_folding (after)
+  /// CHECK-START: double Main.DoubleMultiplication() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Mul
 
   public static double DoubleMultiplication() {
     double a, b, c;
-    a = 7D;
-    b = 3D;
+    a = $inline$double(7D);
+    b = $inline$double(3D);
     c = a * b;
     return c;
   }
@@ -496,90 +509,90 @@ public class Main {
    * Exercise constant folding on division.
    */
 
-  /// CHECK-START: int Main.IntDivision() constant_folding (before)
+  /// CHECK-START: int Main.IntDivision() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:i\d+>>   IntConstant 8
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<Div0Chk:i\d+>>  DivZeroCheck [<<Const3>>]
   /// CHECK-DAG:     <<Div:i\d+>>      Div [<<Const8>>,<<Div0Chk>>]
   /// CHECK-DAG:                       Return [<<Div>>]
 
-  /// CHECK-START: int Main.IntDivision() constant_folding (after)
+  /// CHECK-START: int Main.IntDivision() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
   /// CHECK-DAG:                       Return [<<Const2>>]
 
-  /// CHECK-START: int Main.IntDivision() constant_folding (after)
+  /// CHECK-START: int Main.IntDivision() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       DivZeroCheck
   /// CHECK-NOT:                       Div
 
   public static int IntDivision() {
     int a, b, c;
-    a = 8;
-    b = 3;
+    a = $inline$int(8);
+    b = $inline$int(3);
     c = a / b;
     return c;
   }
 
-  /// CHECK-START: long Main.LongDivision() constant_folding (before)
+  /// CHECK-START: long Main.LongDivision() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:j\d+>>   LongConstant 8
   /// CHECK-DAG:     <<Const3:j\d+>>   LongConstant 3
   /// CHECK-DAG:     <<Div0Chk:j\d+>>  DivZeroCheck [<<Const3>>]
   /// CHECK-DAG:     <<Div:j\d+>>      Div [<<Const8>>,<<Div0Chk>>]
   /// CHECK-DAG:                       Return [<<Div>>]
 
-  /// CHECK-START: long Main.LongDivision() constant_folding (after)
+  /// CHECK-START: long Main.LongDivision() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
   /// CHECK-DAG:                       Return [<<Const2>>]
 
-  /// CHECK-START: long Main.LongDivision() constant_folding (after)
+  /// CHECK-START: long Main.LongDivision() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       DivZeroCheck
   /// CHECK-NOT:                       Div
 
   public static long LongDivision() {
     long a, b, c;
-    a = 8L;
-    b = 3L;
+    a = $inline$long(8L);
+    b = $inline$long(3L);
     c = a / b;
     return c;
   }
 
-  /// CHECK-START: float Main.FloatDivision() constant_folding (before)
+  /// CHECK-START: float Main.FloatDivision() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:f\d+>>   FloatConstant 8
   /// CHECK-DAG:     <<Const2P5:f\d+>> FloatConstant 2.5
   /// CHECK-DAG:     <<Div:f\d+>>      Div [<<Const8>>,<<Const2P5>>]
   /// CHECK-DAG:                       Return [<<Div>>]
 
-  /// CHECK-START: float Main.FloatDivision() constant_folding (after)
+  /// CHECK-START: float Main.FloatDivision() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const3P2:f\d+>> FloatConstant 3.2
   /// CHECK-DAG:                       Return [<<Const3P2>>]
 
-  /// CHECK-START: float Main.FloatDivision() constant_folding (after)
+  /// CHECK-START: float Main.FloatDivision() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Div
 
   public static float FloatDivision() {
     float a, b, c;
-    a = 8F;
-    b = 2.5F;
+    a = $inline$float(8F);
+    b = $inline$float(2.5F);
     c = a / b;
     return c;
   }
 
-  /// CHECK-START: double Main.DoubleDivision() constant_folding (before)
+  /// CHECK-START: double Main.DoubleDivision() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:d\d+>>   DoubleConstant 8
   /// CHECK-DAG:     <<Const2P5:d\d+>> DoubleConstant 2.5
   /// CHECK-DAG:     <<Div:d\d+>>      Div [<<Const8>>,<<Const2P5>>]
   /// CHECK-DAG:                       Return [<<Div>>]
 
-  /// CHECK-START: double Main.DoubleDivision() constant_folding (after)
+  /// CHECK-START: double Main.DoubleDivision() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const3P2:d\d+>> DoubleConstant 3.2
   /// CHECK-DAG:                       Return [<<Const3P2>>]
 
-  /// CHECK-START: double Main.DoubleDivision() constant_folding (after)
+  /// CHECK-START: double Main.DoubleDivision() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Div
 
   public static double DoubleDivision() {
     double a, b, c;
-    a = 8D;
-    b = 2.5D;
+    a = $inline$double(8D);
+    b = $inline$double(2.5D);
     c = a / b;
     return c;
   }
@@ -589,90 +602,90 @@ public class Main {
    * Exercise constant folding on remainder.
    */
 
-  /// CHECK-START: int Main.IntRemainder() constant_folding (before)
+  /// CHECK-START: int Main.IntRemainder() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:i\d+>>   IntConstant 8
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<Div0Chk:i\d+>>  DivZeroCheck [<<Const3>>]
   /// CHECK-DAG:     <<Rem:i\d+>>      Rem [<<Const8>>,<<Div0Chk>>]
   /// CHECK-DAG:                       Return [<<Rem>>]
 
-  /// CHECK-START: int Main.IntRemainder() constant_folding (after)
+  /// CHECK-START: int Main.IntRemainder() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
   /// CHECK-DAG:                       Return [<<Const2>>]
 
-  /// CHECK-START: int Main.IntRemainder() constant_folding (after)
+  /// CHECK-START: int Main.IntRemainder() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       DivZeroCheck
   /// CHECK-NOT:                       Rem
 
   public static int IntRemainder() {
     int a, b, c;
-    a = 8;
-    b = 3;
+    a = $inline$int(8);
+    b = $inline$int(3);
     c = a % b;
     return c;
   }
 
-  /// CHECK-START: long Main.LongRemainder() constant_folding (before)
+  /// CHECK-START: long Main.LongRemainder() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:j\d+>>   LongConstant 8
   /// CHECK-DAG:     <<Const3:j\d+>>   LongConstant 3
   /// CHECK-DAG:     <<Div0Chk:j\d+>>  DivZeroCheck [<<Const3>>]
   /// CHECK-DAG:     <<Rem:j\d+>>      Rem [<<Const8>>,<<Div0Chk>>]
   /// CHECK-DAG:                       Return [<<Rem>>]
 
-  /// CHECK-START: long Main.LongRemainder() constant_folding (after)
+  /// CHECK-START: long Main.LongRemainder() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
   /// CHECK-DAG:                       Return [<<Const2>>]
 
-  /// CHECK-START: long Main.LongRemainder() constant_folding (after)
+  /// CHECK-START: long Main.LongRemainder() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       DivZeroCheck
   /// CHECK-NOT:                       Rem
 
   public static long LongRemainder() {
     long a, b, c;
-    a = 8L;
-    b = 3L;
+    a = $inline$long(8L);
+    b = $inline$long(3L);
     c = a % b;
     return c;
   }
 
-  /// CHECK-START: float Main.FloatRemainder() constant_folding (before)
+  /// CHECK-START: float Main.FloatRemainder() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:f\d+>>   FloatConstant 8
   /// CHECK-DAG:     <<Const2P5:f\d+>> FloatConstant 2.5
   /// CHECK-DAG:     <<Rem:f\d+>>      Rem [<<Const8>>,<<Const2P5>>]
   /// CHECK-DAG:                       Return [<<Rem>>]
 
-  /// CHECK-START: float Main.FloatRemainder() constant_folding (after)
+  /// CHECK-START: float Main.FloatRemainder() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const0P5:f\d+>> FloatConstant 0.5
   /// CHECK-DAG:                       Return [<<Const0P5>>]
 
-  /// CHECK-START: float Main.FloatRemainder() constant_folding (after)
+  /// CHECK-START: float Main.FloatRemainder() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Rem
 
   public static float FloatRemainder() {
     float a, b, c;
-    a = 8F;
-    b = 2.5F;
+    a = $inline$float(8F);
+    b = $inline$float(2.5F);
     c = a % b;
     return c;
   }
 
-  /// CHECK-START: double Main.DoubleRemainder() constant_folding (before)
+  /// CHECK-START: double Main.DoubleRemainder() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const8:d\d+>>   DoubleConstant 8
   /// CHECK-DAG:     <<Const2P5:d\d+>> DoubleConstant 2.5
   /// CHECK-DAG:     <<Rem:d\d+>>      Rem [<<Const8>>,<<Const2P5>>]
   /// CHECK-DAG:                       Return [<<Rem>>]
 
-  /// CHECK-START: double Main.DoubleRemainder() constant_folding (after)
+  /// CHECK-START: double Main.DoubleRemainder() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const0P5:d\d+>> DoubleConstant 0.5
   /// CHECK-DAG:                       Return [<<Const0P5>>]
 
-  /// CHECK-START: double Main.DoubleRemainder() constant_folding (after)
+  /// CHECK-START: double Main.DoubleRemainder() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Rem
 
   public static double DoubleRemainder() {
     double a, b, c;
-    a = 8D;
-    b = 2.5D;
+    a = $inline$double(8D);
+    b = $inline$double(2.5D);
     c = a % b;
     return c;
   }
@@ -682,42 +695,42 @@ public class Main {
    * Exercise constant folding on left shift.
    */
 
-  /// CHECK-START: int Main.ShlIntLong() constant_folding (before)
+  /// CHECK-START: int Main.ShlIntLong() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
   /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
   /// CHECK-DAG:     <<TypeConv:i\d+>> TypeConversion [<<Const2L>>]
   /// CHECK-DAG:     <<Shl:i\d+>>      Shl [<<Const1>>,<<TypeConv>>]
   /// CHECK-DAG:                       Return [<<Shl>>]
 
-  /// CHECK-START: int Main.ShlIntLong() constant_folding (after)
+  /// CHECK-START: int Main.ShlIntLong() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const4:i\d+>>   IntConstant 4
   /// CHECK-DAG:                       Return [<<Const4>>]
 
-  /// CHECK-START: int Main.ShlIntLong() constant_folding (after)
+  /// CHECK-START: int Main.ShlIntLong() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Shl
 
   public static int ShlIntLong() {
-    int lhs = 1;
-    long rhs = 2;
+    int lhs = $inline$int(1);
+    long rhs = $inline$long(2L);
     return lhs << rhs;
   }
 
-  /// CHECK-START: long Main.ShlLongInt() constant_folding (before)
+  /// CHECK-START: long Main.ShlLongInt() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
   /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
   /// CHECK-DAG:     <<Shl:j\d+>>      Shl [<<Const3L>>,<<Const2>>]
   /// CHECK-DAG:                       Return [<<Shl>>]
 
-  /// CHECK-START: long Main.ShlLongInt() constant_folding (after)
+  /// CHECK-START: long Main.ShlLongInt() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const12L:j\d+>> LongConstant 12
   /// CHECK-DAG:                       Return [<<Const12L>>]
 
-  /// CHECK-START: long Main.ShlLongInt() constant_folding (after)
+  /// CHECK-START: long Main.ShlLongInt() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Shl
 
   public static long ShlLongInt() {
-    long lhs = 3;
-    int rhs = 2;
+    long lhs = $inline$long(3L);
+    int rhs = $inline$int(2);
     return lhs << rhs;
   }
 
@@ -726,42 +739,42 @@ public class Main {
    * Exercise constant folding on right shift.
    */
 
-  /// CHECK-START: int Main.ShrIntLong() constant_folding (before)
+  /// CHECK-START: int Main.ShrIntLong() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const7:i\d+>>   IntConstant 7
   /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
   /// CHECK-DAG:     <<TypeConv:i\d+>> TypeConversion [<<Const2L>>]
   /// CHECK-DAG:     <<Shr:i\d+>>      Shr [<<Const7>>,<<TypeConv>>]
   /// CHECK-DAG:                       Return [<<Shr>>]
 
-  /// CHECK-START: int Main.ShrIntLong() constant_folding (after)
+  /// CHECK-START: int Main.ShrIntLong() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
   /// CHECK-DAG:                       Return [<<Const1>>]
 
-  /// CHECK-START: int Main.ShrIntLong() constant_folding (after)
+  /// CHECK-START: int Main.ShrIntLong() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Shr
 
   public static int ShrIntLong() {
-    int lhs = 7;
-    long rhs = 2;
+    int lhs = $inline$int(7);
+    long rhs = $inline$long(2L);
     return lhs >> rhs;
   }
 
-  /// CHECK-START: long Main.ShrLongInt() constant_folding (before)
+  /// CHECK-START: long Main.ShrLongInt() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const9L:j\d+>>  LongConstant 9
   /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
   /// CHECK-DAG:     <<Shr:j\d+>>      Shr [<<Const9L>>,<<Const2>>]
   /// CHECK-DAG:                       Return [<<Shr>>]
 
-  /// CHECK-START: long Main.ShrLongInt() constant_folding (after)
+  /// CHECK-START: long Main.ShrLongInt() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
   /// CHECK-DAG:                       Return [<<Const2L>>]
 
-  /// CHECK-START: long Main.ShrLongInt() constant_folding (after)
+  /// CHECK-START: long Main.ShrLongInt() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Shr
 
   public static long ShrLongInt() {
-    long lhs = 9;
-    int rhs = 2;
+    long lhs = $inline$long(9);
+    int rhs = $inline$int(2);
     return lhs >> rhs;
   }
 
@@ -770,42 +783,42 @@ public class Main {
    * Exercise constant folding on unsigned right shift.
    */
 
-  /// CHECK-START: int Main.UShrIntLong() constant_folding (before)
+  /// CHECK-START: int Main.UShrIntLong() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<ConstM7:i\d+>>  IntConstant -7
   /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
   /// CHECK-DAG:     <<TypeConv:i\d+>> TypeConversion [<<Const2L>>]
   /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<ConstM7>>,<<TypeConv>>]
   /// CHECK-DAG:                       Return [<<UShr>>]
 
-  /// CHECK-START: int Main.UShrIntLong() constant_folding (after)
+  /// CHECK-START: int Main.UShrIntLong() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<ConstRes:i\d+>> IntConstant 1073741822
   /// CHECK-DAG:                       Return [<<ConstRes>>]
 
-  /// CHECK-START: int Main.UShrIntLong() constant_folding (after)
+  /// CHECK-START: int Main.UShrIntLong() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       UShr
 
   public static int UShrIntLong() {
-    int lhs = -7;
-    long rhs = 2;
+    int lhs = $inline$int(-7);
+    long rhs = $inline$long(2L);
     return lhs >>> rhs;
   }
 
-  /// CHECK-START: long Main.UShrLongInt() constant_folding (before)
+  /// CHECK-START: long Main.UShrLongInt() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<ConstM9L:j\d+>> LongConstant -9
   /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
   /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<ConstM9L>>,<<Const2>>]
   /// CHECK-DAG:                       Return [<<UShr>>]
 
-  /// CHECK-START: long Main.UShrLongInt() constant_folding (after)
+  /// CHECK-START: long Main.UShrLongInt() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<ConstRes:j\d+>> LongConstant 4611686018427387901
   /// CHECK-DAG:                       Return [<<ConstRes>>]
 
-  /// CHECK-START: long Main.UShrLongInt() constant_folding (after)
+  /// CHECK-START: long Main.UShrLongInt() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       UShr
 
   public static long UShrLongInt() {
-    long lhs = -9;
-    int rhs = 2;
+    long lhs = $inline$long(-9);
+    int rhs = $inline$int(2);
     return lhs >>> rhs;
   }
 
@@ -814,43 +827,43 @@ public class Main {
    * Exercise constant folding on logical and.
    */
 
-  /// CHECK-START: long Main.AndIntLong() constant_folding (before)
+  /// CHECK-START: long Main.AndIntLong() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const10:i\d+>>  IntConstant 10
   /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const10>>]
   /// CHECK-DAG:     <<And:j\d+>>      And [<<TypeConv>>,<<Const3L>>]
   /// CHECK-DAG:                       Return [<<And>>]
 
-  /// CHECK-START: long Main.AndIntLong() constant_folding (after)
+  /// CHECK-START: long Main.AndIntLong() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
   /// CHECK-DAG:                       Return [<<Const2>>]
 
-  /// CHECK-START: long Main.AndIntLong() constant_folding (after)
+  /// CHECK-START: long Main.AndIntLong() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       And
 
   public static long AndIntLong() {
-    int lhs = 10;
-    long rhs = 3;
+    int lhs = $inline$int(10);
+    long rhs = $inline$long(3L);
     return lhs & rhs;
   }
 
-  /// CHECK-START: long Main.AndLongInt() constant_folding (before)
+  /// CHECK-START: long Main.AndLongInt() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
   /// CHECK-DAG:     <<And:j\d+>>      And [<<TypeConv>>,<<Const10L>>]
   /// CHECK-DAG:                       Return [<<And>>]
 
-  /// CHECK-START: long Main.AndLongInt() constant_folding (after)
+  /// CHECK-START: long Main.AndLongInt() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
   /// CHECK-DAG:                       Return [<<Const2>>]
 
-  /// CHECK-START: long Main.AndLongInt() constant_folding (after)
+  /// CHECK-START: long Main.AndLongInt() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       And
 
   public static long AndLongInt() {
-    long lhs = 10;
-    int rhs = 3;
+    long lhs = $inline$long(10L);
+    int rhs = $inline$int(3);
     return lhs & rhs;
   }
 
@@ -859,43 +872,43 @@ public class Main {
    * Exercise constant folding on logical or.
    */
 
-  /// CHECK-START: long Main.OrIntLong() constant_folding (before)
+  /// CHECK-START: long Main.OrIntLong() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const10:i\d+>>  IntConstant 10
   /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const10>>]
   /// CHECK-DAG:     <<Or:j\d+>>       Or [<<TypeConv>>,<<Const3L>>]
   /// CHECK-DAG:                       Return [<<Or>>]
 
-  /// CHECK-START: long Main.OrIntLong() constant_folding (after)
+  /// CHECK-START: long Main.OrIntLong() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const11:j\d+>>  LongConstant 11
   /// CHECK-DAG:                       Return [<<Const11>>]
 
-  /// CHECK-START: long Main.OrIntLong() constant_folding (after)
+  /// CHECK-START: long Main.OrIntLong() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Or
 
   public static long OrIntLong() {
-    int lhs = 10;
-    long rhs = 3;
+    int lhs = $inline$int(10);
+    long rhs = $inline$long(3L);
     return lhs | rhs;
   }
 
-  /// CHECK-START: long Main.OrLongInt() constant_folding (before)
+  /// CHECK-START: long Main.OrLongInt() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
   /// CHECK-DAG:     <<Or:j\d+>>       Or [<<TypeConv>>,<<Const10L>>]
   /// CHECK-DAG:                       Return [<<Or>>]
 
-  /// CHECK-START: long Main.OrLongInt() constant_folding (after)
+  /// CHECK-START: long Main.OrLongInt() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const11:j\d+>>  LongConstant 11
   /// CHECK-DAG:                       Return [<<Const11>>]
 
-  /// CHECK-START: long Main.OrLongInt() constant_folding (after)
+  /// CHECK-START: long Main.OrLongInt() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Or
 
   public static long OrLongInt() {
-    long lhs = 10;
-    int rhs = 3;
+    long lhs = $inline$long(10L);
+    int rhs = $inline$int(3);
     return lhs | rhs;
   }
 
@@ -904,43 +917,43 @@ public class Main {
    * Exercise constant folding on logical exclusive or.
    */
 
-  /// CHECK-START: long Main.XorIntLong() constant_folding (before)
+  /// CHECK-START: long Main.XorIntLong() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const10:i\d+>>  IntConstant 10
   /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const10>>]
   /// CHECK-DAG:     <<Xor:j\d+>>      Xor [<<TypeConv>>,<<Const3L>>]
   /// CHECK-DAG:                       Return [<<Xor>>]
 
-  /// CHECK-START: long Main.XorIntLong() constant_folding (after)
+  /// CHECK-START: long Main.XorIntLong() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const9:j\d+>>   LongConstant 9
   /// CHECK-DAG:                       Return [<<Const9>>]
 
-  /// CHECK-START: long Main.XorIntLong() constant_folding (after)
+  /// CHECK-START: long Main.XorIntLong() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Xor
 
   public static long XorIntLong() {
-    int lhs = 10;
-    long rhs = 3;
+    int lhs = $inline$int(10);
+    long rhs = $inline$long(3L);
     return lhs ^ rhs;
   }
 
-  /// CHECK-START: long Main.XorLongInt() constant_folding (before)
+  /// CHECK-START: long Main.XorLongInt() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
   /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
   /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
   /// CHECK-DAG:     <<Xor:j\d+>>      Xor [<<TypeConv>>,<<Const10L>>]
   /// CHECK-DAG:                       Return [<<Xor>>]
 
-  /// CHECK-START: long Main.XorLongInt() constant_folding (after)
+  /// CHECK-START: long Main.XorLongInt() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const9:j\d+>>   LongConstant 9
   /// CHECK-DAG:                       Return [<<Const9>>]
 
-  /// CHECK-START: long Main.XorLongInt() constant_folding (after)
+  /// CHECK-START: long Main.XorLongInt() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       Xor
 
   public static long XorLongInt() {
-    long lhs = 10;
-    int rhs = 3;
+    long lhs = $inline$long(10L);
+    int rhs = $inline$int(3);
     return lhs ^ rhs;
   }
 
@@ -949,23 +962,23 @@ public class Main {
    * Exercise constant folding on constant (static) condition.
    */
 
-  /// CHECK-START: int Main.StaticCondition() constant_folding (before)
+  /// CHECK-START: int Main.StaticCondition() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const7:i\d+>>  IntConstant 7
   /// CHECK-DAG:     <<Const2:i\d+>>  IntConstant 2
   /// CHECK-DAG:     <<Cond:z\d+>>    GreaterThanOrEqual [<<Const7>>,<<Const2>>]
-  /// CHECK-DAG:                      If [<<Cond>>]
+  /// CHECK-DAG:                      Select [{{i\d+}},{{i\d+}},<<Cond>>]
 
-  /// CHECK-START: int Main.StaticCondition() constant_folding (after)
+  /// CHECK-START: int Main.StaticCondition() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const1:i\d+>>  IntConstant 1
-  /// CHECK-DAG:                      If [<<Const1>>]
+  /// CHECK-DAG:                      Select [{{i\d+}},{{i\d+}},<<Const1>>]
 
-  /// CHECK-START: int Main.StaticCondition() constant_folding (after)
+  /// CHECK-START: int Main.StaticCondition() constant_folding_after_inlining (after)
   /// CHECK-NOT:                      GreaterThanOrEqual
 
   public static int StaticCondition() {
     int a, b, c;
-    a = 7;
-    b = 2;
+    a = $inline$int(7);
+    b = $inline$int(2);
     if (a < b)
       c = a + b;
     else
@@ -1010,28 +1023,30 @@ public class Main {
    * (forward) post-order traversal of the the dominator tree.
    */
 
-  /// CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding (before)
+  /// CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding_after_inlining (before)
+  /// CHECK-DAG:     <<Cond:z\d+>>    ParameterValue
   /// CHECK-DAG:     <<Const2:i\d+>>  IntConstant 2
   /// CHECK-DAG:     <<Const5:i\d+>>  IntConstant 5
   /// CHECK-DAG:     <<Add:i\d+>>     Add [<<Const5>>,<<Const2>>]
   /// CHECK-DAG:     <<Sub:i\d+>>     Sub [<<Const5>>,<<Const2>>]
-  /// CHECK-DAG:     <<Phi:i\d+>>     Phi [<<Add>>,<<Sub>>]
+  /// CHECK-DAG:     <<Phi:i\d+>>     Select [<<Sub>>,<<Add>>,<<Cond>>]
   /// CHECK-DAG:                      Return [<<Phi>>]
 
-  /// CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding (after)
+  /// CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding_after_inlining (after)
+  /// CHECK-DAG:     <<Cond:z\d+>>    ParameterValue
   /// CHECK-DAG:     <<Const3:i\d+>>  IntConstant 3
   /// CHECK-DAG:     <<Const7:i\d+>>  IntConstant 7
-  /// CHECK-DAG:     <<Phi:i\d+>>     Phi [<<Const7>>,<<Const3>>]
+  /// CHECK-DAG:     <<Phi:i\d+>>     Select [<<Const3>>,<<Const7>>,<<Cond>>]
   /// CHECK-DAG:                      Return [<<Phi>>]
 
-  /// CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding (after)
+  /// CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding_after_inlining (after)
   /// CHECK-NOT:                      Add
   /// CHECK-NOT:                      Sub
 
   public static int JumpsAndConditionals(boolean cond) {
     int a, b, c;
-    a = 5;
-    b = 2;
+    a = $inline$int(5);
+    b = $inline$int(2);
     if (cond)
       c = a + b;
     else
@@ -1310,204 +1325,204 @@ public class Main {
    * Exercise constant folding on type conversions.
    */
 
-  /// CHECK-START: int Main.ReturnInt33() constant_folding (before)
+  /// CHECK-START: int Main.ReturnInt33() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const33:j\d+>>  LongConstant 33
   /// CHECK-DAG:     <<Convert:i\d+>>  TypeConversion [<<Const33>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: int Main.ReturnInt33() constant_folding (after)
+  /// CHECK-START: int Main.ReturnInt33() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const33:i\d+>>  IntConstant 33
   /// CHECK-DAG:                       Return [<<Const33>>]
 
-  /// CHECK-START: int Main.ReturnInt33() constant_folding (after)
+  /// CHECK-START: int Main.ReturnInt33() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static int ReturnInt33() {
-    long imm = 33L;
+    long imm = $inline$long(33L);
     return (int) imm;
   }
 
-  /// CHECK-START: int Main.ReturnIntMax() constant_folding (before)
+  /// CHECK-START: int Main.ReturnIntMax() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<ConstMax:f\d+>> FloatConstant 1e+34
   /// CHECK-DAG:     <<Convert:i\d+>>  TypeConversion [<<ConstMax>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: int Main.ReturnIntMax() constant_folding (after)
+  /// CHECK-START: int Main.ReturnIntMax() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<ConstMax:i\d+>> IntConstant 2147483647
   /// CHECK-DAG:                       Return [<<ConstMax>>]
 
-  /// CHECK-START: int Main.ReturnIntMax() constant_folding (after)
+  /// CHECK-START: int Main.ReturnIntMax() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static int ReturnIntMax() {
-    float imm = 1.0e34f;
+    float imm = $inline$float(1.0e34f);
     return (int) imm;
   }
 
-  /// CHECK-START: int Main.ReturnInt0() constant_folding (before)
+  /// CHECK-START: int Main.ReturnInt0() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<ConstNaN:d\d+>> DoubleConstant nan
   /// CHECK-DAG:     <<Convert:i\d+>>  TypeConversion [<<ConstNaN>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: int Main.ReturnInt0() constant_folding (after)
+  /// CHECK-START: int Main.ReturnInt0() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:                       Return [<<Const0>>]
 
-  /// CHECK-START: int Main.ReturnInt0() constant_folding (after)
+  /// CHECK-START: int Main.ReturnInt0() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static int ReturnInt0() {
-    double imm = Double.NaN;
+    double imm = $inline$double(Double.NaN);
     return (int) imm;
   }
 
-  /// CHECK-START: long Main.ReturnLong33() constant_folding (before)
+  /// CHECK-START: long Main.ReturnLong33() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const33:i\d+>>  IntConstant 33
   /// CHECK-DAG:     <<Convert:j\d+>>  TypeConversion [<<Const33>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: long Main.ReturnLong33() constant_folding (after)
+  /// CHECK-START: long Main.ReturnLong33() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const33:j\d+>>  LongConstant 33
   /// CHECK-DAG:                       Return [<<Const33>>]
 
-  /// CHECK-START: long Main.ReturnLong33() constant_folding (after)
+  /// CHECK-START: long Main.ReturnLong33() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static long ReturnLong33() {
-    int imm = 33;
+    int imm = $inline$int(33);
     return (long) imm;
   }
 
-  /// CHECK-START: long Main.ReturnLong34() constant_folding (before)
+  /// CHECK-START: long Main.ReturnLong34() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const34:f\d+>>  FloatConstant 34
   /// CHECK-DAG:     <<Convert:j\d+>>  TypeConversion [<<Const34>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: long Main.ReturnLong34() constant_folding (after)
+  /// CHECK-START: long Main.ReturnLong34() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const34:j\d+>>  LongConstant 34
   /// CHECK-DAG:                       Return [<<Const34>>]
 
-  /// CHECK-START: long Main.ReturnLong34() constant_folding (after)
+  /// CHECK-START: long Main.ReturnLong34() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static long ReturnLong34() {
-    float imm = 34.0f;
+    float imm = $inline$float(34.0f);
     return (long) imm;
   }
 
-  /// CHECK-START: long Main.ReturnLong0() constant_folding (before)
+  /// CHECK-START: long Main.ReturnLong0() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<ConstNaN:d\d+>> DoubleConstant nan
   /// CHECK-DAG:     <<Convert:j\d+>>  TypeConversion [<<ConstNaN>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: long Main.ReturnLong0() constant_folding (after)
+  /// CHECK-START: long Main.ReturnLong0() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const0:j\d+>>   LongConstant 0
   /// CHECK-DAG:                       Return [<<Const0>>]
 
-  /// CHECK-START: long Main.ReturnLong0() constant_folding (after)
+  /// CHECK-START: long Main.ReturnLong0() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static long ReturnLong0() {
-    double imm = -Double.NaN;
+    double imm = $inline$double(-Double.NaN);
     return (long) imm;
   }
 
-  /// CHECK-START: float Main.ReturnFloat33() constant_folding (before)
+  /// CHECK-START: float Main.ReturnFloat33() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const33:i\d+>>  IntConstant 33
   /// CHECK-DAG:     <<Convert:f\d+>>  TypeConversion [<<Const33>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: float Main.ReturnFloat33() constant_folding (after)
+  /// CHECK-START: float Main.ReturnFloat33() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const33:f\d+>>  FloatConstant 33
   /// CHECK-DAG:                       Return [<<Const33>>]
 
-  /// CHECK-START: float Main.ReturnFloat33() constant_folding (after)
+  /// CHECK-START: float Main.ReturnFloat33() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static float ReturnFloat33() {
-    int imm = 33;
+    int imm = $inline$int(33);
     return (float) imm;
   }
 
-  /// CHECK-START: float Main.ReturnFloat34() constant_folding (before)
+  /// CHECK-START: float Main.ReturnFloat34() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const34:j\d+>>  LongConstant 34
   /// CHECK-DAG:     <<Convert:f\d+>>  TypeConversion [<<Const34>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: float Main.ReturnFloat34() constant_folding (after)
+  /// CHECK-START: float Main.ReturnFloat34() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const34:f\d+>>  FloatConstant 34
   /// CHECK-DAG:                       Return [<<Const34>>]
 
-  /// CHECK-START: float Main.ReturnFloat34() constant_folding (after)
+  /// CHECK-START: float Main.ReturnFloat34() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static float ReturnFloat34() {
-    long imm = 34L;
+    long imm = $inline$long(34L);
     return (float) imm;
   }
 
-  /// CHECK-START: float Main.ReturnFloat99P25() constant_folding (before)
+  /// CHECK-START: float Main.ReturnFloat99P25() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const:d\d+>>    DoubleConstant 99.25
   /// CHECK-DAG:     <<Convert:f\d+>>  TypeConversion [<<Const>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: float Main.ReturnFloat99P25() constant_folding (after)
+  /// CHECK-START: float Main.ReturnFloat99P25() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const:f\d+>>    FloatConstant 99.25
   /// CHECK-DAG:                       Return [<<Const>>]
 
-  /// CHECK-START: float Main.ReturnFloat99P25() constant_folding (after)
+  /// CHECK-START: float Main.ReturnFloat99P25() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static float ReturnFloat99P25() {
-    double imm = 99.25;
+    double imm = $inline$double(99.25);
     return (float) imm;
   }
 
-  /// CHECK-START: double Main.ReturnDouble33() constant_folding (before)
+  /// CHECK-START: double Main.ReturnDouble33() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const33:i\d+>>  IntConstant 33
   /// CHECK-DAG:     <<Convert:d\d+>>  TypeConversion [<<Const33>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: double Main.ReturnDouble33() constant_folding (after)
+  /// CHECK-START: double Main.ReturnDouble33() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const33:d\d+>>  DoubleConstant 33
   /// CHECK-DAG:                       Return [<<Const33>>]
 
   public static double ReturnDouble33() {
-    int imm = 33;
+    int imm = $inline$int(33);
     return (double) imm;
   }
 
-  /// CHECK-START: double Main.ReturnDouble34() constant_folding (before)
+  /// CHECK-START: double Main.ReturnDouble34() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const34:j\d+>>  LongConstant 34
   /// CHECK-DAG:     <<Convert:d\d+>>  TypeConversion [<<Const34>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: double Main.ReturnDouble34() constant_folding (after)
+  /// CHECK-START: double Main.ReturnDouble34() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const34:d\d+>>  DoubleConstant 34
   /// CHECK-DAG:                       Return [<<Const34>>]
 
-  /// CHECK-START: double Main.ReturnDouble34() constant_folding (after)
+  /// CHECK-START: double Main.ReturnDouble34() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static double ReturnDouble34() {
-    long imm = 34L;
+    long imm = $inline$long(34L);
     return (double) imm;
   }
 
-  /// CHECK-START: double Main.ReturnDouble99P25() constant_folding (before)
+  /// CHECK-START: double Main.ReturnDouble99P25() constant_folding_after_inlining (before)
   /// CHECK-DAG:     <<Const:f\d+>>    FloatConstant 99.25
   /// CHECK-DAG:     <<Convert:d\d+>>  TypeConversion [<<Const>>]
   /// CHECK-DAG:                       Return [<<Convert>>]
 
-  /// CHECK-START: double Main.ReturnDouble99P25() constant_folding (after)
+  /// CHECK-START: double Main.ReturnDouble99P25() constant_folding_after_inlining (after)
   /// CHECK-DAG:     <<Const:d\d+>>    DoubleConstant 99.25
   /// CHECK-DAG:                       Return [<<Const>>]
 
-  /// CHECK-START: double Main.ReturnDouble99P25() constant_folding (after)
+  /// CHECK-START: double Main.ReturnDouble99P25() constant_folding_after_inlining (after)
   /// CHECK-NOT:                       TypeConversion
 
   public static double ReturnDouble99P25() {
-    float imm = 99.25f;
+    float imm = $inline$float(99.25f);
     return (double) imm;
   }
 
