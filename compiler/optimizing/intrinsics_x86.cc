@@ -2627,41 +2627,17 @@ void IntrinsicCodeGeneratorX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) 
   GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
-// Unimplemented intrinsics.
+UNIMPLEMENTED_INTRINSIC(X86, MathRoundDouble)
+UNIMPLEMENTED_INTRINSIC(X86, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(X86, SystemArrayCopy)
+UNIMPLEMENTED_INTRINSIC(X86, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(X86, DoubleIsInfinite)
+UNIMPLEMENTED_INTRINSIC(X86, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(X86, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(X86, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(X86, LongLowestOneBit)
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
-void IntrinsicLocationsBuilderX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                       \
-void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
-
-UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
-
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatFloatToIntBits)
-UNIMPLEMENTED_INTRINSIC(DoubleDoubleToLongBits)
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
-
-#undef UNIMPLEMENTED_INTRINSIC
+UNREACHABLE_INTRINSICS(X86)
 
 #undef __
 
