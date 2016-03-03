@@ -51,7 +51,7 @@ vm_command="--vm-command=$art"
 image_compiler_option=""
 debug="no"
 verbose="no"
-image="-Ximage:/data/art-test/core-jit.art"
+image="-Ximage:/data/art-test/core-optimizing-pic.art"
 vm_args=""
 # By default, we run the whole JDWP test suite.
 test="org.apache.harmony.jpda.tests.share.AllTests"
@@ -70,9 +70,6 @@ while true; do
     device_dir=""
     # Vogar knows which VM to use on host.
     vm_command=""
-    # We only compile the image on the host. Note that not providing this option
-    # for target testing puts us below the adb command limit for vogar.
-    image_compiler_option="--vm-arg -Ximage-compiler-option --vm-arg --debuggable"
     shift
   elif [[ $1 == -Ximage:* ]]; then
     image="$1"
