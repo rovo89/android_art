@@ -307,8 +307,13 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   Thread* const self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
   Runtime* const runtime = Runtime::Current();
+
+  int target_compilation_type_mask = OatFileAssistant::kFullCompilation
+    | OatFileAssistant::kProfileGuideCompilation
+    | OatFileAssistant::kExtractOnly;
   OatFileAssistant oat_file_assistant(dex_location,
                                       oat_location,
+                                      target_compilation_type_mask,
                                       kRuntimeISA,
                                       !runtime->IsAotCompiler());
 
