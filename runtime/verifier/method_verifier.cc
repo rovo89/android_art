@@ -16,6 +16,9 @@
 
 #include "method_verifier-inl.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include <cutils/trace.h>
+
 #include <iostream>
 
 #include "art_field-inl.h"
@@ -283,6 +286,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
     // empty class, probably a marker interface
     return kNoFailure;
   }
+  ATRACE_BEGIN("VerifyClass");
   ClassDataItemIterator it(*dex_file, class_data);
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     it.Next();
@@ -316,6 +320,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                            error);
 
   data1.Merge(data2);
+
+  ATRACE_END();
 
   if (data1.kind == kNoFailure) {
     return kNoFailure;
