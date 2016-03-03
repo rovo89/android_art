@@ -24,6 +24,7 @@
 #include "debugger_interface.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
+#include "jit/jit.h"
 #include "jit/profiling_info.h"
 #include "linear_alloc.h"
 #include "mem_map.h"
@@ -129,7 +130,9 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       used_memory_for_data_(0),
       used_memory_for_code_(0),
       number_of_compilations_(0),
-      number_of_osr_compilations_(0) {
+      number_of_osr_compilations_(0),
+      number_of_deoptimizations_(0),
+      number_of_collections_(0) {
 
   DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
@@ -363,16 +366,6 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   return reinterpret_cast<uint8_t*>(method_header);
 }
 
-size_t JitCodeCache::NumberOfCompilations() {
-  MutexLock mu(Thread::Current(), lock_);
-  return number_of_compilations_;
-}
-
-size_t JitCodeCache::NumberOfOsrCompilations() {
-  MutexLock mu(Thread::Current(), lock_);
-  return number_of_osr_compilations_;
-}
-
 size_t JitCodeCache::CodeCacheSize() {
   MutexLock mu(Thread::Current(), lock_);
   return CodeCacheSizeLocked();
@@ -389,11 +382,6 @@ size_t JitCodeCache::DataCacheSize() {
 
 size_t JitCodeCache::DataCacheSizeLocked() {
   return used_memory_for_data_;
-}
-
-size_t JitCodeCache::NumberOfCompiledCode() {
-  MutexLock mu(Thread::Current(), lock_);
-  return method_code_map_.size();
 }
 
 void JitCodeCache::ClearData(Thread* self, void* data) {
@@ -577,6 +565,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     if (WaitForPotentialCollectionToComplete(self)) {
       return;
     } else {
+      number_of_collections_++;
       live_bitmap_.reset(CodeCacheBitmap::Create(
           "code-cache-bitmap",
           reinterpret_cast<uintptr_t>(code_map_->Begin()),
@@ -585,63 +574,69 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
     }
   }
 
-  bool do_full_collection = false;
+  TimingLogger logger("JIT code cache timing logger", true, VLOG_IS_ON(jit));
   {
-    MutexLock mu(self, lock_);
-    do_full_collection = ShouldDoFullCollection();
-  }
+    TimingLogger::ScopedTiming st("Code cache collection", &logger);
 
-  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-    LOG(INFO) << "Do "
-              << (do_full_collection ? "full" : "partial")
-              << " code cache collection, code="
-              << PrettySize(CodeCacheSize())
-              << ", data=" << PrettySize(DataCacheSize());
-  }
-
-  DoCollection(self, /* collect_profiling_info */ do_full_collection);
-
-  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-    LOG(INFO) << "After code cache collection, code="
-              << PrettySize(CodeCacheSize())
-              << ", data=" << PrettySize(DataCacheSize());
-  }
-
-  {
-    MutexLock mu(self, lock_);
-
-    // Increase the code cache only when we do partial collections.
-    // TODO: base this strategy on how full the code cache is?
-    if (do_full_collection) {
-      last_collection_increased_code_cache_ = false;
-    } else {
-      last_collection_increased_code_cache_ = true;
-      IncreaseCodeCacheCapacity();
+    bool do_full_collection = false;
+    {
+      MutexLock mu(self, lock_);
+      do_full_collection = ShouldDoFullCollection();
     }
 
-    bool next_collection_will_be_full = ShouldDoFullCollection();
+    if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+      LOG(INFO) << "Do "
+                << (do_full_collection ? "full" : "partial")
+                << " code cache collection, code="
+                << PrettySize(CodeCacheSize())
+                << ", data=" << PrettySize(DataCacheSize());
+    }
 
-    // Start polling the liveness of compiled code to prepare for the next full collection.
-    // We avoid doing this if exit stubs are installed to not mess with the instrumentation.
-    // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
-    if (!Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
-        next_collection_will_be_full) {
-      // Save the entry point of methods we have compiled, and update the entry
-      // point of those methods to the interpreter. If the method is invoked, the
-      // interpreter will update its entry point to the compiled code and call it.
-      for (ProfilingInfo* info : profiling_infos_) {
-        const void* entry_point = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
-        if (ContainsPc(entry_point)) {
-          info->SetSavedEntryPoint(entry_point);
-          info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
-        }
+    DoCollection(self, /* collect_profiling_info */ do_full_collection);
+
+    if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
+      LOG(INFO) << "After code cache collection, code="
+                << PrettySize(CodeCacheSize())
+                << ", data=" << PrettySize(DataCacheSize());
+    }
+
+    {
+      MutexLock mu(self, lock_);
+
+      // Increase the code cache only when we do partial collections.
+      // TODO: base this strategy on how full the code cache is?
+      if (do_full_collection) {
+        last_collection_increased_code_cache_ = false;
+      } else {
+        last_collection_increased_code_cache_ = true;
+        IncreaseCodeCacheCapacity();
       }
 
-      DCHECK(CheckLiveCompiledCodeHasProfilingInfo());
+      bool next_collection_will_be_full = ShouldDoFullCollection();
+
+      // Start polling the liveness of compiled code to prepare for the next full collection.
+      // We avoid doing this if exit stubs are installed to not mess with the instrumentation.
+      // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
+      if (!Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
+          next_collection_will_be_full) {
+        // Save the entry point of methods we have compiled, and update the entry
+        // point of those methods to the interpreter. If the method is invoked, the
+        // interpreter will update its entry point to the compiled code and call it.
+        for (ProfilingInfo* info : profiling_infos_) {
+          const void* entry_point = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
+          if (ContainsPc(entry_point)) {
+            info->SetSavedEntryPoint(entry_point);
+            info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+          }
+        }
+
+        DCHECK(CheckLiveCompiledCodeHasProfilingInfo());
+      }
+      live_bitmap_.reset(nullptr);
+      NotifyCollectionDone(self);
     }
-    live_bitmap_.reset(nullptr);
-    NotifyCollectionDone(self);
   }
+  Runtime::Current()->GetJit()->AddTimingLogger(logger);
 }
 
 void JitCodeCache::RemoveUnusedAndUnmarkedCode(Thread* self) {
@@ -874,17 +869,27 @@ uint64_t JitCodeCache::GetLastUpdateTimeNs() const {
 
 bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr) {
   if (!osr && ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
+    VLOG(jit) << PrettyMethod(method) << " is already compiled";
     return false;
   }
 
   MutexLock mu(self, lock_);
   if (osr && (osr_code_map_.find(method) != osr_code_map_.end())) {
+    VLOG(jit) << PrettyMethod(method) << " is already osr compiled";
     return false;
   }
+
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
-  if (info == nullptr || info->IsMethodBeingCompiled()) {
+  if (info == nullptr) {
+    VLOG(jit) << PrettyMethod(method) << " needs a ProfilingInfo to be compiled";
     return false;
   }
+
+  if (info->IsMethodBeingCompiled()) {
+    VLOG(jit) << PrettyMethod(method) << " is already being compiled";
+    return false;
+  }
+
   info->SetIsMethodBeingCompiled(true);
   return true;
 }
@@ -924,6 +929,8 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
       osr_code_map_.erase(it);
     }
   }
+  MutexLock mu(Thread::Current(), lock_);
+  number_of_deoptimizations_++;
 }
 
 uint8_t* JitCodeCache::AllocateCode(size_t code_size) {
@@ -951,6 +958,19 @@ uint8_t* JitCodeCache::AllocateData(size_t data_size) {
 void JitCodeCache::FreeData(uint8_t* data) {
   used_memory_for_data_ -= mspace_usable_size(data);
   mspace_free(data_mspace_, data);
+}
+
+void JitCodeCache::Dump(std::ostream& os) {
+  MutexLock mu(Thread::Current(), lock_);
+  os << "Current JIT code cache size: " << PrettySize(used_memory_for_code_) << "\n"
+     << "Current JIT data cache size: " << PrettySize(used_memory_for_data_) << "\n"
+     << "Current JIT capacity: " << PrettySize(current_capacity_) << "\n"
+     << "Current number of JIT code cache entries: " << method_code_map_.size() << "\n"
+     << "Total number of JIT compilations: " << number_of_compilations_ << "\n"
+     << "Total number of JIT compilations for on stack replacement: "
+        << number_of_osr_compilations_ << "\n"
+     << "Total number of deoptimizations: " << number_of_deoptimizations_ << "\n"
+     << "Total number of JIT code cache collections: " << number_of_collections_ << std::endl;
 }
 
 }  // namespace jit

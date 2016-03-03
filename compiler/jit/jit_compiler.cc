@@ -85,7 +85,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
-JitCompiler::JitCompiler() : total_time_(0) {
+JitCompiler::JitCompiler() {
   compiler_options_.reset(new CompilerOptions(
       CompilerOptions::kDefaultCompilerFilter,
       CompilerOptions::kDefaultHugeMethodThreshold,
@@ -195,7 +195,6 @@ JitCompiler::~JitCompiler() {
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   DCHECK(!method->IsProxyMethod());
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
-  const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
@@ -236,7 +235,6 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
     runtime->GetJitArenaPool()->TrimMaps();
   }
 
-  total_time_ += NanoTime() - start_time;
   runtime->GetJit()->AddTimingLogger(logger);
   return success;
 }
