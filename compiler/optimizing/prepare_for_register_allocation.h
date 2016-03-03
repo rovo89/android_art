@@ -32,6 +32,9 @@ class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
 
   void Run();
 
+  static constexpr const char* kPrepareForRegisterAllocationPassName =
+      "prepare_for_register_allocation";
+
  private:
   void VisitNullCheck(HNullCheck* check) OVERRIDE;
   void VisitDivZeroCheck(HDivZeroCheck* check) OVERRIDE;
