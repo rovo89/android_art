@@ -20,9 +20,5 @@ set -e
 # Hard-wired use of experimental jack.
 # TODO: fix this temporary work-around for lambdas, see b/19467889
 export USE_JACK=true
-export JACK_SERVER=false
-export JACK_REPOSITORY="${ANDROID_BUILD_TOP}/prebuilts/sdk/tools/jacks"
-# e.g. /foo/bar/jack-3.10.ALPHA.jar -> 3.10.ALPHA
-export JACK_VERSION="$(find "$JACK_REPOSITORY" -name '*ALPHA*' | sed 's/.*jack-//g' | sed 's/[.]jar//g')"
 
 ./default-build "$@" --experimental default-methods

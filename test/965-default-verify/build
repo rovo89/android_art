@@ -17,32 +17,11 @@
 # make us exit on a failure
 set -e
 
-# Should we compile with Java source code. By default we will use Smali.
-USES_JAVA_SOURCE="false"
-if [[ $@ == *"--jvm"* ]]; then
-  USES_JAVA_SOURCE="true"
-elif [[ "$USE_JACK" == "true" ]]; then
-  if $JACK -D jack.java.source.version=1.8 2>/dev/null; then
-    USES_JAVA_SOURCE="true"
-  else
-    echo "WARNING: Cannot use jack because it does not support JLS 1.8. Falling back to smali" >&2
-  fi
+if [[ $@ != *"--jvm"* ]]; then
+  # Don't do anything with jvm
+  # Hard-wired use of experimental jack.
+  # TODO: fix this temporary work-around for default-methods, see b/19467889
+  export USE_JACK=true
 fi
 
-if [[ "$USES_JAVA_SOURCE" == "true" ]]; then
-  # We are compiling Java code, create it.
-  mkdir -p src
-  mkdir -p src2
-  ${ANDROID_BUILD_TOP}/art/tools/extract-embedded-java ./smali ./src
-  # Move build-src to src and the src copies to src2. This is needed because of
-  # how our default build script works and we wanted the java and smali code
-  # to be the same in the smali files.
-  for f in `find ./build-src -type f -name "*.java" | xargs -i basename \{\}`; do
-    mv ./src/$f ./src2/$f
-    mv ./build-src/$f ./src/$f
-  done
-  # Ignore the smali directory.
-  EXTRA_ARGS="--no-smali"
-fi
-
-./default-build "$@" "$EXTRA_ARGS" --experimental default-methods
+./default-build "$@" --experimental default-methods
