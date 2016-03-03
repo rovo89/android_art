@@ -1198,7 +1198,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
     Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches,
-    bool added_class_table,
+    ClassTable::ClassSet* new_class_set,
     bool* out_forward_dex_cache_array,
     std::string* out_error_msg) {
   DCHECK(out_forward_dex_cache_array != nullptr);
@@ -1217,20 +1217,40 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
   for (size_t i = 0; i < num_dex_caches; i++) {
     mirror::DexCache* const dex_cache = dex_caches->Get(i);
     const DexFile* const dex_file = dex_cache->GetDexFile();
-    // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
-    // copy over the arrays.
-    DCHECK(dex_file != nullptr);
-    const size_t num_strings = dex_file->NumStringIds();
-    const size_t num_types = dex_file->NumTypeIds();
-    const size_t num_methods = dex_file->NumMethodIds();
-    const size_t num_fields = dex_file->NumFieldIds();
-    CHECK_EQ(num_strings, dex_cache->NumStrings());
-    CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
-    CHECK_EQ(num_methods, dex_cache->NumResolvedMethods());
-    CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
     const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
     if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
       ++num_dex_caches_with_bss_arrays;
+    }
+  }
+  *out_forward_dex_cache_array = num_dex_caches_with_bss_arrays != 0;
+  if (*out_forward_dex_cache_array) {
+    if (num_dex_caches_with_bss_arrays != num_dex_caches) {
+      // Reject application image since we cannot forward only some of the dex cache arrays.
+      // TODO: We could get around this by having a dedicated forwarding slot. It should be an
+      // uncommon case.
+      *out_error_msg = StringPrintf("Dex caches in bss does not match total: %zu vs %zu",
+                                    num_dex_caches_with_bss_arrays,
+                                    num_dex_caches);
+      return false;
+    }
+  }
+  // Only add the classes to the class loader after the points where we can return false.
+  for (size_t i = 0; i < num_dex_caches; i++) {
+    mirror::DexCache* const dex_cache = dex_caches->Get(i);
+    const DexFile* const dex_file = dex_cache->GetDexFile();
+    const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
+    if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
+    // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
+      // copy over the arrays.
+      DCHECK(dex_file != nullptr);
+      const size_t num_strings = dex_file->NumStringIds();
+      const size_t num_types = dex_file->NumTypeIds();
+      const size_t num_methods = dex_file->NumMethodIds();
+      const size_t num_fields = dex_file->NumFieldIds();
+      CHECK_EQ(num_strings, dex_cache->NumStrings());
+      CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
+      CHECK_EQ(num_methods, dex_cache->NumResolvedMethods());
+      CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
       DexCacheArraysLayout layout(image_pointer_size_, dex_file);
       uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
       // The space is not yet visible to the GC, we can avoid the read barriers and use std::copy_n.
@@ -1292,10 +1312,11 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
       RegisterDexFileLocked(*dex_file, hs3.NewHandle(dex_cache));
     }
     GcRoot<mirror::Class>* const types = dex_cache->GetResolvedTypes();
-    if (!added_class_table) {
+    const size_t num_types = dex_cache->NumResolvedTypes();
+    if (new_class_set == nullptr) {
       for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
         // The image space is not yet added to the heap, avoid read barriers.
-        mirror::Class* klass = types[j].Read<kWithoutReadBarrier>();
+        mirror::Class* klass = types[j].Read();
         if (klass != nullptr) {
           DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
           // Update the class loader from the one in the image class loader to the one that loaded
@@ -1341,14 +1362,26 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     if (kIsDebugBuild) {
       for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
         // The image space is not yet added to the heap, avoid read barriers.
-        mirror::Class* klass = types[j].Read<kWithoutReadBarrier>();
+        mirror::Class* klass = types[j].Read();
         if (klass != nullptr) {
           DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
           if (kIsDebugBuild) {
-            DCHECK_EQ(table->LookupByDescriptor(klass), klass);
-            mirror::Class* super_class = klass->GetSuperClass();
-            if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
-              CHECK_EQ(table->LookupByDescriptor(super_class), super_class);
+            if (new_class_set != nullptr)   {
+              auto it = new_class_set->Find(GcRoot<mirror::Class>(klass));
+              DCHECK(it != new_class_set->end());
+              DCHECK_EQ(it->Read(), klass);
+              mirror::Class* super_class = klass->GetSuperClass();
+              if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
+                auto it2 = new_class_set->Find(GcRoot<mirror::Class>(super_class));
+                DCHECK(it2 != new_class_set->end());
+                DCHECK_EQ(it2->Read(), super_class);
+              }
+            } else {
+              DCHECK_EQ(table->LookupByDescriptor(klass), klass);
+              mirror::Class* super_class = klass->GetSuperClass();
+              if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
+                CHECK_EQ(table->LookupByDescriptor(super_class), super_class);
+              }
             }
           }
           if (kIsDebugBuild) {
@@ -1362,7 +1395,6 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
                 DCHECK_EQ(code, oat_code) << PrettyMethod(&m);
               }
             }
-            VLOG(image) << "Virtual methods";
             for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
               const void* code = m.GetEntryPointFromQuickCompiledCode();
               const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
@@ -1378,17 +1410,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
       }
     }
   }
-  *out_forward_dex_cache_array = num_dex_caches_with_bss_arrays != 0;
   if (*out_forward_dex_cache_array) {
-    if (num_dex_caches_with_bss_arrays != num_dex_caches) {
-      // Reject application image since we cannot forward only some of the dex cache arrays.
-      // TODO: We could get around this by having a dedicated forwarding slot. It should be an
-      // uncommon case.
-      *out_error_msg = StringPrintf("Dex caches in bss does not match total: %zu vs %zu",
-                                    num_dex_caches_with_bss_arrays,
-                                    num_dex_caches);
-      return false;
-    }
     FixupArtMethodArrayVisitor visitor(header);
     header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
         &visitor,
@@ -1396,17 +1418,11 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         sizeof(void*));
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
   }
-  if (kIsDebugBuild) {
-    ClassTable* const class_table = class_loader.Get()->GetClassTable();
-    VerifyClassInTableArtMethodVisitor visitor2(class_table);
-    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &visitor2,
-        space->Begin(),
-        sizeof(void*));
-  }
   return true;
 }
 
+// Update the class loader and resolved string dex cache array of classes. Should only be used on
+// classes in the image space.
 class UpdateClassLoaderAndResolvedStringsVisitor {
  public:
   UpdateClassLoaderAndResolvedStringsVisitor(gc::space::ImageSpace* space,
@@ -1457,6 +1473,7 @@ bool ClassLinker::AddImageSpace(
   Runtime* const runtime = Runtime::Current();
   gc::Heap* const heap = runtime->GetHeap();
   Thread* const self = Thread::Current();
+  ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
   StackHandleScope<2> hs(self);
   Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches(
       hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
@@ -1644,43 +1661,46 @@ bool ClassLinker::AddImageSpace(
     methods.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
   }
 
-  const ImageSection& class_table_section = header.GetImageSection(ImageHeader::kSectionClassTable);
-  bool added_class_table = false;
-  if (app_image) {
-    GetOrCreateAllocatorForClassLoader(class_loader.Get());  // Make sure we have a linear alloc.
-  }
   ClassTable* class_table = nullptr;
   {
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
     class_table = InsertClassTableForClassLoader(class_loader.Get());
-    if (class_table_section.Size() > 0u) {
-      const uint64_t start_time2 = NanoTime();
-      class_table->ReadFromMemory(space->Begin() + class_table_section.Offset());
-      if (!app_image) {
-        dex_cache_boot_image_class_lookup_required_ = false;
-      }
-      VLOG(image) << "Adding class table classes took " << PrettyDuration(NanoTime() - start_time2);
-      added_class_table = true;
+  }
+  // If we have a class table section, read it and use it for verification in
+  // UpdateAppImageClassLoadersAndDexCaches.
+  ClassTable::ClassSet temp_set;
+  const ImageSection& class_table_section = header.GetImageSection(ImageHeader::kSectionClassTable);
+  const bool added_class_table = class_table_section.Size() > 0u;
+  if (added_class_table) {
+    const uint64_t start_time2 = NanoTime();
+    size_t read_count = 0;
+    temp_set = ClassTable::ClassSet(space->Begin() + class_table_section.Offset(),
+                                    /*make copy*/false,
+                                    &read_count);
+    if (!app_image) {
+      dex_cache_boot_image_class_lookup_required_ = false;
     }
+    VLOG(image) << "Adding class table classes took " << PrettyDuration(NanoTime() - start_time2);
   }
   if (app_image) {
     bool forward_dex_cache_arrays = false;
     if (!UpdateAppImageClassLoadersAndDexCaches(space,
                                                 class_loader,
                                                 dex_caches,
-                                                added_class_table,
+                                                added_class_table ? &temp_set : nullptr,
                                                 /*out*/&forward_dex_cache_arrays,
                                                 /*out*/error_msg)) {
       return false;
     }
+    // Update class loader and resolved strings. If added_class_table is false, the resolved
+    // strings were forwarded UpdateAppImageClassLoadersAndDexCaches.
+    UpdateClassLoaderAndResolvedStringsVisitor visitor(space,
+                                                       class_loader.Get(),
+                                                       forward_dex_cache_arrays);
     if (added_class_table) {
-      WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-      // Update class loader and resolved strings. If added_class_table is false, the resolved
-      // strings were already updated in UpdateAppImageClassLoadersAndDexCaches.
-      UpdateClassLoaderAndResolvedStringsVisitor visitor(space,
-                                                         class_loader.Get(),
-                                                         forward_dex_cache_arrays);
-      class_table->Visit(visitor);
+      for (GcRoot<mirror::Class>& root : temp_set) {
+        visitor(root.Read());
+      }
     }
     // forward_dex_cache_arrays is true iff we copied all of the dex cache arrays into the .bss.
     // In this case, madvise away the dex cache arrays section of the image to reduce RAM usage and
@@ -1698,6 +1718,19 @@ bool ClassLinker::AddImageSpace(
                     << reinterpret_cast<const void*>(section_end);
       }
     }
+  }
+  if (added_class_table) {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    class_table->AddClassSet(std::move(temp_set));
+  }
+  if (kIsDebugBuild && app_image) {
+    // This verification needs to happen after the classes have been added to the class loader.
+    // Since it ensures classes are in the class table.
+    VerifyClassInTableArtMethodVisitor visitor2(class_table);
+    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
+        &visitor2,
+        space->Begin(),
+        sizeof(void*));
   }
   VLOG(class_linker) << "Adding image space took " << PrettyDuration(NanoTime() - start_time);
   return true;
