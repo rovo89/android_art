@@ -38,12 +38,15 @@ class PACKED(4) OatHeader {
   static constexpr const char* kDex2OatHostKey = "dex2oat-host";
   static constexpr const char* kPicKey = "pic";
   static constexpr const char* kDebuggableKey = "debuggable";
-  static constexpr const char* kExtractOnlyKey = "extract-only";
+  static constexpr const char* kCompilationType = "compilation-type";
   static constexpr const char* kClassPathKey = "classpath";
   static constexpr const char* kBootClassPath = "bootclasspath";
 
   static constexpr const char kTrueValue[] = "true";
   static constexpr const char kFalseValue[] = "false";
+  static constexpr const char kExtractOnlyValue[] = "extract-only";
+  static constexpr const char kProfileGuideCompiledValue[] = "profile-guide";
+
 
   static OatHeader* Create(InstructionSet instruction_set,
                            const InstructionSetFeatures* instruction_set_features,
@@ -108,8 +111,11 @@ class PACKED(4) OatHeader {
   bool IsPic() const;
   bool IsDebuggable() const;
   bool IsExtractOnly() const;
+  bool IsProfileGuideCompiled() const;
 
  private:
+  bool KeyHasValue(const char* key, const char* value, size_t value_size) const;
+
   OatHeader(InstructionSet instruction_set,
             const InstructionSetFeatures* instruction_set_features,
             uint32_t dex_file_count,

@@ -347,15 +347,14 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jobject cookie
 
 static jint GetDexOptNeeded(JNIEnv* env,
                             const char* filename,
-                            const char* pkgname,
                             const char* instruction_set,
-                            const jboolean defer) {
+                            const int target_compilation_type_mask) {
   if ((filename == nullptr) || !OS::FileExists(filename)) {
     LOG(ERROR) << "DexFile_getDexOptNeeded file '" << filename << "' does not exist";
     ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
     const char* message = (filename == nullptr) ? "<empty file name>" : filename;
     env->ThrowNew(fnfe.get(), message);
-    return OatFileAssistant::kNoDexOptNeeded;
+    return -1;
   }
 
   const InstructionSet target_instruction_set = GetInstructionSetFromString(instruction_set);
@@ -363,37 +362,17 @@ static jint GetDexOptNeeded(JNIEnv* env,
     ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
     std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set));
     env->ThrowNew(iae.get(), message.c_str());
-    return 0;
+    return -1;
   }
 
   // TODO: Verify the dex location is well formed, and throw an IOException if
   // not?
-
-  OatFileAssistant oat_file_assistant(filename, target_instruction_set, false, pkgname);
+  OatFileAssistant oat_file_assistant(filename, target_compilation_type_mask,
+      target_instruction_set, false);
 
   // Always treat elements of the bootclasspath as up-to-date.
   if (oat_file_assistant.IsInBootClassPath()) {
     return OatFileAssistant::kNoDexOptNeeded;
-  }
-
-  // TODO: Checking the profile should probably be done in the GetStatus()
-  // function. We have it here because GetStatus() should not be copying
-  // profile files. But who should be copying profile files?
-  if (oat_file_assistant.OdexFileIsOutOfDate()) {
-    // Needs recompile if profile has changed significantly.
-    if (Runtime::Current()->GetProfilerOptions().IsEnabled()) {
-      if (oat_file_assistant.IsProfileChangeSignificant()) {
-        if (!defer) {
-          oat_file_assistant.CopyProfileFile();
-        }
-        return OatFileAssistant::kDex2OatNeeded;
-      } else if (oat_file_assistant.ProfileExists()
-          && !oat_file_assistant.OldProfileExists()) {
-        if (!defer) {
-          oat_file_assistant.CopyProfileFile();
-        }
-      }
-    }
   }
 
   return oat_file_assistant.GetDexOptNeeded();
@@ -402,34 +381,33 @@ static jint GetDexOptNeeded(JNIEnv* env,
 static jint DexFile_getDexOptNeeded(JNIEnv* env,
                                     jclass,
                                     jstring javaFilename,
-                                    jstring javaPkgname,
                                     jstring javaInstructionSet,
-                                    jboolean defer) {
+                                    jint javaTargetCompilationTypeMask) {
   ScopedUtfChars filename(env, javaFilename);
   if (env->ExceptionCheck()) {
-    return 0;
+    return -1;
   }
-
-  NullableScopedUtfChars pkgname(env, javaPkgname);
 
   ScopedUtfChars instruction_set(env, javaInstructionSet);
   if (env->ExceptionCheck()) {
-    return 0;
+    return -1;
   }
 
   return GetDexOptNeeded(env,
                          filename.c_str(),
-                         pkgname.c_str(),
                          instruction_set.c_str(),
-                         defer);
+                         javaTargetCompilationTypeMask);
 }
 
-// public API, null pkgname
+// public API
 static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   const char* instruction_set = GetInstructionSetString(kRuntimeISA);
   ScopedUtfChars filename(env, javaFilename);
-  jint status = GetDexOptNeeded(env, filename.c_str(), nullptr /* pkgname */,
-                                instruction_set, false /* defer */);
+  jint status = GetDexOptNeeded(
+      env,
+      filename.c_str(),
+      instruction_set,
+      OatFileAssistant::kFullCompilation | OatFileAssistant::kProfileGuideCompilation);
   return (status != OatFileAssistant::kNoDexOptNeeded) ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -445,7 +423,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, getDexOptNeeded,
-                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I"),
+                "(Ljava/lang/String;Ljava/lang/String;I)I"),
   NATIVE_METHOD(DexFile, openDexFileNative,
                 "(Ljava/lang/String;"
                 "Ljava/lang/String;"
