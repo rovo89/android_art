@@ -93,6 +93,8 @@ class OatFile {
 
   bool IsExtractOnly() const;
 
+  bool IsProfileGuideCompiled() const;
+
   const std::string& GetLocation() const {
     return location_;
   }
