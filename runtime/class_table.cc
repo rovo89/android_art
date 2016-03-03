@@ -168,8 +168,12 @@ size_t ClassTable::WriteToMemory(uint8_t* ptr) const {
 
 size_t ClassTable::ReadFromMemory(uint8_t* ptr) {
   size_t read_count = 0;
-  classes_.insert(classes_.begin(), ClassSet(ptr, /*make copy*/false, &read_count));
+  AddClassSet(ClassSet(ptr, /*make copy*/false, &read_count));
   return read_count;
+}
+
+void ClassTable::AddClassSet(ClassSet&& set) {
+  classes_.insert(classes_.begin(), std::move(set));
 }
 
 }  // namespace art
