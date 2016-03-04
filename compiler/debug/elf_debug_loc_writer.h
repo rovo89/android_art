@@ -85,29 +85,32 @@ struct VariableLocation {
 // The result will cover all ranges where the variable is in scope.
 // PCs corresponding to stackmap with dex register map are accurate,
 // all other PCs are best-effort only.
-std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method_info,
-                                                   uint16_t vreg,
-                                                   bool is64bitValue,
-                                                   uint32_t dex_pc_low,
-                                                   uint32_t dex_pc_high) {
+std::vector<VariableLocation> GetVariableLocations(
+    const MethodDebugInfo* method_info,
+    const std::vector<DexRegisterMap>& dex_register_maps,
+    uint16_t vreg,
+    bool is64bitValue,
+    uint32_t dex_pc_low,
+    uint32_t dex_pc_high) {
   std::vector<VariableLocation> variable_locations;
 
   // Get stack maps sorted by pc (they might not be sorted internally).
   const CodeInfo code_info(method_info->compiled_method->GetVmapTable().data());
   const StackMapEncoding encoding = code_info.ExtractEncoding();
-  std::map<uint32_t, StackMap> stack_maps;
+  std::map<uint32_t, uint32_t> stack_maps;  // low_pc -> stack_map_index.
   for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
     StackMap stack_map = code_info.GetStackMapAt(s, encoding);
     DCHECK(stack_map.IsValid());
     const uint32_t low_pc = method_info->low_pc + stack_map.GetNativePcOffset(encoding);
     DCHECK_LE(low_pc, method_info->high_pc);
-    stack_maps.emplace(low_pc, stack_map);
+    stack_maps.emplace(low_pc, s);
   }
 
   // Create entries for the requested register based on stack map data.
   for (auto it = stack_maps.begin(); it != stack_maps.end(); it++) {
-    const StackMap& stack_map = it->second;
     const uint32_t low_pc = it->first;
+    const uint32_t stack_map_index = it->second;
+    const StackMap& stack_map = code_info.GetStackMapAt(stack_map_index, encoding);
     auto next_it = it;
     next_it++;
     const uint32_t high_pc = next_it != stack_maps.end() ? next_it->first
@@ -126,9 +129,9 @@ std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method
     // Find the location of the dex register.
     DexRegisterLocation reg_lo = DexRegisterLocation::None();
     DexRegisterLocation reg_hi = DexRegisterLocation::None();
-    if (stack_map.HasDexRegisterMap(encoding)) {
-      DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(
-          stack_map, encoding, method_info->code_item->registers_size_);
+    DCHECK_LT(stack_map_index, dex_register_maps.size());
+    DexRegisterMap dex_register_map = dex_register_maps[stack_map_index];
+    if (dex_register_map.IsValid()) {
       reg_lo = dex_register_map.GetDexRegisterLocation(
           vreg, method_info->code_item->registers_size_, code_info, encoding);
       if (is64bitValue) {
@@ -159,6 +162,7 @@ std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method
 // The dex register might be valid only at some points and it might
 // move between machine registers and stack.
 static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
+                               const std::vector<DexRegisterMap>& dex_register_maps,
                                uint16_t vreg,
                                bool is64bitValue,
                                uint32_t compilation_unit_low_pc,
@@ -175,6 +179,7 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
 
   std::vector<VariableLocation> variable_locations = GetVariableLocations(
       method_info,
+      dex_register_maps,
       vreg,
       is64bitValue,
       dex_pc_low,
