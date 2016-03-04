@@ -69,6 +69,11 @@ public class Main {
             array[i] = (long) i;
         }
     }
+    static void initCharArray(char[] array) {
+        for (int i = 0; i < ARRAY_SIZE; i++) {
+            array[i] = (char) i;
+        }
+    }
 
     /*
      * Perform an array copy operation on primitive arrays with different
@@ -79,16 +84,19 @@ public class Main {
         short[] shortArray = new short[ARRAY_SIZE];
         int[] intArray = new int[ARRAY_SIZE];
         long[] longArray = new long[ARRAY_SIZE];
+        char[] charArray = new char[ARRAY_SIZE];
 
         initByteArray(byteArray);
         initShortArray(shortArray);
         initIntArray(intArray);
         initLongArray(longArray);
+        initCharArray(charArray);
 
         System.arraycopy(byteArray, srcPos, byteArray, dstPos, length);
         System.arraycopy(shortArray, srcPos, shortArray, dstPos, length);
         System.arraycopy(intArray, srcPos, intArray, dstPos, length);
         System.arraycopy(longArray, srcPos, longArray, dstPos, length);
+        System.arraycopy(charArray, srcPos, charArray, dstPos, length);
 
         for (int i = 0; i < ARRAY_SIZE; i++) {
             if (intArray[i] != byteArray[i]) {
@@ -102,6 +110,10 @@ public class Main {
             } else if (intArray[i] != longArray[i]) {
                 System.out.println("mismatch int vs long at " + i + " : " +
                     Arrays.toString(longArray));
+                break;
+            } else if (intArray[i] != charArray[i]) {
+                System.out.println("mismatch int vs char at " + i + " : " +
+                    Arrays.toString(charArray));
                 break;
             }
         }
