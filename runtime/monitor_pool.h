@@ -176,7 +176,8 @@ class MonitorPool {
   size_t capacity_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
   // To avoid race issues when resizing, we keep all the previous arrays.
-  std::vector<uintptr_t*> old_chunk_arrays_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
+  std::vector<std::unique_ptr<uintptr_t[]>> old_chunk_arrays_
+      GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
   typedef TrackingAllocator<uint8_t, kAllocatorTagMonitorPool> Allocator;
   Allocator allocator_;
