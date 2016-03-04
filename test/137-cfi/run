@@ -16,9 +16,10 @@
 
 # Test with full DWARF debugging information.
 # Check full signatures of methods.
-${RUN} "$@" -Xcompiler-option --generate-debug-info --args --full-signatures
+${RUN} "$@" -Xcompiler-option --generate-debug-info \
+  --args --full-signatures --args --test-local --args --test-remote
 
 # Test with minimal compressed debugging information.
 # Check only method names (parameters are omitted to save space).
-# Temporarily disable due to bug 27172087 (leak/race in libunwind).
-# ${RUN} "$@" -Xcompiler-option --generate-mini-debug-info
+# Check only remote unwinding since decompression is disabled in local unwinds (b/27391690).
+${RUN} "$@" -Xcompiler-option --generate-mini-debug-info --args --test-remote
