@@ -639,21 +639,19 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   Runtime::Current()->GetJit()->AddTimingLogger(logger);
 }
 
-void JitCodeCache::RemoveUnusedAndUnmarkedCode(Thread* self) {
+void JitCodeCache::RemoveUnmarkedCode(Thread* self) {
   MutexLock mu(self, lock_);
   ScopedCodeCacheWrite scc(code_map_.get());
-  // Iterate over all compiled code and remove entries that are not marked and not
-  // the entrypoint of their corresponding ArtMethod.
+  // Iterate over all compiled code and remove entries that are not marked.
   for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
     const void* code_ptr = it->first;
     ArtMethod* method = it->second;
     uintptr_t allocation = FromCodeToAllocation(code_ptr);
-    const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-    const void* entrypoint = method->GetEntryPointFromQuickCompiledCode();
-    if ((entrypoint == method_header->GetEntryPoint()) || GetLiveBitmap()->Test(allocation)) {
+    if (GetLiveBitmap()->Test(allocation)) {
       ++it;
     } else {
-      if (entrypoint == GetQuickToInterpreterBridge()) {
+      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+      if (method_header->GetEntryPoint() == GetQuickToInterpreterBridge()) {
         method->ClearCounter();
       }
       FreeCode(code_ptr, method);
@@ -682,6 +680,19 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
       }
     }
 
+    // Mark compiled code that are entrypoints of ArtMethods. Compiled code that is not
+    // an entry point is either:
+    // - an osr compiled code, that will be removed if not in a thread call stack.
+    // - discarded compiled code, that will be removed if not in a thread call stack.
+    for (const auto& it : method_code_map_) {
+      ArtMethod* method = it.second;
+      const void* code_ptr = it.first;
+      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+      if (method_header->GetEntryPoint() == method->GetEntryPointFromQuickCompiledCode()) {
+        GetLiveBitmap()->AtomicTestAndSet(FromCodeToAllocation(code_ptr));
+      }
+    }
+
     // Empty osr method map, as osr compiled code will be deleted (except the ones
     // on thread stacks).
     osr_code_map_.clear();
@@ -690,9 +701,10 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
   // Run a checkpoint on all threads to mark the JIT compiled code they are running.
   MarkCompiledCodeOnThreadStacks(self);
 
-  // Remove compiled code that is not the entrypoint of their method and not in the call
-  // stack.
-  RemoveUnusedAndUnmarkedCode(self);
+  // At this point, mutator threads are still running, and entrypoints of methods can
+  // change. We do know they cannot change to a code cache entry that is not marked,
+  // therefore we can safely remove those entries.
+  RemoveUnmarkedCode(self);
 
   if (collect_profiling_info) {
     MutexLock mu(self, lock_);
