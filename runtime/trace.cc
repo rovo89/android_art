@@ -389,9 +389,10 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
   bool stop_alloc_counting = false;
   Runtime* const runtime = Runtime::Current();
   Trace* the_trace = nullptr;
+  Thread* const self = Thread::Current();
   pthread_t sampling_pthread = 0U;
   {
-    MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+    MutexLock mu(self, *Locks::trace_lock_);
     if (the_trace_ == nullptr) {
       LOG(ERROR) << "Trace stop requested, but no trace currently running";
     } else {
@@ -409,6 +410,9 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
   }
 
   {
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa(__FUNCTION__);
     if (the_trace != nullptr) {
       stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
@@ -417,7 +421,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
       }
 
       if (the_trace->trace_mode_ == TraceMode::kSampling) {
-        MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+        MutexLock mu(self, *Locks::thread_list_lock_);
         runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
       } else {
         runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
