@@ -23,7 +23,7 @@
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     flds    s0, [r2]                    @ s0<- vBB
     flds    s1, [r3]                    @ s1<- vCC
-    fcmpes  s0, s1                      @ compare (vBB, vCC)
+    vcmpe.f32  s0, s1                   @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mvn     r0, #0                      @ r0<- -1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
