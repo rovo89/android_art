@@ -67,14 +67,6 @@ class JitCodeCache {
   // Number of bytes allocated in the data cache.
   size_t DataCacheSize() REQUIRES(!lock_);
 
-  // Number of compiled code in the code cache. Note that this is not the number
-  // of methods that got JIT compiled, as we might have collected some.
-  size_t NumberOfCompiledCode() REQUIRES(!lock_);
-
-  // Number of compilations done throughout the lifetime of the JIT.
-  size_t NumberOfCompilations() REQUIRES(!lock_);
-  size_t NumberOfOsrCompilations() REQUIRES(!lock_);
-
   bool NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
@@ -185,6 +177,8 @@ class JitCodeCache {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  void Dump(std::ostream& os) REQUIRES(!lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
@@ -256,6 +250,11 @@ class JitCodeCache {
       REQUIRES(lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  void FreeCode(uint8_t* code) REQUIRES(lock_);
+  uint8_t* AllocateCode(size_t code_size) REQUIRES(lock_);
+  void FreeData(uint8_t* data) REQUIRES(lock_);
+  uint8_t* AllocateData(size_t data_size) REQUIRES(lock_);
+
   // Lock for guarding allocations, collections, and the method_code_map_.
   Mutex lock_;
   // Condition to wait on during collection.
@@ -307,18 +306,20 @@ class JitCodeCache {
   // The size in bytes of used memory for the code portion of the code cache.
   size_t used_memory_for_code_ GUARDED_BY(lock_);
 
-  void FreeCode(uint8_t* code) REQUIRES(lock_);
-  uint8_t* AllocateCode(size_t code_size) REQUIRES(lock_);
-  void FreeData(uint8_t* data) REQUIRES(lock_);
-  uint8_t* AllocateData(size_t data_size) REQUIRES(lock_);
-
   // Number of compilations done throughout the lifetime of the JIT.
   size_t number_of_compilations_ GUARDED_BY(lock_);
+
+  // Number of compilations for on-stack-replacement done throughout the lifetime of the JIT.
   size_t number_of_osr_compilations_ GUARDED_BY(lock_);
+
+  // Number of deoptimizations done throughout the lifetime of the JIT.
+  size_t number_of_deoptimizations_ GUARDED_BY(lock_);
+
+  // Number of code cache collections done throughout the lifetime of the JIT.
+  size_t number_of_collections_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };
-
 
 }  // namespace jit
 }  // namespace art
