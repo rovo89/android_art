@@ -39,6 +39,34 @@ namespace mirror {
 // Each loader has a ClassTable
 class ClassTable {
  public:
+  class ClassDescriptorHashEquals {
+   public:
+    // uint32_t for cross compilation.
+    uint32_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
+    // Same class loader and descriptor.
+    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b) const
+        NO_THREAD_SAFETY_ANALYSIS;;
+    // Same descriptor.
+    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor) const
+        NO_THREAD_SAFETY_ANALYSIS;
+    // uint32_t for cross compilation.
+    uint32_t operator()(const char* descriptor) const NO_THREAD_SAFETY_ANALYSIS;
+  };
+  class GcRootEmptyFn {
+   public:
+    void MakeEmpty(GcRoot<mirror::Class>& item) const {
+      item = GcRoot<mirror::Class>();
+    }
+    bool IsEmpty(const GcRoot<mirror::Class>& item) const {
+      return item.IsNull();
+    }
+  };
+  // hash set which hashes class descriptor, and compares descriptors and class loaders. Results
+  // should be compared for a matching Class descriptor and class loader.
+  typedef HashSet<GcRoot<mirror::Class>, GcRootEmptyFn, ClassDescriptorHashEquals,
+      ClassDescriptorHashEquals, TrackingAllocator<GcRoot<mirror::Class>, kAllocatorTagClassTable>>
+      ClassSet;
+
   ClassTable();
 
   // Used by image writer for checking.
@@ -112,35 +140,12 @@ class ClassTable {
       REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
- private:
-  class ClassDescriptorHashEquals {
-   public:
-    // uint32_t for cross compilation.
-    uint32_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
-    // Same class loader and descriptor.
-    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b) const
-        NO_THREAD_SAFETY_ANALYSIS;;
-    // Same descriptor.
-    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor) const
-        NO_THREAD_SAFETY_ANALYSIS;
-    // uint32_t for cross compilation.
-    uint32_t operator()(const char* descriptor) const NO_THREAD_SAFETY_ANALYSIS;
-  };
-  class GcRootEmptyFn {
-   public:
-    void MakeEmpty(GcRoot<mirror::Class>& item) const {
-      item = GcRoot<mirror::Class>();
-    }
-    bool IsEmpty(const GcRoot<mirror::Class>& item) const {
-      return item.IsNull();
-    }
-  };
-  // hash set which hashes class descriptor, and compares descriptors and class loaders. Results
-  // should be compared for a matching Class descriptor and class loader.
-  typedef HashSet<GcRoot<mirror::Class>, GcRootEmptyFn, ClassDescriptorHashEquals,
-      ClassDescriptorHashEquals, TrackingAllocator<GcRoot<mirror::Class>, kAllocatorTagClassTable>>
-      ClassSet;
+  // Add a class set to the front of classes.
+  void AddClassSet(ClassSet&& set)
+      REQUIRES(Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
+ private:
   // TODO: shard lock to have one per class loader.
   // We have a vector to help prevent dirty pages after the zygote forks by calling FreezeSnapshot.
   std::vector<ClassSet> classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
