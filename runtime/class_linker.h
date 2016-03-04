@@ -1029,11 +1029,13 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
+  // new_class_set is the set of classes that were read from the class table section in the image.
+  // If there was no class table section, it is null.
   bool UpdateAppImageClassLoadersAndDexCaches(
       gc::space::ImageSpace* space,
       Handle<mirror::ClassLoader> class_loader,
       Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches,
-      bool added_class_table,
+      ClassTable::ClassSet* new_class_set,
       bool* out_forward_dex_cache_array,
       std::string* out_error_msg)
       REQUIRES(!dex_lock_)
