@@ -40,7 +40,7 @@ public class Main {
   }
 
   private static Unsafe getUnsafe() throws Exception {
-    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+    Class<?> unsafeClass = Unsafe.class;
     Field f = unsafeClass.getDeclaredField("theUnsafe");
     f.setAccessible(true);
     return (Unsafe) f.get(null);
