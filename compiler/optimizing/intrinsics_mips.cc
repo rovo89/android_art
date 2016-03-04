@@ -643,6 +643,142 @@ static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
 }
 
+static void GenBitCount(LocationSummary* locations,
+                        Primitive::Type type,
+                        bool isR6,
+                        MipsAssembler* assembler) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  Register out = locations->Out().AsRegister<Register>();
+
+  // https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+  //
+  // A generalization of the best bit counting method to integers of
+  // bit-widths up to 128 (parameterized by type T) is this:
+  //
+  // v = v - ((v >> 1) & (T)~(T)0/3);                           // temp
+  // v = (v & (T)~(T)0/15*3) + ((v >> 2) & (T)~(T)0/15*3);      // temp
+  // v = (v + (v >> 4)) & (T)~(T)0/255*15;                      // temp
+  // c = (T)(v * ((T)~(T)0/255)) >> (sizeof(T) - 1) * BITS_PER_BYTE; // count
+  //
+  // For comparison, for 32-bit quantities, this algorithm can be executed
+  // using 20 MIPS instructions (the calls to LoadConst32() generate two
+  // machine instructions each for the values being used in this algorithm).
+  // A(n unrolled) loop-based algorithm required 25 instructions.
+  //
+  // For 64-bit quantities, this algorithm gets executed twice, (once
+  // for in_lo, and again for in_hi), but saves a few instructions
+  // because the mask values only have to be loaded once.  Using this
+  // algorithm the count for a 64-bit operand can be performed in 33
+  // instructions compared to a loop-based algorithm which required 47
+  // instructions.
+
+  if (type == Primitive::kPrimInt) {
+    Register in = locations->InAt(0).AsRegister<Register>();
+
+    __ Srl(TMP, in, 1);
+    __ LoadConst32(AT, 0x55555555);
+    __ And(TMP, TMP, AT);
+    __ Subu(TMP, in, TMP);
+    __ LoadConst32(AT, 0x33333333);
+    __ And(out, TMP, AT);
+    __ Srl(TMP, TMP, 2);
+    __ And(TMP, TMP, AT);
+    __ Addu(TMP, out, TMP);
+    __ Srl(out, TMP, 4);
+    __ Addu(out, out, TMP);
+    __ LoadConst32(AT, 0x0F0F0F0F);
+    __ And(out, out, AT);
+    __ LoadConst32(TMP, 0x01010101);
+    if (isR6) {
+      __ MulR6(out, out, TMP);
+    } else {
+      __ MulR2(out, out, TMP);
+    }
+    __ Srl(out, out, 24);
+  } else if (type == Primitive::kPrimLong) {
+    Register in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
+    Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
+    Register tmp_hi = locations->GetTemp(0).AsRegister<Register>();
+    Register out_hi = locations->GetTemp(1).AsRegister<Register>();
+    Register tmp_lo = TMP;
+    Register out_lo = out;
+
+    __ Srl(tmp_lo, in_lo, 1);
+    __ Srl(tmp_hi, in_hi, 1);
+
+    __ LoadConst32(AT, 0x55555555);
+
+    __ And(tmp_lo, tmp_lo, AT);
+    __ Subu(tmp_lo, in_lo, tmp_lo);
+
+    __ And(tmp_hi, tmp_hi, AT);
+    __ Subu(tmp_hi, in_hi, tmp_hi);
+
+    __ LoadConst32(AT, 0x33333333);
+
+    __ And(out_lo, tmp_lo, AT);
+    __ Srl(tmp_lo, tmp_lo, 2);
+    __ And(tmp_lo, tmp_lo, AT);
+    __ Addu(tmp_lo, out_lo, tmp_lo);
+    __ Srl(out_lo, tmp_lo, 4);
+    __ Addu(out_lo, out_lo, tmp_lo);
+
+    __ And(out_hi, tmp_hi, AT);
+    __ Srl(tmp_hi, tmp_hi, 2);
+    __ And(tmp_hi, tmp_hi, AT);
+    __ Addu(tmp_hi, out_hi, tmp_hi);
+    __ Srl(out_hi, tmp_hi, 4);
+    __ Addu(out_hi, out_hi, tmp_hi);
+
+    __ LoadConst32(AT, 0x0F0F0F0F);
+
+    __ And(out_lo, out_lo, AT);
+    __ And(out_hi, out_hi, AT);
+
+    __ LoadConst32(AT, 0x01010101);
+
+    if (isR6) {
+      __ MulR6(out_lo, out_lo, AT);
+
+      __ MulR6(out_hi, out_hi, AT);
+    } else {
+      __ MulR2(out_lo, out_lo, AT);
+
+      __ MulR2(out_hi, out_hi, AT);
+    }
+
+    __ Srl(out_lo, out_lo, 24);
+    __ Srl(out_hi, out_hi, 24);
+
+    __ Addu(out, out_hi, out_lo);
+  }
+}
+
+// int java.lang.Integer.bitCount(int)
+void IntrinsicLocationsBuilderMIPS::VisitIntegerBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitIntegerBitCount(HInvoke* invoke) {
+  GenBitCount(invoke->GetLocations(), Primitive::kPrimInt, IsR6(), GetAssembler());
+}
+
+// int java.lang.Long.bitCount(int)
+void IntrinsicLocationsBuilderMIPS::VisitLongBitCount(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitLongBitCount(HInvoke* invoke) {
+  GenBitCount(invoke->GetLocations(), Primitive::kPrimLong, IsR6(), GetAssembler());
+}
+
 static void MathAbsFP(LocationSummary* locations, bool is64bit, MipsAssembler* assembler) {
   FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
   FRegister out = locations->Out().AsFpuRegister<FRegister>();
@@ -1561,9 +1697,6 @@ void IntrinsicCodeGeneratorMIPS::VisitDoubleIsInfinite(HInvoke* invoke) {
 }
 
 // Unimplemented intrinsics.
-
-UNIMPLEMENTED_INTRINSIC(MIPS, IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(MIPS, LongBitCount)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathFloor)
