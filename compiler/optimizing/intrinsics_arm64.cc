@@ -46,6 +46,7 @@ using helpers::RegisterFrom;
 using helpers::SRegisterFrom;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
+using helpers::InputRegisterAt;
 
 namespace {
 
@@ -365,6 +366,40 @@ void IntrinsicLocationsBuilderARM64::VisitLongReverse(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorARM64::VisitLongReverse(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
+}
+
+static void GenBitCount(HInvoke* instr, bool is_long, vixl::MacroAssembler* masm) {
+  DCHECK(instr->GetType() == Primitive::kPrimInt);
+  DCHECK((is_long && instr->InputAt(0)->GetType() == Primitive::kPrimLong) ||
+         (!is_long && instr->InputAt(0)->GetType() == Primitive::kPrimInt));
+
+  Location out = instr->GetLocations()->Out();
+  UseScratchRegisterScope temps(masm);
+
+  Register   src = InputRegisterAt(instr, 0);
+  FPRegister fpr = is_long ? temps.AcquireD() : temps.AcquireS();
+  Register   dst = is_long ? XRegisterFrom(out) : WRegisterFrom(out);
+
+  __ Fmov(fpr, src);
+  __ Cnt (fpr.V8B(), fpr.V8B());
+  __ Addv(fpr.B(),   fpr.V8B());
+  __ Fmov(dst, fpr);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongBitCount(HInvoke* invoke) {
+  GenBitCount(invoke, /* is_long */ true, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerBitCount(HInvoke* invoke) {
+  GenBitCount(invoke, /* is_long */ false, GetVIXLAssembler());
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -1672,8 +1707,6 @@ void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
-UNIMPLEMENTED_INTRINSIC(ARM64, IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(ARM64, LongBitCount)
 UNIMPLEMENTED_INTRINSIC(ARM64, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ARM64, SystemArrayCopy)
 UNIMPLEMENTED_INTRINSIC(ARM64, ReferenceGetReferent)
