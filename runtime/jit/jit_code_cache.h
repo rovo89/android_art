@@ -238,7 +238,7 @@ class JitCodeCache {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void RemoveUnusedAndUnmarkedCode(Thread* self)
+  void RemoveUnmarkedCode(Thread* self)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
