@@ -312,8 +312,8 @@ static void codePointToSurrogatePair(uint32_t code_point, uint16_t &first, uint1
 }
 
 static void testConversions(uint16_t *buf, int char_count) {
-  char bytes_test[8], bytes_reference[8];
-  uint16_t out_buf_test[4], out_buf_reference[4];
+  char bytes_test[8] = { 0 }, bytes_reference[8] = { 0 };
+  uint16_t out_buf_test[4] = { 0 }, out_buf_reference[4] = { 0 };
   int byte_count_test, byte_count_reference;
   int char_count_test, char_count_reference;
 
@@ -349,7 +349,7 @@ static void testConversions(uint16_t *buf, int char_count) {
 
 TEST_F(UtfTest, ExhaustiveBidirectionalCodePointCheck) {
   for (int codePoint = 0; codePoint <= 0x10ffff; ++codePoint) {
-    uint16_t buf[4];
+    uint16_t buf[4] = { 0 };
     if (codePoint <= 0xffff) {
       if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
         // According to the Unicode standard, no character will ever

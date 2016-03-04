@@ -51,7 +51,7 @@ void MonitorPool::AllocateChunk() {
       memcpy(new_backing, old_backing, sizeof(uintptr_t) * capacity_);
       monitor_chunks_.StoreRelaxed(new_backing);
       capacity_ = new_capacity;
-      old_chunk_arrays_.push_back(old_backing);
+      old_chunk_arrays_.push_back(std::unique_ptr<uintptr_t[]>(old_backing));
       VLOG(monitor) << "Resizing to capacity " << capacity_;
     }
   }
