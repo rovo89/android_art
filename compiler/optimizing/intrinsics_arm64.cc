@@ -376,13 +376,13 @@ static void GenBitCount(HInvoke* instr, bool is_long, vixl::MacroAssembler* masm
   Location out = instr->GetLocations()->Out();
   UseScratchRegisterScope temps(masm);
 
-  Register   src = InputRegisterAt(instr, 0);
+  Register src = InputRegisterAt(instr, 0);
+  Register dst = is_long ? XRegisterFrom(out) : WRegisterFrom(out);
   FPRegister fpr = is_long ? temps.AcquireD() : temps.AcquireS();
-  Register   dst = is_long ? XRegisterFrom(out) : WRegisterFrom(out);
 
   __ Fmov(fpr, src);
-  __ Cnt (fpr.V8B(), fpr.V8B());
-  __ Addv(fpr.B(),   fpr.V8B());
+  __ Cnt(fpr.V8B(), fpr.V8B());
+  __ Addv(fpr.B(), fpr.V8B());
   __ Fmov(dst, fpr);
 }
 
