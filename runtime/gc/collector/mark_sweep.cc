@@ -22,13 +22,11 @@
 #include <climits>
 #include <vector>
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include "cutils/trace.h"
-
 #include "base/bounded_fifo.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex-inl.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/card_table-inl.h"
@@ -1137,17 +1135,15 @@ class CheckpointMarkThreadRoots : public Closure, public RootVisitor {
   }
 
   virtual void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
-    ATRACE_BEGIN("Marking thread roots");
+    ScopedTrace trace("Marking thread roots");
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* const self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     thread->VisitRoots(this);
-    ATRACE_END();
     if (revoke_ros_alloc_thread_local_buffers_at_checkpoint_) {
-      ATRACE_BEGIN("RevokeRosAllocThreadLocalBuffers");
+      ScopedTrace trace2("RevokeRosAllocThreadLocalBuffers");
       mark_sweep_->GetHeap()->RevokeRosAllocThreadLocalBuffers(thread);
-      ATRACE_END();
     }
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.

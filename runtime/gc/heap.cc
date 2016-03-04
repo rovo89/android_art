@@ -16,9 +16,6 @@
 
 #include "heap.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include <cutils/trace.h>
-
 #include <limits>
 #include <memory>
 #include <unwind.h>  // For GC verification.
@@ -30,6 +27,7 @@
 #include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "common_throws.h"
 #include "cutils/sched_policy.h"
@@ -240,6 +238,7 @@ Heap::Heap(size_t initial_size,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+  ScopedTrace trace(__FUNCTION__);
   Runtime* const runtime = Runtime::Current();
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
@@ -274,14 +273,12 @@ Heap::Heap(size_t initial_size,
     uint8_t* const original_requested_alloc_space_begin = requested_alloc_space_begin;
     for (size_t index = 0; index < image_file_names.size(); ++index) {
       std::string& image_name = image_file_names[index];
-      ATRACE_BEGIN("ImageSpace::Create");
       std::string error_msg;
       space::ImageSpace* boot_image_space = space::ImageSpace::CreateBootImage(
           image_name.c_str(),
           image_instruction_set,
           index > 0,
           &error_msg);
-      ATRACE_END();
       if (boot_image_space != nullptr) {
         AddSpace(boot_image_space);
         added_image_spaces.push_back(boot_image_space);
@@ -373,8 +370,8 @@ Heap::Heap(size_t initial_size,
   }
   std::string error_str;
   std::unique_ptr<MemMap> non_moving_space_mem_map;
-  ATRACE_BEGIN("Create heap maps");
   if (separate_non_moving_space) {
+    ScopedTrace trace2("Create separate non moving space");
     // If we are the zygote, the non moving space becomes the zygote space when we run
     // PreZygoteFork the first time. In this case, call the map "zygote space" since we can't
     // rename the mem map later.
@@ -391,6 +388,7 @@ Heap::Heap(size_t initial_size,
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   if (foreground_collector_type_ != kCollectorTypeCC) {
+    ScopedTrace trace2("Create main mem map");
     if (separate_non_moving_space || !is_zygote) {
       main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0],
                                                         request_begin,
@@ -409,14 +407,15 @@ Heap::Heap(size_t initial_size,
   if (support_homogeneous_space_compaction ||
       background_collector_type_ == kCollectorTypeSS ||
       foreground_collector_type_ == kCollectorTypeSS) {
+    ScopedTrace trace2("Create main mem map 2");
     main_mem_map_2.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[1], main_mem_map_1->End(),
                                                       capacity_, &error_str));
     CHECK(main_mem_map_2.get() != nullptr) << error_str;
   }
-  ATRACE_END();
-  ATRACE_BEGIN("Create spaces");
+
   // Create the non moving space first so that bitmaps don't take up the address range.
   if (separate_non_moving_space) {
+    ScopedTrace trace2("Add non moving space");
     // Non moving space is always dlmalloc since we currently don't have support for multiple
     // active rosalloc spaces.
     const size_t size = non_moving_space_mem_map->Size();
@@ -504,9 +503,7 @@ Heap::Heap(size_t initial_size,
   if (main_space_backup_.get() != nullptr) {
     RemoveSpace(main_space_backup_.get());
   }
-  ATRACE_END();
   // Allocate the card table.
-  ATRACE_BEGIN("Create card table");
   // We currently don't support dynamically resizing the card table.
   // Since we don't know where in the low_4gb the app image will be located, make the card table
   // cover the whole low_4gb. TODO: Extend the card table in AddSpace.
@@ -517,7 +514,6 @@ Heap::Heap(size_t initial_size,
   card_table_.reset(accounting::CardTable::Create(reinterpret_cast<uint8_t*>(kMinHeapAddress),
                                                   4 * GB - kMinHeapAddress));
   CHECK(card_table_.get() != nullptr) << "Failed to create card table";
-  ATRACE_END();
   if (foreground_collector_type_ == kCollectorTypeCC && kUseTableLookupReadBarrier) {
     rb_table_.reset(new accounting::ReadBarrierTable());
     DCHECK(rb_table_->IsAllCleared());
@@ -1340,24 +1336,19 @@ void Heap::DoPendingCollectorTransition() {
 void Heap::Trim(Thread* self) {
   Runtime* const runtime = Runtime::Current();
   if (!CareAboutPauseTimes()) {
-    ATRACE_BEGIN("Deflating monitors");
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
-    {
-      ScopedSuspendAll ssa(__FUNCTION__);
-      uint64_t start_time = NanoTime();
-      size_t count = runtime->GetMonitorList()->DeflateMonitors();
-      VLOG(heap) << "Deflating " << count << " monitors took "
-          << PrettyDuration(NanoTime() - start_time);
-    }
-    ATRACE_END();
+    ScopedTrace trace("Deflating monitors");
+    ScopedSuspendAll ssa(__FUNCTION__);
+    uint64_t start_time = NanoTime();
+    size_t count = runtime->GetMonitorList()->DeflateMonitors();
+    VLOG(heap) << "Deflating " << count << " monitors took "
+        << PrettyDuration(NanoTime() - start_time);
   }
   TrimIndirectReferenceTables(self);
   TrimSpaces(self);
   // Trim arenas that may have been used by JIT or verifier.
-  ATRACE_BEGIN("Trimming arena maps");
   runtime->GetArenaPool()->TrimMaps();
-  ATRACE_END();
 }
 
 class TrimIndirectReferenceTableClosure : public Closure {
@@ -1365,9 +1356,7 @@ class TrimIndirectReferenceTableClosure : public Closure {
   explicit TrimIndirectReferenceTableClosure(Barrier* barrier) : barrier_(barrier) {
   }
   virtual void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
-    ATRACE_BEGIN("Trimming reference table");
     thread->GetJniEnv()->locals.Trim();
-    ATRACE_END();
     // If thread is a running mutator, then act on behalf of the trim thread.
     // See the code in ThreadList::RunCheckpoint.
     barrier_->Pass(Thread::Current());
@@ -1379,7 +1368,7 @@ class TrimIndirectReferenceTableClosure : public Closure {
 
 void Heap::TrimIndirectReferenceTables(Thread* self) {
   ScopedObjectAccess soa(self);
-  ATRACE_BEGIN(__FUNCTION__);
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   JavaVMExt* vm = soa.Vm();
   // Trim globals indirect reference table.
   vm->TrimGlobals();
@@ -1391,7 +1380,6 @@ void Heap::TrimIndirectReferenceTables(Thread* self) {
   if (barrier_count != 0) {
     barrier.Increment(self, barrier_count);
   }
-  ATRACE_END();
 }
 
 void Heap::StartGC(Thread* self, GcCause cause, CollectorType collector_type) {
@@ -1410,7 +1398,7 @@ void Heap::TrimSpaces(Thread* self) {
     // trimming.
     StartGC(self, kGcCauseTrim, kCollectorTypeHeapTrim);
   }
-  ATRACE_BEGIN(__FUNCTION__);
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   const uint64_t start_ns = NanoTime();
   // Trim the managed spaces.
   uint64_t total_alloc_space_allocated = 0;
@@ -1449,7 +1437,6 @@ void Heap::TrimSpaces(Thread* self) {
   VLOG(heap) << "Heap trim of managed (duration=" << PrettyDuration(gc_heap_end_ns - start_ns)
       << ", advised=" << PrettySize(managed_reclaimed) << ") heap. Managed heap utilization of "
       << static_cast<int>(100 * managed_utilization) << "%.";
-  ATRACE_END();
 }
 
 bool Heap::IsValidObjectAddress(const mirror::Object* obj) const {
@@ -3434,11 +3421,10 @@ collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
       running_collection_is_blocking_ = true;
       VLOG(gc) << "Waiting for a blocking GC " << cause;
     }
-    ATRACE_BEGIN("GC: Wait For Completion");
+    ScopedTrace trace("GC: Wait For Completion");
     // We must wait, change thread state then sleep on gc_complete_cond_;
     gc_complete_cond_->Wait(self);
     last_gc_type = last_gc_type_;
-    ATRACE_END();
   }
   uint64_t wait_time = NanoTime() - wait_start;
   total_wait_time_ += wait_time;

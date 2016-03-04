@@ -19,12 +19,10 @@
 #include <errno.h>
 #include <sys/time.h>
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include "cutils/trace.h"
-
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/time_utils.h"
+#include "base/systrace.h"
 #include "base/value_object.h"
 #include "mutex-inl.h"
 #include "runtime.h"

@@ -16,9 +16,6 @@
 
 #include "compiler_driver.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include <utils/Trace.h>
-
 #include <unordered_set>
 #include <vector>
 #include <unistd.h>
@@ -30,6 +27,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "class_linker-inl.h"

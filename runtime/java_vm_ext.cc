@@ -16,15 +16,13 @@
 
 #include "jni_internal.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-
-#include <cutils/trace.h>
 #include <dlfcn.h>
 
 #include "art_method.h"
 #include "base/dumpable.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "check_jni.h"
 #include "dex_file-inl.h"
 #include "fault_handler.h"
@@ -929,11 +927,10 @@ void JavaVMExt::VisitRoots(RootVisitor* visitor) {
 // JNI Invocation interface.
 
 extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
-  ATRACE_BEGIN(__FUNCTION__);
+  ScopedTrace trace(__FUNCTION__);
   const JavaVMInitArgs* args = static_cast<JavaVMInitArgs*>(vm_args);
   if (IsBadJniVersion(args->version)) {
     LOG(ERROR) << "Bad JNI version passed to CreateJavaVM: " << args->version;
-    ATRACE_END();
     return JNI_EVERSION;
   }
   RuntimeOptions options;
@@ -943,7 +940,6 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
   }
   bool ignore_unrecognized = args->ignoreUnrecognized;
   if (!Runtime::Create(options, ignore_unrecognized)) {
-    ATRACE_END();
     return JNI_ERR;
   }
   Runtime* runtime = Runtime::Current();
@@ -952,12 +948,10 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
     delete Thread::Current()->GetJniEnv();
     delete runtime->GetJavaVM();
     LOG(WARNING) << "CreateJavaVM failed";
-    ATRACE_END();
     return JNI_ERR;
   }
   *p_env = Thread::Current()->GetJniEnv();
   *p_vm = runtime->GetJavaVM();
-  ATRACE_END();
   return JNI_OK;
 }
 

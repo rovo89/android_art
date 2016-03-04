@@ -26,6 +26,7 @@
 #include "base/mutex.h"
 #include "base/scoped_flock.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "jit/profiling_info.h"
 #include "os.h"
@@ -57,6 +58,7 @@ bool ProfileCompilationInfo::SaveProfilingInfo(
     return true;
   }
 
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   ScopedFlock flock;
   std::string error;
   if (!flock.Init(filename.c_str(), O_RDWR | O_NOFOLLOW | O_CLOEXEC, /* block */ false, &error)) {
@@ -132,6 +134,7 @@ static constexpr const char* kClassesMarker = "classes";
  *    app.apk:classes5.dex,218490184,39,13,49,1
  **/
 bool ProfileCompilationInfo::Save(int fd) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   DCHECK_GE(fd, 0);
   // TODO(calin): Profile this and see how much memory it takes. If too much,
   // write to file directly.
@@ -298,6 +301,7 @@ static int GetLineFromBuffer(char* buffer, int n, int start_from, std::string& l
 }
 
 bool ProfileCompilationInfo::Load(int fd) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   DCHECK_GE(fd, 0);
 
   std::string current_line;

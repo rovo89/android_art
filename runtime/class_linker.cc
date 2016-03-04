@@ -36,6 +36,7 @@
 #include "base/scoped_arena_containers.h"
 #include "base/scoped_flock.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "base/value_object.h"
@@ -7671,6 +7672,7 @@ void ClassLinker::CleanupClassLoaders() {
 }
 
 std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_boot_classes) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   ScopedObjectAccess soa(Thread::Current());
   ScopedAssertNoThreadSuspension ants(soa.Self(), __FUNCTION__);
   std::set<DexCacheResolvedClasses> ret;
@@ -7737,6 +7739,7 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
 
 std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
     const std::set<DexCacheResolvedClasses>& classes) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   std::unordered_set<std::string> ret;
   Thread* const self = Thread::Current();
   std::unordered_map<std::string, const DexFile*> location_to_dex_file;
