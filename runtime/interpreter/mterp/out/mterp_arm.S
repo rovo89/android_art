@@ -1353,7 +1353,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     flds    s0, [r2]                    @ s0<- vBB
     flds    s1, [r3]                    @ s1<- vCC
-    fcmpes  s0, s1                      @ compare (vBB, vCC)
+    vcmpe.f32  s0, s1                   @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mvn     r0, #0                      @ r0<- -1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1392,7 +1392,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     flds    s0, [r2]                    @ s0<- vBB
     flds    s1, [r3]                    @ s1<- vCC
-    fcmpes  s0, s1                      @ compare (vBB, vCC)
+    vcmpe.f32 s0, s1                    @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mov     r0, #1                      @ r0<- 1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1431,7 +1431,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     fldd    d0, [r2]                    @ d0<- vBB
     fldd    d1, [r3]                    @ d1<- vCC
-    fcmped  d0, d1                      @ compare (vBB, vCC)
+    vcmpe.f64 d0, d1                    @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mvn     r0, #0                      @ r0<- -1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1470,7 +1470,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     fldd    d0, [r2]                    @ d0<- vBB
     fldd    d1, [r3]                    @ d1<- vCC
-    fcmped  d0, d1                      @ compare (vBB, vCC)
+    vcmpe.f64 d0, d1                    @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mov     r0, #1                      @ r0<- 1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -3994,7 +3994,7 @@ constvalop_long_to_double:
     flds    s0, [r3]                    @ s0<- vB
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
-    fcvtds  d0, s0                              @ d0<- op
+    vcvt.f64.f32  d0, s0                              @ d0<- op
     CLEAR_SHADOW_PAIR r9, ip, lr        @ Zero shadow regs
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
@@ -4075,7 +4075,7 @@ constvalop_long_to_double:
     fldd    d0, [r3]                    @ d0<- vB
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
-    fcvtsd  s0, d0                              @ s0<- op
+    vcvt.f32.f64  s0, d0                              @ s0<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     fsts    s0, [r9]                    @ vA<- s0
@@ -7673,7 +7673,7 @@ f2l_doconv:
     cmp     r0, #0                      @ nonzero == yes
     mvnne   r0, #0                      @ return maxlong (7fffffff)
     mvnne   r1, #0x80000000
-    ldmnefd sp!, {r4, pc}
+    popne   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     mov     r1, #0xdf000000             @ (float)minlong
@@ -7681,14 +7681,14 @@ f2l_doconv:
     cmp     r0, #0                      @ nonzero == yes
     movne   r0, #0                      @ return minlong (80000000)
     movne   r1, #0x80000000
-    ldmnefd sp!, {r4, pc}
+    popne   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     mov     r1, r4
     bl      __aeabi_fcmpeq              @ is arg == self?
     cmp     r0, #0                      @ zero == no
     moveq   r1, #0                      @ return zero for NaN
-    ldmeqfd sp!, {r4, pc}
+    popeq   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     bl      __aeabi_f2lz                @ convert float to long

@@ -17,7 +17,7 @@ f2l_doconv:
     cmp     r0, #0                      @ nonzero == yes
     mvnne   r0, #0                      @ return maxlong (7fffffff)
     mvnne   r1, #0x80000000
-    ldmnefd sp!, {r4, pc}
+    popne   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     mov     r1, #0xdf000000             @ (float)minlong
@@ -25,14 +25,14 @@ f2l_doconv:
     cmp     r0, #0                      @ nonzero == yes
     movne   r0, #0                      @ return minlong (80000000)
     movne   r1, #0x80000000
-    ldmnefd sp!, {r4, pc}
+    popne   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     mov     r1, r4
     bl      __aeabi_fcmpeq              @ is arg == self?
     cmp     r0, #0                      @ zero == no
     moveq   r1, #0                      @ return zero for NaN
-    ldmeqfd sp!, {r4, pc}
+    popeq   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     bl      __aeabi_f2lz                @ convert float to long
