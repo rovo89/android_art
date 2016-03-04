@@ -17,6 +17,7 @@
 #include "card_table.h"
 
 #include "base/logging.h"
+#include "base/systrace.h"
 #include "card_table-inl.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
@@ -57,6 +58,7 @@ constexpr uint8_t CardTable::kCardDirty;
  */
 
 CardTable* CardTable::Create(const uint8_t* heap_begin, size_t heap_capacity) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   /* Set up the card table */
   size_t capacity = heap_capacity / kCardSize;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */

@@ -27,6 +27,7 @@
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/scoped_flock.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "gc/accounting/space_bitmap-inl.h"
@@ -471,6 +472,7 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
                                         const InstructionSet image_isa,
                                         bool secondary_image,
                                         std::string* error_msg) {
+  ScopedTrace trace(__FUNCTION__);
   std::string system_filename;
   bool has_system = false;
   std::string cache_filename;
@@ -1167,7 +1169,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
   CHECK(image_filename != nullptr);
   CHECK(image_location != nullptr);
 
-  TimingLogger logger(__FUNCTION__, true, false);
+  TimingLogger logger(__PRETTY_FUNCTION__, true, VLOG_IS_ON(image));
   VLOG(image) << "ImageSpace::Init entering image_filename=" << image_filename;
 
   std::unique_ptr<File> file;

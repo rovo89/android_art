@@ -17,6 +17,7 @@
 #include "profile_saver.h"
 
 #include "art_method-inl.h"
+#include "base/systrace.h"
 #include "scoped_thread_state_change.h"
 #include "oat_file_manager.h"
 
@@ -93,6 +94,7 @@ void ProfileSaver::Run() {
 }
 
 bool ProfileSaver::ProcessProfilingInfo() {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   uint64_t last_update_time_ns = jit_code_cache_->GetLastUpdateTimeNs();
   if (!first_profile_ && last_update_time_ns - code_cache_last_update_time_ns_
           < kMinimumTimeBetweenCodeCacheUpdatesNs) {
