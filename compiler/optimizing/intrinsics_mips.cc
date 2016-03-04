@@ -490,7 +490,6 @@ void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfLeadingZeros(HInvoke* invoke) 
 static void GenNumberOfTrailingZeroes(LocationSummary* locations,
                                       bool is64bit,
                                       bool isR6,
-                                      bool isR2OrNewer,
                                       MipsAssembler* assembler) {
   Register out = locations->Out().AsRegister<Register>();
   Register in_lo;
@@ -503,7 +502,7 @@ static void GenNumberOfTrailingZeroes(LocationSummary* locations,
 
     // If in_lo is zero then count the number of trailing zeroes in in_hi;
     // otherwise count the number of trailing zeroes in in_lo.
-    // AT = in_lo ? in_lo : in_hi;
+    // out = in_lo ? in_lo : in_hi;
     if (isR6) {
       __ Seleqz(out, in_hi, in_lo);
       __ Selnez(TMP, in_lo, in_lo);
@@ -522,50 +521,26 @@ static void GenNumberOfTrailingZeroes(LocationSummary* locations,
     in_lo = in;
   }
 
-  // We don't have an instruction to count the number of trailing zeroes.
-  // Start by flipping the bits end-for-end so we can count the number of
-  // leading zeroes instead.
-  if (isR2OrNewer) {
+  if (isR6) {
+    // We don't have an instruction to count the number of trailing zeroes.
+    // Start by flipping the bits end-for-end so we can count the number of
+    // leading zeroes instead.
     __ Rotr(out, in, 16);
     __ Wsbh(out, out);
-  } else {
-    // MIPS32r1
-    // __ Rotr(out, in, 16);
-    __ Sll(TMP, in, 16);
-    __ Srl(out, in, 16);
-    __ Or(out, out, TMP);
-    // __ Wsbh(out, out);
-    __ LoadConst32(AT, 0x00FF00FF);
-    __ And(TMP, out, AT);
-    __ Sll(TMP, TMP, 8);
-    __ Srl(out, out, 8);
-    __ And(out, out, AT);
-    __ Or(out, out, TMP);
-  }
-
-  if (isR6) {
     __ Bitswap(out, out);
     __ ClzR6(out, out);
   } else {
-    __ LoadConst32(AT, 0x0F0F0F0F);
-    __ And(TMP, out, AT);
-    __ Sll(TMP, TMP, 4);
-    __ Srl(out, out, 4);
-    __ And(out, out, AT);
-    __ Or(out, TMP, out);
-    __ LoadConst32(AT, 0x33333333);
-    __ And(TMP, out, AT);
-    __ Sll(TMP, TMP, 2);
-    __ Srl(out, out, 2);
-    __ And(out, out, AT);
-    __ Or(out, TMP, out);
-    __ LoadConst32(AT, 0x55555555);
-    __ And(TMP, out, AT);
-    __ Sll(TMP, TMP, 1);
-    __ Srl(out, out, 1);
-    __ And(out, out, AT);
-    __ Or(out, TMP, out);
+    // Convert trailing zeroes to trailing ones, and bits to their left
+    // to zeroes.
+    __ Addiu(TMP, in, -1);
+    __ Xor(out, TMP, in);
+    __ And(out, out, TMP);
+    // Count number of leading zeroes.
     __ ClzR2(out, out);
+    // Subtract number of leading zeroes from 32 to get number of trailing ones.
+    // Remember that the trailing ones were formerly trailing zeroes.
+    __ LoadConst32(TMP, 32);
+    __ Subu(out, TMP, out);
   }
 
   if (is64bit) {
@@ -587,11 +562,7 @@ void IntrinsicLocationsBuilderMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* i
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(),
-                            /* is64bit */ false,
-                            IsR6(),
-                            IsR2OrNewer(),
-                            GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), /* is64bit */ false, IsR6(), GetAssembler());
 }
 
 // int java.lang.Long.numberOfTrailingZeros(long i)
@@ -600,11 +571,7 @@ void IntrinsicLocationsBuilderMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeroes(invoke->GetLocations(),
-                            /* is64bit */ true,
-                            IsR6(),
-                            IsR2OrNewer(),
-                            GetAssembler());
+  GenNumberOfTrailingZeroes(invoke->GetLocations(), /* is64bit */ true, IsR6(), GetAssembler());
 }
 
 // int java.lang.Integer.reverse(int)
