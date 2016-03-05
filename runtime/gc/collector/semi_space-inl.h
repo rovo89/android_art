@@ -75,6 +75,7 @@ inline void SemiSpace::MarkObject(
     }
     obj_ptr->Assign(forward_address);
   } else if (!collect_from_space_only_ && !immune_spaces_.IsInImmuneRegion(obj)) {
+    DCHECK(!to_space_->HasAddress(obj)) << "Tried to mark " << obj << " in to-space";
     BitmapSetSlowPathVisitor visitor(this);
     if (!mark_bitmap_->Set(obj, visitor)) {
       // This object was not previously marked.
