@@ -23,8 +23,6 @@
 #include <sys/prctl.h>
 #endif
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include <cutils/trace.h>
 #include <signal.h>
 #include <sys/syscall.h>
 #include "base/memory_tool.h"
@@ -58,6 +56,7 @@
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
@@ -216,7 +215,7 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
-  ATRACE_BEGIN("Runtime shutdown");
+  ScopedTrace trace("Runtime shutdown");
   if (is_native_bridge_loaded_) {
     UnloadNativeBridge();
   }
@@ -231,40 +230,34 @@ Runtime::~Runtime() {
   Thread* self = Thread::Current();
   const bool attach_shutdown_thread = self == nullptr;
   if (attach_shutdown_thread) {
-    ATRACE_BEGIN("Attach shutdown thread");
     CHECK(AttachCurrentThread("Shutdown thread", false, nullptr, false));
-    ATRACE_END();
     self = Thread::Current();
   } else {
     LOG(WARNING) << "Current thread not detached in Runtime shutdown";
   }
 
   {
-    ATRACE_BEGIN("Wait for shutdown cond");
+    ScopedTrace trace2("Wait for shutdown cond");
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     shutting_down_started_ = true;
     while (threads_being_born_ > 0) {
       shutdown_cond_->Wait(self);
     }
     shutting_down_ = true;
-    ATRACE_END();
   }
   // Shutdown and wait for the daemons.
   CHECK(self != nullptr);
   if (IsFinishedStarting()) {
-    ATRACE_BEGIN("Waiting for Daemons");
+    ScopedTrace trace2("Waiting for Daemons");
     self->ClearException();
     self->GetJniEnv()->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
                                             WellKnownClasses::java_lang_Daemons_stop);
-    ATRACE_END();
   }
 
   Trace::Shutdown();
 
   if (attach_shutdown_thread) {
-    ATRACE_BEGIN("Detach shutdown thread");
     DetachCurrentThread();
-    ATRACE_END();
     self = nullptr;
   }
 
@@ -272,14 +265,13 @@ Runtime::~Runtime() {
   heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
   heap_->DeleteThreadPool();
   if (jit_ != nullptr) {
-    ATRACE_BEGIN("Delete jit");
+    ScopedTrace trace2("Delete jit");
     VLOG(jit) << "Deleting jit thread pool";
     // Delete thread pool before the thread list since we don't want to wait forever on the
     // JIT compiler threads.
     jit_->DeleteThreadPool();
     // Similarly, stop the profile saver thread before deleting the thread list.
     jit_->StopProfileSaver();
-    ATRACE_END();
   }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
@@ -287,10 +279,10 @@ Runtime::~Runtime() {
   delete signal_catcher_;
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
-  ATRACE_BEGIN("Delete thread list");
-  delete thread_list_;
-  ATRACE_END();
-
+  {
+    ScopedTrace trace2("Delete thread list");
+    delete thread_list_;
+  }
   // Delete the JIT after thread list to ensure that there is no remaining threads which could be
   // accessing the instrumentation when we delete it.
   if (jit_ != nullptr) {
@@ -301,7 +293,7 @@ Runtime::~Runtime() {
   // Shutdown the fault manager if it was initialized.
   fault_manager.Shutdown();
 
-  ATRACE_BEGIN("Delete state");
+  ScopedTrace trace2("Delete state");
   delete monitor_list_;
   delete monitor_pool_;
   delete class_linker_;
@@ -318,12 +310,10 @@ Runtime::~Runtime() {
   low_4gb_arena_pool_.reset();
   arena_pool_.reset();
   MemMap::Shutdown();
-  ATRACE_END();
 
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == nullptr || instance_ == this);
   instance_ = nullptr;
-  ATRACE_END();
 }
 
 struct AbortState {
@@ -562,12 +552,14 @@ bool Runtime::Start() {
   // Use !IsAotCompiler so that we get test coverage, tests are never the zygote.
   if (!IsAotCompiler()) {
     ScopedObjectAccess soa(self);
-    ATRACE_BEGIN("AddImageStringsToTable");
-    GetInternTable()->AddImagesStringsToTable(heap_->GetBootImageSpaces());
-    ATRACE_END();
-    ATRACE_BEGIN("MoveImageClassesToClassTable");
-    GetClassLinker()->AddBootImageClassesToClassTable();
-    ATRACE_END();
+    {
+      ScopedTrace trace2("AddImageStringsToTable");
+      GetInternTable()->AddImagesStringsToTable(heap_->GetBootImageSpaces());
+    }
+    {
+      ScopedTrace trace2("MoveImageClassesToClassTable");
+      GetClassLinker()->AddBootImageClassesToClassTable();
+    }
   }
 
   // If we are the zygote then we need to wait until after forking to create the code cache
@@ -585,9 +577,10 @@ bool Runtime::Start() {
 
   // InitNativeMethods needs to be after started_ so that the classes
   // it touches will have methods linked to the oat file if necessary.
-  ATRACE_BEGIN("InitNativeMethods");
-  InitNativeMethods();
-  ATRACE_END();
+  {
+    ScopedTrace trace2("InitNativeMethods");
+    InitNativeMethods();
+  }
 
   // Initialize well known thread group values that may be accessed threads while attaching.
   InitThreadGroups(self);
@@ -613,9 +606,7 @@ bool Runtime::Start() {
                             GetInstructionSetString(kRuntimeISA));
   }
 
-  ATRACE_BEGIN("StartDaemonThreads");
   StartDaemonThreads();
-  ATRACE_END();
 
   {
     ScopedObjectAccess soa(self);
@@ -750,6 +741,7 @@ bool Runtime::IsDebuggable() const {
 }
 
 void Runtime::StartDaemonThreads() {
+  ScopedTrace trace(__FUNCTION__);
   VLOG(startup) << "Runtime::StartDaemonThreads entering";
 
   Thread* self = Thread::Current();
@@ -893,7 +885,7 @@ void Runtime::SetSentinel(mirror::Object* sentinel) {
 
 bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   RuntimeArgumentMap runtime_options(std::move(runtime_options_in));
-  ATRACE_BEGIN("Runtime::Init");
+  ScopedTrace trace(__FUNCTION__);
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   MemMap::Init();
@@ -960,7 +952,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   is_low_memory_mode_ = runtime_options.Exists(Opt::LowMemoryMode);
 
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
-  ATRACE_BEGIN("CreateHeap");
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
                        runtime_options.GetOrDefault(Opt::HeapMinFree),
@@ -991,11 +982,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        xgc_option.gcstress_,
                        runtime_options.GetOrDefault(Opt::EnableHSpaceCompactForOOM),
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
-  ATRACE_END();
 
   if (!heap_->HasBootImageSpace() && !allow_dex_file_fallback_) {
     LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
-    ATRACE_END();
     return false;
   }
 
@@ -1102,10 +1091,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
   if (GetHeap()->HasBootImageSpace()) {
-    ATRACE_BEGIN("InitFromImage");
     std::string error_msg;
     bool result = class_linker_->InitFromBootImage(&error_msg);
-    ATRACE_END();
     if (!result) {
       LOG(ERROR) << "Could not initialize from image: " << error_msg;
       return false;
@@ -1247,8 +1234,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   }
 
   VLOG(startup) << "Runtime::Init exiting";
-
-  ATRACE_END();
 
   return true;
 }
@@ -1465,10 +1450,12 @@ void Runtime::BlockSignals() {
 
 bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
                                   bool create_peer) {
+  ScopedTrace trace(__FUNCTION__);
   return Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != nullptr;
 }
 
 void Runtime::DetachCurrentThread() {
+  ScopedTrace trace(__FUNCTION__);
   Thread* self = Thread::Current();
   if (self == nullptr) {
     LOG(FATAL) << "attempting to detach thread that is not attached";

@@ -15,15 +15,14 @@
  */
 
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
 #include <stdio.h>
-#include <cutils/trace.h>
 
 #include "timing_logger.h"
 
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/histogram-inl.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "thread-inl.h"
 

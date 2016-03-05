@@ -16,6 +16,7 @@
 
 #include "indirect_reference_table-inl.h"
 
+#include "base/systrace.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "reference_table.h"
@@ -261,6 +262,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 }
 
 void IndirectReferenceTable::Trim() {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   const size_t top_index = Capacity();
   auto* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table_[top_index]), kPageSize);
   uint8_t* release_end = table_mem_map_->End();

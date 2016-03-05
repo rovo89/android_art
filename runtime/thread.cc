@@ -14,11 +14,8 @@
  * limitations under the License.
  */
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-
 #include "thread.h"
 
-#include <cutils/trace.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -39,6 +36,7 @@
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "base/to_str.h"
+#include "base/systrace.h"
 #include "class_linker-inl.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
@@ -1119,9 +1117,8 @@ void Thread::RunCheckpointFunction() {
   bool found_checkpoint = false;
   for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
     if (checkpoints[i] != nullptr) {
-      ATRACE_BEGIN("Checkpoint function");
+      ScopedTrace trace("Run checkpoint function");
       checkpoints[i]->Run(this);
-      ATRACE_END();
       found_checkpoint = true;
     }
   }
@@ -1187,14 +1184,13 @@ void Thread::SetFlipFunction(Closure* function) {
 }
 
 void Thread::FullSuspendCheck() {
+  ScopedTrace trace(__FUNCTION__);
   VLOG(threads) << this << " self-suspending";
-  ATRACE_BEGIN("Full suspend check");
   // Make thread appear suspended to other threads, release mutator_lock_.
   tls32_.suspended_at_suspend_check = true;
   // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
   ScopedThreadSuspension(this, kSuspended);
   tls32_.suspended_at_suspend_check = false;
-  ATRACE_END();
   VLOG(threads) << this << " self-reviving";
 }
 

@@ -23,6 +23,7 @@
 #include "mem_map.h"
 #include "mutex.h"
 #include "thread-inl.h"
+#include "systrace.h"
 
 namespace art {
 
@@ -258,6 +259,7 @@ Arena* ArenaPool::AllocArena(size_t size) {
 
 void ArenaPool::TrimMaps() {
   if (!use_malloc_) {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     // Doesn't work for malloc.
     MutexLock lock(Thread::Current(), lock_);
     for (auto* arena = free_arenas_; arena != nullptr; arena = arena->next_) {

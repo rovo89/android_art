@@ -19,12 +19,10 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include "cutils/trace.h"
-
 #include "art_method-inl.h"
 #include "base/casts.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
@@ -286,7 +284,7 @@ void* Trace::RunSamplingThread(void* arg) {
 
   while (true) {
     usleep(interval_us);
-    ATRACE_BEGIN("Profile sampling");
+    ScopedTrace trace("Profile sampling");
     Thread* self = Thread::Current();
     Trace* the_trace;
     {
@@ -301,7 +299,6 @@ void* Trace::RunSamplingThread(void* arg) {
       MutexLock mu(self, *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(GetSample, the_trace);
     }
-    ATRACE_END();
   }
 
   runtime->DetachCurrentThread();
