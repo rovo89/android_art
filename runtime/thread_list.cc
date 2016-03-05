@@ -16,10 +16,7 @@
 
 #include "thread_list.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-
 #include <backtrace/BacktraceMap.h>
-#include <cutils/trace.h>
 #include <dirent.h>
 #include <ScopedLocalRef.h>
 #include <ScopedUtfChars.h>
@@ -30,6 +27,7 @@
 
 #include "base/histogram-inl.h"
 #include "base/mutex-inl.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "debugger.h"
@@ -69,38 +67,29 @@ ThreadList::ThreadList()
 }
 
 ThreadList::~ThreadList() {
-  ATRACE_BEGIN(__FUNCTION__);
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   // Detach the current thread if necessary. If we failed to start, there might not be any threads.
   // We need to detach the current thread here in case there's another thread waiting to join with
   // us.
   bool contains = false;
+  Thread* self = Thread::Current();
   {
-    Thread* self = Thread::Current();
     MutexLock mu(self, *Locks::thread_list_lock_);
     contains = Contains(self);
   }
   if (contains) {
-    ATRACE_BEGIN("DetachCurrentThread");
     Runtime::Current()->DetachCurrentThread();
-    ATRACE_END();
   }
-  ATRACE_BEGIN("WaitForOtherNonDaemonThreadsToExit");
   WaitForOtherNonDaemonThreadsToExit();
-  ATRACE_END();
   // Disable GC and wait for GC to complete in case there are still daemon threads doing
   // allocations.
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   heap->DisableGCForShutdown();
   // In case a GC is in progress, wait for it to finish.
-  ATRACE_BEGIN("WaitForGcToComplete");
   heap->WaitForGcToComplete(gc::kGcCauseBackground, Thread::Current());
-  ATRACE_END();
   // TODO: there's an unaddressed race here where a thread may attach during shutdown, see
   //       Thread::Init.
-  ATRACE_BEGIN("SuspendAllDaemonThreadsForShutdown");
   SuspendAllDaemonThreadsForShutdown();
-  ATRACE_END();
-  ATRACE_END();
 }
 
 bool ThreadList::Contains(Thread* thread) {
@@ -475,42 +464,42 @@ void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
   } else {
     VLOG(threads) << "Thread[null] SuspendAll for " << cause << " starting...";
   }
-  ATRACE_BEGIN("Suspending mutator threads");
-  const uint64_t start_time = NanoTime();
+  {
+    ScopedTrace trace("Suspending mutator threads");
+    const uint64_t start_time = NanoTime();
 
-  SuspendAllInternal(self, self);
-  // All threads are known to have suspended (but a thread may still own the mutator lock)
-  // Make sure this thread grabs exclusive access to the mutator lock and its protected data.
+    SuspendAllInternal(self, self);
+    // All threads are known to have suspended (but a thread may still own the mutator lock)
+    // Make sure this thread grabs exclusive access to the mutator lock and its protected data.
 #if HAVE_TIMED_RWLOCK
-  while (true) {
-    if (Locks::mutator_lock_->ExclusiveLockWithTimeout(self, kThreadSuspendTimeoutMs, 0)) {
-      break;
-    } else if (!long_suspend_) {
-      // Reading long_suspend without the mutator lock is slightly racy, in some rare cases, this
-      // could result in a thread suspend timeout.
-      // Timeout if we wait more than kThreadSuspendTimeoutMs seconds.
-      UnsafeLogFatalForThreadSuspendAllTimeout();
+    while (true) {
+      if (Locks::mutator_lock_->ExclusiveLockWithTimeout(self, kThreadSuspendTimeoutMs, 0)) {
+        break;
+      } else if (!long_suspend_) {
+        // Reading long_suspend without the mutator lock is slightly racy, in some rare cases, this
+        // could result in a thread suspend timeout.
+        // Timeout if we wait more than kThreadSuspendTimeoutMs seconds.
+        UnsafeLogFatalForThreadSuspendAllTimeout();
+      }
     }
-  }
 #else
-  Locks::mutator_lock_->ExclusiveLock(self);
+    Locks::mutator_lock_->ExclusiveLock(self);
 #endif
 
-  long_suspend_ = long_suspend;
+    long_suspend_ = long_suspend;
 
-  const uint64_t end_time = NanoTime();
-  const uint64_t suspend_time = end_time - start_time;
-  suspend_all_historam_.AdjustAndAddValue(suspend_time);
-  if (suspend_time > kLongThreadSuspendThreshold) {
-    LOG(WARNING) << "Suspending all threads took: " << PrettyDuration(suspend_time);
+    const uint64_t end_time = NanoTime();
+    const uint64_t suspend_time = end_time - start_time;
+    suspend_all_historam_.AdjustAndAddValue(suspend_time);
+    if (suspend_time > kLongThreadSuspendThreshold) {
+      LOG(WARNING) << "Suspending all threads took: " << PrettyDuration(suspend_time);
+    }
+
+    if (kDebugLocking) {
+      // Debug check that all threads are suspended.
+      AssertThreadsAreSuspended(self, self);
+    }
   }
-
-  if (kDebugLocking) {
-    // Debug check that all threads are suspended.
-    AssertThreadsAreSuspended(self, self);
-  }
-
-  ATRACE_END();
   ATRACE_BEGIN((std::string("Mutator threads suspended for ") + cause).c_str());
 
   if (self != nullptr) {
@@ -640,7 +629,8 @@ void ThreadList::ResumeAll() {
   }
 
   ATRACE_END();
-  ATRACE_BEGIN("Resuming mutator threads");
+
+  ScopedTrace trace("Resuming mutator threads");
 
   if (kDebugLocking) {
     // Debug check that all threads are suspended.
@@ -672,7 +662,6 @@ void ThreadList::ResumeAll() {
     }
     Thread::resume_cond_->Broadcast(self);
   }
-  ATRACE_END();
 
   if (self != nullptr) {
     VLOG(threads) << *self << " ResumeAll complete";
@@ -1117,6 +1106,7 @@ void ThreadList::UndoDebuggerSuspensions() {
 }
 
 void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
   while (true) {
@@ -1148,6 +1138,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
 }
 
 void ThreadList::SuspendAllDaemonThreadsForShutdown() {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::thread_list_lock_);
   size_t daemons_left = 0;

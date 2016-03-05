@@ -16,14 +16,12 @@
 
 #include "monitor.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-
-#include <cutils/trace.h>
 #include <vector>
 
 #include "art_method-inl.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"

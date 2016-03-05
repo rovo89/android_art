@@ -17,9 +17,6 @@
 
 #include "rosalloc_space-inl.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include "cutils/trace.h"
-
 #include "base/time_utils.h"
 #include "gc/accounting/card_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
