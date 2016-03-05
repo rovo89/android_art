@@ -619,7 +619,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
 
 mirror::Object* SemiSpace::MarkObject(mirror::Object* root) {
   auto ref = StackReference<mirror::Object>::FromMirrorPtr(root);
-  MarkObject(&ref);
+  MarkObjectIfNotInToSpace(&ref);
   return ref.AsMirrorPtr();
 }
 
