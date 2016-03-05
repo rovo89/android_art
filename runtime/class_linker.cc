@@ -1473,7 +1473,6 @@ bool ClassLinker::AddImageSpace(
   Runtime* const runtime = Runtime::Current();
   gc::Heap* const heap = runtime->GetHeap();
   Thread* const self = Thread::Current();
-  ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
   StackHandleScope<2> hs(self);
   Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches(
       hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
