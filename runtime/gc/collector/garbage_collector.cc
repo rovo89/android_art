@@ -18,13 +18,11 @@
 
 #include "garbage_collector.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include "cutils/trace.h"
-
 #include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/space/large_object_space.h"
@@ -81,7 +79,7 @@ void GarbageCollector::ResetCumulativeStatistics() {
 }
 
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
-  ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), GetName()).c_str());
+  ScopedTrace trace(StringPrintf("%s %s GC", PrettyCause(gc_cause), GetName()));
   Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
   Iteration* current_iteration = GetCurrentIteration();
@@ -107,7 +105,6 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     MutexLock mu(self, pause_histogram_lock_);
     pause_histogram_.AdjustAndAddValue(pause_time);
   }
-  ATRACE_END();
 }
 
 void GarbageCollector::SwapBitmaps() {

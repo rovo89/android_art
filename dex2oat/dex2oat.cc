@@ -32,9 +32,6 @@
 #include <sys/utsname.h>
 #endif
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include <cutils/trace.h>
-
 #include "arch/instruction_set_features.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "art_method-inl.h"
