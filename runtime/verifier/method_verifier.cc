@@ -16,9 +16,6 @@
 
 #include "method_verifier-inl.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include <cutils/trace.h>
-
 #include <iostream>
 
 #include "art_field-inl.h"
@@ -26,6 +23,7 @@
 #include "base/logging.h"
 #include "base/mutex-inl.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "class_linker.h"
 #include "compiler_callbacks.h"
@@ -272,6 +270,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         bool log_hard_failures,
                                                         std::string* error) {
   DCHECK(class_def != nullptr);
+  ScopedTrace trace(__FUNCTION__);
 
   // A class must not be abstract and final.
   if ((class_def->access_flags_ & (kAccAbstract | kAccFinal)) == (kAccAbstract | kAccFinal)) {
@@ -286,7 +285,6 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
     // empty class, probably a marker interface
     return kNoFailure;
   }
-  ATRACE_BEGIN("VerifyClass");
   ClassDataItemIterator it(*dex_file, class_data);
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     it.Next();
@@ -320,8 +318,6 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                            error);
 
   data1.Merge(data2);
-
-  ATRACE_END();
 
   if (data1.kind == kNoFailure) {
     return kNoFailure;

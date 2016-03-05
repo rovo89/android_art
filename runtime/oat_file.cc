@@ -35,6 +35,7 @@
 #include "art_method-inl.h"
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "elf_utils.h"
@@ -746,6 +747,7 @@ ElfOatFile* ElfOatFile::OpenElfFile(File* file,
                                     bool executable,
                                     const char* abs_dex_location,
                                     std::string* error_msg) {
+  ScopedTrace trace("Open elf file " + location);
   std::unique_ptr<ElfOatFile> oat_file(new ElfOatFile(location, executable));
   bool success = oat_file->ElfFileOpen(file, oat_file_begin, writable, executable, error_msg);
   if (!success) {
@@ -768,6 +770,7 @@ ElfOatFile* ElfOatFile::OpenElfFile(File* file,
 bool ElfOatFile::InitializeFromElfFile(ElfFile* elf_file,
                                        const char* abs_dex_location,
                                        std::string* error_msg) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   if (IsExecutable()) {
     *error_msg = "Cannot initialize from elf file in executable mode.";
     return false;
@@ -787,6 +790,7 @@ bool ElfOatFile::Load(const std::string& elf_filename,
                       bool writable,
                       bool executable,
                       std::string* error_msg) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
   if (file == nullptr) {
     *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
@@ -804,6 +808,7 @@ bool ElfOatFile::ElfFileOpen(File* file,
                              bool writable,
                              bool executable,
                              std::string* error_msg) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   // TODO: rename requested_base to oat_data_begin
   elf_file_.reset(ElfFile::Open(file,
                                 writable,
@@ -864,6 +869,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        bool executable,
                        const char* abs_dex_location,
                        std::string* error_msg) {
+  ScopedTrace trace("Open oat file " + location);
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
   std::unique_ptr<OatFile> ret;
@@ -1072,6 +1078,7 @@ size_t OatFile::OatDexFile::FileSize() const {
 }
 
 std::unique_ptr<const DexFile> OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   return DexFile::Open(dex_file_pointer_,
                        FileSize(),
                        dex_file_location_,

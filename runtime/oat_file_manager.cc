@@ -16,14 +16,13 @@
 
 #include "oat_file_manager.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-#include <cutils/trace.h>
 #include <memory>
 #include <queue>
 #include <vector>
 
 #include "base/logging.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "gc/scoped_gc_critical_section.h"
@@ -299,6 +298,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     jobjectArray dex_elements,
     const OatFile** out_oat_file,
     std::vector<std::string>* error_msgs) {
+  ScopedTrace trace(__FUNCTION__);
   CHECK(dex_location != nullptr);
   CHECK(error_msgs != nullptr);
 
@@ -388,14 +388,15 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             ScopedSuspendAll ssa("Add image space");
             runtime->GetHeap()->AddSpace(image_space.get());
           }
-          ATRACE_BEGIN(StringPrintf("Adding image space for location %s", dex_location).c_str());
-          added_image_space = runtime->GetClassLinker()->AddImageSpace(image_space.get(),
-                                                                       h_loader,
-                                                                       dex_elements,
-                                                                       dex_location,
-                                                                       /*out*/&dex_files,
-                                                                       /*out*/&temp_error_msg);
-          ATRACE_END();
+          {
+            ScopedTrace trace2(StringPrintf("Adding image space for location %s", dex_location));
+            added_image_space = runtime->GetClassLinker()->AddImageSpace(image_space.get(),
+                                                                         h_loader,
+                                                                         dex_elements,
+                                                                         dex_location,
+                                                                         /*out*/&dex_files,
+                                                                         /*out*/&temp_error_msg);
+          }
           if (added_image_space) {
             // Successfully added image space to heap, release the map so that it does not get
             // freed.

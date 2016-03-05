@@ -34,6 +34,7 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
+#include "base/systrace.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
@@ -116,6 +117,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
 
 bool DexFile::Open(const char* filename, const char* location, std::string* error_msg,
                    std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  ScopedTrace trace(std::string("Open dex file ") + location);
   DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is nullptr";
   uint32_t magic;
   ScopedFd fd(OpenAndReadMagic(filename, &magic, error_msg));
@@ -201,6 +203,7 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
                                              const OatDexFile* oat_dex_file,
                                              bool verify,
                                              std::string* error_msg) {
+  ScopedTrace trace(std::string("Open dex file from RAM ") + location);
   std::unique_ptr<const DexFile> dex_file = OpenMemory(base,
                                                        size,
                                                        location,
@@ -221,6 +224,7 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
 
 std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, bool verify,
                                                  std::string* error_msg) {
+  ScopedTrace trace(std::string("Open dex file ") + location);
   CHECK(location != nullptr);
   std::unique_ptr<MemMap> map;
   {
@@ -278,6 +282,7 @@ const char* DexFile::kClassesDex = "classes.dex";
 
 bool DexFile::OpenZip(int fd, const std::string& location, std::string* error_msg,
                       std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  ScopedTrace trace("Dex file open Zip " + std::string(location));
   DCHECK(dex_files != nullptr) << "DexFile::OpenZip: out-param is nullptr";
   std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg));
   if (zip_archive.get() == nullptr) {
@@ -303,6 +308,7 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const std::string& location,
 std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive, const char* entry_name,
                                              const std::string& location, std::string* error_msg,
                                              ZipOpenErrorCode* error_code) {
+  ScopedTrace trace("Dex file open from Zip Archive " + std::string(location));
   CHECK(!location.empty());
   std::unique_ptr<ZipEntry> zip_entry(zip_archive.Find(entry_name, error_msg));
   if (zip_entry.get() == nullptr) {
@@ -348,6 +354,7 @@ static constexpr size_t kWarnOnManyDexFilesThreshold = 100;
 bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
                           std::string* error_msg,
                           std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  ScopedTrace trace("Dex file open from Zip " + std::string(location));
   DCHECK(dex_files != nullptr) << "DexFile::OpenFromZip: out-param is nullptr";
   ZipOpenErrorCode error_code;
   std::unique_ptr<const DexFile> dex_file(Open(zip_archive, kClassesDex, location, error_msg,

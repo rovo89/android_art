@@ -20,6 +20,7 @@
 
 #include "art_method-inl.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/time_utils.h"
 #include "debugger_interface.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
@@ -52,6 +53,7 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
                                    size_t max_capacity,
                                    bool generate_debug_info,
                                    std::string* error_msg) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   CHECK_GE(max_capacity, initial_capacity);
 
   // Generating debug information is mostly for using the 'perf' tool, which does
@@ -255,6 +257,7 @@ void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UN
 }
 
 void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
   MutexLock mu(self, lock_);
   // We do not check if a code cache GC is in progress, as this method comes
   // with the classlinker_classes_lock_ held, and suspending ourselves could
@@ -452,6 +455,7 @@ class MarkCodeClosure FINAL : public Closure {
       : code_cache_(code_cache), barrier_(barrier) {}
 
   void Run(Thread* thread) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     DCHECK(thread == Thread::Current() || thread->IsSuspended());
     MarkCodeVisitor visitor(thread, code_cache_);
     visitor.WalkStack();
@@ -552,6 +556,7 @@ bool JitCodeCache::ShouldDoFullCollection() {
 }
 
 void JitCodeCache::GarbageCollectCache(Thread* self) {
+  ScopedTrace trace(__FUNCTION__);
   if (!garbage_collect_code_) {
     MutexLock mu(self, lock_);
     IncreaseCodeCacheCapacity();
@@ -640,6 +645,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
 }
 
 void JitCodeCache::RemoveUnmarkedCode(Thread* self) {
+  ScopedTrace trace(__FUNCTION__);
   MutexLock mu(self, lock_);
   ScopedCodeCacheWrite scc(code_map_.get());
   // Iterate over all compiled code and remove entries that are not marked.
@@ -661,6 +667,7 @@ void JitCodeCache::RemoveUnmarkedCode(Thread* self) {
 }
 
 void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
+  ScopedTrace trace(__FUNCTION__);
   {
     MutexLock mu(self, lock_);
     if (collect_profiling_info) {
@@ -737,6 +744,7 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
 }
 
 bool JitCodeCache::CheckLiveCompiledCodeHasProfilingInfo() {
+  ScopedTrace trace(__FUNCTION__);
   // Check that methods we have compiled do have a ProfilingInfo object. We would
   // have memory leaks of compiled code otherwise.
   for (const auto& it : method_code_map_) {
@@ -867,6 +875,7 @@ void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_S
 
 void JitCodeCache::GetCompiledArtMethods(const std::set<std::string>& dex_base_locations,
                                          std::vector<ArtMethod*>& methods) {
+  ScopedTrace trace(__FUNCTION__);
   MutexLock mu(Thread::Current(), lock_);
   for (auto it : method_code_map_) {
     if (ContainsElement(dex_base_locations, it.second->GetDexFile()->GetBaseLocation())) {
