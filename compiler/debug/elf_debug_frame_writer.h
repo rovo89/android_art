@@ -200,8 +200,8 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
       sorted_method_infos.begin(),
       sorted_method_infos.end(),
       [](const MethodDebugInfo* lhs, const MethodDebugInfo* rhs) {
-        ArrayRef<const uint8_t> l = lhs->compiled_method->GetCFIInfo();
-        ArrayRef<const uint8_t> r = rhs->compiled_method->GetCFIInfo();
+        ArrayRef<const uint8_t> l = lhs->cfi;
+        ArrayRef<const uint8_t> r = rhs->cfi;
         return std::lexicographical_compare(l.begin(), l.end(), r.begin(), r.end());
       });
 
@@ -212,9 +212,6 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   {
     cfi_section->Start();
     const bool is64bit = Is64BitInstructionSet(builder->GetIsa());
-    const Elf_Addr text_address = builder->GetText()->Exists()
-        ? builder->GetText()->GetAddress()
-        : 0;
     const Elf_Addr cfi_address = cfi_section->GetAddress();
     const Elf_Addr cie_address = cfi_address;
     Elf_Addr buffer_address = cfi_address;
@@ -225,9 +222,10 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
     buffer.clear();
     for (const MethodDebugInfo* mi : sorted_method_infos) {
       if (!mi->deduped) {  // Only one FDE per unique address.
-        ArrayRef<const uint8_t> opcodes = mi->compiled_method->GetCFIInfo();
+        ArrayRef<const uint8_t> opcodes = mi->cfi;
         if (!opcodes.empty()) {
-          const Elf_Addr code_address = text_address + mi->low_pc;
+          const Elf_Addr code_address = mi->code_address +
+              (mi->is_code_address_text_relative ? builder->GetText()->GetAddress() : 0);
           if (format == dwarf::DW_EH_FRAME_FORMAT) {
             binary_search_table.push_back(
                 dchecked_integral_cast<uint32_t>(code_address));
@@ -235,7 +233,7 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
                 dchecked_integral_cast<uint32_t>(buffer_address));
           }
           WriteFDE(is64bit, cfi_address, cie_address,
-                   code_address, mi->high_pc - mi->low_pc,
+                   code_address, mi->code_size,
                    opcodes, format, buffer_address, &buffer,
                    &patch_locations);
           cfi_section->WriteFully(buffer.data(), buffer.size());

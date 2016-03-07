@@ -29,18 +29,16 @@ struct MethodDebugInfo {
   uint32_t dex_method_index;
   uint32_t access_flags;
   const DexFile::CodeItem* code_item;
+  InstructionSet isa;
   bool deduped;
   bool is_native_debuggable;
-  uintptr_t low_pc;
-  uintptr_t high_pc;
-  CompiledMethod* compiled_method;
-
-  bool IsFromOptimizingCompiler() const {
-    return compiled_method->GetQuickCode().size() > 0 &&
-           compiled_method->GetVmapTable().size() > 0 &&
-           compiled_method->GetGcMap().size() == 0 &&
-           code_item != nullptr;
-  }
+  bool is_optimized;
+  bool is_code_address_text_relative;  // Is the address offset from start of .text section?
+  uint64_t code_address;
+  uint32_t code_size;
+  uint32_t frame_size_in_bytes;
+  const uint8_t* code_info;
+  ArrayRef<const uint8_t> cfi;
 };
 
 }  // namespace debug

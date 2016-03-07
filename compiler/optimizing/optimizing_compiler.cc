@@ -917,35 +917,26 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   if (compiler_options.GetGenerateDebugInfo()) {
     const auto* method_header = reinterpret_cast<const OatQuickMethodHeader*>(code);
     const uintptr_t code_address = reinterpret_cast<uintptr_t>(method_header->GetCode());
-    CompiledMethod compiled_method(
-        GetCompilerDriver(),
-        codegen->GetInstructionSet(),
-        ArrayRef<const uint8_t>(code_allocator.GetMemory()),
-        codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
-        codegen->GetCoreSpillMask(),
-        codegen->GetFpuSpillMask(),
-        ArrayRef<const SrcMapElem>(),
-        ArrayRef<const uint8_t>(),  // mapping_table.
-        ArrayRef<const uint8_t>(stack_map_data, stack_map_size),
-        ArrayRef<const uint8_t>(),  // native_gc_map.
-        ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
-        ArrayRef<const LinkerPatch>());
-    debug::MethodDebugInfo method_debug_info {
-        dex_file,
-        class_def_idx,
-        method_idx,
-        access_flags,
-        code_item,
-        false,  // deduped.
-        compiler_options.GetNativeDebuggable(),
-        code_address,
-        code_address + code_allocator.GetSize(),
-        &compiled_method
-    };
+    debug::MethodDebugInfo info;
+    info.dex_file = dex_file;
+    info.class_def_index = class_def_idx;
+    info.dex_method_index = method_idx;
+    info.access_flags = access_flags;
+    info.code_item = code_item;
+    info.isa = codegen->GetInstructionSet();
+    info.deduped = false;
+    info.is_native_debuggable = compiler_options.GetNativeDebuggable();
+    info.is_optimized = true;
+    info.is_code_address_text_relative = false;
+    info.code_address = code_address;
+    info.code_size = code_allocator.GetSize();
+    info.frame_size_in_bytes = method_header->GetFrameSizeInBytes();
+    info.code_info = stack_map_size == 0 ? nullptr : stack_map_data;
+    info.cfi = ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data());
     ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethod(
         GetCompilerDriver()->GetInstructionSet(),
         GetCompilerDriver()->GetInstructionSetFeatures(),
-        method_debug_info);
+        info);
     CreateJITCodeEntryForAddress(code_address,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());
