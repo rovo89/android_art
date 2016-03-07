@@ -46,5 +46,13 @@ adb logcat -P ""
 adb logcat -p
 
 echo -e "${green}Kill stalled dalvikvm processes${nc}"
-processes=$(adb shell "ps" | grep dalvikvm | awk '{print $2}')
-for i in $processes; do adb shell kill -9 $i; done
+# 'ps' on M can sometimes hang.
+timeout 2s adb shell "ps"
+if [ $? = 124 ]; then
+  echo -e "${green}Rebooting device to fix 'ps'${nc}"
+  adb reboot
+  adb wait-for-device root
+else
+  processes=$(adb shell "ps" | grep dalvikvm | awk '{print $2}')
+  for i in $processes; do adb shell kill -9 $i; done
+fi
