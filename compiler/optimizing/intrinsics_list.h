@@ -128,6 +128,14 @@
   V(UnsafePutLong, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(UnsafePutLongOrdered, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(UnsafePutLongVolatile, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndAddInt, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndAddLong, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndSetInt, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndSetLong, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndSetObject, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeLoadFence, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeStoreFence, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeFullFence, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(ReferenceGetReferent, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow)
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_
