@@ -377,7 +377,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
 
   Runtime* runtime = Runtime::Current();
   const void* existing_entry_point = GetEntryPointFromQuickCompiledCode();
-  DCHECK(existing_entry_point != nullptr);
+  CHECK(existing_entry_point != nullptr) << PrettyMethod(this) << "@" << this;
   ClassLinker* class_linker = runtime->GetClassLinker();
 
   if (class_linker->IsQuickGenericJniStub(existing_entry_point)) {
