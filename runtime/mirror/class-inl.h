@@ -940,7 +940,7 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
   }
   for (ArtMethod& method : GetMethods(pointer_size)) {
     method.VisitRoots(visitor, pointer_size);
-    if (method.GetDeclaringClassUnchecked() != nullptr && !method.IsNative()) {
+    if (!method.IsNative()) {
       ProfilingInfo* profiling_info = method.GetProfilingInfo(pointer_size);
       if (profiling_info != nullptr) {
         profiling_info->VisitRoots(visitor);
