@@ -134,8 +134,27 @@ class ProfilingInfo {
     return saved_entry_point_;
   }
 
-  void ClearInlineCaches() {
-    memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
+  void ClearGcRootsInInlineCaches() {
+    for (size_t i = 0; i < number_of_inline_caches_; ++i) {
+      InlineCache* cache = &cache_[i];
+      memset(&cache->classes_[0],
+             0,
+             InlineCache::kIndividualCacheSize * sizeof(GcRoot<mirror::Class>));
+    }
+  }
+
+  void IncrementInlineUse() {
+    DCHECK_NE(current_inline_uses_, std::numeric_limits<uint16_t>::max());
+    current_inline_uses_++;
+  }
+
+  void DecrementInlineUse() {
+    DCHECK_GT(current_inline_uses_, 0);
+    current_inline_uses_--;
+  }
+
+  bool IsInUseByCompiler() const {
+    return IsMethodBeingCompiled() || (current_inline_uses_ > 0);
   }
 
  private:
@@ -143,8 +162,9 @@ class ProfilingInfo {
       : number_of_inline_caches_(entries.size()),
         method_(method),
         is_method_being_compiled_(false),
+        current_inline_uses_(0),
         saved_entry_point_(nullptr) {
-    ClearInlineCaches();
+    memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
     for (size_t i = 0; i < number_of_inline_caches_; ++i) {
       cache_[i].dex_pc_ = entries[i];
     }
@@ -160,6 +180,10 @@ class ProfilingInfo {
   // is implicitly guarded by the JIT code cache lock.
   // TODO: Make the JIT code cache lock global.
   bool is_method_being_compiled_;
+
+  // When the compiler inlines the method associated to this ProfilingInfo,
+  // it updates this counter so that the GC does not try to clear the inline caches.
+  uint16_t current_inline_uses_;
 
   // Entry point of the corresponding ArtMethod, while the JIT code cache
   // is poking for the liveness of compiled code.

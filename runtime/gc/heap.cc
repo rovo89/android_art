@@ -59,6 +59,8 @@
 #include "heap-inl.h"
 #include "image.h"
 #include "intern_table.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -2669,6 +2671,12 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
     // permanantly disabled. b/17942071
     concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
   }
+
+  if ((gc_type == collector::kGcTypeFull) && runtime->UseJit()) {
+    // It's time to clear all inline caches, in case some classes can be unloaded.
+    runtime->GetJit()->GetCodeCache()->ClearGcRootsInInlineCaches(self);
+  }
+
   CHECK(collector != nullptr)
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;

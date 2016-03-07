@@ -181,6 +181,7 @@ public class Main {
         Class intHolder = loader.loadClass("IntHolder");
         Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
         loadLibrary.invoke(intHolder, nativeLibraryName);
+        waitForCompilation(intHolder);
         return new WeakReference(loader);
     }
 

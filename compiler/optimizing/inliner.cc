@@ -28,6 +28,8 @@
 #include "driver/dex_compilation_unit.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
@@ -220,6 +222,20 @@ static uint32_t FindClassIndexIn(mirror::Class* cls,
   return index;
 }
 
+class ScopedProfilingInfoInlineUse {
+ public:
+  explicit ScopedProfilingInfoInlineUse(ArtMethod* method) : method_(method) {
+    Runtime::Current()->GetJit()->GetCodeCache()->NotifyInliningOf(method_, Thread::Current());
+  }
+
+  ~ScopedProfilingInfoInlineUse() {
+    Runtime::Current()->GetJit()->GetCodeCache()->DoneInlining(method_, Thread::Current());
+  }
+
+ private:
+  ArtMethod* const method_;
+};
+
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
   if (invoke_instruction->IsInvokeUnresolved()) {
     return false;  // Don't bother to move further if we know the method is unresolved.
@@ -272,29 +288,32 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   // Check if we can use an inline cache.
   ArtMethod* caller = graph_->GetArtMethod();
   size_t pointer_size = class_linker->GetImagePointerSize();
-  // Under JIT, we should always know the caller.
-  DCHECK(!Runtime::Current()->UseJit() || (caller != nullptr));
-  if (caller != nullptr && caller->GetProfilingInfo(pointer_size) != nullptr) {
+  if (Runtime::Current()->UseJit()) {
+    // Under JIT, we should always know the caller.
+    DCHECK(caller != nullptr);
+    ScopedProfilingInfoInlineUse spiis(caller);
     ProfilingInfo* profiling_info = caller->GetProfilingInfo(pointer_size);
-    const InlineCache& ic = *profiling_info->GetInlineCache(invoke_instruction->GetDexPc());
-    if (ic.IsUnitialized()) {
-      VLOG(compiler) << "Interface or virtual call to "
-                     << PrettyMethod(method_index, caller_dex_file)
-                     << " is not hit and not inlined";
-      return false;
-    } else if (ic.IsMonomorphic()) {
-      MaybeRecordStat(kMonomorphicCall);
-      return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
-    } else if (ic.IsPolymorphic()) {
-      MaybeRecordStat(kPolymorphicCall);
-      return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
-    } else {
-      DCHECK(ic.IsMegamorphic());
-      VLOG(compiler) << "Interface or virtual call to "
-                     << PrettyMethod(method_index, caller_dex_file)
-                     << " is megamorphic and not inlined";
-      MaybeRecordStat(kMegamorphicCall);
-      return false;
+    if (profiling_info != nullptr) {
+      const InlineCache& ic = *profiling_info->GetInlineCache(invoke_instruction->GetDexPc());
+      if (ic.IsUnitialized()) {
+        VLOG(compiler) << "Interface or virtual call to "
+                       << PrettyMethod(method_index, caller_dex_file)
+                       << " is not hit and not inlined";
+        return false;
+      } else if (ic.IsMonomorphic()) {
+        MaybeRecordStat(kMonomorphicCall);
+        return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
+      } else if (ic.IsPolymorphic()) {
+        MaybeRecordStat(kPolymorphicCall);
+        return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
+      } else {
+        DCHECK(ic.IsMegamorphic());
+        VLOG(compiler) << "Interface or virtual call to "
+                       << PrettyMethod(method_index, caller_dex_file)
+                       << " is megamorphic and not inlined";
+        MaybeRecordStat(kMegamorphicCall);
+        return false;
+      }
     }
   }
 

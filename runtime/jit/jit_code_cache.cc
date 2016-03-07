@@ -293,6 +293,15 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
   }
 }
 
+void JitCodeCache::ClearGcRootsInInlineCaches(Thread* self) {
+  MutexLock mu(self, lock_);
+  for (ProfilingInfo* info : profiling_infos_) {
+    if (!info->IsInUseByCompiler()) {
+      info->ClearGcRootsInInlineCaches();
+    }
+  }
+}
+
 uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           ArtMethod* method,
                                           const uint8_t* mapping_table,
@@ -675,7 +684,7 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
       // Also remove the saved entry point from the ProfilingInfo objects.
       for (ProfilingInfo* info : profiling_infos_) {
         const void* ptr = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
-        if (!ContainsPc(ptr) && !info->IsMethodBeingCompiled()) {
+        if (!ContainsPc(ptr) && !info->IsInUseByCompiler()) {
           info->GetMethod()->SetProfilingInfo(nullptr);
         }
         info->SetSavedEntryPoint(nullptr);
@@ -727,7 +736,7 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
         // code cache collection.
         if (ContainsPc(ptr) && info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
           // We clear the inline caches as classes in it might be stalled.
-          info->ClearInlineCaches();
+          info->ClearGcRootsInInlineCaches();
           // Do a fence to make sure the clearing is seen before attaching to the method.
           QuasiAtomic::ThreadFenceRelease();
           info->GetMethod()->SetProfilingInfo(info);
@@ -913,6 +922,22 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
 
   info->SetIsMethodBeingCompiled(true);
   return true;
+}
+
+void JitCodeCache::NotifyInliningOf(ArtMethod* method, Thread* self) {
+  MutexLock mu(self, lock_);
+  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  if (info != nullptr) {
+    info->IncrementInlineUse();
+  }
+}
+
+void JitCodeCache::DoneInlining(ArtMethod* method, Thread* self) {
+  MutexLock mu(self, lock_);
+  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  if (info != nullptr) {
+    info->DecrementInlineUse();
+  }
 }
 
 void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED) {
