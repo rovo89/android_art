@@ -29,7 +29,6 @@
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "gc/heap-inl.h"
-#include "jit/profiling_info.h"
 #include "iftable.h"
 #include "object_array-inl.h"
 #include "read_barrier-inl.h"
@@ -940,12 +939,6 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
   }
   for (ArtMethod& method : GetMethods(pointer_size)) {
     method.VisitRoots(visitor, pointer_size);
-    if (!method.IsNative()) {
-      ProfilingInfo* profiling_info = method.GetProfilingInfo(pointer_size);
-      if (profiling_info != nullptr) {
-        profiling_info->VisitRoots(visitor);
-      }
-    }
   }
 }
 
