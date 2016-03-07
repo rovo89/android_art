@@ -85,7 +85,6 @@ class SwapSpace {
 
   int fd_;
   size_t size_;
-  std::list<SpaceChunk> maps_;
 
   // NOTE: Boost.Bimap would be useful for the two following members.
 
