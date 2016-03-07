@@ -49,6 +49,7 @@ MterpPossibleException:
  *
  */
     .extern MterpHandleException
+    .extern MterpShouldSwitchInterpreters
 MterpException:
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -59,8 +60,11 @@ MterpException:
     REFRESH_IBASE
     daddu   rPC, a0, CODEITEM_INSNS_OFFSET
     dlsa    rPC, a1, rPC, 1                         # generate new dex_pc_ptr
-    sd      rPC, OFF_FP_DEX_PC_PTR(rFP)
+    /* Do we need to switch interpreters? */
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     /* resume execution at catch block */
+    EXPORT_PC
     FETCH_INST
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
@@ -81,8 +85,22 @@ check1:
     EXPORT_PC
     move    a0, rSELF
     jal     MterpSuspendCheck                       # (self)
+    bnezc   v0, MterpFallback                       # Something in the environment changed, switch interpreters
     GET_INST_OPCODE v0                              # extract opcode from rINST
     GOTO_OPCODE v0                                  # jump to next instruction
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST                               # rINST contains offset
+    jal     MterpLogOSR
+#endif
+    li      v0, 1                                   # Signal normal return
+    b       MterpDone
 
 /*
  * Bail out to reference interpreter.

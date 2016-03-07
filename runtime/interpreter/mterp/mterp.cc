@@ -147,16 +147,7 @@ extern "C" bool MterpShouldSwitchInterpreters()
     SHARED_REQUIRES(Locks::mutator_lock_) {
   const instrumentation::Instrumentation* const instrumentation =
       Runtime::Current()->GetInstrumentation();
-  bool unhandled_instrumentation;
-  // TODO: enable for other targets after more extensive testing.
-  if ((kRuntimeISA == kArm64) || (kRuntimeISA == kArm) ||
-      (kRuntimeISA == kX86_64) || (kRuntimeISA == kX86) ||
-      (kRuntimeISA == kMips)) {
-    unhandled_instrumentation = instrumentation->NonJitProfilingActive();
-  } else {
-    unhandled_instrumentation = instrumentation->IsActive();
-  }
-  return unhandled_instrumentation || Dbg::IsDebuggerActive();
+  return instrumentation->NonJitProfilingActive() || Dbg::IsDebuggerActive();
 }
 
 

@@ -82,14 +82,7 @@ The following registers have fixed assignments:
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
 #define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
 
-/*
- *
- * The reference interpreter performs explicit suspect checks, which is somewhat wasteful.
- * Dalvik's interpreter folded suspend checks into the jump table mechanism, and eventually
- * mterp should do so as well.
- */
-#define MTERP_SUSPEND 0
-
+#define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
 
 /*

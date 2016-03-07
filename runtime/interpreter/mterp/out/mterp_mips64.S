@@ -89,14 +89,7 @@ The following registers have fixed assignments:
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
 #define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
 
-/*
- *
- * The reference interpreter performs explicit suspect checks, which is somewhat wasteful.
- * Dalvik's interpreter folded suspend checks into the jump table mechanism, and eventually
- * mterp should do so as well.
- */
-#define MTERP_SUSPEND 0
-
+#define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
 
 /*
@@ -1107,20 +1100,22 @@ artMterpAsmInstructionStart = .L_op_nop
      * double to get a byte offset.
      */
     /* goto +AA */
-    srl     a0, rINST, 8
-    seb     a0, a0                      # a0 <- sign-extended AA
-    dlsa    rPC, a0, rPC, 1             # rPC <- rPC + AA * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a0, 1f                      # AA * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-1:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a0, MterpCheckSuspendAndContinue
+    .extern MterpProfileBranch
+    srl     rINST, rINST, 8
+    seb     rINST, rINST                # rINST <- offset (sign-extended AA)
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1135,19 +1130,21 @@ artMterpAsmInstructionStart = .L_op_nop
      * double to get a byte offset.
      */
     /* goto/16 +AAAA */
-    lh      a0, 2(rPC)                  # a0 <- sign-extended AAAA
-    dlsa    rPC, a0, rPC, 1             # rPC <- rPC + AAAA * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a0, 1f                      # AA * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-1:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a0, MterpCheckSuspendAndContinue
+    .extern MterpProfileBranch
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended AAAA)
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1165,21 +1162,23 @@ artMterpAsmInstructionStart = .L_op_nop
      * our "backward branch" test must be "<=0" instead of "<0".
      */
     /* goto/32 +AAAAAAAA */
-    lh      a0, 2(rPC)                  # a0 <- aaaa (low)
+    .extern MterpProfileBranch
+    lh      rINST, 2(rPC)               # rINST <- aaaa (low)
     lh      a1, 4(rPC)                  # a1 <- AAAA (high)
-    ins     a0, a1, 16, 16              # a0 = sign-extended AAAAaaaa
-    dlsa    rPC, a0, rPC, 1             # rPC <- rPC + AAAAAAAA * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgtz    a0, 1f                      # AA * 2 > 0 => no suspend check
-    REFRESH_IBASE
-1:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    blez    a0, MterpCheckSuspendAndContinue
+    ins     rINST, a1, 16, 16           # rINST <- offset (sign-extended AAAAaaaa)
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    blez    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1198,6 +1197,7 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* op vAA, +BBBBBBBB */
     .extern MterpDoPackedSwitch
+    .extern MterpProfileBranch
     lh      a0, 2(rPC)                  # a0 <- bbbb (lo)
     lh      a1, 4(rPC)                  # a1 <- BBBB (hi)
     srl     a3, rINST, 8                # a3 <- AA
@@ -1205,16 +1205,20 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG a1, a3                     # a1 <- vAA
     dlsa    a0, a0, rPC, 1              # a0 <- PC + BBBBbbbb*2
     jal     MterpDoPackedSwitch                       # v0 <- code-unit branch offset
-    dlsa    rPC, v0, rPC, 1             # rPC <- rPC + offset * 2
-    FETCH_INST                          # load rINST
-#if MTERP_SUSPEND
-    bgtz    v0, 1f                      # offset * 2 > 0 => no suspend check
-    REFRESH_IBASE
-1:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    blez    v0, MterpCheckSuspendAndContinue
+    move    rINST, v0
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    blez    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1234,6 +1238,7 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* op vAA, +BBBBBBBB */
     .extern MterpDoSparseSwitch
+    .extern MterpProfileBranch
     lh      a0, 2(rPC)                  # a0 <- bbbb (lo)
     lh      a1, 4(rPC)                  # a1 <- BBBB (hi)
     srl     a3, rINST, 8                # a3 <- AA
@@ -1241,16 +1246,20 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG a1, a3                     # a1 <- vAA
     dlsa    a0, a0, rPC, 1              # a0 <- PC + BBBBbbbb*2
     jal     MterpDoSparseSwitch                       # v0 <- code-unit branch offset
-    dlsa    rPC, v0, rPC, 1             # rPC <- rPC + offset * 2
-    FETCH_INST                          # load rINST
-#if MTERP_SUSPEND
-    bgtz    v0, 1f                      # offset * 2 > 0 => no suspend check
-    REFRESH_IBASE
-1:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    blez    v0, MterpCheckSuspendAndContinue
+    move    rINST, v0
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    blez    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1438,28 +1447,28 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended CCCC
+    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
     GET_VREG a0, a2                     # a0 <- vA
     GET_VREG a1, a3                     # a1 <- vB
-
     beqc a0, a1, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + CCCC * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # CCCC * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1477,28 +1486,28 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended CCCC
+    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
     GET_VREG a0, a2                     # a0 <- vA
     GET_VREG a1, a3                     # a1 <- vB
-
     bnec a0, a1, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + CCCC * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # CCCC * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1516,28 +1525,28 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended CCCC
+    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
     GET_VREG a0, a2                     # a0 <- vA
     GET_VREG a1, a3                     # a1 <- vB
-
     bltc a0, a1, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + CCCC * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # CCCC * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1555,28 +1564,28 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended CCCC
+    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
     GET_VREG a0, a2                     # a0 <- vA
     GET_VREG a1, a3                     # a1 <- vB
-
     bgec a0, a1, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + CCCC * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # CCCC * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1594,28 +1603,28 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended CCCC
+    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
     GET_VREG a0, a2                     # a0 <- vA
     GET_VREG a1, a3                     # a1 <- vB
-
     bgtc a0, a1, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + CCCC * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # CCCC * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1633,28 +1642,28 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended CCCC
+    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
     GET_VREG a0, a2                     # a0 <- vA
     GET_VREG a1, a3                     # a1 <- vB
-
     blec a0, a1, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + CCCC * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # CCCC * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1672,26 +1681,26 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended BBBB
+    .extern MterpProfileBranch
     srl     a2, rINST, 8                # a2 <- AA
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended BBBB)
     GET_VREG a0, a2                     # a0 <- vAA
-
     beqzc a0, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + BBBB * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # BBBB * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1709,26 +1718,26 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended BBBB
+    .extern MterpProfileBranch
     srl     a2, rINST, 8                # a2 <- AA
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended BBBB)
     GET_VREG a0, a2                     # a0 <- vAA
-
     bnezc a0, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + BBBB * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # BBBB * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1746,26 +1755,26 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended BBBB
+    .extern MterpProfileBranch
     srl     a2, rINST, 8                # a2 <- AA
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended BBBB)
     GET_VREG a0, a2                     # a0 <- vAA
-
     bltzc a0, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + BBBB * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # BBBB * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1783,26 +1792,26 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended BBBB
+    .extern MterpProfileBranch
     srl     a2, rINST, 8                # a2 <- AA
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended BBBB)
     GET_VREG a0, a2                     # a0 <- vAA
-
     bgezc a0, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + BBBB * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # BBBB * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1820,26 +1829,26 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended BBBB
+    .extern MterpProfileBranch
     srl     a2, rINST, 8                # a2 <- AA
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended BBBB)
     GET_VREG a0, a2                     # a0 <- vAA
-
     bgtzc a0, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + BBBB * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # BBBB * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -1857,26 +1866,26 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-    lh      a4, 2(rPC)                  # a4 <- sign-extended BBBB
+    .extern MterpProfileBranch
     srl     a2, rINST, 8                # a2 <- AA
+    lh      rINST, 2(rPC)               # rINST <- offset (sign-extended BBBB)
     GET_VREG a0, a2                     # a0 <- vAA
-
     blezc a0, 1f
-    li      a4, 2                       # offset if branch not taken
+    li      rINST, 2                    # offset if branch not taken
 1:
-
-    dlsa    rPC, a4, rPC, 1             # rPC <- rPC + BBBB * 2
-    FETCH_INST                          # load rINST
-
-#if MTERP_SUSPEND
-    bgez    a4, 2f                      # BBBB * 2 >= 0 => no suspend check
-    REFRESH_IBASE
-2:
-#else
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    bltz    a4, MterpCheckSuspendAndContinue
+#if MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    jal     MterpProfileBranch          # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
 #endif
-
+    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
+    move    a0, rINST                   # a0 <- offset
+    FETCH_INST                          # load rINST
+    bltz    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
 
@@ -3166,6 +3175,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeVirtual
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3174,6 +3184,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeVirtual
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3196,6 +3208,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeSuper
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3204,6 +3217,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeSuper
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3226,6 +3241,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeDirect
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3234,6 +3250,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeDirect
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3249,6 +3267,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeStatic
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3257,6 +3276,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeStatic
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3272,6 +3293,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeInterface
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3280,6 +3302,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeInterface
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3316,6 +3340,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeVirtualRange
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3324,6 +3349,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeVirtualRange
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3339,6 +3366,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeSuperRange
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3347,6 +3375,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeSuperRange
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3362,6 +3392,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeDirectRange
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3370,6 +3401,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeDirectRange
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3385,6 +3418,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeStaticRange
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3393,6 +3427,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeStaticRange
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -3408,6 +3444,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeInterfaceRange
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -3416,6 +3453,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeInterfaceRange
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -6962,6 +7001,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeVirtualQuick
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -6970,6 +7010,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeVirtualQuick
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -6985,6 +7027,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
     /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern MterpInvokeVirtualQuickRange
+    .extern MterpShouldSwitchInterpreters
     EXPORT_PC
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -6993,6 +7036,8 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpInvokeVirtualQuickRange
     beqzc   v0, MterpException
     FETCH_ADVANCE_INST 3
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
 
@@ -12256,6 +12301,7 @@ MterpPossibleException:
  *
  */
     .extern MterpHandleException
+    .extern MterpShouldSwitchInterpreters
 MterpException:
     move    a0, rSELF
     daddu   a1, rFP, OFF_FP_SHADOWFRAME
@@ -12266,8 +12312,11 @@ MterpException:
     REFRESH_IBASE
     daddu   rPC, a0, CODEITEM_INSNS_OFFSET
     dlsa    rPC, a1, rPC, 1                         # generate new dex_pc_ptr
-    sd      rPC, OFF_FP_DEX_PC_PTR(rFP)
+    /* Do we need to switch interpreters? */
+    jal     MterpShouldSwitchInterpreters
+    bnezc   v0, MterpFallback
     /* resume execution at catch block */
+    EXPORT_PC
     FETCH_INST
     GET_INST_OPCODE v0
     GOTO_OPCODE v0
@@ -12288,8 +12337,22 @@ check1:
     EXPORT_PC
     move    a0, rSELF
     jal     MterpSuspendCheck                       # (self)
+    bnezc   v0, MterpFallback                       # Something in the environment changed, switch interpreters
     GET_INST_OPCODE v0                              # extract opcode from rINST
     GOTO_OPCODE v0                                  # jump to next instruction
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST                               # rINST contains offset
+    jal     MterpLogOSR
+#endif
+    li      v0, 1                                   # Signal normal return
+    b       MterpDone
 
 /*
  * Bail out to reference interpreter.
