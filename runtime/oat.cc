@@ -468,6 +468,10 @@ bool OatHeader::IsDebuggable() const {
   return IsKeyEnabled(OatHeader::kDebuggableKey);
 }
 
+bool OatHeader::IsNativeDebuggable() const {
+  return IsKeyEnabled(OatHeader::kNativeDebuggableKey);
+}
+
 bool OatHeader::IsExtractOnly() const {
   return KeyHasValue(kCompilationType,
                      kExtractOnlyValue,

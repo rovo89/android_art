@@ -32,6 +32,8 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "debug/elf_debug_writer.h"
+#include "debug/method_debug_info.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
@@ -106,14 +108,6 @@ class OatSymbolizer FINAL {
       output_name_(output_name.empty() ? "symbolized.oat" : output_name) {
   }
 
-  typedef void (OatSymbolizer::*Callback)(const DexFile::ClassDef&,
-                                          uint32_t,
-                                          const OatFile::OatMethod&,
-                                          const DexFile&,
-                                          uint32_t,
-                                          const DexFile::CodeItem*,
-                                          uint32_t);
-
   bool Symbolize() {
     const InstructionSet isa = oat_file_->GetOatHeader().GetInstructionSet();
     const InstructionSetFeatures* features = InstructionSetFeatures::FromBitmap(
@@ -129,8 +123,6 @@ class OatSymbolizer FINAL {
     auto* rodata = builder_->GetRoData();
     auto* text = builder_->GetText();
     auto* bss = builder_->GetBss();
-    auto* strtab = builder_->GetStrTab();
-    auto* symtab = builder_->GetSymTab();
 
     rodata->Start();
     const uint8_t* rodata_begin = oat_file_->Begin();
@@ -155,69 +147,31 @@ class OatSymbolizer FINAL {
         elf_file->GetPath(), rodata_size, text_size, oat_file_->BssSize());
     builder_->WriteDynamicSection();
 
-    Walk(&art::OatSymbolizer<ElfTypes>::RegisterForDedup);
+    Walk();
+    for (const auto& trampoline : debug::MakeTrampolineInfos(oat_file_->GetOatHeader())) {
+      method_debug_infos_.push_back(trampoline);
+    }
 
-    NormalizeState();
-
-    strtab->Start();
-    strtab->Write("");  // strtab should start with empty string.
-    AddTrampolineSymbols();
-    Walk(&art::OatSymbolizer<ElfTypes>::AddSymbol);
-    strtab->End();
-
-    symtab->Start();
-    symtab->Write();
-    symtab->End();
+    debug::WriteDebugInfo(builder_.get(),
+                          ArrayRef<const debug::MethodDebugInfo>(method_debug_infos_),
+                          dwarf::DW_DEBUG_FRAME_FORMAT,
+                          true /* write_oat_patches */);
 
     builder_->End();
 
     return builder_->Good();
   }
 
-  void AddTrampolineSymbol(const char* name, uint32_t code_offset) {
-    if (code_offset != 0) {
-      uint32_t name_offset = builder_->GetStrTab()->Write(name);
-      uint64_t symbol_value = code_offset - oat_file_->GetOatHeader().GetExecutableOffset();
-      // Specifying 0 as the symbol size means that the symbol lasts until the next symbol or until
-      // the end of the section in case of the last symbol.
-      builder_->GetSymTab()->Add(
-          name_offset,
-          builder_->GetText(),
-          builder_->GetText()->GetAddress() + symbol_value,
-          /* size */ 0,
-          STB_GLOBAL,
-          STT_FUNC);
-    }
-  }
-
-  void AddTrampolineSymbols() {
-    const OatHeader& oat_header = oat_file_->GetOatHeader();
-    AddTrampolineSymbol("interpreterToInterpreterBridge",
-                        oat_header.GetInterpreterToInterpreterBridgeOffset());
-    AddTrampolineSymbol("interpreterToCompiledCodeBridge",
-                        oat_header.GetInterpreterToCompiledCodeBridgeOffset());
-    AddTrampolineSymbol("jniDlsymLookup",
-                        oat_header.GetJniDlsymLookupOffset());
-    AddTrampolineSymbol("quickGenericJniTrampoline",
-                        oat_header.GetQuickGenericJniTrampolineOffset());
-    AddTrampolineSymbol("quickImtConflictTrampoline",
-                        oat_header.GetQuickImtConflictTrampolineOffset());
-    AddTrampolineSymbol("quickResolutionTrampoline",
-                        oat_header.GetQuickResolutionTrampolineOffset());
-    AddTrampolineSymbol("quickToInterpreterBridge",
-                        oat_header.GetQuickToInterpreterBridgeOffset());
-  }
-
-  void Walk(Callback callback) {
+  void Walk() {
     std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file_->GetOatDexFiles();
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
       CHECK(oat_dex_file != nullptr);
-      WalkOatDexFile(oat_dex_file, callback);
+      WalkOatDexFile(oat_dex_file);
     }
   }
 
-  void WalkOatDexFile(const OatFile::OatDexFile* oat_dex_file, Callback callback) {
+  void WalkOatDexFile(const OatFile::OatDexFile* oat_dex_file) {
     std::string error_msg;
     const DexFile* const dex_file = OpenDexFile(oat_dex_file, &error_msg);
     if (dex_file == nullptr) {
@@ -226,13 +180,12 @@ class OatSymbolizer FINAL {
     for (size_t class_def_index = 0;
         class_def_index < dex_file->NumClassDefs();
         class_def_index++) {
-      const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
       OatClassType type = oat_class.GetType();
       switch (type) {
         case kOatClassAllCompiled:
         case kOatClassSomeCompiled:
-          WalkOatClass(oat_class, *dex_file, class_def, callback);
+          WalkOatClass(oat_class, *dex_file, class_def_index);
           break;
 
         case kOatClassNoneCompiled:
@@ -243,8 +196,10 @@ class OatSymbolizer FINAL {
     }
   }
 
-  void WalkOatClass(const OatFile::OatClass& oat_class, const DexFile& dex_file,
-                    const DexFile::ClassDef& class_def, Callback callback) {
+  void WalkOatClass(const OatFile::OatClass& oat_class,
+                    const DexFile& dex_file,
+                    uint32_t class_def_index) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
       return;
@@ -252,117 +207,62 @@ class OatSymbolizer FINAL {
     // Note: even if this is an interface or a native class, we still have to walk it, as there
     //       might be a static initializer.
     ClassDataItemIterator it(dex_file, class_data);
-    SkipAllFields(&it);
     uint32_t class_method_idx = 0;
-    while (it.HasNextDirectMethod()) {
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
-      WalkOatMethod(class_def, class_method_idx, oat_method, dex_file, it.GetMemberIndex(),
-                    it.GetMethodCodeItem(), it.GetMethodAccessFlags(), callback);
-      class_method_idx++;
-      it.Next();
-    }
-    while (it.HasNextVirtualMethod()) {
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
-      WalkOatMethod(class_def, class_method_idx, oat_method, dex_file, it.GetMemberIndex(),
-                    it.GetMethodCodeItem(), it.GetMethodAccessFlags(), callback);
-      class_method_idx++;
-      it.Next();
+    for (; it.HasNextStaticField(); it.Next()) { /* skip */ }
+    for (; it.HasNextInstanceField(); it.Next()) { /* skip */ }
+    for (; it.HasNextDirectMethod() || it.HasNextVirtualMethod(); it.Next()) {
+      WalkOatMethod(oat_class.GetOatMethod(class_method_idx++),
+                    dex_file,
+                    class_def_index,
+                    it.GetMemberIndex(),
+                    it.GetMethodCodeItem(),
+                    it.GetMethodAccessFlags());
     }
     DCHECK(!it.HasNext());
   }
 
-  void WalkOatMethod(const DexFile::ClassDef& class_def, uint32_t class_method_index,
-                     const OatFile::OatMethod& oat_method, const DexFile& dex_file,
-                     uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                     uint32_t method_access_flags, Callback callback) {
+  void WalkOatMethod(const OatFile::OatMethod& oat_method,
+                     const DexFile& dex_file,
+                     uint32_t class_def_index,
+                     uint32_t dex_method_index,
+                     const DexFile::CodeItem* code_item,
+                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccAbstract) != 0) {
       // Abstract method, no code.
       return;
     }
-    if (oat_method.GetCodeOffset() == 0) {
+    const OatHeader& oat_header = oat_file_->GetOatHeader();
+    const OatQuickMethodHeader* method_header = oat_method.GetOatQuickMethodHeader();
+    if (method_header == nullptr || method_header->GetCodeSize() == 0) {
       // No code.
       return;
     }
 
-    (this->*callback)(class_def, class_method_index, oat_method, dex_file, dex_method_idx, code_item,
-                      method_access_flags);
-  }
-
-  void RegisterForDedup(const DexFile::ClassDef& class_def ATTRIBUTE_UNUSED,
-                        uint32_t class_method_index ATTRIBUTE_UNUSED,
-                        const OatFile::OatMethod& oat_method,
-                        const DexFile& dex_file ATTRIBUTE_UNUSED,
-                        uint32_t dex_method_idx ATTRIBUTE_UNUSED,
-                        const DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
-                        uint32_t method_access_flags ATTRIBUTE_UNUSED) {
-    state_[oat_method.GetCodeOffset()]++;
-  }
-
-  void NormalizeState() {
-    for (auto& x : state_) {
-      if (x.second == 1) {
-        state_[x.first] = 0;
-      }
-    }
-  }
-
-  enum class DedupState {  // private
-    kNotDeduplicated,
-    kDeduplicatedFirst,
-    kDeduplicatedOther
-  };
-  DedupState IsDuplicated(uint32_t offset) {
-    if (state_[offset] == 0) {
-      return DedupState::kNotDeduplicated;
-    }
-    if (state_[offset] == 1) {
-      return DedupState::kDeduplicatedOther;
-    }
-    state_[offset] = 1;
-    return DedupState::kDeduplicatedFirst;
-  }
-
-  void AddSymbol(const DexFile::ClassDef& class_def ATTRIBUTE_UNUSED,
-                 uint32_t class_method_index ATTRIBUTE_UNUSED,
-                 const OatFile::OatMethod& oat_method,
-                 const DexFile& dex_file,
-                 uint32_t dex_method_idx,
-                 const DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
-                 uint32_t method_access_flags ATTRIBUTE_UNUSED) {
-    DedupState dedup = IsDuplicated(oat_method.GetCodeOffset());
-    if (dedup != DedupState::kDeduplicatedOther) {
-      std::string pretty_name = PrettyMethod(dex_method_idx, dex_file, true);
-
-      if (dedup == DedupState::kDeduplicatedFirst) {
-        pretty_name = "[Dedup]" + pretty_name;
-      }
-
-      int name_offset = builder_->GetStrTab()->Write(pretty_name);
-      uint64_t address = oat_method.GetCodeOffset() -
-                         oat_file_->GetOatHeader().GetExecutableOffset() +
-                         builder_->GetText()->GetAddress();
-      builder_->GetSymTab()->Add(name_offset,
-                                 builder_->GetText(),
-                                 address,
-                                 oat_method.GetQuickCodeSize(),
-                                 STB_GLOBAL,
-                                 STT_FUNC);
-    }
+    debug::MethodDebugInfo info = debug::MethodDebugInfo();
+    info.trampoline_name = nullptr;
+    info.dex_file = &dex_file;
+    info.class_def_index = class_def_index;
+    info.dex_method_index = dex_method_index;
+    info.access_flags = method_access_flags;
+    info.code_item = code_item;
+    info.isa = oat_header.GetInstructionSet();
+    info.deduped = !seen_offsets_.insert(oat_method.GetCodeOffset()).second;
+    info.is_native_debuggable = oat_header.IsNativeDebuggable();
+    info.is_optimized = method_header->IsOptimized();
+    info.is_code_address_text_relative = true;
+    info.code_address = oat_method.GetCodeOffset() - oat_header.GetExecutableOffset();
+    info.code_size = method_header->GetCodeSize();
+    info.frame_size_in_bytes = method_header->GetFrameSizeInBytes();
+    info.code_info = info.is_optimized ? method_header->GetOptimizedCodeInfoPtr() : nullptr;
+    info.cfi = ArrayRef<uint8_t>();
+    method_debug_infos_.push_back(info);
   }
 
  private:
-  static void SkipAllFields(ClassDataItemIterator* it) {
-    while (it->HasNextStaticField()) {
-      it->Next();
-    }
-    while (it->HasNextInstanceField()) {
-      it->Next();
-    }
-  }
-
   const OatFile* oat_file_;
   std::unique_ptr<ElfBuilder<ElfTypes> > builder_;
-  std::unordered_map<uint32_t, uint32_t> state_;
+  std::vector<debug::MethodDebugInfo> method_debug_infos_;
+  std::unordered_set<uint32_t> seen_offsets_;
   const std::string output_name_;
 };
 
