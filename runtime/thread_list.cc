@@ -171,9 +171,9 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
   closedir(d);
 }
 
-// Dump checkpoint timeout in milliseconds. Larger amount on the host, as dumping will invoke
-// addr2line when available.
-static constexpr uint32_t kDumpWaitTimeout = kIsTargetBuild ? 10000 : 20000;
+// Dump checkpoint timeout in milliseconds. Larger amount on the target, since the device could be
+// overloaded with ANR dumps.
+static constexpr uint32_t kDumpWaitTimeout = kIsTargetBuild ? 100000 : 20000;
 
 // A closure used by Thread::Dump.
 class DumpCheckpoint FINAL : public Closure {
