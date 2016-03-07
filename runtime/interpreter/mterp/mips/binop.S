@@ -7,8 +7,8 @@
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
