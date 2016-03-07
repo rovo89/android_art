@@ -913,7 +913,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     return false;
   }
 
-  if (GetCompilerDriver()->GetCompilerOptions().GetGenerateDebugInfo()) {
+  const CompilerOptions& compiler_options = GetCompilerDriver()->GetCompilerOptions();
+  if (compiler_options.GetGenerateDebugInfo()) {
     const auto* method_header = reinterpret_cast<const OatQuickMethodHeader*>(code);
     const uintptr_t code_address = reinterpret_cast<uintptr_t>(method_header->GetCode());
     CompiledMethod compiled_method(
@@ -936,6 +937,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         access_flags,
         code_item,
         false,  // deduped.
+        compiler_options.GetNativeDebuggable(),
         code_address,
         code_address + code_allocator.GetSize(),
         &compiled_method

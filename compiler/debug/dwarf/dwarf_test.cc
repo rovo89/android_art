@@ -217,7 +217,9 @@ TEST_F(DwarfTest, DebugLine) {
   DW_CHECK_NEXT("Advance Line by 2 to 3");
   opcodes.SetColumn(4);
   DW_CHECK_NEXT("Set column to 4");
-  opcodes.NegateStmt();
+  opcodes.SetIsStmt(true);
+  DW_CHECK_NEXT("Set is_stmt to 1");
+  opcodes.SetIsStmt(false);
   DW_CHECK_NEXT("Set is_stmt to 0");
   opcodes.SetBasicBlock();
   DW_CHECK_NEXT("Set basic block");

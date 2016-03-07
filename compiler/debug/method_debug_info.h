@@ -30,6 +30,7 @@ struct MethodDebugInfo {
   uint32_t access_flags;
   const DexFile::CodeItem* code_item;
   bool deduped;
+  bool is_native_debuggable;
   uintptr_t low_pc;
   uintptr_t high_pc;
   CompiledMethod* compiled_method;
