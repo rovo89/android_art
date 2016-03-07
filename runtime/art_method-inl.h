@@ -463,6 +463,12 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
       interface_method->VisitRoots(visitor, pointer_size);
     }
     visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
+    if (!IsNative()) {
+      ProfilingInfo* profiling_info = GetProfilingInfo(pointer_size);
+      if (profiling_info != nullptr) {
+        profiling_info->VisitRoots(visitor);
+      }
+    }
   }
 }
 
