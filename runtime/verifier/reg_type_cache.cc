@@ -17,6 +17,7 @@
 #include "reg_type_cache-inl.h"
 
 #include "base/arena_bit_vector.h"
+#include "base/bit_vector-inl.h"
 #include "base/casts.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/stl_util.h"
@@ -351,9 +352,11 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
     types.Copy(&left_merge->GetUnresolvedTypes());
     left_resolved = &left_merge->GetResolvedPart();
   } else if (left.IsUnresolvedTypes()) {
+    types.ClearAllBits();
     types.SetBit(left.GetId());
     left_resolved = &Zero();
   } else {
+    types.ClearAllBits();
     left_resolved = &left;
   }
 
