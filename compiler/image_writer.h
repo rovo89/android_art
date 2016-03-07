@@ -443,7 +443,7 @@ class ImageWriter FINAL {
 
   static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
 
-  uintptr_t NativeOffsetInImage(void* obj);
+  uintptr_t NativeOffsetInImage(void* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Location of where the object will be when the image is loaded at runtime.
   template <typename T>
