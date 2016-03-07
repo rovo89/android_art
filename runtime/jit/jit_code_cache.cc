@@ -166,12 +166,16 @@ bool JitCodeCache::ContainsMethod(ArtMethod* method) {
   return false;
 }
 
-class ScopedCodeCacheWrite {
+class ScopedCodeCacheWrite : ScopedTrace {
  public:
-  explicit ScopedCodeCacheWrite(MemMap* code_map) : code_map_(code_map) {
+  explicit ScopedCodeCacheWrite(MemMap* code_map)
+      : ScopedTrace("ScopedCodeCacheWrite"),
+        code_map_(code_map) {
+    ScopedTrace trace("mprotect all");
     CHECKED_MPROTECT(code_map_->Begin(), code_map_->Size(), kProtAll);
   }
   ~ScopedCodeCacheWrite() {
+    ScopedTrace trace("mprotect code");
     CHECKED_MPROTECT(code_map_->Begin(), code_map_->Size(), kProtCode);
   }
  private:
