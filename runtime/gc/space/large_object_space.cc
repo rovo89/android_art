@@ -27,6 +27,7 @@
 #include "base/stl_util.h"
 #include "image.h"
 #include "os.h"
+#include "scoped_thread_state_change.h"
 #include "space-inl.h"
 #include "thread-inl.h"
 
@@ -190,6 +191,7 @@ size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
   auto it = large_objects_.find(ptr);
   if (UNLIKELY(it == large_objects_.end())) {
+    ScopedObjectAccess soa(self);
     Runtime::Current()->GetHeap()->DumpSpaces(LOG(INTERNAL_FATAL));
     LOG(FATAL) << "Attempted to free large object " << ptr << " which was not live";
   }
