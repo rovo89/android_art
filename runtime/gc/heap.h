@@ -651,8 +651,8 @@ class Heap {
     }
   }
 
-  std::string DumpSpaces() const WARN_UNUSED;
-  void DumpSpaces(std::ostream& stream) const;
+  void DumpSpaces(std::ostream& stream) const SHARED_REQUIRES(Locks::mutator_lock_);
+  std::string DumpSpaces() const SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Dump object should only be used by the signal handler.
   void DumpObject(std::ostream& stream, mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;

@@ -1545,7 +1545,6 @@ std::string Heap::DumpSpaces() const {
 }
 
 void Heap::DumpSpaces(std::ostream& stream) const {
-  ScopedObjectAccess soa(Thread::Current());
   for (const auto& space : continuous_spaces_) {
     accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
     accounting::ContinuousSpaceBitmap* mark_bitmap = space->GetMarkBitmap();

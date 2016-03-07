@@ -131,7 +131,7 @@ void MarkCompact::ProcessReferences(Thread* self) {
 
 class BitmapSetSlowPathVisitor {
  public:
-  void operator()(const mirror::Object* obj) const {
+  void operator()(const mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_) {
     // Marking a large object, make sure its aligned as a sanity check.
     if (!IsAligned<kPageSize>(obj)) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
