@@ -41,20 +41,42 @@ static constexpr bool kEnableOnStackReplacement = true;
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
   jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
+
   jit_options->code_cache_initial_capacity_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheInitialCapacity);
   jit_options->code_cache_max_capacity_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheMaxCapacity);
-  jit_options->compile_threshold_ =
-      options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
-  // TODO(ngeoffray): Make this a proper option.
-  jit_options->osr_threshold_ = jit_options->compile_threshold_ * 2;
-  jit_options->warmup_threshold_ =
-      options.GetOrDefault(RuntimeArgumentMap::JITWarmupThreshold);
   jit_options->dump_info_on_shutdown_ =
       options.Exists(RuntimeArgumentMap::DumpJITInfoOnShutdown);
   jit_options->save_profiling_info_ =
-      options.GetOrDefault(RuntimeArgumentMap::JITSaveProfilingInfo);;
+      options.GetOrDefault(RuntimeArgumentMap::JITSaveProfilingInfo);
+
+  jit_options->compile_threshold_ = options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
+  if (jit_options->compile_threshold_ > std::numeric_limits<uint16_t>::max()) {
+    LOG(FATAL) << "Method compilation threshold is above its internal limit.";
+  }
+
+  if (options.Exists(RuntimeArgumentMap::JITWarmupThreshold)) {
+    jit_options->warmup_threshold_ = *options.Get(RuntimeArgumentMap::JITWarmupThreshold);
+    if (jit_options->warmup_threshold_ > std::numeric_limits<uint16_t>::max()) {
+      LOG(FATAL) << "Method warmup threshold is above its internal limit.";
+    }
+  } else {
+    jit_options->warmup_threshold_ = jit_options->compile_threshold_ / 2;
+  }
+
+  if (options.Exists(RuntimeArgumentMap::JITOsrThreshold)) {
+    jit_options->osr_threshold_ = *options.Get(RuntimeArgumentMap::JITOsrThreshold);
+    if (jit_options->osr_threshold_ > std::numeric_limits<uint16_t>::max()) {
+      LOG(FATAL) << "Method on stack replacement threshold is above its internal limit.";
+    }
+  } else {
+    jit_options->osr_threshold_ = jit_options->compile_threshold_ * 2;
+    if (jit_options->osr_threshold_ > std::numeric_limits<uint16_t>::max()) {
+      jit_options->osr_threshold_ = std::numeric_limits<uint16_t>::max();
+    }
+  }
+
   return jit_options;
 }
 
