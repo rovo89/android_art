@@ -303,13 +303,22 @@ void ProfileSaver::MaybeRecordDexUseInternal(
       const std::set<std::string>& app_code_paths,
       const std::string& foreign_dex_profile_path,
       const std::string& app_data_dir) {
+  if (dex_location.empty()) {
+    LOG(WARNING) << "Asked to record foreign dex use with an empty dex location.";
+    return;
+  }
   if (foreign_dex_profile_path.empty()) {
     LOG(WARNING) << "Asked to record foreign dex use without a valid profile path ";
     return;
   }
 
   UniqueCPtr<const char[]> dex_location_real_path(realpath(dex_location.c_str(), nullptr));
-  std::string dex_location_real_path_str(dex_location_real_path.get());
+  if (dex_location_real_path == nullptr) {
+    PLOG(WARNING) << "Could not get realpath for " << dex_location;
+  }
+  std::string dex_location_real_path_str((dex_location_real_path == nullptr)
+    ? dex_location.c_str()
+    : dex_location_real_path.get());
 
   if (dex_location_real_path_str.compare(0, app_data_dir.length(), app_data_dir) == 0) {
     // The dex location is under the application folder. Nothing to record.
@@ -327,7 +336,12 @@ void ProfileSaver::MaybeRecordDexUseInternal(
   // to save some bytes of memory usage.
   for (const auto& app_code_location : app_code_paths) {
     UniqueCPtr<const char[]> real_app_code_location(realpath(app_code_location.c_str(), nullptr));
-    std::string real_app_code_location_str(real_app_code_location.get());
+    if (real_app_code_location == nullptr) {
+      PLOG(WARNING) << "Could not get realpath for " << app_code_location;
+    }
+    std::string real_app_code_location_str((real_app_code_location == nullptr)
+        ? app_code_location.c_str()
+        : real_app_code_location.get());
     if (real_app_code_location_str == dex_location_real_path_str) {
       // The dex location belongs to the application code paths. Nothing to record.
       return;
