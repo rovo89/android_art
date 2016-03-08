@@ -50,7 +50,7 @@
 #include "experimental_flags.h"
 #include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "gc/accounting/heap_bitmap.h"
+#include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "handle_scope-inl.h"
@@ -96,6 +96,7 @@
 namespace art {
 
 static constexpr bool kSanityCheckObjects = kIsDebugBuild;
+static constexpr bool kVerifyArtMethodDeclaringClasses = true;
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
@@ -1195,6 +1196,23 @@ class VerifyClassInTableArtMethodVisitor : public ArtMethodVisitor {
   ClassTable* const table_;
 };
 
+class VerifyDeclaringClassVisitor : public ArtMethodVisitor {
+ public:
+  VerifyDeclaringClassVisitor() SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
+      : live_bitmap_(Runtime::Current()->GetHeap()->GetLiveBitmap()) {}
+
+  virtual void Visit(ArtMethod* method)
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    mirror::Class* klass = method->GetDeclaringClassUnchecked();
+    if (klass != nullptr) {
+      CHECK(live_bitmap_->Test(klass)) << "Image method has unmarked declaring class";
+    }
+  }
+
+ private:
+  gc::accounting::HeapBitmap* const live_bitmap_;
+};
+
 bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
@@ -1412,12 +1430,22 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     }
   }
   if (*out_forward_dex_cache_array) {
+    ScopedTrace timing("Fixup ArtMethod dex cache arrays");
     FixupArtMethodArrayVisitor visitor(header);
     header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
         &visitor,
         space->Begin(),
         sizeof(void*));
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
+  }
+  if (kVerifyArtMethodDeclaringClasses) {
+    ScopedTrace timing("Verify declaring classes");
+    ReaderMutexLock rmu(self, *Locks::heap_bitmap_lock_);
+    VerifyDeclaringClassVisitor visitor;
+    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
+        &visitor,
+        space->Begin(),
+        sizeof(void*));
   }
   return true;
 }
