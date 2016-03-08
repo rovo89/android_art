@@ -116,28 +116,33 @@ if ! [ "${HAS_SRC}" = "true" ] && ! [ "${HAS_SRC2}" = "true" ]; then
   SKIP_DX_MERGER="true"
 fi
 
-if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
-  # Jack does not support this configuration unless we specify how to partition the DEX file
-  # with a .jpp file.
-  USE_JACK="false"
-fi
-
 if [ ${USE_JACK} = "true" ]; then
   # Jack toolchain
   if [ "${HAS_SRC}" = "true" ]; then
-    ${JACK} ${JACK_ARGS} --output-jack src.jack src
-    imported_jack_files="--import src.jack"
+    if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
+      # Compile src and src-multidex in the same .jack file. We will apply multidex partitioning
+      # when creating the output .dex file.
+      ${JACK} ${JACK_ARGS} --output-jack src.jack src src src-multidex
+      jack_extra_args="${jack_extra_args} -D jack.dex.output.policy=minimal-multidex"
+      jack_extra_args="${jack_extra_args} -D jack.preprocessor=true"
+      jack_extra_args="${jack_extra_args} -D jack.preprocessor.file=multidex.jpp"
+    else
+      ${JACK} ${JACK_ARGS} --output-jack src.jack src
+    fi
+    jack_extra_args="${jack_extra_args} --import src.jack"
   fi
 
   if [ "${HAS_SRC2}" = "true" ]; then
     ${JACK} ${JACK_ARGS} --output-jack src2.jack src2
-    imported_jack_files="--import src2.jack ${imported_jack_files}"
+    # In case of duplicate classes, we want to take into account the classes from src2. Therefore
+    # we apply the 'keep-first' policy and import src2.jack file *before* the src.jack file.
+    jack_extra_args="${jack_extra_args} -D jack.import.type.policy=keep-first"
+    jack_extra_args="--import src2.jack ${jack_extra_args}"
   fi
 
-  # Compile jack files into a DEX file. We set jack.import.type.policy=keep-first to consider
-  # class definitions from src2 first.
+  # Compile jack files into a DEX file.
   if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ]; then
-    ${JACK} ${JACK_ARGS} ${imported_jack_files} -D jack.import.type.policy=keep-first --output-dex .
+    ${JACK} ${JACK_ARGS} ${jack_extra_args} --output-dex .
   fi
 else
   # Legacy toolchain with javac+dx
