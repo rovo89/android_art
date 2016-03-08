@@ -98,6 +98,7 @@ const DexFile* OpenDexFile(const OatFile::OatDexFile* oat_dex_file, std::string*
   return ret;
 }
 
+template <typename ElfTypes>
 class OatSymbolizer FINAL {
  public:
   OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
@@ -121,7 +122,7 @@ class OatSymbolizer FINAL {
     File* elf_file = OS::CreateEmptyFile(output_name_.c_str());
     std::unique_ptr<BufferedOutputStream> output_stream(
         MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file)));
-    builder_.reset(new ElfBuilder<ElfTypes32>(isa, features, output_stream.get()));
+    builder_.reset(new ElfBuilder<ElfTypes>(isa, features, output_stream.get()));
 
     builder_->Start();
 
@@ -151,14 +152,14 @@ class OatSymbolizer FINAL {
         elf_file->GetPath(), rodata_size, text_size, oat_file_->BssSize());
     builder_->WriteDynamicSection();
 
-    Walk(&art::OatSymbolizer::RegisterForDedup);
+    Walk(&art::OatSymbolizer<ElfTypes>::RegisterForDedup);
 
     NormalizeState();
 
     strtab->Start();
     strtab->Write("");  // strtab should start with empty string.
     AddTrampolineSymbols();
-    Walk(&art::OatSymbolizer::AddSymbol);
+    Walk(&art::OatSymbolizer<ElfTypes>::AddSymbol);
     strtab->End();
 
     symtab->Start();
@@ -346,7 +347,7 @@ class OatSymbolizer FINAL {
   }
 
   const OatFile* oat_file_;
-  std::unique_ptr<ElfBuilder<ElfTypes32> > builder_;
+  std::unique_ptr<ElfBuilder<ElfTypes> > builder_;
   std::unordered_map<uint32_t, uint32_t> state_;
   const std::string output_name_;
 };
@@ -2544,8 +2545,17 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
     return EXIT_FAILURE;
   }
 
-  OatSymbolizer oat_symbolizer(oat_file, output_name);
-  if (!oat_symbolizer.Symbolize()) {
+  bool result;
+  // Try to produce an ELF file of the same type. This is finicky, as we have used 32-bit ELF
+  // files for 64-bit code in the past.
+  if (Is64BitInstructionSet(oat_file->GetOatHeader().GetInstructionSet())) {
+    OatSymbolizer<ElfTypes64> oat_symbolizer(oat_file, output_name);
+    result = oat_symbolizer.Symbolize();
+  } else {
+    OatSymbolizer<ElfTypes32> oat_symbolizer(oat_file, output_name);
+    result = oat_symbolizer.Symbolize();
+  }
+  if (!result) {
     fprintf(stderr, "Failed to symbolize\n");
     return EXIT_FAILURE;
   }
