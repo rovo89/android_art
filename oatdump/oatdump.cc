@@ -115,11 +115,13 @@ class OatSymbolizer FINAL {
 
   bool Symbolize() {
     const InstructionSet isa = oat_file_->GetOatHeader().GetInstructionSet();
+    const InstructionSetFeatures* features = InstructionSetFeatures::FromBitmap(
+        isa, oat_file_->GetOatHeader().GetInstructionSetFeaturesBitmap());
 
     File* elf_file = OS::CreateEmptyFile(output_name_.c_str());
     std::unique_ptr<BufferedOutputStream> output_stream(
         MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file)));
-    builder_.reset(new ElfBuilder<ElfTypes32>(isa, output_stream.get()));
+    builder_.reset(new ElfBuilder<ElfTypes32>(isa, features, output_stream.get()));
 
     builder_->Start();
 

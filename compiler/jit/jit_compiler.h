@@ -42,6 +42,9 @@ class JitCompiler {
   CompilerOptions* GetCompilerOptions() const {
     return compiler_options_.get();
   }
+  CompilerDriver* GetCompilerDriver() const {
+    return compiler_driver_.get();
+  }
 
  private:
   std::unique_ptr<CompilerOptions> compiler_options_;

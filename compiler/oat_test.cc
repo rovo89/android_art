@@ -176,6 +176,7 @@ class OatTest : public CommonCompilerTest {
                   bool verify) {
     std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
         compiler_driver_->GetInstructionSet(),
+        compiler_driver_->GetInstructionSetFeatures(),
         &compiler_driver_->GetCompilerOptions(),
         file);
     elf_writer->Start();

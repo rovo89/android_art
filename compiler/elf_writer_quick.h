@@ -26,8 +26,10 @@
 namespace art {
 
 class CompilerOptions;
+class InstructionSetFeatures;
 
 std::unique_ptr<ElfWriter> CreateElfWriterQuick(InstructionSet instruction_set,
+                                                const InstructionSetFeatures* features,
                                                 const CompilerOptions* compiler_options,
                                                 File* elf_file);
 
