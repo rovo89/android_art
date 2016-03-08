@@ -101,6 +101,17 @@ enum InlineMethodOpcode : uint16_t {
   kIntrinsicCas,
   kIntrinsicUnsafeGet,
   kIntrinsicUnsafePut,
+
+  // 1.8.
+  kIntrinsicUnsafeGetAndAddInt,
+  kIntrinsicUnsafeGetAndAddLong,
+  kIntrinsicUnsafeGetAndSetInt,
+  kIntrinsicUnsafeGetAndSetLong,
+  kIntrinsicUnsafeGetAndSetObject,
+  kIntrinsicUnsafeLoadFence,
+  kIntrinsicUnsafeStoreFence,
+  kIntrinsicUnsafeFullFence,
+
   kIntrinsicSystemArrayCopyCharArray,
   kIntrinsicSystemArrayCopy,
 

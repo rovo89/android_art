@@ -101,6 +101,14 @@ static constexpr bool kIntrinsicIsStatic[] = {
     false,  // kIntrinsicCas
     false,  // kIntrinsicUnsafeGet
     false,  // kIntrinsicUnsafePut
+    false,  // kIntrinsicUnsafeGetAndAddInt,
+    false,  // kIntrinsicUnsafeGetAndAddLong,
+    false,  // kIntrinsicUnsafeGetAndSetInt,
+    false,  // kIntrinsicUnsafeGetAndSetLong,
+    false,  // kIntrinsicUnsafeGetAndSetObject,
+    false,  // kIntrinsicUnsafeLoadFence,
+    false,  // kIntrinsicUnsafeStoreFence,
+    false,  // kIntrinsicUnsafeFullFence,
     true,   // kIntrinsicSystemArrayCopyCharArray
     true,   // kIntrinsicSystemArrayCopy
 };
@@ -177,6 +185,14 @@ static_assert(kIntrinsicIsStatic[kIntrinsicPoke], "Poke must be static");
 static_assert(!kIntrinsicIsStatic[kIntrinsicCas], "Cas must not be static");
 static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], "UnsafeGet must not be static");
 static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafePut], "UnsafePut must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGetAndAddInt], "UnsafeGetAndAddInt must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGetAndAddLong], "UnsafeGetAndAddLong must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGetAndSetInt], "UnsafeGetAndSetInt must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGetAndSetLong], "UnsafeGetAndSetLong must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGetAndSetObject], "UnsafeGetAndSetObject must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeLoadFence], "UnsafeLoadFence must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeStoreFence], "UnsafeStoreFence must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeFullFence], "UnsafeFullFence must not be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
               "SystemArrayCopyCharArray must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopy],
@@ -318,6 +334,14 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "putObject",             // kNameCachePutObject
     "putObjectVolatile",     // kNameCachePutObjectVolatile
     "putOrderedObject",      // kNameCachePutOrderedObject
+    "getAndAddInt",          // kNameCacheGetAndAddInt,
+    "getAndAddLong",         // kNameCacheGetAndAddLong,
+    "getAndSetInt",          // kNameCacheGetAndSetInt,
+    "getAndSetLong",         // kNameCacheGetAndSetLong,
+    "getAndSetObject",       // kNameCacheGetAndSetObject,
+    "loadFence",             // kNameCacheLoadFence,
+    "storeFence",            // kNameCacheStoreFence,
+    "fullFence",             // kNameCacheFullFence,
     "arraycopy",             // kNameCacheArrayCopy
     "bitCount",              // kNameCacheBitCount
     "compare",               // kNameCacheCompare
@@ -404,16 +428,23 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
         kClassCacheJavaLangObject, kClassCacheJavaLangObject } },
     // kProtoCacheObjectJ_I
     { kClassCacheInt, 2, { kClassCacheJavaLangObject, kClassCacheLong } },
+    // kProtoCacheObjectJI_I
+    { kClassCacheInt, 3, { kClassCacheJavaLangObject, kClassCacheLong, kClassCacheInt } },
     // kProtoCacheObjectJI_V
     { kClassCacheVoid, 3, { kClassCacheJavaLangObject, kClassCacheLong, kClassCacheInt } },
     // kProtoCacheObjectJ_J
     { kClassCacheLong, 2, { kClassCacheJavaLangObject, kClassCacheLong } },
+    // kProtoCacheObjectJJ_J
+    { kClassCacheLong, 3, { kClassCacheJavaLangObject, kClassCacheLong, kClassCacheLong } },
     // kProtoCacheObjectJJ_V
     { kClassCacheVoid, 3, { kClassCacheJavaLangObject, kClassCacheLong, kClassCacheLong } },
     // kProtoCacheObjectJ_Object
     { kClassCacheJavaLangObject, 2, { kClassCacheJavaLangObject, kClassCacheLong } },
     // kProtoCacheObjectJObject_V
     { kClassCacheVoid, 3, { kClassCacheJavaLangObject, kClassCacheLong,
+        kClassCacheJavaLangObject } },
+    // kProtoCacheObjectJObject_Object
+    { kClassCacheJavaLangObject, 3, { kClassCacheJavaLangObject, kClassCacheLong,
         kClassCacheJavaLangObject } },
     // kProtoCacheCharArrayICharArrayII_V
     { kClassCacheVoid, 5, {kClassCacheJavaLangCharArray, kClassCacheInt,
@@ -608,6 +639,16 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     UNSAFE_GET_PUT(Long, J, kIntrinsicFlagIsLong),
     UNSAFE_GET_PUT(Object, Object, kIntrinsicFlagIsObject),
 #undef UNSAFE_GET_PUT
+
+    // 1.8
+    INTRINSIC(SunMiscUnsafe, GetAndAddInt, ObjectJI_I, kIntrinsicUnsafeGetAndAddInt, 0),
+    INTRINSIC(SunMiscUnsafe, GetAndAddLong, ObjectJJ_J, kIntrinsicUnsafeGetAndAddLong, 0),
+    INTRINSIC(SunMiscUnsafe, GetAndSetInt, ObjectJI_I, kIntrinsicUnsafeGetAndSetInt, 0),
+    INTRINSIC(SunMiscUnsafe, GetAndSetLong, ObjectJJ_J, kIntrinsicUnsafeGetAndSetLong, 0),
+    INTRINSIC(SunMiscUnsafe, GetAndSetObject, ObjectJObject_Object, kIntrinsicUnsafeGetAndSetObject, 0),
+    INTRINSIC(SunMiscUnsafe, LoadFence, _V, kIntrinsicUnsafeLoadFence, 0),
+    INTRINSIC(SunMiscUnsafe, StoreFence, _V, kIntrinsicUnsafeStoreFence, 0),
+    INTRINSIC(SunMiscUnsafe, FullFence, _V, kIntrinsicUnsafeFullFence, 0),
 
     INTRINSIC(JavaLangSystem, ArrayCopy, CharArrayICharArrayII_V , kIntrinsicSystemArrayCopyCharArray,
               0),
@@ -815,6 +856,14 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
     case kIntrinsicRotateRight:
     case kIntrinsicRotateLeft:
     case kIntrinsicSignum:
+    case kIntrinsicUnsafeGetAndAddInt:
+    case kIntrinsicUnsafeGetAndAddLong:
+    case kIntrinsicUnsafeGetAndSetInt:
+    case kIntrinsicUnsafeGetAndSetLong:
+    case kIntrinsicUnsafeGetAndSetObject:
+    case kIntrinsicUnsafeLoadFence:
+    case kIntrinsicUnsafeStoreFence:
+    case kIntrinsicUnsafeFullFence:
     case kIntrinsicSystemArrayCopy:
       return false;   // not implemented in quick.
     default:
