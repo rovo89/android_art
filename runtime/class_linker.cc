@@ -1207,217 +1207,222 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
   Thread* const self = Thread::Current();
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   const ImageHeader& header = space->GetImageHeader();
-  // Add image classes into the class table for the class loader, and fixup the dex caches and
-  // class loader fields.
-  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  ClassTable* table = InsertClassTableForClassLoader(class_loader.Get());
-  // Dex cache array fixup is all or nothing, we must reject app images that have mixed since we
-  // rely on clobering the dex cache arrays in the image to forward to bss.
-  size_t num_dex_caches_with_bss_arrays = 0;
-  const size_t num_dex_caches = dex_caches->GetLength();
-  for (size_t i = 0; i < num_dex_caches; i++) {
-    mirror::DexCache* const dex_cache = dex_caches->Get(i);
-    const DexFile* const dex_file = dex_cache->GetDexFile();
-    const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
-    if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
-      ++num_dex_caches_with_bss_arrays;
-    }
-  }
-  *out_forward_dex_cache_array = num_dex_caches_with_bss_arrays != 0;
-  if (*out_forward_dex_cache_array) {
-    if (num_dex_caches_with_bss_arrays != num_dex_caches) {
-      // Reject application image since we cannot forward only some of the dex cache arrays.
-      // TODO: We could get around this by having a dedicated forwarding slot. It should be an
-      // uncommon case.
-      *out_error_msg = StringPrintf("Dex caches in bss does not match total: %zu vs %zu",
-                                    num_dex_caches_with_bss_arrays,
-                                    num_dex_caches);
-      return false;
-    }
-  }
-  // Only add the classes to the class loader after the points where we can return false.
-  for (size_t i = 0; i < num_dex_caches; i++) {
-    mirror::DexCache* const dex_cache = dex_caches->Get(i);
-    const DexFile* const dex_file = dex_cache->GetDexFile();
-    const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
-    if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
-    // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
-      // copy over the arrays.
-      DCHECK(dex_file != nullptr);
-      const size_t num_strings = dex_file->NumStringIds();
-      const size_t num_types = dex_file->NumTypeIds();
-      const size_t num_methods = dex_file->NumMethodIds();
-      const size_t num_fields = dex_file->NumFieldIds();
-      CHECK_EQ(num_strings, dex_cache->NumStrings());
-      CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
-      CHECK_EQ(num_methods, dex_cache->NumResolvedMethods());
-      CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
-      DexCacheArraysLayout layout(image_pointer_size_, dex_file);
-      uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
-      // The space is not yet visible to the GC, we can avoid the read barriers and use std::copy_n.
-      if (num_strings != 0u) {
-        GcRoot<mirror::String>* const image_resolved_strings = dex_cache->GetStrings();
-        GcRoot<mirror::String>* const strings =
-            reinterpret_cast<GcRoot<mirror::String>*>(raw_arrays + layout.StringsOffset());
-        for (size_t j = 0; kIsDebugBuild && j < num_strings; ++j) {
-          DCHECK(strings[j].IsNull());
-        }
-        std::copy_n(image_resolved_strings, num_strings, strings);
-        dex_cache->SetStrings(strings);
-      }
-      if (num_types != 0u) {
-        GcRoot<mirror::Class>* const image_resolved_types = dex_cache->GetResolvedTypes();
-        GcRoot<mirror::Class>* const types =
-            reinterpret_cast<GcRoot<mirror::Class>*>(raw_arrays + layout.TypesOffset());
-        for (size_t j = 0; kIsDebugBuild && j < num_types; ++j) {
-          DCHECK(types[j].IsNull());
-        }
-        std::copy_n(image_resolved_types, num_types, types);
-        // Store a pointer to the new location for fast ArtMethod patching without requiring map.
-        // This leaves random garbage at the start of the dex cache array, but nobody should ever
-        // read from it again.
-        *reinterpret_cast<GcRoot<mirror::Class>**>(image_resolved_types) = types;
-        dex_cache->SetResolvedTypes(types);
-      }
-      if (num_methods != 0u) {
-        ArtMethod** const methods = reinterpret_cast<ArtMethod**>(
-            raw_arrays + layout.MethodsOffset());
-        ArtMethod** const image_resolved_methods = dex_cache->GetResolvedMethods();
-        for (size_t j = 0; kIsDebugBuild && j < num_methods; ++j) {
-          DCHECK(methods[j] == nullptr);
-        }
-        std::copy_n(image_resolved_methods, num_methods, methods);
-        // Store a pointer to the new location for fast ArtMethod patching without requiring map.
-        *reinterpret_cast<ArtMethod***>(image_resolved_methods) = methods;
-        dex_cache->SetResolvedMethods(methods);
-      }
-      if (num_fields != 0u) {
-        ArtField** const fields = reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
-        for (size_t j = 0; kIsDebugBuild && j < num_fields; ++j) {
-          DCHECK(fields[j] == nullptr);
-        }
-        std::copy_n(dex_cache->GetResolvedFields(), num_fields, fields);
-        dex_cache->SetResolvedFields(fields);
+  {
+    // Add image classes into the class table for the class loader, and fixup the dex caches and
+    // class loader fields.
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    ClassTable* table = InsertClassTableForClassLoader(class_loader.Get());
+    // Dex cache array fixup is all or nothing, we must reject app images that have mixed since we
+    // rely on clobering the dex cache arrays in the image to forward to bss.
+    size_t num_dex_caches_with_bss_arrays = 0;
+    const size_t num_dex_caches = dex_caches->GetLength();
+    for (size_t i = 0; i < num_dex_caches; i++) {
+      mirror::DexCache* const dex_cache = dex_caches->Get(i);
+      const DexFile* const dex_file = dex_cache->GetDexFile();
+      const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
+      if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
+        ++num_dex_caches_with_bss_arrays;
       }
     }
-    {
-      WriterMutexLock mu2(self, dex_lock_);
-      // Make sure to do this after we update the arrays since we store the resolved types array
-      // in DexCacheData in RegisterDexFileLocked. We need the array pointer to be the one in the
-      // BSS.
-      mirror::DexCache* existing_dex_cache = FindDexCacheLocked(self,
-                                                                *dex_file,
-                                                                /*allow_failure*/true);
-      CHECK(existing_dex_cache == nullptr);
-      StackHandleScope<1> hs3(self);
-      RegisterDexFileLocked(*dex_file, hs3.NewHandle(dex_cache));
+    *out_forward_dex_cache_array = num_dex_caches_with_bss_arrays != 0;
+    if (*out_forward_dex_cache_array) {
+      if (num_dex_caches_with_bss_arrays != num_dex_caches) {
+        // Reject application image since we cannot forward only some of the dex cache arrays.
+        // TODO: We could get around this by having a dedicated forwarding slot. It should be an
+        // uncommon case.
+        *out_error_msg = StringPrintf("Dex caches in bss does not match total: %zu vs %zu",
+                                      num_dex_caches_with_bss_arrays,
+                                      num_dex_caches);
+        return false;
+      }
     }
-    GcRoot<mirror::Class>* const types = dex_cache->GetResolvedTypes();
-    const size_t num_types = dex_cache->NumResolvedTypes();
-    if (new_class_set == nullptr) {
-      for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
-        // The image space is not yet added to the heap, avoid read barriers.
-        mirror::Class* klass = types[j].Read();
-        if (klass != nullptr) {
-          DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
-          // Update the class loader from the one in the image class loader to the one that loaded
-          // the app image.
-          klass->SetClassLoader(class_loader.Get());
-          // The resolved type could be from another dex cache, go through the dex cache just in
-          // case. May be null for array classes.
-          if (klass->GetDexCacheStrings() != nullptr) {
-            DCHECK(!klass->IsArrayClass());
-            klass->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+    // Only add the classes to the class loader after the points where we can return false.
+    for (size_t i = 0; i < num_dex_caches; i++) {
+      mirror::DexCache* const dex_cache = dex_caches->Get(i);
+      const DexFile* const dex_file = dex_cache->GetDexFile();
+      const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
+      if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
+      // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
+        // copy over the arrays.
+        DCHECK(dex_file != nullptr);
+        const size_t num_strings = dex_file->NumStringIds();
+        const size_t num_types = dex_file->NumTypeIds();
+        const size_t num_methods = dex_file->NumMethodIds();
+        const size_t num_fields = dex_file->NumFieldIds();
+        CHECK_EQ(num_strings, dex_cache->NumStrings());
+        CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
+        CHECK_EQ(num_methods, dex_cache->NumResolvedMethods());
+        CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
+        DexCacheArraysLayout layout(image_pointer_size_, dex_file);
+        uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
+        // The space is not yet visible to the GC, we can avoid the read barriers and use
+        // std::copy_n.
+        if (num_strings != 0u) {
+          GcRoot<mirror::String>* const image_resolved_strings = dex_cache->GetStrings();
+          GcRoot<mirror::String>* const strings =
+              reinterpret_cast<GcRoot<mirror::String>*>(raw_arrays + layout.StringsOffset());
+          for (size_t j = 0; kIsDebugBuild && j < num_strings; ++j) {
+            DCHECK(strings[j].IsNull());
           }
-          // If there are multiple dex caches, there may be the same class multiple times
-          // in different dex caches. Check for this since inserting will add duplicates
-          // otherwise.
-          if (num_dex_caches > 1) {
-            mirror::Class* existing = table->LookupByDescriptor(klass);
-            if (existing != nullptr) {
-              DCHECK_EQ(existing, klass) << PrettyClass(klass);
+          std::copy_n(image_resolved_strings, num_strings, strings);
+          dex_cache->SetStrings(strings);
+        }
+        if (num_types != 0u) {
+          GcRoot<mirror::Class>* const image_resolved_types = dex_cache->GetResolvedTypes();
+          GcRoot<mirror::Class>* const types =
+              reinterpret_cast<GcRoot<mirror::Class>*>(raw_arrays + layout.TypesOffset());
+          for (size_t j = 0; kIsDebugBuild && j < num_types; ++j) {
+            DCHECK(types[j].IsNull());
+          }
+          std::copy_n(image_resolved_types, num_types, types);
+          // Store a pointer to the new location for fast ArtMethod patching without requiring map.
+          // This leaves random garbage at the start of the dex cache array, but nobody should ever
+          // read from it again.
+          *reinterpret_cast<GcRoot<mirror::Class>**>(image_resolved_types) = types;
+          dex_cache->SetResolvedTypes(types);
+        }
+        if (num_methods != 0u) {
+          ArtMethod** const methods = reinterpret_cast<ArtMethod**>(
+              raw_arrays + layout.MethodsOffset());
+          ArtMethod** const image_resolved_methods = dex_cache->GetResolvedMethods();
+          for (size_t j = 0; kIsDebugBuild && j < num_methods; ++j) {
+            DCHECK(methods[j] == nullptr);
+          }
+          std::copy_n(image_resolved_methods, num_methods, methods);
+          // Store a pointer to the new location for fast ArtMethod patching without requiring map.
+          *reinterpret_cast<ArtMethod***>(image_resolved_methods) = methods;
+          dex_cache->SetResolvedMethods(methods);
+        }
+        if (num_fields != 0u) {
+          ArtField** const fields =
+              reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
+          for (size_t j = 0; kIsDebugBuild && j < num_fields; ++j) {
+            DCHECK(fields[j] == nullptr);
+          }
+          std::copy_n(dex_cache->GetResolvedFields(), num_fields, fields);
+          dex_cache->SetResolvedFields(fields);
+        }
+      }
+      {
+        WriterMutexLock mu2(self, dex_lock_);
+        // Make sure to do this after we update the arrays since we store the resolved types array
+        // in DexCacheData in RegisterDexFileLocked. We need the array pointer to be the one in the
+        // BSS.
+        mirror::DexCache* existing_dex_cache = FindDexCacheLocked(self,
+                                                                  *dex_file,
+                                                                  /*allow_failure*/true);
+        CHECK(existing_dex_cache == nullptr);
+        StackHandleScope<1> hs3(self);
+        RegisterDexFileLocked(*dex_file, hs3.NewHandle(dex_cache));
+      }
+      GcRoot<mirror::Class>* const types = dex_cache->GetResolvedTypes();
+      const size_t num_types = dex_cache->NumResolvedTypes();
+      if (new_class_set == nullptr) {
+        for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
+          // The image space is not yet added to the heap, avoid read barriers.
+          mirror::Class* klass = types[j].Read();
+          if (klass != nullptr) {
+            DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
+            // Update the class loader from the one in the image class loader to the one that loaded
+            // the app image.
+            klass->SetClassLoader(class_loader.Get());
+            // The resolved type could be from another dex cache, go through the dex cache just in
+            // case. May be null for array classes.
+            if (klass->GetDexCacheStrings() != nullptr) {
+              DCHECK(!klass->IsArrayClass());
+              klass->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+            }
+            // If there are multiple dex caches, there may be the same class multiple times
+            // in different dex caches. Check for this since inserting will add duplicates
+            // otherwise.
+            if (num_dex_caches > 1) {
+              mirror::Class* existing = table->LookupByDescriptor(klass);
+              if (existing != nullptr) {
+                DCHECK_EQ(existing, klass) << PrettyClass(klass);
+              } else {
+                table->Insert(klass);
+              }
             } else {
               table->Insert(klass);
             }
-          } else {
-            table->Insert(klass);
-          }
-          // Double checked VLOG to avoid overhead.
-          if (VLOG_IS_ON(image)) {
-            VLOG(image) << PrettyClass(klass) << " " << klass->GetStatus();
-            if (!klass->IsArrayClass()) {
-              VLOG(image) << "From " << klass->GetDexCache()->GetDexFile()->GetBaseLocation();
-            }
-            VLOG(image) << "Direct methods";
-            for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
-              VLOG(image) << PrettyMethod(&m);
-            }
-            VLOG(image) << "Virtual methods";
-            for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
-              VLOG(image) << PrettyMethod(&m);
-            }
-          }
-        }
-      }
-    }
-    if (kIsDebugBuild) {
-      for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
-        // The image space is not yet added to the heap, avoid read barriers.
-        mirror::Class* klass = types[j].Read();
-        if (klass != nullptr) {
-          DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
-          if (kIsDebugBuild) {
-            if (new_class_set != nullptr)   {
-              auto it = new_class_set->Find(GcRoot<mirror::Class>(klass));
-              DCHECK(it != new_class_set->end());
-              DCHECK_EQ(it->Read(), klass);
-              mirror::Class* super_class = klass->GetSuperClass();
-              if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
-                auto it2 = new_class_set->Find(GcRoot<mirror::Class>(super_class));
-                DCHECK(it2 != new_class_set->end());
-                DCHECK_EQ(it2->Read(), super_class);
+            // Double checked VLOG to avoid overhead.
+            if (VLOG_IS_ON(image)) {
+              VLOG(image) << PrettyClass(klass) << " " << klass->GetStatus();
+              if (!klass->IsArrayClass()) {
+                VLOG(image) << "From " << klass->GetDexCache()->GetDexFile()->GetBaseLocation();
               }
-            } else {
-              DCHECK_EQ(table->LookupByDescriptor(klass), klass);
-              mirror::Class* super_class = klass->GetSuperClass();
-              if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
-                CHECK_EQ(table->LookupByDescriptor(super_class), super_class);
+              VLOG(image) << "Direct methods";
+              for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
+                VLOG(image) << PrettyMethod(&m);
               }
-            }
-          }
-          if (kIsDebugBuild) {
-            for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
-              const void* code = m.GetEntryPointFromQuickCompiledCode();
-              const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
-              if (!IsQuickResolutionStub(code) &&
-                  !IsQuickGenericJniStub(code) &&
-                  !IsQuickToInterpreterBridge(code) &&
-                  !m.IsNative()) {
-                DCHECK_EQ(code, oat_code) << PrettyMethod(&m);
-              }
-            }
-            for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
-              const void* code = m.GetEntryPointFromQuickCompiledCode();
-              const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
-              if (!IsQuickResolutionStub(code) &&
-                  !IsQuickGenericJniStub(code) &&
-                  !IsQuickToInterpreterBridge(code) &&
-                  !m.IsNative()) {
-                DCHECK_EQ(code, oat_code) << PrettyMethod(&m);
+              VLOG(image) << "Virtual methods";
+              for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
+                VLOG(image) << PrettyMethod(&m);
               }
             }
           }
         }
       }
+      if (kIsDebugBuild) {
+        for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
+          // The image space is not yet added to the heap, avoid read barriers.
+          mirror::Class* klass = types[j].Read();
+          if (klass != nullptr) {
+            DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
+            if (kIsDebugBuild) {
+              if (new_class_set != nullptr)   {
+                auto it = new_class_set->Find(GcRoot<mirror::Class>(klass));
+                DCHECK(it != new_class_set->end());
+                DCHECK_EQ(it->Read(), klass);
+                mirror::Class* super_class = klass->GetSuperClass();
+                if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
+                  auto it2 = new_class_set->Find(GcRoot<mirror::Class>(super_class));
+                  DCHECK(it2 != new_class_set->end());
+                  DCHECK_EQ(it2->Read(), super_class);
+                }
+              } else {
+                DCHECK_EQ(table->LookupByDescriptor(klass), klass);
+                mirror::Class* super_class = klass->GetSuperClass();
+                if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
+                  CHECK_EQ(table->LookupByDescriptor(super_class), super_class);
+                }
+              }
+            }
+            if (kIsDebugBuild) {
+              for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
+                const void* code = m.GetEntryPointFromQuickCompiledCode();
+                const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
+                if (!IsQuickResolutionStub(code) &&
+                    !IsQuickGenericJniStub(code) &&
+                    !IsQuickToInterpreterBridge(code) &&
+                    !m.IsNative()) {
+                  DCHECK_EQ(code, oat_code) << PrettyMethod(&m);
+                }
+              }
+              for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
+                const void* code = m.GetEntryPointFromQuickCompiledCode();
+                const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
+                if (!IsQuickResolutionStub(code) &&
+                    !IsQuickGenericJniStub(code) &&
+                    !IsQuickToInterpreterBridge(code) &&
+                    !m.IsNative()) {
+                  DCHECK_EQ(code, oat_code) << PrettyMethod(&m);
+                }
+              }
+            }
+          }
+        }
+      }
     }
-  }
-  if (*out_forward_dex_cache_array) {
-    FixupArtMethodArrayVisitor visitor(header);
-    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &visitor,
-        space->Begin(),
-        sizeof(void*));
-    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
+    if (*out_forward_dex_cache_array) {
+      ScopedTrace timing("Fixup ArtMethod dex cache arrays");
+      FixupArtMethodArrayVisitor visitor(header);
+      header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
+          &visitor,
+          space->Begin(),
+          sizeof(void*));
+      Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
+    }
   }
   return true;
 }
