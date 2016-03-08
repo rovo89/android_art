@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "arch/mips/instruction_set_features_mips.h"
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/unix_file/fd_file.h"
@@ -392,8 +393,9 @@ class ElfBuilder FINAL {
     }
   };
 
-  ElfBuilder(InstructionSet isa, OutputStream* output)
+  ElfBuilder(InstructionSet isa, const InstructionSetFeatures* features, OutputStream* output)
       : isa_(isa),
+        features_(features),
         stream_(output),
         rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
         text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0, kPageSize, 0),
@@ -818,6 +820,7 @@ class ElfBuilder FINAL {
   }
 
   InstructionSet isa_;
+  const InstructionSetFeatures* features_;
 
   ErrorDelayingOutputStream stream_;
 

@@ -99,6 +99,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       const std::vector<const DexFile*>& dex_files = class_linker->GetBootClassPath();
       std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
           compiler_driver_->GetInstructionSet(),
+          compiler_driver_->GetInstructionSetFeatures(),
           &compiler_driver_->GetCompilerOptions(),
           oat_file.GetFile());
       elf_writer->Start();
