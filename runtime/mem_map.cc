@@ -590,7 +590,19 @@ void MemMap::MadviseDontNeedAndZero() {
 }
 
 bool MemMap::Sync() {
-  return msync(BaseBegin(), BaseSize(), MS_SYNC) == 0;
+  bool result;
+  if (redzone_size_ != 0) {
+    // To avoid valgrind errors, temporarily lift the lower-end noaccess protection before passing
+    // it to msync() as it only accepts page-aligned base address, and exclude the higher-end
+    // noaccess protection from the msync range. b/27552451.
+    uint8_t* base_begin = reinterpret_cast<uint8_t*>(base_begin_);
+    MEMORY_TOOL_MAKE_DEFINED(base_begin, begin_ - base_begin);
+    result = msync(BaseBegin(), End() - base_begin, MS_SYNC) == 0;
+    MEMORY_TOOL_MAKE_NOACCESS(base_begin, begin_ - base_begin);
+  } else {
+    result = msync(BaseBegin(), BaseSize(), MS_SYNC) == 0;
+  }
+  return result;
 }
 
 bool MemMap::Protect(int prot) {
