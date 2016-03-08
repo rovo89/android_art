@@ -91,24 +91,34 @@ static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
 
 std::vector<uint8_t> MakeMiniDebugInfo(
     InstructionSet isa,
+    const InstructionSetFeatures* features,
     size_t rodata_size,
     size_t text_size,
     const ArrayRef<const MethodDebugInfo>& method_infos) {
   if (Is64BitInstructionSet(isa)) {
-    return MakeMiniDebugInfoInternal<ElfTypes64>(isa, rodata_size, text_size, method_infos);
+    return MakeMiniDebugInfoInternal<ElfTypes64>(isa,
+                                                 features,
+                                                 rodata_size,
+                                                 text_size,
+                                                 method_infos);
   } else {
-    return MakeMiniDebugInfoInternal<ElfTypes32>(isa, rodata_size, text_size, method_infos);
+    return MakeMiniDebugInfoInternal<ElfTypes32>(isa,
+                                                 features,
+                                                 rodata_size,
+                                                 text_size,
+                                                 method_infos);
   }
 }
 
 template <typename ElfTypes>
 static ArrayRef<const uint8_t> WriteDebugElfFileForMethodInternal(
+    const InstructionSet isa,
+    const InstructionSetFeatures* features,
     const MethodDebugInfo& method_info) {
-  const InstructionSet isa = method_info.compiled_method->GetInstructionSet();
   std::vector<uint8_t> buffer;
   buffer.reserve(KB);
   VectorOutputStream out("Debug ELF file", &buffer);
-  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, features, &out));
   // No program headers since the ELF file is not linked and has no allocated sections.
   builder->Start(false /* write_program_headers */);
   WriteDebugInfo(builder.get(),
@@ -124,23 +134,26 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForMethodInternal(
   return ArrayRef<const uint8_t>(result, buffer.size());
 }
 
-ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const MethodDebugInfo& method_info) {
-  const InstructionSet isa = method_info.compiled_method->GetInstructionSet();
+ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const InstructionSet isa,
+                                                   const InstructionSetFeatures* features,
+                                                   const MethodDebugInfo& method_info) {
   if (Is64BitInstructionSet(isa)) {
-    return WriteDebugElfFileForMethodInternal<ElfTypes64>(method_info);
+    return WriteDebugElfFileForMethodInternal<ElfTypes64>(isa, features, method_info);
   } else {
-    return WriteDebugElfFileForMethodInternal<ElfTypes32>(method_info);
+    return WriteDebugElfFileForMethodInternal<ElfTypes32>(isa, features, method_info);
   }
 }
 
 template <typename ElfTypes>
 static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
-    const InstructionSet isa, const ArrayRef<mirror::Class*>& types)
+    const InstructionSet isa,
+    const InstructionSetFeatures* features,
+    const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   std::vector<uint8_t> buffer;
   buffer.reserve(KB);
   VectorOutputStream out("Debug ELF file", &buffer);
-  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, features, &out));
   // No program headers since the ELF file is not linked and has no allocated sections.
   builder->Start(false /* write_program_headers */);
   ElfDebugInfoWriter<ElfTypes> info_writer(builder.get());
@@ -159,11 +172,12 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
 }
 
 ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
+                                                    const InstructionSetFeatures* features,
                                                     const ArrayRef<mirror::Class*>& types) {
   if (Is64BitInstructionSet(isa)) {
-    return WriteDebugElfFileForClassesInternal<ElfTypes64>(isa, types);
+    return WriteDebugElfFileForClassesInternal<ElfTypes64>(isa, features, types);
   } else {
-    return WriteDebugElfFileForClassesInternal<ElfTypes32>(isa, types);
+    return WriteDebugElfFileForClassesInternal<ElfTypes32>(isa, features, types);
   }
 }
 

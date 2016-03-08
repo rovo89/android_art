@@ -51,10 +51,12 @@ constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_DEBUG_FRAME_FORMAT;
 class DebugInfoTask : public Task {
  public:
   DebugInfoTask(InstructionSet isa,
+                const InstructionSetFeatures* features,
                 size_t rodata_section_size,
                 size_t text_section_size,
                 const ArrayRef<const debug::MethodDebugInfo>& method_infos)
       : isa_(isa),
+        instruction_set_features_(features),
         rodata_section_size_(rodata_section_size),
         text_section_size_(text_section_size),
         method_infos_(method_infos) {
@@ -62,6 +64,7 @@ class DebugInfoTask : public Task {
 
   void Run(Thread*) {
     result_ = debug::MakeMiniDebugInfo(isa_,
+                                       instruction_set_features_,
                                        rodata_section_size_,
                                        text_section_size_,
                                        method_infos_);
@@ -73,6 +76,7 @@ class DebugInfoTask : public Task {
 
  private:
   InstructionSet isa_;
+  const InstructionSetFeatures* instruction_set_features_;
   size_t rodata_section_size_;
   size_t text_section_size_;
   const ArrayRef<const debug::MethodDebugInfo>& method_infos_;
@@ -83,6 +87,7 @@ template <typename ElfTypes>
 class ElfWriterQuick FINAL : public ElfWriter {
  public:
   ElfWriterQuick(InstructionSet instruction_set,
+                 const InstructionSetFeatures* features,
                  const CompilerOptions* compiler_options,
                  File* elf_file);
   ~ElfWriterQuick();
@@ -107,6 +112,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
                                std::vector<uint8_t>* buffer);
 
  private:
+  const InstructionSetFeatures* instruction_set_features_;
   const CompilerOptions* const compiler_options_;
   File* const elf_file_;
   size_t rodata_size_;
@@ -121,27 +127,36 @@ class ElfWriterQuick FINAL : public ElfWriter {
 };
 
 std::unique_ptr<ElfWriter> CreateElfWriterQuick(InstructionSet instruction_set,
+                                                const InstructionSetFeatures* features,
                                                 const CompilerOptions* compiler_options,
                                                 File* elf_file) {
   if (Is64BitInstructionSet(instruction_set)) {
-    return MakeUnique<ElfWriterQuick<ElfTypes64>>(instruction_set, compiler_options, elf_file);
+    return MakeUnique<ElfWriterQuick<ElfTypes64>>(instruction_set,
+                                                  features,
+                                                  compiler_options,
+                                                  elf_file);
   } else {
-    return MakeUnique<ElfWriterQuick<ElfTypes32>>(instruction_set, compiler_options, elf_file);
+    return MakeUnique<ElfWriterQuick<ElfTypes32>>(instruction_set,
+                                                  features,
+                                                  compiler_options,
+                                                  elf_file);
   }
 }
 
 template <typename ElfTypes>
 ElfWriterQuick<ElfTypes>::ElfWriterQuick(InstructionSet instruction_set,
+                                         const InstructionSetFeatures* features,
                                          const CompilerOptions* compiler_options,
                                          File* elf_file)
     : ElfWriter(),
+      instruction_set_features_(features),
       compiler_options_(compiler_options),
       elf_file_(elf_file),
       rodata_size_(0u),
       text_size_(0u),
       bss_size_(0u),
       output_stream_(MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file))),
-      builder_(new ElfBuilder<ElfTypes>(instruction_set, output_stream_.get())) {}
+      builder_(new ElfBuilder<ElfTypes>(instruction_set, features, output_stream_.get())) {}
 
 template <typename ElfTypes>
 ElfWriterQuick<ElfTypes>::~ElfWriterQuick() {}
@@ -205,7 +220,11 @@ void ElfWriterQuick<ElfTypes>::PrepareDebugInfo(
     // Prepare the mini-debug-info in background while we do other I/O.
     Thread* self = Thread::Current();
     debug_info_task_ = std::unique_ptr<DebugInfoTask>(
-        new DebugInfoTask(builder_->GetIsa(), rodata_size_, text_size_, method_infos));
+        new DebugInfoTask(builder_->GetIsa(),
+                          instruction_set_features_,
+                          rodata_size_,
+                          text_size_,
+                          method_infos));
     debug_info_thread_pool_ = std::unique_ptr<ThreadPool>(
         new ThreadPool("Mini-debug-info writer", 1));
     debug_info_thread_pool_->AddTask(self, debug_info_task_.get());

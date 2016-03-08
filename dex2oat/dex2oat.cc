@@ -2105,8 +2105,10 @@ class Dex2Oat FINAL {
     elf_writers_.reserve(oat_files_.size());
     oat_writers_.reserve(oat_files_.size());
     for (const std::unique_ptr<File>& oat_file : oat_files_) {
-      elf_writers_.emplace_back(
-          CreateElfWriterQuick(instruction_set_, compiler_options_.get(), oat_file.get()));
+      elf_writers_.emplace_back(CreateElfWriterQuick(instruction_set_,
+                                                     instruction_set_features_.get(),
+                                                     compiler_options_.get(),
+                                                     oat_file.get()));
       elf_writers_.back()->Start();
       oat_writers_.emplace_back(new OatWriter(IsBootImage(), timings_));
     }
