@@ -472,6 +472,24 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       break;
     }
 
+    // 1.8.
+    case kIntrinsicUnsafeGetAndAddInt:
+      return Intrinsics::kUnsafeGetAndAddInt;
+    case kIntrinsicUnsafeGetAndAddLong:
+      return Intrinsics::kUnsafeGetAndAddLong;
+    case kIntrinsicUnsafeGetAndSetInt:
+      return Intrinsics::kUnsafeGetAndSetInt;
+    case kIntrinsicUnsafeGetAndSetLong:
+      return Intrinsics::kUnsafeGetAndSetLong;
+    case kIntrinsicUnsafeGetAndSetObject:
+      return Intrinsics::kUnsafeGetAndSetObject;
+    case kIntrinsicUnsafeLoadFence:
+      return Intrinsics::kUnsafeLoadFence;
+    case kIntrinsicUnsafeStoreFence:
+      return Intrinsics::kUnsafeStoreFence;
+    case kIntrinsicUnsafeFullFence:
+      return Intrinsics::kUnsafeFullFence;
+
     // Virtual cases.
 
     case kIntrinsicReferenceGetReferent:
