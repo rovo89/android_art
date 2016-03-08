@@ -270,10 +270,5 @@
   description: "Only work with --mode=activity",
   result: EXEC_FAILED,
   names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
-},
-{
-  description: "Temporary suppressing while test is fixed",
-  result: EXEC_FAILED,
-  names: [ "org.apache.harmony.tests.java.util.ArrayDequeTest#test_forEachRemaining_iterator" ]
 }
 ]
