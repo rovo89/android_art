@@ -63,6 +63,7 @@
 #include "instruction_simplifier_arm.h"
 #include "intrinsics.h"
 #include "jit/debugger_interface.h"
+#include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jni/quick/jni_compiler.h"
 #include "licm.h"
@@ -944,6 +945,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());
   }
+
+  Runtime::Current()->GetJit()->AddMemoryUsage(method, arena.BytesUsed());
 
   return true;
 }
