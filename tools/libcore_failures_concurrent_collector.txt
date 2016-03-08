@@ -16,11 +16,5 @@
   names: ["jsr166.LinkedTransferQueueTest#testTransfer2",
           "jsr166.LinkedTransferQueueTest#testWaitingConsumer"],
   bug: 25883050
-},
-{
-  description: "libcore.java.lang.OldSystemTest#test_gc failure on armv8-concurrent-collector.",
-  result: EXEC_FAILED,
-  names: ["libcore.java.lang.OldSystemTest#test_gc"],
-  bug: 26155567
 }
 ]
