@@ -43,8 +43,7 @@ class JitOptions;
 class Jit {
  public:
   static constexpr bool kStressMode = kIsDebugBuild;
-  static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 500;
-  static constexpr size_t kDefaultWarmupThreshold = kDefaultCompileThreshold / 2;
+  static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 10000;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
