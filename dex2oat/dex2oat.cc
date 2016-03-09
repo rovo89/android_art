@@ -1034,9 +1034,11 @@ class Dex2Oat FINAL {
     key_value_store_->Put(
         OatHeader::kDebuggableKey,
         compiler_options_->debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
-    key_value_store_->Put(
-        OatHeader::kExtractOnlyKey,
-        compiler_options_->IsExtractOnly() ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+    if (compiler_options_->IsExtractOnly()) {
+      key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kExtractOnlyValue);
+    } else if (UseProfileGuidedCompilation()) {
+      key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kProfileGuideCompiledValue);
+    }
   }
 
   // Parse the arguments from the command line. In case of an unrecognized option or impossible
@@ -1891,13 +1893,6 @@ class Dex2Oat FINAL {
     return success;
   }
 
-  bool ShouldCompileBasedOnProfiles() const {
-    DCHECK(UseProfileGuidedCompilation());
-    // If we are given a profile, compile only if we have some data in it.
-    return (profile_compilation_info_ != nullptr) &&
-        (profile_compilation_info_->GetNumberOfMethods() != 0);
-  }
-
  private:
   template <typename T>
   static std::vector<T*> MakeNonOwningPointerVector(const std::vector<std::unique_ptr<T>>& src) {
@@ -2595,16 +2590,11 @@ static int dex2oat(int argc, char** argv) {
   // Parse arguments. Argument mistakes will lead to exit(EXIT_FAILURE) in UsageError.
   dex2oat->ParseArgs(argc, argv);
 
-  // Process profile information and assess if we need to do a profile guided compilation.
+  // If needed, process profile information for profile guided compilation.
   // This operation involves I/O.
   if (dex2oat->UseProfileGuidedCompilation()) {
-    if (dex2oat->LoadProfile()) {
-      if (!dex2oat->ShouldCompileBasedOnProfiles()) {
-        LOG(INFO) << "Skipped compilation because of insignificant profile delta";
-        return EXIT_SUCCESS;
-      }
-    } else {
-      LOG(WARNING) << "Failed to process profile files";
+    if (!dex2oat->LoadProfile()) {
+      LOG(ERROR) << "Failed to process profile file";
       return EXIT_FAILURE;
     }
   }

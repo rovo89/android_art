@@ -1232,6 +1232,10 @@ bool OatFile::IsExtractOnly() const {
   return GetOatHeader().IsExtractOnly();
 }
 
+bool OatFile::IsProfileGuideCompiled() const {
+  return GetOatHeader().IsProfileGuideCompiled();
+}
+
 static constexpr char kDexClassPathEncodingSeparator = '*';
 
 std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files) {

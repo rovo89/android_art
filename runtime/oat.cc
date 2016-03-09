@@ -29,6 +29,8 @@ constexpr uint8_t OatHeader::kOatMagic[4];
 constexpr uint8_t OatHeader::kOatVersion[4];
 constexpr const char OatHeader::kTrueValue[];
 constexpr const char OatHeader::kFalseValue[];
+constexpr const char OatHeader::kExtractOnlyValue[];
+constexpr const char OatHeader::kProfileGuideCompiledValue[];
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -467,12 +469,24 @@ bool OatHeader::IsDebuggable() const {
 }
 
 bool OatHeader::IsExtractOnly() const {
-  return IsKeyEnabled(OatHeader::kExtractOnlyKey);
+  return KeyHasValue(kCompilationType,
+                     kExtractOnlyValue,
+                     sizeof(kExtractOnlyValue));
+}
+
+bool OatHeader::IsProfileGuideCompiled() const {
+  return KeyHasValue(kCompilationType,
+                     kProfileGuideCompiledValue,
+                     sizeof(kProfileGuideCompiledValue));
+}
+
+bool OatHeader::KeyHasValue(const char* key, const char* value, size_t value_size) const {
+  const char* key_value = GetStoreValueByKey(key);
+  return (key_value != nullptr && strncmp(key_value, value, value_size) == 0);
 }
 
 bool OatHeader::IsKeyEnabled(const char* key) const {
-  const char* key_value = GetStoreValueByKey(key);
-  return (key_value != nullptr && strncmp(key_value, kTrueValue, sizeof(kTrueValue)) == 0);
+  return KeyHasValue(key, kTrueValue, sizeof(kTrueValue));
 }
 
 void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store) {
