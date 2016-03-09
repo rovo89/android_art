@@ -231,7 +231,10 @@ UNREACHABLE_INTRINSIC(Arch, LongRotateRight)        \
 UNREACHABLE_INTRINSIC(Arch, IntegerCompare)         \
 UNREACHABLE_INTRINSIC(Arch, LongCompare)            \
 UNREACHABLE_INTRINSIC(Arch, IntegerSignum)          \
-UNREACHABLE_INTRINSIC(Arch, LongSignum)
+UNREACHABLE_INTRINSIC(Arch, LongSignum)             \
+UNREACHABLE_INTRINSIC(Arch, UnsafeLoadFence)        \
+UNREACHABLE_INTRINSIC(Arch, UnsafeStoreFence)       \
+UNREACHABLE_INTRINSIC(Arch, UnsafeFullFence)
 
 }  // namespace art
 

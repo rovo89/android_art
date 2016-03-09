@@ -94,6 +94,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyCompare(HInvoke* invoke, bool has_zero_op);
   void SimplifyIsNaN(HInvoke* invoke);
   void SimplifyFP2Int(HInvoke* invoke);
+  void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -1594,6 +1595,12 @@ void InstructionSimplifierVisitor::SimplifyFP2Int(HInvoke* invoke) {
   invoke->ReplaceWithExceptInReplacementAtIndex(select, 0);  // false at index 0
 }
 
+void InstructionSimplifierVisitor::SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind) {
+  uint32_t dex_pc = invoke->GetDexPc();
+  HMemoryBarrier* mem_barrier = new (GetGraph()->GetArena()) HMemoryBarrier(barrier_kind, dex_pc);
+  invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, mem_barrier);
+}
+
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   switch (instruction->GetIntrinsic()) {
     case Intrinsics::kStringEquals:
@@ -1625,6 +1632,15 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kFloatFloatToIntBits:
     case Intrinsics::kDoubleDoubleToLongBits:
       SimplifyFP2Int(instruction);
+      break;
+    case Intrinsics::kUnsafeLoadFence:
+      SimplifyMemBarrier(instruction, MemBarrierKind::kLoadAny);
+      break;
+    case Intrinsics::kUnsafeStoreFence:
+      SimplifyMemBarrier(instruction, MemBarrierKind::kAnyStore);
+      break;
+    case Intrinsics::kUnsafeFullFence:
+      SimplifyMemBarrier(instruction, MemBarrierKind::kAnyAny);
       break;
     default:
       break;
