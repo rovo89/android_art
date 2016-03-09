@@ -37,7 +37,7 @@ class ProfileSaver {
 
   // Stops the profile saver thread.
   // NO_THREAD_SAFETY_ANALYSIS for static function calling into member function with excludes lock.
-  static void Stop()
+  static void Stop(bool dump_info_)
       REQUIRES(!Locks::profiler_lock_, !wait_lock_)
       NO_THREAD_SAFETY_ANALYSIS;
 
@@ -45,6 +45,9 @@ class ProfileSaver {
   static bool IsStarted() REQUIRES(!Locks::profiler_lock_);
 
   static void NotifyDexUse(const std::string& dex_location);
+
+  // If the profile saver is running, dumps statistics to the `os`. Otherwise it does nothing.
+  static void DumpInstanceInfo(std::ostream& os);
 
  private:
   ProfileSaver(const std::string& output_filename,
@@ -70,11 +73,13 @@ class ProfileSaver {
                            const std::vector<std::string>& code_paths)
       REQUIRES(Locks::profiler_lock_);
 
-  static void MaybeRecordDexUseInternal(
+  static bool MaybeRecordDexUseInternal(
       const std::string& dex_location,
       const std::set<std::string>& tracked_locations,
       const std::string& foreign_dex_profile_path,
       const std::string& app_data_dir);
+
+  void DumpInfo(std::ostream& os);
 
   // The only instance of the saver.
   static ProfileSaver* instance_ GUARDED_BY(Locks::profiler_lock_);
@@ -93,6 +98,15 @@ class ProfileSaver {
   // Save period condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable period_condition_ GUARDED_BY(wait_lock_);
+
+  uint64_t total_bytes_written_;
+  uint64_t total_number_of_writes_;
+  uint64_t total_number_of_code_cache_queries_;
+  uint64_t total_number_of_skipped_writes_;
+  uint64_t total_number_of_failed_writes_;
+  uint64_t total_ns_of_sleep_;
+  uint64_t total_ns_of_work_;
+  uint64_t total_number_of_foreign_dex_marks_;
 
   DISALLOW_COPY_AND_ASSIGN(ProfileSaver);
 };

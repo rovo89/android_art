@@ -46,7 +46,8 @@ class ProfileCompilationInfo {
   // If not (the locking is not blocking), the function does not save and returns false.
   static bool SaveProfilingInfo(const std::string& filename,
                                 const std::vector<ArtMethod*>& methods,
-                                const std::set<DexCacheResolvedClasses>& resolved_classes);
+                                const std::set<DexCacheResolvedClasses>& resolved_classes,
+                                uint64_t* bytes_written = nullptr);
 
   // Loads profile information from the given file descriptor.
   bool Load(int fd);

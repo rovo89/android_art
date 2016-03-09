@@ -85,6 +85,11 @@ void Jit::DumpInfo(std::ostream& os) {
   cumulative_timings_.Dump(os);
 }
 
+void Jit::DumpForSigQuit(std::ostream& os) {
+  DumpInfo(os);
+  ProfileSaver::DumpInstanceInfo(os);
+}
+
 void Jit::AddTimingLogger(const TimingLogger& logger) {
   cumulative_timings_.AddLogger(logger);
 }
@@ -220,7 +225,7 @@ void Jit::StartProfileSaver(const std::string& filename,
 
 void Jit::StopProfileSaver() {
   if (save_profiling_info_ && ProfileSaver::IsStarted()) {
-    ProfileSaver::Stop();
+    ProfileSaver::Stop(dump_info_on_shutdown_);
   }
 }
 

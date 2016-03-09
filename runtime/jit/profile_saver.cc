@@ -56,7 +56,15 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       shutting_down_(false),
       first_profile_(true),
       wait_lock_("ProfileSaver wait lock"),
-      period_condition_("ProfileSaver period condition", wait_lock_) {
+      period_condition_("ProfileSaver period condition", wait_lock_),
+      total_bytes_written_(0),
+      total_number_of_writes_(0),
+      total_number_of_code_cache_queries_(0),
+      total_number_of_skipped_writes_(0),
+      total_number_of_failed_writes_(0),
+      total_ns_of_sleep_(0),
+      total_ns_of_work_(0),
+      total_number_of_foreign_dex_marks_(0) {
   AddTrackedLocations(output_filename, code_paths);
   app_data_dir_ = "";
   if (!app_data_dir.empty()) {
@@ -96,10 +104,12 @@ void ProfileSaver::Run() {
       MutexLock mu(self, wait_lock_);
       period_condition_.TimedWait(self, sleep_time_ms, 0);
     }
-
+    total_ns_of_sleep_ += sleep_time_ms;
     if (ShuttingDown(self)) {
       break;
     }
+
+    uint64_t start = NanoTime();
 
     if (!ProcessProfilingInfo() && save_period_ms < kMaxBackoffMs) {
       // If we don't need to save now it is less likely that we will need to do
@@ -111,6 +121,8 @@ void ProfileSaver::Run() {
       save_period_ms = kSavePeriodMs;
     }
     first_iteration = false;
+
+    total_ns_of_work_ += (NanoTime() - start);
   }
 }
 
@@ -122,10 +134,10 @@ bool ProfileSaver::ProcessProfilingInfo() {
     VLOG(profiler) << "Not enough time has passed since the last code cache update."
         << "Last update: " << last_update_time_ns
         << " Last save: " << code_cache_last_update_time_ns_;
+    total_number_of_skipped_writes_++;
     return false;
   }
 
-  uint64_t start = NanoTime();
   code_cache_last_update_time_ns_ = last_update_time_ns;
   SafeMap<std::string, std::set<std::string>> tracked_locations;
   {
@@ -143,11 +155,13 @@ bool ProfileSaver::ProcessProfilingInfo() {
     {
       ScopedObjectAccess soa(Thread::Current());
       jit_code_cache_->GetCompiledArtMethods(locations, methods);
+      total_number_of_code_cache_queries_++;
     }
     // Always save for the first one for loaded classes profile.
     if (methods.size() < kMinimumNrOrMethodsToSave && !first_profile_) {
       VLOG(profiler) << "Not enough information to save to: " << filename
           <<" Nr of methods: " << methods.size();
+      total_number_of_skipped_writes_++;
       return false;
     }
 
@@ -157,12 +171,19 @@ bool ProfileSaver::ProcessProfilingInfo() {
       resolved_classes = class_linker->GetResolvedClasses(/*ignore boot classes*/true);
     }
 
-    if (!ProfileCompilationInfo::SaveProfilingInfo(filename, methods, resolved_classes)) {
+    uint64_t bytes_written;
+    if (!ProfileCompilationInfo::SaveProfilingInfo(filename, methods,
+                                                   resolved_classes,
+                                                   &bytes_written)) {
       LOG(WARNING) << "Could not save profiling info to " << filename;
+      total_number_of_failed_writes_++;
       return false;
+    } else {
+      if (bytes_written > 0) {
+        total_number_of_writes_++;
+        total_bytes_written_ += bytes_written;
+      }
     }
-
-    VLOG(profiler) << "Profile process time: " << PrettyDuration(NanoTime() - start);
   }
   first_profile_ = false;
   return true;
@@ -219,7 +240,7 @@ void ProfileSaver::Start(const std::string& output_filename,
       "Profile saver thread");
 }
 
-void ProfileSaver::Stop() {
+void ProfileSaver::Stop(bool dump_info) {
   ProfileSaver* profile_saver = nullptr;
   pthread_t profiler_pthread = 0U;
 
@@ -237,6 +258,9 @@ void ProfileSaver::Stop() {
       return;
     }
     instance_->shutting_down_ = true;
+    if (dump_info) {
+      instance_->DumpInfo(LOG(INFO));
+    }
   }
 
   {
@@ -283,7 +307,9 @@ void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
   std::string app_data_dir;
   {
     MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
-    DCHECK(instance_ != nullptr);
+    if (instance_ == nullptr) {
+      return;
+    }
     // Make a copy so that we don't hold the lock while doing I/O.
     for (const auto& it : instance_->tracked_dex_base_locations_) {
       app_code_paths.insert(it.second.begin(), it.second.end());
@@ -292,24 +318,30 @@ void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
     app_data_dir = instance_->app_data_dir_;
   }
 
-  MaybeRecordDexUseInternal(dex_location,
-                            app_code_paths,
-                            foreign_dex_profile_path,
-                            app_data_dir);
+  bool mark_created = MaybeRecordDexUseInternal(dex_location,
+                                                app_code_paths,
+                                                foreign_dex_profile_path,
+                                                app_data_dir);
+  if (mark_created) {
+    MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+    if (instance_ != nullptr) {
+      instance_->total_number_of_foreign_dex_marks_++;
+    }
+  }
 }
 
-void ProfileSaver::MaybeRecordDexUseInternal(
+bool ProfileSaver::MaybeRecordDexUseInternal(
       const std::string& dex_location,
       const std::set<std::string>& app_code_paths,
       const std::string& foreign_dex_profile_path,
       const std::string& app_data_dir) {
   if (dex_location.empty()) {
     LOG(WARNING) << "Asked to record foreign dex use with an empty dex location.";
-    return;
+    return false;
   }
   if (foreign_dex_profile_path.empty()) {
     LOG(WARNING) << "Asked to record foreign dex use without a valid profile path ";
-    return;
+    return false;
   }
 
   UniqueCPtr<const char[]> dex_location_real_path(realpath(dex_location.c_str(), nullptr));
@@ -322,12 +354,12 @@ void ProfileSaver::MaybeRecordDexUseInternal(
 
   if (dex_location_real_path_str.compare(0, app_data_dir.length(), app_data_dir) == 0) {
     // The dex location is under the application folder. Nothing to record.
-    return;
+    return false;
   }
 
   if (app_code_paths.find(dex_location) != app_code_paths.end()) {
     // The dex location belongs to the application code paths. Nothing to record.
-    return;
+    return false;
   }
   // Do another round of checks with the real paths.
   // Note that we could cache all the real locations in the saver (since it's an expensive
@@ -344,7 +376,7 @@ void ProfileSaver::MaybeRecordDexUseInternal(
         : real_app_code_location.get());
     if (real_app_code_location_str == dex_location_real_path_str) {
       // The dex location belongs to the application code paths. Nothing to record.
-      return;
+      return false;
     }
   }
 
@@ -362,12 +394,33 @@ void ProfileSaver::MaybeRecordDexUseInternal(
     if (close(fd) != 0) {
       PLOG(WARNING) << "Could not close file after flagging foreign dex use " << flag_path;
     }
+    return true;
   } else {
     if (errno != EEXIST) {
       // Another app could have already created the file.
       PLOG(WARNING) << "Could not create foreign dex use mark " << flag_path;
+      return false;
     }
+    return true;
   }
+}
+
+void ProfileSaver::DumpInstanceInfo(std::ostream& os) {
+  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+  if (instance_ != nullptr) {
+    instance_->DumpInfo(os);
+  }
+}
+
+void ProfileSaver::DumpInfo(std::ostream& os) {
+  os << "ProfileSaver total_bytes_written=" << total_bytes_written_ << '\n'
+     << "ProfileSaver total_number_of_writes=" << total_number_of_writes_ << '\n'
+     << "ProfileSaver total_number_of_code_cache_queries=" << total_number_of_code_cache_queries_ << '\n'
+     << "ProfileSaver total_number_of_skipped_writes=" << total_number_of_skipped_writes_ << '\n'
+     << "ProfileSaver total_number_of_failed_writes=" << total_number_of_failed_writes_ << '\n'
+     << "ProfileSaver total_ms_of_sleep=" << (total_ns_of_sleep_ / kMilisecondsToNano) << '\n'
+     << "ProfileSaver total_ms_of_work=" << (total_ns_of_work_ / kMilisecondsToNano) << '\n'
+     << "ProfileSaver total_number_of_foreign_dex_marks=" << total_number_of_foreign_dex_marks_ << '\n';
 }
 
 }   // namespace art
