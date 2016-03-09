@@ -36,6 +36,7 @@ namespace art {
 
 static constexpr bool kDumpHeapObjectOnSigsevg = false;
 static constexpr bool kUseSigRTTimeout = true;
+static constexpr bool kDumpNativeStackOnTimeout = true;
 
 struct Backtrace {
  public:
@@ -350,7 +351,9 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   if (runtime != nullptr) {
     if (IsTimeoutSignal(signal_number)) {
       // Special timeout signal. Try to dump all threads.
-      runtime->GetThreadList()->DumpForSigQuit(LOG(INTERNAL_FATAL));
+      // Note: Do not use DumpForSigQuit, as that might disable native unwind, but the native parts
+      //       are of value here.
+      runtime->GetThreadList()->Dump(LOG(INTERNAL_FATAL), kDumpNativeStackOnTimeout);
     }
     gc::Heap* heap = runtime->GetHeap();
     LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
