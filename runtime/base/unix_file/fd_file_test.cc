@@ -110,6 +110,34 @@ TEST_F(FdFileTest, ReadFullyWithOffset) {
   ASSERT_EQ(file.Close(), 0);
 }
 
+TEST_F(FdFileTest, ReadWriteFullyWithOffset) {
+  // New scratch file, zero-length.
+  art::ScratchFile tmp;
+  FdFile file;
+  ASSERT_TRUE(file.Open(tmp.GetFilename(), O_RDWR));
+  EXPECT_GE(file.Fd(), 0);
+  EXPECT_TRUE(file.IsOpened());
+
+  const char* test_string = "This is a test string";
+  size_t length = strlen(test_string) + 1;
+  const size_t offset = 12;
+  std::unique_ptr<char[]> offset_read_string(new char[length]);
+  std::unique_ptr<char[]> read_string(new char[length]);
+
+  // Write scratch data to file that we can read back into.
+  EXPECT_TRUE(file.PwriteFully(test_string, length, offset));
+  ASSERT_EQ(file.Flush(), 0);
+
+  // Test reading both the offsets.
+  EXPECT_TRUE(file.PreadFully(&offset_read_string[0], length, offset));
+  EXPECT_STREQ(test_string, &offset_read_string[0]);
+
+  EXPECT_TRUE(file.PreadFully(&read_string[0], length, 0u));
+  EXPECT_NE(memcmp(&read_string[0], test_string, length), 0);
+
+  ASSERT_EQ(file.Close(), 0);
+}
+
 TEST_F(FdFileTest, Copy) {
   art::ScratchFile src_tmp;
   FdFile src;
