@@ -26,6 +26,7 @@
 #include "base/arena_object.h"
 #include "base/stl_util.h"
 #include "dex/compiler_enums.h"
+#include "dex_instruction-inl.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_scope.h"
