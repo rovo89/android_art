@@ -24,6 +24,7 @@
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "debug/method_debug_info.h"
+#include "driver/compiler_options.h"
 #include "elf_writer.h"
 #include "elf_writer_quick.h"
 #include "gc/space/image_space.h"
@@ -48,8 +49,12 @@ class ImageTest : public CommonCompilerTest {
 };
 
 void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
-  // TODO: Test does not currently work with optimizing.
-  CreateCompilerDriver(Compiler::kQuick, kRuntimeISA);
+  CreateCompilerDriver(Compiler::kOptimizing, kRuntimeISA, kIsTargetBuild ? 2U : 16U);
+
+  // Set inline filter values.
+  compiler_options_->SetInlineDepthLimit(CompilerOptions::kDefaultInlineDepthLimit);
+  compiler_options_->SetInlineMaxCodeUnits(CompilerOptions::kDefaultInlineMaxCodeUnits);
+
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   // Enable write for dex2dex.
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {

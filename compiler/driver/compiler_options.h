@@ -159,9 +159,15 @@ class CompilerOptions FINAL {
   size_t GetInlineDepthLimit() const {
     return inline_depth_limit_;
   }
+  void SetInlineDepthLimit(size_t limit) {
+    inline_depth_limit_ = limit;
+  }
 
   size_t GetInlineMaxCodeUnits() const {
     return inline_max_code_units_;
+  }
+  void SetInlineMaxCodeUnits(size_t units) {
+    inline_max_code_units_ = units;
   }
 
   double GetTopKProfileThreshold() const {
