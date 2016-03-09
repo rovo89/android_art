@@ -806,7 +806,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         }
       }
 
-      if (writer_->compiler_driver_->GetCompilerOptions().GenerateAnyDebugInfo()) {
+      const CompilerOptions& compiler_options = writer_->compiler_driver_->GetCompilerOptions();
+      if (compiler_options.GenerateAnyDebugInfo()) {
         // Record debug information for this function if we are doing that.
         const uint32_t quick_code_start = quick_code_offset -
             writer_->oat_header_->GetExecutableOffset() - thumb_offset;
@@ -817,6 +818,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
             it.GetMethodAccessFlags(),
             it.GetMethodCodeItem(),
             deduped,
+            compiler_options.GetNativeDebuggable(),
             quick_code_start,
             quick_code_start + code_size,
             compiled_method});
