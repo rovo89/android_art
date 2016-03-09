@@ -1459,50 +1459,31 @@ void ImageSpace::CreateMultiImageLocations(const std::string& input_image_file_n
   //              images[0] is          f/c/d/e.art
   // ----------------------------------------------
   //              images[1] is          g/h/i/j.art  -> /a/b/h/i/j.art
-
-  // Derive pattern.
-  std::vector<std::string> left;
-  Split(input_image_file_name, '/', &left);
-  std::vector<std::string> right;
-  Split(images[0], '/', &right);
-
-  size_t common = 1;
-  while (common < left.size() && common < right.size()) {
-    if (left[left.size() - common - 1] != right[right.size() - common - 1]) {
-      break;
-    }
-    common++;
+  const std::string& first_image = images[0];
+  // Length of common suffix.
+  size_t common = 0;
+  while (common < input_image_file_name.size() &&
+         common < first_image.size() &&
+         *(input_image_file_name.end() - common - 1) == *(first_image.end() - common - 1)) {
+    ++common;
   }
-
-  std::vector<std::string> prefix_vector(left.begin(), left.end() - common);
-  std::string common_prefix = Join(prefix_vector, '/');
-  if (!common_prefix.empty() && common_prefix[0] != '/' && input_image_file_name[0] == '/') {
-    common_prefix = "/" + common_prefix;
-  }
+  // We want to replace the prefix of the input image with the prefix of the boot class path.
+  // This handles the case where the image file contains @ separators.
+  // Example image_file_name is oats/system@framework@boot.art
+  // images[0] is .../arm/boot.art
+  // means that the image name prefix will be oats/system@framework@
+  // so that the other images are openable.
+  const size_t old_prefix_length = first_image.size() - common;
+  const std::string new_prefix = input_image_file_name.substr(
+      0,
+      input_image_file_name.size() - common);
 
   // Apply pattern to images[1] .. images[n].
   for (size_t i = 1; i < images.size(); ++i) {
-    std::string image = images[i];
-
-    size_t rslash = std::string::npos;
-    for (size_t j = 0; j < common; ++j) {
-      if (rslash != std::string::npos) {
-        rslash--;
-      }
-
-      rslash = image.rfind('/', rslash);
-      if (rslash == std::string::npos) {
-        rslash = 0;
-      }
-      if (rslash == 0) {
-        break;
-      }
-    }
-    std::string image_part = image.substr(rslash);
-
-    std::string new_image = common_prefix + (StartsWith(image_part, "/") ? "" : "/") +
-        image_part;
-    image_file_names->push_back(new_image);
+    const std::string& image = images[i];
+    CHECK_GT(image.length(), old_prefix_length);
+    std::string suffix = image.substr(old_prefix_length);
+    image_file_names->push_back(new_prefix + suffix);
   }
 }
 
