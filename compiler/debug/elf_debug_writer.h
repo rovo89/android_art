@@ -31,24 +31,28 @@ namespace debug {
 struct MethodDebugInfo;
 
 template <typename ElfTypes>
-void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
-                    const ArrayRef<const MethodDebugInfo>& method_infos,
-                    dwarf::CFIFormat cfi_format,
-                    bool write_oat_patches);
+void WriteDebugInfo(
+    ElfBuilder<ElfTypes>* builder,
+    const ArrayRef<const MethodDebugInfo>& method_infos,
+    dwarf::CFIFormat cfi_format,
+    bool write_oat_patches);
 
-std::vector<uint8_t> MakeMiniDebugInfo(InstructionSet isa,
-                                       const InstructionSetFeatures* features,
-                                       size_t rodata_section_size,
-                                       size_t text_section_size,
-                                       const ArrayRef<const MethodDebugInfo>& method_infos);
+std::vector<uint8_t> MakeMiniDebugInfo(
+    InstructionSet isa,
+    const InstructionSetFeatures* features,
+    size_t rodata_section_size,
+    size_t text_section_size,
+    const ArrayRef<const MethodDebugInfo>& method_infos);
 
-ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const InstructionSet isa,
-                                                   const InstructionSetFeatures* features,
-                                                   const MethodDebugInfo& method_info);
+ArrayRef<const uint8_t> WriteDebugElfFileForMethods(
+    InstructionSet isa,
+    const InstructionSetFeatures* features,
+    const ArrayRef<const MethodDebugInfo>& method_infos);
 
-ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
-                                                    const InstructionSetFeatures* features,
-                                                    const ArrayRef<mirror::Class*>& types)
+ArrayRef<const uint8_t> WriteDebugElfFileForClasses(
+    InstructionSet isa,
+    const InstructionSetFeatures* features,
+    const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
 }  // namespace debug
