@@ -70,7 +70,17 @@ class Jit {
     return instrumentation_cache_.get();
   }
 
-  void StartProfileSaver(const std::string& filename, const std::vector<std::string>& code_paths);
+  // Starts the profile saver if the config options allow profile recording.
+  // The profile will be stored in the specified `filename` and will contain
+  // information collected from the given `code_paths` (a set of dex locations).
+  // The `foreign_dex_profile_path` is the path where the saver will put the
+  // profile markers for loaded dex files which are not owned by the application.
+  // The `app_dir` is the application directory and is used to decide which
+  // dex files belong to the application.
+  void StartProfileSaver(const std::string& filename,
+                         const std::vector<std::string>& code_paths,
+                         const std::string& foreign_dex_profile_path,
+                         const std::string& app_dir);
   void StopProfileSaver();
 
   void DumpForSigQuit(std::ostream& os) {

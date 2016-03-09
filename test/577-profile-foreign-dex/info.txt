@@ -1,0 +1,1 @@
+Check that we record the use of foreign dex files when profiles are enabled.
