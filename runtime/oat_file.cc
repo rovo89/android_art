@@ -169,7 +169,10 @@ bool OatFileBase::ComputeFields(uint8_t* requested_base,
     return false;
   }
   if (requested_base != nullptr && begin_ != requested_base) {
-    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    // Host can fail this check. Do not dump there to avoid polluting the output.
+    if (kIsTargetBuild) {
+      PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    }
     *error_msg = StringPrintf("Failed to find oatdata symbol at expected address: "
         "oatdata=%p != expected=%p. See process maps in the log.",
         begin_, requested_base);
