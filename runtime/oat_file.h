@@ -64,6 +64,7 @@ class OatFile {
                        uint8_t* requested_base,
                        uint8_t* oat_file_begin,
                        bool executable,
+                       bool low_4gb,
                        const char* abs_dex_location,
                        std::string* error_msg);
 
