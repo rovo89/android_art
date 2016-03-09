@@ -218,9 +218,14 @@ class OatFileAssistantTest : public CommonRuntimeTest {
 
     // Verify the odex file was generated as expected and really is
     // unrelocated.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(
-        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
-        false, dex_location.c_str(), &error_msg));
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
 
     const std::vector<gc::space::ImageSpace*> image_spaces =
@@ -252,9 +257,14 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     setenv("ANDROID_DATA", android_data_.c_str(), 1);
 
     // Verify the odex file was generated as expected.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(
-        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
-        false, dex_location.c_str(), &error_msg));
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
     EXPECT_TRUE(odex_file->IsPic());
   }
@@ -269,9 +279,14 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
 
     // Verify the odex file was generated as expected.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(
-        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
-        false, dex_location.c_str(), &error_msg));
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
     EXPECT_TRUE(odex_file->IsExtractOnly());
     EXPECT_EQ(odex_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0u);
@@ -290,9 +305,14 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
 
     // Verify the odex file was generated as expected.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(
-        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
-        false, dex_location.c_str(), &error_msg));
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
     printf("error %s", error_msg.c_str());
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
     EXPECT_TRUE(odex_file->IsProfileGuideCompiled());

@@ -617,7 +617,7 @@ class RelocationRange {
   }
 
   // Returns the delta between the dest from the source.
-  off_t Delta() const {
+  uintptr_t Delta() const {
     return dest_ - source_;
   }
 
@@ -638,6 +638,13 @@ class RelocationRange {
   const uintptr_t dest_;
   const uintptr_t length_;
 };
+
+std::ostream& operator<<(std::ostream& os, const RelocationRange& reloc) {
+  return os << "(" << reinterpret_cast<const void*>(reloc.Source()) << "-"
+            << reinterpret_cast<const void*>(reloc.Source() + reloc.Length()) << ")->("
+            << reinterpret_cast<const void*>(reloc.Dest()) << "-"
+            << reinterpret_cast<const void*>(reloc.Dest() + reloc.Length()) << ")";
+}
 
 class FixupVisitor : public ValueObject {
  public:
@@ -670,7 +677,7 @@ class FixupVisitor : public ValueObject {
   ALWAYS_INLINE const void* ForwardCode(const void* src) const {
     const uintptr_t uint_src = reinterpret_cast<uintptr_t>(src);
     if (boot_oat_.InSource(uint_src)) {
-     return reinterpret_cast<const void*>(boot_oat_.ToDest(uint_src));
+      return reinterpret_cast<const void*>(boot_oat_.ToDest(uint_src));
     }
     if (app_oat_.InSource(uint_src)) {
       return reinterpret_cast<const void*>(app_oat_.ToDest(uint_src));
@@ -686,13 +693,6 @@ class FixupVisitor : public ValueObject {
   const RelocationRange app_image_;
   const RelocationRange app_oat_;
 };
-
-std::ostream& operator<<(std::ostream& os, const RelocationRange& reloc) {
-  return os << "(" << reinterpret_cast<const void*>(reloc.Source()) << "-"
-            << reinterpret_cast<const void*>(reloc.Source() + reloc.Length()) << ")->("
-            << reinterpret_cast<const void*>(reloc.Dest()) << "-"
-            << reinterpret_cast<const void*>(reloc.Dest() + reloc.Length()) << ")";
-}
 
 // Adapt for mirror::Class::FixupNativePointers.
 class FixupObjectAdapter : public FixupVisitor {
@@ -756,8 +756,10 @@ class FixupObjectVisitor : public FixupVisitor {
  public:
   template<typename... Args>
   explicit FixupObjectVisitor(gc::accounting::ContinuousSpaceBitmap* pointer_array_visited,
+                              const size_t pointer_size,
                               Args... args)
       : FixupVisitor(args...),
+        pointer_size_(pointer_size),
         pointer_array_visited_(pointer_array_visited) {}
 
   // Fix up separately since we also need to fix up method entrypoints.
@@ -791,7 +793,7 @@ class FixupObjectVisitor : public FixupVisitor {
     if (array != nullptr &&
         visitor.IsInAppImage(array) &&
         !pointer_array_visited_->Test(array)) {
-      array->Fixup<kVerifyNone, kWithoutReadBarrier>(array, sizeof(void*), visitor);
+      array->Fixup<kVerifyNone, kWithoutReadBarrier>(array, pointer_size_, visitor);
       pointer_array_visited_->Set(array);
     }
   }
@@ -813,7 +815,7 @@ class FixupObjectVisitor : public FixupVisitor {
     if (obj->IsClass<kVerifyNone, kWithoutReadBarrier>()) {
       mirror::Class* klass = obj->AsClass<kVerifyNone, kWithoutReadBarrier>();
       FixupObjectAdapter visitor(boot_image_, boot_oat_, app_image_, app_oat_);
-      klass->FixupNativePointers<kVerifyNone, kWithoutReadBarrier>(klass, sizeof(void*), visitor);
+      klass->FixupNativePointers<kVerifyNone, kWithoutReadBarrier>(klass, pointer_size_, visitor);
       // Deal with the pointer arrays. Use the helper function since multiple classes can reference
       // the same arrays.
       VisitPointerArray(klass->GetVTable<kVerifyNone, kWithoutReadBarrier>(), visitor);
@@ -832,6 +834,7 @@ class FixupObjectVisitor : public FixupVisitor {
   }
 
  private:
+  const size_t pointer_size_;
   gc::accounting::ContinuousSpaceBitmap* const pointer_array_visited_;
 };
 
@@ -850,7 +853,8 @@ class ForwardObjectAdapter {
 
 class ForwardCodeAdapter {
  public:
-  ALWAYS_INLINE ForwardCodeAdapter(const FixupVisitor* visitor) : visitor_(visitor) {}
+  ALWAYS_INLINE ForwardCodeAdapter(const FixupVisitor* visitor)
+      : visitor_(visitor) {}
 
   template <typename T>
   ALWAYS_INLINE T* operator()(T* src) const {
@@ -864,19 +868,21 @@ class ForwardCodeAdapter {
 class FixupArtMethodVisitor : public FixupVisitor, public ArtMethodVisitor {
  public:
   template<typename... Args>
-  explicit FixupArtMethodVisitor(bool fixup_heap_objects, Args... args)
+  explicit FixupArtMethodVisitor(bool fixup_heap_objects, size_t pointer_size, Args... args)
       : FixupVisitor(args...),
-        fixup_heap_objects_(fixup_heap_objects) {}
+        fixup_heap_objects_(fixup_heap_objects),
+        pointer_size_(pointer_size) {}
 
   virtual void Visit(ArtMethod* method) NO_THREAD_SAFETY_ANALYSIS {
     if (fixup_heap_objects_) {
-      method->UpdateObjectsForImageRelocation(ForwardObjectAdapter(this));
+      method->UpdateObjectsForImageRelocation(ForwardObjectAdapter(this), pointer_size_);
     }
-    method->UpdateEntrypoints<kWithoutReadBarrier>(ForwardCodeAdapter(this));
+    method->UpdateEntrypoints<kWithoutReadBarrier>(ForwardCodeAdapter(this), pointer_size_);
   }
 
  private:
   const bool fixup_heap_objects_;
+  const size_t pointer_size_;
 };
 
 class FixupArtFieldVisitor : public FixupVisitor, public ArtFieldVisitor {
@@ -912,6 +918,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
   uint32_t boot_image_end = 0;
   uint32_t boot_oat_begin = 0;
   uint32_t boot_oat_end = 0;
+  const size_t pointer_size = image_header.GetPointerSize();
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   heap->GetBootImagesSize(&boot_image_begin, &boot_image_end, &boot_oat_begin, &boot_oat_end);
   CHECK_NE(boot_image_begin, boot_image_end)
@@ -974,6 +981,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
                                                       target_base,
                                                       image_header.GetImageSize()));
     FixupObjectVisitor fixup_object_visitor(visited_bitmap.get(),
+                                            pointer_size,
                                             boot_image,
                                             boot_oat,
                                             app_image,
@@ -1023,10 +1031,10 @@ static bool RelocateInPlace(ImageHeader& image_header,
           dex_cache->SetResolvedMethods(new_methods);
         }
         for (size_t j = 0, num = dex_cache->NumResolvedMethods(); j != num; ++j) {
-          ArtMethod* orig = mirror::DexCache::GetElementPtrSize(new_methods, j, sizeof(void*));
+          ArtMethod* orig = mirror::DexCache::GetElementPtrSize(new_methods, j, pointer_size);
           ArtMethod* copy = fixup_adapter.ForwardObject(orig);
           if (orig != copy) {
-            mirror::DexCache::SetElementPtrSize(new_methods, j, copy, sizeof(void*));
+            mirror::DexCache::SetElementPtrSize(new_methods, j, copy, pointer_size);
           }
         }
       }
@@ -1037,10 +1045,10 @@ static bool RelocateInPlace(ImageHeader& image_header,
           dex_cache->SetResolvedFields(new_fields);
         }
         for (size_t j = 0, num = dex_cache->NumResolvedFields(); j != num; ++j) {
-          ArtField* orig = mirror::DexCache::GetElementPtrSize(new_fields, j, sizeof(void*));
+          ArtField* orig = mirror::DexCache::GetElementPtrSize(new_fields, j, pointer_size);
           ArtField* copy = fixup_adapter.ForwardObject(orig);
           if (orig != copy) {
-            mirror::DexCache::SetElementPtrSize(new_fields, j, copy, sizeof(void*));
+            mirror::DexCache::SetElementPtrSize(new_fields, j, copy, pointer_size);
           }
         }
       }
@@ -1049,11 +1057,16 @@ static bool RelocateInPlace(ImageHeader& image_header,
   {
     // Only touches objects in the app image, no need for mutator lock.
     TimingLogger::ScopedTiming timing("Fixup methods", &logger);
-    FixupArtMethodVisitor method_visitor(fixup_image, boot_image, boot_oat, app_image, app_oat);
+    FixupArtMethodVisitor method_visitor(fixup_image,
+                                         pointer_size,
+                                         boot_image,
+                                         boot_oat,
+                                         app_image,
+                                         app_oat);
     image_header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
         &method_visitor,
         target_base,
-        sizeof(void*));
+        pointer_size);
   }
   if (fixup_image) {
     {
@@ -1381,6 +1394,7 @@ OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg)
                                     image_header.GetOatDataBegin(),
                                     image_header.GetOatFileBegin(),
                                     !Runtime::Current()->IsAotCompiler(),
+                                    /*low_4gb*/false,
                                     nullptr,
                                     error_msg);
   if (oat_file == nullptr) {

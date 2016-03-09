@@ -149,6 +149,12 @@ class ClassLinker {
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool OpenImageDexFiles(gc::space::ImageSpace* space,
+                         std::vector<std::unique_ptr<const DexFile>>* out_dex_files,
+                         std::string* error_msg)
+      REQUIRES(!dex_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
   mirror::Class* FindClass(Thread* self,
