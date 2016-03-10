@@ -1503,9 +1503,6 @@ static void GenerateStringIndexOf(HInvoke* invoke,
     DCHECK_EQ(tmp_reg, A2);
     // Start-index = 0.
     __ Clear(tmp_reg);
-  } else {
-    __ Slt(TMP, A2, ZERO);      // if fromIndex < 0
-    __ Seleqz(A2, A2, TMP);     //     fromIndex = 0
   }
 
   __ LoadFromOffset(kLoadDoubleword,

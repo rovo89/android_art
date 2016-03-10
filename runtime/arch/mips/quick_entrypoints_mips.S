@@ -1416,7 +1416,7 @@ ENTRY art_quick_alloc_object_rosalloc
 
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
     jal   artAllocObjectFromCodeRosAlloc
-    move  $a2 ,$s1                                                # Pass self as argument.
+    move  $a2, $s1                                                # Pass self as argument.
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 
 END art_quick_alloc_object_rosalloc
@@ -1744,5 +1744,74 @@ ENTRY_NO_GP art_quick_ushr_long
     nop
 END art_quick_ushr_long
 
-UNIMPLEMENTED art_quick_indexof
-UNIMPLEMENTED art_quick_string_compareto
+/* java.lang.String.indexOf(int ch, int fromIndex=0) */
+ENTRY_NO_GP art_quick_indexof
+/* $a0 holds address of "this" */
+/* $a1 holds "ch" */
+/* $a2 holds "fromIndex" */
+  lw    $t0, MIRROR_STRING_COUNT_OFFSET($a0)    # this.length()
+  slt   $at, $a2, $zero # if fromIndex < 0
+#if defined(_MIPS_ARCH_MIPS32R6) || defined(_MIPS_ARCH_MIPS64R6)
+  seleqz $a2, $a2, $at  #     fromIndex = 0;
+#else
+  movn   $a2, $zero, $at #    fromIndex = 0;
+#endif
+  subu  $t0, $t0, $a2   # this.length() - fromIndex
+  blez  $t0, 6f         # if this.length()-fromIndex <= 0
+  li    $v0, -1         #     return -1;
+
+  sll   $v0, $a2, 1     # $a0 += $a2 * 2
+  addu  $a0, $a0, $v0   #  "  "   "  " "
+  move  $v0, $a2        # Set i to fromIndex.
+
+1:
+  lhu   $t3, MIRROR_STRING_VALUE_OFFSET($a0)    # if this.charAt(i) == ch
+  beq   $t3, $a1, 6f                            #     return i;
+  addu  $a0, $a0, 2     # i++
+  subu  $t0, $t0, 1     # this.length() - i
+  bnez  $t0, 1b         # while this.length() - i > 0
+  addu  $v0, $v0, 1     # i++
+
+  li    $v0, -1         # if this.length() - i <= 0
+                        #     return -1;
+
+6:
+  j     $ra
+  nop
+END art_quick_indexof
+
+  .set push
+  .set noat
+/* java.lang.String.compareTo(String anotherString) */
+ENTRY_NO_GP art_quick_string_compareto
+/* $a0 holds address of "this" */
+/* $a1 holds address of "anotherString" */
+  beq    $a0, $a1, 9f   # this and anotherString are the same object
+  move   $v0, $zero
+
+  lw     $a2, MIRROR_STRING_COUNT_OFFSET($a0)   # this.length()
+  lw     $a3, MIRROR_STRING_COUNT_OFFSET($a1)   # anotherString.length()
+  MINu   $t2, $a2, $a3
+# $t2 now holds min(this.length(),anotherString.length())
+
+  beqz   $t2, 9f        # while min(this.length(),anotherString.length())-i != 0
+  subu   $v0, $a2, $a3  # if $t2==0 return
+                        #     (this.length() - anotherString.length())
+1:
+  lhu    $t0, MIRROR_STRING_VALUE_OFFSET($a0)   # while this.charAt(i) == anotherString.charAt(i)
+  lhu    $t1, MIRROR_STRING_VALUE_OFFSET($a1)
+  bne    $t0, $t1, 9f   # if this.charAt(i) != anotherString.charAt(i)
+  subu   $v0, $t0, $t1  #     return (this.charAt(i) - anotherString.charAt(i))
+  addiu  $a0, $a0, 2    # point at this.charAt(i++)
+  subu   $t2, $t2, 1    # new value of
+                        # min(this.length(),anotherString.length())-i
+  bnez   $t2, 1b
+  addiu  $a1, $a1, 2    # point at anotherString.charAt(i++)
+  subu   $v0, $a2, $a3
+
+9:
+  j      $ra
+  nop
+END art_quick_string_compareto
+
+  .set pop
