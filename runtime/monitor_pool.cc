@@ -42,11 +42,12 @@ void MonitorPool::AllocateChunk() {
     if (capacity_ == 0U) {
       // Initialization.
       capacity_ = kInitialChunkStorage;
-      uintptr_t* new_backing = new uintptr_t[capacity_];
+      uintptr_t* new_backing = new uintptr_t[capacity_]();
+      DCHECK(monitor_chunks_.LoadRelaxed() == nullptr);
       monitor_chunks_.StoreRelaxed(new_backing);
     } else {
       size_t new_capacity = 2 * capacity_;
-      uintptr_t* new_backing = new uintptr_t[new_capacity];
+      uintptr_t* new_backing = new uintptr_t[new_capacity]();
       uintptr_t* old_backing = monitor_chunks_.LoadRelaxed();
       memcpy(new_backing, old_backing, sizeof(uintptr_t) * capacity_);
       monitor_chunks_.StoreRelaxed(new_backing);
@@ -86,6 +87,25 @@ void MonitorPool::AllocateChunk() {
   }
   DCHECK(last == reinterpret_cast<Monitor*>(chunk));
   first_free_ = last;
+}
+
+void MonitorPool::FreeInternal() {
+  // This is on shutdown with NO_THREAD_SAFETY_ANALYSIS, can't/don't need to lock.
+  uintptr_t* backing = monitor_chunks_.LoadRelaxed();
+  DCHECK(backing != nullptr);
+  DCHECK_GT(capacity_, 0U);
+  DCHECK_GT(num_chunks_, 0U);
+
+  for (size_t i = 0; i < capacity_; ++i) {
+    if (i < num_chunks_) {
+      DCHECK_NE(backing[i], 0U);
+      allocator_.deallocate(reinterpret_cast<uint8_t*>(backing[i]), kChunkSize);
+    } else {
+      DCHECK_EQ(backing[i], 0U);
+    }
+  }
+
+  delete[] backing;
 }
 
 Monitor* MonitorPool::CreateMonitorInPool(Thread* self, Thread* owner, mirror::Object* obj,
