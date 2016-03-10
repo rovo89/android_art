@@ -288,14 +288,17 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
 }
 
 TEST_F(ImageTest, WriteReadUncompressed) {
+  TEST_DISABLED_FOR_READ_BARRIER();  // b/27578460
   TestWriteRead(ImageHeader::kStorageModeUncompressed);
 }
 
 TEST_F(ImageTest, WriteReadLZ4) {
+  TEST_DISABLED_FOR_READ_BARRIER();  // b/27578460
   TestWriteRead(ImageHeader::kStorageModeLZ4);
 }
 
 TEST_F(ImageTest, WriteReadLZ4HC) {
+  TEST_DISABLED_FOR_READ_BARRIER();  // b/27578460
   TestWriteRead(ImageHeader::kStorageModeLZ4HC);
 }
 

@@ -122,6 +122,13 @@ class CommonCompilerTest : public CommonRuntimeTest {
     return; \
   }
 
+// TODO: When read barrier works with all tests, get rid of this.
+#define TEST_DISABLED_FOR_READ_BARRIER() \
+  if (kUseReadBarrier) { \
+    printf("WARNING: TEST DISABLED FOR READ BARRIER\n"); \
+    return; \
+  }
+
 // TODO: When read barrier works with all compilers in use, get rid of this.
 #define TEST_DISABLED_FOR_READ_BARRIER_WITH_QUICK() \
   if (kUseReadBarrier && GetCompilerKind() == Compiler::kQuick) { \
