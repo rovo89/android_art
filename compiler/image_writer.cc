@@ -266,17 +266,9 @@ bool ImageWriter::Write(int image_fd,
                      << PrettyDuration(NanoTime() - compress_start_time);
     }
 
-    // Write header first, as uncompressed.
-    image_header->data_size_ = data_size;
-    if (!image_file->WriteFully(image_info.image_->Begin(), sizeof(ImageHeader))) {
-      PLOG(ERROR) << "Failed to write image file header " << image_filename;
-      image_file->Erase();
-      return false;
-    }
-
     // Write out the image + fields + methods.
     const bool is_compressed = compressed_data != nullptr;
-    if (!image_file->WriteFully(image_data_to_write, data_size)) {
+    if (!image_file->PwriteFully(image_data_to_write, data_size, sizeof(ImageHeader))) {
       PLOG(ERROR) << "Failed to write image file data " << image_filename;
       image_file->Erase();
       return false;
@@ -291,13 +283,33 @@ bool ImageWriter::Write(int image_fd,
     if (!is_compressed) {
       CHECK_EQ(bitmap_position_in_file, bitmap_section.Offset());
     }
-    if (!image_file->Write(reinterpret_cast<char*>(image_info.image_bitmap_->Begin()),
-                           bitmap_section.Size(),
-                           bitmap_position_in_file)) {
+    if (!image_file->PwriteFully(reinterpret_cast<char*>(image_info.image_bitmap_->Begin()),
+                                 bitmap_section.Size(),
+                                 bitmap_position_in_file)) {
       PLOG(ERROR) << "Failed to write image file " << image_filename;
       image_file->Erase();
       return false;
     }
+
+    int err = image_file->Flush();
+    if (err < 0) {
+      PLOG(ERROR) << "Failed to flush image file " << image_filename << " with result " << err;
+      image_file->Erase();
+      return false;
+    }
+
+    // Write header last in case the compiler gets killed in the middle of image writing.
+    // We do not want to have a corrupted image with a valid header.
+    // The header is uncompressed since it contains whether the image is compressed or not.
+    image_header->data_size_ = data_size;
+    if (!image_file->PwriteFully(reinterpret_cast<char*>(image_info.image_->Begin()),
+                                 sizeof(ImageHeader),
+                                 0)) {
+      PLOG(ERROR) << "Failed to write image file header " << image_filename;
+      image_file->Erase();
+      return false;
+    }
+
     CHECK_EQ(bitmap_position_in_file + bitmap_section.Size(),
              static_cast<size_t>(image_file->GetLength()));
     if (image_file->FlushCloseOrErase() != 0) {

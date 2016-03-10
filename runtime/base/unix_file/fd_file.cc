@@ -234,19 +234,32 @@ bool FdFile::PreadFully(void* buffer, size_t byte_count, size_t offset) {
   return ReadFullyGeneric<pread>(fd_, buffer, byte_count, offset);
 }
 
-bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
+template <bool kUseOffset>
+bool FdFile::WriteFullyGeneric(const void* buffer, size_t byte_count, size_t offset) {
   DCHECK(!read_only_mode_);
-  const char* ptr = static_cast<const char*>(buffer);
   moveTo(GuardState::kBase, GuardState::kClosed, "Writing into closed file.");
+  DCHECK(kUseOffset || offset == 0u);
+  const char* ptr = static_cast<const char*>(buffer);
   while (byte_count > 0) {
-    ssize_t bytes_written = TEMP_FAILURE_RETRY(write(fd_, ptr, byte_count));
+    ssize_t bytes_written = kUseOffset
+        ? TEMP_FAILURE_RETRY(pwrite(fd_, ptr, byte_count, offset))
+        : TEMP_FAILURE_RETRY(write(fd_, ptr, byte_count));
     if (bytes_written == -1) {
       return false;
     }
     byte_count -= bytes_written;  // Reduce the number of remaining bytes.
     ptr += bytes_written;  // Move the buffer forward.
+    offset += static_cast<size_t>(bytes_written);
   }
   return true;
+}
+
+bool FdFile::PwriteFully(const void* buffer, size_t byte_count, size_t offset) {
+  return WriteFullyGeneric<true>(buffer, byte_count, offset);
+}
+
+bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
+  return WriteFullyGeneric<false>(buffer, byte_count, 0u);
 }
 
 bool FdFile::Copy(FdFile* input_file, int64_t offset, int64_t size) {
