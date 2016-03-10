@@ -1205,7 +1205,7 @@ TEST_F(StubTest, AllocObjectArray) {
 
 TEST_F(StubTest, StringCompareTo) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || \
-    (defined(__mips__) && defined(__LP64__)) || (defined(__x86_64__) && !defined(__APPLE__))
+    defined(__mips__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
@@ -2054,7 +2054,7 @@ TEST_F(StubTest, IMT) {
 }
 
 TEST_F(StubTest, StringIndexOf) {
-#if defined(__arm__) || defined(__aarch64__) || (defined(__mips__) && defined(__LP64__))
+#if defined(__arm__) || defined(__aarch64__) || defined(__mips__)
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init

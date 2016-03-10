@@ -129,4 +129,43 @@
 #endif  // USE_HEAP_POISONING
 .endm
 
+// Based on contents of creg select the minimum integer
+// At the end of the macro the original value of creg is lost
+.macro MINint dreg,rreg,sreg,creg
+  .set push
+  .set noat
+#if defined(_MIPS_ARCH_MIPS32R6) || defined(_MIPS_ARCH_MIPS64R6)
+  .ifc \dreg, \rreg
+  selnez \dreg, \rreg, \creg
+  seleqz \creg, \sreg, \creg
+  .else
+  seleqz \dreg, \sreg, \creg
+  selnez \creg, \rreg, \creg
+  .endif
+  or     \dreg, \dreg, \creg
+#else
+  movn   \dreg, \rreg, \creg
+  movz   \dreg, \sreg, \creg
+#endif
+  .set pop
+.endm
+
+// Find minimum of two signed registers
+.macro MINs dreg,rreg,sreg
+  .set push
+  .set noat
+  slt    $at, \rreg, \sreg
+  MINint \dreg, \rreg, \sreg, $at
+  .set pop
+.endm
+
+// Find minimum of two unsigned registers
+.macro MINu dreg,rreg,sreg
+  .set push
+  .set noat
+  sltu   $at, \rreg, \sreg
+  MINint \dreg, \rreg, \sreg, $at
+  .set pop
+.endm
+
 #endif  // ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_S_
