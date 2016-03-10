@@ -276,7 +276,7 @@ ENTRY \name
     bl     \entrypoint                   @ (field_idx, Object*, new_val, referrer, Thread*)
     add    sp, #16                       @ release out args
     .cfi_adjust_cfa_offset -16
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  @ TODO: we can clearly save an add here
     \return
 END \name
 .endm
@@ -812,14 +812,23 @@ END \name
 .macro FOUR_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
+    sub    sp, #12                    @ alignment padding
+    .cfi_adjust_cfa_offset 12
+    push   {r3}                       @ Save r3 as is it used as a temp register in the
+    .cfi_adjust_cfa_offset 4          @   expansion of the SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    .cfi_rel_offset r3, 0             @   macro below, which clobbers its arguments.
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r3, r12  @ save callee saves in case of GC
+    ldr    r3, [sp, 32]               @ restore r3
+    .cfi_restore r3
+
     str    r9, [sp, #-16]!            @ expand the frame and pass Thread::Current
-    .pad #16
     .cfi_adjust_cfa_offset 16
     bl     \entrypoint
     add    sp, #16                    @ strip the extra frame
     .cfi_adjust_cfa_offset -16
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    add    sp, #16                    @ pop r3 + padding
+    .cfi_adjust_cfa_offset -16
     \return
 END \name
 .endm

@@ -605,6 +605,13 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangString, IndexOf, I_I, kIntrinsicIndexOf, kIntrinsicFlagBase0),
     INTRINSIC(JavaLangString, Length, _I, kIntrinsicIsEmptyOrLength, kIntrinsicFlagLength),
 
+    INTRINSIC(JavaLangStringFactory, NewStringFromBytes, ByteArrayIII_String,
+              kIntrinsicNewStringFromBytes, kIntrinsicFlagNone),
+    INTRINSIC(JavaLangStringFactory, NewStringFromChars, IICharArray_String,
+              kIntrinsicNewStringFromChars, kIntrinsicFlagNone),
+    INTRINSIC(JavaLangStringFactory, NewStringFromString, String_String,
+              kIntrinsicNewStringFromString, kIntrinsicFlagNone),
+
     INTRINSIC(JavaLangThread, CurrentThread, _Thread, kIntrinsicCurrentThread, 0),
 
     INTRINSIC(LibcoreIoMemory, PeekByte, J_B, kIntrinsicPeek, kSignedByte),
