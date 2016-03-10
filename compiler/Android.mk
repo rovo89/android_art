@@ -330,9 +330,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   # Vixl assembly support for ARM64 targets.
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_static_or_shared), static)
-      LOCAL_WHOLESTATIC_LIBRARIES += libvixld
+      LOCAL_WHOLESTATIC_LIBRARIES += libvixl
     else
-      LOCAL_SHARED_LIBRARIES += libvixld
+      LOCAL_SHARED_LIBRARIES += libvixl
     endif
   else
     ifeq ($$(art_static_or_shared), static)
