@@ -86,7 +86,7 @@ define build-libart-simulator
   LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
   # For simulator_arm64.
   ifeq ($$(art_ndebug_or_debug),debug)
-     LOCAL_SHARED_LIBRARIES += libvixld
+     LOCAL_SHARED_LIBRARIES += libvixl
   else
      LOCAL_SHARED_LIBRARIES += libvixl
   endif
