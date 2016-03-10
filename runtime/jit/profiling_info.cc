@@ -97,8 +97,8 @@ void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {
       }
     }
   }
-  // Unsuccessfull - cache is full, making it megamorphic.
-  DCHECK(cache->IsMegamorphic());
+  // Unsuccessfull - cache is full, making it megamorphic. We do not DCHECK it though,
+  // as the garbage collector might clear the entries concurrently.
 }
 
 }  // namespace art

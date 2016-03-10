@@ -169,13 +169,14 @@ JitCompiler::JitCompiler() {
   compiler_driver_->SetDedupeEnabled(false);
   compiler_driver_->SetSupportBootImageFixup(false);
 
+  size_t thread_count = compiler_driver_->GetThreadCount();
   if (compiler_options_->GetGenerateDebugInfo()) {
 #ifdef __ANDROID__
     const char* prefix = "/data/misc/trace";
 #else
     const char* prefix = "/tmp";
 #endif
-    DCHECK_EQ(compiler_driver_->GetThreadCount(), 1u)
+    DCHECK_EQ(thread_count, 1u)
         << "Generating debug info only works with one compiler thread";
     std::string perf_filename = std::string(prefix) + "/perf-" + std::to_string(getpid()) + ".map";
     perf_file_.reset(OS::CreateEmptyFileWriteOnly(perf_filename.c_str()));
@@ -184,6 +185,10 @@ JitCompiler::JitCompiler() {
                     " Are you on a user build? Perf only works on userdebug/eng builds";
     }
   }
+
+  size_t inline_depth_limit = compiler_driver_->GetCompilerOptions().GetInlineDepthLimit();
+  DCHECK_LT(thread_count * inline_depth_limit, std::numeric_limits<uint16_t>::max())
+      << "ProfilingInfo's inline counter can potentially overflow";
 }
 
 JitCompiler::~JitCompiler() {

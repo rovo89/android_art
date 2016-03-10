@@ -71,7 +71,15 @@ class JitCodeCache {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
+  void NotifyInliningOf(ArtMethod* method, Thread* self)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
   void DoneCompiling(ArtMethod* method, Thread* self)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
+  void DoneInlining(ArtMethod* method, Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -142,6 +150,8 @@ class JitCodeCache {
       REQUIRES(!lock_)
       REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void ClearGcRootsInInlineCaches(Thread* self) REQUIRES(!lock_);
 
   // Create a 'ProfileInfo' for 'method'. If 'retry_allocation' is true,
   // will collect and retry if the first allocation is unsuccessful.
