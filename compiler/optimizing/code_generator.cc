@@ -543,8 +543,16 @@ void CodeGenerator::AllocateLocations(HInstruction* instruction) {
   DCHECK(CheckTypeConsistency(instruction));
   LocationSummary* locations = instruction->GetLocations();
   if (!instruction->IsSuspendCheckEntry()) {
-    if (locations != nullptr && locations->CanCall()) {
-      MarkNotLeaf();
+    if (locations != nullptr) {
+      if (locations->CanCall()) {
+        MarkNotLeaf();
+      } else if (locations->Intrinsified() &&
+                 instruction->IsInvokeStaticOrDirect() &&
+                 !instruction->AsInvokeStaticOrDirect()->HasCurrentMethodInput()) {
+        // A static method call that has been fully intrinsified, and cannot call on the slow
+        // path or refer to the current method directly, no longer needs current method.
+        return;
+      }
     }
     if (instruction->NeedsCurrentMethod()) {
       SetRequiresCurrentMethod();

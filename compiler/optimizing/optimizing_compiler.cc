@@ -20,7 +20,7 @@
 #include <memory>
 #include <stdint.h>
 
-#ifdef ART_ENABLE_CODEGEN_arm64
+#ifdef ART_ENABLE_CODEGEN_arm
 #include "dex_cache_array_fixups_arm.h"
 #endif
 
@@ -431,6 +431,7 @@ static void MaybeRunInliner(HGraph* graph,
 
 static void RunArchOptimizations(InstructionSet instruction_set,
                                  HGraph* graph,
+                                 CodeGenerator* codegen,
                                  OptimizingCompilerStats* stats,
                                  PassObserver* pass_observer) {
   ArenaAllocator* arena = graph->GetArena();
@@ -466,7 +467,8 @@ static void RunArchOptimizations(InstructionSet instruction_set,
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86: {
-      x86::PcRelativeFixups* pc_relative_fixups = new (arena) x86::PcRelativeFixups(graph, stats);
+      x86::PcRelativeFixups* pc_relative_fixups =
+          new (arena) x86::PcRelativeFixups(graph, codegen, stats);
       HOptimization* x86_optimizations[] = {
           pc_relative_fixups
       };
@@ -561,7 +563,7 @@ static void RunOptimizations(HGraph* graph,
   };
   RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 
-  RunArchOptimizations(driver->GetInstructionSet(), graph, stats, pass_observer);
+  RunArchOptimizations(driver->GetInstructionSet(), graph, codegen, stats, pass_observer);
   AllocateRegisters(graph, codegen, pass_observer);
 }
 
