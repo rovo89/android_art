@@ -79,6 +79,7 @@ class FdFile : public RandomAccessFile {
   bool ReadFully(void* buffer, size_t byte_count) WARN_UNUSED;
   bool PreadFully(void* buffer, size_t byte_count, size_t offset) WARN_UNUSED;
   bool WriteFully(const void* buffer, size_t byte_count) WARN_UNUSED;
+  bool PwriteFully(const void* buffer, size_t byte_count, size_t offset) WARN_UNUSED;
 
   // Copy data from another file.
   bool Copy(FdFile* input_file, int64_t offset, int64_t size);
@@ -119,6 +120,9 @@ class FdFile : public RandomAccessFile {
   GuardState guard_state_;
 
  private:
+  template <bool kUseOffset>
+  bool WriteFullyGeneric(const void* buffer, size_t byte_count, size_t offset);
+
   int fd_;
   std::string file_path_;
   bool auto_close_;
