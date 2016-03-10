@@ -210,6 +210,9 @@ void ElfWriterQuick<ElfTypes>::WriteDynamicSection() {
   if (bss_size_ != 0u) {
     builder_->GetBss()->WriteNoBitsSection(bss_size_);
   }
+  if (builder_->GetIsa() == kMips || builder_->GetIsa() == kMips64) {
+    builder_->WriteMIPSabiflagsSection();
+  }
   builder_->WriteDynamicSection();
 }
 

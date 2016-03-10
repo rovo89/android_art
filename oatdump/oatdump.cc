@@ -148,6 +148,9 @@ class OatSymbolizer FINAL {
       bss->WriteNoBitsSection(oat_file_->BssSize());
     }
 
+    if (isa == kMips || isa == kMips64) {
+      builder_->WriteMIPSabiflagsSection();
+    }
     builder_->PrepareDynamicSection(
         elf_file->GetPath(), rodata_size, text_size, oat_file_->BssSize());
     builder_->WriteDynamicSection();
