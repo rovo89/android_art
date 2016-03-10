@@ -497,6 +497,24 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
     self->SetWaitMonitor(nullptr);
   }
 
+  // Allocate the interrupted exception not holding the monitor lock since it may cause a GC.
+  // If the GC requires acquiring the monitor for enqueuing cleared references, this would
+  // cause a deadlock if the monitor is held.
+  if (was_interrupted && interruptShouldThrow) {
+    /*
+     * We were interrupted while waiting, or somebody interrupted an
+     * un-interruptible thread earlier and we're bailing out immediately.
+     *
+     * The doc sayeth: "The interrupted status of the current thread is
+     * cleared when this exception is thrown."
+     */
+    {
+      MutexLock mu(self, *self->GetWaitMutex());
+      self->SetInterruptedLocked(false);
+    }
+    self->ThrowNewException("Ljava/lang/InterruptedException;", nullptr);
+  }
+
   // Re-acquire the monitor and lock.
   Lock(self);
   monitor_lock_.Lock(self);
@@ -516,21 +534,6 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   RemoveFromWaitSet(self);
 
   monitor_lock_.Unlock(self);
-
-  if (was_interrupted && interruptShouldThrow) {
-    /*
-     * We were interrupted while waiting, or somebody interrupted an
-     * un-interruptible thread earlier and we're bailing out immediately.
-     *
-     * The doc sayeth: "The interrupted status of the current thread is
-     * cleared when this exception is thrown."
-     */
-    {
-      MutexLock mu(self, *self->GetWaitMutex());
-      self->SetInterruptedLocked(false);
-    }
-    self->ThrowNewException("Ljava/lang/InterruptedException;", nullptr);
-  }
 }
 
 void Monitor::Notify(Thread* self) {
