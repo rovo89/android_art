@@ -21,14 +21,21 @@
 #include "optimization.h"
 
 namespace art {
+
+class CodeGenerator;
+
 namespace x86 {
 
 class PcRelativeFixups : public HOptimization {
  public:
-  PcRelativeFixups(HGraph* graph, OptimizingCompilerStats* stats)
-      : HOptimization(graph, "pc_relative_fixups_x86", stats) {}
+  PcRelativeFixups(HGraph* graph, CodeGenerator* codegen, OptimizingCompilerStats* stats)
+      : HOptimization(graph, "pc_relative_fixups_x86", stats),
+        codegen_(codegen) {}
 
   void Run() OVERRIDE;
+
+ private:
+  CodeGenerator* codegen_;
 };
 
 }  // namespace x86

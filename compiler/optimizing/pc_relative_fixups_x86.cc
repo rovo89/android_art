@@ -16,6 +16,7 @@
 
 #include "pc_relative_fixups_x86.h"
 #include "code_generator_x86.h"
+#include "intrinsics_x86.h"
 
 namespace art {
 namespace x86 {
@@ -25,7 +26,10 @@ namespace x86 {
  */
 class PCRelativeHandlerVisitor : public HGraphVisitor {
  public:
-  explicit PCRelativeHandlerVisitor(HGraph* graph) : HGraphVisitor(graph), base_(nullptr) {}
+  PCRelativeHandlerVisitor(HGraph* graph, CodeGenerator* codegen)
+      : HGraphVisitor(graph),
+        codegen_(down_cast<CodeGeneratorX86*>(codegen)),
+        base_(nullptr) {}
 
   void MoveBaseIfNeeded() {
     if (base_ != nullptr) {
@@ -146,7 +150,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     if (base_ != nullptr) {
       return;
     }
-
     // Insert the base at the start of the entry block, move it to a better
     // position later in MoveBaseIfNeeded().
     base_ = new (GetGraph()->GetArena()) HX86ComputeBaseMethodAddress();
@@ -180,7 +183,9 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     }
 
     bool base_added = false;
-    if (invoke_static_or_direct != nullptr && invoke_static_or_direct->HasPcRelativeDexCache()) {
+    if (invoke_static_or_direct != nullptr &&
+        invoke_static_or_direct->HasPcRelativeDexCache() &&
+        !WillHaveCallFreeIntrinsicsCodeGen(invoke)) {
       InitializePCRelativeBasePointer();
       // Add the extra parameter base_.
       invoke_static_or_direct->AddSpecialInput(base_);
@@ -215,6 +220,24 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     }
   }
 
+  bool WillHaveCallFreeIntrinsicsCodeGen(HInvoke* invoke) {
+    if (invoke->GetIntrinsic() != Intrinsics::kNone) {
+      // This invoke may have intrinsic code generation defined. However, we must
+      // now also determine if this code generation is truly there and call-free
+      // (not unimplemented, no bail on instruction features, or call on slow path).
+      // This is done by actually calling the locations builder on the instruction
+      // and clearing out the locations once result is known. We assume this
+      // call only has creating locations as side effects!
+      IntrinsicLocationsBuilderX86 builder(codegen_);
+      bool success = builder.TryDispatch(invoke) && !invoke->GetLocations()->CanCall();
+      invoke->SetLocations(nullptr);
+      return success;
+    }
+    return false;
+  }
+
+  CodeGeneratorX86* codegen_;
+
   // The generated HX86ComputeBaseMethodAddress in the entry block needed as an
   // input to the HX86LoadFromConstantTable instructions.
   HX86ComputeBaseMethodAddress* base_;
@@ -226,7 +249,7 @@ void PcRelativeFixups::Run() {
     // that can be live-in at the irreducible loop header.
     return;
   }
-  PCRelativeHandlerVisitor visitor(graph_);
+  PCRelativeHandlerVisitor visitor(graph_, codegen_);
   visitor.VisitInsertionOrder();
   visitor.MoveBaseIfNeeded();
 }
