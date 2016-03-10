@@ -1464,7 +1464,9 @@ void IntrinsicLocationsBuilderMIPS::VisitStringCharAt(HInvoke* invoke) {
                                                             kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::SameAsFirstInput());
+  // The inputs will be considered live at the last instruction and restored. This will overwrite
+  // the output with kNoOutputOverlap.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitStringCharAt(HInvoke* invoke) {
