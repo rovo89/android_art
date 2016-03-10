@@ -7741,7 +7741,10 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
       }
       ++num_resolved;
       DCHECK(!klass->IsProxyClass());
-      DCHECK(klass->IsResolved());
+      if (!klass->IsResolved()) {
+        DCHECK(klass->IsErroneous());
+        continue;
+      }
       mirror::DexCache* klass_dex_cache = klass->GetDexCache();
       if (klass_dex_cache == dex_cache) {
         const size_t class_def_idx = klass->GetDexClassDefIndex();
