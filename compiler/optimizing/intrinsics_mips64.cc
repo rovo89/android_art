@@ -1356,10 +1356,10 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   __ Beqzc(argument, slow_path->GetEntryLabel());
 
   __ LoadFromOffset(kLoadDoubleword,
-                    TMP,
+                    T9,
                     TR,
                     QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pStringCompareTo).Int32Value());
-  __ Jalr(TMP);
+  __ Jalr(T9);
   __ Nop();
   __ Bind(slow_path->GetExitLabel());
 }
@@ -1506,11 +1506,11 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   }
 
   __ LoadFromOffset(kLoadDoubleword,
-                    TMP,
+                    T9,
                     TR,
                     QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pIndexOf).Int32Value());
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
-  __ Jalr(TMP);
+  __ Jalr(T9);
   __ Nop();
 
   if (slow_path != nullptr) {
@@ -1583,12 +1583,12 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke
   __ Beqzc(byte_array, slow_path->GetEntryLabel());
 
   __ LoadFromOffset(kLoadDoubleword,
-                    TMP,
+                    T9,
                     TR,
                     QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
                                             pAllocStringFromBytes).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
-  __ Jalr(TMP);
+  __ Jalr(T9);
   __ Nop();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
@@ -1617,12 +1617,12 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke
   //
   // all include a null check on `data` before calling that method.
   __ LoadFromOffset(kLoadDoubleword,
-                    TMP,
+                    T9,
                     TR,
                     QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
                                             pAllocStringFromChars).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
-  __ Jalr(TMP);
+  __ Jalr(T9);
   __ Nop();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
@@ -1648,12 +1648,12 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromString(HInvoke* invok
   __ Beqzc(string_to_copy, slow_path->GetEntryLabel());
 
   __ LoadFromOffset(kLoadDoubleword,
-                    TMP,
+                    T9,
                     TR,
                     QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
                                             pAllocStringFromString).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
-  __ Jalr(TMP);
+  __ Jalr(T9);
   __ Nop();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
