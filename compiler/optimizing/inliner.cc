@@ -224,16 +224,29 @@ static uint32_t FindClassIndexIn(mirror::Class* cls,
 
 class ScopedProfilingInfoInlineUse {
  public:
-  explicit ScopedProfilingInfoInlineUse(ArtMethod* method) : method_(method) {
-    Runtime::Current()->GetJit()->GetCodeCache()->NotifyInliningOf(method_, Thread::Current());
+  explicit ScopedProfilingInfoInlineUse(ArtMethod* method, Thread* self)
+      : method_(method),
+        self_(self),
+        // Fetch the profiling info ahead of using it. If it's null when fetching,
+        // we should not call JitCodeCache::DoneInlining.
+        profiling_info_(
+            Runtime::Current()->GetJit()->GetCodeCache()->NotifyCompilerUse(method, self)) {
   }
 
   ~ScopedProfilingInfoInlineUse() {
-    Runtime::Current()->GetJit()->GetCodeCache()->DoneInlining(method_, Thread::Current());
+    if (profiling_info_ != nullptr) {
+      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      DCHECK_EQ(profiling_info_, method_->GetProfilingInfo(pointer_size));
+      Runtime::Current()->GetJit()->GetCodeCache()->DoneCompilerUse(method_, self_);
+    }
   }
+
+  ProfilingInfo* GetProfilingInfo() const { return profiling_info_; }
 
  private:
   ArtMethod* const method_;
+  Thread* const self_;
+  ProfilingInfo* const profiling_info_;
 };
 
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
@@ -287,15 +300,14 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
 
   // Check if we can use an inline cache.
   ArtMethod* caller = graph_->GetArtMethod();
-  size_t pointer_size = class_linker->GetImagePointerSize();
   if (Runtime::Current()->UseJit()) {
     // Under JIT, we should always know the caller.
     DCHECK(caller != nullptr);
-    ScopedProfilingInfoInlineUse spiis(caller);
-    ProfilingInfo* profiling_info = caller->GetProfilingInfo(pointer_size);
+    ScopedProfilingInfoInlineUse spiis(caller, soa.Self());
+    ProfilingInfo* profiling_info = spiis.GetProfilingInfo();
     if (profiling_info != nullptr) {
       const InlineCache& ic = *profiling_info->GetInlineCache(invoke_instruction->GetDexPc());
-      if (ic.IsUnitialized()) {
+      if (ic.IsUninitialized()) {
         VLOG(compiler) << "Interface or virtual call to "
                        << PrettyMethod(method_index, caller_dex_file)
                        << " is not hit and not inlined";
