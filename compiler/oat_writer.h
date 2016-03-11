@@ -202,6 +202,10 @@ class OatWriter {
 
   ~OatWriter();
 
+  void AddMethodDebugInfos(const std::vector<debug::MethodDebugInfo>& infos) {
+    method_info_.insert(method_info_.end(), infos.begin(), infos.end());
+  }
+
   ArrayRef<const debug::MethodDebugInfo> GetMethodDebugInfo() const {
     return ArrayRef<const debug::MethodDebugInfo>(method_info_);
   }

@@ -117,6 +117,7 @@ class ElfDebugLineWriter {
       Elf_Addr method_address = base_address + mi->code_address;
 
       PositionInfos dex2line_map;
+      DCHECK(mi->dex_file != nullptr);
       const DexFile* dex = mi->dex_file;
       if (!dex->DecodeDebugPositionInfo(mi->code_item, PositionInfoCallback, &dex2line_map)) {
         continue;
