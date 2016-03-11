@@ -24,7 +24,7 @@ public class Main {
   //
   /// CHECK:                            If
   /// CHECK-NEXT:                       cmp
-  /// CHECK-NEXT:                       jnl/ge
+  /// CHECK-NEXT:                       jle/ng
   //
   /// CHECK-DAG:   <<Fibs:l\d+>>        StaticFieldGet
   /// CHECK-DAG:                        NullCheck [<<Fibs>>]

@@ -2966,6 +2966,8 @@ class HCondition : public HBinaryOperation {
   virtual IfCondition GetOppositeCondition() const = 0;
 
   bool IsGtBias() const { return GetBias() == ComparisonBias::kGtBias; }
+  bool IsLtBias() const { return GetBias() == ComparisonBias::kLtBias; }
+
   ComparisonBias GetBias() const { return GetPackedField<ComparisonBiasField>(); }
   void SetBias(ComparisonBias bias) { SetPackedField<ComparisonBiasField>(bias); }
 
@@ -2976,13 +2978,23 @@ class HCondition : public HBinaryOperation {
   bool IsFPConditionTrueIfNaN() const {
     DCHECK(Primitive::IsFloatingPointType(InputAt(0)->GetType())) << InputAt(0)->GetType();
     IfCondition if_cond = GetCondition();
-    return IsGtBias() ? ((if_cond == kCondGT) || (if_cond == kCondGE)) : (if_cond == kCondNE);
+    if (if_cond == kCondNE) {
+      return true;
+    } else if (if_cond == kCondEQ) {
+      return false;
+    }
+    return ((if_cond == kCondGT) || (if_cond == kCondGE)) && IsGtBias();
   }
 
   bool IsFPConditionFalseIfNaN() const {
     DCHECK(Primitive::IsFloatingPointType(InputAt(0)->GetType())) << InputAt(0)->GetType();
     IfCondition if_cond = GetCondition();
-    return IsGtBias() ? ((if_cond == kCondLT) || (if_cond == kCondLE)) : (if_cond == kCondEQ);
+    if (if_cond == kCondEQ) {
+      return true;
+    } else if (if_cond == kCondNE) {
+      return false;
+    }
+    return ((if_cond == kCondLT) || (if_cond == kCondLE)) && IsGtBias();
   }
 
  protected:
