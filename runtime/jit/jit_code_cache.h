@@ -71,7 +71,11 @@ class JitCodeCache {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
-  void NotifyInliningOf(ArtMethod* method, Thread* self)
+  // Notify to the code cache that the compiler wants to use the
+  // profiling info of `method` to drive optimizations,
+  // and therefore ensure the returned profiling info object is not
+  // collected.
+  ProfilingInfo* NotifyCompilerUse(ArtMethod* method, Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -79,7 +83,7 @@ class JitCodeCache {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
-  void DoneInlining(ArtMethod* method, Thread* self)
+  void DoneCompilerUse(ArtMethod* method, Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 

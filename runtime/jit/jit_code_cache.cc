@@ -928,20 +928,20 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
   return true;
 }
 
-void JitCodeCache::NotifyInliningOf(ArtMethod* method, Thread* self) {
+ProfilingInfo* JitCodeCache::NotifyCompilerUse(ArtMethod* method, Thread* self) {
   MutexLock mu(self, lock_);
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
   if (info != nullptr) {
     info->IncrementInlineUse();
   }
+  return info;
 }
 
-void JitCodeCache::DoneInlining(ArtMethod* method, Thread* self) {
+void JitCodeCache::DoneCompilerUse(ArtMethod* method, Thread* self) {
   MutexLock mu(self, lock_);
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
-  if (info != nullptr) {
-    info->DecrementInlineUse();
-  }
+  DCHECK(info != nullptr);
+  info->DecrementInlineUse();
 }
 
 void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED) {
