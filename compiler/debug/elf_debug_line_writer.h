@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEBUG_ELF_DEBUG_LINE_WRITER_H_
 #define ART_COMPILER_DEBUG_ELF_DEBUG_LINE_WRITER_H_
 
+#include <unordered_set>
 #include <vector>
 
 #include "compiled_method.h"
@@ -81,11 +82,14 @@ class ElfDebugLineWriter {
       case kX86_64:
         break;
     }
+    std::unordered_set<uint64_t> seen_addresses(compilation_unit.methods.size());
     dwarf::DebugLineOpCodeWriter<> opcodes(is64bit, code_factor_bits_);
     for (const MethodDebugInfo* mi : compilation_unit.methods) {
       // Ignore function if we have already generated line table for the same address.
       // It would confuse the debugger and the DWARF specification forbids it.
-      if (mi->deduped) {
+      // We allow the line table for method to be replicated in different compilation unit.
+      // This ensures that each compilation unit contains line table for all its methods.
+      if (!seen_addresses.insert(mi->code_address).second) {
         continue;
       }
 
