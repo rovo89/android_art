@@ -809,6 +809,7 @@ END_MACRO
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
+
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
 DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     // Fast path rosalloc allocation.
@@ -942,6 +943,8 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME                        // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                    // return or deliver exception
 END_FUNCTION art_quick_alloc_object_tlab
+
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
 
 ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
