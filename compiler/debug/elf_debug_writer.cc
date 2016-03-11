@@ -62,8 +62,11 @@ static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
     }
     ElfCompilationUnit& cu = compilation_units.back();
     cu.methods.push_back(&mi);
-    cu.low_pc = std::min(cu.low_pc, mi.low_pc);
-    cu.high_pc = std::max(cu.high_pc, mi.high_pc);
+    // All methods must have the same addressing mode otherwise the min/max below does not work.
+    DCHECK_EQ(cu.methods.front()->is_code_address_text_relative, mi.is_code_address_text_relative);
+    cu.is_code_address_text_relative = mi.is_code_address_text_relative;
+    cu.code_address = std::min(cu.code_address, mi.code_address);
+    cu.code_end = std::max(cu.code_end, mi.code_address + mi.code_size);
     last_source_file = source_file;
   }
 

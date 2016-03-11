@@ -180,8 +180,13 @@ class OatSymbolizer FINAL {
       uint64_t symbol_value = code_offset - oat_file_->GetOatHeader().GetExecutableOffset();
       // Specifying 0 as the symbol size means that the symbol lasts until the next symbol or until
       // the end of the section in case of the last symbol.
-      builder_->GetSymTab()->Add(name_offset, builder_->GetText(), symbol_value,
-          /* is_relative */ true, /* size */ 0, STB_GLOBAL, STT_FUNC);
+      builder_->GetSymTab()->Add(
+          name_offset,
+          builder_->GetText(),
+          builder_->GetText()->GetAddress() + symbol_value,
+          /* size */ 0,
+          STB_GLOBAL,
+          STT_FUNC);
     }
   }
 
@@ -333,9 +338,15 @@ class OatSymbolizer FINAL {
       }
 
       int name_offset = builder_->GetStrTab()->Write(pretty_name);
-      builder_->GetSymTab()->Add(name_offset, builder_->GetText(),
-          oat_method.GetCodeOffset() - oat_file_->GetOatHeader().GetExecutableOffset(),
-          true, oat_method.GetQuickCodeSize(), STB_GLOBAL, STT_FUNC);
+      uint64_t address = oat_method.GetCodeOffset() -
+                         oat_file_->GetOatHeader().GetExecutableOffset() +
+                         builder_->GetText()->GetAddress();
+      builder_->GetSymTab()->Add(name_offset,
+                                 builder_->GetText(),
+                                 address,
+                                 oat_method.GetQuickCodeSize(),
+                                 STB_GLOBAL,
+                                 STT_FUNC);
     }
   }
 
