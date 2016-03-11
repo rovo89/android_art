@@ -2181,7 +2181,9 @@ static void CheckAgainstUpperBound(ReferenceTypeInfo rti, ReferenceTypeInfo uppe
     DCHECK(upper_bound_rti.IsSupertypeOf(rti))
         << " upper_bound_rti: " << upper_bound_rti
         << " rti: " << rti;
-    DCHECK(!upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes() || rti.IsExact());
+    DCHECK(!upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes() || rti.IsExact())
+        << " upper_bound_rti: " << upper_bound_rti
+        << " rti: " << rti;
   }
 }
 
@@ -2215,6 +2217,10 @@ ReferenceTypeInfo ReferenceTypeInfo::Create(TypeHandle type_handle, bool is_exac
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
     DCHECK(IsValidHandle(type_handle));
+    if (!is_exact) {
+      DCHECK(!type_handle->CannotBeAssignedFromOtherTypes())
+          << "Callers of ReferenceTypeInfo::Create should ensure is_exact is properly computed";
+    }
   }
   return ReferenceTypeInfo(type_handle, is_exact);
 }
