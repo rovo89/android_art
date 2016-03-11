@@ -11,10 +11,9 @@
     VREG_INDEX_TO_ADDR r1, r1           @ r1<- &object
     ldr       r2, [rFP, #OFF_FP_METHOD] @ r2<- method
     mov       r3, rSELF                 @ r3<- self
-    mov       r9, rINST, lsr #8         @ r9<- A+
-    and       r9, r9, #15               @ r9<- A
     bl        MterpInstanceOf           @ (index, &obj, method, self)
     ldr       r1, [rSELF, #THREAD_EXCEPTION_OFFSET]
+    ubfx      r9, rINST, #8, #4         @ r9<- A
     PREFETCH_INST 2
     cmp       r1, #0                    @ exception pending?
     bne       MterpException

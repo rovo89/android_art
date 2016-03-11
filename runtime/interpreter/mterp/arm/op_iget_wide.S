@@ -16,7 +16,7 @@
     cmp      r3, #0
     bne      MterpException                @ bail out
     CLEAR_SHADOW_PAIR r2, ip, lr           @ Zero out the shadow regs
-    add      r3, rFP, r2, lsl #2           @ r3<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r2              @ r3<- &fp[A]
     stmia    r3, {r0-r1}                   @ fp[A]<- r0/r1
     ADVANCE 2
     GET_INST_OPCODE ip                     @ extract opcode from rINST

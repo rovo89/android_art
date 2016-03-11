@@ -2,8 +2,8 @@
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     FETCH r3, 2                         @ r3<- BBBB
     FETCH r2, 1                         @ r2<- AAAA
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BBBB]
-    add     lr, rFP, r2, lsl #2         @ r2<- &fp[AAAA]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BBBB]
+    VREG_INDEX_TO_ADDR lr, r2           @ r2<- &fp[AAAA]
     ldmia   r3, {r0-r1}                 @ r0/r1<- fp[BBBB]
     FETCH_ADVANCE_INST 3                @ advance rPC, load rINST
     CLEAR_SHADOW_PAIR r2, r3, ip        @ Zero out the shadow regs

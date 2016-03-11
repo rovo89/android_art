@@ -8,8 +8,8 @@
      */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[A]
     vldr    d0, [r3]                    @ d0<- vAA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
 

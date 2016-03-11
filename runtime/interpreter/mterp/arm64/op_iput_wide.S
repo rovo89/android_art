@@ -5,7 +5,7 @@
     lsr      w1, wINST, #12             // w1<- B
     GET_VREG w1, w1                     // w1<- fp[B], the object pointer
     ubfx     w2, wINST, #8, #4          // w2<- A
-    add      x2, xFP, x2, lsl #2        // w2<- &fp[A]
+    VREG_INDEX_TO_ADDR x2, x2           // w2<- &fp[A]
     ldr      x3, [xFP, #OFF_FP_METHOD]  // w3<- referrer
     PREFETCH_INST 2
     bl       artSet64InstanceFromMterp

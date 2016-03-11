@@ -15,7 +15,7 @@
     ldr     r3, [r0, #MIRROR_ARRAY_LENGTH_OFFSET]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #3          @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     bcs     common_errArrayIndex        @ index >= length, bail
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldmia   r9, {r2-r3}                 @ r2/r3<- vAA/vAA+1

@@ -1,7 +1,7 @@
     /* const/string vAA, String@BBBBBBBB */
     EXPORT_PC
-    FETCH r0, 1                         @ r0<- bbbb (low
-    FETCH r2, 2                         @ r2<- BBBB (high
+    FETCH r0, 1                         @ r0<- bbbb (low)
+    FETCH r2, 2                         @ r2<- BBBB (high)
     mov     r1, rINST, lsr #8           @ r1<- AA
     orr     r0, r0, r2, lsl #16         @ r1<- BBBBbbbb
     add     r2, rFP, #OFF_FP_SHADOWFRAME

@@ -16,8 +16,8 @@
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if $chkzero

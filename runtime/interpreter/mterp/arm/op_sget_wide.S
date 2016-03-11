@@ -12,7 +12,7 @@
     bl    artGet64StaticFromCode
     ldr   r3, [rSELF, #THREAD_EXCEPTION_OFFSET]
     mov   r9, rINST, lsr #8             @ r9<- AA
-    add   lr, rFP, r9, lsl #2           @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR lr, r9           @ r9<- &fp[AA]
     cmp   r3, #0                        @ Fail to resolve?
     bne   MterpException                @ bail out
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
