@@ -7,7 +7,7 @@
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG r2, r3                     @ r2<- vB
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[A]
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     mov     r0, r0, lsr r2              @ r0<- r2 >> r2

@@ -46,7 +46,7 @@ ExecuteMterpImpl:
     /* set up "named" registers */
     mov     xSELF, x0
     ldr     w0, [x2, #SHADOWFRAME_NUMBER_OF_VREGS_OFFSET]
-    add     xFP, x2, #SHADOWFRAME_VREGS_OFFSET     // point to insns[] (i.e. - the dalivk byte code).
+    add     xFP, x2, #SHADOWFRAME_VREGS_OFFSET     // point to vregs.
     add     xREFS, xFP, w0, lsl #2                 // point to reference array in shadow frame
     ldr     w0, [x2, #SHADOWFRAME_DEX_PC_OFFSET]   // Get starting dex_pc.
     add     xPC, x1, #CODEITEM_INSNS_OFFSET        // Point to base of insns[]
