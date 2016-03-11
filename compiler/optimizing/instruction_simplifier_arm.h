@@ -36,6 +36,8 @@ class InstructionSimplifierArmVisitor : public HGraphVisitor {
   }
 
   void VisitMul(HMul* instruction) OVERRIDE;
+  void VisitOr(HOr* instruction) OVERRIDE;
+  void VisitAnd(HAnd* instruction) OVERRIDE;
 
   OptimizingCompilerStats* stats_;
 };

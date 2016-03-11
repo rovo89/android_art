@@ -26,5 +26,18 @@ void InstructionSimplifierArmVisitor::VisitMul(HMul* instruction) {
   }
 }
 
+void InstructionSimplifierArmVisitor::VisitOr(HOr* instruction) {
+  if (TryMergeNegatedInput(instruction)) {
+    RecordSimplification();
+  }
+}
+
+void InstructionSimplifierArmVisitor::VisitAnd(HAnd* instruction) {
+  if (TryMergeNegatedInput(instruction)) {
+    RecordSimplification();
+  }
+}
+
+
 }  // namespace arm
 }  // namespace art

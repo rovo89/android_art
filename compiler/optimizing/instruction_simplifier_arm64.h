@@ -51,10 +51,6 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
     return TryMergeIntoShifterOperand(use, bitfield_op, true);
   }
 
-  // For bitwise operations (And/Or/Xor) with a negated input, try to use
-  // a negated bitwise instruction.
-  bool TryMergeNegatedInput(HBinaryOperation* op);
-
   // HInstruction visitors, sorted alphabetically.
   void VisitAnd(HAnd* instruction) OVERRIDE;
   void VisitArrayGet(HArrayGet* instruction) OVERRIDE;

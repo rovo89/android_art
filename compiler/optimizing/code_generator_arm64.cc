@@ -1862,7 +1862,7 @@ void InstructionCodeGeneratorARM64::VisitAnd(HAnd* instruction) {
   HandleBinaryOp(instruction);
 }
 
-void LocationsBuilderARM64::VisitArm64BitwiseNegatedRight(HArm64BitwiseNegatedRight* instr) {
+void LocationsBuilderARM64::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instr) {
   DCHECK(Primitive::IsIntegralType(instr->GetType())) << instr->GetType();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instr);
   locations->SetInAt(0, Location::RequiresRegister());
@@ -1871,8 +1871,7 @@ void LocationsBuilderARM64::VisitArm64BitwiseNegatedRight(HArm64BitwiseNegatedRi
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
-void InstructionCodeGeneratorARM64::VisitArm64BitwiseNegatedRight(
-    HArm64BitwiseNegatedRight* instr) {
+void InstructionCodeGeneratorARM64::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instr) {
   Register dst = OutputRegister(instr);
   Register lhs = InputRegisterAt(instr, 0);
   Register rhs = InputRegisterAt(instr, 1);
