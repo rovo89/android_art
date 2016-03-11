@@ -38,6 +38,7 @@ class PACKED(4) OatHeader {
   static constexpr const char* kDex2OatHostKey = "dex2oat-host";
   static constexpr const char* kPicKey = "pic";
   static constexpr const char* kDebuggableKey = "debuggable";
+  static constexpr const char* kNativeDebuggableKey = "native-debuggable";
   static constexpr const char* kCompilationType = "compilation-type";
   static constexpr const char* kClassPathKey = "classpath";
   static constexpr const char* kBootClassPath = "bootclasspath";
@@ -110,6 +111,7 @@ class PACKED(4) OatHeader {
   size_t GetHeaderSize() const;
   bool IsPic() const;
   bool IsDebuggable() const;
+  bool IsNativeDebuggable() const;
   bool IsExtractOnly() const;
   bool IsProfileGuideCompiled() const;
 
