@@ -56,10 +56,11 @@ class InlineCache {
   mirror::Class* GetMonomorphicType() const SHARED_REQUIRES(Locks::mutator_lock_) {
     // Note that we cannot ensure the inline cache is actually monomorphic
     // at this point, as other threads may have updated it.
+    DCHECK(!classes_[0].IsNull());
     return classes_[0].Read();
   }
 
-  bool IsUnitialized() const {
+  bool IsUninitialized() const {
     return classes_[0].IsNull();
   }
 
