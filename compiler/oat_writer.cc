@@ -811,7 +811,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       if (compiler_options.GenerateAnyDebugInfo() && code_size != 0) {
         bool has_code_info = method_header->IsOptimized();
         // Record debug information for this function if we are doing that.
-        debug::MethodDebugInfo info;
+        debug::MethodDebugInfo info = debug::MethodDebugInfo();
+        info.trampoline_name = nullptr;
         info.dex_file = dex_file_;
         info.class_def_index = class_def_index_;
         info.dex_method_index = it.GetMemberIndex();

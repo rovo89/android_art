@@ -39,7 +39,7 @@ template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
                               const ArrayRef<const MethodDebugInfo>& method_infos,
                               bool with_signature) {
-  bool generated_mapping_symbol = false;
+  uint64_t mapping_symbol_address = std::numeric_limits<uint64_t>::max();
   auto* strtab = builder->GetStrTab();
   auto* symtab = builder->GetSymTab();
 
@@ -64,12 +64,20 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
     if (info.deduped) {
       continue;  // Add symbol only for the first instance.
     }
-    std::string name = PrettyMethod(info.dex_method_index, *info.dex_file, with_signature);
-    if (deduped_addresses.find(info.code_address) != deduped_addresses.end()) {
-      name += " [DEDUPED]";
+    size_t name_offset;
+    if (info.trampoline_name != nullptr) {
+      name_offset = strtab->Write(info.trampoline_name);
+    } else {
+      DCHECK(info.dex_file != nullptr);
+      std::string name = PrettyMethod(info.dex_method_index, *info.dex_file, with_signature);
+      if (deduped_addresses.find(info.code_address) != deduped_addresses.end()) {
+        name += " [DEDUPED]";
+      }
+      // If we write method names without signature, we might see the same name multiple times.
+      name_offset = (name == last_name ? last_name_offset : strtab->Write(name));
+      last_name = std::move(name);
+      last_name_offset = name_offset;
     }
-    // If we write method names without signature, we might see the same name multiple times.
-    size_t name_offset = (name == last_name ? last_name_offset : strtab->Write(name));
 
     const auto* text = info.is_code_address_text_relative ? builder->GetText() : nullptr;
     uint64_t address = info.code_address + (text != nullptr ? text->GetAddress() : 0);
@@ -82,14 +90,11 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
     // Note that even if we generate just a single mapping symbol, ARM's Streamline
     // requires it to match function symbol.  Just address 0 does not work.
     if (info.isa == kThumb2) {
-      if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
+      if (address < mapping_symbol_address || !kGenerateSingleArmMappingSymbol) {
         symtab->Add(strtab->Write("$t"), text, address & ~1, 0, STB_LOCAL, STT_NOTYPE);
-        generated_mapping_symbol = true;
+        mapping_symbol_address = address;
       }
     }
-
-    last_name = std::move(name);
-    last_name_offset = name_offset;
   }
   strtab->End();
 

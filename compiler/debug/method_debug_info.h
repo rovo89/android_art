@@ -24,7 +24,8 @@ namespace art {
 namespace debug {
 
 struct MethodDebugInfo {
-  const DexFile* dex_file;
+  const char* trampoline_name;
+  const DexFile* dex_file;  // Native methods (trampolines) do not reference dex file.
   size_t class_def_index;
   uint32_t dex_method_index;
   uint32_t access_flags;
@@ -37,7 +38,7 @@ struct MethodDebugInfo {
   uint64_t code_address;
   uint32_t code_size;
   uint32_t frame_size_in_bytes;
-  const uint8_t* code_info;
+  const void* code_info;
   ArrayRef<const uint8_t> cfi;
 };
 

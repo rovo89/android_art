@@ -39,35 +39,31 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     dwarf::CFIFormat cfi_format,
                     bool write_oat_patches) {
-  // Add methods to .symtab.
+  // Write .strtab and .symtab.
   WriteDebugSymbols(builder, method_infos, true /* with_signature */);
-  // Generate CFI (stack unwinding information).
-  WriteCFISection(builder, method_infos, cfi_format, write_oat_patches);
-  // Write DWARF .debug_* sections.
-  WriteDebugSections(builder, method_infos, write_oat_patches);
-}
 
-template<typename ElfTypes>
-static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
-                               const ArrayRef<const MethodDebugInfo>& method_infos,
-                               bool write_oat_patches) {
+  // Write .debug_frame.
+  WriteCFISection(builder, method_infos, cfi_format, write_oat_patches);
+
   // Group the methods into compilation units based on source file.
   std::vector<ElfCompilationUnit> compilation_units;
   const char* last_source_file = nullptr;
   for (const MethodDebugInfo& mi : method_infos) {
-    auto& dex_class_def = mi.dex_file->GetClassDef(mi.class_def_index);
-    const char* source_file = mi.dex_file->GetSourceFile(dex_class_def);
-    if (compilation_units.empty() || source_file != last_source_file) {
-      compilation_units.push_back(ElfCompilationUnit());
+    if (mi.dex_file != nullptr) {
+      auto& dex_class_def = mi.dex_file->GetClassDef(mi.class_def_index);
+      const char* source_file = mi.dex_file->GetSourceFile(dex_class_def);
+      if (compilation_units.empty() || source_file != last_source_file) {
+        compilation_units.push_back(ElfCompilationUnit());
+      }
+      ElfCompilationUnit& cu = compilation_units.back();
+      cu.methods.push_back(&mi);
+      // All methods must have the same addressing mode otherwise the min/max below does not work.
+      DCHECK_EQ(cu.methods.front()->is_code_address_text_relative, mi.is_code_address_text_relative);
+      cu.is_code_address_text_relative = mi.is_code_address_text_relative;
+      cu.code_address = std::min(cu.code_address, mi.code_address);
+      cu.code_end = std::max(cu.code_end, mi.code_address + mi.code_size);
+      last_source_file = source_file;
     }
-    ElfCompilationUnit& cu = compilation_units.back();
-    cu.methods.push_back(&mi);
-    // All methods must have the same addressing mode otherwise the min/max below does not work.
-    DCHECK_EQ(cu.methods.front()->is_code_address_text_relative, mi.is_code_address_text_relative);
-    cu.is_code_address_text_relative = mi.is_code_address_text_relative;
-    cu.code_address = std::min(cu.code_address, mi.code_address);
-    cu.code_end = std::max(cu.code_end, mi.code_address + mi.code_size);
-    last_source_file = source_file;
   }
 
   // Write .debug_line section.
@@ -183,6 +179,31 @@ ArrayRef<const uint8_t> WriteDebugElfFileForClasses(InstructionSet isa,
   } else {
     return WriteDebugElfFileForClassesInternal<ElfTypes32>(isa, features, types);
   }
+}
+
+std::vector<MethodDebugInfo> MakeTrampolineInfos(const OatHeader& header) {
+  std::map<const char*, uint32_t> trampolines = {
+    { "interpreterToInterpreterBridge", header.GetInterpreterToInterpreterBridgeOffset() },
+    { "interpreterToCompiledCodeBridge", header.GetInterpreterToCompiledCodeBridgeOffset() },
+    { "jniDlsymLookup", header.GetJniDlsymLookupOffset() },
+    { "quickGenericJniTrampoline", header.GetQuickGenericJniTrampolineOffset() },
+    { "quickImtConflictTrampoline", header.GetQuickImtConflictTrampolineOffset() },
+    { "quickResolutionTrampoline", header.GetQuickResolutionTrampolineOffset() },
+    { "quickToInterpreterBridge", header.GetQuickToInterpreterBridgeOffset() },
+  };
+  std::vector<MethodDebugInfo> result;
+  for (const auto& it : trampolines) {
+    if (it.second != 0) {
+      MethodDebugInfo info = MethodDebugInfo();
+      info.trampoline_name = it.first;
+      info.isa = header.GetInstructionSet();
+      info.is_code_address_text_relative = true;
+      info.code_address = it.second - header.GetExecutableOffset();
+      info.code_size = 0;  // The symbol lasts until the next symbol.
+      result.push_back(std::move(info));
+    }
+  }
+  return result;
 }
 
 // Explicit instantiations
