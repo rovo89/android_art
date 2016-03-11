@@ -101,6 +101,11 @@ ADD_TEST_EQ(THREAD_FLAGS_OFFSET,
 ADD_TEST_EQ(THREAD_ID_OFFSET,
             art::Thread::ThinLockIdOffset<__SIZEOF_POINTER__>().Int32Value())
 
+// Offset of field Thread::tls32_.is_gc_marking.
+#define THREAD_IS_GC_MARKING_OFFSET 52
+ADD_TEST_EQ(THREAD_IS_GC_MARKING_OFFSET,
+            art::Thread::IsGcMarkingOffset<__SIZEOF_POINTER__>().Int32Value())
+
 // Offset of field Thread::tlsPtr_.card_table.
 #define THREAD_CARD_TABLE_OFFSET 128
 ADD_TEST_EQ(THREAD_CARD_TABLE_OFFSET,

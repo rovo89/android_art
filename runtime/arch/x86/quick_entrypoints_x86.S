@@ -897,8 +897,8 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER      // return or deliver exception
 END_FUNCTION art_quick_alloc_object_rosalloc
 
-
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
 
 ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER

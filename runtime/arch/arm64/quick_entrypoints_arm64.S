@@ -1537,7 +1537,7 @@ ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_R
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
 ENTRY art_quick_alloc_object_rosalloc
     // Fast path rosalloc allocation.
@@ -1637,6 +1637,9 @@ ENTRY art_quick_alloc_object_rosalloc
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END art_quick_alloc_object_rosalloc
+
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
 
     /*
      * Called by managed code when the thread has been asked to suspend.

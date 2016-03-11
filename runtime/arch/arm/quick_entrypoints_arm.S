@@ -952,85 +952,6 @@ ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_R
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB).
-ENTRY art_quick_alloc_object_tlab
-    // Fast path tlab allocation.
-    // r0: type_idx/return value, r1: ArtMethod*, r9: Thread::Current
-    // r2, r3, r12: free.
-#if defined(USE_READ_BARRIER)
-    eor    r0, r0, r0                                         // Read barrier not supported here.
-    sub    r0, r0, #1                                         // Return -1.
-    bx     lr
-#endif
-    ldr    r2, [r1, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_32]    // Load dex cache resolved types array
-                                                              // Load the class (r2)
-    ldr    r2, [r2, r0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
-    cbz    r2, .Lart_quick_alloc_object_tlab_slow_path        // Check null class
-                                                              // Check class status.
-    ldr    r3, [r2, #MIRROR_CLASS_STATUS_OFFSET]
-    cmp    r3, #MIRROR_CLASS_STATUS_INITIALIZED
-    bne    .Lart_quick_alloc_object_tlab_slow_path
-                                                              // Add a fake dependence from the
-                                                              // following access flag and size
-                                                              // loads to the status load.
-                                                              // This is to prevent those loads
-                                                              // from being reordered above the
-                                                              // status load and reading wrong
-                                                              // values (an alternative is to use
-                                                              // a load-acquire for the status).
-    eor    r3, r3, r3
-    add    r2, r2, r3
-                                                              // Check access flags has
-                                                              // kAccClassIsFinalizable.
-    ldr    r3, [r2, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
-    tst    r3, #ACCESS_FLAGS_CLASS_IS_FINALIZABLE
-    bne    .Lart_quick_alloc_object_tlab_slow_path
-                                                              // Load thread_local_pos (r12) and
-                                                              // thread_local_end (r3) with ldrd.
-                                                              // Check constraints for ldrd.
-#if !((THREAD_LOCAL_POS_OFFSET + 4 == THREAD_LOCAL_END_OFFSET) && (THREAD_LOCAL_POS_OFFSET % 8 == 0))
-#error "Thread::thread_local_pos/end must be consecutive and are 8 byte aligned for performance"
-#endif
-    ldrd   r12, r3, [r9, #THREAD_LOCAL_POS_OFFSET]
-    sub    r12, r3, r12                                       // Compute the remaining buf size.
-    ldr    r3, [r2, #MIRROR_CLASS_OBJECT_SIZE_OFFSET]         // Load the object size (r3).
-    cmp    r3, r12                                            // Check if it fits. OK to do this
-                                                              // before rounding up the object size
-                                                              // assuming the buf size alignment.
-    bhi    .Lart_quick_alloc_object_tlab_slow_path
-    // "Point of no slow path". Won't go to the slow path from here on. OK to clobber r0 and r1.
-                                                              // Round up the object size by the
-                                                              // object alignment. (addr + 7) & ~7.
-    add    r3, r3, #OBJECT_ALIGNMENT_MASK
-    and    r3, r3, #OBJECT_ALIGNMENT_MASK_TOGGLED
-                                                              // Reload old thread_local_pos (r0)
-                                                              // for the return value.
-    ldr    r0, [r9, #THREAD_LOCAL_POS_OFFSET]
-    add    r1, r0, r3
-    str    r1, [r9, #THREAD_LOCAL_POS_OFFSET]                 // Store new thread_local_pos.
-    ldr    r1, [r9, #THREAD_LOCAL_OBJECTS_OFFSET]             // Increment thread_local_objects.
-    add    r1, r1, #1
-    str    r1, [r9, #THREAD_LOCAL_OBJECTS_OFFSET]
-    POISON_HEAP_REF r2
-    str    r2, [r0, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
-                                                              // Fence. This is "ish" not "ishst" so
-                                                              // that the code after this allocation
-                                                              // site will see the right values in
-                                                              // the fields of the class.
-                                                              // Alternatively we could use "ishst"
-                                                              // if we use load-acquire for the
-                                                              // class status load.)
-    dmb    ish
-    bx     lr
-.Lart_quick_alloc_object_tlab_slow_path:
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r2, r3                 // Save callee saves in case of GC.
-    mov    r2, r9                                             // Pass Thread::Current.
-    bl     artAllocObjectFromCodeTLAB    // (uint32_t type_idx, Method* method, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_alloc_object_tlab
-
-
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
 ENTRY art_quick_alloc_object_rosalloc
     // Fast path rosalloc allocation.
@@ -1133,6 +1054,127 @@ ENTRY art_quick_alloc_object_rosalloc
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END art_quick_alloc_object_rosalloc
+
+// The common fast path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
+//
+// r0: type_idx/return value, r1: ArtMethod*, r2: class, r9: Thread::Current, r3, r12: free.
+// Need to preserve r0 and r1 to the slow path.
+.macro ALLOC_OBJECT_TLAB_FAST_PATH slowPathLabel
+    cbz    r2, \slowPathLabel                                 // Check null class
+                                                              // Check class status.
+    ldr    r3, [r2, #MIRROR_CLASS_STATUS_OFFSET]
+    cmp    r3, #MIRROR_CLASS_STATUS_INITIALIZED
+    bne    \slowPathLabel
+                                                              // Add a fake dependence from the
+                                                              // following access flag and size
+                                                              // loads to the status load.
+                                                              // This is to prevent those loads
+                                                              // from being reordered above the
+                                                              // status load and reading wrong
+                                                              // values (an alternative is to use
+                                                              // a load-acquire for the status).
+    eor    r3, r3, r3
+    add    r2, r2, r3
+                                                              // Check access flags has
+                                                              // kAccClassIsFinalizable.
+    ldr    r3, [r2, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
+    tst    r3, #ACCESS_FLAGS_CLASS_IS_FINALIZABLE
+    bne    \slowPathLabel
+                                                              // Load thread_local_pos (r12) and
+                                                              // thread_local_end (r3) with ldrd.
+                                                              // Check constraints for ldrd.
+#if !((THREAD_LOCAL_POS_OFFSET + 4 == THREAD_LOCAL_END_OFFSET) && (THREAD_LOCAL_POS_OFFSET % 8 == 0))
+#error "Thread::thread_local_pos/end must be consecutive and are 8 byte aligned for performance"
+#endif
+    ldrd   r12, r3, [r9, #THREAD_LOCAL_POS_OFFSET]
+    sub    r12, r3, r12                                       // Compute the remaining buf size.
+    ldr    r3, [r2, #MIRROR_CLASS_OBJECT_SIZE_OFFSET]         // Load the object size (r3).
+    cmp    r3, r12                                            // Check if it fits. OK to do this
+                                                              // before rounding up the object size
+                                                              // assuming the buf size alignment.
+    bhi    \slowPathLabel
+    // "Point of no slow path". Won't go to the slow path from here on. OK to clobber r0 and r1.
+                                                              // Round up the object size by the
+                                                              // object alignment. (addr + 7) & ~7.
+    add    r3, r3, #OBJECT_ALIGNMENT_MASK
+    and    r3, r3, #OBJECT_ALIGNMENT_MASK_TOGGLED
+                                                              // Reload old thread_local_pos (r0)
+                                                              // for the return value.
+    ldr    r0, [r9, #THREAD_LOCAL_POS_OFFSET]
+    add    r1, r0, r3
+    str    r1, [r9, #THREAD_LOCAL_POS_OFFSET]                 // Store new thread_local_pos.
+    ldr    r1, [r9, #THREAD_LOCAL_OBJECTS_OFFSET]             // Increment thread_local_objects.
+    add    r1, r1, #1
+    str    r1, [r9, #THREAD_LOCAL_OBJECTS_OFFSET]
+    POISON_HEAP_REF r2
+    str    r2, [r0, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
+                                                              // Fence. This is "ish" not "ishst" so
+                                                              // that the code after this allocation
+                                                              // site will see the right values in
+                                                              // the fields of the class.
+                                                              // Alternatively we could use "ishst"
+                                                              // if we use load-acquire for the
+                                                              // class status load.)
+    dmb    ish
+    bx     lr
+.endm
+
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB).
+ENTRY art_quick_alloc_object_tlab
+    // Fast path tlab allocation.
+    // r0: type_idx/return value, r1: ArtMethod*, r9: Thread::Current
+    // r2, r3, r12: free.
+#if defined(USE_READ_BARRIER)
+    eor    r0, r0, r0                                         // Read barrier not supported here.
+    sub    r0, r0, #1                                         // Return -1.
+    bx     lr
+#endif
+    ldr    r2, [r1, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_32]    // Load dex cache resolved types array
+                                                              // Load the class (r2)
+    ldr    r2, [r2, r0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
+    ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_tlab_slow_path
+.Lart_quick_alloc_object_tlab_slow_path:
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r2, r3                 // Save callee saves in case of GC.
+    mov    r2, r9                                             // Pass Thread::Current.
+    bl     artAllocObjectFromCodeTLAB    // (uint32_t type_idx, Method* method, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_alloc_object_tlab
+
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
+ENTRY art_quick_alloc_object_region_tlab
+    // Fast path tlab allocation.
+    // r0: type_idx/return value, r1: ArtMethod*, r9: Thread::Current, r2, r3, r12: free.
+#if !defined(USE_READ_BARRIER)
+    eor    r0, r0, r0                                         // Read barrier must be enabled here.
+    sub    r0, r0, #1                                         // Return -1.
+    bx     lr
+#endif
+    ldr    r2, [r1, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_32]    // Load dex cache resolved types array
+                                                              // Load the class (r2)
+    ldr    r2, [r2, r0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
+                                                              // Read barrier for class load.
+    ldr    r3, [r9, #THREAD_IS_GC_MARKING_OFFSET]
+    cbnz   r3, .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path
+.Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit:
+    ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_region_tlab_slow_path
+.Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path:
+                                                              // The read barrier slow path. Mark
+                                                              // the class.
+    push   {r0, r1, r3, lr}                                   // Save registers. r3 is pushed only
+                                                              // to align sp by 16 bytes.
+    mov    r0, r2                                             // Pass the class as the first param.
+    bl     artReadBarrierMark
+    mov    r2, r0                                             // Get the (marked) class back.
+    pop    {r0, r1, r3, lr}
+    b      .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_object_region_tlab_slow_path:
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r2, r3                 // Save callee saves in case of GC.
+    mov    r2, r9                                             // Pass Thread::Current.
+    bl     artAllocObjectFromCodeRegionTLAB    // (uint32_t type_idx, Method* method, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_alloc_object_region_tlab
 
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.
