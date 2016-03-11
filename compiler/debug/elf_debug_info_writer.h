@@ -46,6 +46,7 @@ static void LocalInfoCallback(void* ctx, const DexFile::LocalInfo& entry) {
 static std::vector<const char*> GetParamNames(const MethodDebugInfo* mi) {
   std::vector<const char*> names;
   if (mi->code_item != nullptr) {
+    DCHECK(mi->dex_file != nullptr);
     const uint8_t* stream = mi->dex_file->GetDebugInfoStream(mi->code_item);
     if (stream != nullptr) {
       DecodeUnsignedLeb128(&stream);  // line.
@@ -133,6 +134,7 @@ class ElfCompilationUnitWriter {
 
     const char* last_dex_class_desc = nullptr;
     for (auto mi : compilation_unit.methods) {
+      DCHECK(mi->dex_file != nullptr);
       const DexFile* dex = mi->dex_file;
       const DexFile::CodeItem* dex_code = mi->code_item;
       const DexFile::MethodId& dex_method = dex->GetMethodId(mi->dex_method_index);

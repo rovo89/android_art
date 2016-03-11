@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_DEBUG_ELF_DEBUG_WRITER_H_
 #define ART_COMPILER_DEBUG_ELF_DEBUG_WRITER_H_
 
+#include <vector>
+
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "debug/dwarf/dwarf_constants.h"
@@ -24,6 +26,7 @@
 #include "utils/array_ref.h"
 
 namespace art {
+class OatHeader;
 namespace mirror {
 class Class;
 }
@@ -54,6 +57,8 @@ ArrayRef<const uint8_t> WriteDebugElfFileForClasses(
     const InstructionSetFeatures* features,
     const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_);
+
+std::vector<MethodDebugInfo> MakeTrampolineInfos(const OatHeader& oat_header);
 
 }  // namespace debug
 }  // namespace art
