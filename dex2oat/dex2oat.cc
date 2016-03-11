@@ -1035,6 +1035,9 @@ class Dex2Oat FINAL {
     key_value_store_->Put(
         OatHeader::kDebuggableKey,
         compiler_options_->debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+    key_value_store_->Put(
+        OatHeader::kNativeDebuggableKey,
+        compiler_options_->native_debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     if (compiler_options_->IsExtractOnly()) {
       key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kExtractOnlyValue);
     } else if (UseProfileGuidedCompilation()) {
