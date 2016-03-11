@@ -114,6 +114,40 @@ class ElfDebugLineWriter {
         continue;
       }
 
+      // Compensate for compiler's off-by-one-instruction error.
+      //
+      // The compiler generates stackmap with PC *after* the branch instruction
+      // (because this is the PC which is easier to obtain when unwinding).
+      //
+      // However, the debugger is more clever and it will ask us for line-number
+      // mapping at the location of the branch instruction (since the following
+      // instruction could belong to other line, this is the correct thing to do).
+      //
+      // So we really want to just decrement the PC by one instruction so that the
+      // branch instruction is covered as well. However, we do not know the size
+      // of the previous instruction, and we can not subtract just a fixed amount
+      // (the debugger would trust us that the PC is valid; it might try to set
+      // breakpoint there at some point, and setting breakpoint in mid-instruction
+      // would make the process crash in spectacular way).
+      //
+      // Therefore, we say that the PC which the compiler gave us for the stackmap
+      // is the end of its associated address range, and we use the PC from the
+      // previous stack map as the start of the range. This ensures that the PC is
+      // valid and that the branch instruction is covered.
+      //
+      // This ensures we have correct line number mapping at call sites (which is
+      // important for backtraces), but there is nothing we can do for non-call
+      // sites (so stepping through optimized code in debugger is not possible).
+      //
+      // We do not adjust the stackmaps if the code was compiled as debuggable.
+      // In that case, the stackmaps should accurately cover all instructions.
+      if (!mi->is_native_debuggable) {
+        for (size_t i = pc2dex_map.size() - 1; i > 0; --i) {
+          pc2dex_map[i].from_ = pc2dex_map[i - 1].from_;
+        }
+        pc2dex_map[0].from_ = 0;
+      }
+
       Elf_Addr method_address = base_address + mi->code_address;
 
       PositionInfos dex2line_map;
