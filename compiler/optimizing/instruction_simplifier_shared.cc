@@ -186,4 +186,47 @@ bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa) {
   return false;
 }
 
+
+bool TryMergeNegatedInput(HBinaryOperation* op) {
+  DCHECK(op->IsAnd() || op->IsOr() || op->IsXor()) << op->DebugName();
+  HInstruction* left = op->GetLeft();
+  HInstruction* right = op->GetRight();
+
+  // Only consider the case where there is exactly one Not, with 2 Not's De
+  // Morgan's laws should be applied instead.
+  if (left->IsNot() ^ right->IsNot()) {
+    HInstruction* hnot = (left->IsNot() ? left : right);
+    HInstruction* hother = (left->IsNot() ? right : left);
+
+    // Only do the simplification if the Not has only one use and can thus be
+    // safely removed. Even though ARM64 negated bitwise operations do not have
+    // an immediate variant (only register), we still do the simplification when
+    // `hother` is a constant, because it removes an instruction if the constant
+    // cannot be encoded as an immediate:
+    //   mov r0, #large_constant
+    //   neg r2, r1
+    //   and r0, r0, r2
+    // becomes:
+    //   mov r0, #large_constant
+    //   bic r0, r0, r1
+    if (hnot->HasOnlyOneNonEnvironmentUse()) {
+      // Replace code looking like
+      //    NOT tmp, mask
+      //    AND dst, src, tmp   (respectively ORR, EOR)
+      // with
+      //    BIC dst, src, mask  (respectively ORN, EON)
+      HInstruction* src = hnot->AsNot()->GetInput();
+
+      HBitwiseNegatedRight* neg_op = new (hnot->GetBlock()->GetGraph()->GetArena())
+          HBitwiseNegatedRight(op->GetType(), op->GetKind(), hother, src, op->GetDexPc());
+
+      op->GetBlock()->ReplaceAndRemoveInstructionWith(op, neg_op);
+      hnot->GetBlock()->RemoveInstruction(hnot);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 }  // namespace art

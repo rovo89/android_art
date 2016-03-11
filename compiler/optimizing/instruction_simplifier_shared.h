@@ -22,6 +22,9 @@
 namespace art {
 
 bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa);
+// For bitwise operations (And/Or/Xor) with a negated input, try to use
+// a negated bitwise instruction.
+bool TryMergeNegatedInput(HBinaryOperation* op);
 
 }  // namespace art
 

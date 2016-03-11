@@ -5727,6 +5727,71 @@ void InstructionCodeGeneratorARM::VisitXor(HXor* instruction) {
   HandleBitwiseOperation(instruction);
 }
 
+
+void LocationsBuilderARM::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  Location out = locations->Out();
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    Register first_reg = first.AsRegister<Register>();
+    ShifterOperand second_reg(second.AsRegister<Register>());
+    Register out_reg = out.AsRegister<Register>();
+
+    switch (instruction->GetOpKind()) {
+      case HInstruction::kAnd:
+        __ bic(out_reg, first_reg, second_reg);
+        break;
+      case HInstruction::kOr:
+        __ orn(out_reg, first_reg, second_reg);
+        break;
+      // There is no EON on arm.
+      case HInstruction::kXor:
+      default:
+        LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
+        UNREACHABLE();
+    }
+    return;
+
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    Register first_low = first.AsRegisterPairLow<Register>();
+    Register first_high = first.AsRegisterPairHigh<Register>();
+    ShifterOperand second_low(second.AsRegisterPairLow<Register>());
+    ShifterOperand second_high(second.AsRegisterPairHigh<Register>());
+    Register out_low = out.AsRegisterPairLow<Register>();
+    Register out_high = out.AsRegisterPairHigh<Register>();
+
+    switch (instruction->GetOpKind()) {
+      case HInstruction::kAnd:
+        __ bic(out_low, first_low, second_low);
+        __ bic(out_high, first_high, second_high);
+        break;
+      case HInstruction::kOr:
+        __ orn(out_low, first_low, second_low);
+        __ orn(out_high, first_high, second_high);
+        break;
+      // There is no EON on arm.
+      case HInstruction::kXor:
+      default:
+        LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
+        UNREACHABLE();
+    }
+  }
+}
+
 void InstructionCodeGeneratorARM::GenerateAndConst(Register out, Register first, uint32_t value) {
   // Optimize special cases for individual halfs of `and-long` (`and` is simplified earlier).
   if (value == 0xffffffffu) {
