@@ -935,10 +935,10 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     info.frame_size_in_bytes = method_header->GetFrameSizeInBytes();
     info.code_info = stack_map_size == 0 ? nullptr : stack_map_data;
     info.cfi = ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data());
-    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethod(
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethods(
         GetCompilerDriver()->GetInstructionSet(),
         GetCompilerDriver()->GetInstructionSetFeatures(),
-        info);
+        ArrayRef<const debug::MethodDebugInfo>(&info, 1));
     CreateJITCodeEntryForAddress(code_address,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());
