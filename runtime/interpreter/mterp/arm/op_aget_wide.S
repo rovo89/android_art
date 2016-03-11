@@ -19,7 +19,7 @@
     bcs     common_errArrayIndex        @ index >= length, bail
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldrd    r2, [r0, #MIRROR_WIDE_ARRAY_DATA_OFFSET]  @ r2/r3<- vBB[vCC]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r9, {r2-r3}                 @ vAA/vAA+1<- r2/r3
     GOTO_OPCODE ip                      @ jump to next instruction

@@ -272,7 +272,7 @@ codes.
  * Convert a virtual register index into an address.
  */
 .macro VREG_INDEX_TO_ADDR reg, vreg
-    add     \reg, xFP, \vreg, lsl #2   /* WARNING/FIXME: handle shadow frame vreg zero if store */
+    add     \reg, xFP, \vreg, lsl #2   /* WARNING: handle shadow frame vreg zero if store */
 .endm
 
 /*

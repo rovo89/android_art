@@ -542,7 +542,7 @@ ExecuteMterpImpl:
     /* set up "named" registers */
     move    rSELF, a0
     lw      a0, SHADOWFRAME_NUMBER_OF_VREGS_OFFSET(a2)
-    addu    rFP, a2, SHADOWFRAME_VREGS_OFFSET     # point to insns[] (i.e. - the dalivk byte code).
+    addu    rFP, a2, SHADOWFRAME_VREGS_OFFSET     # point to vregs.
     EAS2(rREFS, rFP, a0)                          # point to reference array in shadow frame
     lw      a0, SHADOWFRAME_DEX_PC_OFFSET(a2)     # Get starting dex_pc
     addu    rPC, a1, CODEITEM_INSNS_OFFSET        # Point to base of insns[]
@@ -4373,8 +4373,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4412,8 +4412,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4451,8 +4451,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4491,8 +4491,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4526,8 +4526,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4567,8 +4567,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4602,8 +4602,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4642,8 +4642,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4681,8 +4681,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4720,8 +4720,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4759,8 +4759,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4798,8 +4798,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int
@@ -4837,8 +4837,8 @@ artMterpAsmInstructionStart = .L_op_nop
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (a1).  Useful for integer division and modulus.  Note that we
-     * *don't* check for (INT_MIN / -1) here, because the ARM math lib
-     * handles it correctly.
+     * *don't* check for (INT_MIN / -1) here, because the CPU handles it
+     * correctly.
      *
      * For: add-int, sub-int, mul-int, div-int, rem-int, and-int, or-int,
      *      xor-int, shl-int, shr-int, ushr-int

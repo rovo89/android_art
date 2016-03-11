@@ -19,9 +19,9 @@
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if $chkzero

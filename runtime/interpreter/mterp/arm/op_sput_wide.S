@@ -8,7 +8,7 @@
     FETCH   r0, 1                       @ r0<- field ref BBBB
     ldr     r1, [rFP, #OFF_FP_METHOD]
     mov     r2, rINST, lsr #8           @ r3<- AA
-    add     r2, rFP, r2, lsl #2
+    VREG_INDEX_TO_ADDR r2, r2
     mov     r3, rSELF
     PREFETCH_INST 2                     @ Get next inst, but don't advance rPC
     bl      artSet64IndirectStaticFromMterp

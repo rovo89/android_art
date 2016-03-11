@@ -279,7 +279,7 @@ codes.
  * Convert a virtual register index into an address.
  */
 .macro VREG_INDEX_TO_ADDR reg, vreg
-    add     \reg, xFP, \vreg, lsl #2   /* WARNING/FIXME: handle shadow frame vreg zero if store */
+    add     \reg, xFP, \vreg, lsl #2   /* WARNING: handle shadow frame vreg zero if store */
 .endm
 
 /*
@@ -338,7 +338,7 @@ ExecuteMterpImpl:
     /* set up "named" registers */
     mov     xSELF, x0
     ldr     w0, [x2, #SHADOWFRAME_NUMBER_OF_VREGS_OFFSET]
-    add     xFP, x2, #SHADOWFRAME_VREGS_OFFSET     // point to insns[] (i.e. - the dalivk byte code).
+    add     xFP, x2, #SHADOWFRAME_VREGS_OFFSET     // point to vregs.
     add     xREFS, xFP, w0, lsl #2                 // point to reference array in shadow frame
     ldr     w0, [x2, #SHADOWFRAME_DEX_PC_OFFSET]   // Get starting dex_pc.
     add     xPC, x1, #CODEITEM_INSNS_OFFSET        // Point to base of insns[]
@@ -2552,7 +2552,7 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr      w1, wINST, #12             // w1<- B
     GET_VREG w1, w1                     // w1<- fp[B], the object pointer
     ubfx     w2, wINST, #8, #4          // w2<- A
-    add      x2, xFP, x2, lsl #2        // w2<- &fp[A]
+    VREG_INDEX_TO_ADDR x2, x2           // w2<- &fp[A]
     ldr      x3, [xFP, #OFF_FP_METHOD]  // w3<- referrer
     PREFETCH_INST 2
     bl       artSet64InstanceFromMterp
@@ -2941,7 +2941,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH   w0, 1                       // w0<- field ref BBBB
     ldr     x1, [xFP, #OFF_FP_METHOD]
     lsr     w2, wINST, #8               // w3<- AA
-    add     x2, xFP, w2, lsl #2
+    VREG_INDEX_TO_ADDR x2, w2
     mov     x3, xSELF
     PREFETCH_INST 2                     // Get next inst, but don't advance rPC
     bl      artSet64IndirectStaticFromMterp
