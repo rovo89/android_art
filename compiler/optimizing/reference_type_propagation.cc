@@ -432,11 +432,10 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
   } else if (klass != nullptr) {
     ScopedObjectAccess soa(Thread::Current());
     ReferenceTypeInfo::TypeHandle handle = handle_cache_->NewHandle(klass);
-    is_exact = is_exact || klass->CannotBeAssignedFromOtherTypes();
+    is_exact = is_exact || handle->CannotBeAssignedFromOtherTypes();
     instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(handle, is_exact));
   } else {
-    instr->SetReferenceTypeInfo(
-        ReferenceTypeInfo::Create(handle_cache_->GetObjectClassHandle(), /* is_exact */ false));
+    instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
   }
 }
 
@@ -518,8 +517,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitUnresolvedInstanceFieldGet(
     HUnresolvedInstanceFieldGet* instr) {
   // TODO: Use descriptor to get the actual type.
   if (instr->GetFieldType() == Primitive::kPrimNot) {
-    instr->SetReferenceTypeInfo(
-      ReferenceTypeInfo::Create(handle_cache_->GetObjectClassHandle(), /* is_exact */ false));
+    instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
   }
 }
 
@@ -527,8 +525,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitUnresolvedStaticFieldGet(
     HUnresolvedStaticFieldGet* instr) {
   // TODO: Use descriptor to get the actual type.
   if (instr->GetFieldType() == Primitive::kPrimNot) {
-    instr->SetReferenceTypeInfo(
-      ReferenceTypeInfo::Create(handle_cache_->GetObjectClassHandle(), /* is_exact */ false));
+    instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
   }
 }
 
@@ -724,12 +721,11 @@ void ReferenceTypePropagation::UpdateArrayGet(HArrayGet* instr, HandleCache* han
   if (handle->IsObjectArrayClass()) {
     ReferenceTypeInfo::TypeHandle component_handle =
         handle_cache->NewHandle(handle->GetComponentType());
-    instr->SetReferenceTypeInfo(
-        ReferenceTypeInfo::Create(component_handle, /* is_exact */ false));
+    bool is_exact = component_handle->CannotBeAssignedFromOtherTypes();
+    instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(component_handle, is_exact));
   } else {
     // We don't know what the parent actually is, so we fallback to object.
-    instr->SetReferenceTypeInfo(
-        ReferenceTypeInfo::Create(handle_cache->GetObjectClassHandle(), /* is_exact */ false));
+    instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
   }
 }
 
@@ -811,8 +807,7 @@ void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
   if (first_input_index_not_null == input_count) {
     // All inputs are NullConstants, set the type to object.
     // This may happen in the presence of inlining.
-    instr->SetReferenceTypeInfo(
-        ReferenceTypeInfo::Create(handle_cache_.GetObjectClassHandle(), /* is_exact */ false));
+    instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
     return;
   }
 

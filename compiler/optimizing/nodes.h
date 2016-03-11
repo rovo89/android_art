@@ -509,6 +509,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // before cursor.
   HInstruction* InsertOppositeCondition(HInstruction* cond, HInstruction* cursor);
 
+  ReferenceTypeInfo GetInexactObjectRti() const { return inexact_object_rti_; }
+
  private:
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited);
