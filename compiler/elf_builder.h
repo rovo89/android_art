@@ -165,12 +165,6 @@ class ElfBuilder FINAL {
       }
     }
 
-    // Returns true if the section was written to disk.
-    // (Used to check whether we have .text when writing JIT debug info)
-    bool Exists() const {
-      return finished_;
-    }
-
     // Get the location of this section in virtual memory.
     Elf_Addr GetAddress() const {
       CHECK(started_);
@@ -364,16 +358,18 @@ class ElfBuilder FINAL {
     void Add(Elf_Word name,
              const Section* section,
              Elf_Addr addr,
-             bool is_relative,
              Elf_Word size,
              uint8_t binding,
-             uint8_t type,
-             uint8_t other = 0) {
-      DCHECK(section != nullptr || !is_relative);
-      Elf_Addr abs_addr = addr + (is_relative ? section->GetAddress() : 0);
-      Elf_Word section_index =
-          (section != nullptr) ? section->GetSectionIndex() : static_cast<Elf_Word>(SHN_ABS);
-      Add(name, section_index, abs_addr, size, binding, type, other);
+             uint8_t type) {
+      Elf_Word section_index;
+      if (section != nullptr) {
+        DCHECK_LE(section->GetAddress(), addr);
+        DCHECK_LE(addr, section->GetAddress() + section->GetSize());
+        section_index = section->GetSectionIndex();
+      } else {
+        section_index = static_cast<Elf_Word>(SHN_ABS);
+      }
+      Add(name, section_index, addr, size, binding, type);
     }
 
     void Add(Elf_Word name,
@@ -381,13 +377,12 @@ class ElfBuilder FINAL {
              Elf_Addr addr,
              Elf_Word size,
              uint8_t binding,
-             uint8_t type,
-             uint8_t other = 0) {
+             uint8_t type) {
       Elf_Sym sym = Elf_Sym();
       sym.st_name = name;
       sym.st_value = addr;
       sym.st_size = size;
-      sym.st_other = other;
+      sym.st_other = 0;
       sym.st_shndx = section_index;
       sym.st_info = (binding << 4) + (type & 0xf);
       CachedSection::Add(&sym, sizeof(sym));
