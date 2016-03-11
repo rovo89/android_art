@@ -119,7 +119,7 @@ class PACKED(4) OatQuickMethodHeader {
   uint32_t GetFrameSizeInBytes() const {
     uint32_t result = frame_info_.FrameSizeInBytes();
     if (kCheckFrameSize) {
-      DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
+      DCHECK_ALIGNED(result, kStackAlignment);
     }
     return result;
   }
