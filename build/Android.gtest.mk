@@ -517,7 +517,8 @@ $$(gtest_rule): $$(gtest_exe) $$(gtest_deps)
 valgrind-$$(gtest_rule): $$(gtest_exe) $$(gtest_deps) $(ART_VALGRIND_DEPENDENCIES)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  VALGRIND_LIB=$(HOST_OUT)/lib64/valgrind \
-	  $(HOST_OUT_EXECUTABLES)/valgrind --leak-check=full --error-exitcode=1 $$< && \
+	  $(HOST_OUT_EXECUTABLES)/valgrind --leak-check=full --error-exitcode=1 \
+	    --suppressions=art/test/valgrind-suppressions.txt $$< && \
 	    $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
 
   ART_TEST_HOST_VALGRIND_GTEST$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += valgrind-$$(gtest_rule)
