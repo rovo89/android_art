@@ -174,9 +174,6 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
   } else {
     DCHECK(!Runtime::Current()->HasStatsEnabled());
   }
-  if (AllocatorHasAllocationStack(allocator)) {
-    PushOnAllocationStack(self, &obj);
-  }
   if (kInstrumented) {
     if (IsAllocTrackingEnabled()) {
       // Use obj->GetClass() instead of klass, because PushOnAllocationStack() could move klass
@@ -184,6 +181,9 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     }
   } else {
     DCHECK(!IsAllocTrackingEnabled());
+  }
+  if (AllocatorHasAllocationStack(allocator)) {
+    PushOnAllocationStack(self, &obj);
   }
   if (kInstrumented) {
     if (gc_stress_mode_) {
