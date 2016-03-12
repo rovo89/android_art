@@ -610,6 +610,14 @@ class Runtime {
     return dump_native_stack_on_sig_quit_;
   }
 
+  bool GetPrunedDalvikCache() const {
+    return pruned_dalvik_cache_;
+  }
+
+  void SetPrunedDalvikCache(bool pruned) {
+    pruned_dalvik_cache_ = pruned;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -821,6 +829,9 @@ class Runtime {
 
   // Whether threads should dump their native stack on SIGQUIT.
   bool dump_native_stack_on_sig_quit_;
+
+  // Whether the dalvik cache was pruned when initializing the runtime.
+  bool pruned_dalvik_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
