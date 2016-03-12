@@ -763,10 +763,6 @@ class Heap {
     return allocation_records_.get();
   }
 
-  // Release ownership of the allocation records.
-  std::unique_ptr<AllocRecordObjectMap> ReleaseAllocationRecords()
-      REQUIRES(Locks::alloc_tracker_lock_);
-
   void SetAllocationRecords(AllocRecordObjectMap* records)
       REQUIRES(Locks::alloc_tracker_lock_);
 

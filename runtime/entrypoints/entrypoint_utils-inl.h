@@ -173,7 +173,10 @@ inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
     if (klass == nullptr) {
       return nullptr;
     }
-    return klass->Alloc<kInstrumented>(self, Runtime::Current()->GetHeap()->GetCurrentAllocator());
+    // CheckObjectAlloc can cause thread suspension which means we may now be instrumented.
+    return klass->Alloc</*kInstrumented*/true>(
+        self,
+        Runtime::Current()->GetHeap()->GetCurrentAllocator());
   }
   DCHECK(klass != nullptr);
   return klass->Alloc<kInstrumented>(self, allocator_type);
@@ -194,7 +197,9 @@ inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
     }
     gc::Heap* heap = Runtime::Current()->GetHeap();
     // Pass in false since the object cannot be finalizable.
-    return klass->Alloc<kInstrumented, false>(self, heap->GetCurrentAllocator());
+    // CheckClassInitializedForObjectAlloc can cause thread suspension which means we may now be
+    // instrumented.
+    return klass->Alloc</*kInstrumented*/true, false>(self, heap->GetCurrentAllocator());
   }
   // Pass in false since the object cannot be finalizable.
   return klass->Alloc<kInstrumented, false>(self, allocator_type);
@@ -265,9 +270,12 @@ inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
       return nullptr;
     }
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    return mirror::Array::Alloc<kInstrumented>(self, klass, component_count,
-                                               klass->GetComponentSizeShift(),
-                                               heap->GetCurrentAllocator());
+    // CheckArrayAlloc can cause thread suspension which means we may now be instrumented.
+    return mirror::Array::Alloc</*kInstrumented*/true>(self,
+                                                       klass,
+                                                       component_count,
+                                                       klass->GetComponentSizeShift(),
+                                                       heap->GetCurrentAllocator());
   }
   return mirror::Array::Alloc<kInstrumented>(self, klass, component_count,
                                              klass->GetComponentSizeShift(), allocator_type);
