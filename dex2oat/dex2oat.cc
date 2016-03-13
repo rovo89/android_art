@@ -317,7 +317,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("  -g");
   UsageError("  --generate-debug-info: Generate debug information for native debugging,");
   UsageError("      such as stack unwinding information, ELF symbols and DWARF sections.");
-  UsageError("      If used without --native-debuggable, it will be best-effort only.");
+  UsageError("      If used without --debuggable, it will be best-effort only.");
   UsageError("      This option does not affect the generated code. (disabled by default)");
   UsageError("");
   UsageError("  --no-generate-debug-info: Do not generate debug information for native debugging.");
@@ -325,12 +325,9 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("  --generate-mini-debug-info: Generate minimal amount of LZMA-compressed");
   UsageError("      debug information necessary to print backtraces. (disabled by default)");
   UsageError("");
-  UsageError("  --no-generate-mini-debug-info: Do do generated backtrace info.");
+  UsageError("  --no-generate-mini-debug-info: Do not generate backtrace info.");
   UsageError("");
   UsageError("  --debuggable: Produce code debuggable with Java debugger.");
-  UsageError("");
-  UsageError("  --native-debuggable: Produce code debuggable with native debugger (like LLDB).");
-  UsageError("      Implies --debuggable.");
   UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
@@ -1037,7 +1034,7 @@ class Dex2Oat FINAL {
         compiler_options_->debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     key_value_store_->Put(
         OatHeader::kNativeDebuggableKey,
-        compiler_options_->native_debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+        compiler_options_->GetNativeDebuggable() ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     if (compiler_options_->IsExtractOnly()) {
       key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kExtractOnlyValue);
     } else if (UseProfileGuidedCompilation()) {
