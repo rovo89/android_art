@@ -498,10 +498,11 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   object_array_string->SetComponentType(java_lang_String.Get());
   SetClassRoot(kJavaLangStringArrayClass, object_array_string.Get());
 
+  LinearAlloc* linear_alloc = runtime->GetLinearAlloc();
   // Create runtime resolution and imt conflict methods.
   runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
-  runtime->SetImtConflictMethod(runtime->CreateImtConflictMethod());
-  runtime->SetImtUnimplementedMethod(runtime->CreateImtConflictMethod());
+  runtime->SetImtConflictMethod(runtime->CreateImtConflictMethod(linear_alloc));
+  runtime->SetImtUnimplementedMethod(runtime->CreateImtConflictMethod(linear_alloc));
 
   // Setup boot_class_path_ and register class_path now that we can use AllocObjectArray to create
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
@@ -5904,9 +5905,11 @@ static void SetIMTRef(ArtMethod* unimplemented_method,
   // Place method in imt if entry is empty, place conflict otherwise.
   if (*imt_ref == unimplemented_method) {
     *imt_ref = current_method;
-  } else if (*imt_ref != imt_conflict_method) {
+  } else if (!(*imt_ref)->IsRuntimeMethod()) {
     // If we are not a conflict and we have the same signature and name as the imt
     // entry, it must be that we overwrote a superclass vtable entry.
+    // Note that we have checked IsRuntimeMethod, as there may be multiple different
+    // conflict methods.
     MethodNameAndSignatureComparator imt_comparator(
         (*imt_ref)->GetInterfaceMethodIfProxy(image_pointer_size));
     if (imt_comparator.HasSameNameAndSignature(
@@ -5915,6 +5918,11 @@ static void SetIMTRef(ArtMethod* unimplemented_method,
     } else {
       *imt_ref = imt_conflict_method;
     }
+  } else {
+    // Place the default conflict method. Note that there may be an existing conflict
+    // method in the IMT, but it could be one tailored to the super class, with a
+    // specific ImtConflictTable.
+    *imt_ref = imt_conflict_method;
   }
 }
 
@@ -7654,12 +7662,12 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   return soa.Env()->NewGlobalRef(local_ref.get());
 }
 
-ArtMethod* ClassLinker::CreateRuntimeMethod() {
+ArtMethod* ClassLinker::CreateRuntimeMethod(LinearAlloc* linear_alloc) {
   const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
   const size_t method_size = ArtMethod::Size(image_pointer_size_);
   LengthPrefixedArray<ArtMethod>* method_array = AllocArtMethodArray(
       Thread::Current(),
-      Runtime::Current()->GetLinearAlloc(),
+      linear_alloc,
       1);
   ArtMethod* method = &method_array->At(0, method_size, method_alignment);
   CHECK(method != nullptr);

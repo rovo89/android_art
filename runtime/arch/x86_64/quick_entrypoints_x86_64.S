@@ -1314,14 +1314,37 @@ END_FUNCTION art_quick_proxy_invoke_handler
 
     /*
      * Called to resolve an imt conflict.
-     * rax is a hidden argument that holds the target method's dex method index.
+     * rdi is the conflict ArtMethod.
+     * rax is a hidden argument that holds the target interface method's dex method index.
+     *
+     * Note that this stub writes to r10 and rdi.
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
 #if defined(__APPLE__)
     int3
     int3
 #else
-    movq %rax, %rdi
+    movq __SIZEOF_POINTER__(%rsp), %r10 // Load referrer
+    movq ART_METHOD_DEX_CACHE_METHODS_OFFSET_64(%r10), %r10   // Load dex cache methods array
+    movq 0(%r10, %rax, __SIZEOF_POINTER__), %r10 // Load interface method
+    movq ART_METHOD_JNI_OFFSET_64(%rdi), %rdi  // Load ImtConflictTable
+.Limt_table_iterate:
+    cmpq %r10, 0(%rdi)
+    jne .Limt_table_next_entry
+    // We successuflly hit an entry in the table. Load the target method
+    // and jump to it.
+    movq __SIZEOF_POINTER__(%rdi), %rdi
+    jmp *ART_METHOD_QUICK_CODE_OFFSET_64(%rdi)
+.Limt_table_next_entry:
+    // If the entry is null, the interface method is not in the ImtConflictTable.
+    cmpq LITERAL(0), 0(%rdi)
+    jz .Lconflict_trampoline
+    // Iterate over the entries of the ImtConflictTable.
+    addq LITERAL(2 * __SIZEOF_POINTER__), %rdi
+    jmp .Limt_table_iterate
+.Lconflict_trampoline:
+    // Call the runtime stub to populate the ImtConflictTable and jump to the
+    // resolved method.
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 #endif  // __APPLE__
 END_FUNCTION art_quick_imt_conflict_trampoline
