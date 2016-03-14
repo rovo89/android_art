@@ -92,7 +92,7 @@ void AllocRecordObjectMap::SetProperties() {
 }
 
 AllocRecordObjectMap::~AllocRecordObjectMap() {
-  STLDeleteValues(&entries_);
+  Clear();
 }
 
 void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
@@ -223,7 +223,11 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
       if (heap->IsAllocTrackingEnabled()) {
         return;  // Already enabled, bail.
       }
-      AllocRecordObjectMap* records = new AllocRecordObjectMap();
+      AllocRecordObjectMap* records = heap->GetAllocationRecords();
+      if (records == nullptr) {
+        records = new AllocRecordObjectMap;
+        heap->SetAllocationRecords(records);
+      }
       CHECK(records != nullptr);
       records->SetProperties();
       std::string self_name;
@@ -237,7 +241,6 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
       LOG(INFO) << "Enabling alloc tracker (" << records->alloc_record_max_ << " entries of "
                 << records->max_stack_depth_ << " frames, taking up to "
                 << PrettySize(sz * records->alloc_record_max_) << ")";
-      heap->SetAllocationRecords(records);
     }
     Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
     {
@@ -247,7 +250,6 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
   } else {
     // Delete outside of the critical section to avoid possible lock violations like the runtime
     // shutdown lock.
-    std::unique_ptr<AllocRecordObjectMap> map;
     {
       MutexLock mu(self, *Locks::alloc_tracker_lock_);
       if (!heap->IsAllocTrackingEnabled()) {
@@ -255,7 +257,8 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
       }
       heap->SetAllocTrackingEnabled(false);
       LOG(INFO) << "Disabling alloc tracker";
-      map = heap->ReleaseAllocationRecords();
+      AllocRecordObjectMap* records = heap->GetAllocationRecords();
+      records->Clear();
     }
     // If an allocation comes in before we uninstrument, we will safely drop it on the floor.
     Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
@@ -301,6 +304,11 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, m
 
   records->Put(obj, record);
   DCHECK_LE(records->Size(), records->alloc_record_max_);
+}
+
+void AllocRecordObjectMap::Clear() {
+  STLDeleteValues(&entries_);
+  entries_.clear();
 }
 
 }  // namespace gc

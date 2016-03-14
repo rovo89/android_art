@@ -306,6 +306,8 @@ class AllocRecordObjectMap {
     return entries_.rend();
   }
 
+  void Clear() REQUIRES(Locks::alloc_tracker_lock_);
+
  private:
   static constexpr size_t kDefaultNumAllocRecords = 512 * 1024;
   static constexpr size_t kDefaultNumRecentRecords = 64 * 1024 - 1;
