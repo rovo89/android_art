@@ -1193,7 +1193,7 @@ class BCEVisitor : public HGraphVisitor {
       if (!array_length->IsArrayLength()) {
         continue;  // disregard phis and constants
       }
-      // Collect all bounds checks are still there and that are related as "a[base + constant]"
+      // Collect all bounds checks that are still there and that are related as "a[base + constant]"
       // for a base instruction (possibly absent) and various constants. Note that no attempt
       // is made to partition the set into matching subsets (viz. a[0], a[1] and a[base+1] and
       // a[base+2] are considered as one set).
@@ -1216,7 +1216,12 @@ class BCEVisitor : public HGraphVisitor {
           HInstruction* other_array_length = other_bounds_check->InputAt(1);
           ValueBound other_value = ValueBound::AsValueBound(other_index);
           if (array_length == other_array_length && base == other_value.GetInstruction()) {
-            int32_t other_c = other_value.GetConstant();
+            // Reject certain OOB if BoundsCheck(l, l) occurs on considered subset.
+            if (array_length == other_index) {
+              candidates.clear();
+              standby.clear();
+              break;
+            }
             // Since a subsequent dominated block could be under a conditional, only accept
             // the other bounds check if it is in same block or both blocks dominate the exit.
             // TODO: we could improve this by testing proper post-dominance, or even if this
@@ -1224,6 +1229,7 @@ class BCEVisitor : public HGraphVisitor {
             HBasicBlock* exit = GetGraph()->GetExitBlock();
             if (block == user->GetBlock() ||
                 (block->Dominates(exit) && other_block->Dominates(exit))) {
+              int32_t other_c = other_value.GetConstant();
               min_c = std::min(min_c, other_c);
               max_c = std::max(max_c, other_c);
               candidates.push_back(other_bounds_check);
@@ -1253,7 +1259,11 @@ class BCEVisitor : public HGraphVisitor {
            distance <= kMaxLengthForAddingDeoptimize) {  // reject likely/certain deopt
         AddCompareWithDeoptimization(block, array_length, base, min_c, max_c);
         for (HInstruction* other_bounds_check : candidates) {
-          ReplaceInstruction(other_bounds_check, other_bounds_check->InputAt(0));
+          // Only replace if still in the graph. This avoids visiting the same
+          // bounds check twice if it occurred multiple times in the use list.
+          if (other_bounds_check->IsInBlock()) {
+            ReplaceInstruction(other_bounds_check, other_bounds_check->InputAt(0));
+          }
         }
       }
     }
