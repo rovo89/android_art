@@ -208,7 +208,8 @@ Runtime::Runtime()
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
       is_low_memory_mode_(false),
-      safe_mode_(false) {
+      safe_mode_(false),
+      pruned_dalvik_cache_(false) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
   interpreter::CheckInterpreterAsmConstants();

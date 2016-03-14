@@ -26,6 +26,7 @@
 #include "base/unix_file/fd_file.h"
 #include "globals.h"
 #include "os.h"
+#include "runtime.h"
 #include "utils.h"
 
 namespace art {
@@ -200,6 +201,11 @@ static void PruneDalvikCache(InstructionSet isa) {
   impl::DeleteDirectoryContents(GetDalvikCacheOrDie(".", false), false);
   // Prune /data/dalvik-cache/<isa>.
   impl::DeleteDirectoryContents(GetDalvikCacheOrDie(GetInstructionSetString(isa), false), false);
+
+  // Be defensive. There should be a runtime created here, but this may be called in a test.
+  if (Runtime::Current() != nullptr) {
+    Runtime::Current()->SetPrunedDalvikCache(true);
+  }
 }
 
 // We write out an empty file to the zygote's ISA specific cache dir at the start of
