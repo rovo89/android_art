@@ -1489,6 +1489,64 @@ class UpdateClassLoaderAndResolvedStringsVisitor {
   const bool forward_strings_;
 };
 
+static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
+                                                     const char* location,
+                                                     std::string* error_msg)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  DCHECK(error_msg != nullptr);
+  std::unique_ptr<const DexFile> dex_file;
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location, nullptr);
+  if (oat_dex_file == nullptr) {
+    *error_msg = StringPrintf("Failed finding oat dex file for %s %s",
+                              oat_file->GetLocation().c_str(),
+                              location);
+    return std::unique_ptr<const DexFile>();
+  }
+  std::string inner_error_msg;
+  dex_file = oat_dex_file->OpenDexFile(&inner_error_msg);
+  if (dex_file == nullptr) {
+    *error_msg = StringPrintf("Failed to open dex file %s from within oat file %s error '%s'",
+                              location,
+                              oat_file->GetLocation().c_str(),
+                              inner_error_msg.c_str());
+    return std::unique_ptr<const DexFile>();
+  }
+
+  if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
+    *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
+                              location,
+                              dex_file->GetLocationChecksum(),
+                              oat_dex_file->GetDexFileLocationChecksum());
+    return std::unique_ptr<const DexFile>();
+  }
+  return dex_file;
+}
+
+bool ClassLinker::OpenImageDexFiles(gc::space::ImageSpace* space,
+                                    std::vector<std::unique_ptr<const DexFile>>* out_dex_files,
+                                    std::string* error_msg) {
+  ScopedAssertNoThreadSuspension nts(Thread::Current(), __FUNCTION__);
+  const ImageHeader& header = space->GetImageHeader();
+  mirror::Object* dex_caches_object = header.GetImageRoot(ImageHeader::kDexCaches);
+  DCHECK(dex_caches_object != nullptr);
+  mirror::ObjectArray<mirror::DexCache>* dex_caches =
+      dex_caches_object->AsObjectArray<mirror::DexCache>();
+  const OatFile* oat_file = space->GetOatFile();
+  for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
+    mirror::DexCache* dex_cache = dex_caches->Get(i);
+    std::string dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
+    std::unique_ptr<const DexFile> dex_file = OpenOatDexFile(oat_file,
+                                                             dex_file_location.c_str(),
+                                                             error_msg);
+    if (dex_file == nullptr) {
+      return false;
+    }
+    dex_cache->SetDexFile(dex_file.get());
+    out_dex_files->push_back(std::move(dex_file));
+  }
+  return true;
+}
+
 bool ClassLinker::AddImageSpace(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
@@ -1555,29 +1613,10 @@ bool ClassLinker::AddImageSpace(
       dex_location_path = dex_location_path.substr(0, pos + 1);  // Keep trailing '/'
       dex_file_location = dex_location_path + dex_file_location;
     }
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location.c_str(),
-                                                                      nullptr);
-    if (oat_dex_file == nullptr) {
-      *error_msg = StringPrintf("Failed finding oat dex file for %s %s",
-                                oat_file->GetLocation().c_str(),
-                                dex_file_location.c_str());
-      return false;
-    }
-    std::string inner_error_msg;
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&inner_error_msg);
+    std::unique_ptr<const DexFile> dex_file = OpenOatDexFile(oat_file,
+                                                             dex_file_location.c_str(),
+                                                             error_msg);
     if (dex_file == nullptr) {
-      *error_msg = StringPrintf("Failed to open dex file %s from within oat file %s error '%s'",
-                                dex_file_location.c_str(),
-                                oat_file->GetLocation().c_str(),
-                                inner_error_msg.c_str());
-      return false;
-    }
-
-    if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
-      *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
-                                dex_file_location.c_str(),
-                                dex_file->GetLocationChecksum(),
-                                oat_dex_file->GetDexFileLocationChecksum());
       return false;
     }
 

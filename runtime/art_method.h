@@ -490,12 +490,12 @@ class ArtMethod FINAL {
   // Update heap objects and non-entrypoint pointers by the passed in visitor for image relocation.
   // Does not use read barrier.
   template <typename Visitor>
-  ALWAYS_INLINE void UpdateObjectsForImageRelocation(const Visitor& visitor)
+  ALWAYS_INLINE void UpdateObjectsForImageRelocation(const Visitor& visitor, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Update entry points by passing them through the visitor.
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
-  ALWAYS_INLINE void UpdateEntrypoints(const Visitor& visitor);
+  ALWAYS_INLINE void UpdateEntrypoints(const Visitor& visitor, size_t pointer_size);
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

@@ -815,8 +815,13 @@ const OatFile* OatFileAssistant::GetOdexFile() {
       const std::string& odex_file_name = *OdexFileName();
       std::string error_msg;
       cached_odex_file_.reset(OatFile::Open(odex_file_name.c_str(),
-            odex_file_name.c_str(), nullptr, nullptr, load_executable_,
-            dex_location_.c_str(), &error_msg));
+                                            odex_file_name.c_str(),
+                                            nullptr,
+                                            nullptr,
+                                            load_executable_,
+                                            /*low_4gb*/false,
+                                            dex_location_.c_str(),
+                                            &error_msg));
       if (cached_odex_file_.get() == nullptr) {
         VLOG(oat) << "OatFileAssistant test for existing pre-compiled oat file "
           << odex_file_name << ": " << error_msg;
@@ -846,8 +851,13 @@ const OatFile* OatFileAssistant::GetOatFile() {
       const std::string& oat_file_name = *OatFileName();
       std::string error_msg;
       cached_oat_file_.reset(OatFile::Open(oat_file_name.c_str(),
-            oat_file_name.c_str(), nullptr, nullptr, load_executable_,
-            dex_location_.c_str(), &error_msg));
+                                           oat_file_name.c_str(),
+                                           nullptr,
+                                           nullptr,
+                                           load_executable_,
+                                           /*low_4gb*/false,
+                                           dex_location_.c_str(),
+                                           &error_msg));
       if (cached_oat_file_.get() == nullptr) {
         VLOG(oat) << "OatFileAssistant test for existing oat file "
           << oat_file_name << ": " << error_msg;

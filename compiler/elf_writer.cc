@@ -42,7 +42,11 @@ void ElfWriter::GetOatElfInformation(File* file,
                                      size_t* oat_loaded_size,
                                      size_t* oat_data_offset) {
   std::string error_msg;
-  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, false, false, &error_msg));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file,
+                                                  false,
+                                                  false,
+                                                  /*low_4gb*/false,
+                                                  &error_msg));
   CHECK(elf_file.get() != nullptr) << error_msg;
 
   bool success = elf_file->GetLoadedSize(oat_loaded_size, &error_msg);
@@ -54,7 +58,7 @@ void ElfWriter::GetOatElfInformation(File* file,
 
 bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
   std::string error_msg;
-  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, &error_msg));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, /*low_4gb*/false, &error_msg));
   CHECK(elf_file.get() != nullptr) << error_msg;
 
   // Lookup "oatdata" symbol address.
