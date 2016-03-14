@@ -280,6 +280,8 @@ class OatDumperOptions {
                    bool list_methods,
                    bool dump_header_only,
                    const char* export_dex_location,
+                   const char* app_image,
+                   const char* app_oat,
                    uint32_t addr2instr)
     : dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
@@ -293,6 +295,8 @@ class OatDumperOptions {
       list_methods_(list_methods),
       dump_header_only_(dump_header_only),
       export_dex_location_(export_dex_location),
+      app_image_(app_image),
+      app_oat_(app_oat),
       addr2instr_(addr2instr),
       class_loader_(nullptr) {}
 
@@ -308,6 +312,8 @@ class OatDumperOptions {
   const bool list_methods_;
   const bool dump_header_only_;
   const char* const export_dex_location_;
+  const char* const app_image_;
+  const char* const app_oat_;
   uint32_t addr2instr_;
   Handle<mirror::ClassLoader>* class_loader_;
 };
@@ -1433,8 +1439,10 @@ class OatDumper {
 
 class ImageDumper {
  public:
-  ImageDumper(std::ostream* os, gc::space::ImageSpace& image_space,
-              const ImageHeader& image_header, OatDumperOptions* oat_dumper_options)
+  ImageDumper(std::ostream* os,
+              gc::space::ImageSpace& image_space,
+              const ImageHeader& image_header,
+              OatDumperOptions* oat_dumper_options)
       : os_(os),
         vios_(os),
         indent1_(&vios_),
@@ -1532,16 +1540,23 @@ class ImageDumper {
     os << "OAT LOCATION: " << oat_location;
     os << "\n";
     std::string error_msg;
-    const OatFile* oat_file = runtime->GetOatFileManager().FindOpenedOatFileFromOatLocation(
-        oat_location);
+    const OatFile* oat_file = image_space_.GetOatFile();
     if (oat_file == nullptr) {
-      oat_file = OatFile::Open(oat_location, oat_location,
-                               nullptr, nullptr, false, nullptr,
+      oat_file = runtime->GetOatFileManager().FindOpenedOatFileFromOatLocation(oat_location);
+    }
+    if (oat_file == nullptr) {
+      oat_file = OatFile::Open(oat_location,
+                               oat_location,
+                               nullptr,
+                               nullptr,
+                               false,
+                               /*low_4gb*/false,
+                               nullptr,
                                &error_msg);
-      if (oat_file == nullptr) {
-        os << "NOT FOUND: " << error_msg << "\n";
-        return false;
-      }
+    }
+    if (oat_file == nullptr) {
+      os << "OAT FILE NOT FOUND: " << error_msg << "\n";
+      return EXIT_FAILURE;
     }
     os << "\n";
 
@@ -1592,21 +1607,27 @@ class ImageDumper {
       // TODO: Dump fields.
       // Dump methods after.
       const auto& methods_section = image_header_.GetMethodsSection();
-      const size_t pointer_size =
-          InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet());
       DumpArtMethodVisitor visitor(this);
-      methods_section.VisitPackedArtMethods(&visitor, image_space_.Begin(), pointer_size);
+      methods_section.VisitPackedArtMethods(&visitor,
+                                            image_space_.Begin(),
+                                            image_header_.GetPointerSize());
       // Dump the large objects separately.
       heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       indent_os << "\n";
     }
     os << "STATS:\n" << std::flush;
     std::unique_ptr<File> file(OS::OpenFileForReading(image_filename.c_str()));
-    if (file.get() == nullptr) {
+    size_t data_size = image_header_.GetDataSize();  // stored size in file.
+    if (file == nullptr) {
       LOG(WARNING) << "Failed to find image in " << image_filename;
-    }
-    if (file.get() != nullptr) {
+    } else {
       stats_.file_bytes = file->GetLength();
+      // If the image is compressed, adjust to decompressed size.
+      size_t uncompressed_size = image_header_.GetImageSize() - sizeof(ImageHeader);
+      if (image_header_.GetStorageMode() == ImageHeader::kStorageModeUncompressed) {
+        DCHECK_EQ(uncompressed_size, data_size) << "Sizes should match for uncompressed image";
+      }
+      stats_.file_bytes += uncompressed_size - data_size;
     }
     size_t header_bytes = sizeof(ImageHeader);
     const auto& object_section = image_header_.GetImageSection(ImageHeader::kSectionObjects);
@@ -1653,10 +1674,10 @@ class ImageDumper {
     uint32_t end_intern = intern_section.Offset() + intern_section.Size();
     stats_.alignment_bytes += class_table_section.Offset() - end_intern;
 
-    // Add space between class table and bitmap. Expect the bitmap to be page-aligned.
-    uint32_t end_ctable = class_table_section.Offset() + class_table_section.Size();
+    // Add space between end of image data and bitmap. Expect the bitmap to be page-aligned.
+    const size_t bitmap_offset = sizeof(ImageHeader) + data_size;
     CHECK_ALIGNED(bitmap_section.Offset(), kPageSize);
-    stats_.alignment_bytes += bitmap_section.Offset() - end_ctable;
+    stats_.alignment_bytes += RoundUp(bitmap_offset, kPageSize) - bitmap_offset;
 
     stats_.bitmap_bytes += bitmap_section.Size();
     stats_.art_field_bytes += field_section.Size();
@@ -1680,7 +1701,7 @@ class ImageDumper {
     virtual void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
       std::ostream& indent_os = image_dumper_->vios_.Stream();
       indent_os << method << " " << " ArtMethod: " << PrettyMethod(method) << "\n";
-      image_dumper_->DumpMethod(method, image_dumper_, indent_os);
+      image_dumper_->DumpMethod(method, indent_os);
       indent_os << "\n";
     }
 
@@ -1773,10 +1794,9 @@ class ImageDumper {
     return image_space_.Contains(object);
   }
 
-  const void* GetQuickOatCodeBegin(ArtMethod* m)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+  const void* GetQuickOatCodeBegin(ArtMethod* m) SHARED_REQUIRES(Locks::mutator_lock_) {
     const void* quick_code = m->GetEntryPointFromQuickCompiledCodePtrSize(
-        InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet()));
+        image_header_.GetPointerSize());
     if (Runtime::Current()->GetClassLinker()->IsQuickResolutionStub(quick_code)) {
       quick_code = oat_dumper_->GetQuickOatCode(m);
     }
@@ -1835,8 +1855,7 @@ class ImageDumper {
     }
     ScopedIndentation indent1(&state->vios_);
     DumpFields(os, obj, obj_class);
-    const auto image_pointer_size =
-        InstructionSetPointerSize(state->oat_dumper_->GetOatInstructionSet());
+    const size_t image_pointer_size = state->image_header_.GetPointerSize();
     if (obj->IsObjectArray()) {
       auto* obj_array = obj->AsObjectArray<mirror::Object>();
       for (int32_t i = 0, length = obj_array->GetLength(); i < length; i++) {
@@ -1881,7 +1900,9 @@ class ImageDumper {
           ScopedIndentation indent2(&state->vios_);
           auto* resolved_methods = dex_cache->GetResolvedMethods();
           for (size_t i = 0, length = dex_cache->NumResolvedMethods(); i < length; ++i) {
-            auto* elem = mirror::DexCache::GetElementPtrSize(resolved_methods, i, image_pointer_size);
+            auto* elem = mirror::DexCache::GetElementPtrSize(resolved_methods,
+                                                             i,
+                                                             image_pointer_size);
             size_t run = 0;
             for (size_t j = i + 1;
                 j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_methods,
@@ -1943,13 +1964,11 @@ class ImageDumper {
     state->stats_.Update(obj_class->GetDescriptor(&temp), object_bytes);
   }
 
-  void DumpMethod(ArtMethod* method, ImageDumper* state, std::ostream& indent_os)
+  void DumpMethod(ArtMethod* method, std::ostream& indent_os)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(method != nullptr);
-    const auto image_pointer_size =
-        InstructionSetPointerSize(state->oat_dumper_->GetOatInstructionSet());
-    const void* quick_oat_code_begin = state->GetQuickOatCodeBegin(method);
-    const void* quick_oat_code_end = state->GetQuickOatCodeEnd(method);
+    const void* quick_oat_code_begin = GetQuickOatCodeBegin(method);
+    const void* quick_oat_code_end = GetQuickOatCodeEnd(method);
     OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(
         reinterpret_cast<uintptr_t>(quick_oat_code_begin) - sizeof(OatQuickMethodHeader));
     if (method->IsNative()) {
@@ -1958,13 +1977,13 @@ class ImageDumper {
         DCHECK(method_header->GetMappingTable() == nullptr) << PrettyMethod(method);
       }
       bool first_occurrence;
-      uint32_t quick_oat_code_size = state->GetQuickOatCodeSize(method);
-      state->ComputeOatSize(quick_oat_code_begin, &first_occurrence);
+      uint32_t quick_oat_code_size = GetQuickOatCodeSize(method);
+      ComputeOatSize(quick_oat_code_begin, &first_occurrence);
       if (first_occurrence) {
-        state->stats_.native_to_managed_code_bytes += quick_oat_code_size;
+        stats_.native_to_managed_code_bytes += quick_oat_code_size;
       }
-      if (quick_oat_code_begin !=
-            method->GetEntryPointFromQuickCompiledCodePtrSize(image_pointer_size)) {
+      if (quick_oat_code_begin != method->GetEntryPointFromQuickCompiledCodePtrSize(
+          image_header_.GetPointerSize())) {
         indent_os << StringPrintf("OAT CODE: %p\n", quick_oat_code_begin);
       }
     } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
@@ -1973,46 +1992,44 @@ class ImageDumper {
     } else {
       const DexFile::CodeItem* code_item = method->GetCodeItem();
       size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
-      state->stats_.dex_instruction_bytes += dex_instruction_bytes;
+      stats_.dex_instruction_bytes += dex_instruction_bytes;
 
       bool first_occurrence;
-      size_t gc_map_bytes = state->ComputeOatSize(
-          method_header->GetNativeGcMap(), &first_occurrence);
+      size_t gc_map_bytes = ComputeOatSize(method_header->GetNativeGcMap(), &first_occurrence);
       if (first_occurrence) {
-        state->stats_.gc_map_bytes += gc_map_bytes;
+        stats_.gc_map_bytes += gc_map_bytes;
       }
 
-      size_t pc_mapping_table_bytes = state->ComputeOatSize(
+      size_t pc_mapping_table_bytes = ComputeOatSize(
           method_header->GetMappingTable(), &first_occurrence);
       if (first_occurrence) {
-        state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
+        stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
       }
 
       size_t vmap_table_bytes = 0u;
       if (!method_header->IsOptimized()) {
         // Method compiled with the optimizing compiler have no vmap table.
-        vmap_table_bytes = state->ComputeOatSize(
-            method_header->GetVmapTable(), &first_occurrence);
+        vmap_table_bytes = ComputeOatSize(method_header->GetVmapTable(), &first_occurrence);
         if (first_occurrence) {
-          state->stats_.vmap_table_bytes += vmap_table_bytes;
+          stats_.vmap_table_bytes += vmap_table_bytes;
         }
       }
 
-      uint32_t quick_oat_code_size = state->GetQuickOatCodeSize(method);
-      state->ComputeOatSize(quick_oat_code_begin, &first_occurrence);
+      uint32_t quick_oat_code_size = GetQuickOatCodeSize(method);
+      ComputeOatSize(quick_oat_code_begin, &first_occurrence);
       if (first_occurrence) {
-        state->stats_.managed_code_bytes += quick_oat_code_size;
+        stats_.managed_code_bytes += quick_oat_code_size;
         if (method->IsConstructor()) {
           if (method->IsStatic()) {
-            state->stats_.class_initializer_code_bytes += quick_oat_code_size;
+            stats_.class_initializer_code_bytes += quick_oat_code_size;
           } else if (dex_instruction_bytes > kLargeConstructorDexBytes) {
-            state->stats_.large_initializer_code_bytes += quick_oat_code_size;
+            stats_.large_initializer_code_bytes += quick_oat_code_size;
           }
         } else if (dex_instruction_bytes > kLargeMethodDexBytes) {
-          state->stats_.large_method_code_bytes += quick_oat_code_size;
+          stats_.large_method_code_bytes += quick_oat_code_size;
         }
       }
-      state->stats_.managed_code_bytes_ignoring_deduplication += quick_oat_code_size;
+      stats_.managed_code_bytes_ignoring_deduplication += quick_oat_code_size;
 
       uint32_t method_access_flags = method->GetAccessFlags();
 
@@ -2022,11 +2039,11 @@ class ImageDumper {
                                 method_access_flags);
 
       size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
-          vmap_table_bytes + quick_oat_code_size + ArtMethod::Size(image_pointer_size);
+          vmap_table_bytes + quick_oat_code_size + ArtMethod::Size(image_header_.GetPointerSize());
 
       double expansion =
       static_cast<double>(quick_oat_code_size) / static_cast<double>(dex_instruction_bytes);
-      state->stats_.ComputeOutliers(total_size, expansion, method);
+      stats_.ComputeOutliers(total_size, expansion, method);
     }
   }
 
@@ -2361,25 +2378,74 @@ class ImageDumper {
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
 
-static int DumpImage(Runtime* runtime, OatDumperOptions* options, std::ostream* os) {
+static int DumpImage(gc::space::ImageSpace* image_space,
+                     OatDumperOptions* options,
+                     std::ostream* os) SHARED_REQUIRES(Locks::mutator_lock_) {
+  const ImageHeader& image_header = image_space->GetImageHeader();
+  if (!image_header.IsValid()) {
+    fprintf(stderr, "Invalid image header %s\n", image_space->GetImageLocation().c_str());
+    return EXIT_FAILURE;
+  }
+  ImageDumper image_dumper(os, *image_space, image_header, options);
+  if (!image_dumper.Dump()) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+static int DumpImages(Runtime* runtime, OatDumperOptions* options, std::ostream* os) {
   // Dumping the image, no explicit class loader.
   ScopedNullHandle<mirror::ClassLoader> null_class_loader;
   options->class_loader_ = &null_class_loader;
 
   ScopedObjectAccess soa(Thread::Current());
-  gc::Heap* heap = runtime->GetHeap();
-  std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
-  CHECK(!image_spaces.empty());
-  for (gc::space::ImageSpace* image_space : image_spaces) {
-    const ImageHeader& image_header = image_space->GetImageHeader();
-    if (!image_header.IsValid()) {
-      fprintf(stderr, "Invalid image header %s\n", image_space->GetImageLocation().c_str());
+  if (options->app_image_ != nullptr) {
+    if (options->app_oat_ == nullptr) {
+      LOG(ERROR) << "Can not dump app image without app oat file";
       return EXIT_FAILURE;
     }
-
-    ImageDumper image_dumper(os, *image_space, image_header, options);
-    if (!image_dumper.Dump()) {
+    // We can't know if the app image is 32 bits yet, but it contains pointers into the oat file.
+    // We need to map the oat file in the low 4gb or else the fixup wont be able to fit oat file
+    // pointers into 32 bit pointer sized ArtMethods.
+    std::string error_msg;
+    std::unique_ptr<OatFile> oat_file(OatFile::Open(options->app_oat_,
+                                                    options->app_oat_,
+                                                    nullptr,
+                                                    nullptr,
+                                                    false,
+                                                    /*low_4gb*/true,
+                                                    nullptr,
+                                                    &error_msg));
+    if (oat_file == nullptr) {
+      LOG(ERROR) << "Failed to open oat file " << options->app_oat_ << " with error " << error_msg;
       return EXIT_FAILURE;
+    }
+    std::unique_ptr<gc::space::ImageSpace> space(
+        gc::space::ImageSpace::CreateFromAppImage(options->app_image_, oat_file.get(), &error_msg));
+    if (space == nullptr) {
+      LOG(ERROR) << "Failed to open app image " << options->app_image_ << " with error "
+                 << error_msg;
+    }
+    // Open dex files for the image.
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    if (!runtime->GetClassLinker()->OpenImageDexFiles(space.get(), &dex_files, &error_msg)) {
+      LOG(ERROR) << "Failed to open app image dex files " << options->app_image_ << " with error "
+                 << error_msg;
+    }
+    // Dump the actual image.
+    int result = DumpImage(space.get(), options, os);
+    if (result != EXIT_SUCCESS) {
+      return result;
+    }
+    // Fall through to dump the boot images.
+  }
+
+  gc::Heap* heap = runtime->GetHeap();
+  CHECK(heap->HasBootImageSpace()) << "No image spaces";
+  for (gc::space::ImageSpace* image_space : heap->GetBootImageSpaces()) {
+    int result = DumpImage(image_space, options, os);
+    if (result != EXIT_SUCCESS) {
+      return result;
     }
   }
   return EXIT_SUCCESS;
@@ -2436,8 +2502,14 @@ static int DumpOatWithoutRuntime(OatFile* oat_file, OatDumperOptions* options, s
 static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions* options,
                    std::ostream* os) {
   std::string error_msg;
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
-                                    nullptr, &error_msg);
+  OatFile* oat_file = OatFile::Open(oat_filename,
+                                    oat_filename,
+                                    nullptr,
+                                    nullptr,
+                                    false,
+                                    /*low_4gb*/false,
+                                    nullptr,
+                                    &error_msg);
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
@@ -2452,8 +2524,14 @@ static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions*
 
 static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
   std::string error_msg;
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
-                                    nullptr, &error_msg);
+  OatFile* oat_file = OatFile::Open(oat_filename,
+                                    oat_filename,
+                                    nullptr,
+                                    nullptr,
+                                    false,
+                                    /*low_4gb*/false,
+                                    nullptr,
+                                    &error_msg);
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
@@ -2524,6 +2602,10 @@ struct OatdumpArgs : public CmdlineArgs {
         *error_msg = "Address conversion failed";
         return kParseError;
       }
+    } else if (option.starts_with("--app-image=")) {
+      app_image_ = option.substr(strlen("--app-image=")).data();
+    } else if (option.starts_with("--app-oat=")) {
+      app_oat_ = option.substr(strlen("--app-oat=")).data();
     } else {
       return kParseUnknownArgument;
     }
@@ -2569,6 +2651,13 @@ struct OatdumpArgs : public CmdlineArgs {
         "\n"
         "  --image=<file.art>: specifies an input image location.\n"
         "      Example: --image=/system/framework/boot.art\n"
+        "\n"
+        "  --app-image=<file.art>: specifies an input app image. Must also have a specified\n"
+        " boot image and app oat file.\n"
+        "      Example: --app-image=app.art\n"
+        "\n"
+        "  --app-oat=<file.odex>: specifies an input app oat.\n"
+        "      Example: --app-oat=app.odex\n"
         "\n";
 
     usage += Base::GetUsage();
@@ -2637,6 +2726,8 @@ struct OatdumpArgs : public CmdlineArgs {
   bool dump_header_only_ = false;
   uint32_t addr2instr_ = 0;
   const char* export_dex_location_ = nullptr;
+  const char* app_image_ = nullptr;
+  const char* app_oat_ = nullptr;
 };
 
 struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
@@ -2646,7 +2737,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
     // If we are only doing the oat file, disable absolute_addresses. Keep them for image dumping.
     bool absolute_addresses = (args_->oat_filename_ == nullptr);
 
-    oat_dumper_options_ = std::unique_ptr<OatDumperOptions>(new OatDumperOptions(
+    oat_dumper_options_.reset(new OatDumperOptions(
         args_->dump_raw_mapping_table_,
         args_->dump_raw_gc_map_,
         args_->dump_vmap_,
@@ -2659,6 +2750,8 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
         args_->list_methods_,
         args_->dump_header_only_,
         args_->export_dex_location_,
+        args_->app_image_,
+        args_->app_oat_,
         args_->addr2instr_));
 
     return (args_->boot_image_location_ != nullptr || args_->image_location_ != nullptr) &&
@@ -2691,7 +2784,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
                      args_->os_) == EXIT_SUCCESS;
     }
 
-    return DumpImage(runtime, oat_dumper_options_.get(), args_->os_) == EXIT_SUCCESS;
+    return DumpImages(runtime, oat_dumper_options_.get(), args_->os_) == EXIT_SUCCESS;
   }
 
   std::unique_ptr<OatDumperOptions> oat_dumper_options_;

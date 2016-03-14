@@ -57,9 +57,12 @@ ElfFileImpl<ElfTypes>::ElfFileImpl(File* file, bool writable,
 }
 
 template <typename ElfTypes>
-ElfFileImpl<ElfTypes>* ElfFileImpl<ElfTypes>::Open(
-    File* file, bool writable, bool program_header_only,
-    std::string* error_msg, uint8_t* requested_base) {
+ElfFileImpl<ElfTypes>* ElfFileImpl<ElfTypes>::Open(File* file,
+                                                   bool writable,
+                                                   bool program_header_only,
+                                                   bool low_4gb,
+                                                   std::string* error_msg,
+                                                   uint8_t* requested_base) {
   std::unique_ptr<ElfFileImpl<ElfTypes>> elf_file(new ElfFileImpl<ElfTypes>
       (file, writable, program_header_only, requested_base));
   int prot;
@@ -71,26 +74,29 @@ ElfFileImpl<ElfTypes>* ElfFileImpl<ElfTypes>::Open(
     prot = PROT_READ;
     flags = MAP_PRIVATE;
   }
-  if (!elf_file->Setup(prot, flags, error_msg)) {
+  if (!elf_file->Setup(prot, flags, low_4gb, error_msg)) {
     return nullptr;
   }
   return elf_file.release();
 }
 
 template <typename ElfTypes>
-ElfFileImpl<ElfTypes>* ElfFileImpl<ElfTypes>::Open(
-    File* file, int prot, int flags, std::string* error_msg) {
+ElfFileImpl<ElfTypes>* ElfFileImpl<ElfTypes>::Open(File* file,
+                                                   int prot,
+                                                   int flags,
+                                                   bool low_4gb,
+                                                   std::string* error_msg) {
   std::unique_ptr<ElfFileImpl<ElfTypes>> elf_file(new ElfFileImpl<ElfTypes>
       (file, (prot & PROT_WRITE) == PROT_WRITE, /*program_header_only*/false,
       /*requested_base*/nullptr));
-  if (!elf_file->Setup(prot, flags, error_msg)) {
+  if (!elf_file->Setup(prot, flags, low_4gb, error_msg)) {
     return nullptr;
   }
   return elf_file.release();
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, std::string* error_msg) {
+bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, bool low_4gb, std::string* error_msg) {
   int64_t temp_file_length = file_->GetLength();
   if (temp_file_length < 0) {
     errno = -temp_file_length;
@@ -114,7 +120,7 @@ bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, std::string* error_msg) {
                                 flags,
                                 file_->Fd(),
                                 0,
-                                /*low4_gb*/false,
+                                low_4gb,
                                 file_->GetPath().c_str(),
                                 error_msg),
                 error_msg)) {
@@ -133,7 +139,7 @@ bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, std::string* error_msg) {
                                 flags,
                                 file_->Fd(),
                                 0,
-                                /*low4_gb*/false,
+                                low_4gb,
                                 file_->GetPath().c_str(),
                                 error_msg),
                 error_msg)) {
@@ -147,7 +153,7 @@ bool ElfFileImpl<ElfTypes>::Setup(int prot, int flags, std::string* error_msg) {
                                 flags,
                                 file_->Fd(),
                                 0,
-                                /*low4_gb*/false,
+                                low_4gb,
                                 file_->GetPath().c_str(),
                                 error_msg),
                 error_msg)) {
@@ -1058,7 +1064,7 @@ bool ElfFileImpl<ElfTypes>::GetLoadedSize(size_t* size, std::string* error_msg) 
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::Load(bool executable, std::string* error_msg) {
+bool ElfFileImpl<ElfTypes>::Load(bool executable, bool low_4gb, std::string* error_msg) {
   CHECK(program_header_only_) << file_->GetPath();
 
   if (executable) {
@@ -1124,7 +1130,10 @@ bool ElfFileImpl<ElfTypes>::Load(bool executable, std::string* error_msg) {
       }
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
                                                            reserve_base_override,
-                                                           loaded_size, PROT_NONE, false, false,
+                                                           loaded_size,
+                                                           PROT_NONE,
+                                                           low_4gb,
+                                                           false,
                                                            error_msg));
       if (reserve.get() == nullptr) {
         *error_msg = StringPrintf("Failed to allocate %s: %s",
@@ -1656,7 +1665,11 @@ ElfFile::~ElfFile() {
   CHECK_NE(elf32_.get() == nullptr, elf64_.get() == nullptr);
 }
 
-ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std::string* error_msg,
+ElfFile* ElfFile::Open(File* file,
+                       bool writable,
+                       bool program_header_only,
+                       bool low_4gb,
+                       std::string* error_msg,
                        uint8_t* requested_base) {
   if (file->GetLength() < EI_NIDENT) {
     *error_msg = StringPrintf("File %s is too short to be a valid ELF file",
@@ -1668,7 +1681,7 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
                                               MAP_PRIVATE,
                                               file->Fd(),
                                               0,
-                                              /*low4_gb*/false,
+                                              low_4gb,
                                               file->GetPath().c_str(),
                                               error_msg));
   if (map == nullptr && map->Size() != EI_NIDENT) {
@@ -1676,14 +1689,22 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
   }
   uint8_t* header = map->Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
-    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, writable, program_header_only,
-                                                       error_msg, requested_base);
+    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file,
+                                                       writable,
+                                                       program_header_only,
+                                                       low_4gb,
+                                                       error_msg,
+                                                       requested_base);
     if (elf_file_impl == nullptr)
       return nullptr;
     return new ElfFile(elf_file_impl);
   } else if (header[EI_CLASS] == ELFCLASS32) {
-    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, writable, program_header_only,
-                                                       error_msg, requested_base);
+    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file,
+                                                       writable,
+                                                       program_header_only,
+                                                       low_4gb,
+                                                       error_msg,
+                                                       requested_base);
     if (elf_file_impl == nullptr) {
       return nullptr;
     }
@@ -1698,6 +1719,8 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
 }
 
 ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* error_msg) {
+  // low_4gb support not required for this path.
+  constexpr bool low_4gb = false;
   if (file->GetLength() < EI_NIDENT) {
     *error_msg = StringPrintf("File %s is too short to be a valid ELF file",
                               file->GetPath().c_str());
@@ -1708,7 +1731,7 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
                                               MAP_PRIVATE,
                                               file->Fd(),
                                               0,
-                                              /*low4_gb*/false,
+                                              low_4gb,
                                               file->GetPath().c_str(),
                                               error_msg));
   if (map == nullptr && map->Size() != EI_NIDENT) {
@@ -1716,13 +1739,21 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
   }
   uint8_t* header = map->Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
-    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, mmap_prot, mmap_flags, error_msg);
+    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file,
+                                                       mmap_prot,
+                                                       mmap_flags,
+                                                       low_4gb,
+                                                       error_msg);
     if (elf_file_impl == nullptr) {
       return nullptr;
     }
     return new ElfFile(elf_file_impl);
   } else if (header[EI_CLASS] == ELFCLASS32) {
-    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, mmap_prot, mmap_flags, error_msg);
+    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file,
+                                                       mmap_prot,
+                                                       mmap_flags,
+                                                       low_4gb,
+                                                       error_msg);
     if (elf_file_impl == nullptr) {
       return nullptr;
     }
@@ -1744,8 +1775,8 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
     return elf32_->func(__VA_ARGS__); \
   }
 
-bool ElfFile::Load(bool executable, std::string* error_msg) {
-  DELEGATE_TO_IMPL(Load, executable, error_msg);
+bool ElfFile::Load(bool executable, bool low_4gb, std::string* error_msg) {
+  DELEGATE_TO_IMPL(Load, executable, low_4gb, error_msg);
 }
 
 const uint8_t* ElfFile::FindDynamicSymbolAddress(const std::string& symbol_name) const {
@@ -1810,7 +1841,7 @@ bool ElfFile::GetLoadedSize(size_t* size, std::string* error_msg) const {
 }
 
 bool ElfFile::Strip(File* file, std::string* error_msg) {
-  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, error_msg));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, /*low_4gb*/false, error_msg));
   if (elf_file.get() == nullptr) {
     return false;
   }

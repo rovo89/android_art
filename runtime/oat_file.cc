@@ -89,6 +89,7 @@ class OatFileBase : public OatFile {
                                   uint8_t* oat_file_begin,
                                   bool writable,
                                   bool executable,
+                                  bool low_4gb,
                                   const char* abs_dex_location,
                                   std::string* error_msg);
 
@@ -102,6 +103,7 @@ class OatFileBase : public OatFile {
                     uint8_t* oat_file_begin,
                     bool writable,
                     bool executable,
+                    bool low_4gb,
                     std::string* error_msg) = 0;
 
   bool ComputeFields(uint8_t* requested_base,
@@ -133,6 +135,7 @@ OatFileBase* OatFileBase::OpenOatFile(const std::string& elf_filename,
                                       uint8_t* oat_file_begin,
                                       bool writable,
                                       bool executable,
+                                      bool low_4gb,
                                       const char* abs_dex_location,
                                       std::string* error_msg) {
   std::unique_ptr<OatFileBase> ret(new kOatFileBaseSubType(location, executable));
@@ -140,6 +143,7 @@ OatFileBase* OatFileBase::OpenOatFile(const std::string& elf_filename,
                  oat_file_begin,
                  writable,
                  executable,
+                 low_4gb,
                  error_msg)) {
     return nullptr;
   }
@@ -147,7 +151,6 @@ OatFileBase* OatFileBase::OpenOatFile(const std::string& elf_filename,
   if (!ret->ComputeFields(requested_base, elf_filename, error_msg)) {
     return nullptr;
   }
-
   ret->PreSetup(elf_filename);
 
   if (!ret->Setup(abs_dex_location, error_msg)) {
@@ -532,6 +535,7 @@ class DlOpenOatFile FINAL : public OatFileBase {
             uint8_t* oat_file_begin,
             bool writable,
             bool executable,
+            bool low_4gb,
             std::string* error_msg) OVERRIDE;
 
   // Ask the linker where it mmaped the file and notify our mmap wrapper of the regions.
@@ -558,6 +562,7 @@ bool DlOpenOatFile::Load(const std::string& elf_filename,
                          uint8_t* oat_file_begin,
                          bool writable,
                          bool executable,
+                         bool low_4gb,
                          std::string* error_msg) {
   // Use dlopen only when flagged to do so, and when it's OK to load things executable.
   // TODO: Also try when not executable? The issue here could be re-mapping as writable (as
@@ -565,6 +570,10 @@ bool DlOpenOatFile::Load(const std::string& elf_filename,
   //       various reasons.
   if (!kUseDlopen) {
     *error_msg = "DlOpen is disabled.";
+    return false;
+  }
+  if (low_4gb) {
+    *error_msg = "DlOpen does not support low 4gb loading.";
     return false;
   }
   if (writable) {
@@ -702,6 +711,7 @@ class ElfOatFile FINAL : public OatFileBase {
                                  uint8_t* oat_file_begin,  // Override base if not null
                                  bool writable,
                                  bool executable,
+                                 bool low_4gb,
                                  const char* abs_dex_location,
                                  std::string* error_msg);
 
@@ -723,6 +733,7 @@ class ElfOatFile FINAL : public OatFileBase {
             uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
             bool writable,
             bool executable,
+            bool low_4gb,
             std::string* error_msg) OVERRIDE;
 
   void PreSetup(const std::string& elf_filename ATTRIBUTE_UNUSED) OVERRIDE {
@@ -733,6 +744,7 @@ class ElfOatFile FINAL : public OatFileBase {
                    uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
                    bool writable,
                    bool executable,
+                   bool low_4gb,
                    std::string* error_msg);
 
  private:
@@ -748,11 +760,17 @@ ElfOatFile* ElfOatFile::OpenElfFile(File* file,
                                     uint8_t* oat_file_begin,  // Override base if not null
                                     bool writable,
                                     bool executable,
+                                    bool low_4gb,
                                     const char* abs_dex_location,
                                     std::string* error_msg) {
   ScopedTrace trace("Open elf file " + location);
   std::unique_ptr<ElfOatFile> oat_file(new ElfOatFile(location, executable));
-  bool success = oat_file->ElfFileOpen(file, oat_file_begin, writable, executable, error_msg);
+  bool success = oat_file->ElfFileOpen(file,
+                                       oat_file_begin,
+                                       writable,
+                                       low_4gb,
+                                       executable,
+                                       error_msg);
   if (!success) {
     CHECK(!error_msg->empty());
     return nullptr;
@@ -792,6 +810,7 @@ bool ElfOatFile::Load(const std::string& elf_filename,
                       uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
                       bool writable,
                       bool executable,
+                      bool low_4gb,
                       std::string* error_msg) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
@@ -803,6 +822,7 @@ bool ElfOatFile::Load(const std::string& elf_filename,
                                  oat_file_begin,
                                  writable,
                                  executable,
+                                 low_4gb,
                                  error_msg);
 }
 
@@ -810,19 +830,21 @@ bool ElfOatFile::ElfFileOpen(File* file,
                              uint8_t* oat_file_begin,
                              bool writable,
                              bool executable,
+                             bool low_4gb,
                              std::string* error_msg) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   // TODO: rename requested_base to oat_data_begin
   elf_file_.reset(ElfFile::Open(file,
                                 writable,
                                 /*program_header_only*/true,
+                                low_4gb,
                                 error_msg,
                                 oat_file_begin));
   if (elf_file_ == nullptr) {
     DCHECK(!error_msg->empty());
     return false;
   }
-  bool loaded = elf_file_->Load(executable, error_msg);
+  bool loaded = elf_file_->Load(executable, low_4gb, error_msg);
   DCHECK(loaded || !error_msg->empty());
   return loaded;
 }
@@ -870,6 +892,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        uint8_t* requested_base,
                        uint8_t* oat_file_begin,
                        bool executable,
+                       bool low_4gb,
                        const char* abs_dex_location,
                        std::string* error_msg) {
   ScopedTrace trace("Open oat file " + location);
@@ -885,15 +908,15 @@ OatFile* OatFile::Open(const std::string& filename,
                                                                  oat_file_begin,
                                                                  false,
                                                                  executable,
+                                                                 low_4gb,
                                                                  abs_dex_location,
                                                                  error_msg);
   if (with_dlopen != nullptr) {
     return with_dlopen;
   }
   if (kPrintDlOpenErrorMessage) {
-    LOG(ERROR) << "Failed to dlopen: " << *error_msg;
+    LOG(ERROR) << "Failed to dlopen: " << filename << " with error " << *error_msg;
   }
-
   // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
   //
   // On target, dlopen may fail when compiling due to selinux restrictions on installd.
@@ -913,6 +936,7 @@ OatFile* OatFile::Open(const std::string& filename,
                                                                 oat_file_begin,
                                                                 false,
                                                                 executable,
+                                                                low_4gb,
                                                                 abs_dex_location,
                                                                 error_msg);
   return with_internal;
@@ -929,6 +953,7 @@ OatFile* OatFile::OpenWritable(File* file,
                                  nullptr,
                                  true,
                                  false,
+                                 /*low_4gb*/false,
                                  abs_dex_location,
                                  error_msg);
 }
@@ -944,6 +969,7 @@ OatFile* OatFile::OpenReadable(File* file,
                                  nullptr,
                                  false,
                                  false,
+                                 /*low_4gb*/false,
                                  abs_dex_location,
                                  error_msg);
 }
