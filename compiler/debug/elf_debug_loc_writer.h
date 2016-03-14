@@ -96,12 +96,21 @@ std::vector<VariableLocation> GetVariableLocations(
   std::vector<VariableLocation> variable_locations;
 
   // Get stack maps sorted by pc (they might not be sorted internally).
+  // TODO(dsrbecky) Remove this once stackmaps get sorted by pc.
   const CodeInfo code_info(method_info->code_info);
   const StackMapEncoding encoding = code_info.ExtractEncoding();
   std::map<uint32_t, uint32_t> stack_maps;  // low_pc -> stack_map_index.
   for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
     StackMap stack_map = code_info.GetStackMapAt(s, encoding);
     DCHECK(stack_map.IsValid());
+    if (!stack_map.HasDexRegisterMap(encoding)) {
+      // The compiler creates stackmaps without register maps at the start of
+      // basic blocks in order to keep instruction-accurate line number mapping.
+      // However, we never stop at those (breakpoint locations always have map).
+      // Therefore, for the purpose of local variables, we ignore them.
+      // The main reason for this is to save space by avoiding undefined gaps.
+      continue;
+    }
     const uint32_t pc_offset = stack_map.GetNativePcOffset(encoding);
     DCHECK_LE(pc_offset, method_info->code_size);
     DCHECK_LE(compilation_unit_code_address, method_info->code_address);
@@ -128,6 +137,8 @@ std::vector<VariableLocation> GetVariableLocations(
     // Check that the stack map is in the requested range.
     uint32_t dex_pc = stack_map.GetDexPc(encoding);
     if (!(dex_pc_low <= dex_pc && dex_pc < dex_pc_high)) {
+      // The variable is not in scope at this PC. Therefore omit the entry.
+      // Note that this is different to None() entry which means in scope, but unknown location.
       continue;
     }
 
@@ -136,13 +147,12 @@ std::vector<VariableLocation> GetVariableLocations(
     DexRegisterLocation reg_hi = DexRegisterLocation::None();
     DCHECK_LT(stack_map_index, dex_register_maps.size());
     DexRegisterMap dex_register_map = dex_register_maps[stack_map_index];
-    if (dex_register_map.IsValid()) {
-      reg_lo = dex_register_map.GetDexRegisterLocation(
-          vreg, method_info->code_item->registers_size_, code_info, encoding);
-      if (is64bitValue) {
-        reg_hi = dex_register_map.GetDexRegisterLocation(
-            vreg + 1, method_info->code_item->registers_size_, code_info, encoding);
-      }
+    DCHECK(dex_register_map.IsValid());
+    reg_lo = dex_register_map.GetDexRegisterLocation(
+        vreg, method_info->code_item->registers_size_, code_info, encoding);
+    if (is64bitValue) {
+      reg_hi = dex_register_map.GetDexRegisterLocation(
+          vreg + 1, method_info->code_item->registers_size_, code_info, encoding);
     }
 
     // Add location entry for this address range.
@@ -151,9 +161,6 @@ std::vector<VariableLocation> GetVariableLocations(
         variable_locations.back().reg_hi == reg_hi &&
         variable_locations.back().high_pc == low_pc) {
       // Merge with the previous entry (extend its range).
-      variable_locations.back().high_pc = high_pc;
-    } else if (!variable_locations.empty() && reg_lo == DexRegisterLocation::None()) {
-      // Unknown location - use the last known location as best-effort guess.
       variable_locations.back().high_pc = high_pc;
     } else {
       variable_locations.push_back({low_pc, high_pc, reg_lo, reg_hi});
