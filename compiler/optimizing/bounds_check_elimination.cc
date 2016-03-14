@@ -535,6 +535,7 @@ class BCEVisitor : public HGraphVisitor {
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
         dynamic_bce_standby_(
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
+        record_dynamic_bce_standby_(true),
         early_exit_loop_(
             std::less<uint32_t>(),
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
@@ -556,6 +557,7 @@ class BCEVisitor : public HGraphVisitor {
 
   void Finish() {
     // Retry dynamic bce candidates on standby that are still in the graph.
+    record_dynamic_bce_standby_ = false;
     for (HBoundsCheck* bounds_check : dynamic_bce_standby_) {
       if (bounds_check->IsInBlock()) {
         TryDynamicBCE(bounds_check);
@@ -1467,7 +1469,9 @@ class BCEVisitor : public HGraphVisitor {
       }
       // If bounds check made it this far, it is worthwhile to check later if
       // the loop was forced finite by another candidate.
-      dynamic_bce_standby_.push_back(check);
+      if (record_dynamic_bce_standby_) {
+        dynamic_bce_standby_.push_back(check);
+      }
       return false;
     }
     return true;
@@ -1691,6 +1695,7 @@ class BCEVisitor : public HGraphVisitor {
 
   // Stand by list for dynamic bce.
   ArenaVector<HBoundsCheck*> dynamic_bce_standby_;
+  bool record_dynamic_bce_standby_;
 
   // Early-exit loop bookkeeping.
   ArenaSafeMap<uint32_t, bool> early_exit_loop_;
