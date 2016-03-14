@@ -46,6 +46,7 @@
 #include "class_linker.h"
 #include "compiler.h"
 #include "compiler_callbacks.h"
+#include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
 #include "dex/pass_manager.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -63,6 +64,7 @@
 #include "interpreter/unstarted_runtime.h"
 #include "jit/offline_profiling_info.h"
 #include "leb128.h"
+#include "linker/multi_oat_relative_patcher.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
@@ -696,6 +698,7 @@ class Dex2Oat FINAL {
 
     if (IsBootImage()) {
       // We need the boot image to always be debuggable.
+      // TODO: Remove this once we better deal with full frame deoptimization.
       compiler_options_->debuggable_ = true;
     }
 
@@ -1032,6 +1035,9 @@ class Dex2Oat FINAL {
     key_value_store_->Put(
         OatHeader::kDebuggableKey,
         compiler_options_->debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+    key_value_store_->Put(
+        OatHeader::kNativeDebuggableKey,
+        compiler_options_->native_debuggable_ ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     if (compiler_options_->IsExtractOnly()) {
       key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kExtractOnlyValue);
     } else if (UseProfileGuidedCompilation()) {
@@ -1384,7 +1390,7 @@ class Dex2Oat FINAL {
         if (opened_dex_files_map != nullptr) {
           opened_dex_files_maps_.push_back(std::move(opened_dex_files_map));
           for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
-            dex_file_oat_filename_map_.emplace(dex_file.get(), oat_filenames_[i]);
+            dex_file_oat_index_map_.emplace(dex_file.get(), i);
             opened_dex_files_.push_back(std::move(dex_file));
           }
         } else {
@@ -1533,13 +1539,12 @@ class Dex2Oat FINAL {
                                      IsBootImage(),
                                      image_classes_.release(),
                                      compiled_classes_.release(),
-                                     nullptr,
+                                     /* compiled_methods */ nullptr,
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
                                      compiler_phases_timings_.get(),
                                      swap_fd_,
-                                     &dex_file_oat_filename_map_,
                                      profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
     driver_->CompileAll(class_loader_, dex_files_, timings_);
@@ -1646,7 +1651,7 @@ class Dex2Oat FINAL {
                                           IsAppImage(),
                                           image_storage_mode_,
                                           oat_filenames_,
-                                          dex_file_oat_filename_map_));
+                                          dex_file_oat_index_map_));
 
       // We need to prepare method offsets in the image address space for direct method patching.
       TimingLogger::ScopedTiming t2("dex2oat Prepare image address space", timings_);
@@ -1656,21 +1661,41 @@ class Dex2Oat FINAL {
       }
     }
 
+    linker::MultiOatRelativePatcher patcher(instruction_set_, instruction_set_features_.get());
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
+      for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
+        std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
+        std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
+
+        std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
+        oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files, &patcher);
+
+        size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
+        size_t text_size = oat_writer->GetSize() - rodata_size;
+        elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer->GetBssSize());
+
+        if (IsImage()) {
+          // Update oat layout.
+          DCHECK(image_writer_ != nullptr);
+          DCHECK_LT(i, oat_filenames_.size());
+          image_writer_->UpdateOatFileLayout(i,
+                                             elf_writer->GetLoadedSize(),
+                                             oat_writer->GetOatDataOffset(),
+                                             oat_writer->GetSize());
+        }
+      }
+
       for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
         std::unique_ptr<File>& oat_file = oat_files_[i];
         std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
         std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
 
-        std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
-        oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files);
+        oat_writer->AddMethodDebugInfos(debug::MakeTrampolineInfos(oat_writer->GetOatHeader()));
 
         // We need to mirror the layout of the ELF file in the compressed debug-info.
-        // Therefore we need to propagate the sizes of at least those sections.
-        size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
-        size_t text_size = oat_writer->GetSize() - rodata_size;
-        elf_writer->PrepareDebugInfo(rodata_size, text_size, oat_writer->GetMethodDebugInfo());
+        // Therefore PrepareDebugInfo() relies on the SetLoadedSectionSizes() call further above.
+        elf_writer->PrepareDebugInfo(oat_writer->GetMethodDebugInfo());
 
         OutputStream*& rodata = rodata_[i];
         DCHECK(rodata != nullptr);
@@ -1696,7 +1721,13 @@ class Dex2Oat FINAL {
           return false;
         }
 
-        elf_writer->SetBssSize(oat_writer->GetBssSize());
+        if (IsImage()) {
+          // Update oat header information.
+          DCHECK(image_writer_ != nullptr);
+          DCHECK_LT(i, oat_filenames_.size());
+          image_writer_->UpdateOatFileHeader(i, oat_writer->GetOatHeader());
+        }
+
         elf_writer->WriteDynamicSection();
         elf_writer->WriteDebugInfo(oat_writer->GetMethodDebugInfo());
         elf_writer->WritePatchLocations(oat_writer->GetAbsolutePatchLocations());
@@ -1710,17 +1741,8 @@ class Dex2Oat FINAL {
         if (oat_files_[i] != nullptr) {
           if (oat_files_[i]->Flush() != 0) {
             PLOG(ERROR) << "Failed to flush oat file: " << oat_filenames_[i];
-            oat_files_[i]->Erase();
             return false;
           }
-        }
-
-        if (IsImage()) {
-          // Update oat estimates.
-          DCHECK(image_writer_ != nullptr);
-          DCHECK_LT(i, oat_filenames_.size());
-
-          image_writer_->UpdateOatFile(oat_file.get(), oat_filenames_[i]);
         }
 
         VLOG(compiler) << "Oat file written successfully: " << oat_filenames_[i];
@@ -2084,8 +2106,10 @@ class Dex2Oat FINAL {
     elf_writers_.reserve(oat_files_.size());
     oat_writers_.reserve(oat_files_.size());
     for (const std::unique_ptr<File>& oat_file : oat_files_) {
-      elf_writers_.emplace_back(
-          CreateElfWriterQuick(instruction_set_, compiler_options_.get(), oat_file.get()));
+      elf_writers_.emplace_back(CreateElfWriterQuick(instruction_set_,
+                                                     instruction_set_features_.get(),
+                                                     compiler_options_.get(),
+                                                     oat_file.get()));
       elf_writers_.back()->Start();
       oat_writers_.emplace_back(new OatWriter(IsBootImage(), timings_));
     }
@@ -2209,22 +2233,21 @@ class Dex2Oat FINAL {
     }
     if (!image_writer_->Write(app_image_fd_,
                               image_filenames_,
-                              oat_fd_,
-                              oat_filenames_,
-                              oat_location_)) {
+                              oat_filenames_)) {
       LOG(ERROR) << "Failure during image file creation";
       return false;
     }
 
     // We need the OatDataBegin entries.
-    std::map<const char*, uintptr_t> oat_data_begins;
-    for (const char* oat_filename : oat_filenames_) {
-      oat_data_begins.emplace(oat_filename, image_writer_->GetOatDataBegin(oat_filename));
+    dchecked_vector<uintptr_t> oat_data_begins;
+    for (size_t i = 0, size = oat_filenames_.size(); i != size; ++i) {
+      oat_data_begins.push_back(image_writer_->GetOatDataBegin(i));
     }
     // Destroy ImageWriter before doing FixupElf.
     image_writer_.reset();
 
-    for (const char* oat_filename : oat_filenames_) {
+    for (size_t i = 0, size = oat_filenames_.size(); i != size; ++i) {
+      const char* oat_filename = oat_filenames_[i];
       // Do not fix up the ELF file if we are --compile-pic or compiling the app image
       if (!compiler_options_->GetCompilePic() && IsBootImage()) {
         std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename));
@@ -2233,9 +2256,7 @@ class Dex2Oat FINAL {
           return false;
         }
 
-        uintptr_t oat_data_begin = oat_data_begins.find(oat_filename)->second;
-
-        if (!ElfWriter::Fixup(oat_file.get(), oat_data_begin)) {
+        if (!ElfWriter::Fixup(oat_file.get(), oat_data_begins[i])) {
           oat_file->Erase();
           LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
           return false;
@@ -2449,7 +2470,7 @@ class Dex2Oat FINAL {
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
-  std::unordered_map<const DexFile*, const char*> dex_file_oat_filename_map_;
+  std::unordered_map<const DexFile*, size_t> dex_file_oat_index_map_;
 
   // Backing storage.
   std::vector<std::string> char_backing_storage_;
@@ -2566,22 +2587,26 @@ static int dex2oat(int argc, char** argv) {
 
   TimingLogger timings("compiler", false, false);
 
-  Dex2Oat dex2oat(&timings);
+  // Allocate `dex2oat` on the heap instead of on the stack, as Clang
+  // might produce a stack frame too large for this function or for
+  // functions inlining it (such as main), that would not fit the
+  // requirements of the `-Wframe-larger-than` option.
+  std::unique_ptr<Dex2Oat> dex2oat = MakeUnique<Dex2Oat>(&timings);
 
   // Parse arguments. Argument mistakes will lead to exit(EXIT_FAILURE) in UsageError.
-  dex2oat.ParseArgs(argc, argv);
+  dex2oat->ParseArgs(argc, argv);
 
   // If needed, process profile information for profile guided compilation.
   // This operation involves I/O.
-  if (dex2oat.UseProfileGuidedCompilation()) {
-    if (!dex2oat.LoadProfile()) {
+  if (dex2oat->UseProfileGuidedCompilation()) {
+    if (!dex2oat->LoadProfile()) {
       LOG(ERROR) << "Failed to process profile file";
       return EXIT_FAILURE;
     }
   }
 
   // Check early that the result of compilation can be written
-  if (!dex2oat.OpenFile()) {
+  if (!dex2oat->OpenFile()) {
     return EXIT_FAILURE;
   }
 
@@ -2591,25 +2616,25 @@ static int dex2oat(int argc, char** argv) {
   //   3) Compiling with --host
   //   4) Compiling on the host (not a target build)
   // Otherwise, print a stripped command line.
-  if (kIsDebugBuild || dex2oat.IsBootImage() || dex2oat.IsHost() || !kIsTargetBuild) {
+  if (kIsDebugBuild || dex2oat->IsBootImage() || dex2oat->IsHost() || !kIsTargetBuild) {
     LOG(INFO) << CommandLine();
   } else {
     LOG(INFO) << StrippedCommandLine();
   }
 
-  if (!dex2oat.Setup()) {
-    dex2oat.EraseOatFiles();
+  if (!dex2oat->Setup()) {
+    dex2oat->EraseOatFiles();
     return EXIT_FAILURE;
   }
 
   bool result;
-  if (dex2oat.IsImage()) {
-    result = CompileImage(dex2oat);
+  if (dex2oat->IsImage()) {
+    result = CompileImage(*dex2oat);
   } else {
-    result = CompileApp(dex2oat);
+    result = CompileApp(*dex2oat);
   }
 
-  dex2oat.Shutdown();
+  dex2oat->Shutdown();
   return result;
 }
 }  // namespace art

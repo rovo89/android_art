@@ -28,6 +28,7 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/allocation_record.h"
 #include "gc/scoped_gc_critical_section.h"
@@ -570,6 +571,29 @@ bool Dbg::RequiresDeoptimization() {
   return !Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly();
 }
 
+// Used to patch boot image method entry point to interpreter bridge.
+class UpdateEntryPointsClassVisitor : public ClassVisitor {
+ public:
+  explicit UpdateEntryPointsClassVisitor(instrumentation::Instrumentation* instrumentation)
+      : instrumentation_(instrumentation) {}
+
+  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+    for (auto& m : klass->GetMethods(pointer_size)) {
+      const void* code = m.GetEntryPointFromQuickCompiledCode();
+      if (Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
+          !m.IsNative() &&
+          !m.IsProxyMethod()) {
+        instrumentation_->UpdateMethodsCode(&m, GetQuickToInterpreterBridge());
+      }
+    }
+    return true;
+  }
+
+ private:
+  instrumentation::Instrumentation* const instrumentation_;
+};
+
 void Dbg::GoActive() {
   // Enable all debugging features, including scans for breakpoints.
   // This is a no-op if we're already active.
@@ -598,6 +622,14 @@ void Dbg::GoActive() {
   }
 
   Runtime* runtime = Runtime::Current();
+  // Since boot image code is AOT compiled as not debuggable, we need to patch
+  // entry points of methods in boot image to interpreter bridge.
+  if (!runtime->GetInstrumentation()->IsForcedInterpretOnly()) {
+    ScopedObjectAccess soa(self);
+    UpdateEntryPointsClassVisitor visitor(runtime->GetInstrumentation());
+    runtime->GetClassLinker()->VisitClasses(&visitor);
+  }
+
   ScopedSuspendAll ssa(__FUNCTION__);
   if (RequiresDeoptimization()) {
     runtime->GetInstrumentation()->EnableDeoptimization();

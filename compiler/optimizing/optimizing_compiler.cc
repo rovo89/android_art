@@ -20,7 +20,7 @@
 #include <memory>
 #include <stdint.h>
 
-#ifdef ART_ENABLE_CODEGEN_arm64
+#ifdef ART_ENABLE_CODEGEN_arm
 #include "dex_cache_array_fixups_arm.h"
 #endif
 
@@ -60,6 +60,7 @@
 #include "induction_var_analysis.h"
 #include "inliner.h"
 #include "instruction_simplifier.h"
+#include "instruction_simplifier_arm.h"
 #include "intrinsics.h"
 #include "jit/debugger_interface.h"
 #include "jit/jit_code_cache.h"
@@ -430,6 +431,7 @@ static void MaybeRunInliner(HGraph* graph,
 
 static void RunArchOptimizations(InstructionSet instruction_set,
                                  HGraph* graph,
+                                 CodeGenerator* codegen,
                                  OptimizingCompilerStats* stats,
                                  PassObserver* pass_observer) {
   ArenaAllocator* arena = graph->GetArena();
@@ -438,7 +440,10 @@ static void RunArchOptimizations(InstructionSet instruction_set,
     case kThumb2:
     case kArm: {
       arm::DexCacheArrayFixups* fixups = new (arena) arm::DexCacheArrayFixups(graph, stats);
+      arm::InstructionSimplifierArm* simplifier =
+          new (arena) arm::InstructionSimplifierArm(graph, stats);
       HOptimization* arm_optimizations[] = {
+        simplifier,
         fixups
       };
       RunOptimizations(arm_optimizations, arraysize(arm_optimizations), pass_observer);
@@ -462,7 +467,8 @@ static void RunArchOptimizations(InstructionSet instruction_set,
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86: {
-      x86::PcRelativeFixups* pc_relative_fixups = new (arena) x86::PcRelativeFixups(graph, stats);
+      x86::PcRelativeFixups* pc_relative_fixups =
+          new (arena) x86::PcRelativeFixups(graph, codegen, stats);
       HOptimization* x86_optimizations[] = {
           pc_relative_fixups
       };
@@ -479,7 +485,11 @@ NO_INLINE  // Avoid increasing caller's frame size by large stack-allocated obje
 static void AllocateRegisters(HGraph* graph,
                               CodeGenerator* codegen,
                               PassObserver* pass_observer) {
-  PrepareForRegisterAllocation(graph).Run();
+  {
+    PassScope scope(PrepareForRegisterAllocation::kPrepareForRegisterAllocationPassName,
+                    pass_observer);
+    PrepareForRegisterAllocation(graph).Run();
+  }
   SsaLivenessAnalysis liveness(graph, codegen);
   {
     PassScope scope(SsaLivenessAnalysis::kLivenessPassName, pass_observer);
@@ -553,7 +563,7 @@ static void RunOptimizations(HGraph* graph,
   };
   RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 
-  RunArchOptimizations(driver->GetInstructionSet(), graph, stats, pass_observer);
+  RunArchOptimizations(driver->GetInstructionSet(), graph, codegen, stats, pass_observer);
   AllocateRegisters(graph, codegen, pass_observer);
 }
 
@@ -857,7 +867,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   const uint32_t access_flags = method->GetAccessFlags();
   const InvokeType invoke_type = method->GetInvokeType();
 
-  ArenaAllocator arena(Runtime::Current()->GetArenaPool());
+  ArenaAllocator arena(Runtime::Current()->GetJitArenaPool());
   CodeVectorAllocator code_allocator(&arena);
   std::unique_ptr<CodeGenerator> codegen;
   {
@@ -905,34 +915,31 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     return false;
   }
 
-  if (GetCompilerDriver()->GetCompilerOptions().GetGenerateDebugInfo()) {
+  const CompilerOptions& compiler_options = GetCompilerDriver()->GetCompilerOptions();
+  if (compiler_options.GetGenerateDebugInfo()) {
     const auto* method_header = reinterpret_cast<const OatQuickMethodHeader*>(code);
     const uintptr_t code_address = reinterpret_cast<uintptr_t>(method_header->GetCode());
-    CompiledMethod compiled_method(
-        GetCompilerDriver(),
-        codegen->GetInstructionSet(),
-        ArrayRef<const uint8_t>(code_allocator.GetMemory()),
-        codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
-        codegen->GetCoreSpillMask(),
-        codegen->GetFpuSpillMask(),
-        ArrayRef<const SrcMapElem>(),
-        ArrayRef<const uint8_t>(),  // mapping_table.
-        ArrayRef<const uint8_t>(stack_map_data, stack_map_size),
-        ArrayRef<const uint8_t>(),  // native_gc_map.
-        ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
-        ArrayRef<const LinkerPatch>());
-    debug::MethodDebugInfo method_debug_info {
-        dex_file,
-        class_def_idx,
-        method_idx,
-        access_flags,
-        code_item,
-        false,  // deduped.
-        code_address,
-        code_address + code_allocator.GetSize(),
-        &compiled_method
-    };
-    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethod(method_debug_info);
+    debug::MethodDebugInfo info = debug::MethodDebugInfo();
+    info.trampoline_name = nullptr;
+    info.dex_file = dex_file;
+    info.class_def_index = class_def_idx;
+    info.dex_method_index = method_idx;
+    info.access_flags = access_flags;
+    info.code_item = code_item;
+    info.isa = codegen->GetInstructionSet();
+    info.deduped = false;
+    info.is_native_debuggable = compiler_options.GetNativeDebuggable();
+    info.is_optimized = true;
+    info.is_code_address_text_relative = false;
+    info.code_address = code_address;
+    info.code_size = code_allocator.GetSize();
+    info.frame_size_in_bytes = method_header->GetFrameSizeInBytes();
+    info.code_info = stack_map_size == 0 ? nullptr : stack_map_data;
+    info.cfi = ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data());
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForMethods(
+        GetCompilerDriver()->GetInstructionSet(),
+        GetCompilerDriver()->GetInstructionSetFeatures(),
+        ArrayRef<const debug::MethodDebugInfo>(&info, 1));
     CreateJITCodeEntryForAddress(code_address,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());

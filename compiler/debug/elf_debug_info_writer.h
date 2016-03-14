@@ -46,6 +46,7 @@ static void LocalInfoCallback(void* ctx, const DexFile::LocalInfo& entry) {
 static std::vector<const char*> GetParamNames(const MethodDebugInfo* mi) {
   std::vector<const char*> names;
   if (mi->code_item != nullptr) {
+    DCHECK(mi->dex_file != nullptr);
     const uint8_t* stream = mi->dex_file->GetDebugInfoStream(mi->code_item);
     if (stream != nullptr) {
       DecodeUnsignedLeb128(&stream);  // line.
@@ -117,22 +118,23 @@ class ElfCompilationUnitWriter {
 
   void Write(const ElfCompilationUnit& compilation_unit) {
     CHECK(!compilation_unit.methods.empty());
-    const Elf_Addr text_address = owner_->builder_->GetText()->Exists()
+    const Elf_Addr base_address = compilation_unit.is_code_address_text_relative
         ? owner_->builder_->GetText()->GetAddress()
         : 0;
-    const uintptr_t cu_size = compilation_unit.high_pc - compilation_unit.low_pc;
+    const uint64_t cu_size = compilation_unit.code_end - compilation_unit.code_address;
     using namespace dwarf;  // NOLINT. For easy access to DWARF constants.
 
     info_.StartTag(DW_TAG_compile_unit);
     info_.WriteString(DW_AT_producer, "Android dex2oat");
     info_.WriteData1(DW_AT_language, DW_LANG_Java);
     info_.WriteString(DW_AT_comp_dir, "$JAVA_SRC_ROOT");
-    info_.WriteAddr(DW_AT_low_pc, text_address + compilation_unit.low_pc);
+    info_.WriteAddr(DW_AT_low_pc, base_address + compilation_unit.code_address);
     info_.WriteUdata(DW_AT_high_pc, dchecked_integral_cast<uint32_t>(cu_size));
     info_.WriteSecOffset(DW_AT_stmt_list, compilation_unit.debug_line_offset);
 
     const char* last_dex_class_desc = nullptr;
     for (auto mi : compilation_unit.methods) {
+      DCHECK(mi->dex_file != nullptr);
       const DexFile* dex = mi->dex_file;
       const DexFile::CodeItem* dex_code = mi->code_item;
       const DexFile::MethodId& dex_method = dex->GetMethodId(mi->dex_method_index);
@@ -165,13 +167,26 @@ class ElfCompilationUnitWriter {
       int start_depth = info_.Depth();
       info_.StartTag(DW_TAG_subprogram);
       WriteName(dex->GetMethodName(dex_method));
-      info_.WriteAddr(DW_AT_low_pc, text_address + mi->low_pc);
-      info_.WriteUdata(DW_AT_high_pc, dchecked_integral_cast<uint32_t>(mi->high_pc-mi->low_pc));
+      info_.WriteAddr(DW_AT_low_pc, base_address + mi->code_address);
+      info_.WriteUdata(DW_AT_high_pc, mi->code_size);
       std::vector<uint8_t> expr_buffer;
       Expression expr(&expr_buffer);
       expr.WriteOpCallFrameCfa();
       info_.WriteExprLoc(DW_AT_frame_base, expr);
       WriteLazyType(dex->GetReturnTypeDescriptor(dex_proto));
+
+      // Decode dex register locations for all stack maps.
+      // It might be expensive, so do it just once and reuse the result.
+      std::vector<DexRegisterMap> dex_reg_maps;
+      if (mi->code_info != nullptr) {
+        const CodeInfo code_info(mi->code_info);
+        StackMapEncoding encoding = code_info.ExtractEncoding();
+        for (size_t s = 0; s < code_info.GetNumberOfStackMaps(); ++s) {
+          const StackMap& stack_map = code_info.GetStackMapAt(s, encoding);
+          dex_reg_maps.push_back(code_info.GetDexRegisterMapOf(
+              stack_map, encoding, dex_code->registers_size_));
+        }
+      }
 
       // Write parameters. DecodeDebugLocalInfo returns them as well, but it does not
       // guarantee order or uniqueness so it is safer to iterate over them manually.
@@ -187,7 +202,7 @@ class ElfCompilationUnitWriter {
           // Write the stack location of the parameter.
           const uint32_t vreg = dex_code->registers_size_ - dex_code->ins_size_ + arg_reg;
           const bool is64bitValue = false;
-          WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc);
+          WriteRegLocation(mi, dex_reg_maps, vreg, is64bitValue, compilation_unit.code_address);
         }
         arg_reg++;
         info_.EndTag();
@@ -206,7 +221,7 @@ class ElfCompilationUnitWriter {
           if (dex_code != nullptr) {
             // Write the stack location of the parameter.
             const uint32_t vreg = dex_code->registers_size_ - dex_code->ins_size_ + arg_reg;
-            WriteRegLocation(mi, vreg, is64bitValue, compilation_unit.low_pc);
+            WriteRegLocation(mi, dex_reg_maps, vreg, is64bitValue, compilation_unit.code_address);
           }
           arg_reg += is64bitValue ? 2 : 1;
           info_.EndTag();
@@ -229,8 +244,13 @@ class ElfCompilationUnitWriter {
             WriteName(var.name_);
             WriteLazyType(var.descriptor_);
             bool is64bitValue = var.descriptor_[0] == 'D' || var.descriptor_[0] == 'J';
-            WriteRegLocation(mi, var.reg_, is64bitValue, compilation_unit.low_pc,
-                             var.start_address_, var.end_address_);
+            WriteRegLocation(mi,
+                             dex_reg_maps,
+                             var.reg_,
+                             is64bitValue,
+                             compilation_unit.code_address,
+                             var.start_address_,
+                             var.end_address_);
             info_.EndTag();
           }
         }
@@ -424,15 +444,17 @@ class ElfCompilationUnitWriter {
   // The dex register might be valid only at some points and it might
   // move between machine registers and stack.
   void WriteRegLocation(const MethodDebugInfo* method_info,
+                        const std::vector<DexRegisterMap>& dex_register_maps,
                         uint16_t vreg,
                         bool is64bitValue,
-                        uint32_t compilation_unit_low_pc,
+                        uint64_t compilation_unit_code_address,
                         uint32_t dex_pc_low = 0,
                         uint32_t dex_pc_high = 0xFFFFFFFF) {
     WriteDebugLocEntry(method_info,
+                       dex_register_maps,
                        vreg,
                        is64bitValue,
-                       compilation_unit_low_pc,
+                       compilation_unit_code_address,
                        dex_pc_low,
                        dex_pc_high,
                        owner_->builder_->GetIsa(),

@@ -1,5 +1,5 @@
     /* const/high16 vAA, #+BBBB0000 */
-    FETCH r0, 1                         @ r0<- 0000BBBB (zero-extended
+    FETCH r0, 1                         @ r0<- 0000BBBB (zero-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
     mov     r0, r0, lsl #16             @ r0<- BBBB0000
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST

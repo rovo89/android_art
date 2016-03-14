@@ -66,7 +66,8 @@ Location ARM64ReturnLocation(Primitive::Type return_type);
 
 class SlowPathCodeARM64 : public SlowPathCode {
  public:
-  SlowPathCodeARM64() : entry_label_(), exit_label_() {}
+  explicit SlowPathCodeARM64(HInstruction* instruction)
+      : SlowPathCode(instruction), entry_label_(), exit_label_() {}
 
   vixl::Label* GetEntryLabel() { return &entry_label_; }
   vixl::Label* GetExitLabel() { return &exit_label_; }
@@ -195,6 +196,7 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
 
   FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
   FOR_EACH_CONCRETE_INSTRUCTION_ARM64(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_SHARED(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -284,6 +286,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
 
   FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
   FOR_EACH_CONCRETE_INSTRUCTION_ARM64(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_SHARED(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -531,6 +534,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // The `out` location contains the value returned by
   // artReadBarrierForRootSlow.
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
+
+  void GenerateNop();
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

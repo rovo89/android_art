@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEBUG_ELF_DEBUG_LINE_WRITER_H_
 #define ART_COMPILER_DEBUG_ELF_DEBUG_LINE_WRITER_H_
 
+#include <unordered_set>
 #include <vector>
 
 #include "compiled_method.h"
@@ -53,7 +54,7 @@ class ElfDebugLineWriter {
   // Returns the number of bytes written.
   size_t WriteCompilationUnit(ElfCompilationUnit& compilation_unit) {
     const bool is64bit = Is64BitInstructionSet(builder_->GetIsa());
-    const Elf_Addr text_address = builder_->GetText()->Exists()
+    const Elf_Addr base_address = compilation_unit.is_code_address_text_relative
         ? builder_->GetText()->GetAddress()
         : 0;
 
@@ -81,48 +82,80 @@ class ElfDebugLineWriter {
       case kX86_64:
         break;
     }
+    std::unordered_set<uint64_t> seen_addresses(compilation_unit.methods.size());
     dwarf::DebugLineOpCodeWriter<> opcodes(is64bit, code_factor_bits_);
     for (const MethodDebugInfo* mi : compilation_unit.methods) {
       // Ignore function if we have already generated line table for the same address.
       // It would confuse the debugger and the DWARF specification forbids it.
-      if (mi->deduped) {
+      // We allow the line table for method to be replicated in different compilation unit.
+      // This ensures that each compilation unit contains line table for all its methods.
+      if (!seen_addresses.insert(mi->code_address).second) {
         continue;
       }
 
       uint32_t prologue_end = std::numeric_limits<uint32_t>::max();
-      ArrayRef<const SrcMapElem> pc2dex_map;
-      std::vector<SrcMapElem> pc2dex_map_from_stack_maps;
-      if (mi->IsFromOptimizingCompiler()) {
+      std::vector<SrcMapElem> pc2dex_map;
+      if (mi->code_info != nullptr) {
         // Use stack maps to create mapping table from pc to dex.
-        const CodeInfo code_info(mi->compiled_method->GetVmapTable().data());
+        const CodeInfo code_info(mi->code_info);
         const StackMapEncoding encoding = code_info.ExtractEncoding();
+        pc2dex_map.reserve(code_info.GetNumberOfStackMaps());
         for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
           StackMap stack_map = code_info.GetStackMapAt(s, encoding);
           DCHECK(stack_map.IsValid());
           const uint32_t pc = stack_map.GetNativePcOffset(encoding);
           const int32_t dex = stack_map.GetDexPc(encoding);
-          pc2dex_map_from_stack_maps.push_back({pc, dex});
+          pc2dex_map.push_back({pc, dex});
           if (stack_map.HasDexRegisterMap(encoding)) {
             // Guess that the first map with local variables is the end of prologue.
             prologue_end = std::min(prologue_end, pc);
           }
         }
-        std::sort(pc2dex_map_from_stack_maps.begin(),
-                  pc2dex_map_from_stack_maps.end());
-        pc2dex_map = ArrayRef<const SrcMapElem>(pc2dex_map_from_stack_maps);
-      } else {
-        // Use the mapping table provided by the quick compiler.
-        pc2dex_map = mi->compiled_method->GetSrcMappingTable();
-        prologue_end = 0;
+        std::sort(pc2dex_map.begin(), pc2dex_map.end());
       }
 
       if (pc2dex_map.empty()) {
         continue;
       }
 
-      Elf_Addr method_address = text_address + mi->low_pc;
+      // Compensate for compiler's off-by-one-instruction error.
+      //
+      // The compiler generates stackmap with PC *after* the branch instruction
+      // (because this is the PC which is easier to obtain when unwinding).
+      //
+      // However, the debugger is more clever and it will ask us for line-number
+      // mapping at the location of the branch instruction (since the following
+      // instruction could belong to other line, this is the correct thing to do).
+      //
+      // So we really want to just decrement the PC by one instruction so that the
+      // branch instruction is covered as well. However, we do not know the size
+      // of the previous instruction, and we can not subtract just a fixed amount
+      // (the debugger would trust us that the PC is valid; it might try to set
+      // breakpoint there at some point, and setting breakpoint in mid-instruction
+      // would make the process crash in spectacular way).
+      //
+      // Therefore, we say that the PC which the compiler gave us for the stackmap
+      // is the end of its associated address range, and we use the PC from the
+      // previous stack map as the start of the range. This ensures that the PC is
+      // valid and that the branch instruction is covered.
+      //
+      // This ensures we have correct line number mapping at call sites (which is
+      // important for backtraces), but there is nothing we can do for non-call
+      // sites (so stepping through optimized code in debugger is not possible).
+      //
+      // We do not adjust the stackmaps if the code was compiled as debuggable.
+      // In that case, the stackmaps should accurately cover all instructions.
+      if (!mi->is_native_debuggable) {
+        for (size_t i = pc2dex_map.size() - 1; i > 0; --i) {
+          pc2dex_map[i].from_ = pc2dex_map[i - 1].from_;
+        }
+        pc2dex_map[0].from_ = 0;
+      }
+
+      Elf_Addr method_address = base_address + mi->code_address;
 
       PositionInfos dex2line_map;
+      DCHECK(mi->dex_file != nullptr);
       const DexFile* dex = mi->dex_file;
       if (!dex->DecodeDebugPositionInfo(mi->code_item, PositionInfoCallback, &dex2line_map)) {
         continue;
@@ -184,6 +217,10 @@ class ElfDebugLineWriter {
 
       // Generate mapping opcodes from PC to Java lines.
       if (file_index != 0) {
+        // If the method was not compiled as native-debuggable, we still generate all available
+        // lines, but we try to prevent the debugger from stepping and setting breakpoints since
+        // the information is too inaccurate for that (breakpoints would be set after the calls).
+        const bool default_is_stmt = mi->is_native_debuggable;
         bool first = true;
         for (SrcMapElem pc2dex : pc2dex_map) {
           uint32_t pc = pc2dex.from_;
@@ -205,13 +242,14 @@ class ElfDebugLineWriter {
                 // Assume that any preceding code is prologue.
                 int first_line = dex2line_map.front().line_;
                 // Prologue is not a sensible place for a breakpoint.
-                opcodes.NegateStmt();
+                opcodes.SetIsStmt(false);
                 opcodes.AddRow(method_address, first_line);
-                opcodes.NegateStmt();
                 opcodes.SetPrologueEnd();
               }
+              opcodes.SetIsStmt(default_is_stmt);
               opcodes.AddRow(method_address + pc, line);
             } else if (line != opcodes.CurrentLine()) {
+              opcodes.SetIsStmt(default_is_stmt);
               opcodes.AddRow(method_address + pc, line);
             }
           }
@@ -221,7 +259,7 @@ class ElfDebugLineWriter {
         opcodes.AddRow(method_address, 0);
       }
 
-      opcodes.AdvancePC(text_address + mi->high_pc);
+      opcodes.AdvancePC(method_address + mi->code_size);
       opcodes.EndSequence();
     }
     std::vector<uint8_t> buffer;

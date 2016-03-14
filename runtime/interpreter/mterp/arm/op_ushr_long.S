@@ -9,12 +9,12 @@
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BB]
     GET_VREG r2, r0                     @ r2<- vCC
     ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     mov     r0, r0, lsr r2              @ r0<- r2 >> r2
     rsb     r3, r2, #32                 @ r3<- 32 - r2
     orr     r0, r0, r1, asl r3          @ r0<- r0 | (r1 << (32-r2))

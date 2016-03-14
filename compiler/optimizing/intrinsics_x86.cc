@@ -1546,6 +1546,7 @@ void IntrinsicCodeGeneratorX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
   __ j(kEqual, slow_path->GetEntryLabel());
 
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromBytes)));
+  CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -1564,7 +1565,14 @@ void IntrinsicLocationsBuilderX86::VisitStringNewStringFromChars(HInvoke* invoke
 void IntrinsicCodeGeneratorX86::VisitStringNewStringFromChars(HInvoke* invoke) {
   X86Assembler* assembler = GetAssembler();
 
+  // No need to emit code checking whether `locations->InAt(2)` is a null
+  // pointer, as callers of the native method
+  //
+  //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
+  //
+  // all include a null check on `data` before calling that method.
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromChars)));
+  CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
@@ -1588,6 +1596,7 @@ void IntrinsicCodeGeneratorX86::VisitStringNewStringFromString(HInvoke* invoke) 
   __ j(kEqual, slow_path->GetEntryLabel());
 
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromString)));
+  CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -2621,39 +2630,24 @@ void IntrinsicCodeGeneratorX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) 
   GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
-// Unimplemented intrinsics.
+UNIMPLEMENTED_INTRINSIC(X86, MathRoundDouble)
+UNIMPLEMENTED_INTRINSIC(X86, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(X86, SystemArrayCopy)
+UNIMPLEMENTED_INTRINSIC(X86, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(X86, DoubleIsInfinite)
+UNIMPLEMENTED_INTRINSIC(X86, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(X86, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(X86, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(X86, LongLowestOneBit)
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
-void IntrinsicLocationsBuilderX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                       \
-void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
+// 1.8.
+UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndAddInt)
+UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndAddLong)
+UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndSetInt)
+UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndSetLong)
+UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndSetObject)
 
-UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
-
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
-
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
-
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
-
-#undef UNIMPLEMENTED_INTRINSIC
+UNREACHABLE_INTRINSICS(X86)
 
 #undef __
 

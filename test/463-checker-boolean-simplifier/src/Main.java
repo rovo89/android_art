@@ -42,7 +42,7 @@ public class Main {
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
   /// CHECK-DAG:                       If [<<Param>>]
-  /// CHECK-DAG:     <<Phi:i\d+>>      Phi [<<Const1>>,<<Const0>>]
+  /// CHECK-DAG:     <<Phi:i\d+>>      Phi [<<Const0>>,<<Const1>>]
   /// CHECK-DAG:                       Return [<<Phi>>]
 
   /// CHECK-START: boolean Main.BooleanNot(boolean) select_generator (before)
@@ -185,11 +185,7 @@ public class Main {
   /// CHECK-NOT:                       BooleanNot
 
   public static int NegatedCondition(boolean x) {
-    if (x != false) {
-      return 42;
-    } else {
-      return 43;
-    }
+    return (x != false) ? 42 : 43;
   }
 
   /// CHECK-START: int Main.SimpleTrueBlock(boolean, int) select_generator (after)
@@ -253,13 +249,7 @@ public class Main {
   /// CHECK-DAG:                        Return [<<Select123>>]
 
   public static int ThreeBlocks(boolean x, boolean y) {
-    if (x) {
-      return 1;
-    } else if (y) {
-      return 2;
-    } else {
-      return 3;
-    }
+    return x ? 1 : (y ? 2 : 3);
   }
 
   /// CHECK-START: int Main.MultiplePhis() select_generator (before)
@@ -292,8 +282,10 @@ public class Main {
     while (y++ < 10) {
       if (y > 1) {
         x = 13;
+        continue;
       } else {
         x = 42;
+        continue;
       }
     }
     return x;

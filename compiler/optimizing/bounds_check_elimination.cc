@@ -67,20 +67,28 @@ class ValueBound : public ValueObject {
   static bool IsAddOrSubAConstant(HInstruction* instruction,
                                   /* out */ HInstruction** left_instruction,
                                   /* out */ int32_t* right_constant) {
-    if (instruction->IsAdd() || instruction->IsSub()) {
+    HInstruction* left_so_far = nullptr;
+    int32_t right_so_far = 0;
+    while (instruction->IsAdd() || instruction->IsSub()) {
       HBinaryOperation* bin_op = instruction->AsBinaryOperation();
       HInstruction* left = bin_op->GetLeft();
       HInstruction* right = bin_op->GetRight();
       if (right->IsIntConstant()) {
-        *left_instruction = left;
-        int32_t c = right->AsIntConstant()->GetValue();
-        *right_constant = instruction->IsAdd() ? c : -c;
-        return true;
+        int32_t v = right->AsIntConstant()->GetValue();
+        int32_t c = instruction->IsAdd() ? v : -v;
+        if (!WouldAddOverflowOrUnderflow(right_so_far, c)) {
+          instruction = left;
+          left_so_far = left;
+          right_so_far += c;
+          continue;
+        }
       }
+      break;
     }
-    *left_instruction = nullptr;
-    *right_constant = 0;
-    return false;
+    // Return result: either false and "null+0" or true and "instr+constant".
+    *left_instruction = left_so_far;
+    *right_constant = right_so_far;
+    return left_so_far != nullptr;
   }
 
   // Expresses any instruction as a value bound.
@@ -525,6 +533,8 @@ class BCEVisitor : public HGraphVisitor {
         first_index_bounds_check_map_(
             std::less<int>(),
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
+        dynamic_bce_standby_(
+            graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
         early_exit_loop_(
             std::less<uint32_t>(),
             graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
@@ -545,6 +555,13 @@ class BCEVisitor : public HGraphVisitor {
   }
 
   void Finish() {
+    // Retry dynamic bce candidates on standby that are still in the graph.
+    for (HBoundsCheck* bounds_check : dynamic_bce_standby_) {
+      if (bounds_check->IsInBlock()) {
+        TryDynamicBCE(bounds_check);
+      }
+    }
+
     // Preserve SSA structure which may have been broken by adding one or more
     // new taken-test structures (see TransformLoopForDeoptimizationIfNeeded()).
     InsertPhiNodes();
@@ -553,6 +570,7 @@ class BCEVisitor : public HGraphVisitor {
     early_exit_loop_.clear();
     taken_test_loop_.clear();
     finite_loop_.clear();
+    dynamic_bce_standby_.clear();
   }
 
  private:
@@ -1293,7 +1311,7 @@ class BCEVisitor : public HGraphVisitor {
     if (DynamicBCESeemsProfitable(loop, instruction->GetBlock()) &&
         induction_range_.CanGenerateCode(
             instruction, index, &needs_finite_test, &needs_taken_test) &&
-        CanHandleInfiniteLoop(loop, index, needs_finite_test) &&
+        CanHandleInfiniteLoop(loop, instruction, index, needs_finite_test) &&
         CanHandleLength(loop, length, needs_taken_test)) {  // do this test last (may code gen)
       HInstruction* lower = nullptr;
       HInstruction* upper = nullptr;
@@ -1425,7 +1443,7 @@ class BCEVisitor : public HGraphVisitor {
    * ensure the loop is finite.
    */
   bool CanHandleInfiniteLoop(
-      HLoopInformation* loop, HInstruction* index, bool needs_infinite_test) {
+      HLoopInformation* loop, HBoundsCheck* check, HInstruction* index, bool needs_infinite_test) {
     if (needs_infinite_test) {
       // If we already forced the loop to be finite, allow directly.
       const uint32_t loop_id = loop->GetHeader()->GetBlockId();
@@ -1447,6 +1465,9 @@ class BCEVisitor : public HGraphVisitor {
           }
         }
       }
+      // If bounds check made it this far, it is worthwhile to check later if
+      // the loop was forced finite by another candidate.
+      dynamic_bce_standby_.push_back(check);
       return false;
     }
     return true;
@@ -1668,6 +1689,9 @@ class BCEVisitor : public HGraphVisitor {
   // in a block that checks an index against that HArrayLength.
   ArenaSafeMap<int, HBoundsCheck*> first_index_bounds_check_map_;
 
+  // Stand by list for dynamic bce.
+  ArenaVector<HBoundsCheck*> dynamic_bce_standby_;
+
   // Early-exit loop bookkeeping.
   ArenaSafeMap<uint32_t, bool> early_exit_loop_;
 
@@ -1703,21 +1727,18 @@ void BoundsCheckElimination::Run() {
   // that value dominated by that instruction fits in that range. Range of that
   // value can be narrowed further down in the dominator tree.
   BCEVisitor visitor(graph_, side_effects_, induction_analysis_);
-  HBasicBlock* last_visited_block = nullptr;
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* current = it.Current();
-    if (current == last_visited_block) {
-      // We may insert blocks into the reverse post order list when processing
-      // a loop header. Don't process it again.
-      DCHECK(current->IsLoopHeader());
-      continue;
-    }
     if (visitor.IsAddedBlock(current)) {
       // Skip added blocks. Their effects are already taken care of.
       continue;
     }
     visitor.VisitBasicBlock(current);
-    last_visited_block = current;
+    // Skip forward to the current block in case new basic blocks were inserted
+    // (which always appear earlier in reverse post order) to avoid visiting the
+    // same basic block twice.
+    for ( ; !it.Done() && it.Current() != current; it.Advance()) {
+    }
   }
 
   // Perform cleanup.

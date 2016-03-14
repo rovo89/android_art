@@ -20,5 +20,4 @@
 #
 set -e
 
-# for arch in arm x86 mips arm64 x86_64 mips64; do TARGET_ARCH_EXT=$arch make -f Makefile_mterp; done
-for arch in arm x86 arm64 ; do TARGET_ARCH_EXT=$arch make -f Makefile_mterp; done
+for arch in arm x86 mips arm64 x86_64 mips64; do TARGET_ARCH_EXT=$arch make -f Makefile_mterp; done

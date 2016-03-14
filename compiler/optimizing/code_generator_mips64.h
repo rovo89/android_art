@@ -152,7 +152,8 @@ class ParallelMoveResolverMIPS64 : public ParallelMoveResolverWithSwap {
 
 class SlowPathCodeMIPS64 : public SlowPathCode {
  public:
-  SlowPathCodeMIPS64() : entry_label_(), exit_label_() {}
+  explicit SlowPathCodeMIPS64(HInstruction* instruction)
+      : SlowPathCode(instruction), entry_label_(), exit_label_() {}
 
   Mips64Label* GetEntryLabel() { return &entry_label_; }
   Mips64Label* GetExitLabel() { return &exit_label_; }
@@ -351,6 +352,8 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
                               Primitive::Type type ATTRIBUTE_UNUSED) OVERRIDE {
     UNIMPLEMENTED(FATAL) << "Not implemented on MIPS64";
   }
+
+  void GenerateNop();
 
  private:
   // Labels for each block that will be compiled.

@@ -28,6 +28,8 @@
 #include "driver/dex_compilation_unit.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
@@ -220,6 +222,33 @@ static uint32_t FindClassIndexIn(mirror::Class* cls,
   return index;
 }
 
+class ScopedProfilingInfoInlineUse {
+ public:
+  explicit ScopedProfilingInfoInlineUse(ArtMethod* method, Thread* self)
+      : method_(method),
+        self_(self),
+        // Fetch the profiling info ahead of using it. If it's null when fetching,
+        // we should not call JitCodeCache::DoneInlining.
+        profiling_info_(
+            Runtime::Current()->GetJit()->GetCodeCache()->NotifyCompilerUse(method, self)) {
+  }
+
+  ~ScopedProfilingInfoInlineUse() {
+    if (profiling_info_ != nullptr) {
+      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      DCHECK_EQ(profiling_info_, method_->GetProfilingInfo(pointer_size));
+      Runtime::Current()->GetJit()->GetCodeCache()->DoneCompilerUse(method_, self_);
+    }
+  }
+
+  ProfilingInfo* GetProfilingInfo() const { return profiling_info_; }
+
+ private:
+  ArtMethod* const method_;
+  Thread* const self_;
+  ProfilingInfo* const profiling_info_;
+};
+
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
   if (invoke_instruction->IsInvokeUnresolved()) {
     return false;  // Don't bother to move further if we know the method is unresolved.
@@ -271,30 +300,32 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
 
   // Check if we can use an inline cache.
   ArtMethod* caller = graph_->GetArtMethod();
-  size_t pointer_size = class_linker->GetImagePointerSize();
-  // Under JIT, we should always know the caller.
-  DCHECK(!Runtime::Current()->UseJit() || (caller != nullptr));
-  if (caller != nullptr && caller->GetProfilingInfo(pointer_size) != nullptr) {
-    ProfilingInfo* profiling_info = caller->GetProfilingInfo(pointer_size);
-    const InlineCache& ic = *profiling_info->GetInlineCache(invoke_instruction->GetDexPc());
-    if (ic.IsUnitialized()) {
-      VLOG(compiler) << "Interface or virtual call to "
-                     << PrettyMethod(method_index, caller_dex_file)
-                     << " is not hit and not inlined";
-      return false;
-    } else if (ic.IsMonomorphic()) {
-      MaybeRecordStat(kMonomorphicCall);
-      return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
-    } else if (ic.IsPolymorphic()) {
-      MaybeRecordStat(kPolymorphicCall);
-      return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
-    } else {
-      DCHECK(ic.IsMegamorphic());
-      VLOG(compiler) << "Interface or virtual call to "
-                     << PrettyMethod(method_index, caller_dex_file)
-                     << " is megamorphic and not inlined";
-      MaybeRecordStat(kMegamorphicCall);
-      return false;
+  if (Runtime::Current()->UseJit()) {
+    // Under JIT, we should always know the caller.
+    DCHECK(caller != nullptr);
+    ScopedProfilingInfoInlineUse spiis(caller, soa.Self());
+    ProfilingInfo* profiling_info = spiis.GetProfilingInfo();
+    if (profiling_info != nullptr) {
+      const InlineCache& ic = *profiling_info->GetInlineCache(invoke_instruction->GetDexPc());
+      if (ic.IsUninitialized()) {
+        VLOG(compiler) << "Interface or virtual call to "
+                       << PrettyMethod(method_index, caller_dex_file)
+                       << " is not hit and not inlined";
+        return false;
+      } else if (ic.IsMonomorphic()) {
+        MaybeRecordStat(kMonomorphicCall);
+        return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
+      } else if (ic.IsPolymorphic()) {
+        MaybeRecordStat(kPolymorphicCall);
+        return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
+      } else {
+        DCHECK(ic.IsMegamorphic());
+        VLOG(compiler) << "Interface or virtual call to "
+                       << PrettyMethod(method_index, caller_dex_file)
+                       << " is megamorphic and not inlined";
+        MaybeRecordStat(kMegamorphicCall);
+        return false;
+      }
     }
   }
 
@@ -641,7 +672,8 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   HClassTableGet* class_table_get = new (graph_->GetArena()) HClassTableGet(
       receiver_class,
       type,
-      invoke_instruction->IsInvokeVirtual() ? HClassTableGet::kVTable : HClassTableGet::kIMTable,
+      invoke_instruction->IsInvokeVirtual() ? HClassTableGet::TableKind::kVTable
+                                            : HClassTableGet::TableKind::kIMTable,
       method_index,
       invoke_instruction->GetDexPc());
 
@@ -1009,6 +1041,8 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     // at runtime, we change this call as if it was a virtual call.
     invoke_type = kVirtual;
   }
+
+  const int32_t caller_instruction_counter = graph_->GetCurrentInstructionId();
   HGraph* callee_graph = new (graph_->GetArena()) HGraph(
       graph_->GetArena(),
       callee_dex_file,
@@ -1018,7 +1052,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       invoke_type,
       graph_->IsDebuggable(),
       /* osr */ false,
-      graph_->GetCurrentInstructionId());
+      caller_instruction_counter);
   callee_graph->SetArtMethod(resolved_method);
 
   OptimizingCompilerStats inline_stats;
@@ -1218,7 +1252,16 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   }
   number_of_inlined_instructions_ += number_of_instructions;
 
+  DCHECK_EQ(caller_instruction_counter, graph_->GetCurrentInstructionId())
+      << "No instructions can be added to the outer graph while inner graph is being built";
+
+  const int32_t callee_instruction_counter = callee_graph->GetCurrentInstructionId();
+  graph_->SetCurrentInstructionId(callee_instruction_counter);
   *return_replacement = callee_graph->InlineInto(graph_, invoke_instruction);
+
+  DCHECK_EQ(callee_instruction_counter, callee_graph->GetCurrentInstructionId())
+      << "No instructions can be added to the inner graph during inlining into the outer graph";
+
   return true;
 }
 

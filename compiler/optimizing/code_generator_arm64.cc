@@ -219,7 +219,7 @@ void SlowPathCodeARM64::RestoreLiveRegisters(CodeGenerator* codegen, LocationSum
 
 class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit BoundsCheckSlowPathARM64(HBoundsCheck* instruction) : instruction_(instruction) {}
+  explicit BoundsCheckSlowPathARM64(HBoundsCheck* instruction) : SlowPathCodeARM64(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -246,14 +246,12 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathARM64"; }
 
  private:
-  HBoundsCheck* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM64);
 };
 
 class DivZeroCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit DivZeroCheckSlowPathARM64(HDivZeroCheck* instruction) : instruction_(instruction) {}
+  explicit DivZeroCheckSlowPathARM64(HDivZeroCheck* instruction) : SlowPathCodeARM64(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
@@ -272,7 +270,6 @@ class DivZeroCheckSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathARM64"; }
 
  private:
-  HDivZeroCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathARM64);
 };
 
@@ -282,7 +279,7 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
                          HInstruction* at,
                          uint32_t dex_pc,
                          bool do_clinit)
-      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+      : SlowPathCodeARM64(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
@@ -337,7 +334,7 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
 
 class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit LoadStringSlowPathARM64(HLoadString* instruction) : instruction_(instruction) {}
+  explicit LoadStringSlowPathARM64(HLoadString* instruction) : SlowPathCodeARM64(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -348,7 +345,8 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ Mov(calling_convention.GetRegisterAt(0).W(), instruction_->GetStringIndex());
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    __ Mov(calling_convention.GetRegisterAt(0).W(), string_index);
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -362,14 +360,12 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM64"; }
 
  private:
-  HLoadString* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM64);
 };
 
 class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit NullCheckSlowPathARM64(HNullCheck* instr) : instruction_(instr) {}
+  explicit NullCheckSlowPathARM64(HNullCheck* instr) : SlowPathCodeARM64(instr) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
@@ -388,15 +384,13 @@ class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathARM64"; }
 
  private:
-  HNullCheck* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM64);
 };
 
 class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   SuspendCheckSlowPathARM64(HSuspendCheck* instruction, HBasicBlock* successor)
-      : instruction_(instruction), successor_(successor) {}
+      : SlowPathCodeARM64(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
@@ -425,7 +419,6 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathARM64"; }
 
  private:
-  HSuspendCheck* const instruction_;
   // If not null, the block to branch to after the suspend check.
   HBasicBlock* const successor_;
 
@@ -438,7 +431,7 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
 class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   TypeCheckSlowPathARM64(HInstruction* instruction, bool is_fatal)
-      : instruction_(instruction), is_fatal_(is_fatal) {}
+      : SlowPathCodeARM64(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -487,7 +480,6 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
   bool IsFatal() const { return is_fatal_; }
 
  private:
-  HInstruction* const instruction_;
   const bool is_fatal_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM64);
@@ -496,7 +488,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
 class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   explicit DeoptimizationSlowPathARM64(HDeoptimize* instruction)
-      : instruction_(instruction) {}
+      : SlowPathCodeARM64(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
@@ -512,13 +504,12 @@ class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM64"; }
 
  private:
-  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM64);
 };
 
 class ArraySetSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit ArraySetSlowPathARM64(HInstruction* instruction) : instruction_(instruction) {}
+  explicit ArraySetSlowPathARM64(HInstruction* instruction) : SlowPathCodeARM64(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -557,8 +548,6 @@ class ArraySetSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathARM64"; }
 
  private:
-  HInstruction* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARM64);
 };
 
@@ -588,7 +577,7 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
 class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   ReadBarrierMarkSlowPathARM64(HInstruction* instruction, Location out, Location obj)
-      : instruction_(instruction), out_(out), obj_(obj) {
+      : SlowPathCodeARM64(instruction), out_(out), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -627,7 +616,6 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
   }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location obj_;
 
@@ -643,7 +631,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
                                            Location obj,
                                            uint32_t offset,
                                            Location index)
-      : instruction_(instruction),
+      : SlowPathCodeARM64(instruction),
         out_(out),
         ref_(ref),
         obj_(obj),
@@ -804,7 +792,6 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
     UNREACHABLE();
   }
 
-  HInstruction* const instruction_;
   const Location out_;
   const Location ref_;
   const Location obj_;
@@ -821,7 +808,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
 class ReadBarrierForRootSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   ReadBarrierForRootSlowPathARM64(HInstruction* instruction, Location out, Location root)
-      : instruction_(instruction), out_(out), root_(root) {
+      : SlowPathCodeARM64(instruction), out_(out), root_(root) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -865,7 +852,6 @@ class ReadBarrierForRootSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "ReadBarrierForRootSlowPathARM64"; }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location root_;
 
@@ -1876,6 +1862,35 @@ void InstructionCodeGeneratorARM64::VisitAnd(HAnd* instruction) {
   HandleBinaryOp(instruction);
 }
 
+void LocationsBuilderARM64::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instr) {
+  DCHECK(Primitive::IsIntegralType(instr->GetType())) << instr->GetType();
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instr);
+  locations->SetInAt(0, Location::RequiresRegister());
+  // There is no immediate variant of negated bitwise instructions in AArch64.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM64::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instr) {
+  Register dst = OutputRegister(instr);
+  Register lhs = InputRegisterAt(instr, 0);
+  Register rhs = InputRegisterAt(instr, 1);
+
+  switch (instr->GetOpKind()) {
+    case HInstruction::kAnd:
+      __ Bic(dst, lhs, rhs);
+      break;
+    case HInstruction::kOr:
+      __ Orn(dst, lhs, rhs);
+      break;
+    case HInstruction::kXor:
+      __ Eon(dst, lhs, rhs);
+      break;
+    default:
+      LOG(FATAL) << "Unreachable";
+  }
+}
+
 void LocationsBuilderARM64::VisitArm64DataProcWithShifterOp(
     HArm64DataProcWithShifterOp* instruction) {
   DCHECK(instruction->GetType() == Primitive::kPrimInt ||
@@ -1973,21 +1988,27 @@ void InstructionCodeGeneratorARM64::VisitArm64IntermediateAddress(
          Operand(InputOperandAt(instruction, 1)));
 }
 
-void LocationsBuilderARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instr) {
+void LocationsBuilderARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
-  locations->SetInAt(HArm64MultiplyAccumulate::kInputAccumulatorIndex,
-                     Location::RequiresRegister());
-  locations->SetInAt(HArm64MultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
-  locations->SetInAt(HArm64MultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
+  HInstruction* accumulator = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
+  if (instr->GetOpKind() == HInstruction::kSub &&
+      accumulator->IsConstant() &&
+      accumulator->AsConstant()->IsZero()) {
+    // Don't allocate register for Mneg instruction.
+  } else {
+    locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
+                       Location::RequiresRegister());
+  }
+  locations->SetInAt(HMultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
-void InstructionCodeGeneratorARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyAccumulate* instr) {
+void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
   Register res = OutputRegister(instr);
-  Register accumulator = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputAccumulatorIndex);
-  Register mul_left = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputMulLeftIndex);
-  Register mul_right = InputRegisterAt(instr, HArm64MultiplyAccumulate::kInputMulRightIndex);
+  Register mul_left = InputRegisterAt(instr, HMultiplyAccumulate::kInputMulLeftIndex);
+  Register mul_right = InputRegisterAt(instr, HMultiplyAccumulate::kInputMulRightIndex);
 
   // Avoid emitting code that could trigger Cortex A53's erratum 835769.
   // This fixup should be carried out for all multiply-accumulate instructions:
@@ -2007,10 +2028,17 @@ void InstructionCodeGeneratorARM64::VisitArm64MultiplyAccumulate(HArm64MultiplyA
   }
 
   if (instr->GetOpKind() == HInstruction::kAdd) {
+    Register accumulator = InputRegisterAt(instr, HMultiplyAccumulate::kInputAccumulatorIndex);
     __ Madd(res, mul_left, mul_right, accumulator);
   } else {
     DCHECK(instr->GetOpKind() == HInstruction::kSub);
-    __ Msub(res, mul_left, mul_right, accumulator);
+    HInstruction* accum_instr = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
+    if (accum_instr->IsConstant() && accum_instr->AsConstant()->IsZero()) {
+      __ Mneg(res, mul_left, mul_right);
+    } else {
+      Register accumulator = InputRegisterAt(instr, HMultiplyAccumulate::kInputAccumulatorIndex);
+      __ Msub(res, mul_left, mul_right, accumulator);
+    }
   }
 }
 
@@ -3057,11 +3085,11 @@ void LocationsBuilderARM64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
 }
 
 void InstructionCodeGeneratorARM64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  if (codegen_->HasStackMapAtCurrentPc()) {
-    // Ensure that we do not collide with the stack map of the previous instruction.
-    __ Nop();
-  }
-  codegen_->RecordPcInfo(info, info->GetDexPc());
+  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+}
+
+void CodeGeneratorARM64::GenerateNop() {
+  __ Nop();
 }
 
 void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
@@ -5031,7 +5059,7 @@ void LocationsBuilderARM64::VisitClassTableGet(HClassTableGet* instruction) {
 void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   uint32_t method_offset = 0;
-  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kArm64PointerSize).SizeValue();
   } else {

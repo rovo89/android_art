@@ -63,14 +63,22 @@ class PACKED(4) OatQuickMethodHeader {
     return gc_map_offset_ == 0 && vmap_table_offset_ != 0;
   }
 
-  CodeInfo GetOptimizedCodeInfo() const {
+  const void* GetOptimizedCodeInfoPtr() const {
     DCHECK(IsOptimized());
     const void* data = reinterpret_cast<const void*>(code_ - vmap_table_offset_);
-    return CodeInfo(data);
+    return data;
+  }
+
+  CodeInfo GetOptimizedCodeInfo() const {
+    return CodeInfo(GetOptimizedCodeInfoPtr());
   }
 
   const uint8_t* GetCode() const {
     return code_;
+  }
+
+  uint32_t GetCodeSize() const {
+    return code_size_;
   }
 
   const uint8_t* GetNativeGcMap() const {
@@ -111,7 +119,7 @@ class PACKED(4) OatQuickMethodHeader {
   uint32_t GetFrameSizeInBytes() const {
     uint32_t result = frame_info_.FrameSizeInBytes();
     if (kCheckFrameSize) {
-      DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
+      DCHECK_ALIGNED(result, kStackAlignment);
     }
     return result;
   }

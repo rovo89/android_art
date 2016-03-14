@@ -183,7 +183,7 @@ int32_t Object::IdentityHashCode() const {
         break;
       }
       case LockWord::kFatLocked: {
-        // Already inflated, return the has stored in the monitor.
+        // Already inflated, return the hash stored in the monitor.
         Monitor* monitor = lw.FatLockMonitor();
         DCHECK(monitor != nullptr);
         return monitor->GetHashCode();

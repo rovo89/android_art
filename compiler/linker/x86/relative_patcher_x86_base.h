@@ -29,8 +29,10 @@ class X86BaseRelativePatcher : public RelativePatcher {
                         MethodReference method_ref) OVERRIDE;
   uint32_t ReserveSpaceEnd(uint32_t offset) OVERRIDE;
   uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE;
-  void PatchCall(std::vector<uint8_t>* code, uint32_t literal_offset,
-                 uint32_t patch_offset, uint32_t target_offset) OVERRIDE;
+  void PatchCall(std::vector<uint8_t>* code,
+                 uint32_t literal_offset,
+                 uint32_t patch_offset,
+                 uint32_t target_offset) OVERRIDE;
 
  protected:
   X86BaseRelativePatcher() { }

@@ -99,16 +99,16 @@ class SafeMap {
   }
 
   // Used to insert a new mapping at a known position for better performance.
-  iterator PutBefore(iterator pos, const K& k, const V& v) {
+  iterator PutBefore(const_iterator pos, const K& k, const V& v) {
     // Check that we're using the correct position and the key is not in the map.
     DCHECK(pos == map_.end() || map_.key_comp()(k, pos->first));
-    DCHECK(pos == map_.begin() || map_.key_comp()((--iterator(pos))->first, k));
+    DCHECK(pos == map_.begin() || map_.key_comp()((--const_iterator(pos))->first, k));
     return map_.emplace_hint(pos, k, v);
   }
-  iterator PutBefore(iterator pos, const K& k, V&& v) {
+  iterator PutBefore(const_iterator pos, const K& k, V&& v) {
     // Check that we're using the correct position and the key is not in the map.
     DCHECK(pos == map_.end() || map_.key_comp()(k, pos->first));
-    DCHECK(pos == map_.begin() || map_.key_comp()((--iterator(pos))->first, k));
+    DCHECK(pos == map_.begin() || map_.key_comp()((--const_iterator(pos))->first, k));
     return map_.emplace_hint(pos, k, std::move(v));
   }
 

@@ -105,25 +105,32 @@ unspecified registers or condition codes.
     #define SYMBOL(name) name
 #endif
 
+.macro PUSH _reg
+    pushl \_reg
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset \_reg, 0
+.endm
+
+.macro POP _reg
+    popl \_reg
+    .cfi_adjust_cfa_offset -4
+    .cfi_restore \_reg
+.endm
+
 /* Frame size must be 16-byte aligned.
- * Remember about 4 bytes for return address
+ * Remember about 4 bytes for return address + 4 * 4 for spills
  */
-#define FRAME_SIZE     44
+#define FRAME_SIZE     28
 
 /* Frame diagram while executing ExecuteMterpImpl, high to low addresses */
-#define IN_ARG3        (FRAME_SIZE + 16)
-#define IN_ARG2        (FRAME_SIZE + 12)
-#define IN_ARG1        (FRAME_SIZE +  8)
-#define IN_ARG0        (FRAME_SIZE +  4)
-#define CALLER_RP      (FRAME_SIZE +  0)
+#define IN_ARG3        (FRAME_SIZE + 16 + 16)
+#define IN_ARG2        (FRAME_SIZE + 16 + 12)
+#define IN_ARG1        (FRAME_SIZE + 16 +  8)
+#define IN_ARG0        (FRAME_SIZE + 16 +  4)
 /* Spill offsets relative to %esp */
-#define EBP_SPILL      (FRAME_SIZE -  4)
-#define EDI_SPILL      (FRAME_SIZE -  8)
-#define ESI_SPILL      (FRAME_SIZE - 12)
-#define EBX_SPILL      (FRAME_SIZE - 16)
-#define LOCAL0         (FRAME_SIZE - 20)
-#define LOCAL1         (FRAME_SIZE - 24)
-#define LOCAL2         (FRAME_SIZE - 28)
+#define LOCAL0         (FRAME_SIZE -  4)
+#define LOCAL1         (FRAME_SIZE -  8)
+#define LOCAL2         (FRAME_SIZE - 12)
 /* Out Arg offsets, relative to %esp */
 #define OUT_ARG3       ( 12)
 #define OUT_ARG2       (  8)
@@ -156,13 +163,26 @@ unspecified registers or condition codes.
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
 #define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
 
+#define MTERP_PROFILE_BRANCHES 1
+#define MTERP_LOGGING 0
+
 /*
- *
- * The reference interpreter performs explicit suspect checks, which is somewhat wasteful.
- * Dalvik's interpreter folded suspend checks into the jump table mechanism, and eventually
- * mterp should do so as well.
+ * Profile branch. rINST should contain the offset. %eax is scratch.
  */
-#define MTERP_SUSPEND 0
+.macro MTERP_PROFILE_BRANCH
+#ifdef MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    movl    rSELF, %eax
+    movl    %eax, OUT_ARG0(%esp)
+    leal    OFF_FP_SHADOWFRAME(rFP), %eax
+    movl    %eax, OUT_ARG1(%esp)
+    movl    rINST, OUT_ARG2(%esp)
+    call    SYMBOL(MterpProfileBranch)
+    testb   %al, %al
+    jnz     MterpOnStackReplacement
+    RESTORE_IBASE
+#endif
+.endm
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must

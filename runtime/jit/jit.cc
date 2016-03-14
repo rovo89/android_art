@@ -81,12 +81,7 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
 }
 
 void Jit::DumpInfo(std::ostream& os) {
-  os << "JIT code cache size=" << PrettySize(code_cache_->CodeCacheSize()) << "\n"
-     << "JIT data cache size=" << PrettySize(code_cache_->DataCacheSize()) << "\n"
-     << "JIT current capacity=" << PrettySize(code_cache_->GetCurrentCapacity()) << "\n"
-     << "JIT number of compiled code=" << code_cache_->NumberOfCompiledCode() << "\n"
-     << "JIT total number of compilations=" << code_cache_->NumberOfCompilations() << "\n"
-     << "JIT total number of osr compilations=" << code_cache_->NumberOfOsrCompilations() << "\n";
+  code_cache_->Dump(os);
   cumulative_timings_.Dump(os);
 }
 
@@ -119,7 +114,7 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
     return nullptr;
   }
   jit->save_profiling_info_ = options->GetSaveProfilingInfo();
-  LOG(INFO) << "JIT created with initial_capacity="
+  VLOG(jit) << "JIT created with initial_capacity="
       << PrettySize(options->GetCodeCacheInitialCapacity())
       << ", max_capacity=" << PrettySize(options->GetCodeCacheMaxCapacity())
       << ", compile_threshold=" << options->GetCompileThreshold()
@@ -196,7 +191,6 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
   // of that proxy method, as the compiler does not expect a proxy method.
   ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
   if (!code_cache_->NotifyCompilationOf(method_to_compile, self, osr)) {
-    VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to code cache";
     return false;
   }
   bool success = jit_compile_method_(jit_compiler_handle_, method_to_compile, self, osr);
@@ -398,8 +392,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
           continue;
         }
 
-        DCHECK(location == DexRegisterLocation::Kind::kInStack)
-            << DexRegisterLocation::PrettyDescriptor(location);
+        DCHECK_EQ(location, DexRegisterLocation::Kind::kInStack);
 
         int32_t vreg_value = shadow_frame->GetVReg(vreg);
         int32_t slot_offset = vreg_map.GetStackOffsetInBytes(vreg,

@@ -605,6 +605,9 @@ class Heap {
   bool ObjectIsInBootImageSpace(mirror::Object* obj) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool IsInBootImageOatFile(const void* p) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   void GetBootImagesSize(uint32_t* boot_image_begin,
                          uint32_t* boot_image_end,
                          uint32_t* boot_oat_begin,

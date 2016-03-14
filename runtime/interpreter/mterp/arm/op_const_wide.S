@@ -8,7 +8,7 @@
     orr     r1, r2, r3, lsl #16         @ r1<- HHHHhhhh (high word)
     CLEAR_SHADOW_PAIR r9, r2, r3        @ Zero out the shadow regs
     FETCH_ADVANCE_INST 5                @ advance rPC, load rINST
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r9, {r0-r1}                 @ vAA<- r0/r1
     GOTO_OPCODE ip                      @ jump to next instruction

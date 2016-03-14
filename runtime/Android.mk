@@ -292,7 +292,8 @@ LIBART_TARGET_SRC_FILES_x86 := \
 # Note that the fault_handler_x86.cc is not a mistake.  This file is
 # shared between the x86 and x86_64 architectures.
 LIBART_SRC_FILES_x86_64 := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_x86_64.S \
   arch/x86_64/context_x86_64.cc \
   arch/x86_64/entrypoints_init_x86_64.cc \
   arch/x86_64/jni_entrypoints_x86_64.S \
@@ -306,7 +307,8 @@ LIBART_TARGET_SRC_FILES_x86_64 := \
   $(LIBART_SRC_FILES_x86_64) \
 
 LIBART_TARGET_SRC_FILES_mips := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_mips.S \
   arch/mips/context_mips.cc \
   arch/mips/entrypoints_init_mips.cc \
   arch/mips/jni_entrypoints_mips.S \
@@ -316,7 +318,8 @@ LIBART_TARGET_SRC_FILES_mips := \
   arch/mips/fault_handler_mips.cc
 
 LIBART_TARGET_SRC_FILES_mips64 := \
-  interpreter/mterp/mterp_stub.cc \
+  interpreter/mterp/mterp.cc \
+  interpreter/mterp/out/mterp_mips64.S \
   arch/mips64/context_mips64.cc \
   arch/mips64/entrypoints_init_mips64.cc \
   arch/mips64/jni_entrypoints_mips64.S \

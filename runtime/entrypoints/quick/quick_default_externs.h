@@ -93,7 +93,7 @@ extern "C" uint64_t art_quick_shr_long(uint64_t, uint32_t);
 extern "C" uint64_t art_quick_ushr_long(uint64_t, uint32_t);
 
 // Intrinsic entrypoints.
-extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
+extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t);
 extern "C" int32_t art_quick_string_compareto(void*, void*);
 extern "C" void* art_quick_memcpy(void*, const void*, size_t);
 

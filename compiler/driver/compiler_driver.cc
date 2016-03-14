@@ -340,12 +340,15 @@ CompilerDriver::CompilerDriver(
     Compiler::Kind compiler_kind,
     InstructionSet instruction_set,
     const InstructionSetFeatures* instruction_set_features,
-    bool boot_image, std::unordered_set<std::string>* image_classes,
+    bool boot_image,
+    std::unordered_set<std::string>* image_classes,
     std::unordered_set<std::string>* compiled_classes,
     std::unordered_set<std::string>* compiled_methods,
-    size_t thread_count, bool dump_stats, bool dump_passes,
-    CumulativeLogger* timer, int swap_fd,
-    const std::unordered_map<const DexFile*, const char*>* dex_to_oat_map,
+    size_t thread_count,
+    bool dump_stats,
+    bool dump_passes,
+    CumulativeLogger* timer,
+    int swap_fd,
     const ProfileCompilationInfo* profile_compilation_info)
     : compiler_options_(compiler_options),
       verification_results_(verification_results),
@@ -372,7 +375,6 @@ CompilerDriver::CompilerDriver(
       compiler_context_(nullptr),
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
       dex_files_for_oat_file_(nullptr),
-      dex_file_oat_filename_map_(dex_to_oat_map),
       compiled_method_storage_(swap_fd),
       profile_compilation_info_(profile_compilation_info) {
   DCHECK(compiler_options_ != nullptr);
@@ -1673,12 +1675,6 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     if (!is_in_image) {
       // We can only branch directly to Methods that are resolved in the DexCache.
       // Otherwise we won't invoke the resolution trampoline.
-      use_dex_cache = true;
-    }
-  }
-  if (!use_dex_cache && IsBootImage()) {
-    if (!AreInSameOatFile(&(const_cast<mirror::Class*>(referrer_class)->GetDexFile()),
-                          &declaring_class->GetDexFile())) {
       use_dex_cache = true;
     }
   }

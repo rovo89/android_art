@@ -343,8 +343,8 @@ ExecuteMterpImpl:
     /* set up "named" registers */
     mov     rSELF, r0
     ldr     r0, [r2, #SHADOWFRAME_NUMBER_OF_VREGS_OFFSET]
-    add     rFP, r2, #SHADOWFRAME_VREGS_OFFSET     @ point to insns[] (i.e. - the dalivk byte code).
-    add     rREFS, rFP, r0, lsl #2                 @ point to reference array in shadow frame
+    add     rFP, r2, #SHADOWFRAME_VREGS_OFFSET     @ point to vregs.
+    VREG_INDEX_TO_ADDR rREFS, r0                   @ point to reference array in shadow frame
     ldr     r0, [r2, #SHADOWFRAME_DEX_PC_OFFSET]   @ Get starting dex_pc.
     add     rPC, r1, #CODEITEM_INSNS_OFFSET        @ Point to base of insns[]
     add     rPC, rPC, r0, lsl #1                   @ Create direct pointer to 1st dex opcode
@@ -435,8 +435,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r2, rFP, rINST, lsl #2      @ r2<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r2, rINST        @ r2<- &fp[A]
     ldmia   r3, {r0-r1}                 @ r0/r1<- fp[B]
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero out the shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -452,8 +452,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     FETCH r3, 1                         @ r3<- BBBB
     mov     rINST, rINST, lsr #8        @ rINST<- AA
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BBBB]
-    add     r2, rFP, rINST, lsl #2      @ r2<- &fp[AA]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BBBB]
+    VREG_INDEX_TO_ADDR r2, rINST        @ r2<- &fp[AA]
     ldmia   r3, {r0-r1}                 @ r0/r1<- fp[BBBB]
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero out the shadow regs
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
@@ -469,8 +469,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     FETCH r3, 2                         @ r3<- BBBB
     FETCH r2, 1                         @ r2<- AAAA
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BBBB]
-    add     lr, rFP, r2, lsl #2         @ r2<- &fp[AAAA]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BBBB]
+    VREG_INDEX_TO_ADDR lr, r2           @ r2<- &fp[AAAA]
     ldmia   r3, {r0-r1}                 @ r0/r1<- fp[BBBB]
     FETCH_ADVANCE_INST 3                @ advance rPC, load rINST
     CLEAR_SHADOW_PAIR r2, r3, ip        @ Zero out the shadow regs
@@ -563,7 +563,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* move-result-wide vAA */
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     ldr     r3, [rFP, #OFF_FP_RESULT_REGISTER]
-    add     r2, rFP, rINST, lsl #2      @ r2<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, rINST        @ r2<- &fp[AA]
     ldmia   r3, {r0-r1}                 @ r0/r1<- retval.j
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero out the shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -655,7 +655,7 @@ artMterpAsmInstructionStart = .L_op_nop
     ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
     blne    MterpSuspendCheck                       @ (self)
     mov     r2, rINST, lsr #8           @ r2<- AA
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[AA]
     ldmia   r2, {r0-r1}                 @ r0/r1 <- vAA/vAA+1
     b       MterpReturn
 
@@ -687,10 +687,9 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_4: /* 0x12 */
 /* File: arm/op_const_4.S */
     /* const/4 vA, #+B */
-    mov     r1, rINST, lsl #16          @ r1<- Bxxx0000
+    sbfx    r1, rINST, #12, #4          @ r1<- sssssssB (sign-extended)
     ubfx    r0, rINST, #8, #4           @ r0<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    mov     r1, r1, asr #28             @ r1<- sssssssB (sign-extended)
     GET_INST_OPCODE ip                  @ ip<- opcode from rINST
     SET_VREG r1, r0                     @ fp[A]<- r1
     GOTO_OPCODE ip                      @ execute next instruction
@@ -700,7 +699,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_16: /* 0x13 */
 /* File: arm/op_const_16.S */
     /* const/16 vAA, #+BBBB */
-    FETCH_S r0, 1                       @ r0<- ssssBBBB (sign-extended
+    FETCH_S r0, 1                       @ r0<- ssssBBBB (sign-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     SET_VREG r0, r3                     @ vAA<- r0
@@ -713,8 +712,8 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: arm/op_const.S */
     /* const vAA, #+BBBBbbbb */
     mov     r3, rINST, lsr #8           @ r3<- AA
-    FETCH r0, 1                         @ r0<- bbbb (low
-    FETCH r1, 2                         @ r1<- BBBB (high
+    FETCH r0, 1                         @ r0<- bbbb (low)
+    FETCH r1, 2                         @ r1<- BBBB (high)
     FETCH_ADVANCE_INST 3                @ advance rPC, load rINST
     orr     r0, r0, r1, lsl #16         @ r0<- BBBBbbbb
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -726,7 +725,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_high16: /* 0x15 */
 /* File: arm/op_const_high16.S */
     /* const/high16 vAA, #+BBBB0000 */
-    FETCH r0, 1                         @ r0<- 0000BBBB (zero-extended
+    FETCH r0, 1                         @ r0<- 0000BBBB (zero-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
     mov     r0, r0, lsl #16             @ r0<- BBBB0000
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
@@ -739,12 +738,12 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_wide_16: /* 0x16 */
 /* File: arm/op_const_wide_16.S */
     /* const-wide/16 vAA, #+BBBB */
-    FETCH_S r0, 1                       @ r0<- ssssBBBB (sign-extended
+    FETCH_S r0, 1                       @ r0<- ssssBBBB (sign-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
     mov     r1, r0, asr #31             @ r1<- ssssssss
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     CLEAR_SHADOW_PAIR r3, r2, lr        @ Zero out the shadow regs
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[AA]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[AA]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r3, {r0-r1}                 @ vAA<- r0/r1
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -760,7 +759,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH_ADVANCE_INST 3                @ advance rPC, load rINST
     orr     r0, r0, r2, lsl #16         @ r0<- BBBBbbbb
     CLEAR_SHADOW_PAIR r3, r2, lr        @ Zero out the shadow regs
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[AA]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[AA]
     mov     r1, r0, asr #31             @ r1<- ssssssss
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r3, {r0-r1}                 @ vAA<- r0/r1
@@ -780,7 +779,7 @@ artMterpAsmInstructionStart = .L_op_nop
     orr     r1, r2, r3, lsl #16         @ r1<- HHHHhhhh (high word)
     CLEAR_SHADOW_PAIR r9, r2, r3        @ Zero out the shadow regs
     FETCH_ADVANCE_INST 5                @ advance rPC, load rINST
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r9, {r0-r1}                 @ vAA<- r0/r1
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -796,7 +795,7 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     r1, r1, lsl #16             @ r1<- BBBB0000
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     CLEAR_SHADOW_PAIR r3, r0, r2        @ Zero shadow regs
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[AA]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[AA]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r3, {r0-r1}                 @ vAA<- r0/r1
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -825,8 +824,8 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: arm/op_const_string_jumbo.S */
     /* const/string vAA, String@BBBBBBBB */
     EXPORT_PC
-    FETCH r0, 1                         @ r0<- bbbb (low
-    FETCH r2, 2                         @ r2<- BBBB (high
+    FETCH r0, 1                         @ r0<- bbbb (low)
+    FETCH r2, 2                         @ r2<- BBBB (high)
     mov     r1, rINST, lsr #8           @ r1<- AA
     orr     r0, r0, r2, lsl #16         @ r1<- BBBBbbbb
     add     r2, rFP, #OFF_FP_SHADOWFRAME
@@ -938,10 +937,9 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r1, r1           @ r1<- &object
     ldr       r2, [rFP, #OFF_FP_METHOD] @ r2<- method
     mov       r3, rSELF                 @ r3<- self
-    mov       r9, rINST, lsr #8         @ r9<- A+
-    and       r9, r9, #15               @ r9<- A
     bl        MterpInstanceOf           @ (index, &obj, method, self)
     ldr       r1, [rSELF, #THREAD_EXCEPTION_OFFSET]
+    ubfx      r9, rINST, #8, #4         @ r9<- A
     PREFETCH_INST 2
     cmp       r1, #0                    @ exception pending?
     bne       MterpException
@@ -1353,7 +1351,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     flds    s0, [r2]                    @ s0<- vBB
     flds    s1, [r3]                    @ s1<- vCC
-    fcmpes  s0, s1                      @ compare (vBB, vCC)
+    vcmpe.f32  s0, s1                   @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mvn     r0, #0                      @ r0<- -1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1392,7 +1390,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     flds    s0, [r2]                    @ s0<- vBB
     flds    s1, [r3]                    @ s1<- vCC
-    fcmpes  s0, s1                      @ compare (vBB, vCC)
+    vcmpe.f32 s0, s1                    @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mov     r0, #1                      @ r0<- 1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1431,7 +1429,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     fldd    d0, [r2]                    @ d0<- vBB
     fldd    d1, [r3]                    @ d1<- vCC
-    fcmped  d0, d1                      @ compare (vBB, vCC)
+    vcmpe.f64 d0, d1                    @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mvn     r0, #0                      @ r0<- -1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1470,7 +1468,7 @@ artMterpAsmInstructionStart = .L_op_nop
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vCC
     fldd    d0, [r2]                    @ d0<- vBB
     fldd    d1, [r3]                    @ d1<- vCC
-    fcmped  d0, d1                      @ compare (vBB, vCC)
+    vcmpe.f64 d0, d1                    @ compare (vBB, vCC)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     mov     r0, #1                      @ r0<- 1 (default)
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -1509,8 +1507,8 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     cmp     r1, r3                      @ compare (vBB+1, vCC+1)
@@ -1534,14 +1532,15 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG r3, r1                     @ r3<- vB
     GET_VREG r2, r0                     @ r2<- vA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     cmp     r2, r3                      @ compare (vA, vB)
-    bne .L_op_if_eq_not_taken
+    movne rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1549,31 +1548,13 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_eq_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r0, rINST, #8, #4           @ r0<- A
-    GET_VREG r3, r1                     @ r3<- vB
-    GET_VREG r2, r0                     @ r2<- vA
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    cmp     r2, r3                      @ compare (vA, vB)
-    movne rINST, #2              @ rINST<- BYTE branch dist for not-taken
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r2, rINST, rINST            @ convert to bytes, check sign
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1589,14 +1570,15 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG r3, r1                     @ r3<- vB
     GET_VREG r2, r0                     @ r2<- vA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     cmp     r2, r3                      @ compare (vA, vB)
-    beq .L_op_if_ne_not_taken
+    moveq rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1604,31 +1586,13 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_ne_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r0, rINST, #8, #4           @ r0<- A
-    GET_VREG r3, r1                     @ r3<- vB
-    GET_VREG r2, r0                     @ r2<- vA
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    cmp     r2, r3                      @ compare (vA, vB)
-    moveq rINST, #2              @ rINST<- BYTE branch dist for not-taken
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r2, rINST, rINST            @ convert to bytes, check sign
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1644,14 +1608,15 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG r3, r1                     @ r3<- vB
     GET_VREG r2, r0                     @ r2<- vA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     cmp     r2, r3                      @ compare (vA, vB)
-    bge .L_op_if_lt_not_taken
+    movge rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1659,31 +1624,13 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_lt_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r0, rINST, #8, #4           @ r0<- A
-    GET_VREG r3, r1                     @ r3<- vB
-    GET_VREG r2, r0                     @ r2<- vA
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    cmp     r2, r3                      @ compare (vA, vB)
-    movge rINST, #2              @ rINST<- BYTE branch dist for not-taken
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r2, rINST, rINST            @ convert to bytes, check sign
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1699,14 +1646,15 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG r3, r1                     @ r3<- vB
     GET_VREG r2, r0                     @ r2<- vA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     cmp     r2, r3                      @ compare (vA, vB)
-    blt .L_op_if_ge_not_taken
+    movlt rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1714,31 +1662,13 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_ge_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r0, rINST, #8, #4           @ r0<- A
-    GET_VREG r3, r1                     @ r3<- vB
-    GET_VREG r2, r0                     @ r2<- vA
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    cmp     r2, r3                      @ compare (vA, vB)
-    movlt rINST, #2              @ rINST<- BYTE branch dist for not-taken
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r2, rINST, rINST            @ convert to bytes, check sign
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1754,14 +1684,15 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG r3, r1                     @ r3<- vB
     GET_VREG r2, r0                     @ r2<- vA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     cmp     r2, r3                      @ compare (vA, vB)
-    ble .L_op_if_gt_not_taken
+    movle rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1769,31 +1700,13 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_gt_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r0, rINST, #8, #4           @ r0<- A
-    GET_VREG r3, r1                     @ r3<- vB
-    GET_VREG r2, r0                     @ r2<- vA
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    cmp     r2, r3                      @ compare (vA, vB)
-    movle rINST, #2              @ rINST<- BYTE branch dist for not-taken
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r2, rINST, rINST            @ convert to bytes, check sign
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1809,14 +1722,15 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-#if MTERP_PROFILE_BRANCHES
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG r3, r1                     @ r3<- vB
     GET_VREG r2, r0                     @ r2<- vA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     cmp     r2, r3                      @ compare (vA, vB)
-    bgt .L_op_if_le_not_taken
+    movgt rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1824,31 +1738,13 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_le_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r0, rINST, #8, #4           @ r0<- A
-    GET_VREG r3, r1                     @ r3<- vB
-    GET_VREG r2, r0                     @ r2<- vA
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    cmp     r2, r3                      @ compare (vA, vB)
-    movgt rINST, #2              @ rINST<- BYTE branch dist for not-taken
-    adds    r2, rINST, rINST            @ convert to bytes, check sign
-    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r2, rINST, rINST            @ convert to bytes, check sign
+    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
+    FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1864,13 +1760,14 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
     mov     r0, rINST, lsr #8           @ r0<- AA
     GET_VREG r2, r0                     @ r2<- vAA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     cmp     r2, #0                      @ compare (vA, 0)
-    bne .L_op_if_eqz_not_taken
+    movne rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1878,28 +1775,12 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_eqz_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    GET_VREG r2, r0                     @ r2<- vAA
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    cmp     r2, #0                      @ compare (vA, 0)
-    movne rINST, #2              @ rINST<- inst branch dist for not-taken
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r1, rINST, rINST            @ convert to bytes & set flags
+    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1915,13 +1796,14 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
     mov     r0, rINST, lsr #8           @ r0<- AA
     GET_VREG r2, r0                     @ r2<- vAA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     cmp     r2, #0                      @ compare (vA, 0)
-    beq .L_op_if_nez_not_taken
+    moveq rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1929,28 +1811,12 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_nez_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    GET_VREG r2, r0                     @ r2<- vAA
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    cmp     r2, #0                      @ compare (vA, 0)
-    moveq rINST, #2              @ rINST<- inst branch dist for not-taken
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r1, rINST, rINST            @ convert to bytes & set flags
+    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -1966,13 +1832,14 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
     mov     r0, rINST, lsr #8           @ r0<- AA
     GET_VREG r2, r0                     @ r2<- vAA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     cmp     r2, #0                      @ compare (vA, 0)
-    bge .L_op_if_ltz_not_taken
+    movge rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -1980,28 +1847,12 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_ltz_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    GET_VREG r2, r0                     @ r2<- vAA
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    cmp     r2, #0                      @ compare (vA, 0)
-    movge rINST, #2              @ rINST<- inst branch dist for not-taken
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r1, rINST, rINST            @ convert to bytes & set flags
+    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -2017,13 +1868,14 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
     mov     r0, rINST, lsr #8           @ r0<- AA
     GET_VREG r2, r0                     @ r2<- vAA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     cmp     r2, #0                      @ compare (vA, 0)
-    blt .L_op_if_gez_not_taken
+    movlt rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -2031,28 +1883,12 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_gez_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    GET_VREG r2, r0                     @ r2<- vAA
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    cmp     r2, #0                      @ compare (vA, 0)
-    movlt rINST, #2              @ rINST<- inst branch dist for not-taken
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r1, rINST, rINST            @ convert to bytes & set flags
+    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -2068,13 +1904,14 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
     mov     r0, rINST, lsr #8           @ r0<- AA
     GET_VREG r2, r0                     @ r2<- vAA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     cmp     r2, #0                      @ compare (vA, 0)
-    ble .L_op_if_gtz_not_taken
+    movle rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -2082,28 +1919,12 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_gtz_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    GET_VREG r2, r0                     @ r2<- vAA
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    cmp     r2, #0                      @ compare (vA, 0)
-    movle rINST, #2              @ rINST<- inst branch dist for not-taken
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r1, rINST, rINST            @ convert to bytes & set flags
+    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -2119,13 +1940,14 @@ artMterpAsmInstructionStart = .L_op_nop
      * for: if-eqz, if-nez, if-ltz, if-gez, if-gtz, if-lez
      */
     /* if-cmp vAA, +BBBB */
-#if MTERP_PROFILE_BRANCHES
     mov     r0, rINST, lsr #8           @ r0<- AA
     GET_VREG r2, r0                     @ r2<- vAA
     FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     cmp     r2, #0                      @ compare (vA, 0)
-    bgt .L_op_if_lez_not_taken
+    movgt rINST, #2
+#if MTERP_PROFILE_BRANCHES
+    @ TUNING: once measurements are complete, remove #if and hand-schedule.
     EXPORT_PC
     mov     r0, rSELF
     add     r1, rFP, #OFF_FP_SHADOWFRAME
@@ -2133,28 +1955,12 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpProfileBranch          @ (self, shadow_frame, offset)
     cmp     r0, #0
     bne     MterpOnStackReplacement     @ Note: offset must be in rINST
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-.L_op_if_lez_not_taken:
-    FETCH_ADVANCE_INST 2                @ update rPC, load rINST
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
-#else
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    GET_VREG r2, r0                     @ r2<- vAA
-    FETCH_S rINST, 1                    @ rINST<- branch offset, in code units
-    ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
-    cmp     r2, #0                      @ compare (vA, 0)
-    movgt rINST, #2              @ rINST<- inst branch dist for not-taken
-    adds    r1, rINST, rINST            @ convert to bytes & set flags
-    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
-    bmi     MterpCheckSuspendAndContinue
-    GET_INST_OPCODE ip                  @ extract opcode from rINST
-    GOTO_OPCODE ip                      @ jump to next instruction
 #endif
+    adds    r1, rINST, rINST            @ convert to bytes & set flags
+    FETCH_ADVANCE_INST_RB r1            @ update rPC, load rINST
+    bmi     MterpCheckSuspendAndContinue
+    GET_INST_OPCODE ip                  @ extract opcode from rINST
+    GOTO_OPCODE ip                      @ jump to next instruction
 
 
 /* ------------------------------ */
@@ -2281,7 +2087,7 @@ artMterpAsmInstructionStart = .L_op_nop
     bcs     common_errArrayIndex        @ index >= length, bail
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldrd    r2, [r0, #MIRROR_WIDE_ARRAY_DATA_OFFSET]  @ r2/r3<- vBB[vCC]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r9, {r2-r3}                 @ vAA/vAA+1<- r2/r3
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -2506,7 +2312,7 @@ artMterpAsmInstructionStart = .L_op_nop
     ldr     r3, [r0, #MIRROR_ARRAY_LENGTH_OFFSET]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #3          @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     bcs     common_errArrayIndex        @ index >= length, bail
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     ldmia   r9, {r2-r3}                 @ r2/r3<- vAA/vAA+1
@@ -2725,7 +2531,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cmp      r3, #0
     bne      MterpException                @ bail out
     CLEAR_SHADOW_PAIR r2, ip, lr           @ Zero out the shadow regs
-    add      r3, rFP, r2, lsl #2           @ r3<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r2              @ r3<- &fp[A]
     stmia    r3, {r0-r1}                   @ fp[A]<- r0/r1
     ADVANCE 2
     GET_INST_OPCODE ip                     @ extract opcode from rINST
@@ -2928,7 +2734,7 @@ artMterpAsmInstructionStart = .L_op_nop
     mov      r1, rINST, lsr #12         @ r1<- B
     GET_VREG r1, r1                     @ r1<- fp[B], the object pointer
     ubfx     r2, rINST, #8, #4          @ r2<- A
-    add      r2, rFP, r2, lsl #2        @ r2<- &fp[A]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[A]
     ldr      r3, [rFP, #OFF_FP_METHOD]  @ r3<- referrer
     PREFETCH_INST 2
     bl       artSet64InstanceFromMterp
@@ -3115,7 +2921,7 @@ artMterpAsmInstructionStart = .L_op_nop
     bl    artGet64StaticFromCode
     ldr   r3, [rSELF, #THREAD_EXCEPTION_OFFSET]
     mov   r9, rINST, lsr #8             @ r9<- AA
-    add   lr, rFP, r9, lsl #2           @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR lr, r9           @ r9<- &fp[AA]
     cmp   r3, #0                        @ Fail to resolve?
     bne   MterpException                @ bail out
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
@@ -3327,7 +3133,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH   r0, 1                       @ r0<- field ref BBBB
     ldr     r1, [rFP, #OFF_FP_METHOD]
     mov     r2, rINST, lsr #8           @ r3<- AA
-    add     r2, rFP, r2, lsl #2
+    VREG_INDEX_TO_ADDR r2, r2
     mov     r3, rSELF
     PREFETCH_INST 2                     @ Get next inst, but don't advance rPC
     bl      artSet64IndirectStaticFromMterp
@@ -3860,8 +3666,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -3888,8 +3694,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -3942,8 +3748,8 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -3971,7 +3777,7 @@ artMterpAsmInstructionStart = .L_op_nop
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
     GET_VREG r0, r3                     @ r0<- vB
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
                                @ optional op; may set condition codes
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -3995,11 +3801,10 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    and     r9, r9, #15                 @ r9<- A
     fsitos  s1, s0                              @ s1<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
@@ -4020,11 +3825,10 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    and     r9, r9, #15                 @ r9<- A
     fsitod  d0, s0                              @ d0<- op
     CLEAR_SHADOW_PAIR r9, ip, lr        @ Zero shadow regs
     GET_INST_OPCODE ip                  @ extract opcode from rINST
@@ -4072,7 +3876,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
     ldmia   r3, {r0-r1}                 @ r0/r1<- vB/vB+1
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
                                @ optional op; may set condition codes
@@ -4096,8 +3900,8 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[A]
     vldr    d0, [r3]                    @ d0<- vAA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
 
@@ -4127,11 +3931,10 @@ constvalop_long_to_double:
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    and     r9, r9, #15                 @ r9<- A
     ftosizs s1, s0                              @ s1<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
@@ -4156,7 +3959,7 @@ constvalop_long_to_double:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
     GET_VREG r0, r3                     @ r0<- vB
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
                                @ optional op; may set condition codes
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -4181,12 +3984,11 @@ constvalop_long_to_double:
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    and     r9, r9, #15                 @ r9<- A
-    fcvtds  d0, s0                              @ d0<- op
+    vcvt.f64.f32  d0, s0                              @ d0<- op
     CLEAR_SHADOW_PAIR r9, ip, lr        @ Zero shadow regs
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
@@ -4207,11 +4009,10 @@ constvalop_long_to_double:
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     fldd    d0, [r3]                    @ d0<- vB
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    and     r9, r9, #15                 @ r9<- A
     ftosizd  s0, d0                              @ s0<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
@@ -4235,8 +4036,8 @@ constvalop_long_to_double:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
     CLEAR_SHADOW_PAIR rINST, ip, lr     @ Zero shadow regs
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
@@ -4262,12 +4063,11 @@ constvalop_long_to_double:
      */
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
     fldd    d0, [r3]                    @ d0<- vB
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
-    and     r9, r9, #15                 @ r9<- A
-    fcvtsd  s0, d0                              @ s0<- op
+    vcvt.f32.f64  s0, d0                              @ s0<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     fsts    s0, [r9]                    @ vA<- s0
@@ -4818,9 +4618,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 0
@@ -4862,9 +4662,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 0
@@ -4907,8 +4707,8 @@ constvalop_long_to_double:
     FETCH r0, 1                         @ r0<- CCBB
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     mul     ip, r2, r1                  @  ip<- ZxW
@@ -4916,7 +4716,7 @@ constvalop_long_to_double:
     mla     r2, r0, r3, ip              @  r2<- YxX + (ZxW)
     mov     r0, rINST, lsr #8           @ r0<- AA
     add     r10, r2, r10                @  r10<- r10 + low(ZxW + (YxX))
-    add     r0, rFP, r0, lsl #2         @ r0<- &fp[AA]
+    VREG_INDEX_TO_ADDR r0, r0           @ r0<- &fp[AA]
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r0, {r9-r10}                @ vAA/vAA+1<- r9/r10
@@ -4947,9 +4747,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 1
@@ -4992,9 +4792,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 1
@@ -5036,9 +4836,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 0
@@ -5080,9 +4880,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 0
@@ -5124,9 +4924,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 0
@@ -5158,12 +4958,12 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BB]
     GET_VREG r2, r0                     @ r2<- vCC
     ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     mov     r1, r1, asl r2              @ r1<- r1 << r2
     rsb     r3, r2, #32                 @ r3<- 32 - r2
     orr     r1, r1, r0, lsr r3          @ r1<- r1 | (r0 << (32-r2))
@@ -5190,12 +4990,12 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BB]
     GET_VREG r2, r0                     @ r2<- vCC
     ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     mov     r0, r0, lsr r2              @ r0<- r2 >> r2
     rsb     r3, r2, #32                 @ r3<- 32 - r2
     orr     r0, r0, r1, asl r3          @ r0<- r0 | (r1 << (32-r2))
@@ -5222,12 +5022,12 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[BB]
     GET_VREG r2, r0                     @ r2<- vCC
     ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[AA]
     mov     r0, r0, lsr r2              @ r0<- r2 >> r2
     rsb     r3, r2, #32                 @ r3<- 32 - r2
     orr     r0, r0, r1, asl r3          @ r0<- r0 | (r1 << (32-r2))
@@ -5547,9 +5347,9 @@ constvalop_long_to_double:
     mov     rINST, rINST, lsr #8        @ rINST<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[BB]
+    VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
     .if 0
@@ -6000,8 +5800,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 0
@@ -6040,8 +5840,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 0
@@ -6073,8 +5873,8 @@ constvalop_long_to_double:
     /* mul-long/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     rINST, rFP, r9, lsl #2      @ rINST<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR rINST, r9        @ rINST<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   rINST, {r0-r1}              @ r0/r1<- vAA/vAA+1
     mul     ip, r2, r1                  @  ip<- ZxW
@@ -6109,8 +5909,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 1
@@ -6150,8 +5950,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 1
@@ -6190,8 +5990,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 0
@@ -6230,8 +6030,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 0
@@ -6270,8 +6070,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 0
@@ -6301,7 +6101,7 @@ constvalop_long_to_double:
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG r2, r3                     @ r2<- vB
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[A]
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     mov     r1, r1, asl r2              @ r1<- r1 << r2
@@ -6328,7 +6128,7 @@ constvalop_long_to_double:
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG r2, r3                     @ r2<- vB
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[A]
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     mov     r0, r0, lsr r2              @ r0<- r2 >> r2
@@ -6355,7 +6155,7 @@ constvalop_long_to_double:
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG r2, r3                     @ r2<- vB
     CLEAR_SHADOW_PAIR r9, lr, ip        @ Zero out the shadow regs
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r9, r9           @ r9<- &fp[A]
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     mov     r0, r0, lsr r2              @ r0<- r2 >> r2
@@ -6383,14 +6183,12 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    flds    s1, [r3]                    @ s1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
+    flds    s1, [r3]                    @ s1<- vB
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
     fadds   s2, s0, s1                              @ s2<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     fsts    s2, [r9]                    @ vAA<- s2
@@ -6411,14 +6209,12 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    flds    s1, [r3]                    @ s1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
+    flds    s1, [r3]                    @ s1<- vB
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
     fsubs   s2, s0, s1                              @ s2<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     fsts    s2, [r9]                    @ vAA<- s2
@@ -6439,14 +6235,12 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    flds    s1, [r3]                    @ s1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
+    flds    s1, [r3]                    @ s1<- vB
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
     fmuls   s2, s0, s1                              @ s2<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     fsts    s2, [r9]                    @ vAA<- s2
@@ -6467,14 +6261,12 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    flds    s1, [r3]                    @ s1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
+    flds    s1, [r3]                    @ s1<- vB
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
     fdivs   s2, s0, s1                              @ s2<- op
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     fsts    s2, [r9]                    @ vAA<- s2
@@ -6535,11 +6327,10 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
     CLEAR_SHADOW_PAIR r9, ip, r0        @ Zero out shadow regs
+    fldd    d1, [r3]                    @ d1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     fldd    d0, [r9]                    @ d0<- vA
@@ -6564,11 +6355,10 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
     CLEAR_SHADOW_PAIR r9, ip, r0        @ Zero out shadow regs
+    fldd    d1, [r3]                    @ d1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     fldd    d0, [r9]                    @ d0<- vA
@@ -6593,11 +6383,10 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
     CLEAR_SHADOW_PAIR r9, ip, r0        @ Zero out shadow regs
+    fldd    d1, [r3]                    @ d1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     fldd    d0, [r9]                    @ d0<- vA
@@ -6622,11 +6411,10 @@ constvalop_long_to_double:
      */
     /* binop/2addr vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
-    mov     r9, rINST, lsr #8           @ r9<- A+
+    ubfx    r9, rINST, #8, #4           @ r9<- A
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &vB
-    and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
     CLEAR_SHADOW_PAIR r9, ip, r0        @ Zero out shadow regs
+    fldd    d1, [r3]                    @ d1<- vB
     VREG_INDEX_TO_ADDR r9, r9           @ r9<- &vA
     FETCH_ADVANCE_INST 1                @ advance rPC, load rINST
     fldd    d0, [r9]                    @ d0<- vA
@@ -6659,8 +6447,8 @@ constvalop_long_to_double:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    rINST, rINST, #8, #4        @ rINST<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, rINST, lsl #2      @ r9<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR r9, rINST        @ r9<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
     .if 0
@@ -6975,7 +6763,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7013,7 +6801,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7052,7 +6840,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7159,7 +6947,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7197,7 +6985,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7235,7 +7023,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7273,7 +7061,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7311,7 +7099,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7349,7 +7137,7 @@ constvalop_long_to_double:
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC
+    FETCH_S r3, 1                       @ r3<- ssssCCBB (sign-extended for CC)
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
@@ -7399,7 +7187,7 @@ constvalop_long_to_double:
     beq     common_errNullObject        @ object was null
     ldrd    r0, [r3, ip]                @ r0<- obj.field (64 bits, aligned)
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
-    add     r3, rFP, r2, lsl #2         @ r3<- &fp[A]
+    VREG_INDEX_TO_ADDR r3, r2           @ r3<- &fp[A]
     CLEAR_SHADOW_PAIR r2, ip, lr        @ Zero out the shadow regs
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
@@ -7455,7 +7243,7 @@ constvalop_long_to_double:
     ubfx    r0, rINST, #8, #4           @ r0<- A
     cmp     r2, #0                      @ check object for null
     beq     common_errNullObject        @ object was null
-    add     r0, rFP, r0, lsl #2         @ r0<- &fp[A]
+    VREG_INDEX_TO_ADDR r0, r0           @ r0<- &fp[A]
     ldmia   r0, {r0-r1}                 @ r0/r1<- fp[A]/fp[A+1]
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     strd    r0, [r2, r3]                @ obj.field<- r0/r1
@@ -7865,7 +7653,7 @@ f2l_doconv:
     cmp     r0, #0                      @ nonzero == yes
     mvnne   r0, #0                      @ return maxlong (7fffffff)
     mvnne   r1, #0x80000000
-    ldmnefd sp!, {r4, pc}
+    popne   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     mov     r1, #0xdf000000             @ (float)minlong
@@ -7873,14 +7661,14 @@ f2l_doconv:
     cmp     r0, #0                      @ nonzero == yes
     movne   r0, #0                      @ return minlong (80000000)
     movne   r1, #0x80000000
-    ldmnefd sp!, {r4, pc}
+    popne   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     mov     r1, r4
     bl      __aeabi_fcmpeq              @ is arg == self?
     cmp     r0, #0                      @ zero == no
     moveq   r1, #0                      @ return zero for NaN
-    ldmeqfd sp!, {r4, pc}
+    popeq   {r4, pc}
 
     mov     r0, r4                      @ recover arg
     bl      __aeabi_f2lz                @ convert float to long

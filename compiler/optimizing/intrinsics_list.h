@@ -19,14 +19,16 @@
 
 // All intrinsics supported by the optimizing compiler. Format is name, then whether it is expected
 // to be a HInvokeStaticOrDirect node (compared to HInvokeVirtual), then whether it requires an
-// environment.
+// environment, may have side effects, or may throw exceptions.
 
 #define INTRINSICS_LIST(V) \
   V(DoubleDoubleToRawLongBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(DoubleDoubleToLongBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(DoubleIsInfinite, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(DoubleIsNaN, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(DoubleLongBitsToDouble, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(FloatFloatToRawIntBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
+  V(FloatFloatToIntBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(FloatIsInfinite, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(FloatIsNaN, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
   V(FloatIntBitsToFloat, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow) \
@@ -126,6 +128,14 @@
   V(UnsafePutLong, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(UnsafePutLongOrdered, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(UnsafePutLongVolatile, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndAddInt, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndAddLong, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndSetInt, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndSetLong, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeGetAndSetObject, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeLoadFence, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeStoreFence, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
+  V(UnsafeFullFence, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(ReferenceGetReferent, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow)
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_

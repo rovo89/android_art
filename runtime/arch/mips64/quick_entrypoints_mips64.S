@@ -1367,7 +1367,7 @@ END \name
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
 ENTRY art_quick_alloc_object_rosalloc
 
@@ -1466,6 +1466,9 @@ ENTRY art_quick_alloc_object_rosalloc
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 
 END art_quick_alloc_object_rosalloc
+
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
 
     /*
      * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
@@ -1725,10 +1728,8 @@ ENTRY_NO_GP art_quick_string_compareto
 
   lw     $a2,MIRROR_STRING_COUNT_OFFSET($a0)    # this.length()
   lw     $a3,MIRROR_STRING_COUNT_OFFSET($a1)    # anotherString.length()
-  sltu   $at,$a2,$a3
-  seleqz $t2,$a3,$at
-  selnez $at,$a2,$at
-  or     $t2,$t2,$at    # $t2 now holds min(this.length(),anotherString.length())
+  MINu   $t2, $a2, $a3
+# $t2 now holds min(this.length(),anotherString.length())
 
   beqz   $t2,9f         # while min(this.length(),anotherString.length())-i != 0
   subu   $v0,$a2,$a3    # if $t2==0 return
@@ -1753,16 +1754,18 @@ END art_quick_string_compareto
 /* java.lang.String.indexOf(int ch, int fromIndex=0) */
 ENTRY_NO_GP art_quick_indexof
 /* $a0 holds address of "this" */
-/* $a1 holds address of "ch" */
-/* $a2 holds address of "fromIndex" */
+/* $a1 holds "ch" */
+/* $a2 holds "fromIndex" */
   lw    $t0,MIRROR_STRING_COUNT_OFFSET($a0)     # this.length()
-  subu  $t0,$t0,$a2     # this.length() - offset
-  blez  $t0,6f          # if this.length()-offset <= 0
+  slt   $at, $a2, $zero # if fromIndex < 0
+  seleqz $a2, $a2, $at  #     fromIndex = 0;
+  subu  $t0,$t0,$a2     # this.length() - fromIndex
+  blez  $t0,6f          # if this.length()-fromIndex <= 0
   li    $v0,-1          #     return -1;
 
   sll   $v0,$a2,1       # $a0 += $a2 * 2
   daddu $a0,$a0,$v0     #  "  "   "  " "
-  move  $v0,$a2         # Set i to offset.
+  move  $v0,$a2         # Set i to fromIndex.
 
 1:
   lhu   $t3,MIRROR_STRING_VALUE_OFFSET($a0)     # if this.charAt(i) == ch

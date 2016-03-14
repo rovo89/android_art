@@ -130,6 +130,10 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     case kIntrinsicFloatCvt:
       return ((method.d.data & kIntrinsicFlagToFloatingPoint) == 0) ?
           Intrinsics::kFloatFloatToRawIntBits : Intrinsics::kFloatIntBitsToFloat;
+    case kIntrinsicFloat2Int:
+      return Intrinsics::kFloatFloatToIntBits;
+    case kIntrinsicDouble2Long:
+      return Intrinsics::kDoubleDoubleToLongBits;
 
     // Floating-point tests.
     case kIntrinsicFloatIsInfinite:
@@ -467,6 +471,24 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       }
       break;
     }
+
+    // 1.8.
+    case kIntrinsicUnsafeGetAndAddInt:
+      return Intrinsics::kUnsafeGetAndAddInt;
+    case kIntrinsicUnsafeGetAndAddLong:
+      return Intrinsics::kUnsafeGetAndAddLong;
+    case kIntrinsicUnsafeGetAndSetInt:
+      return Intrinsics::kUnsafeGetAndSetInt;
+    case kIntrinsicUnsafeGetAndSetLong:
+      return Intrinsics::kUnsafeGetAndSetLong;
+    case kIntrinsicUnsafeGetAndSetObject:
+      return Intrinsics::kUnsafeGetAndSetObject;
+    case kIntrinsicUnsafeLoadFence:
+      return Intrinsics::kUnsafeLoadFence;
+    case kIntrinsicUnsafeStoreFence:
+      return Intrinsics::kUnsafeStoreFence;
+    case kIntrinsicUnsafeFullFence:
+      return Intrinsics::kUnsafeFullFence;
 
     // Virtual cases.
 

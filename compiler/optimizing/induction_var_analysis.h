@@ -189,7 +189,9 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
 
   // Constants.
-  bool IsIntAndGet(InductionInfo* info, int64_t* value);
+  bool IsExact(InductionInfo* info, /*out*/ int64_t* value);
+  bool IsAtMost(InductionInfo* info, /*out*/ int64_t* value);
+  bool IsAtLeast(InductionInfo* info, /*out*/ int64_t* value);
 
   // Helpers.
   static bool InductionEqual(InductionInfo* info1, InductionInfo* info2);

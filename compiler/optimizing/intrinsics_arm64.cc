@@ -46,6 +46,7 @@ using helpers::RegisterFrom;
 using helpers::SRegisterFrom;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
+using helpers::InputRegisterAt;
 
 namespace {
 
@@ -99,7 +100,8 @@ static void MoveArguments(HInvoke* invoke, CodeGeneratorARM64* codegen) {
 //       restored!
 class IntrinsicSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit IntrinsicSlowPathARM64(HInvoke* invoke) : invoke_(invoke) { }
+  explicit IntrinsicSlowPathARM64(HInvoke* invoke)
+      : SlowPathCodeARM64(invoke), invoke_(invoke) { }
 
   void EmitNativeCode(CodeGenerator* codegen_in) OVERRIDE {
     CodeGeneratorARM64* codegen = down_cast<CodeGeneratorARM64*>(codegen_in);
@@ -364,6 +366,40 @@ void IntrinsicLocationsBuilderARM64::VisitLongReverse(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorARM64::VisitLongReverse(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
+}
+
+static void GenBitCount(HInvoke* instr, bool is_long, vixl::MacroAssembler* masm) {
+  DCHECK(instr->GetType() == Primitive::kPrimInt);
+  DCHECK((is_long && instr->InputAt(0)->GetType() == Primitive::kPrimLong) ||
+         (!is_long && instr->InputAt(0)->GetType() == Primitive::kPrimInt));
+
+  Location out = instr->GetLocations()->Out();
+  UseScratchRegisterScope temps(masm);
+
+  Register src = InputRegisterAt(instr, 0);
+  Register dst = is_long ? XRegisterFrom(out) : WRegisterFrom(out);
+  FPRegister fpr = is_long ? temps.AcquireD() : temps.AcquireS();
+
+  __ Fmov(fpr, src);
+  __ Cnt(fpr.V8B(), fpr.V8B());
+  __ Addv(fpr.B(), fpr.V8B());
+  __ Fmov(dst, fpr);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongBitCount(HInvoke* invoke) {
+  GenBitCount(invoke, /* is_long */ true, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerBitCount(HInvoke* invoke) {
+  GenBitCount(invoke, /* is_long */ false, GetVIXLAssembler());
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -1300,6 +1336,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
   }
 
   __ Ldr(lr, MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pIndexOf).Int32Value()));
+  CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ Blr(lr);
 
   if (slow_path != nullptr) {
@@ -1372,8 +1409,9 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromBytes(HInvoke* invoke)
 
   __ Ldr(lr,
       MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromBytes).Int32Value()));
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   __ Blr(lr);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1391,21 +1429,25 @@ void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromChars(HInvoke* invo
 void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromChars(HInvoke* invoke) {
   vixl::MacroAssembler* masm = GetVIXLAssembler();
 
+  // No need to emit code checking whether `locations->InAt(2)` is a null
+  // pointer, as callers of the native method
+  //
+  //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
+  //
+  // all include a null check on `data` before calling that method.
   __ Ldr(lr,
       MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromChars).Int32Value()));
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   __ Blr(lr);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromString(HInvoke* invoke) {
-  // The inputs plus one temp.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kCall,
                                                             kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
-  locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
 }
 
@@ -1421,8 +1463,9 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromString(HInvoke* invoke
 
   __ Ldr(lr,
       MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromString).Int32Value()));
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   __ Blr(lr);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1601,42 +1644,323 @@ void IntrinsicCodeGeneratorARM64::VisitMathNextAfter(HInvoke* invoke) {
   GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickNextAfter);
 }
 
-// Unimplemented intrinsics.
+void IntrinsicLocationsBuilderARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
 
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
-void IntrinsicLocationsBuilderARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                      \
-void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
 }
 
-UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(LongBitCount)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
+void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
 
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
 
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
 
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
+  // Location of char array data in string.
+  const uint32_t value_offset = mirror::String::ValueOffset().Uint32Value();
 
-#undef UNIMPLEMENTED_INTRINSIC
+  // void getCharsNoCheck(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  // Since getChars() calls getCharsNoCheck() - we use registers rather than constants.
+  Register srcObj = XRegisterFrom(locations->InAt(0));
+  Register srcBegin = XRegisterFrom(locations->InAt(1));
+  Register srcEnd = XRegisterFrom(locations->InAt(2));
+  Register dstObj = XRegisterFrom(locations->InAt(3));
+  Register dstBegin = XRegisterFrom(locations->InAt(4));
+
+  Register src_ptr = XRegisterFrom(locations->GetTemp(0));
+  Register src_ptr_end = XRegisterFrom(locations->GetTemp(1));
+
+  UseScratchRegisterScope temps(masm);
+  Register dst_ptr = temps.AcquireX();
+  Register tmp = temps.AcquireW();
+
+  // src range to copy.
+  __ Add(src_ptr, srcObj, Operand(value_offset));
+  __ Add(src_ptr_end, src_ptr, Operand(srcEnd, LSL, 1));
+  __ Add(src_ptr, src_ptr, Operand(srcBegin, LSL, 1));
+
+  // dst to be copied.
+  __ Add(dst_ptr, dstObj, Operand(data_offset));
+  __ Add(dst_ptr, dst_ptr, Operand(dstBegin, LSL, 1));
+
+  // Do the copy.
+  vixl::Label loop, done;
+  __ Bind(&loop);
+  __ Cmp(src_ptr, src_ptr_end);
+  __ B(&done, eq);
+  __ Ldrh(tmp, MemOperand(src_ptr, char_size, vixl::PostIndex));
+  __ Strh(tmp, MemOperand(dst_ptr, char_size, vixl::PostIndex));
+  __ B(&loop);
+  __ Bind(&done);
+}
+
+// Mirrors ARRAYCOPY_SHORT_CHAR_ARRAY_THRESHOLD in libcore, so we can choose to use the native
+// implementation there for longer copy lengths.
+static constexpr int32_t kSystemArrayCopyThreshold = 32;
+
+static void SetSystemArrayCopyLocationRequires(LocationSummary* locations,
+                                               uint32_t at,
+                                               HInstruction* input) {
+  HIntConstant* const_input = input->AsIntConstant();
+  if (const_input != nullptr && !vixl::Assembler::IsImmAddSub(const_input->GetValue())) {
+    locations->SetInAt(at, Location::RequiresRegister());
+  } else {
+    locations->SetInAt(at, Location::RegisterOrConstant(input));
+  }
+}
+
+void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  // Check to see if we have known failures that will cause us to have to bail out
+  // to the runtime, and just generate the runtime call directly.
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
+  HIntConstant* dst_pos = invoke->InputAt(3)->AsIntConstant();
+
+  // The positions must be non-negative.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dst_pos != nullptr && dst_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // The length must be >= 0 and not so long that we would (currently) prefer libcore's
+  // native implementation.
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0 || len > kSystemArrayCopyThreshold) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
+  LocationSummary* locations = new (allocator) LocationSummary(invoke,
+                                                               LocationSummary::kCallOnSlowPath,
+                                                               kIntrinsified);
+  // arraycopy(char[] src, int src_pos, char[] dst, int dst_pos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  SetSystemArrayCopyLocationRequires(locations, 1, invoke->InputAt(1));
+  locations->SetInAt(2, Location::RequiresRegister());
+  SetSystemArrayCopyLocationRequires(locations, 3, invoke->InputAt(3));
+  SetSystemArrayCopyLocationRequires(locations, 4, invoke->InputAt(4));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+static void CheckSystemArrayCopyPosition(vixl::MacroAssembler* masm,
+                                         const Location& pos,
+                                         const Register& input,
+                                         const Location& length,
+                                         SlowPathCodeARM64* slow_path,
+                                         const Register& input_len,
+                                         const Register& temp,
+                                         bool length_is_input_length = false) {
+  const int32_t length_offset = mirror::Array::LengthOffset().Int32Value();
+  if (pos.IsConstant()) {
+    int32_t pos_const = pos.GetConstant()->AsIntConstant()->GetValue();
+    if (pos_const == 0) {
+      if (!length_is_input_length) {
+        // Check that length(input) >= length.
+        __ Ldr(temp, MemOperand(input, length_offset));
+        __ Cmp(temp, OperandFrom(length, Primitive::kPrimInt));
+        __ B(slow_path->GetEntryLabel(), lt);
+      }
+    } else {
+      // Check that length(input) >= pos.
+      __ Ldr(input_len, MemOperand(input, length_offset));
+      __ Subs(temp, input_len, pos_const);
+      __ B(slow_path->GetEntryLabel(), lt);
+
+      // Check that (length(input) - pos) >= length.
+      __ Cmp(temp, OperandFrom(length, Primitive::kPrimInt));
+      __ B(slow_path->GetEntryLabel(), lt);
+    }
+  } else if (length_is_input_length) {
+    // The only way the copy can succeed is if pos is zero.
+    __ Cbnz(WRegisterFrom(pos), slow_path->GetEntryLabel());
+  } else {
+    // Check that pos >= 0.
+    Register pos_reg = WRegisterFrom(pos);
+    __ Tbnz(pos_reg, pos_reg.size() - 1, slow_path->GetEntryLabel());
+
+    // Check that pos <= length(input) && (length(input) - pos) >= length.
+    __ Ldr(temp, MemOperand(input, length_offset));
+    __ Subs(temp, temp, pos_reg);
+    // Ccmp if length(input) >= pos, else definitely bail to slow path (N!=V == lt).
+    __ Ccmp(temp, OperandFrom(length, Primitive::kPrimInt), NFlag, ge);
+    __ B(slow_path->GetEntryLabel(), lt);
+  }
+}
+
+// Compute base source address, base destination address, and end source address
+// for System.arraycopy* intrinsics.
+static void GenSystemArrayCopyAddresses(vixl::MacroAssembler* masm,
+                                        Primitive::Type type,
+                                        const Register& src,
+                                        const Location& src_pos,
+                                        const Register& dst,
+                                        const Location& dst_pos,
+                                        const Location& copy_length,
+                                        const Register& src_base,
+                                        const Register& dst_base,
+                                        const Register& src_end) {
+  DCHECK(type == Primitive::kPrimNot || type == Primitive::kPrimChar)
+         << "Unexpected element type: "
+         << type;
+  const int32_t char_size = Primitive::ComponentSize(type);
+  const int32_t char_size_shift = Primitive::ComponentSizeShift(type);
+
+  uint32_t offset = mirror::Array::DataOffset(char_size).Uint32Value();
+  if (src_pos.IsConstant()) {
+    int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
+    __ Add(src_base, src, char_size * constant + offset);
+  } else {
+    __ Add(src_base, src, offset);
+    __ Add(src_base,
+           src_base,
+           Operand(XRegisterFrom(src_pos), LSL, char_size_shift));
+  }
+
+  if (dst_pos.IsConstant()) {
+    int32_t constant = dst_pos.GetConstant()->AsIntConstant()->GetValue();
+    __ Add(dst_base, dst, char_size * constant + offset);
+  } else {
+    __ Add(dst_base, dst, offset);
+    __ Add(dst_base,
+           dst_base,
+           Operand(XRegisterFrom(dst_pos), LSL, char_size_shift));
+  }
+
+  if (copy_length.IsConstant()) {
+    int32_t constant = copy_length.GetConstant()->AsIntConstant()->GetValue();
+    __ Add(src_end, src_base, char_size * constant);
+  } else {
+    __ Add(src_end,
+           src_base,
+           Operand(XRegisterFrom(copy_length), LSL, char_size_shift));
+  }
+}
+
+void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  Register src = XRegisterFrom(locations->InAt(0));
+  Location src_pos = locations->InAt(1);
+  Register dst = XRegisterFrom(locations->InAt(2));
+  Location dst_pos = locations->InAt(3);
+  Location length = locations->InAt(4);
+
+  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // If source and destination are the same, take the slow path. Overlapping copy regions must be
+  // copied in reverse and we can't know in all cases if it's needed.
+  __ Cmp(src, dst);
+  __ B(slow_path->GetEntryLabel(), eq);
+
+  // Bail out if the source is null.
+  __ Cbz(src, slow_path->GetEntryLabel());
+
+  // Bail out if the destination is null.
+  __ Cbz(dst, slow_path->GetEntryLabel());
+
+  if (!length.IsConstant()) {
+    // If the length is negative, bail out.
+    __ Tbnz(WRegisterFrom(length), kWRegSize - 1, slow_path->GetEntryLabel());
+    // If the length > 32 then (currently) prefer libcore's native implementation.
+    __ Cmp(WRegisterFrom(length), kSystemArrayCopyThreshold);
+    __ B(slow_path->GetEntryLabel(), gt);
+  } else {
+    // We have already checked in the LocationsBuilder for the constant case.
+    DCHECK_GE(length.GetConstant()->AsIntConstant()->GetValue(), 0);
+    DCHECK_LE(length.GetConstant()->AsIntConstant()->GetValue(), 32);
+  }
+
+  Register src_curr_addr = WRegisterFrom(locations->GetTemp(0));
+  Register dst_curr_addr = WRegisterFrom(locations->GetTemp(1));
+  Register src_stop_addr = WRegisterFrom(locations->GetTemp(2));
+
+  CheckSystemArrayCopyPosition(masm,
+                               src_pos,
+                               src,
+                               length,
+                               slow_path,
+                               src_curr_addr,
+                               dst_curr_addr,
+                               false);
+
+  CheckSystemArrayCopyPosition(masm,
+                               dst_pos,
+                               dst,
+                               length,
+                               slow_path,
+                               src_curr_addr,
+                               dst_curr_addr,
+                               false);
+
+  src_curr_addr = src_curr_addr.X();
+  dst_curr_addr = dst_curr_addr.X();
+  src_stop_addr = src_stop_addr.X();
+
+  GenSystemArrayCopyAddresses(masm,
+                              Primitive::kPrimChar,
+                              src,
+                              src_pos,
+                              dst,
+                              dst_pos,
+                              length,
+                              src_curr_addr,
+                              dst_curr_addr,
+                              src_stop_addr);
+
+  // Iterate over the arrays and do a raw copy of the chars.
+  const int32_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  UseScratchRegisterScope temps(masm);
+  Register tmp = temps.AcquireW();
+  vixl::Label loop, done;
+  __ Bind(&loop);
+  __ Cmp(src_curr_addr, src_stop_addr);
+  __ B(&done, eq);
+  __ Ldrh(tmp, MemOperand(src_curr_addr, char_size, vixl::PostIndex));
+  __ Strh(tmp, MemOperand(dst_curr_addr, char_size, vixl::PostIndex));
+  __ B(&loop);
+  __ Bind(&done);
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
+UNIMPLEMENTED_INTRINSIC(ARM64, SystemArrayCopy)
+UNIMPLEMENTED_INTRINSIC(ARM64, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(ARM64, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM64, DoubleIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM64, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM64, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM64, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM64, LongLowestOneBit)
+
+// 1.8.
+UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndAddInt)
+UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndAddLong)
+UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndSetInt)
+UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndSetLong)
+UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndSetObject)
+
+UNREACHABLE_INTRINSICS(ARM64)
 
 #undef __
 

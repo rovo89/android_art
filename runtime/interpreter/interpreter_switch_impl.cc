@@ -712,6 +712,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -727,6 +728,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -742,6 +744,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -757,6 +760,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -772,6 +776,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -787,6 +792,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -801,6 +807,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -815,6 +822,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -829,6 +837,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -843,6 +852,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -857,6 +867,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;
@@ -871,6 +882,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           }
           inst = inst->RelativeAt(offset);
         } else {
+          BRANCH_INSTRUMENTATION(2);
           inst = inst->Next_2xx();
         }
         break;

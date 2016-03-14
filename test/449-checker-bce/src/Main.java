@@ -137,20 +137,16 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
-  /// CHECK: BoundsCheck
-  /// CHECK: ArraySet
 
   /// CHECK-START: void Main.$opt$noinline$constantIndexing2(int[]) BCE (after)
-  /// CHECK-NOT: Deoptimize
-  /// CHECK: BoundsCheck
+  /// CHECK: Deoptimize
+  /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
-  /// CHECK: BoundsCheck
+  /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
-  /// CHECK: BoundsCheck
+  /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
-  /// CHECK: BoundsCheck
-  /// CHECK: ArraySet
-  /// CHECK: BoundsCheck
+  /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
 
   static void $opt$noinline$constantIndexing2(int[] array) {
@@ -158,8 +154,7 @@ public class Main {
     array[2] = 1;
     array[3] = 1;
     array[4] = 1;
-    array[-1] = 1;  // prevents the whole opt on [-1:4]
-    if (array[1] == 1) {
+    if (array[1] != 1) {
       throw new Error("");
     }
   }
@@ -173,8 +168,41 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
 
   /// CHECK-START: void Main.constantIndexing2b(int[]) BCE (after)
+  /// CHECK-NOT: Deoptimize
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+
+  static void constantIndexing2b(int[] array) {
+    array[0] = 6;
+    array[1] = 6;
+    array[2] = 6;
+    array[3] = 6;
+    array[-1] = 1;  // prevents the whole opt on [-1:4]
+  }
+
+  /// CHECK-START: void Main.constantIndexing2c(int[]) BCE (before)
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+
+  /// CHECK-START: void Main.constantIndexing2c(int[]) BCE (after)
   /// CHECK: Deoptimize
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
@@ -185,7 +213,7 @@ public class Main {
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
 
-  static void constantIndexing2b(int[] array) {
+  static void constantIndexing2c(int[] array) {
     array[0] = 7;
     array[1] = 7;
     array[2] = 7;
@@ -391,6 +419,36 @@ public class Main {
       array[base + 1] = 1;
   }
 
+  /// CHECK-START: void Main.constantIndexing10(int[], int) BCE (before)
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+
+  /// CHECK-START: void Main.constantIndexing10(int[], int) BCE (after)
+  /// CHECK: Deoptimize
+  /// CHECK: Deoptimize
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK: ArraySet
+
+  static void constantIndexing10(int[] array, int base) {
+    // Offset hidden in incremented base.
+    array[base] = 1;
+    array[++base] = 2;
+    array[++base] = 3;
+    array[++base] = 4;
+  }
+
   static void runAllConstantIndices() {
     int[] a1 = { 0 };
     int[] a6 = { 0, 0, 0, 0, 0, 0 };
@@ -410,31 +468,37 @@ public class Main {
       System.out.println("constant indices 1 failed!");
     }
 
-    caught = false;
-    try {
-      $opt$noinline$constantIndexing2(a6);
-    } catch (ArrayIndexOutOfBoundsException e) {
-      caught = true;
-    }
-    if (!caught || a6[0] != 0 || a6[1] != 1 || a6[2] != 1 ||
-                   a6[3] != 1 || a6[4] != 1 || a6[5] != 11) {
+    $opt$noinline$constantIndexing2(a6);
+    if (a6[0] != 0 || a6[1] != 1 || a6[2] != 1 ||
+        a6[3] != 1 || a6[4] != 1 || a6[5] != 11) {
       System.out.println("constant indices 2 failed!");
     }
 
     caught = false;
     try {
-      constantIndexing2b(a1);
+      constantIndexing2b(a6);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught || a6[0] != 6 || a6[1] != 6 || a6[2] != 6 ||
+                   a6[3] != 6 || a6[4] != 1 || a6[5] != 11) {
+      System.out.println("constant indices 2b failed!");
+    }
+
+    caught = false;
+    try {
+      constantIndexing2c(a1);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
     if (!caught || a1[0] != 7) {
-      System.out.println("constant indices 2b failed!");
+      System.out.println("constant indices 2c failed!");
     }
 
-    constantIndexing2b(a6);
+    constantIndexing2c(a6);
     if (a6[0] != 7 || a6[1] != 7 || a6[2] != 7 ||
         a6[3] != 7 || a6[4] != 1 || a6[5] != 11) {
-      System.out.println("constant indices 2b failed!");
+      System.out.println("constant indices 2c failed!");
     }
 
     int[] b4 = new int[4];
@@ -501,6 +565,12 @@ public class Main {
     if (a6[0] != 0 || a6[1] != 1  || a6[2] != 2  ||
         a6[3] != 3 || a6[4] != 40 || a6[5] != 10) {
       System.out.println("constant indices 9 failed!");
+    }
+
+    constantIndexing10(a6, 0);
+    if (a6[0] != 1 || a6[1] != 2  || a6[2] != 3  ||
+        a6[3] != 4 || a6[4] != 40 || a6[5] != 10) {
+      System.out.println("constant indices 10 failed!");
     }
   }
 

@@ -2569,20 +2569,36 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
 }
 
 
+void Thumb2Assembler::Emit32Miscellaneous(uint8_t op1,
+                                          uint8_t op2,
+                                          uint32_t rest_encoding) {
+  int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B23 |
+      op1 << 20 |
+      0xf << 12 |
+      B7 |
+      op2 << 4 |
+      rest_encoding;
+  Emit32(encoding);
+}
+
+
+void Thumb2Assembler::Emit16Miscellaneous(uint32_t rest_encoding) {
+  int16_t encoding = B15 | B13 | B12 |
+      rest_encoding;
+  Emit16(encoding);
+}
+
 void Thumb2Assembler::clz(Register rd, Register rm, Condition cond) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(rm, kNoRegister);
   CheckCondition(cond);
   CHECK_NE(rd, PC);
   CHECK_NE(rm, PC);
-  int32_t encoding = B31 | B30 | B29 | B28 | B27 |
-      B25 | B23 | B21 | B20 |
+  int32_t encoding =
       static_cast<uint32_t>(rm) << 16 |
-      0xf << 12 |
       static_cast<uint32_t>(rd) << 8 |
-      B7 |
       static_cast<uint32_t>(rm);
-  Emit32(encoding);
+  Emit32Miscellaneous(0b11, 0b00, encoding);
 }
 
 
@@ -2630,14 +2646,55 @@ void Thumb2Assembler::rbit(Register rd, Register rm, Condition cond) {
   CHECK_NE(rm, PC);
   CHECK_NE(rd, SP);
   CHECK_NE(rm, SP);
-  int32_t encoding = B31 | B30 | B29 | B28 | B27 |
-      B25 | B23 | B20 |
+  int32_t encoding =
       static_cast<uint32_t>(rm) << 16 |
-      0xf << 12 |
       static_cast<uint32_t>(rd) << 8 |
-      B7 | B5 |
       static_cast<uint32_t>(rm);
-  Emit32(encoding);
+
+  Emit32Miscellaneous(0b01, 0b10, encoding);
+}
+
+
+void Thumb2Assembler::EmitReverseBytes(Register rd, Register rm,
+                                       uint32_t op) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rm, kNoRegister);
+  CHECK_NE(rd, PC);
+  CHECK_NE(rm, PC);
+  CHECK_NE(rd, SP);
+  CHECK_NE(rm, SP);
+
+  if (!IsHighRegister(rd) && !IsHighRegister(rm) && !force_32bit_) {
+    uint16_t t1_op = B11 | B9 | (op << 6);
+    int16_t encoding = t1_op |
+        static_cast<uint16_t>(rm) << 3 |
+        static_cast<uint16_t>(rd);
+    Emit16Miscellaneous(encoding);
+  } else {
+    int32_t encoding =
+        static_cast<uint32_t>(rm) << 16 |
+        static_cast<uint32_t>(rd) << 8 |
+        static_cast<uint32_t>(rm);
+    Emit32Miscellaneous(0b01, op, encoding);
+  }
+}
+
+
+void Thumb2Assembler::rev(Register rd, Register rm, Condition cond) {
+  CheckCondition(cond);
+  EmitReverseBytes(rd, rm, 0b00);
+}
+
+
+void Thumb2Assembler::rev16(Register rd, Register rm, Condition cond) {
+  CheckCondition(cond);
+  EmitReverseBytes(rd, rm, 0b01);
+}
+
+
+void Thumb2Assembler::revsh(Register rd, Register rm, Condition cond) {
+  CheckCondition(cond);
+  EmitReverseBytes(rd, rm, 0b11);
 }
 
 

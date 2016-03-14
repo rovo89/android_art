@@ -39,32 +39,31 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
                     const ArrayRef<const MethodDebugInfo>& method_infos,
                     dwarf::CFIFormat cfi_format,
                     bool write_oat_patches) {
-  // Add methods to .symtab.
+  // Write .strtab and .symtab.
   WriteDebugSymbols(builder, method_infos, true /* with_signature */);
-  // Generate CFI (stack unwinding information).
-  WriteCFISection(builder, method_infos, cfi_format, write_oat_patches);
-  // Write DWARF .debug_* sections.
-  WriteDebugSections(builder, method_infos, write_oat_patches);
-}
 
-template<typename ElfTypes>
-static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
-                               const ArrayRef<const MethodDebugInfo>& method_infos,
-                               bool write_oat_patches) {
+  // Write .debug_frame.
+  WriteCFISection(builder, method_infos, cfi_format, write_oat_patches);
+
   // Group the methods into compilation units based on source file.
   std::vector<ElfCompilationUnit> compilation_units;
   const char* last_source_file = nullptr;
   for (const MethodDebugInfo& mi : method_infos) {
-    auto& dex_class_def = mi.dex_file->GetClassDef(mi.class_def_index);
-    const char* source_file = mi.dex_file->GetSourceFile(dex_class_def);
-    if (compilation_units.empty() || source_file != last_source_file) {
-      compilation_units.push_back(ElfCompilationUnit());
+    if (mi.dex_file != nullptr) {
+      auto& dex_class_def = mi.dex_file->GetClassDef(mi.class_def_index);
+      const char* source_file = mi.dex_file->GetSourceFile(dex_class_def);
+      if (compilation_units.empty() || source_file != last_source_file) {
+        compilation_units.push_back(ElfCompilationUnit());
+      }
+      ElfCompilationUnit& cu = compilation_units.back();
+      cu.methods.push_back(&mi);
+      // All methods must have the same addressing mode otherwise the min/max below does not work.
+      DCHECK_EQ(cu.methods.front()->is_code_address_text_relative, mi.is_code_address_text_relative);
+      cu.is_code_address_text_relative = mi.is_code_address_text_relative;
+      cu.code_address = std::min(cu.code_address, mi.code_address);
+      cu.code_end = std::max(cu.code_end, mi.code_address + mi.code_size);
+      last_source_file = source_file;
     }
-    ElfCompilationUnit& cu = compilation_units.back();
-    cu.methods.push_back(&mi);
-    cu.low_pc = std::min(cu.low_pc, mi.low_pc);
-    cu.high_pc = std::max(cu.high_pc, mi.high_pc);
-    last_source_file = source_file;
   }
 
   // Write .debug_line section.
@@ -91,28 +90,38 @@ static void WriteDebugSections(ElfBuilder<ElfTypes>* builder,
 
 std::vector<uint8_t> MakeMiniDebugInfo(
     InstructionSet isa,
+    const InstructionSetFeatures* features,
     size_t rodata_size,
     size_t text_size,
     const ArrayRef<const MethodDebugInfo>& method_infos) {
   if (Is64BitInstructionSet(isa)) {
-    return MakeMiniDebugInfoInternal<ElfTypes64>(isa, rodata_size, text_size, method_infos);
+    return MakeMiniDebugInfoInternal<ElfTypes64>(isa,
+                                                 features,
+                                                 rodata_size,
+                                                 text_size,
+                                                 method_infos);
   } else {
-    return MakeMiniDebugInfoInternal<ElfTypes32>(isa, rodata_size, text_size, method_infos);
+    return MakeMiniDebugInfoInternal<ElfTypes32>(isa,
+                                                 features,
+                                                 rodata_size,
+                                                 text_size,
+                                                 method_infos);
   }
 }
 
 template <typename ElfTypes>
-static ArrayRef<const uint8_t> WriteDebugElfFileForMethodInternal(
-    const MethodDebugInfo& method_info) {
-  const InstructionSet isa = method_info.compiled_method->GetInstructionSet();
+static ArrayRef<const uint8_t> WriteDebugElfFileForMethodsInternal(
+    InstructionSet isa,
+    const InstructionSetFeatures* features,
+    const ArrayRef<const MethodDebugInfo>& method_infos) {
   std::vector<uint8_t> buffer;
   buffer.reserve(KB);
   VectorOutputStream out("Debug ELF file", &buffer);
-  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, features, &out));
   // No program headers since the ELF file is not linked and has no allocated sections.
   builder->Start(false /* write_program_headers */);
   WriteDebugInfo(builder.get(),
-                 ArrayRef<const MethodDebugInfo>(&method_info, 1),
+                 method_infos,
                  dwarf::DW_DEBUG_FRAME_FORMAT,
                  false /* write_oat_patches */);
   builder->End();
@@ -124,23 +133,27 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForMethodInternal(
   return ArrayRef<const uint8_t>(result, buffer.size());
 }
 
-ArrayRef<const uint8_t> WriteDebugElfFileForMethod(const MethodDebugInfo& method_info) {
-  const InstructionSet isa = method_info.compiled_method->GetInstructionSet();
+ArrayRef<const uint8_t> WriteDebugElfFileForMethods(
+    InstructionSet isa,
+    const InstructionSetFeatures* features,
+    const ArrayRef<const MethodDebugInfo>& method_infos) {
   if (Is64BitInstructionSet(isa)) {
-    return WriteDebugElfFileForMethodInternal<ElfTypes64>(method_info);
+    return WriteDebugElfFileForMethodsInternal<ElfTypes64>(isa, features, method_infos);
   } else {
-    return WriteDebugElfFileForMethodInternal<ElfTypes32>(method_info);
+    return WriteDebugElfFileForMethodsInternal<ElfTypes32>(isa, features, method_infos);
   }
 }
 
 template <typename ElfTypes>
 static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
-    const InstructionSet isa, const ArrayRef<mirror::Class*>& types)
+    InstructionSet isa,
+    const InstructionSetFeatures* features,
+    const ArrayRef<mirror::Class*>& types)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   std::vector<uint8_t> buffer;
   buffer.reserve(KB);
   VectorOutputStream out("Debug ELF file", &buffer);
-  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, &out));
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(isa, features, &out));
   // No program headers since the ELF file is not linked and has no allocated sections.
   builder->Start(false /* write_program_headers */);
   ElfDebugInfoWriter<ElfTypes> info_writer(builder.get());
@@ -158,13 +171,39 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
   return ArrayRef<const uint8_t>(result, buffer.size());
 }
 
-ArrayRef<const uint8_t> WriteDebugElfFileForClasses(const InstructionSet isa,
+ArrayRef<const uint8_t> WriteDebugElfFileForClasses(InstructionSet isa,
+                                                    const InstructionSetFeatures* features,
                                                     const ArrayRef<mirror::Class*>& types) {
   if (Is64BitInstructionSet(isa)) {
-    return WriteDebugElfFileForClassesInternal<ElfTypes64>(isa, types);
+    return WriteDebugElfFileForClassesInternal<ElfTypes64>(isa, features, types);
   } else {
-    return WriteDebugElfFileForClassesInternal<ElfTypes32>(isa, types);
+    return WriteDebugElfFileForClassesInternal<ElfTypes32>(isa, features, types);
   }
+}
+
+std::vector<MethodDebugInfo> MakeTrampolineInfos(const OatHeader& header) {
+  std::map<const char*, uint32_t> trampolines = {
+    { "interpreterToInterpreterBridge", header.GetInterpreterToInterpreterBridgeOffset() },
+    { "interpreterToCompiledCodeBridge", header.GetInterpreterToCompiledCodeBridgeOffset() },
+    { "jniDlsymLookup", header.GetJniDlsymLookupOffset() },
+    { "quickGenericJniTrampoline", header.GetQuickGenericJniTrampolineOffset() },
+    { "quickImtConflictTrampoline", header.GetQuickImtConflictTrampolineOffset() },
+    { "quickResolutionTrampoline", header.GetQuickResolutionTrampolineOffset() },
+    { "quickToInterpreterBridge", header.GetQuickToInterpreterBridgeOffset() },
+  };
+  std::vector<MethodDebugInfo> result;
+  for (const auto& it : trampolines) {
+    if (it.second != 0) {
+      MethodDebugInfo info = MethodDebugInfo();
+      info.trampoline_name = it.first;
+      info.isa = header.GetInstructionSet();
+      info.is_code_address_text_relative = true;
+      info.code_address = it.second - header.GetExecutableOffset();
+      info.code_size = 0;  // The symbol lasts until the next symbol.
+      result.push_back(std::move(info));
+    }
+  }
+  return result;
 }
 
 // Explicit instantiations

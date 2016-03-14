@@ -411,7 +411,12 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
       DCHECK(method_header->Contains(pc));
       return method_header;
     } else {
-      DCHECK(!code_cache->ContainsPc(reinterpret_cast<const void*>(pc))) << std::hex << pc;
+      DCHECK(!code_cache->ContainsPc(reinterpret_cast<const void*>(pc)))
+          << PrettyMethod(this)
+          << ", pc=" << std::hex << pc
+          << ", entry_point=" << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
+          << ", copy=" << std::boolalpha << IsCopied()
+          << ", proxy=" << std::boolalpha << IsProxyMethod();
     }
   }
 

@@ -208,13 +208,6 @@
           "org.apache.harmony.tests.java.util.TimerTaskTest#test_scheduledExecutionTime"]
 },
 {
-  description: "'cat -' does not work anymore",
-  result: EXEC_FAILED,
-  bug: 26395656,
-  modes: [device],
-  names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getOutputStream"]
-},
-{
   description: "Missing resource in classpath",
   result: EXEC_FAILED,
   modes: [device],

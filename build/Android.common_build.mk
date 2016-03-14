@@ -334,7 +334,6 @@ art_non_debug_cflags := \
 art_debug_cflags := \
   $(ART_DEBUG_OPT_FLAG) \
   -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
-  -DVIXL_DEBUG \
   -UNDEBUG
 
 art_host_non_debug_cflags := $(art_non_debug_cflags)

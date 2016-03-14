@@ -475,12 +475,6 @@ class ClassLinker {
   const void* GetQuickOatCodeFor(ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Get the oat code for a method from a method index.
-  const void* GetQuickOatCodeFor(const DexFile& dex_file,
-                                 uint16_t class_def_idx,
-                                 uint32_t method_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Get compiled code for a method, return null if no code
   // exists. This is unlike Get..OatCodeFor which will return a bridge
   // or interpreter entrypoint.

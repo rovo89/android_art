@@ -52,7 +52,7 @@ static constexpr int kFakeReturnRegister = Register(8);
 
 class NullCheckSlowPathX86 : public SlowPathCode {
  public:
-  explicit NullCheckSlowPathX86(HNullCheck* instruction) : instruction_(instruction) {}
+  explicit NullCheckSlowPathX86(HNullCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
@@ -73,13 +73,12 @@ class NullCheckSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathX86"; }
 
  private:
-  HNullCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathX86);
 };
 
 class DivZeroCheckSlowPathX86 : public SlowPathCode {
  public:
-  explicit DivZeroCheckSlowPathX86(HDivZeroCheck* instruction) : instruction_(instruction) {}
+  explicit DivZeroCheckSlowPathX86(HDivZeroCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
@@ -100,13 +99,13 @@ class DivZeroCheckSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathX86"; }
 
  private:
-  HDivZeroCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathX86);
 };
 
 class DivRemMinusOneSlowPathX86 : public SlowPathCode {
  public:
-  DivRemMinusOneSlowPathX86(Register reg, bool is_div) : reg_(reg), is_div_(is_div) {}
+  DivRemMinusOneSlowPathX86(HInstruction* instruction, Register reg, bool is_div)
+      : SlowPathCode(instruction), reg_(reg), is_div_(is_div) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
@@ -128,7 +127,7 @@ class DivRemMinusOneSlowPathX86 : public SlowPathCode {
 
 class BoundsCheckSlowPathX86 : public SlowPathCode {
  public:
-  explicit BoundsCheckSlowPathX86(HBoundsCheck* instruction) : instruction_(instruction) {}
+  explicit BoundsCheckSlowPathX86(HBoundsCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -160,15 +159,13 @@ class BoundsCheckSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathX86"; }
 
  private:
-  HBoundsCheck* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathX86);
 };
 
 class SuspendCheckSlowPathX86 : public SlowPathCode {
  public:
   SuspendCheckSlowPathX86(HSuspendCheck* instruction, HBasicBlock* successor)
-      : instruction_(instruction), successor_(successor) {}
+      : SlowPathCode(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
@@ -199,7 +196,6 @@ class SuspendCheckSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathX86"; }
 
  private:
-  HSuspendCheck* const instruction_;
   HBasicBlock* const successor_;
   Label return_label_;
 
@@ -208,7 +204,7 @@ class SuspendCheckSlowPathX86 : public SlowPathCode {
 
 class LoadStringSlowPathX86 : public SlowPathCode {
  public:
-  explicit LoadStringSlowPathX86(HLoadString* instruction) : instruction_(instruction) {}
+  explicit LoadStringSlowPathX86(HLoadString* instruction): SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -219,7 +215,8 @@ class LoadStringSlowPathX86 : public SlowPathCode {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction_->GetStringIndex()));
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    __ movl(calling_convention.GetRegisterAt(0), Immediate(string_index));
     x86_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pResolveString),
                                instruction_,
                                instruction_->GetDexPc(),
@@ -234,8 +231,6 @@ class LoadStringSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathX86"; }
 
  private:
-  HLoadString* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathX86);
 };
 
@@ -245,7 +240,7 @@ class LoadClassSlowPathX86 : public SlowPathCode {
                        HInstruction* at,
                        uint32_t dex_pc,
                        bool do_clinit)
-      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+      : SlowPathCode(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
@@ -299,7 +294,7 @@ class LoadClassSlowPathX86 : public SlowPathCode {
 class TypeCheckSlowPathX86 : public SlowPathCode {
  public:
   TypeCheckSlowPathX86(HInstruction* instruction, bool is_fatal)
-      : instruction_(instruction), is_fatal_(is_fatal) {}
+      : SlowPathCode(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -356,7 +351,6 @@ class TypeCheckSlowPathX86 : public SlowPathCode {
   bool IsFatal() const OVERRIDE { return is_fatal_; }
 
  private:
-  HInstruction* const instruction_;
   const bool is_fatal_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathX86);
@@ -365,7 +359,7 @@ class TypeCheckSlowPathX86 : public SlowPathCode {
 class DeoptimizationSlowPathX86 : public SlowPathCode {
  public:
   explicit DeoptimizationSlowPathX86(HDeoptimize* instruction)
-    : instruction_(instruction) {}
+    : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
@@ -381,13 +375,12 @@ class DeoptimizationSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathX86"; }
 
  private:
-  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathX86);
 };
 
 class ArraySetSlowPathX86 : public SlowPathCode {
  public:
-  explicit ArraySetSlowPathX86(HInstruction* instruction) : instruction_(instruction) {}
+  explicit ArraySetSlowPathX86(HInstruction* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -426,8 +419,6 @@ class ArraySetSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathX86"; }
 
  private:
-  HInstruction* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathX86);
 };
 
@@ -435,7 +426,7 @@ class ArraySetSlowPathX86 : public SlowPathCode {
 class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
  public:
   ReadBarrierMarkSlowPathX86(HInstruction* instruction, Location out, Location obj)
-      : instruction_(instruction), out_(out), obj_(obj) {
+      : SlowPathCode(instruction), out_(out), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -474,7 +465,6 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
   }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location obj_;
 
@@ -490,7 +480,7 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
                                          Location obj,
                                          uint32_t offset,
                                          Location index)
-      : instruction_(instruction),
+      : SlowPathCode(instruction),
         out_(out),
         ref_(ref),
         obj_(obj),
@@ -645,7 +635,6 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
     UNREACHABLE();
   }
 
-  HInstruction* const instruction_;
   const Location out_;
   const Location ref_;
   const Location obj_;
@@ -662,7 +651,7 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
 class ReadBarrierForRootSlowPathX86 : public SlowPathCode {
  public:
   ReadBarrierForRootSlowPathX86(HInstruction* instruction, Location out, Location root)
-      : instruction_(instruction), out_(out), root_(root) {
+      : SlowPathCode(instruction), out_(out), root_(root) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -695,7 +684,6 @@ class ReadBarrierForRootSlowPathX86 : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "ReadBarrierForRootSlowPathX86"; }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location root_;
 
@@ -1649,11 +1637,11 @@ void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
 }
 
 void InstructionCodeGeneratorX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  if (codegen_->HasStackMapAtCurrentPc()) {
-    // Ensure that we do not collide with the stack map of the previous instruction.
-    __ nop();
-  }
-  codegen_->RecordPcInfo(info, info->GetDexPc());
+  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+}
+
+void CodeGeneratorX86::GenerateNop() {
+  __ nop();
 }
 
 void LocationsBuilderX86::VisitLocal(HLocal* local) {
@@ -3453,9 +3441,8 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
           GenerateDivRemWithAnyConstant(instruction);
         }
       } else {
-        SlowPathCode* slow_path =
-          new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86(out.AsRegister<Register>(),
-              is_div);
+        SlowPathCode* slow_path = new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86(
+            instruction, out.AsRegister<Register>(), is_div);
         codegen_->AddSlowPath(slow_path);
 
         Register second_reg = second.AsRegister<Register>();
@@ -4140,7 +4127,7 @@ void LocationsBuilderX86::VisitClassTableGet(HClassTableGet* instruction) {
 void InstructionCodeGeneratorX86::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   uint32_t method_offset = 0;
-  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kX86PointerSize).SizeValue();
   } else {

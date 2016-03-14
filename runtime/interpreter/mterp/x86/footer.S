@@ -12,7 +12,6 @@
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -116,13 +115,17 @@ MterpException:
     call    SYMBOL(MterpHandleException)
     testb   %al, %al
     jz      MterpExceptionReturn
-    REFRESH_IBASE
     movl    OFF_FP_CODE_ITEM(rFP), %eax
     movl    OFF_FP_DEX_PC(rFP), %ecx
     lea     CODEITEM_INSNS_OFFSET(%eax), rPC
     lea     (rPC, %ecx, 2), rPC
     movl    rPC, OFF_FP_DEX_PC_PTR(rFP)
+    /* Do we need to switch interpreters? */
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     /* resume execution at catch block */
+    REFRESH_IBASE
     FETCH_INST
     GOTO_NEXT
     /* NOTE: no fallthrough */
@@ -141,6 +144,21 @@ MterpCheckSuspendAndContinue:
     REFRESH_IBASE
 1:
     GOTO_NEXT
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    movl    rSELF, %eax
+    movl    %eax, OUT_ARG0(%esp)
+    lea     OFF_FP_SHADOWFRAME(rFP), %ecx
+    movl    %ecx, OUT_ARG1(%esp)
+    movl    rINST, OUT_ARG2(%esp)
+    call    SYMBOL(MterpLogOSR)
+#endif
+    movl    $$1, %eax
+    jmp     MterpDone
 
 /*
  * Bail out to reference interpreter.
@@ -171,16 +189,15 @@ MterpReturn:
     movl    %ecx, 4(%edx)
     mov     $$1, %eax
 MterpDone:
-    /* Restore callee save register */
-    movl    EBP_SPILL(%esp), %ebp
-    movl    EDI_SPILL(%esp), %edi
-    movl    ESI_SPILL(%esp), %esi
-    movl    EBX_SPILL(%esp), %ebx
-
     /* pop up frame */
     addl    $$FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset -FRAME_SIZE
-    ret
 
+    /* Restore callee save register */
+    POP     %ebx
+    POP     %esi
+    POP     %edi
+    POP     %ebp
+    ret
     .cfi_endproc
     SIZE(ExecuteMterpImpl,ExecuteMterpImpl)

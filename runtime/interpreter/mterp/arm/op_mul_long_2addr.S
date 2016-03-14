@@ -9,8 +9,8 @@
     /* mul-long/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     rINST, rFP, r9, lsl #2      @ rINST<- &fp[A]
+    VREG_INDEX_TO_ADDR r1, r1           @ r1<- &fp[B]
+    VREG_INDEX_TO_ADDR rINST, r9        @ rINST<- &fp[A]
     ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
     ldmia   rINST, {r0-r1}              @ r0/r1<- vAA/vAA+1
     mul     ip, r2, r1                  @  ip<- ZxW

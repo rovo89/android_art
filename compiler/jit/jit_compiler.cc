@@ -69,7 +69,8 @@ extern "C" void jit_types_loaded(void* handle, mirror::Class** types, size_t cou
   DCHECK(jit_compiler != nullptr);
   if (jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo()) {
     const ArrayRef<mirror::Class*> types_array(types, count);
-    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForClasses(kRuntimeISA, types_array);
+    ArrayRef<const uint8_t> elf_file = debug::WriteDebugElfFileForClasses(
+        kRuntimeISA, jit_compiler->GetCompilerDriver()->GetInstructionSetFeatures(), types_array);
     CreateJITCodeEntry(std::unique_ptr<const uint8_t[]>(elf_file.data()), elf_file.size());
   }
 }
@@ -85,7 +86,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
-JitCompiler::JitCompiler() : total_time_(0) {
+JitCompiler::JitCompiler() {
   compiler_options_.reset(new CompilerOptions(
       CompilerOptions::kDefaultCompilerFilter,
       CompilerOptions::kDefaultHugeMethodThreshold,
@@ -163,19 +164,19 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* dump_passes */ false,
       cumulative_logger_.get(),
       /* swap_fd */ -1,
-      /* dex to oat map */ nullptr,
       /* profile_compilation_info */ nullptr));
   // Disable dedupe so we can remove compiled methods.
   compiler_driver_->SetDedupeEnabled(false);
   compiler_driver_->SetSupportBootImageFixup(false);
 
+  size_t thread_count = compiler_driver_->GetThreadCount();
   if (compiler_options_->GetGenerateDebugInfo()) {
 #ifdef __ANDROID__
     const char* prefix = "/data/misc/trace";
 #else
     const char* prefix = "/tmp";
 #endif
-    DCHECK_EQ(compiler_driver_->GetThreadCount(), 1u)
+    DCHECK_EQ(thread_count, 1u)
         << "Generating debug info only works with one compiler thread";
     std::string perf_filename = std::string(prefix) + "/perf-" + std::to_string(getpid()) + ".map";
     perf_file_.reset(OS::CreateEmptyFileWriteOnly(perf_filename.c_str()));
@@ -184,6 +185,10 @@ JitCompiler::JitCompiler() : total_time_(0) {
                     " Are you on a user build? Perf only works on userdebug/eng builds";
     }
   }
+
+  size_t inline_depth_limit = compiler_driver_->GetCompilerOptions().GetInlineDepthLimit();
+  DCHECK_LT(thread_count * inline_depth_limit, std::numeric_limits<uint16_t>::max())
+      << "ProfilingInfo's inline counter can potentially overflow";
 }
 
 JitCompiler::~JitCompiler() {
@@ -196,7 +201,6 @@ JitCompiler::~JitCompiler() {
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   DCHECK(!method->IsProxyMethod());
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
-  const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
@@ -231,13 +235,12 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   }
 
   // Trim maps to reduce memory usage.
-  // TODO: measure how much this increases compile time.
+  // TODO: move this to an idle phase.
   {
     TimingLogger::ScopedTiming t2("TrimMaps", &logger);
-    runtime->GetArenaPool()->TrimMaps();
+    runtime->GetJitArenaPool()->TrimMaps();
   }
 
-  total_time_ += NanoTime() - start_time;
   runtime->GetJit()->AddTimingLogger(logger);
   return success;
 }

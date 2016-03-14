@@ -112,25 +112,32 @@ unspecified registers or condition codes.
     #define SYMBOL(name) name
 #endif
 
+.macro PUSH _reg
+    pushl \_reg
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset \_reg, 0
+.endm
+
+.macro POP _reg
+    popl \_reg
+    .cfi_adjust_cfa_offset -4
+    .cfi_restore \_reg
+.endm
+
 /* Frame size must be 16-byte aligned.
- * Remember about 4 bytes for return address
+ * Remember about 4 bytes for return address + 4 * 4 for spills
  */
-#define FRAME_SIZE     44
+#define FRAME_SIZE     28
 
 /* Frame diagram while executing ExecuteMterpImpl, high to low addresses */
-#define IN_ARG3        (FRAME_SIZE + 16)
-#define IN_ARG2        (FRAME_SIZE + 12)
-#define IN_ARG1        (FRAME_SIZE +  8)
-#define IN_ARG0        (FRAME_SIZE +  4)
-#define CALLER_RP      (FRAME_SIZE +  0)
+#define IN_ARG3        (FRAME_SIZE + 16 + 16)
+#define IN_ARG2        (FRAME_SIZE + 16 + 12)
+#define IN_ARG1        (FRAME_SIZE + 16 +  8)
+#define IN_ARG0        (FRAME_SIZE + 16 +  4)
 /* Spill offsets relative to %esp */
-#define EBP_SPILL      (FRAME_SIZE -  4)
-#define EDI_SPILL      (FRAME_SIZE -  8)
-#define ESI_SPILL      (FRAME_SIZE - 12)
-#define EBX_SPILL      (FRAME_SIZE - 16)
-#define LOCAL0         (FRAME_SIZE - 20)
-#define LOCAL1         (FRAME_SIZE - 24)
-#define LOCAL2         (FRAME_SIZE - 28)
+#define LOCAL0         (FRAME_SIZE -  4)
+#define LOCAL1         (FRAME_SIZE -  8)
+#define LOCAL2         (FRAME_SIZE - 12)
 /* Out Arg offsets, relative to %esp */
 #define OUT_ARG3       ( 12)
 #define OUT_ARG2       (  8)
@@ -163,13 +170,26 @@ unspecified registers or condition codes.
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
 #define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
 
+#define MTERP_PROFILE_BRANCHES 1
+#define MTERP_LOGGING 0
+
 /*
- *
- * The reference interpreter performs explicit suspect checks, which is somewhat wasteful.
- * Dalvik's interpreter folded suspend checks into the jump table mechanism, and eventually
- * mterp should do so as well.
+ * Profile branch. rINST should contain the offset. %eax is scratch.
  */
-#define MTERP_SUSPEND 0
+.macro MTERP_PROFILE_BRANCH
+#ifdef MTERP_PROFILE_BRANCHES
+    EXPORT_PC
+    movl    rSELF, %eax
+    movl    %eax, OUT_ARG0(%esp)
+    leal    OFF_FP_SHADOWFRAME(rFP), %eax
+    movl    %eax, OUT_ARG1(%esp)
+    movl    rINST, OUT_ARG2(%esp)
+    call    SYMBOL(MterpProfileBranch)
+    testb   %al, %al
+    jnz     MterpOnStackReplacement
+    RESTORE_IBASE
+#endif
+.endm
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must
@@ -347,15 +367,17 @@ unspecified registers or condition codes.
 
 SYMBOL(ExecuteMterpImpl):
     .cfi_startproc
+    .cfi_def_cfa esp, 4
+
+    /* Spill callee save regs */
+    PUSH    %ebp
+    PUSH    %edi
+    PUSH    %esi
+    PUSH    %ebx
+
     /* Allocate frame */
     subl    $FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset FRAME_SIZE
-
-    /* Spill callee save regs */
-    movl    %ebp, EBP_SPILL(%esp)
-    movl    %edi, EDI_SPILL(%esp)
-    movl    %esi, ESI_SPILL(%esp)
-    movl    %ebx, EBX_SPILL(%esp)
 
     /* Load ShadowFrame pointer */
     movl    IN_ARG2(%esp), %edx
@@ -1076,17 +1098,12 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  * double to get a byte offset.
  */
     /* goto +AA */
-    movsbl  rINSTbl, %eax                   # eax <- ssssssAA
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    movsbl  rINSTbl, rINST                  # rINST <- ssssssAA
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # rINST <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      1f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle      MterpCheckSuspendAndContinue   # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 /* ------------------------------ */
@@ -1100,17 +1117,12 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  * double to get a byte offset.
  */
     /* goto/16 +AAAA */
-    movswl  2(rPC), %eax                    # eax <- ssssAAAA
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    movswl  2(rPC), rINST                   # rINST <- ssssAAAA
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # rINST <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      1f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 /* ------------------------------ */
@@ -1129,17 +1141,12 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  * offset to byte offset.
  */
     /* goto/32 +AAAAAAAA */
-    movl    2(rPC), %eax                    # eax <- AAAAAAAA
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    movl    2(rPC), rINST                   # rINST <- AAAAAAAA
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # rINST <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      1f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 /* ------------------------------ */
@@ -1162,17 +1169,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
     call    SYMBOL(MterpDoPackedSwitch)
-    addl    %eax, %eax
-    leal    (rPC, %eax), rPC
+    movl    %eax, rINST
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST
+    leal    (rPC, rINST), rPC
     FETCH_INST
     REFRESH_IBASE
-    jg      1f
-#if MTERP_SUSPEND
-    #     REFRESH_IBASE - we did it above.
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue
     GOTO_NEXT
 
 /* ------------------------------ */
@@ -1196,17 +1199,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
     call    SYMBOL(MterpDoSparseSwitch)
-    addl    %eax, %eax
-    leal    (rPC, %eax), rPC
+    movl    %eax, rINST
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST
+    leal    (rPC, rINST), rPC
     FETCH_INST
     REFRESH_IBASE
-    jg      1f
-#if MTERP_SUSPEND
-    #     REFRESH_IBASE - we did it above.
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-1:
+    jle     MterpCheckSuspendAndContinue
     GOTO_NEXT
 
 
@@ -1424,20 +1423,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
-    movl    $2, %eax                       # assume not taken
+    movl    $2, rINST
     jne   1f
-    movswl  2(rPC),%eax                     # Get signed branch offset
+    movswl  2(rPC), rINST                   # Get signed branch offset
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1459,20 +1453,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
-    movl    $2, %eax                       # assume not taken
+    movl    $2, rINST
     je   1f
-    movswl  2(rPC),%eax                     # Get signed branch offset
+    movswl  2(rPC), rINST                   # Get signed branch offset
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1494,20 +1483,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
-    movl    $2, %eax                       # assume not taken
+    movl    $2, rINST
     jge   1f
-    movswl  2(rPC),%eax                     # Get signed branch offset
+    movswl  2(rPC), rINST                   # Get signed branch offset
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1529,20 +1513,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
-    movl    $2, %eax                       # assume not taken
+    movl    $2, rINST
     jl   1f
-    movswl  2(rPC),%eax                     # Get signed branch offset
+    movswl  2(rPC), rINST                   # Get signed branch offset
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1564,20 +1543,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
-    movl    $2, %eax                       # assume not taken
+    movl    $2, rINST
     jle   1f
-    movswl  2(rPC),%eax                     # Get signed branch offset
+    movswl  2(rPC), rINST                   # Get signed branch offset
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1599,20 +1573,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, %ecx                     # eax <- vA
     sarl    $4, rINST                      # rINST <- B
     cmpl    VREG_ADDRESS(rINST), %eax       # compare (vA, vB)
-    movl    $2, %eax                       # assume not taken
+    movl    $2, rINST
     jg   1f
-    movswl  2(rPC),%eax                     # Get signed branch offset
+    movswl  2(rPC), rINST                   # Get signed branch offset
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1630,20 +1599,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $2, %eax                       # assume branch not taken
+    movl    $2, rINST
     jne   1f
-    movswl  2(rPC),%eax                     # fetch signed displacement
+    movswl  2(rPC), rINST                   # fetch signed displacement
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1661,20 +1625,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $2, %eax                       # assume branch not taken
+    movl    $2, rINST
     je   1f
-    movswl  2(rPC),%eax                     # fetch signed displacement
+    movswl  2(rPC), rINST                   # fetch signed displacement
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1692,20 +1651,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $2, %eax                       # assume branch not taken
+    movl    $2, rINST
     jge   1f
-    movswl  2(rPC),%eax                     # fetch signed displacement
+    movswl  2(rPC), rINST                   # fetch signed displacement
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1723,20 +1677,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $2, %eax                       # assume branch not taken
+    movl    $2, rINST
     jl   1f
-    movswl  2(rPC),%eax                     # fetch signed displacement
+    movswl  2(rPC), rINST                   # fetch signed displacement
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1754,20 +1703,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $2, %eax                       # assume branch not taken
+    movl    $2, rINST
     jle   1f
-    movswl  2(rPC),%eax                     # fetch signed displacement
+    movswl  2(rPC), rINST                   # fetch signed displacement
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -1785,20 +1729,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $2, %eax                       # assume branch not taken
+    movl    $2, rINST
     jg   1f
-    movswl  2(rPC),%eax                     # fetch signed displacement
+    movswl  2(rPC), rINST                   # fetch signed displacement
 1:
-    addl    %eax, %eax                      # eax <- AA * 2
-    leal    (rPC, %eax), rPC
+    MTERP_PROFILE_BRANCH
+    addl    rINST, rINST                    # eax <- AA * 2
+    leal    (rPC, rINST), rPC
     FETCH_INST
-    jg      2f                              # AA * 2 > 0 => no suspend check
-#if MTERP_SUSPEND
-    REFRESH_IBASE
-#else
-    jmp     MterpCheckSuspendAndContinue
-#endif
-2:
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
     GOTO_NEXT
 
 
@@ -3059,8 +2998,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeVirtual)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 /*
  * Handle a virtual method call.
@@ -3092,8 +3036,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeSuper)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 /*
  * Handle a "super" method call.
@@ -3125,8 +3074,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeDirect)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -3151,8 +3105,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeStatic)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 
@@ -3178,8 +3137,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeInterface)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 /*
  * Handle an interface method call.
@@ -3225,8 +3189,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeVirtualRange)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -3251,8 +3220,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeSuperRange)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -3277,8 +3251,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeDirectRange)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -3303,8 +3282,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeStaticRange)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -3329,8 +3313,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeInterfaceRange)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -6072,8 +6061,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeVirtualQuick)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -6098,8 +6092,13 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     call    SYMBOL(MterpInvokeVirtualQuickRange)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT
 
 
 /* ------------------------------ */
@@ -12818,7 +12817,6 @@ SYMBOL(artMterpAsmAltInstructionEnd):
  * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
  * TUNING: for consistency, we may want to just go ahead and handle these here.
  */
-#define MTERP_LOGGING 0
 common_errDivideByZero:
     EXPORT_PC
 #if MTERP_LOGGING
@@ -12922,13 +12920,17 @@ MterpException:
     call    SYMBOL(MterpHandleException)
     testb   %al, %al
     jz      MterpExceptionReturn
-    REFRESH_IBASE
     movl    OFF_FP_CODE_ITEM(rFP), %eax
     movl    OFF_FP_DEX_PC(rFP), %ecx
     lea     CODEITEM_INSNS_OFFSET(%eax), rPC
     lea     (rPC, %ecx, 2), rPC
     movl    rPC, OFF_FP_DEX_PC_PTR(rFP)
+    /* Do we need to switch interpreters? */
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     /* resume execution at catch block */
+    REFRESH_IBASE
     FETCH_INST
     GOTO_NEXT
     /* NOTE: no fallthrough */
@@ -12947,6 +12949,21 @@ MterpCheckSuspendAndContinue:
     REFRESH_IBASE
 1:
     GOTO_NEXT
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    movl    rSELF, %eax
+    movl    %eax, OUT_ARG0(%esp)
+    lea     OFF_FP_SHADOWFRAME(rFP), %ecx
+    movl    %ecx, OUT_ARG1(%esp)
+    movl    rINST, OUT_ARG2(%esp)
+    call    SYMBOL(MterpLogOSR)
+#endif
+    movl    $1, %eax
+    jmp     MterpDone
 
 /*
  * Bail out to reference interpreter.
@@ -12977,17 +12994,16 @@ MterpReturn:
     movl    %ecx, 4(%edx)
     mov     $1, %eax
 MterpDone:
-    /* Restore callee save register */
-    movl    EBP_SPILL(%esp), %ebp
-    movl    EDI_SPILL(%esp), %edi
-    movl    ESI_SPILL(%esp), %esi
-    movl    EBX_SPILL(%esp), %ebx
-
     /* pop up frame */
     addl    $FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset -FRAME_SIZE
-    ret
 
+    /* Restore callee save register */
+    POP     %ebx
+    POP     %esi
+    POP     %edi
+    POP     %ebp
+    ret
     .cfi_endproc
     SIZE(ExecuteMterpImpl,ExecuteMterpImpl)
 

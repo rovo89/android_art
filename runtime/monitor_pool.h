@@ -104,6 +104,12 @@ class MonitorPool {
 #endif
   }
 
+  ~MonitorPool() {
+#ifdef __LP64__
+    FreeInternal();
+#endif
+  }
+
  private:
 #ifdef __LP64__
   // When we create a monitor pool, threads have not been initialized, yet, so ignore thread-safety
@@ -111,6 +117,10 @@ class MonitorPool {
   MonitorPool() NO_THREAD_SAFETY_ANALYSIS;
 
   void AllocateChunk() REQUIRES(Locks::allocated_monitor_ids_lock_);
+
+  // Release all chunks and metadata. This is done on shutdown, where threads have been destroyed,
+  // so ignore thead-safety analysis.
+  void FreeInternal() NO_THREAD_SAFETY_ANALYSIS;
 
   Monitor* CreateMonitorInPool(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -176,7 +186,8 @@ class MonitorPool {
   size_t capacity_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
   // To avoid race issues when resizing, we keep all the previous arrays.
-  std::vector<uintptr_t*> old_chunk_arrays_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
+  std::vector<std::unique_ptr<uintptr_t[]>> old_chunk_arrays_
+      GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
   typedef TrackingAllocator<uint8_t, kAllocatorTagMonitorPool> Allocator;
   Allocator allocator_;

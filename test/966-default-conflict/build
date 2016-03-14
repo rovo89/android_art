@@ -17,18 +17,11 @@
 # make us exit on a failure
 set -e
 
-# TODO: Support running with jack.
-
-if [[ $@ == *"--jvm"* ]]; then
-  # Build the Java files if we are running a --jvm test
-  mkdir -p src
-  mkdir -p classes
-  ${ANDROID_BUILD_TOP}/art/tools/extract-embedded-java ./smali ./src
-  # Build with the non-conflicting version
-  ${JAVAC} -implicit:none -d classes src/Iface.java build-src/Iface2.java src/Main.java
-  rm classes/Iface2.class
-  # Build with the conflicting version
-  ${JAVAC} -implicit:none -cp classes -d classes src/Iface2.java
-else
-  ./default-build "$@" --experimental default-methods
+if [[ $@ != *"--jvm"* ]]; then
+  # Don't do anything with jvm
+  # Hard-wired use of experimental jack.
+  # TODO: fix this temporary work-around for default-methods, see b/19467889
+  export USE_JACK=true
 fi
+
+./default-build "$@" --experimental default-methods

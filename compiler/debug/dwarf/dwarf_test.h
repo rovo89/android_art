@@ -62,7 +62,7 @@ class DwarfTest : public CommonRuntimeTest {
     InstructionSet isa = (sizeof(typename ElfTypes::Addr) == 8) ? kX86_64 : kX86;
     ScratchFile file;
     FileOutputStream output_stream(file.GetFile());
-    ElfBuilder<ElfTypes> builder(isa, &output_stream);
+    ElfBuilder<ElfTypes> builder(isa, nullptr, &output_stream);
     builder.Start();
     if (!debug_info_data_.empty()) {
       builder.WriteSection(".debug_info", &debug_info_data_);

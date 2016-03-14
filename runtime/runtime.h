@@ -564,6 +564,9 @@ class Runtime {
   ArenaPool* GetArenaPool() {
     return arena_pool_.get();
   }
+  ArenaPool* GetJitArenaPool() {
+    return jit_arena_pool_.get();
+  }
   const ArenaPool* GetArenaPool() const {
     return arena_pool_.get();
   }
@@ -672,6 +675,7 @@ class Runtime {
 
   gc::Heap* heap_;
 
+  std::unique_ptr<ArenaPool> jit_arena_pool_;
   std::unique_ptr<ArenaPool> arena_pool_;
   // Special low 4gb pool for compiler linear alloc. We need ArtFields to be in low 4gb if we are
   // compiling using a 32 bit image on a 64 bit compiler in case we resolve things in the image

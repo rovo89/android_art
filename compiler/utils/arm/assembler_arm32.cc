@@ -750,6 +750,35 @@ void Arm32Assembler::movt(Register rd, uint16_t imm16, Condition cond) {
 }
 
 
+void Arm32Assembler::EmitMiscellaneous(Condition cond, uint8_t op1,
+                                       uint8_t op2, uint32_t a_part,
+                                       uint32_t rest) {
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+                      B26 | B25 | B23 |
+                      (op1 << 20) |
+                      (a_part << 16) |
+                      (op2 << 5) |
+                      B4 |
+                      rest;
+  Emit(encoding);
+}
+
+
+void Arm32Assembler::EmitReverseBytes(Register rd, Register rm, Condition cond,
+                                      uint8_t op1, uint8_t op2) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rm, kNoRegister);
+  CHECK_NE(cond, kNoCondition);
+  CHECK_NE(rd, PC);
+  CHECK_NE(rm, PC);
+
+  int32_t encoding = (static_cast<int32_t>(rd) << kRdShift) |
+                     (0b1111 << 8) |
+                     static_cast<int32_t>(rm);
+  EmitMiscellaneous(cond, op1, op2, 0b1111, encoding);
+}
+
+
 void Arm32Assembler::rbit(Register rd, Register rm, Condition cond) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(rm, kNoRegister);
@@ -761,6 +790,21 @@ void Arm32Assembler::rbit(Register rd, Register rm, Condition cond) {
                      (static_cast<int32_t>(rd) << kRdShift) |
                      (0xf << 8) | B5 | B4 | static_cast<int32_t>(rm);
   Emit(encoding);
+}
+
+
+void Arm32Assembler::rev(Register rd, Register rm, Condition cond) {
+  EmitReverseBytes(rd, rm, cond, 0b011, 0b001);
+}
+
+
+void Arm32Assembler::rev16(Register rd, Register rm, Condition cond) {
+  EmitReverseBytes(rd, rm, cond, 0b011, 0b101);
+}
+
+
+void Arm32Assembler::revsh(Register rd, Register rm, Condition cond) {
+  EmitReverseBytes(rd, rm, cond, 0b111, 0b101);
 }
 
 

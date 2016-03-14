@@ -159,6 +159,7 @@ class LocationsBuilderARM : public HGraphVisitor {
 
   FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
   FOR_EACH_CONCRETE_INSTRUCTION_ARM(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_SHARED(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -197,6 +198,7 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
 
   FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
   FOR_EACH_CONCRETE_INSTRUCTION_ARM(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_SHARED(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -509,6 +511,8 @@ class CodeGeneratorARM : public CodeGenerator {
   // The `out` location contains the value returned by
   // artReadBarrierForRootSlow.
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
+
+  void GenerateNop();
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

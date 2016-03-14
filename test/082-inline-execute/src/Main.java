@@ -40,6 +40,10 @@ public class Main {
     test_Math_rint();
     test_Math_round_D();
     test_Math_round_F();
+    test_Math_isNaN_D();
+    test_Math_isNaN_F();
+    test_Math_isInfinite_D();
+    test_Math_isInfinite_F();
     test_Short_reverseBytes();
     test_Integer_reverseBytes();
     test_Long_reverseBytes();
@@ -826,12 +830,114 @@ public class Main {
     Assert.assertEquals(Math.round(-2.5f), -2);
     Assert.assertEquals(Math.round(-2.9f), -3);
     Assert.assertEquals(Math.round(-3.0f), -3);
+    // 0.4999999701976776123046875
+    Assert.assertEquals(Math.round(Float.intBitsToFloat(0x3EFFFFFF)), (int)+0.0f);
     Assert.assertEquals(Math.round(16777215.0f), 16777215);  // 2^24 - 1
     Assert.assertEquals(Math.round(Float.NaN), (int)+0.0f);
     Assert.assertEquals(Math.round(Integer.MAX_VALUE + 1.0f), Integer.MAX_VALUE);
     Assert.assertEquals(Math.round(Integer.MIN_VALUE - 1.0f), Integer.MIN_VALUE);
     Assert.assertEquals(Math.round(Float.POSITIVE_INFINITY), Integer.MAX_VALUE);
     Assert.assertEquals(Math.round(Float.NEGATIVE_INFINITY), Integer.MIN_VALUE);
+  }
+
+  public static void test_Math_isNaN_D() {
+    // Quiet NaN.
+    Assert.assertTrue(Double.isNaN(Double.longBitsToDouble(0x7FF4000000000000l)));
+    Assert.assertTrue(Double.isNaN(Double.longBitsToDouble(0xFFF4000000000000l)));
+    // Signaling NaN.
+    Assert.assertTrue(Double.isNaN(Double.longBitsToDouble(0x7FF8000000000000l)));
+    Assert.assertTrue(Double.isNaN(Double.longBitsToDouble(0xFFF8000000000000l)));
+    // Distinct from +/- infinity.
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x7FF0000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0xFFF0000000000000l)));
+    // Distinct from normal numbers.
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x7FE0000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0xFFE0000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x0010000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x8010000000000000l)));
+    // Distinct from +/- zero.
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x0000000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x8000000000000000l)));
+    // Distinct from subnormal numbers.
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x0008000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x8008000000000000l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x0000000000000001l)));
+    Assert.assertFalse(Double.isNaN(Double.longBitsToDouble(0x8000000000000001l)));
+  }
+
+  public static void test_Math_isNaN_F() {
+    // Quiet NaN.
+    Assert.assertTrue(Float.isNaN(Float.intBitsToFloat(0x7FA00000)));
+    Assert.assertTrue(Float.isNaN(Float.intBitsToFloat(0xFFA00000)));
+    // Signaling NaN.
+    Assert.assertTrue(Float.isNaN(Float.intBitsToFloat(0x7FC00000)));
+    Assert.assertTrue(Float.isNaN(Float.intBitsToFloat(0xFFC00000)));
+    // Distinct from +/- infinity.
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x7F800000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0xFF800000)));
+    // Distinct from normal numbers.
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x7F000000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0xFF000000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x00800000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x80800000)));
+    // Distinct from +/- zero.
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x00000000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x80000000)));
+    // Distinct from subnormal numbers.
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x00400000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x80400000)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x00000001)));
+    Assert.assertFalse(Float.isNaN(Float.intBitsToFloat(0x80000001)));
+  }
+
+  public static void test_Math_isInfinite_D() {
+    // Distinct from Quiet NaN.
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x7FF4000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0xFFF4000000000000l)));
+    // Distinct from Signaling NaN.
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x7FF8000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0xFFF8000000000000l)));
+    // +/- infinity.
+    Assert.assertTrue(Double.isInfinite(Double.longBitsToDouble(0x7FF0000000000000l)));
+    Assert.assertTrue(Double.isInfinite(Double.longBitsToDouble(0xFFF0000000000000l)));
+    // Distinct from normal numbers.
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x7FE0000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0xFFE0000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x0010000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x8010000000000000l)));
+    // Distinct from +/- zero.
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x0000000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x8000000000000000l)));
+    // Distinct from subnormal numbers.
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x0008000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x8008000000000000l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x0000000000000001l)));
+    Assert.assertFalse(Double.isInfinite(Double.longBitsToDouble(0x8000000000000001l)));
+  }
+
+  public static void test_Math_isInfinite_F() {
+    // Distinct from Quiet NaN.
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x7FA00000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0xFFA00000)));
+    // Distinct from Signaling NaN.
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x7FC00000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0xFFC00000)));
+    // +/- infinity.
+    Assert.assertTrue(Float.isInfinite(Float.intBitsToFloat(0x7F800000)));
+    Assert.assertTrue(Float.isInfinite(Float.intBitsToFloat(0xFF800000)));
+    // Distinct from normal numbers.
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x7F000000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0xFF000000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x00800000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x80800000)));
+    // Distinct from +/- zero.
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x00000000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x80000000)));
+    // Distinct from subnormal numbers.
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x00400000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x80400000)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x00000001)));
+    Assert.assertFalse(Float.isInfinite(Float.intBitsToFloat(0x80000001)));
   }
 
   public static void test_StrictMath_abs_I() {
@@ -1037,6 +1143,7 @@ public class Main {
     Assert.assertEquals(StrictMath.round(-2.9d), -3l);
     Assert.assertEquals(StrictMath.round(-3.0d), -3l);
     Assert.assertEquals(StrictMath.round(0.49999999999999994d), 0l);
+    Assert.assertEquals(StrictMath.round(9007199254740991.0d), 9007199254740991l);  // 2^53 - 1
     Assert.assertEquals(StrictMath.round(Double.NaN), (long)+0.0d);
     Assert.assertEquals(StrictMath.round(Long.MAX_VALUE + 1.0d), Long.MAX_VALUE);
     Assert.assertEquals(StrictMath.round(Long.MIN_VALUE - 1.0d), Long.MIN_VALUE);
@@ -1058,6 +1165,9 @@ public class Main {
     Assert.assertEquals(StrictMath.round(-2.5f), -2);
     Assert.assertEquals(StrictMath.round(-2.9f), -3);
     Assert.assertEquals(StrictMath.round(-3.0f), -3);
+    // 0.4999999701976776123046875
+    Assert.assertEquals(StrictMath.round(Float.intBitsToFloat(0x3EFFFFFF)), (int)+0.0f);
+    Assert.assertEquals(StrictMath.round(16777215.0f), 16777215);  // 2^24 - 1
     Assert.assertEquals(StrictMath.round(Float.NaN), (int)+0.0f);
     Assert.assertEquals(StrictMath.round(Integer.MAX_VALUE + 1.0f), Integer.MAX_VALUE);
     Assert.assertEquals(StrictMath.round(Integer.MIN_VALUE - 1.0f), Integer.MIN_VALUE);

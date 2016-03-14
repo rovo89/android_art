@@ -93,7 +93,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
                             const char* method_name, const char* signature)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void CreateCompilerDriver(Compiler::Kind kind, InstructionSet isa);
+  void CreateCompilerDriver(Compiler::Kind kind, InstructionSet isa, size_t number_of_threads = 2U);
 
   void ReserveImageSpace();
 
@@ -119,6 +119,13 @@ class CommonCompilerTest : public CommonRuntimeTest {
 #define TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING_WITH_QUICK() \
   if (kPoisonHeapReferences && GetCompilerKind() == Compiler::kQuick) { \
     printf("WARNING: TEST DISABLED FOR HEAP REFERENCE POISONING WITH QUICK\n"); \
+    return; \
+  }
+
+// TODO: When read barrier works with all tests, get rid of this.
+#define TEST_DISABLED_FOR_READ_BARRIER() \
+  if (kUseReadBarrier) { \
+    printf("WARNING: TEST DISABLED FOR READ BARRIER\n"); \
     return; \
   }
 

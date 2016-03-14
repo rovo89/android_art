@@ -887,4 +887,16 @@ TEST_F(AssemblerArm32Test, rbit) {
   T3Helper(&arm::Arm32Assembler::rbit, true, "rbit{cond} {reg1}, {reg2}", "rbit");
 }
 
+TEST_F(AssemblerArm32Test, rev) {
+  T3Helper(&arm::Arm32Assembler::rev, true, "rev{cond} {reg1}, {reg2}", "rev");
+}
+
+TEST_F(AssemblerArm32Test, rev16) {
+  T3Helper(&arm::Arm32Assembler::rev16, true, "rev16{cond} {reg1}, {reg2}", "rev16");
+}
+
+TEST_F(AssemblerArm32Test, revsh) {
+  T3Helper(&arm::Arm32Assembler::revsh, true, "revsh{cond} {reg1}, {reg2}", "revsh");
+}
+
 }  // namespace art

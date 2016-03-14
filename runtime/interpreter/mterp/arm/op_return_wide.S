@@ -9,6 +9,6 @@
     ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
     blne    MterpSuspendCheck                       @ (self)
     mov     r2, rINST, lsr #8           @ r2<- AA
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[AA]
+    VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[AA]
     ldmia   r2, {r0-r1}                 @ r0/r1 <- vAA/vAA+1
     b       MterpReturn

@@ -16,5 +16,10 @@
     call    SYMBOL($helper)
     testb   %al, %al
     jz      MterpException
+    ADVANCE_PC 3
+    call    SYMBOL(MterpShouldSwitchInterpreters)
+    testb   %al, %al
+    jnz     MterpFallback
     RESTORE_IBASE
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 3
+    FETCH_INST
+    GOTO_NEXT

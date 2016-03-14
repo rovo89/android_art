@@ -36,7 +36,7 @@ class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
 
  public:
   static constexpr int kOpcodeBase = 13;
-  static constexpr bool kDefaultIsStmt = true;
+  static constexpr bool kDefaultIsStmt = false;
   static constexpr int kLineBase = -5;
   static constexpr int kLineRange = 14;
 
@@ -81,8 +81,11 @@ class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
     this->PushUleb128(column);
   }
 
-  void NegateStmt() {
-    this->PushUint8(DW_LNS_negate_stmt);
+  void SetIsStmt(bool is_stmt) {
+    if (is_stmt_ != is_stmt) {
+      this->PushUint8(DW_LNS_negate_stmt);
+      is_stmt_ = is_stmt;
+    }
   }
 
   void SetBasicBlock() {
@@ -112,6 +115,7 @@ class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
     current_address_ = 0;
     current_file_ = 1;
     current_line_ = 1;
+    is_stmt_ = kDefaultIsStmt;
   }
 
   // Uncoditionally set address using the long encoding.
@@ -227,7 +231,8 @@ class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
         code_factor_bits_(codeFactorBits),
         current_address_(0),
         current_file_(1),
-        current_line_(1) {
+        current_line_(1),
+        is_stmt_(kDefaultIsStmt) {
   }
 
  private:
@@ -244,6 +249,7 @@ class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
   uint64_t current_address_;
   int current_file_;
   int current_line_;
+  bool is_stmt_;
   std::vector<uintptr_t> patch_locations_;
 
   DISALLOW_COPY_AND_ASSIGN(DebugLineOpCodeWriter);

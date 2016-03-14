@@ -379,7 +379,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferShl(Inducti
                                                                          Primitive::Type type) {
   // Transfer over a shift left: treat shift by restricted constant as equivalent multiplication.
   int64_t value = -1;
-  if (a != nullptr && IsIntAndGet(b, &value)) {
+  if (a != nullptr && IsExact(b, &value)) {
     // Obtain the constant needed for the multiplication. This yields an existing instruction
     // if the constants is already there. Otherwise, this has a side effect on the HIR.
     // The restriction on the shift factor avoids generating a negative constant
@@ -546,14 +546,17 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
     // Analyze condition with induction at left-hand-side (e.g. i < U).
     InductionInfo* lower_expr = a->op_b;
     InductionInfo* upper_expr = b;
-    InductionInfo* stride = a->op_a;
+    InductionInfo* stride_expr = a->op_a;
+    // Constant stride?
     int64_t stride_value = 0;
-    if (!IsIntAndGet(stride, &stride_value)) {
+    if (!IsExact(stride_expr, &stride_value)) {
       return;
     }
-    // Rewrite condition i != U into i < U or i > U if end condition is reached exactly.
-    if (cmp == kCondNE && ((stride_value == +1 && IsTaken(lower_expr, upper_expr, kCondLT)) ||
-                           (stride_value == -1 && IsTaken(lower_expr, upper_expr, kCondGT)))) {
+    // Rewrite condition i != U into strict end condition i < U or i > U if this end condition
+    // is reached exactly (tested by verifying if the loop has a unit stride and the non-strict
+    // condition would be always taken).
+    if (cmp == kCondNE && ((stride_value == +1 && IsTaken(lower_expr, upper_expr, kCondLE)) ||
+                           (stride_value == -1 && IsTaken(lower_expr, upper_expr, kCondGE)))) {
       cmp = stride_value > 0 ? kCondLT : kCondGT;
     }
     // Normalize a linear loop control with a nonzero stride:
@@ -561,7 +564,7 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
     //   stride < 0, either i > U or i >= U
     if ((stride_value > 0 && (cmp == kCondLT || cmp == kCondLE)) ||
         (stride_value < 0 && (cmp == kCondGT || cmp == kCondGE))) {
-      VisitTripCount(loop, lower_expr, upper_expr, stride, stride_value, type, cmp);
+      VisitTripCount(loop, lower_expr, upper_expr, stride_expr, stride_value, type, cmp);
     }
   }
 }
@@ -569,7 +572,7 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
 void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
                                            InductionInfo* lower_expr,
                                            InductionInfo* upper_expr,
-                                           InductionInfo* stride,
+                                           InductionInfo* stride_expr,
                                            int64_t stride_value,
                                            Primitive::Type type,
                                            IfCondition cmp) {
@@ -612,9 +615,10 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
       trip_count = CreateInvariantOp(kAdd, trip_count, CreateConstant(1, type));
     }
     // Compensate for stride.
-    trip_count = CreateInvariantOp(kAdd, trip_count, stride);
+    trip_count = CreateInvariantOp(kAdd, trip_count, stride_expr);
   }
-  trip_count = CreateInvariantOp(kDiv, CreateInvariantOp(kSub, trip_count, lower_expr), stride);
+  trip_count = CreateInvariantOp(
+      kDiv, CreateInvariantOp(kSub, trip_count, lower_expr), stride_expr);
   // Assign the trip-count expression to the loop control. Clients that use the information
   // should be aware that the expression is only valid under the conditions listed above.
   InductionOp tcKind = kTripCountInBodyUnsafe;  // needs both tests
@@ -644,14 +648,25 @@ bool HInductionVarAnalysis::IsTaken(InductionInfo* lower_expr,
                                     IfCondition cmp) {
   int64_t lower_value;
   int64_t upper_value;
-  if (IsIntAndGet(lower_expr, &lower_value) && IsIntAndGet(upper_expr, &upper_value)) {
-    switch (cmp) {
-      case kCondLT: return lower_value <  upper_value;
-      case kCondLE: return lower_value <= upper_value;
-      case kCondGT: return lower_value >  upper_value;
-      case kCondGE: return lower_value >= upper_value;
-      default:      LOG(FATAL) << "CONDITION UNREACHABLE";
-    }
+  switch (cmp) {
+    case kCondLT:
+      return IsAtMost(lower_expr, &lower_value)
+          && IsAtLeast(upper_expr, &upper_value)
+          && lower_value < upper_value;
+    case kCondLE:
+      return IsAtMost(lower_expr, &lower_value)
+          && IsAtLeast(upper_expr, &upper_value)
+          && lower_value <= upper_value;
+    case kCondGT:
+      return IsAtLeast(lower_expr, &lower_value)
+          && IsAtMost(upper_expr, &upper_value)
+          && lower_value > upper_value;
+    case kCondGE:
+      return IsAtLeast(lower_expr, &lower_value)
+          && IsAtMost(upper_expr, &upper_value)
+          && lower_value >= upper_value;
+    default:
+      LOG(FATAL) << "CONDITION UNREACHABLE";
   }
   return false;  // not certain, may be untaken
 }
@@ -660,25 +675,23 @@ bool HInductionVarAnalysis::IsFinite(InductionInfo* upper_expr,
                                      int64_t stride_value,
                                      Primitive::Type type,
                                      IfCondition cmp) {
-  const int64_t min = type == Primitive::kPrimInt
-      ? std::numeric_limits<int32_t>::min()
-      : std::numeric_limits<int64_t>::min();
-  const int64_t max = type == Primitive::kPrimInt
-        ? std::numeric_limits<int32_t>::max()
-        : std::numeric_limits<int64_t>::max();
+  const int64_t min = type == Primitive::kPrimInt ? std::numeric_limits<int32_t>::min()
+                                                  : std::numeric_limits<int64_t>::min();
+  const int64_t max = type == Primitive::kPrimInt ? std::numeric_limits<int32_t>::max()
+                                                  : std::numeric_limits<int64_t>::max();
   // Some rules under which it is certain at compile-time that the loop is finite.
   int64_t value;
   switch (cmp) {
     case kCondLT:
       return stride_value == 1 ||
-          (IsIntAndGet(upper_expr, &value) && value <= (max - stride_value + 1));
+          (IsAtMost(upper_expr, &value) && value <= (max - stride_value + 1));
     case kCondLE:
-      return (IsIntAndGet(upper_expr, &value) && value <= (max - stride_value));
+      return (IsAtMost(upper_expr, &value) && value <= (max - stride_value));
     case kCondGT:
       return stride_value == -1 ||
-          (IsIntAndGet(upper_expr, &value) && value >= (min - stride_value - 1));
+          (IsAtLeast(upper_expr, &value) && value >= (min - stride_value - 1));
     case kCondGE:
-      return (IsIntAndGet(upper_expr, &value) && value >= (min - stride_value));
+      return (IsAtLeast(upper_expr, &value) && value >= (min - stride_value));
     default:
       LOG(FATAL) << "CONDITION UNREACHABLE";
   }
@@ -733,7 +746,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
   // More exhaustive simplifications are done by later phases once induction nodes are
   // translated back into HIR code (e.g. by loop optimizations or BCE).
   int64_t value = -1;
-  if (IsIntAndGet(a, &value)) {
+  if (IsExact(a, &value)) {
     if (value == 0) {
       // Simplify 0 + b = b, 0 * b = 0.
       if (op == kAdd) {
@@ -750,7 +763,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
       }
     }
   }
-  if (IsIntAndGet(b, &value)) {
+  if (IsExact(b, &value)) {
     if (value == 0) {
       // Simplify a + 0 = a, a - 0 = a, a * 0 = 0, -0 = 0.
       if (op == kAdd || op == kSub) {
@@ -784,29 +797,16 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
   return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
 }
 
-bool HInductionVarAnalysis::IsIntAndGet(InductionInfo* info, int64_t* value) {
-  if (info != nullptr && info->induction_class == kInvariant) {
-    // A direct constant fetch.
-    if (info->operation == kFetch) {
-      DCHECK(info->fetch);
-      if (info->fetch->IsIntConstant()) {
-        *value = info->fetch->AsIntConstant()->GetValue();
-        return true;
-      } else if (info->fetch->IsLongConstant()) {
-        *value = info->fetch->AsLongConstant()->GetValue();
-        return true;
-      }
-    }
-    // Use range analysis to resolve compound values.
-    InductionVarRange range(this);
-    int32_t min_val = 0;
-    int32_t max_val = 0;
-    if (range.IsConstantRange(info, &min_val, &max_val) && min_val == max_val) {
-      *value = min_val;
-      return true;
-    }
-  }
-  return false;
+bool HInductionVarAnalysis::IsExact(InductionInfo* info, int64_t* value) {
+  return InductionVarRange(this).IsConstant(info, InductionVarRange::kExact, value);
+}
+
+bool HInductionVarAnalysis::IsAtMost(InductionInfo* info, int64_t* value) {
+  return InductionVarRange(this).IsConstant(info, InductionVarRange::kAtMost, value);
+}
+
+bool HInductionVarAnalysis::IsAtLeast(InductionInfo* info, int64_t* value) {
+  return InductionVarRange(this).IsConstant(info, InductionVarRange::kAtLeast, value);
 }
 
 bool HInductionVarAnalysis::InductionEqual(InductionInfo* info1,

@@ -31,6 +31,7 @@
 #include "elf_writer.h"
 #include "elf_writer_quick.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "linker/multi_oat_relative_patcher.h"
 #include "linker/vector_output_stream.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -111,17 +112,16 @@ class OatTest : public CommonCompilerTest {
                                               compiler_kind,
                                               insn_set,
                                               insn_features_.get(),
-                                              false,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              2,
-                                              true,
-                                              true,
+                                              /* boot_image */ false,
+                                              /* image_classes */ nullptr,
+                                              /* compiled_classes */ nullptr,
+                                              /* compiled_methods */ nullptr,
+                                              /* thread_count */ 2,
+                                              /* dump_stats */ true,
+                                              /* dump_passes */ true,
                                               timer_.get(),
-                                              -1,
-                                              nullptr,
-                                              nullptr));
+                                              /* swap_fd */ -1,
+                                              /* profile_compilation_info */ nullptr));
   }
 
   bool WriteElf(File* file,
@@ -176,6 +176,7 @@ class OatTest : public CommonCompilerTest {
                   bool verify) {
     std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
         compiler_driver_->GetInstructionSet(),
+        compiler_driver_->GetInstructionSetFeatures(),
         &compiler_driver_->GetCompilerOptions(),
         file);
     elf_writer->Start();
@@ -200,7 +201,13 @@ class OatTest : public CommonCompilerTest {
       ScopedObjectAccess soa(Thread::Current());
       class_linker->RegisterDexFile(*dex_file, runtime->GetLinearAlloc());
     }
-    oat_writer.PrepareLayout(compiler_driver_.get(), nullptr, dex_files);
+    linker::MultiOatRelativePatcher patcher(compiler_driver_->GetInstructionSet(),
+                                            instruction_set_features_.get());
+    oat_writer.PrepareLayout(compiler_driver_.get(), nullptr, dex_files, &patcher);
+    size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
+    size_t text_size = oat_writer.GetSize() - rodata_size;
+    elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer.GetBssSize());
+
     if (!oat_writer.WriteRodata(rodata)) {
       return false;
     }
@@ -216,7 +223,6 @@ class OatTest : public CommonCompilerTest {
       return false;
     }
 
-    elf_writer->SetBssSize(oat_writer.GetBssSize());
     elf_writer->WriteDynamicSection();
     elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
     elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());

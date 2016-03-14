@@ -64,7 +64,7 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 class NullCheckSlowPathARM : public SlowPathCode {
  public:
-  explicit NullCheckSlowPathARM(HNullCheck* instruction) : instruction_(instruction) {}
+  explicit NullCheckSlowPathARM(HNullCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -83,13 +83,12 @@ class NullCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathARM"; }
 
  private:
-  HNullCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
 };
 
 class DivZeroCheckSlowPathARM : public SlowPathCode {
  public:
-  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : instruction_(instruction) {}
+  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -108,14 +107,13 @@ class DivZeroCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathARM"; }
 
  private:
-  HDivZeroCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathARM);
 };
 
 class SuspendCheckSlowPathARM : public SlowPathCode {
  public:
   SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
-      : instruction_(instruction), successor_(successor) {}
+      : SlowPathCode(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -144,7 +142,6 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathARM"; }
 
  private:
-  HSuspendCheck* const instruction_;
   // If not null, the block to branch to after the suspend check.
   HBasicBlock* const successor_;
 
@@ -157,7 +154,7 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
 class BoundsCheckSlowPathARM : public SlowPathCode {
  public:
   explicit BoundsCheckSlowPathARM(HBoundsCheck* instruction)
-      : instruction_(instruction) {}
+      : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -188,8 +185,6 @@ class BoundsCheckSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathARM"; }
 
  private:
-  HBoundsCheck* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM);
 };
 
@@ -199,7 +194,7 @@ class LoadClassSlowPathARM : public SlowPathCode {
                        HInstruction* at,
                        uint32_t dex_pc,
                        bool do_clinit)
-      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+      : SlowPathCode(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
@@ -253,7 +248,7 @@ class LoadClassSlowPathARM : public SlowPathCode {
 
 class LoadStringSlowPathARM : public SlowPathCode {
  public:
-  explicit LoadStringSlowPathARM(HLoadString* instruction) : instruction_(instruction) {}
+  explicit LoadStringSlowPathARM(HLoadString* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -264,7 +259,8 @@ class LoadStringSlowPathARM : public SlowPathCode {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction_->GetStringIndex());
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    __ LoadImmediate(calling_convention.GetRegisterAt(0), string_index);
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -277,15 +273,13 @@ class LoadStringSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM"; }
 
  private:
-  HLoadString* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM);
 };
 
 class TypeCheckSlowPathARM : public SlowPathCode {
  public:
   TypeCheckSlowPathARM(HInstruction* instruction, bool is_fatal)
-      : instruction_(instruction), is_fatal_(is_fatal) {}
+      : SlowPathCode(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -340,7 +334,6 @@ class TypeCheckSlowPathARM : public SlowPathCode {
   bool IsFatal() const OVERRIDE { return is_fatal_; }
 
  private:
-  HInstruction* const instruction_;
   const bool is_fatal_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM);
@@ -349,7 +342,7 @@ class TypeCheckSlowPathARM : public SlowPathCode {
 class DeoptimizationSlowPathARM : public SlowPathCode {
  public:
   explicit DeoptimizationSlowPathARM(HDeoptimize* instruction)
-    : instruction_(instruction) {}
+    : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -365,13 +358,12 @@ class DeoptimizationSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM"; }
 
  private:
-  HDeoptimize* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM);
 };
 
 class ArraySetSlowPathARM : public SlowPathCode {
  public:
-  explicit ArraySetSlowPathARM(HInstruction* instruction) : instruction_(instruction) {}
+  explicit ArraySetSlowPathARM(HInstruction* instruction) : SlowPathCode(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -410,8 +402,6 @@ class ArraySetSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathARM"; }
 
  private:
-  HInstruction* const instruction_;
-
   DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARM);
 };
 
@@ -419,7 +409,7 @@ class ArraySetSlowPathARM : public SlowPathCode {
 class ReadBarrierMarkSlowPathARM : public SlowPathCode {
  public:
   ReadBarrierMarkSlowPathARM(HInstruction* instruction, Location out, Location obj)
-      : instruction_(instruction), out_(out), obj_(obj) {
+      : SlowPathCode(instruction), out_(out), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -458,7 +448,6 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
   }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location obj_;
 
@@ -474,7 +463,7 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
                                          Location obj,
                                          uint32_t offset,
                                          Location index)
-      : instruction_(instruction),
+      : SlowPathCode(instruction),
         out_(out),
         ref_(ref),
         obj_(obj),
@@ -629,7 +618,6 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
     UNREACHABLE();
   }
 
-  HInstruction* const instruction_;
   const Location out_;
   const Location ref_;
   const Location obj_;
@@ -646,7 +634,7 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
 class ReadBarrierForRootSlowPathARM : public SlowPathCode {
  public:
   ReadBarrierForRootSlowPathARM(HInstruction* instruction, Location out, Location root)
-      : instruction_(instruction), out_(out), root_(root) {
+      : SlowPathCode(instruction), out_(out), root_(root) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -679,7 +667,6 @@ class ReadBarrierForRootSlowPathARM : public SlowPathCode {
   const char* GetDescription() const OVERRIDE { return "ReadBarrierForRootSlowPathARM"; }
 
  private:
-  HInstruction* const instruction_;
   const Location out_;
   const Location root_;
 
@@ -1557,11 +1544,11 @@ void LocationsBuilderARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
 }
 
 void InstructionCodeGeneratorARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  if (codegen_->HasStackMapAtCurrentPc()) {
-    // Ensure that we do not collide with the stack map of the previous instruction.
-    __ nop();
-  }
-  codegen_->RecordPcInfo(info, info->GetDexPc());
+  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+}
+
+void CodeGeneratorARM::GenerateNop() {
+  __ nop();
 }
 
 void LocationsBuilderARM::HandleCondition(HCondition* cond) {
@@ -5740,6 +5727,71 @@ void InstructionCodeGeneratorARM::VisitXor(HXor* instruction) {
   HandleBitwiseOperation(instruction);
 }
 
+
+void LocationsBuilderARM::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  Location out = locations->Out();
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    Register first_reg = first.AsRegister<Register>();
+    ShifterOperand second_reg(second.AsRegister<Register>());
+    Register out_reg = out.AsRegister<Register>();
+
+    switch (instruction->GetOpKind()) {
+      case HInstruction::kAnd:
+        __ bic(out_reg, first_reg, second_reg);
+        break;
+      case HInstruction::kOr:
+        __ orn(out_reg, first_reg, second_reg);
+        break;
+      // There is no EON on arm.
+      case HInstruction::kXor:
+      default:
+        LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
+        UNREACHABLE();
+    }
+    return;
+
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    Register first_low = first.AsRegisterPairLow<Register>();
+    Register first_high = first.AsRegisterPairHigh<Register>();
+    ShifterOperand second_low(second.AsRegisterPairLow<Register>());
+    ShifterOperand second_high(second.AsRegisterPairHigh<Register>());
+    Register out_low = out.AsRegisterPairLow<Register>();
+    Register out_high = out.AsRegisterPairHigh<Register>();
+
+    switch (instruction->GetOpKind()) {
+      case HInstruction::kAnd:
+        __ bic(out_low, first_low, second_low);
+        __ bic(out_high, first_high, second_high);
+        break;
+      case HInstruction::kOr:
+        __ orn(out_low, first_low, second_low);
+        __ orn(out_high, first_high, second_high);
+        break;
+      // There is no EON on arm.
+      case HInstruction::kXor:
+      default:
+        LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
+        UNREACHABLE();
+    }
+  }
+}
+
 void InstructionCodeGeneratorARM::GenerateAndConst(Register out, Register first, uint32_t value) {
   // Optimize special cases for individual halfs of `and-long` (`and` is simplified earlier).
   if (value == 0xffffffffu) {
@@ -6426,6 +6478,33 @@ Literal* CodeGeneratorARM::DeduplicateMethodCodeLiteral(MethodReference target_m
   return DeduplicateMethodLiteral(target_method, &call_patches_);
 }
 
+void LocationsBuilderARM::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
+  locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
+                     Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+  LocationSummary* locations = instr->GetLocations();
+  Register res = locations->Out().AsRegister<Register>();
+  Register accumulator =
+      locations->InAt(HMultiplyAccumulate::kInputAccumulatorIndex).AsRegister<Register>();
+  Register mul_left =
+      locations->InAt(HMultiplyAccumulate::kInputMulLeftIndex).AsRegister<Register>();
+  Register mul_right =
+      locations->InAt(HMultiplyAccumulate::kInputMulRightIndex).AsRegister<Register>();
+
+  if (instr->GetOpKind() == HInstruction::kAdd) {
+    __ mla(res, mul_left, mul_right, accumulator);
+  } else {
+    __ mls(res, mul_left, mul_right, accumulator);
+  }
+}
+
 void LocationsBuilderARM::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, this should be removed during prepare for register allocator.
   LOG(FATAL) << "Unreachable";
@@ -6580,7 +6659,7 @@ void LocationsBuilderARM::VisitClassTableGet(HClassTableGet* instruction) {
 void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   uint32_t method_offset = 0;
-  if (instruction->GetTableKind() == HClassTableGet::kVTable) {
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kArmPointerSize).SizeValue();
   } else {

@@ -70,6 +70,10 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void VisitGreaterThanOrEqual(HGreaterThanOrEqual* condition) OVERRIDE;
   void VisitLessThan(HLessThan* condition) OVERRIDE;
   void VisitLessThanOrEqual(HLessThanOrEqual* condition) OVERRIDE;
+  void VisitBelow(HBelow* condition) OVERRIDE;
+  void VisitBelowOrEqual(HBelowOrEqual* condition) OVERRIDE;
+  void VisitAbove(HAbove* condition) OVERRIDE;
+  void VisitAboveOrEqual(HAboveOrEqual* condition) OVERRIDE;
   void VisitDiv(HDiv* instruction) OVERRIDE;
   void VisitMul(HMul* instruction) OVERRIDE;
   void VisitNeg(HNeg* instruction) OVERRIDE;
@@ -93,6 +97,8 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyStringEquals(HInvoke* invoke);
   void SimplifyCompare(HInvoke* invoke, bool has_zero_op);
   void SimplifyIsNaN(HInvoke* invoke);
+  void SimplifyFP2Int(HInvoke* invoke);
+  void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -557,6 +563,36 @@ void InstructionSimplifierVisitor::VisitSuspendCheck(HSuspendCheck* check) {
   block->RemoveInstruction(check);
 }
 
+static HCondition* GetOppositeConditionSwapOps(ArenaAllocator* arena, HInstruction* cond) {
+  HInstruction *lhs = cond->InputAt(0);
+  HInstruction *rhs = cond->InputAt(1);
+  switch (cond->GetKind()) {
+    case HInstruction::kEqual:
+      return new (arena) HEqual(rhs, lhs);
+    case HInstruction::kNotEqual:
+      return new (arena) HNotEqual(rhs, lhs);
+    case HInstruction::kLessThan:
+      return new (arena) HGreaterThan(rhs, lhs);
+    case HInstruction::kLessThanOrEqual:
+      return new (arena) HGreaterThanOrEqual(rhs, lhs);
+    case HInstruction::kGreaterThan:
+      return new (arena) HLessThan(rhs, lhs);
+    case HInstruction::kGreaterThanOrEqual:
+      return new (arena) HLessThanOrEqual(rhs, lhs);
+    case HInstruction::kBelow:
+      return new (arena) HAbove(rhs, lhs);
+    case HInstruction::kBelowOrEqual:
+      return new (arena) HAboveOrEqual(rhs, lhs);
+    case HInstruction::kAbove:
+      return new (arena) HBelow(rhs, lhs);
+    case HInstruction::kAboveOrEqual:
+      return new (arena) HBelowOrEqual(rhs, lhs);
+    default:
+      LOG(FATAL) << "Unknown ConditionType " << cond->GetKind();
+  }
+  return nullptr;
+}
+
 void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
   HInstruction* input_const = equal->GetConstantRight();
   if (input_const != nullptr) {
@@ -980,13 +1016,47 @@ void InstructionSimplifierVisitor::VisitLessThanOrEqual(HLessThanOrEqual* condit
   VisitCondition(condition);
 }
 
-// TODO: unsigned comparisons too?
+void InstructionSimplifierVisitor::VisitBelow(HBelow* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitBelowOrEqual(HBelowOrEqual* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitAbove(HAbove* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitAboveOrEqual(HAboveOrEqual* condition) {
+  VisitCondition(condition);
+}
 
 void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
-  // Try to fold an HCompare into this HCondition.
+  // Reverse condition if left is constant. Our code generators prefer constant
+  // on the right hand side.
+  if (condition->GetLeft()->IsConstant() && !condition->GetRight()->IsConstant()) {
+    HBasicBlock* block = condition->GetBlock();
+    HCondition* replacement = GetOppositeConditionSwapOps(block->GetGraph()->GetArena(), condition);
+    // If it is a fp we must set the opposite bias.
+    if (replacement != nullptr) {
+      if (condition->IsLtBias()) {
+        replacement->SetBias(ComparisonBias::kGtBias);
+      } else if (condition->IsGtBias()) {
+        replacement->SetBias(ComparisonBias::kLtBias);
+      }
+      block->ReplaceAndRemoveInstructionWith(condition, replacement);
+      RecordSimplification();
+
+      condition = replacement;
+    }
+  }
 
   HInstruction* left = condition->GetLeft();
   HInstruction* right = condition->GetRight();
+
+  // Try to fold an HCompare into this HCondition.
+
   // We can only replace an HCondition which compares a Compare to 0.
   // Both 'dx' and 'jack' generate a compare to 0 when compiling a
   // condition with a long, float or double comparison as input.
@@ -1562,26 +1632,86 @@ void InstructionSimplifierVisitor::SimplifyIsNaN(HInvoke* invoke) {
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, condition);
 }
 
+void InstructionSimplifierVisitor::SimplifyFP2Int(HInvoke* invoke) {
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  uint32_t dex_pc = invoke->GetDexPc();
+  HInstruction* x = invoke->InputAt(0);
+  Primitive::Type type = x->GetType();
+  // Set proper bit pattern for NaN and replace intrinsic with raw version.
+  HInstruction* nan;
+  if (type == Primitive::kPrimDouble) {
+    nan = GetGraph()->GetLongConstant(0x7ff8000000000000L);
+    invoke->SetIntrinsic(Intrinsics::kDoubleDoubleToRawLongBits,
+                         kNeedsEnvironmentOrCache,
+                         kNoSideEffects,
+                         kNoThrow);
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimFloat);
+    nan = GetGraph()->GetIntConstant(0x7fc00000);
+    invoke->SetIntrinsic(Intrinsics::kFloatFloatToRawIntBits,
+                         kNeedsEnvironmentOrCache,
+                         kNoSideEffects,
+                         kNoThrow);
+  }
+  // Test IsNaN(x), which is the same as x != x.
+  HCondition* condition = new (GetGraph()->GetArena()) HNotEqual(x, x, dex_pc);
+  condition->SetBias(ComparisonBias::kLtBias);
+  invoke->GetBlock()->InsertInstructionBefore(condition, invoke->GetNext());
+  // Select between the two.
+  HInstruction* select = new (GetGraph()->GetArena()) HSelect(condition, nan, invoke, dex_pc);
+  invoke->GetBlock()->InsertInstructionBefore(select, condition->GetNext());
+  invoke->ReplaceWithExceptInReplacementAtIndex(select, 0);  // false at index 0
+}
+
+void InstructionSimplifierVisitor::SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind) {
+  uint32_t dex_pc = invoke->GetDexPc();
+  HMemoryBarrier* mem_barrier = new (GetGraph()->GetArena()) HMemoryBarrier(barrier_kind, dex_pc);
+  invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, mem_barrier);
+}
+
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
-  if (instruction->GetIntrinsic() == Intrinsics::kStringEquals) {
-    SimplifyStringEquals(instruction);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kSystemArrayCopy) {
-    SimplifySystemArrayCopy(instruction);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateRight ||
-             instruction->GetIntrinsic() == Intrinsics::kLongRotateRight) {
-    SimplifyRotate(instruction, false);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerRotateLeft ||
-             instruction->GetIntrinsic() == Intrinsics::kLongRotateLeft) {
-    SimplifyRotate(instruction, true);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerCompare ||
-             instruction->GetIntrinsic() == Intrinsics::kLongCompare) {
-    SimplifyCompare(instruction, /* is_signum */ false);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kIntegerSignum ||
-             instruction->GetIntrinsic() == Intrinsics::kLongSignum) {
-    SimplifyCompare(instruction, /* is_signum */ true);
-  } else if (instruction->GetIntrinsic() == Intrinsics::kFloatIsNaN ||
-             instruction->GetIntrinsic() == Intrinsics::kDoubleIsNaN) {
-    SimplifyIsNaN(instruction);
+  switch (instruction->GetIntrinsic()) {
+    case Intrinsics::kStringEquals:
+      SimplifyStringEquals(instruction);
+      break;
+    case Intrinsics::kSystemArrayCopy:
+      SimplifySystemArrayCopy(instruction);
+      break;
+    case Intrinsics::kIntegerRotateRight:
+    case Intrinsics::kLongRotateRight:
+      SimplifyRotate(instruction, false);
+      break;
+    case Intrinsics::kIntegerRotateLeft:
+    case Intrinsics::kLongRotateLeft:
+      SimplifyRotate(instruction, true);
+      break;
+    case Intrinsics::kIntegerCompare:
+    case Intrinsics::kLongCompare:
+      SimplifyCompare(instruction, /* is_signum */ false);
+      break;
+    case Intrinsics::kIntegerSignum:
+    case Intrinsics::kLongSignum:
+      SimplifyCompare(instruction, /* is_signum */ true);
+      break;
+    case Intrinsics::kFloatIsNaN:
+    case Intrinsics::kDoubleIsNaN:
+      SimplifyIsNaN(instruction);
+      break;
+    case Intrinsics::kFloatFloatToIntBits:
+    case Intrinsics::kDoubleDoubleToLongBits:
+      SimplifyFP2Int(instruction);
+      break;
+    case Intrinsics::kUnsafeLoadFence:
+      SimplifyMemBarrier(instruction, MemBarrierKind::kLoadAny);
+      break;
+    case Intrinsics::kUnsafeStoreFence:
+      SimplifyMemBarrier(instruction, MemBarrierKind::kAnyStore);
+      break;
+    case Intrinsics::kUnsafeFullFence:
+      SimplifyMemBarrier(instruction, MemBarrierKind::kAnyAny);
+      break;
+    default:
+      break;
   }
 }
 

@@ -240,20 +240,10 @@ static std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs
   return os;
 }
 
-#if !defined(__clang__)
-#if (defined(__arm__) || defined(__i386__) || defined(__aarch64__))
-// TODO: remove when all targets implemented.
 static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
-#else
-static constexpr InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKind;
-#endif
-#else
+
+#if defined(__clang__)
 // Clang 3.4 fails to build the goto interpreter implementation.
-#if (defined(__arm__) || defined(__i386__) || defined(__aarch64__))
-static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
-#else
-static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImplKind;
-#endif
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteGotoImpl(Thread*, const DexFile::CodeItem*, ShadowFrame&, JValue) {
   LOG(FATAL) << "UNREACHABLE";
@@ -325,12 +315,8 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
         while (true) {
           // Mterp does not support all instrumentation/debugging.
           if (MterpShouldSwitchInterpreters()) {
-#if !defined(__clang__)
-            return ExecuteGotoImpl<false, false>(self, code_item, shadow_frame, result_register);
-#else
             return ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame, result_register,
                                                    false);
-#endif
           }
           bool returned = ExecuteMterpImpl(self, code_item, &shadow_frame, &result_register);
           if (returned) {

@@ -175,18 +175,6 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   CHECK(format == dwarf::DW_DEBUG_FRAME_FORMAT || format == dwarf::DW_EH_FRAME_FORMAT);
   typedef typename ElfTypes::Addr Elf_Addr;
 
-  if (method_infos.empty()) {
-    return;
-  }
-
-  std::vector<uint32_t> binary_search_table;
-  std::vector<uintptr_t> patch_locations;
-  if (format == dwarf::DW_EH_FRAME_FORMAT) {
-    binary_search_table.reserve(2 * method_infos.size());
-  } else {
-    patch_locations.reserve(method_infos.size());
-  }
-
   // The methods can be written in any order.
   // Let's therefore sort them in the lexicographical order of the opcodes.
   // This has no effect on its own. However, if the final .debug_frame section is
@@ -194,16 +182,29 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   std::vector<const MethodDebugInfo*> sorted_method_infos;
   sorted_method_infos.reserve(method_infos.size());
   for (size_t i = 0; i < method_infos.size(); i++) {
-    sorted_method_infos.push_back(&method_infos[i]);
+    if (!method_infos[i].cfi.empty() && !method_infos[i].deduped) {
+      sorted_method_infos.push_back(&method_infos[i]);
+    }
   }
-  std::sort(
+  if (sorted_method_infos.empty()) {
+    return;
+  }
+  std::stable_sort(
       sorted_method_infos.begin(),
       sorted_method_infos.end(),
       [](const MethodDebugInfo* lhs, const MethodDebugInfo* rhs) {
-        ArrayRef<const uint8_t> l = lhs->compiled_method->GetCFIInfo();
-        ArrayRef<const uint8_t> r = rhs->compiled_method->GetCFIInfo();
+        ArrayRef<const uint8_t> l = lhs->cfi;
+        ArrayRef<const uint8_t> r = rhs->cfi;
         return std::lexicographical_compare(l.begin(), l.end(), r.begin(), r.end());
       });
+
+  std::vector<uint32_t> binary_search_table;
+  std::vector<uintptr_t> patch_locations;
+  if (format == dwarf::DW_EH_FRAME_FORMAT) {
+    binary_search_table.reserve(2 * sorted_method_infos.size());
+  } else {
+    patch_locations.reserve(sorted_method_infos.size());
+  }
 
   // Write .eh_frame/.debug_frame section.
   auto* cfi_section = (format == dwarf::DW_DEBUG_FRAME_FORMAT
@@ -212,9 +213,6 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
   {
     cfi_section->Start();
     const bool is64bit = Is64BitInstructionSet(builder->GetIsa());
-    const Elf_Addr text_address = builder->GetText()->Exists()
-        ? builder->GetText()->GetAddress()
-        : 0;
     const Elf_Addr cfi_address = cfi_section->GetAddress();
     const Elf_Addr cie_address = cfi_address;
     Elf_Addr buffer_address = cfi_address;
@@ -224,25 +222,21 @@ void WriteCFISection(ElfBuilder<ElfTypes>* builder,
     buffer_address += buffer.size();
     buffer.clear();
     for (const MethodDebugInfo* mi : sorted_method_infos) {
-      if (!mi->deduped) {  // Only one FDE per unique address.
-        ArrayRef<const uint8_t> opcodes = mi->compiled_method->GetCFIInfo();
-        if (!opcodes.empty()) {
-          const Elf_Addr code_address = text_address + mi->low_pc;
-          if (format == dwarf::DW_EH_FRAME_FORMAT) {
-            binary_search_table.push_back(
-                dchecked_integral_cast<uint32_t>(code_address));
-            binary_search_table.push_back(
-                dchecked_integral_cast<uint32_t>(buffer_address));
-          }
-          WriteFDE(is64bit, cfi_address, cie_address,
-                   code_address, mi->high_pc - mi->low_pc,
-                   opcodes, format, buffer_address, &buffer,
-                   &patch_locations);
-          cfi_section->WriteFully(buffer.data(), buffer.size());
-          buffer_address += buffer.size();
-          buffer.clear();
-        }
+      DCHECK(!mi->deduped);
+      DCHECK(!mi->cfi.empty());
+      const Elf_Addr code_address = mi->code_address +
+          (mi->is_code_address_text_relative ? builder->GetText()->GetAddress() : 0);
+      if (format == dwarf::DW_EH_FRAME_FORMAT) {
+        binary_search_table.push_back(dchecked_integral_cast<uint32_t>(code_address));
+        binary_search_table.push_back(dchecked_integral_cast<uint32_t>(buffer_address));
       }
+      WriteFDE(is64bit, cfi_address, cie_address,
+               code_address, mi->code_size,
+               mi->cfi, format, buffer_address, &buffer,
+               &patch_locations);
+      cfi_section->WriteFully(buffer.data(), buffer.size());
+      buffer_address += buffer.size();
+      buffer.clear();
     }
     cfi_section->End();
   }

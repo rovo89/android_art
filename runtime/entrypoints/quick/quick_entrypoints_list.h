@@ -119,7 +119,7 @@
   V(ShrLong, uint64_t, uint64_t, uint32_t) \
   V(UshrLong, uint64_t, uint64_t, uint32_t) \
 \
-  V(IndexOf, int32_t, void*, uint32_t, uint32_t, uint32_t) \
+  V(IndexOf, int32_t, void*, uint32_t, uint32_t) \
   V(StringCompareTo, int32_t, void*, void*) \
   V(Memcpy, void*, void*, const void*, size_t) \
 \

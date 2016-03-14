@@ -540,6 +540,7 @@ class CodeGeneratorX86 : public CodeGenerator {
     }
   }
 
+  void GenerateNop();
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

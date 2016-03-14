@@ -32,6 +32,8 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "debug/elf_debug_writer.h"
+#include "debug/method_debug_info.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
@@ -98,6 +100,7 @@ const DexFile* OpenDexFile(const OatFile::OatDexFile* oat_dex_file, std::string*
   return ret;
 }
 
+template <typename ElfTypes>
 class OatSymbolizer FINAL {
  public:
   OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
@@ -105,29 +108,21 @@ class OatSymbolizer FINAL {
       output_name_(output_name.empty() ? "symbolized.oat" : output_name) {
   }
 
-  typedef void (OatSymbolizer::*Callback)(const DexFile::ClassDef&,
-                                          uint32_t,
-                                          const OatFile::OatMethod&,
-                                          const DexFile&,
-                                          uint32_t,
-                                          const DexFile::CodeItem*,
-                                          uint32_t);
-
   bool Symbolize() {
     const InstructionSet isa = oat_file_->GetOatHeader().GetInstructionSet();
+    const InstructionSetFeatures* features = InstructionSetFeatures::FromBitmap(
+        isa, oat_file_->GetOatHeader().GetInstructionSetFeaturesBitmap());
 
     File* elf_file = OS::CreateEmptyFile(output_name_.c_str());
     std::unique_ptr<BufferedOutputStream> output_stream(
         MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file)));
-    builder_.reset(new ElfBuilder<ElfTypes32>(isa, output_stream.get()));
+    builder_.reset(new ElfBuilder<ElfTypes>(isa, features, output_stream.get()));
 
     builder_->Start();
 
     auto* rodata = builder_->GetRoData();
     auto* text = builder_->GetText();
     auto* bss = builder_->GetBss();
-    auto* strtab = builder_->GetStrTab();
-    auto* symtab = builder_->GetSymTab();
 
     rodata->Start();
     const uint8_t* rodata_begin = oat_file_->Begin();
@@ -145,66 +140,38 @@ class OatSymbolizer FINAL {
       bss->WriteNoBitsSection(oat_file_->BssSize());
     }
 
-    builder_->WriteDynamicSection(elf_file->GetPath());
+    if (isa == kMips || isa == kMips64) {
+      builder_->WriteMIPSabiflagsSection();
+    }
+    builder_->PrepareDynamicSection(
+        elf_file->GetPath(), rodata_size, text_size, oat_file_->BssSize());
+    builder_->WriteDynamicSection();
 
-    Walk(&art::OatSymbolizer::RegisterForDedup);
+    Walk();
+    for (const auto& trampoline : debug::MakeTrampolineInfos(oat_file_->GetOatHeader())) {
+      method_debug_infos_.push_back(trampoline);
+    }
 
-    NormalizeState();
-
-    strtab->Start();
-    strtab->Write("");  // strtab should start with empty string.
-    AddTrampolineSymbols();
-    Walk(&art::OatSymbolizer::AddSymbol);
-    strtab->End();
-
-    symtab->Start();
-    symtab->Write();
-    symtab->End();
+    debug::WriteDebugInfo(builder_.get(),
+                          ArrayRef<const debug::MethodDebugInfo>(method_debug_infos_),
+                          dwarf::DW_DEBUG_FRAME_FORMAT,
+                          true /* write_oat_patches */);
 
     builder_->End();
 
     return builder_->Good();
   }
 
-  void AddTrampolineSymbol(const char* name, uint32_t code_offset) {
-    if (code_offset != 0) {
-      uint32_t name_offset = builder_->GetStrTab()->Write(name);
-      uint64_t symbol_value = code_offset - oat_file_->GetOatHeader().GetExecutableOffset();
-      // Specifying 0 as the symbol size means that the symbol lasts until the next symbol or until
-      // the end of the section in case of the last symbol.
-      builder_->GetSymTab()->Add(name_offset, builder_->GetText(), symbol_value,
-          /* is_relative */ true, /* size */ 0, STB_GLOBAL, STT_FUNC);
-    }
-  }
-
-  void AddTrampolineSymbols() {
-    const OatHeader& oat_header = oat_file_->GetOatHeader();
-    AddTrampolineSymbol("interpreterToInterpreterBridge",
-                        oat_header.GetInterpreterToInterpreterBridgeOffset());
-    AddTrampolineSymbol("interpreterToCompiledCodeBridge",
-                        oat_header.GetInterpreterToCompiledCodeBridgeOffset());
-    AddTrampolineSymbol("jniDlsymLookup",
-                        oat_header.GetJniDlsymLookupOffset());
-    AddTrampolineSymbol("quickGenericJniTrampoline",
-                        oat_header.GetQuickGenericJniTrampolineOffset());
-    AddTrampolineSymbol("quickImtConflictTrampoline",
-                        oat_header.GetQuickImtConflictTrampolineOffset());
-    AddTrampolineSymbol("quickResolutionTrampoline",
-                        oat_header.GetQuickResolutionTrampolineOffset());
-    AddTrampolineSymbol("quickToInterpreterBridge",
-                        oat_header.GetQuickToInterpreterBridgeOffset());
-  }
-
-  void Walk(Callback callback) {
+  void Walk() {
     std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file_->GetOatDexFiles();
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
       CHECK(oat_dex_file != nullptr);
-      WalkOatDexFile(oat_dex_file, callback);
+      WalkOatDexFile(oat_dex_file);
     }
   }
 
-  void WalkOatDexFile(const OatFile::OatDexFile* oat_dex_file, Callback callback) {
+  void WalkOatDexFile(const OatFile::OatDexFile* oat_dex_file) {
     std::string error_msg;
     const DexFile* const dex_file = OpenDexFile(oat_dex_file, &error_msg);
     if (dex_file == nullptr) {
@@ -213,13 +180,12 @@ class OatSymbolizer FINAL {
     for (size_t class_def_index = 0;
         class_def_index < dex_file->NumClassDefs();
         class_def_index++) {
-      const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
       OatClassType type = oat_class.GetType();
       switch (type) {
         case kOatClassAllCompiled:
         case kOatClassSomeCompiled:
-          WalkOatClass(oat_class, *dex_file, class_def, callback);
+          WalkOatClass(oat_class, *dex_file, class_def_index);
           break;
 
         case kOatClassNoneCompiled:
@@ -230,8 +196,10 @@ class OatSymbolizer FINAL {
     }
   }
 
-  void WalkOatClass(const OatFile::OatClass& oat_class, const DexFile& dex_file,
-                    const DexFile::ClassDef& class_def, Callback callback) {
+  void WalkOatClass(const OatFile::OatClass& oat_class,
+                    const DexFile& dex_file,
+                    uint32_t class_def_index) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
       return;
@@ -239,111 +207,62 @@ class OatSymbolizer FINAL {
     // Note: even if this is an interface or a native class, we still have to walk it, as there
     //       might be a static initializer.
     ClassDataItemIterator it(dex_file, class_data);
-    SkipAllFields(&it);
     uint32_t class_method_idx = 0;
-    while (it.HasNextDirectMethod()) {
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
-      WalkOatMethod(class_def, class_method_idx, oat_method, dex_file, it.GetMemberIndex(),
-                    it.GetMethodCodeItem(), it.GetMethodAccessFlags(), callback);
-      class_method_idx++;
-      it.Next();
-    }
-    while (it.HasNextVirtualMethod()) {
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
-      WalkOatMethod(class_def, class_method_idx, oat_method, dex_file, it.GetMemberIndex(),
-                    it.GetMethodCodeItem(), it.GetMethodAccessFlags(), callback);
-      class_method_idx++;
-      it.Next();
+    for (; it.HasNextStaticField(); it.Next()) { /* skip */ }
+    for (; it.HasNextInstanceField(); it.Next()) { /* skip */ }
+    for (; it.HasNextDirectMethod() || it.HasNextVirtualMethod(); it.Next()) {
+      WalkOatMethod(oat_class.GetOatMethod(class_method_idx++),
+                    dex_file,
+                    class_def_index,
+                    it.GetMemberIndex(),
+                    it.GetMethodCodeItem(),
+                    it.GetMethodAccessFlags());
     }
     DCHECK(!it.HasNext());
   }
 
-  void WalkOatMethod(const DexFile::ClassDef& class_def, uint32_t class_method_index,
-                     const OatFile::OatMethod& oat_method, const DexFile& dex_file,
-                     uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                     uint32_t method_access_flags, Callback callback) {
+  void WalkOatMethod(const OatFile::OatMethod& oat_method,
+                     const DexFile& dex_file,
+                     uint32_t class_def_index,
+                     uint32_t dex_method_index,
+                     const DexFile::CodeItem* code_item,
+                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccAbstract) != 0) {
       // Abstract method, no code.
       return;
     }
-    if (oat_method.GetCodeOffset() == 0) {
+    const OatHeader& oat_header = oat_file_->GetOatHeader();
+    const OatQuickMethodHeader* method_header = oat_method.GetOatQuickMethodHeader();
+    if (method_header == nullptr || method_header->GetCodeSize() == 0) {
       // No code.
       return;
     }
 
-    (this->*callback)(class_def, class_method_index, oat_method, dex_file, dex_method_idx, code_item,
-                      method_access_flags);
-  }
-
-  void RegisterForDedup(const DexFile::ClassDef& class_def ATTRIBUTE_UNUSED,
-                        uint32_t class_method_index ATTRIBUTE_UNUSED,
-                        const OatFile::OatMethod& oat_method,
-                        const DexFile& dex_file ATTRIBUTE_UNUSED,
-                        uint32_t dex_method_idx ATTRIBUTE_UNUSED,
-                        const DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
-                        uint32_t method_access_flags ATTRIBUTE_UNUSED) {
-    state_[oat_method.GetCodeOffset()]++;
-  }
-
-  void NormalizeState() {
-    for (auto& x : state_) {
-      if (x.second == 1) {
-        state_[x.first] = 0;
-      }
-    }
-  }
-
-  enum class DedupState {  // private
-    kNotDeduplicated,
-    kDeduplicatedFirst,
-    kDeduplicatedOther
-  };
-  DedupState IsDuplicated(uint32_t offset) {
-    if (state_[offset] == 0) {
-      return DedupState::kNotDeduplicated;
-    }
-    if (state_[offset] == 1) {
-      return DedupState::kDeduplicatedOther;
-    }
-    state_[offset] = 1;
-    return DedupState::kDeduplicatedFirst;
-  }
-
-  void AddSymbol(const DexFile::ClassDef& class_def ATTRIBUTE_UNUSED,
-                 uint32_t class_method_index ATTRIBUTE_UNUSED,
-                 const OatFile::OatMethod& oat_method,
-                 const DexFile& dex_file,
-                 uint32_t dex_method_idx,
-                 const DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
-                 uint32_t method_access_flags ATTRIBUTE_UNUSED) {
-    DedupState dedup = IsDuplicated(oat_method.GetCodeOffset());
-    if (dedup != DedupState::kDeduplicatedOther) {
-      std::string pretty_name = PrettyMethod(dex_method_idx, dex_file, true);
-
-      if (dedup == DedupState::kDeduplicatedFirst) {
-        pretty_name = "[Dedup]" + pretty_name;
-      }
-
-      int name_offset = builder_->GetStrTab()->Write(pretty_name);
-      builder_->GetSymTab()->Add(name_offset, builder_->GetText(),
-          oat_method.GetCodeOffset() - oat_file_->GetOatHeader().GetExecutableOffset(),
-          true, oat_method.GetQuickCodeSize(), STB_GLOBAL, STT_FUNC);
-    }
+    debug::MethodDebugInfo info = debug::MethodDebugInfo();
+    info.trampoline_name = nullptr;
+    info.dex_file = &dex_file;
+    info.class_def_index = class_def_index;
+    info.dex_method_index = dex_method_index;
+    info.access_flags = method_access_flags;
+    info.code_item = code_item;
+    info.isa = oat_header.GetInstructionSet();
+    info.deduped = !seen_offsets_.insert(oat_method.GetCodeOffset()).second;
+    info.is_native_debuggable = oat_header.IsNativeDebuggable();
+    info.is_optimized = method_header->IsOptimized();
+    info.is_code_address_text_relative = true;
+    info.code_address = oat_method.GetCodeOffset() - oat_header.GetExecutableOffset();
+    info.code_size = method_header->GetCodeSize();
+    info.frame_size_in_bytes = method_header->GetFrameSizeInBytes();
+    info.code_info = info.is_optimized ? method_header->GetOptimizedCodeInfoPtr() : nullptr;
+    info.cfi = ArrayRef<uint8_t>();
+    method_debug_infos_.push_back(info);
   }
 
  private:
-  static void SkipAllFields(ClassDataItemIterator* it) {
-    while (it->HasNextStaticField()) {
-      it->Next();
-    }
-    while (it->HasNextInstanceField()) {
-      it->Next();
-    }
-  }
-
   const OatFile* oat_file_;
-  std::unique_ptr<ElfBuilder<ElfTypes32> > builder_;
-  std::unordered_map<uint32_t, uint32_t> state_;
+  std::unique_ptr<ElfBuilder<ElfTypes> > builder_;
+  std::vector<debug::MethodDebugInfo> method_debug_infos_;
+  std::unordered_set<uint32_t> seen_offsets_;
   const std::string output_name_;
 };
 
@@ -359,6 +278,7 @@ class OatDumperOptions {
                    const char* method_filter,
                    bool list_classes,
                    bool list_methods,
+                   bool dump_header_only,
                    const char* export_dex_location,
                    uint32_t addr2instr)
     : dump_raw_mapping_table_(dump_raw_mapping_table),
@@ -371,6 +291,7 @@ class OatDumperOptions {
       method_filter_(method_filter),
       list_classes_(list_classes),
       list_methods_(list_methods),
+      dump_header_only_(dump_header_only),
       export_dex_location_(export_dex_location),
       addr2instr_(addr2instr),
       class_loader_(nullptr) {}
@@ -385,6 +306,7 @@ class OatDumperOptions {
   const char* const method_filter_;
   const bool list_classes_;
   const bool list_methods_;
+  const bool dump_header_only_;
   const char* const export_dex_location_;
   uint32_t addr2instr_;
   Handle<mirror::ClassLoader>* class_loader_;
@@ -512,21 +434,24 @@ class OatDumper {
       os << StringPrintf("0x%08x\n\n", resolved_addr2instr_);
     }
 
-    for (size_t i = 0; i < oat_dex_files_.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
-      CHECK(oat_dex_file != nullptr);
+    if (!options_.dump_header_only_) {
+      for (size_t i = 0; i < oat_dex_files_.size(); i++) {
+        const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
+        CHECK(oat_dex_file != nullptr);
 
-      // If file export selected skip file analysis
-      if (options_.export_dex_location_) {
-        if (!ExportDexFile(os, *oat_dex_file)) {
-          success = false;
-        }
-      } else {
-        if (!DumpOatDexFile(os, *oat_dex_file)) {
-          success = false;
+        // If file export selected skip file analysis
+        if (options_.export_dex_location_) {
+          if (!ExportDexFile(os, *oat_dex_file)) {
+            success = false;
+          }
+        } else {
+          if (!DumpOatDexFile(os, *oat_dex_file)) {
+            success = false;
+          }
         }
       }
     }
+
     os << std::flush;
     return success;
   }
@@ -2534,8 +2459,17 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
     return EXIT_FAILURE;
   }
 
-  OatSymbolizer oat_symbolizer(oat_file, output_name);
-  if (!oat_symbolizer.Symbolize()) {
+  bool result;
+  // Try to produce an ELF file of the same type. This is finicky, as we have used 32-bit ELF
+  // files for 64-bit code in the past.
+  if (Is64BitInstructionSet(oat_file->GetOatHeader().GetInstructionSet())) {
+    OatSymbolizer<ElfTypes64> oat_symbolizer(oat_file, output_name);
+    result = oat_symbolizer.Symbolize();
+  } else {
+    OatSymbolizer<ElfTypes32> oat_symbolizer(oat_file, output_name);
+    result = oat_symbolizer.Symbolize();
+  }
+  if (!result) {
     fprintf(stderr, "Failed to symbolize\n");
     return EXIT_FAILURE;
   }
@@ -2570,6 +2504,8 @@ struct OatdumpArgs : public CmdlineArgs {
       dump_code_info_stack_maps_ = true;
     } else if (option == "--no-disassemble") {
       disassemble_code_ = false;
+    } else if (option =="--header-only") {
+      dump_header_only_ = true;
     } else if (option.starts_with("--symbolize=")) {
       oat_filename_ = option.substr(strlen("--symbolize=")).data();
       symbolize_ = true;
@@ -2653,6 +2589,9 @@ struct OatdumpArgs : public CmdlineArgs {
         "  --no-disassemble may be used to disable disassembly.\n"
         "      Example: --no-disassemble\n"
         "\n"
+        "  --header-only may be used to print only the oat header.\n"
+        "      Example: --header-only\n"
+        "\n"
         "  --list-classes may be used to list target file classes (can be used with filters).\n"
         "      Example: --list-classes\n"
         "      Example: --list-classes --class-filter=com.example.foo\n"
@@ -2695,6 +2634,7 @@ struct OatdumpArgs : public CmdlineArgs {
   bool symbolize_ = false;
   bool list_classes_ = false;
   bool list_methods_ = false;
+  bool dump_header_only_ = false;
   uint32_t addr2instr_ = 0;
   const char* export_dex_location_ = nullptr;
 };
@@ -2717,6 +2657,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
         args_->method_filter_,
         args_->list_classes_,
         args_->list_methods_,
+        args_->dump_header_only_,
         args_->export_dex_location_,
         args_->addr2instr_));
 

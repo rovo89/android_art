@@ -686,7 +686,15 @@ END_MACRO
 
 MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
+    subl MACRO_LITERAL(12), %esp                 // alignment padding
+    CFI_ADJUST_CFA_OFFSET(12)
+    PUSH ebx                                     // Save ebx as the expansion of the
+                                                 //   SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+                                                 //   macro below clobbers it.
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
+    movl 28(%esp), %ebx                          // restore ebx
+    CFI_RESTORE_REG ebx
+
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp                 // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
@@ -700,6 +708,8 @@ MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     addl MACRO_LITERAL(32), %esp                 // pop arguments
     CFI_ADJUST_CFA_OFFSET(-32)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME          // restore frame up to return address
+    addl MACRO_LITERAL(16), %esp                 // pop ebx + padding
+    CFI_ADJUST_CFA_OFFSET(-16)
     CALL_MACRO(return_macro)                     // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -887,8 +897,8 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER      // return or deliver exception
 END_FUNCTION art_quick_alloc_object_rosalloc
 
-
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
 
 ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER

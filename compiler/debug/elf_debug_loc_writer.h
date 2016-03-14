@@ -74,8 +74,8 @@ static Reg GetDwarfFpReg(InstructionSet isa, int machine_reg) {
 }
 
 struct VariableLocation {
-  uint32_t low_pc;
-  uint32_t high_pc;
+  uint32_t low_pc;  // Relative to compilation unit.
+  uint32_t high_pc;  // Relative to compilation unit.
   DexRegisterLocation reg_lo;  // May be None if the location is unknown.
   DexRegisterLocation reg_hi;  // Most significant bits of 64-bit value.
 };
@@ -85,33 +85,41 @@ struct VariableLocation {
 // The result will cover all ranges where the variable is in scope.
 // PCs corresponding to stackmap with dex register map are accurate,
 // all other PCs are best-effort only.
-std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method_info,
-                                                   uint16_t vreg,
-                                                   bool is64bitValue,
-                                                   uint32_t dex_pc_low,
-                                                   uint32_t dex_pc_high) {
+std::vector<VariableLocation> GetVariableLocations(
+    const MethodDebugInfo* method_info,
+    const std::vector<DexRegisterMap>& dex_register_maps,
+    uint16_t vreg,
+    bool is64bitValue,
+    uint64_t compilation_unit_code_address,
+    uint32_t dex_pc_low,
+    uint32_t dex_pc_high) {
   std::vector<VariableLocation> variable_locations;
 
   // Get stack maps sorted by pc (they might not be sorted internally).
-  const CodeInfo code_info(method_info->compiled_method->GetVmapTable().data());
+  const CodeInfo code_info(method_info->code_info);
   const StackMapEncoding encoding = code_info.ExtractEncoding();
-  std::map<uint32_t, StackMap> stack_maps;
+  std::map<uint32_t, uint32_t> stack_maps;  // low_pc -> stack_map_index.
   for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(); s++) {
     StackMap stack_map = code_info.GetStackMapAt(s, encoding);
     DCHECK(stack_map.IsValid());
-    const uint32_t low_pc = method_info->low_pc + stack_map.GetNativePcOffset(encoding);
-    DCHECK_LE(low_pc, method_info->high_pc);
-    stack_maps.emplace(low_pc, stack_map);
+    const uint32_t pc_offset = stack_map.GetNativePcOffset(encoding);
+    DCHECK_LE(pc_offset, method_info->code_size);
+    DCHECK_LE(compilation_unit_code_address, method_info->code_address);
+    const uint32_t low_pc = dchecked_integral_cast<uint32_t>(
+        method_info->code_address + pc_offset - compilation_unit_code_address);
+    stack_maps.emplace(low_pc, s);
   }
 
   // Create entries for the requested register based on stack map data.
   for (auto it = stack_maps.begin(); it != stack_maps.end(); it++) {
-    const StackMap& stack_map = it->second;
     const uint32_t low_pc = it->first;
+    const uint32_t stack_map_index = it->second;
+    const StackMap& stack_map = code_info.GetStackMapAt(stack_map_index, encoding);
     auto next_it = it;
     next_it++;
-    const uint32_t high_pc = next_it != stack_maps.end() ? next_it->first
-                                                         : method_info->high_pc;
+    const uint32_t high_pc = next_it != stack_maps.end()
+      ? next_it->first
+      : method_info->code_address + method_info->code_size - compilation_unit_code_address;
     DCHECK_LE(low_pc, high_pc);
     if (low_pc == high_pc) {
       continue;  // Ignore if the address range is empty.
@@ -126,9 +134,9 @@ std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method
     // Find the location of the dex register.
     DexRegisterLocation reg_lo = DexRegisterLocation::None();
     DexRegisterLocation reg_hi = DexRegisterLocation::None();
-    if (stack_map.HasDexRegisterMap(encoding)) {
-      DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(
-          stack_map, encoding, method_info->code_item->registers_size_);
+    DCHECK_LT(stack_map_index, dex_register_maps.size());
+    DexRegisterMap dex_register_map = dex_register_maps[stack_map_index];
+    if (dex_register_map.IsValid()) {
       reg_lo = dex_register_map.GetDexRegisterLocation(
           vreg, method_info->code_item->registers_size_, code_info, encoding);
       if (is64bitValue) {
@@ -159,9 +167,10 @@ std::vector<VariableLocation> GetVariableLocations(const MethodDebugInfo* method
 // The dex register might be valid only at some points and it might
 // move between machine registers and stack.
 static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
+                               const std::vector<DexRegisterMap>& dex_register_maps,
                                uint16_t vreg,
                                bool is64bitValue,
-                               uint32_t compilation_unit_low_pc,
+                               uint64_t compilation_unit_code_address,
                                uint32_t dex_pc_low,
                                uint32_t dex_pc_high,
                                InstructionSet isa,
@@ -169,14 +178,16 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
                                std::vector<uint8_t>* debug_loc_buffer,
                                std::vector<uint8_t>* debug_ranges_buffer) {
   using Kind = DexRegisterLocation::Kind;
-  if (!method_info->IsFromOptimizingCompiler()) {
+  if (method_info->code_info == nullptr || dex_register_maps.empty()) {
     return;
   }
 
   std::vector<VariableLocation> variable_locations = GetVariableLocations(
       method_info,
+      dex_register_maps,
       vreg,
       is64bitValue,
+      compilation_unit_code_address,
       dex_pc_low,
       dex_pc_high);
 
@@ -197,9 +208,8 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
       const Kind kind = reg_loc.GetKind();
       const int32_t value = reg_loc.GetValue();
       if (kind == Kind::kInStack) {
-        const size_t frame_size = method_info->compiled_method->GetFrameSizeInBytes();
         // The stack offset is relative to SP. Make it relative to CFA.
-        expr.WriteOpFbreg(value - frame_size);
+        expr.WriteOpFbreg(value - method_info->frame_size_in_bytes);
         if (piece == 0 && reg_hi.GetKind() == Kind::kInStack &&
             reg_hi.GetValue() == value + 4) {
           break;  // the high word is correctly implied by the low word.
@@ -232,8 +242,7 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
         // kInStackLargeOffset and kConstantLargeValue are hidden by GetKind().
         // kInRegisterHigh and kInFpuRegisterHigh should be handled by
         // the special cases above and they should not occur alone.
-        LOG(ERROR) << "Unexpected register location kind: "
-                   << DexRegisterLocation::PrettyDescriptor(kind);
+        LOG(ERROR) << "Unexpected register location kind: " << kind;
         break;
       }
       if (is64bitValue) {
@@ -245,11 +254,11 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
 
     if (expr.size() > 0) {
       if (is64bit) {
-        debug_loc.PushUint64(variable_location.low_pc - compilation_unit_low_pc);
-        debug_loc.PushUint64(variable_location.high_pc - compilation_unit_low_pc);
+        debug_loc.PushUint64(variable_location.low_pc);
+        debug_loc.PushUint64(variable_location.high_pc);
       } else {
-        debug_loc.PushUint32(variable_location.low_pc - compilation_unit_low_pc);
-        debug_loc.PushUint32(variable_location.high_pc - compilation_unit_low_pc);
+        debug_loc.PushUint32(variable_location.low_pc);
+        debug_loc.PushUint32(variable_location.high_pc);
       }
       // Write the expression.
       debug_loc.PushUint16(expr.size());
@@ -279,11 +288,11 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
       high_pc = variable_locations[++i].high_pc;
     }
     if (is64bit) {
-      debug_ranges.PushUint64(low_pc - compilation_unit_low_pc);
-      debug_ranges.PushUint64(high_pc - compilation_unit_low_pc);
+      debug_ranges.PushUint64(low_pc);
+      debug_ranges.PushUint64(high_pc);
     } else {
-      debug_ranges.PushUint32(low_pc - compilation_unit_low_pc);
-      debug_ranges.PushUint32(high_pc - compilation_unit_low_pc);
+      debug_ranges.PushUint32(low_pc);
+      debug_ranges.PushUint32(high_pc);
     }
   }
   // Write end-of-list entry.

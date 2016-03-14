@@ -24,10 +24,12 @@
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "debug/method_debug_info.h"
+#include "driver/compiler_options.h"
 #include "elf_writer.h"
 #include "elf_writer_quick.h"
 #include "gc/space/image_space.h"
 #include "image_writer.h"
+#include "linker/multi_oat_relative_patcher.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "oat_writer.h"
@@ -47,8 +49,12 @@ class ImageTest : public CommonCompilerTest {
 };
 
 void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
-  // TODO: Test does not currently work with optimizing.
-  CreateCompilerDriver(Compiler::kQuick, kRuntimeISA);
+  CreateCompilerDriver(Compiler::kOptimizing, kRuntimeISA, kIsTargetBuild ? 2U : 16U);
+
+  // Set inline filter values.
+  compiler_options_->SetInlineDepthLimit(CompilerOptions::kDefaultInlineDepthLimit);
+  compiler_options_->SetInlineMaxCodeUnits(CompilerOptions::kDefaultInlineMaxCodeUnits);
+
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   // Enable write for dex2dex.
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
@@ -72,10 +78,10 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
-  std::unordered_map<const DexFile*, const char*> dex_file_to_oat_filename_map;
+  std::unordered_map<const DexFile*, size_t> dex_file_to_oat_index_map;
   std::vector<const char*> oat_filename_vector(1, oat_filename.c_str());
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
-    dex_file_to_oat_filename_map.emplace(dex_file, oat_filename.c_str());
+    dex_file_to_oat_index_map.emplace(dex_file, 0);
   }
   std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_,
                                                       requested_image_base,
@@ -83,7 +89,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
                                                       /*compile_app_image*/false,
                                                       storage_mode,
                                                       oat_filename_vector,
-                                                      dex_file_to_oat_filename_map));
+                                                      dex_file_to_oat_index_map));
   // TODO: compile_pic should be a test argument.
   {
     {
@@ -98,6 +104,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       const std::vector<const DexFile*>& dex_files = class_linker->GetBootClassPath();
       std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
           compiler_driver_->GetInstructionSet(),
+          compiler_driver_->GetInstructionSetFeatures(),
           &compiler_driver_->GetCompilerOptions(),
           oat_file.GetFile());
       elf_writer->Start();
@@ -123,9 +130,21 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
           &opened_dex_files_map,
           &opened_dex_files);
       ASSERT_TRUE(dex_files_ok);
-      oat_writer.PrepareLayout(compiler_driver_.get(), writer.get(), dex_files);
+
       bool image_space_ok = writer->PrepareImageAddressSpace();
       ASSERT_TRUE(image_space_ok);
+
+      linker::MultiOatRelativePatcher patcher(compiler_driver_->GetInstructionSet(),
+                                              instruction_set_features_.get());
+      oat_writer.PrepareLayout(compiler_driver_.get(), writer.get(), dex_files, &patcher);
+      size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
+      size_t text_size = oat_writer.GetSize() - rodata_size;
+      elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer.GetBssSize());
+
+      writer->UpdateOatFileLayout(/* oat_index */ 0u,
+                                  elf_writer->GetLoadedSize(),
+                                  oat_writer.GetOatDataOffset(),
+                                  oat_writer.GetSize());
 
       bool rodata_ok = oat_writer.WriteRodata(rodata);
       ASSERT_TRUE(rodata_ok);
@@ -139,13 +158,13 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       bool header_ok = oat_writer.WriteHeader(elf_writer->GetStream(), 0u, 0u, 0u);
       ASSERT_TRUE(header_ok);
 
-      elf_writer->SetBssSize(oat_writer.GetBssSize());
+      writer->UpdateOatFileHeader(/* oat_index */ 0u, oat_writer.GetOatHeader());
+
       elf_writer->WriteDynamicSection();
       elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
       elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
 
       bool success = elf_writer->End();
-
       ASSERT_TRUE(success);
     }
   }
@@ -158,12 +177,10 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
     std::vector<const char*> dup_image_filename(1, image_file.GetFilename().c_str());
     bool success_image = writer->Write(kInvalidFd,
                                        dup_image_filename,
-                                       kInvalidFd,
-                                       dup_oat_filename,
-                                       dup_oat_filename[0]);
+                                       dup_oat_filename);
     ASSERT_TRUE(success_image);
     bool success_fixup = ElfWriter::Fixup(dup_oat.get(),
-                                          writer->GetOatDataBegin(dup_oat_filename[0]));
+                                          writer->GetOatDataBegin(0));
     ASSERT_TRUE(success_fixup);
 
     ASSERT_EQ(dup_oat->FlushCloseOrErase(), 0) << "Could not flush and close oat file "
@@ -271,14 +288,17 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
 }
 
 TEST_F(ImageTest, WriteReadUncompressed) {
+  TEST_DISABLED_FOR_READ_BARRIER();  // b/27578460
   TestWriteRead(ImageHeader::kStorageModeUncompressed);
 }
 
 TEST_F(ImageTest, WriteReadLZ4) {
+  TEST_DISABLED_FOR_READ_BARRIER();  // b/27578460
   TestWriteRead(ImageHeader::kStorageModeLZ4);
 }
 
 TEST_F(ImageTest, WriteReadLZ4HC) {
+  TEST_DISABLED_FOR_READ_BARRIER();  // b/27578460
   TestWriteRead(ImageHeader::kStorageModeLZ4HC);
 }
 

@@ -61,6 +61,7 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/dex_compilation_unit.cc \
 	linker/buffered_output_stream.cc \
 	linker/file_output_stream.cc \
+	linker/multi_oat_relative_patcher.cc \
 	linker/output_stream.cc \
 	linker/vector_output_stream.cc \
 	linker/relative_patcher.cc \
@@ -141,7 +142,9 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	linker/arm64/relative_patcher_arm64.cc \
 	optimizing/code_generator_arm64.cc \
+	optimizing/instruction_simplifier_arm.cc \
 	optimizing/instruction_simplifier_arm64.cc \
+	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm64.cc \
 	utils/arm64/assembler_arm64.cc \
 	utils/arm64/managed_register_arm64.cc \
@@ -327,9 +330,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   # Vixl assembly support for ARM64 targets.
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_static_or_shared), static)
-      LOCAL_WHOLESTATIC_LIBRARIES += libvixld
+      LOCAL_WHOLESTATIC_LIBRARIES += libvixl
     else
-      LOCAL_SHARED_LIBRARIES += libvixld
+      LOCAL_SHARED_LIBRARIES += libvixl
     endif
   else
     ifeq ($$(art_static_or_shared), static)

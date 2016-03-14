@@ -27,8 +27,9 @@ namespace debug {
 struct ElfCompilationUnit {
   std::vector<const MethodDebugInfo*> methods;
   size_t debug_line_offset = 0;
-  uintptr_t low_pc = std::numeric_limits<uintptr_t>::max();
-  uintptr_t high_pc = 0;
+  bool is_code_address_text_relative;  // Is the address offset from start of .text section?
+  uint64_t code_address = std::numeric_limits<uint64_t>::max();
+  uint64_t code_end = 0;
 };
 
 }  // namespace debug

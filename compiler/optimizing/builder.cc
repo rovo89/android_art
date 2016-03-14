@@ -282,7 +282,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
         // Found a predecessor not covered by the same TryItem. Insert entering
         // boundary block.
         HTryBoundary* try_entry =
-            new (arena_) HTryBoundary(HTryBoundary::kEntry, try_block->GetDexPc());
+            new (arena_) HTryBoundary(HTryBoundary::BoundaryKind::kEntry, try_block->GetDexPc());
         try_block->CreateImmediateDominator()->AddInstruction(try_entry);
         LinkToCatchBlocks(try_entry, code_item, entry.second);
         break;
@@ -316,7 +316,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
 
       // Insert TryBoundary and link to catch blocks.
       HTryBoundary* try_exit =
-          new (arena_) HTryBoundary(HTryBoundary::kExit, successor->GetDexPc());
+          new (arena_) HTryBoundary(HTryBoundary::BoundaryKind::kExit, successor->GetDexPc());
       graph_->SplitEdge(try_block, successor)->AddInstruction(try_exit);
       LinkToCatchBlocks(try_exit, code_item, entry.second);
     }
@@ -368,7 +368,6 @@ GraphAnalysisResult HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item
   if (native_debuggable) {
     const uint32_t num_instructions = code_item.insns_size_in_code_units_;
     native_debug_info_locations = new (arena_) ArenaBitVector (arena_, num_instructions, false);
-    native_debug_info_locations->ClearAllBits();
     FindNativeDebugInfoLocations(code_item, native_debug_info_locations);
   }
 
@@ -443,23 +442,15 @@ void HGraphBuilder::FindNativeDebugInfoLocations(const DexFile::CodeItem& code_i
     }
   };
   dex_file_->DecodeDebugPositionInfo(&code_item, Callback::Position, locations);
-  // Add native debug info at the start of every basic block.
-  for (uint32_t pc = 0; pc < code_item.insns_size_in_code_units_; pc++) {
-    if (FindBlockStartingAt(pc) != nullptr) {
-      locations->SetBit(pc);
-    }
-  }
   // Instruction-specific tweaks.
   const Instruction* const begin = Instruction::At(code_item.insns_);
   const Instruction* const end = begin->RelativeAt(code_item.insns_size_in_code_units_);
   for (const Instruction* inst = begin; inst < end; inst = inst->Next()) {
     switch (inst->Opcode()) {
-      case Instruction::MOVE_EXCEPTION:
-      case Instruction::MOVE_RESULT:
-      case Instruction::MOVE_RESULT_WIDE:
-      case Instruction::MOVE_RESULT_OBJECT: {
-        // The compiler checks that there are no instructions before those.
-        // So generate HNativeDebugInfo after them instead.
+      case Instruction::MOVE_EXCEPTION: {
+        // Stop in native debugger after the exception has been moved.
+        // The compiler also expects the move at the start of basic block so
+        // we do not want to interfere by inserting native-debug-info before it.
         locations->ClearBit(inst->GetDexPc(code_item.insns_));
         const Instruction* next = inst->Next();
         if (next < end) {
@@ -2852,7 +2843,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::MONITOR_ENTER: {
       current_block_->AddInstruction(new (arena_) HMonitorOperation(
           LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot, dex_pc),
-          HMonitorOperation::kEnter,
+          HMonitorOperation::OperationKind::kEnter,
           dex_pc));
       break;
     }
@@ -2860,7 +2851,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::MONITOR_EXIT: {
       current_block_->AddInstruction(new (arena_) HMonitorOperation(
           LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot, dex_pc),
-          HMonitorOperation::kExit,
+          HMonitorOperation::OperationKind::kExit,
           dex_pc));
       break;
     }

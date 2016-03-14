@@ -222,8 +222,14 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 
 # Disable 097-duplicate-method while investigation (broken by latest Jack release, b/27358065)
+# Disable 137-cfi (b/27391690).
+# Disable 536-checker-needs-access-check and 537-checker-inline-and-unverified (b/27425061)
+# Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
-  097-duplicate-method
+  097-duplicate-method \
+  536-checker-needs-access-check \
+  537-checker-inline-and-unverified \
+  577-profile-foreign-dex \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
@@ -535,7 +541,9 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration with the interpreter.
-TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS :=
+# 145: Test sometimes times out in read barrier configuration (b/27467554).
+TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS := \
+  145-alloc-tracking-stress
 
 # Tests that should fail in the read barrier configuration with the default (Quick) compiler (AOT).
 # Quick has no support for read barriers and punts to the interpreter, so this list is composed of
@@ -545,6 +553,7 @@ TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS := \
   $(TEST_ART_BROKEN_INTERPRETER_RUN_TESTS)
 
 # Tests that should fail in the read barrier configuration with the Optimizing compiler (AOT).
+# 145: Test sometimes times out in read barrier configuration (b/27467554).
 # 484: Baker's fast path based read barrier compiler instrumentation generates code containing
 #      more parallel moves on x86, thus some Checker assertions may fail.
 # 527: On ARM64, the read barrier instrumentation does not support the HArm64IntermediateAddress
@@ -552,12 +561,15 @@ TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS := \
 # 537: Expects an array copy to be intrinsified on x86-64, but calling-on-slowpath intrinsics are
 #      not yet handled in the read barrier configuration.
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
+  145-alloc-tracking-stress \
   484-checker-register-hints \
   527-checker-array-access-split \
   537-checker-arraycopy
 
 # Tests that should fail in the read barrier configuration with JIT (Optimizing compiler).
-TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
+# 145: Test sometimes times out in read barrier configuration (b/27467554).
+TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS := \
+  145-alloc-tracking-stress
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ifneq (,$(filter interpreter,$(COMPILER_TYPES)))

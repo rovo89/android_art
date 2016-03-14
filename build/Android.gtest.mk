@@ -258,6 +258,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/elf_writer_test.cc \
   compiler/image_test.cc \
   compiler/jni/jni_compiler_test.cc \
+  compiler/linker/multi_oat_relative_patcher_test.cc \
   compiler/linker/output_stream_test.cc \
   compiler/oat_test.cc \
   compiler/optimizing/bounds_check_elimination_test.cc \
@@ -516,7 +517,8 @@ $$(gtest_rule): $$(gtest_exe) $$(gtest_deps)
 valgrind-$$(gtest_rule): $$(gtest_exe) $$(gtest_deps) $(ART_VALGRIND_DEPENDENCIES)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  VALGRIND_LIB=$(HOST_OUT)/lib64/valgrind \
-	  $(HOST_OUT_EXECUTABLES)/valgrind --leak-check=full --error-exitcode=1 $$< && \
+	  $(HOST_OUT_EXECUTABLES)/valgrind --leak-check=full --error-exitcode=1 \
+	    --suppressions=art/test/valgrind-suppressions.txt $$< && \
 	    $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
 
   ART_TEST_HOST_VALGRIND_GTEST$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += valgrind-$$(gtest_rule)
@@ -572,14 +574,11 @@ define define-art-gtest
   ifeq ($$(art_target_or_host),target)
     $$(eval $$(call set-target-local-clang-vars))
     $$(eval $$(call set-target-local-cflags-vars,debug))
-    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixld
+    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixl
     LOCAL_MODULE_PATH_32 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
     LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
-    # clang fails to compile art/runtime/arch/stub_test.cc for arm64 without -O1
-    # b/26275713
-    LOCAL_CLANG_CFLAGS_arm64 += -O1
     include $$(BUILD_EXECUTABLE)
     library_path :=
     2nd_library_path :=
@@ -613,7 +612,7 @@ test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_
     LOCAL_CLANG := $$(ART_HOST_CLANG)
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
     LOCAL_ASFLAGS += $$(ART_HOST_ASFLAGS)
-    LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libziparchive-host libz-host libvixld
+    LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libziparchive-host libz-host libvixl
     LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both

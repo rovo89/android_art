@@ -1151,6 +1151,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
 
   __ LoadFromOffset(kLoadWord, LR, TR,
                     QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pIndexOf).Int32Value());
+  CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ blx(LR);
 
   if (slow_path != nullptr) {
@@ -1223,8 +1224,9 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromBytes(HInvoke* invoke) {
 
   __ LoadFromOffset(
       kLoadWord, LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocStringFromBytes).Int32Value());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   __ blx(LR);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1242,10 +1244,17 @@ void IntrinsicLocationsBuilderARM::VisitStringNewStringFromChars(HInvoke* invoke
 void IntrinsicCodeGeneratorARM::VisitStringNewStringFromChars(HInvoke* invoke) {
   ArmAssembler* assembler = GetAssembler();
 
+  // No need to emit code checking whether `locations->InAt(2)` is a null
+  // pointer, as callers of the native method
+  //
+  //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
+  //
+  // all include a null check on `data` before calling that method.
   __ LoadFromOffset(
       kLoadWord, LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocStringFromChars).Int32Value());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   __ blx(LR);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void IntrinsicLocationsBuilderARM::VisitStringNewStringFromString(HInvoke* invoke) {
@@ -1269,8 +1278,9 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromString(HInvoke* invoke) 
 
   __ LoadFromOffset(kLoadWord,
       LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocStringFromString).Int32Value());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   __ blx(LR);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1825,58 +1835,184 @@ void IntrinsicCodeGeneratorARM::VisitMathNextAfter(HInvoke* invoke) {
   GenFPFPToFPCall(invoke, GetAssembler(), codegen_, kQuickNextAfter);
 }
 
-// Unimplemented intrinsics.
-
-#define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
-void IntrinsicLocationsBuilderARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                      \
-void IntrinsicCodeGeneratorARM::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
+void IntrinsicLocationsBuilderARM::VisitIntegerReverse(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
 }
 
-UNIMPLEMENTED_INTRINSIC(IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(IntegerReverse)
-UNIMPLEMENTED_INTRINSIC(IntegerReverseBytes)
-UNIMPLEMENTED_INTRINSIC(LongBitCount)
-UNIMPLEMENTED_INTRINSIC(LongReverse)
-UNIMPLEMENTED_INTRINSIC(LongReverseBytes)
-UNIMPLEMENTED_INTRINSIC(ShortReverseBytes)
-UNIMPLEMENTED_INTRINSIC(MathMinDoubleDouble)
-UNIMPLEMENTED_INTRINSIC(MathMinFloatFloat)
-UNIMPLEMENTED_INTRINSIC(MathMaxDoubleDouble)
-UNIMPLEMENTED_INTRINSIC(MathMaxFloatFloat)
-UNIMPLEMENTED_INTRINSIC(MathMinLongLong)
-UNIMPLEMENTED_INTRINSIC(MathMaxLongLong)
-UNIMPLEMENTED_INTRINSIC(MathCeil)          // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(MathFloor)         // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(MathRint)
-UNIMPLEMENTED_INTRINSIC(MathRoundDouble)   // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(MathRoundFloat)    // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
-UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
+void IntrinsicCodeGeneratorARM::VisitIntegerReverse(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
 
-UNIMPLEMENTED_INTRINSIC(FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(DoubleIsInfinite)
+  Register out = locations->Out().AsRegister<Register>();
+  Register in  = locations->InAt(0).AsRegister<Register>();
 
-UNIMPLEMENTED_INTRINSIC(IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(LongLowestOneBit)
+  __ rbit(out, in);
+}
 
-// Handled as HIR instructions.
-UNIMPLEMENTED_INTRINSIC(FloatIsNaN)
-UNIMPLEMENTED_INTRINSIC(DoubleIsNaN)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
-UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
-UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerCompare)
-UNIMPLEMENTED_INTRINSIC(LongCompare)
-UNIMPLEMENTED_INTRINSIC(IntegerSignum)
-UNIMPLEMENTED_INTRINSIC(LongSignum)
+void IntrinsicLocationsBuilderARM::VisitLongReverse(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
 
-#undef UNIMPLEMENTED_INTRINSIC
+void IntrinsicCodeGeneratorARM::VisitLongReverse(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register in_reg_lo  = locations->InAt(0).AsRegisterPairLow<Register>();
+  Register in_reg_hi  = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Register out_reg_lo = locations->Out().AsRegisterPairLow<Register>();
+  Register out_reg_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+  __ rbit(out_reg_lo, in_reg_hi);
+  __ rbit(out_reg_hi, in_reg_lo);
+}
+
+void IntrinsicLocationsBuilderARM::VisitIntegerReverseBytes(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitIntegerReverseBytes(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register in  = locations->InAt(0).AsRegister<Register>();
+
+  __ rev(out, in);
+}
+
+void IntrinsicLocationsBuilderARM::VisitLongReverseBytes(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM::VisitLongReverseBytes(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register in_reg_lo  = locations->InAt(0).AsRegisterPairLow<Register>();
+  Register in_reg_hi  = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Register out_reg_lo = locations->Out().AsRegisterPairLow<Register>();
+  Register out_reg_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+  __ rev(out_reg_lo, in_reg_hi);
+  __ rev(out_reg_hi, in_reg_lo);
+}
+
+void IntrinsicLocationsBuilderARM::VisitShortReverseBytes(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitShortReverseBytes(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register in  = locations->InAt(0).AsRegister<Register>();
+
+  __ revsh(out, in);
+}
+
+void IntrinsicLocationsBuilderARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  ArmAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Location of char array data in string.
+  const uint32_t value_offset = mirror::String::ValueOffset().Uint32Value();
+
+  // void getCharsNoCheck(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  // Since getChars() calls getCharsNoCheck() - we use registers rather than constants.
+  Register srcObj = locations->InAt(0).AsRegister<Register>();
+  Register srcBegin = locations->InAt(1).AsRegister<Register>();
+  Register srcEnd = locations->InAt(2).AsRegister<Register>();
+  Register dstObj = locations->InAt(3).AsRegister<Register>();
+  Register dstBegin = locations->InAt(4).AsRegister<Register>();
+
+  Register src_ptr = locations->GetTemp(0).AsRegister<Register>();
+  Register src_ptr_end = locations->GetTemp(1).AsRegister<Register>();
+  Register dst_ptr = locations->GetTemp(2).AsRegister<Register>();
+  Register tmp = locations->GetTemp(3).AsRegister<Register>();
+
+  // src range to copy.
+  __ add(src_ptr, srcObj, ShifterOperand(value_offset));
+  __ add(src_ptr_end, src_ptr, ShifterOperand(srcEnd, LSL, 1));
+  __ add(src_ptr, src_ptr, ShifterOperand(srcBegin, LSL, 1));
+
+  // dst to be copied.
+  __ add(dst_ptr, dstObj, ShifterOperand(data_offset));
+  __ add(dst_ptr, dst_ptr, ShifterOperand(dstBegin, LSL, 1));
+
+  // Do the copy.
+  Label loop, done;
+  __ Bind(&loop);
+  __ cmp(src_ptr, ShifterOperand(src_ptr_end));
+  __ b(&done, EQ);
+  __ ldrh(tmp, Address(src_ptr, char_size, Address::PostIndex));
+  __ strh(tmp, Address(dst_ptr, char_size, Address::PostIndex));
+  __ b(&loop);
+  __ Bind(&done);
+}
+
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM, LongBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMinDoubleDouble)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMinFloatFloat)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMaxDoubleDouble)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMaxFloatFloat)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMinLongLong)
+UNIMPLEMENTED_INTRINSIC(ARM, MathMaxLongLong)
+UNIMPLEMENTED_INTRINSIC(ARM, MathCeil)          // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, MathFloor)         // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, MathRint)
+UNIMPLEMENTED_INTRINSIC(ARM, MathRoundDouble)   // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, MathRoundFloat)    // Could be done by changing rounding mode, maybe?
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeCASLong)     // High register pressure.
+UNIMPLEMENTED_INTRINSIC(ARM, SystemArrayCopyChar)
+UNIMPLEMENTED_INTRINSIC(ARM, ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(ARM, FloatIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM, DoubleIsInfinite)
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM, LongHighestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerLowestOneBit)
+UNIMPLEMENTED_INTRINSIC(ARM, LongLowestOneBit)
+
+// 1.8.
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeGetAndAddInt)
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeGetAndAddLong)
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeGetAndSetInt)
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeGetAndSetLong)
+UNIMPLEMENTED_INTRINSIC(ARM, UnsafeGetAndSetObject)
+
+UNREACHABLE_INTRINSICS(ARM)
 
 #undef __
 
