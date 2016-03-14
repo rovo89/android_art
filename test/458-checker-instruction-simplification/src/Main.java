@@ -1601,6 +1601,24 @@ public class Main {
     return (short) (value & 0x17fff);
   }
 
+  /// CHECK-START: double Main.shortAnd0xffffToShortToDouble(short) instruction_simplifier (before)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Mask:i\d+>>     IntConstant 65535
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Mask>>,<<Arg>>]
+  /// CHECK-DAG:      <<Same:s\d+>>     TypeConversion [<<And>>]
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Same>>]
+  /// CHECK-DAG:                        Return [<<Double>>]
+
+  /// CHECK-START: double Main.shortAnd0xffffToShortToDouble(short) instruction_simplifier (after)
+  /// CHECK-DAG:      <<Arg:s\d+>>      ParameterValue
+  /// CHECK-DAG:      <<Double:d\d+>>   TypeConversion [<<Arg>>]
+  /// CHECK-DAG:                        Return [<<Double>>]
+
+  public static double shortAnd0xffffToShortToDouble(short value) {
+    short same = (short) (value & 0xffff);
+    return (double) same;
+  }
+
   /// CHECK-START: int Main.intReverseCondition(int) instruction_simplifier (before)
   /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
@@ -1717,56 +1735,63 @@ public static void main(String[] args) {
     assertIntEquals(doubleConditionEqualZero(6.0), 54);
     assertIntEquals(doubleConditionEqualZero(43.0), 13);
 
-    assertIntEquals(intToDoubleToInt(1234567), 1234567);
-    assertIntEquals(intToDoubleToInt(Integer.MIN_VALUE), Integer.MIN_VALUE);
-    assertIntEquals(intToDoubleToInt(Integer.MAX_VALUE), Integer.MAX_VALUE);
-    assertStringEquals(intToDoubleToIntPrint(7654321), "d=7654321.0, i=7654321");
-    assertIntEquals(byteToDoubleToInt((byte) 12), 12);
-    assertIntEquals(byteToDoubleToInt(Byte.MIN_VALUE), Byte.MIN_VALUE);
-    assertIntEquals(byteToDoubleToInt(Byte.MAX_VALUE), Byte.MAX_VALUE);
-    assertIntEquals(floatToDoubleToInt(11.3f), 11);
-    assertStringEquals(floatToDoubleToIntPrint(12.25f), "d=12.25, i=12");
-    assertIntEquals(byteToDoubleToShort((byte) 123), 123);
-    assertIntEquals(byteToDoubleToShort(Byte.MIN_VALUE), Byte.MIN_VALUE);
-    assertIntEquals(byteToDoubleToShort(Byte.MAX_VALUE), Byte.MAX_VALUE);
-    assertIntEquals(charToDoubleToShort((char) 1234), 1234);
-    assertIntEquals(charToDoubleToShort(Character.MIN_VALUE), Character.MIN_VALUE);
-    assertIntEquals(charToDoubleToShort(Character.MAX_VALUE), /* sign-extended */ -1);
-    assertIntEquals(floatToIntToShort(12345.75f), 12345);
-    assertIntEquals(floatToIntToShort((float)(Short.MIN_VALUE - 1)), Short.MAX_VALUE);
-    assertIntEquals(floatToIntToShort((float)(Short.MAX_VALUE + 1)), Short.MIN_VALUE);
-    assertIntEquals(intToFloatToInt(-54321), -54321);
-    assertDoubleEquals(longToIntToDouble(0x1234567812345678L), (double) 0x12345678);
-    assertDoubleEquals(longToIntToDouble(Long.MIN_VALUE), 0.0);
-    assertDoubleEquals(longToIntToDouble(Long.MAX_VALUE), -1.0);
-    assertLongEquals(longToIntToLong(0x1234567812345678L), 0x0000000012345678L);
-    assertLongEquals(longToIntToLong(0x1234567887654321L), 0xffffffff87654321L);
-    assertLongEquals(longToIntToLong(Long.MIN_VALUE), 0L);
-    assertLongEquals(longToIntToLong(Long.MAX_VALUE), -1L);
-    assertIntEquals(shortToCharToShort((short) -5678), (short) -5678);
-    assertIntEquals(shortToCharToShort(Short.MIN_VALUE), Short.MIN_VALUE);
-    assertIntEquals(shortToCharToShort(Short.MAX_VALUE), Short.MAX_VALUE);
-    assertIntEquals(shortToLongToInt((short) 5678), 5678);
-    assertIntEquals(shortToLongToInt(Short.MIN_VALUE), Short.MIN_VALUE);
-    assertIntEquals(shortToLongToInt(Short.MAX_VALUE), Short.MAX_VALUE);
-    assertIntEquals(shortToCharToByte((short) 0x1234), 0x34);
-    assertIntEquals(shortToCharToByte((short) 0x12f0), -0x10);
-    assertIntEquals(shortToCharToByte(Short.MIN_VALUE), 0);
-    assertIntEquals(shortToCharToByte(Short.MAX_VALUE), -1);
-    assertStringEquals(shortToCharToBytePrint((short) 1025), "c=1025, b=1");
-    assertStringEquals(shortToCharToBytePrint((short) 1023), "c=1023, b=-1");
-    assertStringEquals(shortToCharToBytePrint((short) -1), "c=65535, b=-1");
+    assertIntEquals(1234567, intToDoubleToInt(1234567));
+    assertIntEquals(Integer.MIN_VALUE, intToDoubleToInt(Integer.MIN_VALUE));
+    assertIntEquals(Integer.MAX_VALUE, intToDoubleToInt(Integer.MAX_VALUE));
+    assertStringEquals("d=7654321.0, i=7654321", intToDoubleToIntPrint(7654321));
+    assertIntEquals(12, byteToDoubleToInt((byte) 12));
+    assertIntEquals(Byte.MIN_VALUE, byteToDoubleToInt(Byte.MIN_VALUE));
+    assertIntEquals(Byte.MAX_VALUE, byteToDoubleToInt(Byte.MAX_VALUE));
+    assertIntEquals(11, floatToDoubleToInt(11.3f));
+    assertStringEquals("d=12.25, i=12", floatToDoubleToIntPrint(12.25f));
+    assertIntEquals(123, byteToDoubleToShort((byte) 123));
+    assertIntEquals(Byte.MIN_VALUE, byteToDoubleToShort(Byte.MIN_VALUE));
+    assertIntEquals(Byte.MAX_VALUE, byteToDoubleToShort(Byte.MAX_VALUE));
+    assertIntEquals(1234, charToDoubleToShort((char) 1234));
+    assertIntEquals(Character.MIN_VALUE, charToDoubleToShort(Character.MIN_VALUE));
+    assertIntEquals(/* sign-extended */ -1, charToDoubleToShort(Character.MAX_VALUE));
+    assertIntEquals(12345, floatToIntToShort(12345.75f));
+    assertIntEquals(Short.MAX_VALUE, floatToIntToShort((float)(Short.MIN_VALUE - 1)));
+    assertIntEquals(Short.MIN_VALUE, floatToIntToShort((float)(Short.MAX_VALUE + 1)));
+    assertIntEquals(-54321, intToFloatToInt(-54321));
+    assertDoubleEquals((double) 0x12345678, longToIntToDouble(0x1234567812345678L));
+    assertDoubleEquals(0.0, longToIntToDouble(Long.MIN_VALUE));
+    assertDoubleEquals(-1.0, longToIntToDouble(Long.MAX_VALUE));
+    assertLongEquals(0x0000000012345678L, longToIntToLong(0x1234567812345678L));
+    assertLongEquals(0xffffffff87654321L, longToIntToLong(0x1234567887654321L));
+    assertLongEquals(0L, longToIntToLong(Long.MIN_VALUE));
+    assertLongEquals(-1L, longToIntToLong(Long.MAX_VALUE));
+    assertIntEquals((short) -5678, shortToCharToShort((short) -5678));
+    assertIntEquals(Short.MIN_VALUE, shortToCharToShort(Short.MIN_VALUE));
+    assertIntEquals(Short.MAX_VALUE, shortToCharToShort(Short.MAX_VALUE));
+    assertIntEquals(5678, shortToLongToInt((short) 5678));
+    assertIntEquals(Short.MIN_VALUE, shortToLongToInt(Short.MIN_VALUE));
+    assertIntEquals(Short.MAX_VALUE, shortToLongToInt(Short.MAX_VALUE));
+    assertIntEquals(0x34, shortToCharToByte((short) 0x1234));
+    assertIntEquals(-0x10, shortToCharToByte((short) 0x12f0));
+    assertIntEquals(0, shortToCharToByte(Short.MIN_VALUE));
+    assertIntEquals(-1, shortToCharToByte(Short.MAX_VALUE));
+    assertStringEquals("c=1025, b=1", shortToCharToBytePrint((short) 1025));
+    assertStringEquals("c=1023, b=-1", shortToCharToBytePrint((short) 1023));
+    assertStringEquals("c=65535, b=-1", shortToCharToBytePrint((short) -1));
 
-    assertIntEquals(longAnd0xffToByte(0x1234432112344321L), 0x21);
-    assertIntEquals(longAnd0xffToByte(Long.MIN_VALUE), 0);
-    assertIntEquals(longAnd0xffToByte(Long.MAX_VALUE), -1);
-    assertIntEquals(intAnd0x1ffffToChar(0x43211234), 0x1234);
-    assertIntEquals(intAnd0x1ffffToChar(Integer.MIN_VALUE), 0);
-    assertIntEquals(intAnd0x1ffffToChar(Integer.MAX_VALUE), Character.MAX_VALUE);
-    assertIntEquals(intAnd0x17fffToShort(0x87654321), 0x4321);
-    assertIntEquals(intAnd0x17fffToShort(0x88888888), 0x0888);
-    assertIntEquals(intAnd0x17fffToShort(Integer.MIN_VALUE), 0);
-    assertIntEquals(intAnd0x17fffToShort(Integer.MAX_VALUE), Short.MAX_VALUE);
+    assertIntEquals(0x21, longAnd0xffToByte(0x1234432112344321L));
+    assertIntEquals(0, longAnd0xffToByte(Long.MIN_VALUE));
+    assertIntEquals(-1, longAnd0xffToByte(Long.MAX_VALUE));
+    assertIntEquals(0x1234, intAnd0x1ffffToChar(0x43211234));
+    assertIntEquals(0, intAnd0x1ffffToChar(Integer.MIN_VALUE));
+    assertIntEquals(Character.MAX_VALUE, intAnd0x1ffffToChar(Integer.MAX_VALUE));
+    assertIntEquals(0x4321, intAnd0x17fffToShort(0x87654321));
+    assertIntEquals(0x0888, intAnd0x17fffToShort(0x88888888));
+    assertIntEquals(0, intAnd0x17fffToShort(Integer.MIN_VALUE));
+    assertIntEquals(Short.MAX_VALUE, intAnd0x17fffToShort(Integer.MAX_VALUE));
+
+    assertDoubleEquals(0.0, shortAnd0xffffToShortToDouble((short) 0));
+    assertDoubleEquals(1.0, shortAnd0xffffToShortToDouble((short) 1));
+    assertDoubleEquals(-2.0, shortAnd0xffffToShortToDouble((short) -2));
+    assertDoubleEquals(12345.0, shortAnd0xffffToShortToDouble((short) 12345));
+    assertDoubleEquals((double)Short.MAX_VALUE, shortAnd0xffffToShortToDouble(Short.MAX_VALUE));
+    assertDoubleEquals((double)Short.MIN_VALUE, shortAnd0xffffToShortToDouble(Short.MIN_VALUE));
 
     assertIntEquals(intReverseCondition(41), 13);
     assertIntEquals(intReverseConditionNaN(-5), 13);
