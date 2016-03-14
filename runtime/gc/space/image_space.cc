@@ -1207,7 +1207,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
                                      /*out*/out_error_msg));
       if (map != nullptr) {
         const size_t stored_size = image_header->GetDataSize();
-        const size_t write_offset = sizeof(ImageHeader);  // Skip the header.
+        const size_t decompress_offset = sizeof(ImageHeader);  // Skip the header.
         std::unique_ptr<MemMap> temp_map(MemMap::MapFile(sizeof(ImageHeader) + stored_size,
                                                          PROT_READ,
                                                          MAP_PRIVATE,
@@ -1226,14 +1226,15 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
         TimingLogger::ScopedTiming timing2("LZ4 decompress image", &logger);
         const size_t decompressed_size = LZ4_decompress_safe(
             reinterpret_cast<char*>(temp_map->Begin()) + sizeof(ImageHeader),
-            reinterpret_cast<char*>(map->Begin()) + write_offset,
+            reinterpret_cast<char*>(map->Begin()) + decompress_offset,
             stored_size,
-            map->Size());
+            map->Size() - decompress_offset);
         VLOG(image) << "Decompressing image took " << PrettyDuration(NanoTime() - start);
         if (decompressed_size + sizeof(ImageHeader) != image_header->GetImageSize()) {
-          *error_msg = StringPrintf("Decompressed size does not match expected image size %zu vs %zu",
-                                    decompressed_size + sizeof(ImageHeader),
-                                    image_header->GetImageSize());
+          *error_msg = StringPrintf(
+              "Decompressed size does not match expected image size %zu vs %zu",
+              decompressed_size + sizeof(ImageHeader),
+              image_header->GetImageSize());
           return nullptr;
         }
       }
