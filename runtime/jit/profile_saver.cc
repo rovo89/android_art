@@ -34,9 +34,9 @@ static constexpr const uint64_t kMinimumTimeBetweenCodeCacheUpdatesNs = 2000 * k
 // TODO: read the constants from ProfileOptions,
 // Add a random delay each time we go to sleep so that we don't hammer the CPU
 // with all profile savers running at the same time.
-static constexpr const uint64_t kRandomDelayMaxMs = 20 * 1000;  // 20 seconds
+static constexpr const uint64_t kRandomDelayMaxMs = 40 * 1000;  // 40 seconds
 static constexpr const uint64_t kMaxBackoffMs = 5 * 60 * 1000;  // 5 minutes
-static constexpr const uint64_t kSavePeriodMs = 10 * 1000;  // 10 seconds
+static constexpr const uint64_t kSavePeriodMs = 40 * 1000;  // 40 seconds
 static constexpr const uint64_t kInitialDelayMs = 2 * 1000;  // 2 seconds
 static constexpr const double kBackoffCoef = 1.5;
 
