@@ -867,9 +867,7 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
         return;
       }
     }
-  } else if (input->IsAnd() &&
-      Primitive::IsIntegralType(result_type) &&
-      input->HasOnlyOneNonEnvironmentUse()) {
+  } else if (input->IsAnd() && Primitive::IsIntegralType(result_type)) {
     DCHECK(Primitive::IsIntegralType(input_type));
     HAnd* input_and = input->AsAnd();
     HConstant* constant = input_and->GetConstantRight();
@@ -879,10 +877,18 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
       size_t trailing_ones = CTZ(~static_cast<uint64_t>(value));
       if (trailing_ones >= kBitsPerByte * Primitive::ComponentSize(result_type)) {
         // The `HAnd` is useless, for example in `(byte) (x & 0xff)`, get rid of it.
-        input_and->ReplaceWith(input_and->GetLeastConstantLeft());
-        input_and->GetBlock()->RemoveInstruction(input_and);
-        RecordSimplification();
-        return;
+        HInstruction* original_input = input_and->GetLeastConstantLeft();
+        if (IsTypeConversionImplicit(original_input->GetType(), result_type)) {
+          instruction->ReplaceWith(original_input);
+          instruction->GetBlock()->RemoveInstruction(instruction);
+          RecordSimplification();
+          return;
+        } else if (input->HasOnlyOneNonEnvironmentUse()) {
+          input_and->ReplaceWith(original_input);
+          input_and->GetBlock()->RemoveInstruction(input_and);
+          RecordSimplification();
+          return;
+        }
       }
     }
   }
