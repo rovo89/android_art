@@ -103,9 +103,11 @@ const DexFile* OpenDexFile(const OatFile::OatDexFile* oat_dex_file, std::string*
 template <typename ElfTypes>
 class OatSymbolizer FINAL {
  public:
-  OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
-      oat_file_(oat_file), builder_(nullptr),
-      output_name_(output_name.empty() ? "symbolized.oat" : output_name) {
+  OatSymbolizer(const OatFile* oat_file, const std::string& output_name, bool no_bits) :
+      oat_file_(oat_file),
+      builder_(nullptr),
+      output_name_(output_name.empty() ? "symbolized.oat" : output_name),
+      no_bits_(no_bits) {
   }
 
   bool Symbolize() {
@@ -124,17 +126,25 @@ class OatSymbolizer FINAL {
     auto* text = builder_->GetText();
     auto* bss = builder_->GetBss();
 
-    rodata->Start();
     const uint8_t* rodata_begin = oat_file_->Begin();
     const size_t rodata_size = oat_file_->GetOatHeader().GetExecutableOffset();
-    rodata->WriteFully(rodata_begin, rodata_size);
-    rodata->End();
+    if (no_bits_) {
+      rodata->WriteNoBitsSection(rodata_size);
+    } else {
+      rodata->Start();
+      rodata->WriteFully(rodata_begin, rodata_size);
+      rodata->End();
+    }
 
-    text->Start();
     const uint8_t* text_begin = oat_file_->Begin() + rodata_size;
     const size_t text_size = oat_file_->End() - text_begin;
-    text->WriteFully(text_begin, text_size);
-    text->End();
+    if (no_bits_) {
+      text->WriteNoBitsSection(text_size);
+    } else {
+      text->Start();
+      text->WriteFully(text_begin, text_size);
+      text->End();
+    }
 
     if (oat_file_->BssSize() != 0) {
       bss->WriteNoBitsSection(oat_file_->BssSize());
@@ -264,6 +274,7 @@ class OatSymbolizer FINAL {
   std::vector<debug::MethodDebugInfo> method_debug_infos_;
   std::unordered_set<uint32_t> seen_offsets_;
   const std::string output_name_;
+  bool no_bits_;
 };
 
 class OatDumperOptions {
@@ -2450,7 +2461,7 @@ static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions*
   }
 }
 
-static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
+static int SymbolizeOat(const char* oat_filename, std::string& output_name, bool no_bits) {
   std::string error_msg;
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
                                     nullptr, &error_msg);
@@ -2463,10 +2474,10 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
   // Try to produce an ELF file of the same type. This is finicky, as we have used 32-bit ELF
   // files for 64-bit code in the past.
   if (Is64BitInstructionSet(oat_file->GetOatHeader().GetInstructionSet())) {
-    OatSymbolizer<ElfTypes64> oat_symbolizer(oat_file, output_name);
+    OatSymbolizer<ElfTypes64> oat_symbolizer(oat_file, output_name, no_bits);
     result = oat_symbolizer.Symbolize();
   } else {
-    OatSymbolizer<ElfTypes32> oat_symbolizer(oat_file, output_name);
+    OatSymbolizer<ElfTypes32> oat_symbolizer(oat_file, output_name, no_bits);
     result = oat_symbolizer.Symbolize();
   }
   if (!result) {
@@ -2509,6 +2520,8 @@ struct OatdumpArgs : public CmdlineArgs {
     } else if (option.starts_with("--symbolize=")) {
       oat_filename_ = option.substr(strlen("--symbolize=")).data();
       symbolize_ = true;
+    } else if (option.starts_with("--only-keep-debug")) {
+      only_keep_debug_ = true;
     } else if (option.starts_with("--class-filter=")) {
       class_filter_ = option.substr(strlen("--class-filter=")).data();
     } else if (option.starts_with("--method-filter=")) {
@@ -2603,6 +2616,10 @@ struct OatdumpArgs : public CmdlineArgs {
         "  --symbolize=<file.oat>: output a copy of file.oat with elf symbols included.\n"
         "      Example: --symbolize=/system/framework/boot.oat\n"
         "\n"
+        "  --only-keep-debug<file.oat>: Modifies the behaviour of --symbolize so that\n"
+        "      .rodata and .text sections are omitted in the output file to save space.\n"
+        "      Example: --symbolize=/system/framework/boot.oat --only-keep-debug\n"
+        "\n"
         "  --class-filter=<class name>: only dumps classes that contain the filter.\n"
         "      Example: --class-filter=com.example.foo\n"
         "\n"
@@ -2632,6 +2649,7 @@ struct OatdumpArgs : public CmdlineArgs {
   bool dump_code_info_stack_maps_ = false;
   bool disassemble_code_ = true;
   bool symbolize_ = false;
+  bool only_keep_debug_ = false;
   bool list_classes_ = false;
   bool list_methods_ = false;
   bool dump_header_only_ = false;
@@ -2672,7 +2690,12 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
     MemMap::Init();
 
     if (args_->symbolize_) {
-      return SymbolizeOat(args_->oat_filename_, args_->output_name_) == EXIT_SUCCESS;
+      // ELF has special kind of section called SHT_NOBITS which allows us to create
+      // sections which exist but their data is omitted from the ELF file to save space.
+      // This is what "strip --only-keep-debug" does when it creates separate ELF file
+      // with only debug data. We use it in similar way to exclude .rodata and .text.
+      bool no_bits = args_->only_keep_debug_;
+      return SymbolizeOat(args_->oat_filename_, args_->output_name_, no_bits) == EXIT_SUCCESS;
     } else {
       return DumpOat(nullptr,
                      args_->oat_filename_,
