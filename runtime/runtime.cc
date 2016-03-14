@@ -1883,7 +1883,7 @@ void Runtime::SetFaultMessage(const std::string& message) {
 
 void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* argv)
     const {
-  if (GetInstrumentation()->InterpretOnly()) {
+  if (GetInstrumentation()->InterpretOnly() || UseJit()) {
     argv->push_back("--compiler-filter=interpret-only");
   }
 
