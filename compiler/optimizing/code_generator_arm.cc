@@ -1543,8 +1543,8 @@ void LocationsBuilderARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
   new (GetGraph()->GetArena()) LocationSummary(info);
 }
 
-void InstructionCodeGeneratorARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+void InstructionCodeGeneratorARM::VisitNativeDebugInfo(HNativeDebugInfo*) {
+  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
 }
 
 void CodeGeneratorARM::GenerateNop() {
