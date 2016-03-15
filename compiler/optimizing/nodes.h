@@ -3428,7 +3428,10 @@ class HAboveOrEqual : public HCondition {
 // Result is 0 if input0 == input1, 1 if input0 > input1, or -1 if input0 < input1.
 class HCompare : public HBinaryOperation {
  public:
-  HCompare(Primitive::Type type,
+  // Note that `comparison_type` is the type of comparison performed
+  // between the comparison's inputs, not the type of the instantiated
+  // HCompare instruction (which is always Primitive::kPrimInt).
+  HCompare(Primitive::Type comparison_type,
            HInstruction* first,
            HInstruction* second,
            ComparisonBias bias,
@@ -3436,11 +3439,13 @@ class HCompare : public HBinaryOperation {
       : HBinaryOperation(Primitive::kPrimInt,
                          first,
                          second,
-                         SideEffectsForArchRuntimeCalls(type),
+                         SideEffectsForArchRuntimeCalls(comparison_type),
                          dex_pc) {
     SetPackedField<ComparisonBiasField>(bias);
-    DCHECK_EQ(type, first->GetType());
-    DCHECK_EQ(type, second->GetType());
+    if (kIsDebugBuild) {
+      DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(first->GetType()));
+      DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(second->GetType()));
+    }
   }
 
   template <typename T>

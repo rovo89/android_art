@@ -3672,6 +3672,10 @@ void LocationsBuilderARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
   switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
@@ -3702,6 +3706,10 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
   Primitive::Type type = compare->InputAt(0)->GetType();
   Condition less_cond;
   switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
       __ LoadImmediate(out, 0);
       __ cmp(left.AsRegister<Register>(),
