@@ -473,39 +473,40 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
 }
 
 template <typename Visitor>
-inline void ArtMethod::UpdateObjectsForImageRelocation(const Visitor& visitor) {
+inline void ArtMethod::UpdateObjectsForImageRelocation(const Visitor& visitor,
+                                                       size_t pointer_size) {
   mirror::Class* old_class = GetDeclaringClassUnchecked<kWithoutReadBarrier>();
   mirror::Class* new_class = visitor(old_class);
   if (old_class != new_class) {
     SetDeclaringClass(new_class);
   }
-  ArtMethod** old_methods = GetDexCacheResolvedMethods(sizeof(void*));
+  ArtMethod** old_methods = GetDexCacheResolvedMethods(pointer_size);
   ArtMethod** new_methods = visitor(old_methods);
   if (old_methods != new_methods) {
-    SetDexCacheResolvedMethods(new_methods, sizeof(void*));
+    SetDexCacheResolvedMethods(new_methods, pointer_size);
   }
-  GcRoot<mirror::Class>* old_types = GetDexCacheResolvedTypes(sizeof(void*));
+  GcRoot<mirror::Class>* old_types = GetDexCacheResolvedTypes(pointer_size);
   GcRoot<mirror::Class>* new_types = visitor(old_types);
   if (old_types != new_types) {
-    SetDexCacheResolvedTypes(new_types, sizeof(void*));
+    SetDexCacheResolvedTypes(new_types, pointer_size);
   }
 }
 
 template <ReadBarrierOption kReadBarrierOption, typename Visitor>
-inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor) {
+inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor, size_t pointer_size) {
   if (IsNative<kReadBarrierOption>()) {
-    const void* old_native_code = GetEntryPointFromJni();
+    const void* old_native_code = GetEntryPointFromJniPtrSize(pointer_size);
     const void* new_native_code = visitor(old_native_code);
     if (old_native_code != new_native_code) {
-      SetEntryPointFromJni(new_native_code);
+      SetEntryPointFromJniPtrSize(new_native_code, pointer_size);
     }
   } else {
-    DCHECK(GetEntryPointFromJni() == nullptr);
+    DCHECK(GetEntryPointFromJniPtrSize(pointer_size) == nullptr);
   }
-  const void* old_code = GetEntryPointFromQuickCompiledCode();
+  const void* old_code = GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
   const void* new_code = visitor(old_code);
   if (old_code != new_code) {
-    SetEntryPointFromQuickCompiledCode(new_code);
+    SetEntryPointFromQuickCompiledCodePtrSize(new_code, pointer_size);
   }
 }
 

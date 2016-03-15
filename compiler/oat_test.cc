@@ -230,7 +230,7 @@ class OatTest : public CommonCompilerTest {
     return elf_writer->End();
   }
 
-  void TestDexFileInput(bool verify);
+  void TestDexFileInput(bool verify, bool low_4gb);
   void TestZipFileInput(bool verify);
 
   std::unique_ptr<const InstructionSetFeatures> insn_features_;
@@ -374,8 +374,14 @@ TEST_F(OatTest, WriteRead) {
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
-  std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), nullptr,
-                                                  nullptr, false, nullptr, &error_msg));
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(),
+                                                  tmp.GetFilename(),
+                                                  nullptr,
+                                                  nullptr,
+                                                  false,
+                                                  /*low_4gb*/true,
+                                                  nullptr,
+                                                  &error_msg));
   ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
@@ -504,6 +510,7 @@ TEST_F(OatTest, EmptyTextSection) {
                                                   nullptr,
                                                   nullptr,
                                                   false,
+                                                  /*low_4gb*/false,
                                                   nullptr,
                                                   &error_msg));
   ASSERT_TRUE(oat_file != nullptr);
@@ -518,7 +525,7 @@ static void MaybeModifyDexFileToFail(bool verify, std::unique_ptr<const DexFile>
   }
 }
 
-void OatTest::TestDexFileInput(bool verify) {
+void OatTest::TestDexFileInput(bool verify, bool low_4gb) {
   TimingLogger timings("OatTest::DexFileInput", false, false);
 
   std::vector<const char*> input_filenames;
@@ -572,8 +579,13 @@ void OatTest::TestDexFileInput(bool verify) {
                                                          nullptr,
                                                          nullptr,
                                                          false,
+                                                         low_4gb,
                                                          nullptr,
                                                          &error_msg));
+  if (low_4gb) {
+    uintptr_t begin = reinterpret_cast<uintptr_t>(opened_oat_file->Begin());
+    EXPECT_EQ(begin, static_cast<uint32_t>(begin));
+  }
   ASSERT_TRUE(opened_oat_file != nullptr);
   ASSERT_EQ(2u, opened_oat_file->GetOatDexFiles().size());
   std::unique_ptr<const DexFile> opened_dex_file1 =
@@ -595,11 +607,15 @@ void OatTest::TestDexFileInput(bool verify) {
 }
 
 TEST_F(OatTest, DexFileInputCheckOutput) {
-  TestDexFileInput(false);
+  TestDexFileInput(false, /*low_4gb*/false);
+}
+
+TEST_F(OatTest, DexFileInputCheckOutputLow4GB) {
+  TestDexFileInput(false, /*low_4gb*/true);
 }
 
 TEST_F(OatTest, DexFileInputCheckVerifier) {
-  TestDexFileInput(true);
+  TestDexFileInput(true, /*low_4gb*/false);
 }
 
 void OatTest::TestZipFileInput(bool verify) {
@@ -667,6 +683,7 @@ void OatTest::TestZipFileInput(bool verify) {
                                                              nullptr,
                                                              nullptr,
                                                              false,
+                                                             /*low_4gb*/false,
                                                              nullptr,
                                                              &error_msg));
       ASSERT_TRUE(opened_oat_file != nullptr);
@@ -714,6 +731,7 @@ void OatTest::TestZipFileInput(bool verify) {
                                                              nullptr,
                                                              nullptr,
                                                              false,
+                                                             /*low_4gb*/false,
                                                              nullptr,
                                                              &error_msg));
       ASSERT_TRUE(opened_oat_file != nullptr);

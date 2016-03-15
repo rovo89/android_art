@@ -64,7 +64,11 @@ TEST_F(ElfWriterTest, dlsym) {
   ASSERT_TRUE(file.get() != nullptr);
   {
     std::string error_msg;
-    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(), false, false, &error_msg));
+    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(),
+                                              false,
+                                              false,
+                                              /*low_4gb*/false,
+                                              &error_msg));
     CHECK(ef.get() != nullptr) << error_msg;
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata", false);
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec", false);
@@ -72,7 +76,11 @@ TEST_F(ElfWriterTest, dlsym) {
   }
   {
     std::string error_msg;
-    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(), false, false, &error_msg));
+    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(),
+                                              false,
+                                              false,
+                                              /*low_4gb*/false,
+                                              &error_msg));
     CHECK(ef.get() != nullptr) << error_msg;
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata", true);
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec", true);
@@ -80,9 +88,13 @@ TEST_F(ElfWriterTest, dlsym) {
   }
   {
     std::string error_msg;
-    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(), false, true, &error_msg));
+    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(),
+                                              false,
+                                              true,
+                                              /*low_4gb*/false,
+                                              &error_msg));
     CHECK(ef.get() != nullptr) << error_msg;
-    CHECK(ef->Load(false, &error_msg)) << error_msg;
+    CHECK(ef->Load(false, /*low_4gb*/false, &error_msg)) << error_msg;
     EXPECT_EQ(dl_oatdata, ef->FindDynamicSymbolAddress("oatdata"));
     EXPECT_EQ(dl_oatexec, ef->FindDynamicSymbolAddress("oatexec"));
     EXPECT_EQ(dl_oatlastword, ef->FindDynamicSymbolAddress("oatlastword"));
