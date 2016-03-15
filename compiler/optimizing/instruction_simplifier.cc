@@ -469,7 +469,9 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
     return;
   }
 
-  bool outcome;
+  // Note: The `outcome` is initialized to please valgrind - the compiler can reorder
+  // the return value check with the `outcome` check, b/27651442 .
+  bool outcome = false;
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome) {
       check_cast->GetBlock()->RemoveInstruction(check_cast);
