@@ -237,7 +237,7 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
   if (input_cst != nullptr) {
     int64_t cst = Int64FromConstant(input_cst);
     int64_t mask =
-        (input_cst->GetType() == Primitive::kPrimLong) ? kMaxLongShiftValue : kMaxIntShiftValue;
+        (input_other->GetType() == Primitive::kPrimLong) ? kMaxLongShiftValue : kMaxIntShiftValue;
     if ((cst & mask) == 0) {
       // Replace code looking like
       //    SHL dst, src, 0
