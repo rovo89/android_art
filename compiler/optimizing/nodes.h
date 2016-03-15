@@ -3485,9 +3485,9 @@ class HCompare : public HBinaryOperation {
     return GetBias() == ComparisonBias::kGtBias;
   }
 
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type type) {
-    // MIPS64 uses a runtime call for FP comparisons.
-    return Primitive::IsFloatingPointType(type) ? SideEffects::CanTriggerGC() : SideEffects::None();
+  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type type ATTRIBUTE_UNUSED) {
+    // Comparisons do not require a runtime call in any back end.
+    return SideEffects::None();
   }
 
   DECLARE_INSTRUCTION(Compare);
