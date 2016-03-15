@@ -140,7 +140,6 @@ LIBART_COMMON_SRC_FILES := \
   native/java_lang_Class.cc \
   native/java_lang_DexCache.cc \
   native/java_lang_Object.cc \
-  native/java_lang_Runtime.cc \
   native/java_lang_String.cc \
   native/java_lang_StringFactory.cc \
   native/java_lang_System.cc \
