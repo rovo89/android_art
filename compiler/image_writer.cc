@@ -1542,15 +1542,16 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
       }
       case kNativeObjectRelocationTypeArtMethodArrayClean:
       case kNativeObjectRelocationTypeArtMethodArrayDirty: {
-        memcpy(dest, pair.first, LengthPrefixedArray<ArtMethod>::ComputeSize(
-            0,
-            ArtMethod::Size(target_ptr_size_),
-            ArtMethod::Alignment(target_ptr_size_)));
+        size_t size = ArtMethod::Size(target_ptr_size_);
+        size_t alignment = ArtMethod::Alignment(target_ptr_size_);
+        memcpy(dest, pair.first, LengthPrefixedArray<ArtMethod>::ComputeSize(0, size, alignment));
+        // Clear padding to avoid non-deterministic data in the image (and placate valgrind).
+        reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(dest)->ClearPadding(size, alignment);
         break;
+      }
       case kNativeObjectRelocationTypeDexCacheArray:
         // Nothing to copy here, everything is done in FixupDexCache().
         break;
-      }
     }
   }
   // Fixup the image method roots.
