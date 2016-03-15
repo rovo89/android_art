@@ -270,5 +270,10 @@
   description: "Only work with --mode=activity",
   result: EXEC_FAILED,
   names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
+},
+{
+  description: "Wrong junit constructor for test",
+  result: EXEC_FAILED,
+  names: [ "jsr166.CollectionTest#testEmptyMeansEmpty" ]
 }
 ]
