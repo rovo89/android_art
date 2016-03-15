@@ -513,7 +513,9 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
     return;
   }
 
-  bool outcome;
+  // Note: The `outcome` is initialized to please valgrind - the compiler can reorder
+  // the return value check with the `outcome` check, b/27651442 .
+  bool outcome = false;
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome && can_be_null) {
       // Type test will succeed, we just need a null test.
