@@ -332,6 +332,7 @@ inline const char* ArtMethod::GetName() {
 }
 
 inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
+  DCHECK(!IsProxyMethod());
   return GetDeclaringClass()->GetDexFile().GetCodeItem(GetCodeItemOffset());
 }
 
