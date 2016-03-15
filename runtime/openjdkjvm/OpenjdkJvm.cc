@@ -342,15 +342,15 @@ JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env,
 
   // Starting with N nativeLoad uses classloader local
   // linker namespace instead of global LD_LIBRARY_PATH
-  // (23 is Marshmallow)
-  if (target_sdk_version <= 23) {
+  // (23 is Marshmallow). This call is here to preserve
+  // backwards compatibility for the apps targeting sdk
+  // version <= 23
+  if (target_sdk_version == 0) {
     SetLdLibraryPath(env, javaLibrarySearchPath);
   }
 
   std::string error_msg;
   {
-    art::ScopedObjectAccess soa(env);
-    art::StackHandleScope<1> hs(soa.Self());
     art::JavaVMExt* vm = art::Runtime::Current()->GetJavaVM();
     bool success = vm->LoadNativeLibrary(env,
                                          filename.c_str(),
