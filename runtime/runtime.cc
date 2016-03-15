@@ -1340,7 +1340,6 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_java_lang_reflect_Method(env);
   register_java_lang_reflect_Proxy(env);
   register_java_lang_ref_Reference(env);
-  register_java_lang_Runtime(env);
   register_java_lang_String(env);
   register_java_lang_StringFactory(env);
   register_java_lang_System(env);
