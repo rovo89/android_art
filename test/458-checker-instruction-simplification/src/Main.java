@@ -414,6 +414,23 @@ public class Main {
     return arg >> 0;
   }
 
+  /// CHECK-START: long Main.Shr64(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const64:i\d+>>  IntConstant 64
+  /// CHECK-DAG:     <<Shr:j\d+>>      Shr [<<Arg>>,<<Const64>>]
+  /// CHECK-DAG:                       Return [<<Shr>>]
+
+  /// CHECK-START: long Main.Shr64(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:                       Return [<<Arg>>]
+
+  /// CHECK-START: long Main.Shr64(long) instruction_simplifier (after)
+  /// CHECK-NOT:                       Shr
+
+  public static long Shr64(long arg) {
+    return arg >> 64;
+  }
+
   /// CHECK-START: long Main.Sub0(long) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:j\d+>>   LongConstant 0
@@ -1671,6 +1688,7 @@ public static void main(String[] args) {
     assertLongEquals(OrSame(arg), arg);
     assertIntEquals(Shl0(arg), arg);
     assertLongEquals(Shr0(arg), arg);
+    assertLongEquals(Shr64(arg), arg);
     assertLongEquals(Sub0(arg), arg);
     assertIntEquals(SubAliasNeg(arg), -arg);
     assertLongEquals(UShr0(arg), arg);
