@@ -444,8 +444,16 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
             // Whether we can write to the cache.
             success = false;
           } else if (secondary_image) {
-            reason = "Should not have to patch secondary image.";
-            success = false;
+            if (Runtime::Current()->IsZygote()) {
+              // Secondary image is out of date. Clear cache and exit to let it retry from scratch.
+              LOG(ERROR) << "Cannot patch secondary image '" << image_location
+                         << "', clearing dalvik_cache and restarting zygote.";
+              PruneDalvikCache(image_isa);
+              _exit(1);
+            } else {
+              reason = "Should not have to patch secondary image.";
+              success = false;
+            }
           } else {
             // Try to relocate.
             success = RelocateImage(image_location, cache_filename.c_str(), image_isa, &reason);
