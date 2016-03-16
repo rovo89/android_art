@@ -1285,7 +1285,7 @@ void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
         size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
         if (cls != nullptr) {
-          ReferenceTypeInfo::TypeHandle return_handle= handles_->NewHandle(cls);
+          ReferenceTypeInfo::TypeHandle return_handle = handles_->NewHandle(cls);
           return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
               return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
         } else {
