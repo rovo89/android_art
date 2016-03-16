@@ -2543,7 +2543,7 @@ class HFloatConstant : public HConstant {
     return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>((-1.0f));
   }
   bool IsZero() const OVERRIDE {
-    return value_ == 0.0f;
+    return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>(0.0f);
   }
   bool IsOne() const OVERRIDE {
     return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>(1.0f);
@@ -2585,7 +2585,7 @@ class HDoubleConstant : public HConstant {
     return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((-1.0));
   }
   bool IsZero() const OVERRIDE {
-    return value_ == 0.0;
+    return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((0.0));
   }
   bool IsOne() const OVERRIDE {
     return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>(1.0);
