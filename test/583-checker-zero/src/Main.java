@@ -15,8 +15,12 @@
  */
 
 public class Main {
-  /// CHECK-START: void Main.main(String[]) inliner (after)
-  /// CHECK: HInstanceFieldSet
+  // Test that by inlining new Float(-0f), we still keep the store of
+  // -0f to the instance field. We used to remove it due to wrong assumptions
+  // around HConstant.IsZero.
+
+  /// CHECK-START: void Main.main(java.lang.String[]) inliner (after)
+  /// CHECK: InstanceFieldSet
   public static void main(String[] args) {
     if (new Float(0f).equals(new Float(-0f))) {
       throw new Error("Expected not equal");
