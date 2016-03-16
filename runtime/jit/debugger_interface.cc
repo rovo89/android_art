@@ -58,6 +58,10 @@ extern "C" {
     __asm__("");
   }
 
+  // Call __jit_debug_register_code indirectly via global variable.
+  // This gives the debugger an easy way to inject custom code to handle the events.
+  void (*__jit_debug_register_code_ptr)() = __jit_debug_register_code;
+
   // GDB will inspect contents of this descriptor.
   // Static initialization is necessary to prevent GDB from seeing
   // uninitialized descriptor.
@@ -85,7 +89,7 @@ static JITCodeEntry* CreateJITCodeEntryInternal(
   __jit_debug_descriptor.relevant_entry_ = entry;
 
   __jit_debug_descriptor.action_flag_ = JIT_REGISTER_FN;
-  __jit_debug_register_code();
+  (*__jit_debug_register_code_ptr)();
   return entry;
 }
 
@@ -102,7 +106,7 @@ static void DeleteJITCodeEntryInternal(JITCodeEntry* entry) REQUIRES(g_jit_debug
 
   __jit_debug_descriptor.relevant_entry_ = entry;
   __jit_debug_descriptor.action_flag_ = JIT_UNREGISTER_FN;
-  __jit_debug_register_code();
+  (*__jit_debug_register_code_ptr)();
   delete[] entry->symfile_addr_;
   delete entry;
 }
