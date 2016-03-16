@@ -49,7 +49,6 @@ class CompilerOptions FINAL {
   static const size_t kDefaultTinyMethodThreshold = 20;
   static const size_t kDefaultNumDexMethodsThreshold = 900;
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
-  static const bool kDefaultNativeDebuggable = false;
   static const bool kDefaultGenerateDebugInfo = false;
   static const bool kDefaultGenerateMiniDebugInfo = false;
   static const bool kDefaultIncludePatchInformation = false;
@@ -179,7 +178,7 @@ class CompilerOptions FINAL {
   }
 
   bool GetNativeDebuggable() const {
-    return native_debuggable_;
+    return GetDebuggable() && GetGenerateDebugInfo();
   }
 
   // This flag controls whether the compiler collects debugging information.
@@ -292,7 +291,6 @@ class CompilerOptions FINAL {
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;
   bool debuggable_;
-  bool native_debuggable_;
   bool generate_debug_info_;
   bool generate_mini_debug_info_;
   bool implicit_null_checks_;
