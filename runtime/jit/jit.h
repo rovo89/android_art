@@ -17,14 +17,11 @@
 #ifndef ART_RUNTIME_JIT_JIT_H_
 #define ART_RUNTIME_JIT_JIT_H_
 
-#include <unordered_map>
-
-#include "atomic.h"
+#include "base/arena_allocator.h"
+#include "base/histogram-inl.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
-#include "gc_root.h"
-#include "jni.h"
 #include "object_callbacks.h"
 #include "offline_profiling_info.h"
 #include "thread_pool.h"
@@ -62,9 +59,14 @@ class Jit {
   void DeleteThreadPool();
   // Dump interesting info: #methods compiled, code vs data size, compile / verify cumulative
   // loggers.
-  void DumpInfo(std::ostream& os);
+  void DumpInfo(std::ostream& os) REQUIRES(!lock_);
   // Add a timing logger to cumulative_timings_.
   void AddTimingLogger(const TimingLogger& logger);
+
+  void AddMemoryUsage(ArtMethod* method, size_t bytes)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   JitInstrumentationCache* GetInstrumentationCache() const {
     return instrumentation_cache_.get();
   }
@@ -82,7 +84,7 @@ class Jit {
                          const std::string& app_dir);
   void StopProfileSaver();
 
-  void DumpForSigQuit(std::ostream& os) {
+  void DumpForSigQuit(std::ostream& os) REQUIRES(!lock_) {
     DumpInfo(os);
   }
 
@@ -125,6 +127,8 @@ class Jit {
   // Performance monitoring.
   bool dump_info_on_shutdown_;
   CumulativeLogger cumulative_timings_;
+  Histogram<uint64_t> memory_use_ GUARDED_BY(lock_);
+  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   std::unique_ptr<jit::JitInstrumentationCache> instrumentation_cache_;
   std::unique_ptr<jit::JitCodeCache> code_cache_;
