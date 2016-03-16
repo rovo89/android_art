@@ -202,6 +202,7 @@ TEST_F(InductionVarAnalysisTest, ProperLoopSetup) {
   // }
   BuildLoopNest(10);
   graph_->BuildDominatorTree();
+
   ASSERT_EQ(entry_->GetLoopInformation(), nullptr);
   for (int d = 0; d < 1; d++) {
     ASSERT_EQ(loop_preheader_[d]->GetLoopInformation(),
@@ -224,8 +225,8 @@ TEST_F(InductionVarAnalysisTest, FindBasicInduction) {
   HInstruction* store = InsertArrayStore(basic_[0], 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + (0))", GetInductionInfo(store->InputAt(1), 0).c_str());
-  EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[0], 0).c_str());
+  EXPECT_STREQ("((1) * i + (0)):PrimInt", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("((1) * i + (1)):PrimInt", GetInductionInfo(increment_[0], 0).c_str());
 
   // Trip-count.
   EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
@@ -254,11 +255,11 @@ TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
       new (&allocator_) HNeg(Primitive::kPrimInt, basic_[0]), 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + (100))", GetInductionInfo(add, 0).c_str());
-  EXPECT_STREQ("(( - (1)) * i + (100))", GetInductionInfo(sub, 0).c_str());
-  EXPECT_STREQ("((100) * i + (0))", GetInductionInfo(mul, 0).c_str());
-  EXPECT_STREQ("((2) * i + (0))", GetInductionInfo(shl, 0).c_str());
-  EXPECT_STREQ("(( - (1)) * i + (0))", GetInductionInfo(neg, 0).c_str());
+  EXPECT_STREQ("((1) * i + (100)):PrimInt", GetInductionInfo(add, 0).c_str());
+  EXPECT_STREQ("(( - (1)) * i + (100)):PrimInt", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("((100) * i + (0)):PrimInt", GetInductionInfo(mul, 0).c_str());
+  EXPECT_STREQ("((2) * i + (0)):PrimInt", GetInductionInfo(shl, 0).c_str());
+  EXPECT_STREQ("(( - (1)) * i + (0)):PrimInt", GetInductionInfo(neg, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindChainInduction) {
@@ -283,9 +284,9 @@ TEST_F(InductionVarAnalysisTest, FindChainInduction) {
   k->AddInput(sub);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("(((100) - (1)) * i + (100))",
+  EXPECT_STREQ("(((100) - (1)) * i + (100)):PrimInt",
                GetInductionInfo(store1->InputAt(1), 0).c_str());
-  EXPECT_STREQ("(((100) - (1)) * i + ((100) - (1)))",
+  EXPECT_STREQ("(((100) - (1)) * i + ((100) - (1))):PrimInt",
                GetInductionInfo(store2->InputAt(1), 0).c_str());
 }
 
@@ -318,7 +319,7 @@ TEST_F(InductionVarAnalysisTest, FindTwoWayBasicInduction) {
   k_header->AddInput(k_body);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("((1) * i + (1)):PrimInt", GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindTwoWayDerivedInduction) {
@@ -345,7 +346,7 @@ TEST_F(InductionVarAnalysisTest, FindTwoWayDerivedInduction) {
   HInstruction* store = InsertArrayStore(k, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("((1) * i + (1)):PrimInt", GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindFirstOrderWrapAroundInduction) {
@@ -365,7 +366,7 @@ TEST_F(InductionVarAnalysisTest, FindFirstOrderWrapAroundInduction) {
   k->AddInput(sub);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("wrap((0), (( - (1)) * i + (100)))",
+  EXPECT_STREQ("wrap((0), (( - (1)) * i + (100)):PrimInt):PrimInt",
                GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
@@ -391,7 +392,7 @@ TEST_F(InductionVarAnalysisTest, FindSecondOrderWrapAroundInduction) {
   t->AddInput(sub);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("wrap((0), wrap((100), (( - (1)) * i + (100))))",
+  EXPECT_STREQ("wrap((0), wrap((100), (( - (1)) * i + (100)):PrimInt):PrimInt):PrimInt",
                GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
@@ -424,11 +425,16 @@ TEST_F(InductionVarAnalysisTest, FindWrapAroundDerivedInduction) {
       InsertInstruction(new (&allocator_) HShl(Primitive::kPrimInt, basic_[0], constant1_), 0));
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("wrap((100), ((2) * i + (100)))", GetInductionInfo(add, 0).c_str());
-  EXPECT_STREQ("wrap(((0) - (100)), ((2) * i + ((0) - (100))))", GetInductionInfo(sub, 0).c_str());
-  EXPECT_STREQ("wrap((0), (((2) * (100)) * i + (0)))", GetInductionInfo(mul, 0).c_str());
-  EXPECT_STREQ("wrap((0), (((2) * (2)) * i + (0)))", GetInductionInfo(shl, 0).c_str());
-  EXPECT_STREQ("wrap((0), (( - (2)) * i + (0)))", GetInductionInfo(neg, 0).c_str());
+  EXPECT_STREQ("wrap((100), ((2) * i + (100)):PrimInt):PrimInt",
+               GetInductionInfo(add, 0).c_str());
+  EXPECT_STREQ("wrap(((0) - (100)), ((2) * i + ((0) - (100))):PrimInt):PrimInt",
+               GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("wrap((0), (((2) * (100)) * i + (0)):PrimInt):PrimInt",
+               GetInductionInfo(mul, 0).c_str());
+  EXPECT_STREQ("wrap((0), (((2) * (2)) * i + (0)):PrimInt):PrimInt",
+               GetInductionInfo(shl, 0).c_str());
+  EXPECT_STREQ("wrap((0), (( - (2)) * i + (0)):PrimInt):PrimInt",
+               GetInductionInfo(neg, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindPeriodicInduction) {
@@ -455,8 +461,8 @@ TEST_F(InductionVarAnalysisTest, FindPeriodicInduction) {
   t->AddInput(k);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("periodic((0), (100))", GetInductionInfo(store1->InputAt(1), 0).c_str());
-  EXPECT_STREQ("periodic((100), (0))", GetInductionInfo(store2->InputAt(1), 0).c_str());
+  EXPECT_STREQ("periodic((0), (100)):PrimInt", GetInductionInfo(store1->InputAt(1), 0).c_str());
+  EXPECT_STREQ("periodic((100), (0)):PrimInt", GetInductionInfo(store2->InputAt(1), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindIdiomaticPeriodicInduction) {
@@ -476,8 +482,8 @@ TEST_F(InductionVarAnalysisTest, FindIdiomaticPeriodicInduction) {
   k->AddInput(sub);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("periodic((0), (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
-  EXPECT_STREQ("periodic((1), (0))", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("periodic((0), (1)):PrimInt", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("periodic((1), (0)):PrimInt", GetInductionInfo(sub, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
@@ -512,11 +518,11 @@ TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
       new (&allocator_) HNeg(Primitive::kPrimInt, k_body), 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("periodic(((1) + (100)), (100))", GetInductionInfo(add, 0).c_str());
-  EXPECT_STREQ("periodic(((1) - (100)), ((0) - (100)))", GetInductionInfo(sub, 0).c_str());
-  EXPECT_STREQ("periodic((100), (0))", GetInductionInfo(mul, 0).c_str());
-  EXPECT_STREQ("periodic((2), (0))", GetInductionInfo(shl, 0).c_str());
-  EXPECT_STREQ("periodic(( - (1)), (0))", GetInductionInfo(neg, 0).c_str());
+  EXPECT_STREQ("periodic(((1) + (100)), (100)):PrimInt", GetInductionInfo(add, 0).c_str());
+  EXPECT_STREQ("periodic(((1) - (100)), ((0) - (100))):PrimInt", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("periodic((100), (0)):PrimInt", GetInductionInfo(mul, 0).c_str());
+  EXPECT_STREQ("periodic((2), (0)):PrimInt", GetInductionInfo(shl, 0).c_str());
+  EXPECT_STREQ("periodic(( - (1)), (0)):PrimInt", GetInductionInfo(neg, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
@@ -549,7 +555,7 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
 
   // Avoid exact phi number, since that depends on the SSA building phase.
   std::regex r("\\(\\(1\\) \\* i \\+ "
-               "\\(\\(1\\) \\+ \\(\\d+:Phi\\)\\)\\)");
+               "\\(\\(1\\) \\+ \\(\\d+:Phi\\)\\)\\):PrimInt");
 
   for (int d = 0; d < 10; d++) {
     if (d == 9) {
@@ -557,11 +563,122 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
     } else {
       EXPECT_STREQ("", GetInductionInfo(store->InputAt(1), d).c_str());
     }
-    EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[d], d).c_str());
+    EXPECT_STREQ("((1) * i + (1)):PrimInt", GetInductionInfo(increment_[d], d).c_str());
     // Trip-count.
     EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
                  GetInductionInfo(loop_header_[d]->GetLastInstruction(), d).c_str());
   }
+}
+
+TEST_F(InductionVarAnalysisTest, ByteLoopControl1) {
+  // Setup:
+  // for (byte i = -128; i < 127; i++) {  // just fits!
+  // }
+  BuildLoopNest(1);
+  basic_[0]->ReplaceInput(graph_->GetIntConstant(-128), 0);
+  HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
+  ifs->ReplaceInput(graph_->GetIntConstant(127), 1);
+  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimByte, increment_[0], -1);
+  loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
+  basic_[0]->ReplaceInput(conv, 1);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("((1) * i + ((-128) + (1))):PrimByte", GetInductionInfo(increment_[0], 0).c_str());
+  // Trip-count.
+  EXPECT_STREQ("(((127) - (-128)) (TC-loop) ((-128) < (127)))",
+               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, ByteLoopControl2) {
+  // Setup:
+  // for (byte i = -128; i < 128; i++) {  // infinite loop!
+  // }
+  BuildLoopNest(1);
+  basic_[0]->ReplaceInput(graph_->GetIntConstant(-128), 0);
+  HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
+  ifs->ReplaceInput(graph_->GetIntConstant(128), 1);
+  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimByte, increment_[0], -1);
+  loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
+  basic_[0]->ReplaceInput(conv, 1);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("((1) * i + ((-128) + (1))):PrimByte", GetInductionInfo(increment_[0], 0).c_str());
+  // Trip-count undefined.
+  EXPECT_STREQ("", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, ShortLoopControl1) {
+  // Setup:
+  // for (short i = -32768; i < 32767; i++) {  // just fits!
+  // }
+  BuildLoopNest(1);
+  basic_[0]->ReplaceInput(graph_->GetIntConstant(-32768), 0);
+  HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
+  ifs->ReplaceInput(graph_->GetIntConstant(32767), 1);
+  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimShort, increment_[0], -1);
+  loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
+  basic_[0]->ReplaceInput(conv, 1);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("((1) * i + ((-32768) + (1))):PrimShort",
+               GetInductionInfo(increment_[0], 0).c_str());
+  // Trip-count.
+  EXPECT_STREQ("(((32767) - (-32768)) (TC-loop) ((-32768) < (32767)))",
+               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, ShortLoopControl2) {
+  // Setup:
+  // for (short i = -32768; i < 32768; i++) {  // infinite loop!
+  // }
+  BuildLoopNest(1);
+  basic_[0]->ReplaceInput(graph_->GetIntConstant(-32768), 0);
+  HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
+  ifs->ReplaceInput(graph_->GetIntConstant(32768), 1);
+  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimShort, increment_[0], -1);
+  loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
+  basic_[0]->ReplaceInput(conv, 1);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("((1) * i + ((-32768) + (1))):PrimShort",
+               GetInductionInfo(increment_[0], 0).c_str());
+  // Trip-count undefined.
+  EXPECT_STREQ("", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, CharLoopControl1) {
+  // Setup:
+  // for (char i = 0; i < 65535; i++) {  // just fits!
+  // }
+  BuildLoopNest(1);
+  HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
+  ifs->ReplaceInput(graph_->GetIntConstant(65535), 1);
+  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimChar, increment_[0], -1);
+  loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
+  basic_[0]->ReplaceInput(conv, 1);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("((1) * i + (1)):PrimChar", GetInductionInfo(increment_[0], 0).c_str());
+  // Trip-count.
+  EXPECT_STREQ("((65535) (TC-loop) ((0) < (65535)))",
+               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, CharLoopControl2) {
+  // Setup:
+  // for (char i = 0; i < 65536; i++) {  // infinite loop!
+  // }
+  BuildLoopNest(1);
+  HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
+  ifs->ReplaceInput(graph_->GetIntConstant(65536), 1);
+  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimChar, increment_[0], -1);
+  loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
+  basic_[0]->ReplaceInput(conv, 1);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("((1) * i + (1)):PrimChar", GetInductionInfo(increment_[0], 0).c_str());
+  // Trip-count undefined.
+  EXPECT_STREQ("", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
 }
 
 }  // namespace art
