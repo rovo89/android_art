@@ -422,7 +422,7 @@ class Instrumentation {
   // Does not hold lock, used to check if someone changed from not instrumented to instrumented
   // during a GC suspend point.
   bool AllocEntrypointsInstrumented() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return quick_alloc_entry_points_instrumentation_counter_ > 0;
+    return alloc_entrypoints_instrumented_;
   }
 
  private:
@@ -579,6 +579,12 @@ class Instrumentation {
 
   // Greater than 0 if quick alloc entry points instrumented.
   size_t quick_alloc_entry_points_instrumentation_counter_;
+
+  // alloc_entrypoints_instrumented_ is only updated with all the threads suspended, this is done
+  // to prevent races with the GC where the GC relies on thread suspension only see
+  // alloc_entrypoints_instrumented_ change during suspend points.
+  bool alloc_entrypoints_instrumented_;
+
   friend class InstrumentationTest;  // For GetCurrentInstrumentationLevel and ConfigureStubs.
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
