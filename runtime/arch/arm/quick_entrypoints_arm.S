@@ -1125,7 +1125,7 @@ ENTRY art_quick_alloc_object_tlab
     // r0: type_idx/return value, r1: ArtMethod*, r9: Thread::Current
     // r2, r3, r12: free.
 #if defined(USE_READ_BARRIER)
-    mvn    r0, #0                                             // Read barrier not supported here.
+    mvn    x0, #0                                             // Read barrier not supported here.
     bx     lr                                                 // Return -1.
 #endif
     ldr    r2, [r1, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_32]    // Load dex cache resolved types array
