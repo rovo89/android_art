@@ -4186,6 +4186,10 @@ void LocationsBuilderX86::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
   switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
@@ -4221,6 +4225,10 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
   Condition less_cond = kLess;
 
   switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
       GenerateIntCompare(left, right);
       break;
