@@ -270,9 +270,9 @@ endif
 test-art-host-dexdump: $(addprefix $(HOST_OUT_EXECUTABLES)/, dexdump2 dexlist)
 	ANDROID_HOST_OUT=$(realpath $(HOST_OUT)) art/test/dexdump/run-all-tests
 
-# Valgrind. Currently only 32b gtests. TODO: change this from 32-bit only to both 32-bit and 64-bit.
+# Valgrind.
 .PHONY: valgrind-test-art-host
-valgrind-test-art-host: valgrind-test-art-host-gtest32
+valgrind-test-art-host: valgrind-test-art-host-gtest
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 
 .PHONY: valgrind-test-art-host32
