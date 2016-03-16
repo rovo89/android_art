@@ -583,6 +583,14 @@ class Runtime {
 
   bool IsDebuggable() const;
 
+  bool IsNativeDebuggable() const {
+    return is_native_debuggable_;
+  }
+
+  void SetNativeDebuggable(bool value) {
+    is_native_debuggable_ = value;
+  }
+
   // Returns the build fingerprint, if set. Otherwise an empty string is returned.
   std::string GetFingerprint() {
     return fingerprint_;
@@ -795,6 +803,9 @@ class Runtime {
   // When non-empty the native bridge will be loaded from the given file. An empty value means
   // that there's no native bridge.
   bool is_native_bridge_loaded_;
+
+  // Whether we are running under native debugger.
+  bool is_native_debuggable_;
 
   // The maximum number of failed boots we allow before pruning the dalvik cache
   // and trying again. This option is only inspected when we're running as a

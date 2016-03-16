@@ -203,6 +203,7 @@ Runtime::Runtime()
       implicit_suspend_checks_(false),
       no_sig_chain_(false),
       is_native_bridge_loaded_(false),
+      is_native_debuggable_(false),
       zygote_max_failed_boots_(0),
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
