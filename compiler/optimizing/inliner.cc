@@ -1279,10 +1279,14 @@ void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
         // some functionality from the reference type propagation.
         DCHECK(return_replacement->IsPhi());
         size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        ReferenceTypeInfo::TypeHandle return_handle =
-            handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
-        return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
-            return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+        mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
+        if (cls != nullptr) {
+          ReferenceTypeInfo::TypeHandle return_handle= handles_->NewHandle(cls);
+          return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
+              return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+        } else {
+          return_replacement->SetReferenceTypeInfo(graph_->GetInexactObjectRti());
+        }
       }
 
       if (do_rtp) {
