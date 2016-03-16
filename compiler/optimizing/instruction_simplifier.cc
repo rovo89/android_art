@@ -34,8 +34,12 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void RecordSimplification() {
     simplification_occurred_ = true;
     simplifications_at_current_position_++;
-    if (stats_) {
-      stats_->RecordStat(kInstructionSimplifications);
+    MaybeRecordStat(kInstructionSimplifications);
+  }
+
+  void MaybeRecordStat(MethodCompilationStat stat) {
+    if (stats_ != nullptr) {
+      stats_->RecordStat(stat);
     }
   }
 
@@ -466,9 +470,7 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
 
   if (object->IsNullConstant()) {
     check_cast->GetBlock()->RemoveInstruction(check_cast);
-    if (stats_ != nullptr) {
-      stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
-    }
+    MaybeRecordStat(MethodCompilationStat::kRemovedCheckedCast);
     return;
   }
 
@@ -478,9 +480,7 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome) {
       check_cast->GetBlock()->RemoveInstruction(check_cast);
-      if (stats_ != nullptr) {
-        stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
-      }
+      MaybeRecordStat(MethodCompilationStat::kRemovedCheckedCast);
       if (!load_class->HasUses()) {
         // We cannot rely on DCE to remove the class because the `HLoadClass` thinks it can throw.
         // However, here we know that it cannot because the checkcast was successfull, hence
@@ -510,6 +510,7 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
 
   HGraph* graph = GetGraph();
   if (object->IsNullConstant()) {
+    MaybeRecordStat(kRemovedInstanceOf);
     instruction->ReplaceWith(graph->GetIntConstant(0));
     instruction->GetBlock()->RemoveInstruction(instruction);
     RecordSimplification();
@@ -520,6 +521,7 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
   // the return value check with the `outcome` check, b/27651442 .
   bool outcome = false;
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
+    MaybeRecordStat(kRemovedInstanceOf);
     if (outcome && can_be_null) {
       // Type test will succeed, we just need a null test.
       HNotEqual* test = new (graph->GetArena()) HNotEqual(graph->GetNullConstant(), object);
