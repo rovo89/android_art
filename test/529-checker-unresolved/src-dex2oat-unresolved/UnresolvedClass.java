@@ -14,17 +14,7 @@
  * limitations under the License.
  */
 
-interface UnresolvedInterface {
-  void interfaceMethod();
-}
-
-class UnresolvedSuperClass {
-  public void superMethod() {
-    System.out.println("UnresolvedClass.superMethod()");
-  }
-}
-
-class UnresolvedClass extends UnresolvedSuperClass implements UnresolvedInterface {
+public class UnresolvedClass extends UnresolvedSuperClass implements UnresolvedInterface {
   static public void staticMethod() {
     System.out.println("UnresolvedClass.staticMethod()");
   }
