@@ -83,7 +83,8 @@ Instrumentation::Instrumentation()
       deoptimized_methods_lock_("deoptimized methods lock"),
       deoptimization_enabled_(false),
       interpreter_handler_table_(kMainHandlerTable),
-      quick_alloc_entry_points_instrumentation_counter_(0) {
+      quick_alloc_entry_points_instrumentation_counter_(0),
+      alloc_entrypoints_instrumented_(false) {
 }
 
 void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
@@ -642,10 +643,12 @@ void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     SetQuickAllocEntryPointsInstrumented(instrumented);
     ResetQuickAllocEntryPoints();
+    alloc_entrypoints_instrumented_ = instrumented;
   } else {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     SetQuickAllocEntryPointsInstrumented(instrumented);
     ResetQuickAllocEntryPoints();
+    alloc_entrypoints_instrumented_ = instrumented;
   }
 }
 
