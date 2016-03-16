@@ -83,6 +83,8 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
 void Jit::DumpInfo(std::ostream& os) {
   code_cache_->Dump(os);
   cumulative_timings_.Dump(os);
+  MutexLock mu(Thread::Current(), lock_);
+  memory_use_.PrintMemoryUse(os);
 }
 
 void Jit::AddTimingLogger(const TimingLogger& logger) {
@@ -95,6 +97,8 @@ Jit::Jit() : jit_library_handle_(nullptr),
              jit_compile_method_(nullptr),
              dump_info_on_shutdown_(false),
              cumulative_timings_("JIT timings"),
+             memory_use_("Memory used for compilation", 16),
+             lock_("JIT memory use lock"),
              save_profiling_info_(false),
              generate_debug_info_(false) {
 }
@@ -431,6 +435,17 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   thread->PushShadowFrame(shadow_frame);
   VLOG(jit) << "Done running OSR code for " << method_name;
   return true;
+}
+
+void Jit::AddMemoryUsage(ArtMethod* method, size_t bytes) {
+  if (bytes > 4 * MB) {
+    LOG(INFO) << "Compiler allocated "
+              << PrettySize(bytes)
+              << " to compile "
+              << PrettyMethod(method);
+  }
+  MutexLock mu(Thread::Current(), lock_);
+  memory_use_.AddValue(bytes);
 }
 
 }  // namespace jit
