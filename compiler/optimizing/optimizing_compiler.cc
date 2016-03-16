@@ -892,7 +892,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   }
 
   size_t stack_map_size = codegen->ComputeStackMapsSize();
-  uint8_t* stack_map_data = code_cache->ReserveData(self, stack_map_size);
+  uint8_t* stack_map_data = code_cache->ReserveData(self, stack_map_size, method);
   if (stack_map_data == nullptr) {
     return false;
   }
