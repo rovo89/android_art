@@ -698,7 +698,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       CodeGenerator::Create(graph,
                             instruction_set,
                             *compiler_driver->GetInstructionSetFeatures(),
-                            compiler_driver->GetCompilerOptions()));
+                            compiler_driver->GetCompilerOptions(),
+                            compilation_stats_.get()));
   if (codegen.get() == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;

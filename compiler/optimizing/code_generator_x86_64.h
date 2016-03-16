@@ -260,8 +260,6 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
                                CpuRegister obj,
                                uint32_t offset);
 
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
   void GenerateCompareTest(HCondition* condition);
@@ -514,6 +512,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   }
 
   void GenerateNop();
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
