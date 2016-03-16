@@ -483,9 +483,7 @@ public class Main {
   /// CHECK:                            Arm64DataProcWithShifterOp
   /// CHECK:                            Arm64DataProcWithShifterOp
   /// CHECK:                            Arm64DataProcWithShifterOp
-  /// CHECK:                            Arm64DataProcWithShifterOp
-  /// CHECK:                            Arm64DataProcWithShifterOp
-  /// CHECK:                            Arm64DataProcWithShifterOp
+  // Note: `b << 32`, `b >> 32` and `b >>> 32` are optimized away by generic simplifier.
 
   /// CHECK-START-ARM64: void Main.$opt$validateShiftInt(int, int) instruction_simplifier_arm64 (after)
   /// CHECK-NOT:                        Shl
