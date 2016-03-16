@@ -5984,9 +5984,9 @@ artMterpAsmInstructionStart = .L_op_nop
     ubfx    w2, wINST, #8, #4           // w2<- A
     GET_VREG_WIDE d1, w1                // d1<- vB
     GET_VREG_WIDE d0, w2                // d0<- vA
-    FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     bl fmod
     ubfx    w2, wINST, #8, #4           // w2<- A (need to reload - killed across call)
+    FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE d0, w2                // vAA<- result
     GOTO_OPCODE ip                      // jump to next instruction

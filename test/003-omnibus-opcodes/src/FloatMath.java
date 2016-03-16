@@ -135,7 +135,8 @@ public class FloatMath {
     static float[] floatOperTest(float x, float y) {
         System.out.println("FloatMath.floatOperTest");
 
-        float[] results = new float[9];
+        float[] results = new float[10];
+        float tmp;
 
         /* this seems to generate "op-float" instructions */
         results[0] = x + y;
@@ -145,7 +146,21 @@ public class FloatMath {
         results[4] = x % -y;
 
         /* this seems to generate "op-float/2addr" instructions */
-        results[8] = x + (((((x + y) - y) * y) / y) % y);
+        tmp = x;
+        tmp += y;
+        results[5] = tmp;
+        tmp = x;
+        tmp -= y;
+        results[6] = tmp;
+        tmp = x;
+        tmp *= y;
+        results[7] = tmp;
+        tmp = x;
+        tmp /= y;
+        results[8] = tmp;
+        tmp = x;
+        tmp %= -y;
+        results[9] = tmp;
 
         return results;
     }
@@ -155,7 +170,11 @@ public class FloatMath {
         Main.assertTrue(results[2] > -210000.01f && results[2] < -209999.99f);
         Main.assertTrue(results[3] > -23333.34f && results[3] < -23333.32f);
         Main.assertTrue(results[4] > 0.999f && results[4] < 1.001f);
-        Main.assertTrue(results[8] > 70000.99f && results[8] < 70001.01f);
+        Main.assertTrue(results[5] > 69996.99f && results[5] < 69997.01f);
+        Main.assertTrue(results[6] > 70002.99f && results[6] < 70003.01f);
+        Main.assertTrue(results[7] > -210000.01f && results[7] < -209999.99f);
+        Main.assertTrue(results[8] > -23333.34f && results[8] < -23333.32f);
+        Main.assertTrue(results[9] > 0.999f && results[9] < 1.001f);
     }
 
     /*
@@ -165,7 +184,8 @@ public class FloatMath {
     static double[] doubleOperTest(double x, double y) {
         System.out.println("FloatMath.doubleOperTest");
 
-        double[] results = new double[9];
+        double[] results = new double[10];
+        double tmp;
 
         /* this seems to generate "op-double" instructions */
         results[0] = x + y;
@@ -175,7 +195,21 @@ public class FloatMath {
         results[4] = x % -y;
 
         /* this seems to generate "op-double/2addr" instructions */
-        results[8] = x + (((((x + y) - y) * y) / y) % y);
+        tmp = x;
+        tmp += y;
+        results[5] = tmp;
+        tmp = x;
+        tmp -= y;
+        results[6] = tmp;
+        tmp = x;
+        tmp *= y;
+        results[7] = tmp;
+        tmp = x;
+        tmp /= y;
+        results[8] = tmp;
+        tmp = x;
+        tmp %= -y;
+        results[9] = tmp;
 
         return results;
     }
@@ -185,7 +219,11 @@ public class FloatMath {
         Main.assertTrue(results[2] > -210000.01 && results[2] < -209999.99);
         Main.assertTrue(results[3] > -23333.34 && results[3] < -23333.32);
         Main.assertTrue(results[4] > 0.999 && results[4] < 1.001);
-        Main.assertTrue(results[8] > 70000.99 && results[8] < 70001.01);
+        Main.assertTrue(results[5] > 69996.99 && results[5] < 69997.01);
+        Main.assertTrue(results[6] > 70002.99 && results[6] < 70003.01);
+        Main.assertTrue(results[7] > -210000.01 && results[7] < -209999.99);
+        Main.assertTrue(results[8] > -23333.34 && results[8] < -23333.32);
+        Main.assertTrue(results[9] > 0.999 && results[9] < 1.001);
     }
 
     /*
