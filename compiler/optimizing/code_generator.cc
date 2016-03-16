@@ -1110,6 +1110,16 @@ void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
   }
 }
 
+void CodeGenerator::GenerateNullCheck(HNullCheck* instruction) {
+  if (IsImplicitNullCheckAllowed(instruction)) {
+    MaybeRecordStat(kImplicitNullCheckGenerated);
+    GenerateImplicitNullCheck(instruction);
+  } else {
+    MaybeRecordStat(kExplicitNullCheckGenerated);
+    GenerateExplicitNullCheck(instruction);
+  }
+}
+
 void CodeGenerator::ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const {
   LocationSummary* locations = suspend_check->GetLocations();
   HBasicBlock* block = suspend_check->GetBlock();

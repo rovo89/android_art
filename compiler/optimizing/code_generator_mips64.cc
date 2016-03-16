@@ -3550,19 +3550,19 @@ void LocationsBuilderMIPS64::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorMIPS64::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  if (codegen_->CanMoveNullCheckToUser(instruction)) {
+void CodeGeneratorMIPS64::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
   Location obj = instruction->GetLocations()->InAt(0);
 
   __ Lw(ZERO, obj.AsRegister<GpuRegister>(), 0);
-  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
-void InstructionCodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instruction) {
+void CodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathMIPS64(instruction);
-  codegen_->AddSlowPath(slow_path);
+  AddSlowPath(slow_path);
 
   Location obj = instruction->GetLocations()->InAt(0);
 
@@ -3570,11 +3570,7 @@ void InstructionCodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instr
 }
 
 void InstructionCodeGeneratorMIPS64::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
-    GenerateImplicitNullCheck(instruction);
-  } else {
-    GenerateExplicitNullCheck(instruction);
-  }
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderMIPS64::VisitOr(HOr* instruction) {

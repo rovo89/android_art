@@ -274,9 +274,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
                                Location root,
                                Register obj,
                                uint32_t offset);
-
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              Label* true_target,
@@ -513,6 +510,9 @@ class CodeGeneratorARM : public CodeGenerator {
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
   void GenerateNop();
+
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

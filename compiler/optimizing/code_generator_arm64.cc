@@ -4193,20 +4193,20 @@ void LocationsBuilderARM64::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  if (codegen_->CanMoveNullCheckToUser(instruction)) {
+void CodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
 
   BlockPoolsScope block_pools(GetVIXLAssembler());
   Location obj = instruction->GetLocations()->InAt(0);
   __ Ldr(wzr, HeapOperandFrom(obj, Offset(0)));
-  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
-void InstructionCodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instruction) {
+void CodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM64(instruction);
-  codegen_->AddSlowPath(slow_path);
+  AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
   Location obj = locations->InAt(0);
@@ -4215,11 +4215,7 @@ void InstructionCodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instru
 }
 
 void InstructionCodeGeneratorARM64::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
-    GenerateImplicitNullCheck(instruction);
-  } else {
-    GenerateExplicitNullCheck(instruction);
-  }
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderARM64::VisitOr(HOr* instruction) {
