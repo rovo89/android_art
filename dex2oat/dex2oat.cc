@@ -255,6 +255,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --compiler-filter="
                 "(verify-none"
+                "|verify-at-runtime"
                 "|interpret-only"
                 "|space"
                 "|balanced"
@@ -287,8 +288,8 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --num-dex-methods=<method-count>: threshold size for a small dex file for");
   UsageError("      compiler filter tuning. If the input has fewer than this many methods");
-  UsageError("      and the filter is not interpret-only or verify-none, overrides the");
-  UsageError("      filter to use speed");
+  UsageError("      and the filter is not interpret-only or verify-none or verify-at-runtime, ");
+  UsageError("      overrides the filter to use speed");
   UsageError("      Example: --num-dex-method=%d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("      Default: %d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("");
@@ -1452,8 +1453,8 @@ class Dex2Oat FINAL {
     }
 
     /*
-     * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
-     * Don't bother to check if we're doing the image.
+     * If we're not in interpret-only or verify-none or verify-at-runtime mode, go ahead and
+     * compile small applications.  Don't bother to check if we're doing the image.
      */
     if (!IsBootImage() &&
         compiler_options_->IsCompilationEnabled() &&
