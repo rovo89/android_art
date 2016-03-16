@@ -376,7 +376,8 @@ CompilerDriver::CompilerDriver(
       support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
       dex_files_for_oat_file_(nullptr),
       compiled_method_storage_(swap_fd),
-      profile_compilation_info_(profile_compilation_info) {
+      profile_compilation_info_(profile_compilation_info),
+      max_arena_alloc_(0) {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
 
@@ -2487,6 +2488,9 @@ void CompilerDriver::Compile(jobject class_loader,
                    parallel_thread_pool_.get(),
                    parallel_thread_count_,
                    timings);
+    const ArenaPool* const arena_pool = Runtime::Current()->GetArenaPool();
+    const size_t arena_alloc = arena_pool->GetBytesAllocated();
+    max_arena_alloc_ = std::max(arena_alloc, max_arena_alloc_);
     Runtime::Current()->ReclaimArenaPoolMemory();
   }
   VLOG(compiler) << "Compile: " << GetMemoryUsageString(false);
@@ -2726,12 +2730,9 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
 
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   std::ostringstream oss;
-  Runtime* const runtime = Runtime::Current();
-  const ArenaPool* const arena_pool = runtime->GetArenaPool();
-  const gc::Heap* const heap = runtime->GetHeap();
-  const size_t arena_alloc = arena_pool->GetBytesAllocated();
+  const gc::Heap* const heap = Runtime::Current()->GetHeap();
   const size_t java_alloc = heap->GetBytesAllocated();
-  oss << "arena alloc=" << PrettySize(arena_alloc) << " (" << arena_alloc << "B)";
+  oss << "arena alloc=" << PrettySize(max_arena_alloc_) << " (" << max_arena_alloc_ << "B)";
   oss << " java alloc=" << PrettySize(java_alloc) << " (" << java_alloc << "B)";
 #if defined(__BIONIC__) || defined(__GLIBC__)
   const struct mallinfo info = mallinfo();
