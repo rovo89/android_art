@@ -706,7 +706,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
                                  uint32_t dex_pc,
                                  SlowPathCode* slow_path) {
   if (instruction != nullptr) {
-    // The code generated for some type conversions and comparisons
+    // The code generated for some type conversions
     // may call the runtime, thus normally requiring a subsequent
     // call to this method. However, the method verifier does not
     // produce PC information for certain instructions, which are
@@ -717,7 +717,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
     // CodeGenerator::RecordPcInfo without triggering an error in
     // CodeGenerator::BuildNativeGCMap ("Missing ref for dex pc 0x")
     // thereafter.
-    if (instruction->IsTypeConversion() || instruction->IsCompare()) {
+    if (instruction->IsTypeConversion()) {
       return;
     }
     if (instruction->IsRem()) {
