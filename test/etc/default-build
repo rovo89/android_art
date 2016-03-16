@@ -131,16 +131,14 @@ if [ ${HAS_SRC_DEX2OAT_UNRESOLVED} = "true" ]; then
     jar cf classes.jill.jar -C classes .
     jar cf classes-ex.jill.jar -C classes-ex .
 
-    ${JACK} --import classes.jill.jar --output-dex .
-    zip $TEST_NAME.jar classes.dex
     ${JACK} --import classes-ex.jill.jar --output-dex .
     zip ${TEST_NAME}-ex.jar classes.dex
+    ${JACK} --import classes.jill.jar --output-dex .
   else
     if [ ${NEED_DEX} = "true" ]; then
-      ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
-      zip $TEST_NAME.jar classes.dex
       ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes.dex --dump-width=1000 classes-ex
       zip ${TEST_NAME}-ex.jar classes.dex
+      ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
     fi
   fi
 else
@@ -200,63 +198,62 @@ else
       fi
     fi
   fi
+fi
 
-  if [ "${HAS_SMALI}" = "true" ]; then
-    # Compile Smali classes
-    ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
+if [ "${HAS_SMALI}" = "true" ]; then
+  # Compile Smali classes
+  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
 
-    # Don't bother with dexmerger if we provide our own main function in a smali file.
-    if [ ${SKIP_DX_MERGER} = "false" ]; then
-      ${DXMERGER} classes.dex classes.dex smali_classes.dex
-    else
-      mv smali_classes.dex classes.dex
+  # Don't bother with dexmerger if we provide our own main function in a smali file.
+  if [ ${SKIP_DX_MERGER} = "false" ]; then
+    ${DXMERGER} classes.dex classes.dex smali_classes.dex
+  else
+    mv smali_classes.dex classes.dex
+  fi
+fi
+
+if [ "${HAS_SMALI_MULTIDEX}" = "true" ]; then
+  # Compile Smali classes
+  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
+
+  # Don't bother with dexmerger if we provide our own main function in a smali file.
+  if [ ${HAS_SRC_MULTIDEX} = "true" ]; then
+    ${DXMERGER} classes2.dex classes2.dex smali_classes2.dex
+  else
+    mv smali_classes2.dex classes2.dex
+  fi
+fi
+
+
+if [ ${HAS_SRC_EX} = "true" ]; then
+  if [ ${USE_JACK} = "true" ]; then
+      # Rename previous "classes.dex" so it is not overwritten.
+      mv classes.dex classes-1.dex
+      #TODO find another way to append src.jack to the jack classpath
+      ${JACK}:src.jack ${JACK_ARGS} --output-dex . src-ex
+      zip $TEST_NAME-ex.jar classes.dex
+      # Restore previous "classes.dex" so it can be zipped.
+      mv classes-1.dex classes.dex
+  else
+    mkdir classes-ex
+    ${JAVAC} ${JAVAC_ARGS} -d classes-ex -cp classes `find src-ex -name '*.java'`
+    if [ ${NEED_DEX} = "true" ]; then
+      ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex \
+        --dump-width=1000 ${DX_FLAGS} classes-ex
+
+      # quick shuffle so that the stored name is "classes.dex"
+      mv classes.dex classes-1.dex
+      mv classes-ex.dex classes.dex
+      zip $TEST_NAME-ex.jar classes.dex
+      mv classes.dex classes-ex.dex
+      mv classes-1.dex classes.dex
     fi
   fi
-
-  if [ "${HAS_SMALI_MULTIDEX}" = "true" ]; then
-    # Compile Smali classes
-    ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
-
-    # Don't bother with dexmerger if we provide our own main function in a smali file.
-    if [ ${HAS_SRC_MULTIDEX} = "true" ]; then
-      ${DXMERGER} classes2.dex classes2.dex smali_classes2.dex
-    else
-      mv smali_classes2.dex classes2.dex
-    fi
-  fi
-
-
-  if [ ${HAS_SRC_EX} = "true" ]; then
-    if [ ${USE_JACK} = "true" ]; then
-        # Rename previous "classes.dex" so it is not overwritten.
-        mv classes.dex classes-1.dex
-        #TODO find another way to append src.jack to the jack classpath
-        ${JACK}:src.jack ${JACK_ARGS} --output-dex . src-ex
-        zip $TEST_NAME-ex.jar classes.dex
-        # Restore previous "classes.dex" so it can be zipped.
-        mv classes-1.dex classes.dex
-    else
-      mkdir classes-ex
-      ${JAVAC} ${JAVAC_ARGS} -d classes-ex -cp classes `find src-ex -name '*.java'`
-      if [ ${NEED_DEX} = "true" ]; then
-        ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex \
-          --dump-width=1000 ${DX_FLAGS} classes-ex
-
-        # quick shuffle so that the stored name is "classes.dex"
-        mv classes.dex classes-1.dex
-        mv classes-ex.dex classes.dex
-        zip $TEST_NAME-ex.jar classes.dex
-        mv classes.dex classes-ex.dex
-        mv classes-1.dex classes.dex
-      fi
-    fi
-  fi
+fi
 
 # Create a single jar with two dex files for multidex.
-  if [ ${HAS_SRC_MULTIDEX} = "true" ] || [ ${HAS_SMALI_MULTIDEX} = "true" ]; then
-    zip $TEST_NAME.jar classes.dex classes2.dex
-  elif [ ${NEED_DEX} = "true" ]; then
-    zip $TEST_NAME.jar classes.dex
-  fi
-
+if [ ${HAS_SRC_MULTIDEX} = "true" ] || [ ${HAS_SMALI_MULTIDEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex classes2.dex
+elif [ ${NEED_DEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex
 fi
