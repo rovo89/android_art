@@ -94,7 +94,6 @@
 #include "native/java_lang_Class.h"
 #include "native/java_lang_DexCache.h"
 #include "native/java_lang_Object.h"
-#include "native/java_lang_Runtime.h"
 #include "native/java_lang_String.h"
 #include "native/java_lang_StringFactory.h"
 #include "native/java_lang_System.h"
