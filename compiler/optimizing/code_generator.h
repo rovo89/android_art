@@ -278,6 +278,9 @@ class CodeGenerator {
 
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
+  void GenerateNullCheck(HNullCheck* null_check);
+  virtual void GenerateImplicitNullCheck(HNullCheck* null_check) = 0;
+  virtual void GenerateExplicitNullCheck(HNullCheck* null_check) = 0;
 
   // Records a stack map which the runtime might use to set catch phi values
   // during exception delivery.
