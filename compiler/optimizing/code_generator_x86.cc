@@ -3662,6 +3662,7 @@ void LocationsBuilderX86::VisitDivZeroCheck(HDivZeroCheck* instruction) {
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   switch (instruction->GetType()) {
+    case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
@@ -3692,6 +3693,7 @@ void InstructionCodeGeneratorX86::VisitDivZeroCheck(HDivZeroCheck* instruction) 
   Location value = locations->InAt(0);
 
   switch (instruction->GetType()) {
+    case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:

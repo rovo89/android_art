@@ -2530,6 +2530,7 @@ void InstructionCodeGeneratorMIPS::VisitDivZeroCheck(HDivZeroCheck* instruction)
   Primitive::Type type = instruction->GetType();
 
   switch (type) {
+    case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:

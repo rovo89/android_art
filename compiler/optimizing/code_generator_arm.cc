@@ -3151,6 +3151,7 @@ void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) 
   Location value = locations->InAt(0);
 
   switch (instruction->GetType()) {
+    case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
