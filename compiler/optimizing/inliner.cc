@@ -293,7 +293,11 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   }
 
   if (actual_method != nullptr) {
-    return TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ true);
+    bool result = TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ true);
+    if (result && !invoke_instruction->IsInvokeStaticOrDirect()) {
+      MaybeRecordStat(kInlinedInvokeVirtualOrInterface);
+    }
+    return result;
   }
 
   DCHECK(!invoke_instruction->IsInvokeStaticOrDirect());

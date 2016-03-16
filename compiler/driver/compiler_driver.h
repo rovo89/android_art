@@ -694,6 +694,7 @@ class CompilerDriver {
   // Info for profile guided compilation.
   const ProfileCompilationInfo* const profile_compilation_info_;
 
+  size_t max_arena_alloc_;
   friend class CompileClassVisitor;
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
