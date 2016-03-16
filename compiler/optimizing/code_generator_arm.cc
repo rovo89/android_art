@@ -4285,19 +4285,19 @@ void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorARM::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  if (codegen_->CanMoveNullCheckToUser(instruction)) {
+void CodeGeneratorARM::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
   Location obj = instruction->GetLocations()->InAt(0);
 
   __ LoadFromOffset(kLoadWord, IP, obj.AsRegister<Register>(), 0);
-  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
-void InstructionCodeGeneratorARM::GenerateExplicitNullCheck(HNullCheck* instruction) {
+void CodeGeneratorARM::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCode* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction);
-  codegen_->AddSlowPath(slow_path);
+  AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
   Location obj = locations->InAt(0);
@@ -4306,11 +4306,7 @@ void InstructionCodeGeneratorARM::GenerateExplicitNullCheck(HNullCheck* instruct
 }
 
 void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
-    GenerateImplicitNullCheck(instruction);
-  } else {
-    GenerateExplicitNullCheck(instruction);
-  }
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {

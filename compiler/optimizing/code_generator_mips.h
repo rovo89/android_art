@@ -226,8 +226,6 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateIntCompare(IfCondition cond, LocationSummary* locations);
   void GenerateIntCompareAndBranch(IfCondition cond,
                                    LocationSummary* locations,
@@ -362,6 +360,8 @@ class CodeGeneratorMIPS : public CodeGenerator {
   }
 
   void GenerateNop();
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Labels for each block that will be compiled.
