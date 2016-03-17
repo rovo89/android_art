@@ -52,9 +52,13 @@ std::string ProfileCompilationInfo::GetProfileDexFileKey(const std::string& dex_
 bool ProfileCompilationInfo::SaveProfilingInfo(
     const std::string& filename,
     const std::vector<ArtMethod*>& methods,
-    const std::set<DexCacheResolvedClasses>& resolved_classes) {
+    const std::set<DexCacheResolvedClasses>& resolved_classes,
+    uint64_t* bytes_written) {
   if (methods.empty() && resolved_classes.empty()) {
     VLOG(profiler) << "No info to save to " << filename;
+    if (bytes_written != nullptr) {
+      *bytes_written = 0;
+    }
     return true;
   }
 
@@ -99,6 +103,9 @@ bool ProfileCompilationInfo::SaveProfilingInfo(
   if (result) {
     VLOG(profiler) << "Successfully saved profile info to " << filename
         << " Size: " << GetFileSizeBytes(filename);
+    if (bytes_written != nullptr) {
+      *bytes_written = GetFileSizeBytes(filename);
+    }
   } else {
     VLOG(profiler) << "Failed to save profile info to " << filename;
   }
