@@ -15,6 +15,7 @@
  */
 
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import sun.misc.Unsafe;
 
@@ -31,12 +32,16 @@ public class Main {
   private static Thread[] sThreads = new Thread[10];
 
   //
-  // Fields accessed by setters and adders.
+  // Fields accessed by setters and adders, and by memory fence tests.
   //
 
   public int i = 0;
   public long l = 0;
   public Object o = null;
+
+  public int x_value;
+  public int y_value;
+  public volatile boolean running;
 
   //
   // Setters.
@@ -167,22 +172,22 @@ public class Main {
       throw new Error("No offset: " + e);
     }
 
-    // Some sanity within same thread.
+    // Some sanity on setters and adders within same thread.
 
     set32(m, intOffset, 3);
-    expectEquals32(3, m.i);
+    expectEqual32(3, m.i);
 
     set64(m, longOffset, 7L);
-    expectEquals64(7L, m.l);
+    expectEqual64(7L, m.l);
 
     setObj(m, objOffset, m);
-    expectEqualsObj(m, m.o);
+    expectEqualObj(m, m.o);
 
     add32(m, intOffset, 11);
-    expectEquals32(14, m.i);
+    expectEqual32(14, m.i);
 
     add64(m, longOffset, 13L);
-    expectEquals64(20L, m.l);
+    expectEqual64(20L, m.l);
 
     // Some sanity on setters within different threads.
 
@@ -193,7 +198,7 @@ public class Main {
       }
     });
     join();
-    expectEquals32(9, m.i);  // one thread's last value wins
+    expectEqual32(9, m.i);  // one thread's last value wins
 
     fork(new Runnable() {
       public void run() {
@@ -202,7 +207,7 @@ public class Main {
       }
     });
     join();
-    expectEquals64(109L, m.l);  // one thread's last value wins
+    expectEqual64(109L, m.l);  // one thread's last value wins
 
     fork(new Runnable() {
       public void run() {
@@ -211,7 +216,7 @@ public class Main {
       }
     });
     join();
-    expectEqualsObj(sThreads[9], m.o);  // one thread's last value wins
+    expectEqualObj(sThreads[9], m.o);  // one thread's last value wins
 
     // Some sanity on adders within different threads.
 
@@ -222,7 +227,7 @@ public class Main {
       }
     });
     join();
-    expectEquals32(559, m.i);  // all values accounted for
+    expectEqual32(559, m.i);  // all values accounted for
 
     fork(new Runnable() {
       public void run() {
@@ -231,9 +236,101 @@ public class Main {
       }
     });
     join();
-    expectEquals64(659L, m.l);  // all values accounted for
+    expectEqual64(659L, m.l);  // all values accounted for
 
-    // TODO: the fences
+    // Some sanity on fences within same thread. Note that memory fences within one
+    // thread make little sense, but the sanity check ensures nothing bad happens.
+
+    m.i = -1;
+    m.l = -2L;
+    m.o = null;
+
+    load();
+    store();
+    full();
+
+    expectEqual32(-1, m.i);
+    expectEqual64(-2L, m.l);
+    expectEqualObj(null, m.o);
+
+    // Some sanity on full fence within different threads. We write the non-volatile m.l after
+    // the fork(), which means there is no happens-before relation in the Java memory model
+    // with respect to the read in the threads. This relation is enforced by the memory fences
+    // and the weak-set() -> get() guard. Note that the guard semantics used here are actually
+    // too strong and already enforce total memory visibility, but this test illustrates what
+    // should still happen if Java had a true relaxed memory guard.
+
+    final AtomicBoolean guard1 = new AtomicBoolean();
+    m.l = 0L;
+
+    fork(new Runnable() {
+      public void run() {
+        while (!guard1.get());  // busy-waiting
+        full();
+        expectEqual64(-123456789L, m.l);
+      }
+    });
+
+    m.l = -123456789L;
+    full();
+    while (!guard1.weakCompareAndSet(false, true));  // relaxed memory order
+    join();
+
+    // Some sanity on release/acquire fences within different threads. We write the non-volatile
+    // m.l after the fork(), which means there is no happens-before relation in the Java memory
+    // model with respect to the read in the threads. This relation is enforced by the memory fences
+    // and the weak-set() -> get() guard. Note that the guard semantics used here are actually
+    // too strong and already enforce total memory visibility, but this test illustrates what
+    // should still happen if Java had a true relaxed memory guard.
+
+    final AtomicBoolean guard2 = new AtomicBoolean();
+    m.l = 0L;
+
+    fork(new Runnable() {
+      public void run() {
+        while (!guard2.get());  // busy-waiting
+        load();
+        expectEqual64(-987654321L, m.l);
+      }
+    });
+
+    m.l = -987654321L;
+    store();
+    while (!guard2.weakCompareAndSet(false, true));  // relaxed memory order
+    join();
+
+    // Some sanity on release/acquire fences within different threads using a test suggested by
+    // Hans Boehm. Even this test remains with the realm of sanity only, since having the threads
+    // read the same value consistently would be a valid outcome.
+
+    m.x_value = -1;
+    m.y_value = -1;
+    m.running = true;
+
+    fork(new Runnable() {
+      public void run() {
+        while (m.running) {
+          for (int few_times = 0; few_times < 1000; few_times++) {
+            // Read y first, then load fence, then read x.
+            // They should appear in order, if seen at all.
+            int local_y = m.y_value;
+            load();
+            int local_x = m.x_value;
+            expectLessThanOrEqual32(local_y, local_x);
+          }
+        }
+      }
+    });
+
+    for (int many_times = 0; many_times < 100000; many_times++) {
+      m.x_value = many_times;
+      store();
+      m.y_value = many_times;
+    }
+    m.running = false;
+    join();
+
+    // All done!
 
     System.out.println("passed");
   }
@@ -250,19 +347,25 @@ public class Main {
     }
   }
 
-  private static void expectEquals32(int expected, int result) {
+  private static void expectEqual32(int expected, int result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
 
-  private static void expectEquals64(long expected, long result) {
+  private static void expectLessThanOrEqual32(int val1, int val2) {
+    if (val1 > val2) {
+      throw new Error("Expected: " + val1 + " <= " + val2);
+    }
+  }
+
+  private static void expectEqual64(long expected, long result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
 
-  private static void expectEqualsObj(Object expected, Object result) {
+  private static void expectEqualObj(Object expected, Object result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
