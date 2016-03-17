@@ -195,6 +195,8 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
       compiler_filter_ = CompilerOptions::kEverything;
     } else if (strcmp(compiler_filter_string, "time") == 0) {
       compiler_filter_ = CompilerOptions::kTime;
+    } else if (strcmp(compiler_filter_string, "verify-profile") == 0) {
+      compiler_filter_ = CompilerOptions::kVerifyProfile;
     } else {
       Usage("Unknown --compiler-filter value %s", compiler_filter_string);
     }

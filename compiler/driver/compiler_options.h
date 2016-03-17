@@ -39,6 +39,7 @@ class CompilerOptions FINAL {
     kSpeed,               // Maximize runtime performance.
     kEverything,          // Force compilation of everything capable of being compiled.
     kTime,                // Compile methods, but minimize compilation time.
+    kVerifyProfile,       // Verify only the classes in the profile.
   };
 
   // Guide heuristics to determine whether to compile method if profile data not available.
@@ -102,13 +103,14 @@ class CompilerOptions FINAL {
 
   bool IsCompilationEnabled() const {
     return compiler_filter_ != CompilerOptions::kVerifyNone &&
-        compiler_filter_ != CompilerOptions::kInterpretOnly &&
-        compiler_filter_ != CompilerOptions::kVerifyAtRuntime;
+           compiler_filter_ != CompilerOptions::kInterpretOnly &&
+           compiler_filter_ != CompilerOptions::kVerifyAtRuntime &&
+           compiler_filter_ != CompilerOptions::kVerifyProfile;
   }
 
   bool IsVerificationEnabled() const {
     return compiler_filter_ != CompilerOptions::kVerifyNone &&
-        compiler_filter_ != CompilerOptions::kVerifyAtRuntime;
+           compiler_filter_ != CompilerOptions::kVerifyAtRuntime;
   }
 
   bool NeverVerify() const {
@@ -117,6 +119,10 @@ class CompilerOptions FINAL {
 
   bool IsExtractOnly() const {
     return compiler_filter_ == CompilerOptions::kVerifyAtRuntime;
+  }
+
+  bool VerifyOnlyProfile() const {
+    return compiler_filter_ == CompilerOptions::kVerifyProfile;
   }
 
   size_t GetHugeMethodThreshold() const {
