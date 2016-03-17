@@ -108,6 +108,8 @@ class OatFileManager {
       /*out*/ std::vector<std::string>* error_msgs)
       REQUIRES(!Locks::oat_file_manager_lock_, !Locks::mutator_lock_);
 
+  void DumpForSigQuit(std::ostream& os);
+
  private:
   // Check for duplicate class definitions of the given oat file against all open oat files.
   // Return true if there are any class definition collisions in the oat_file.
