@@ -1363,6 +1363,7 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   GetInternTable()->DumpForSigQuit(os);
   GetJavaVM()->DumpForSigQuit(os);
   GetHeap()->DumpForSigQuit(os);
+  oat_file_manager_->DumpForSigQuit(os);
   if (GetJit() != nullptr) {
     GetJit()->DumpForSigQuit(os);
   } else {
