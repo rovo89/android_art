@@ -357,28 +357,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
 
-  ifeq ($$(art_target_or_host),target)
-    ifeq ($$(art_ndebug_or_debug),debug)
-      $(TARGET_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
-    else
-      $(TARGET_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
-    endif
-  else # host
-    ifeq ($$(art_ndebug_or_debug),debug)
-      ifeq ($$(art_static_or_shared),static)
-        $(HOST_OUT_EXECUTABLES)/dex2oatds: $$(LOCAL_INSTALLED_MODULE)
-      else
-        $(HOST_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
-      endif
-    else
-      ifeq ($$(art_static_or_shared),static)
-        $(HOST_OUT_EXECUTABLES)/dex2oats: $$(LOCAL_INSTALLED_MODULE)
-      else
-        $(HOST_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
-      endif
-    endif
-  endif
-
   # Clear locally defined variables.
   art_target_or_host :=
   art_ndebug_or_debug :=
