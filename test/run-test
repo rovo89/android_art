@@ -389,7 +389,7 @@ if [ "$gc_verify" = "true" ]; then
   run_args="${run_args} --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc"
 fi
 if [ "$gc_stress" = "true" ]; then
-  run_args="${run_args} --runtime-option -Xgc:SS,gcstress --runtime-option -Xms2m --runtime-option -Xmx16m"
+  run_args="${run_args} --gc-stress --runtime-option -Xgc:SS,gcstress --runtime-option -Xms2m --runtime-option -Xmx16m"
 fi
 if [ "$trace" = "true" ]; then
     run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file-size:2000000"
