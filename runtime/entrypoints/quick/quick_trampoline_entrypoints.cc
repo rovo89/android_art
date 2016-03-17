@@ -653,13 +653,13 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   JValue tmp_value;
   ShadowFrame* deopt_frame = self->PopStackedShadowFrame(
       StackedShadowFrameType::kSingleFrameDeoptimizationShadowFrame, false);
-  const DexFile::CodeItem* code_item = method->GetCodeItem();
-  DCHECK(code_item != nullptr) << PrettyMethod(method);
   ManagedStack fragment;
 
   DCHECK(!method->IsNative()) << PrettyMethod(method);
   uint32_t shorty_len = 0;
-  auto* non_proxy_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  ArtMethod* non_proxy_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  const DexFile::CodeItem* code_item = non_proxy_method->GetCodeItem();
+  DCHECK(code_item != nullptr) << PrettyMethod(method);
   const char* shorty = non_proxy_method->GetShorty(&shorty_len);
 
   JValue result;
