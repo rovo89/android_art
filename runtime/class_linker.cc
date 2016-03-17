@@ -4292,10 +4292,14 @@ void ClassLinker::CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prot
   DCHECK(out != nullptr);
   out->CopyFrom(prototype, image_pointer_size_);
 
-  // Set class to be the concrete proxy class and clear the abstract flag, modify exceptions to
-  // the intersection of throw exceptions as defined in Proxy
+  // Set class to be the concrete proxy class.
   out->SetDeclaringClass(klass.Get());
-  out->SetAccessFlags((out->GetAccessFlags() & ~kAccAbstract) | kAccFinal);
+  // Clear the abstract, default and conflict flags to ensure that defaults aren't picked in
+  // preference to the invocation handler.
+  const uint32_t kRemoveFlags = kAccAbstract | kAccDefault | kAccDefaultConflict;
+  // Make the method final.
+  const uint32_t kAddFlags = kAccFinal;
+  out->SetAccessFlags((out->GetAccessFlags() & ~kRemoveFlags) | kAddFlags);
 
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
