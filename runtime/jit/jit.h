@@ -84,9 +84,7 @@ class Jit {
                          const std::string& app_dir);
   void StopProfileSaver();
 
-  void DumpForSigQuit(std::ostream& os) REQUIRES(!lock_) {
-    DumpInfo(os);
-  }
+  void DumpForSigQuit(std::ostream& os) REQUIRES(!lock_);
 
   static void NewTypeLoadedIfUsingJit(mirror::Class* type)
       SHARED_REQUIRES(Locks::mutator_lock_);
