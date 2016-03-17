@@ -4796,6 +4796,7 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
         int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
         __ movl(Address(base, offset), Immediate(v));
       } else {
+        DCHECK(value.IsRegister()) << value;
         __ movl(Address(base, offset), value.AsRegister<Register>());
       }
       break;
