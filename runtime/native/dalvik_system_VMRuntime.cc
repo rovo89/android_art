@@ -622,6 +622,11 @@ static jstring VMRuntime_getCurrentInstructionSet(JNIEnv* env, jclass) {
   return env->NewStringUTF(GetInstructionSetString(kRuntimeISA));
 }
 
+static jboolean VMRuntime_didPruneDalvikCache(JNIEnv* env ATTRIBUTE_UNUSED,
+                                              jclass klass ATTRIBUTE_UNUSED) {
+  return Runtime::Current()->GetPrunedDalvikCache() ? JNI_TRUE : JNI_FALSE;
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -657,6 +662,7 @@ static JNINativeMethod gMethods[] = {
                 "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)V"),
   NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
+  NATIVE_METHOD(VMRuntime, didPruneDalvikCache, "()Z"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
