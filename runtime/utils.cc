@@ -1459,6 +1459,14 @@ bool FileExists(const std::string& filename) {
   return stat(filename.c_str(), &buffer) == 0;
 }
 
+bool FileExistsAndNotEmpty(const std::string& filename) {
+  struct stat buffer;
+  if (stat(filename.c_str(), &buffer) != 0) {
+    return false;
+  }
+  return buffer.st_size > 0;
+}
+
 std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(Primitive::Descriptor(type));
 }

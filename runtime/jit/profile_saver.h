@@ -65,7 +65,7 @@ class ProfileSaver {
   void Run() REQUIRES(!Locks::profiler_lock_, !wait_lock_);
   // Processes the existing profiling info from the jit code cache and returns
   // true if it needed to be saved to disk.
-  bool ProcessProfilingInfo();
+  bool ProcessProfilingInfo(bool save_resolved_classes);
   // Returns true if the saver is shutting down (ProfileSaver::Stop() has been called).
   bool ShuttingDown(Thread* self) REQUIRES(!Locks::profiler_lock_);
 
@@ -93,7 +93,7 @@ class ProfileSaver {
   std::string app_data_dir_;
   uint64_t code_cache_last_update_time_ns_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
-  bool first_profile_ = true;
+  bool save_resolved_classes_;
 
   // Save period condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
