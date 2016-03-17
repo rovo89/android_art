@@ -538,9 +538,7 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration with the interpreter.
-# 145: Test sometimes times out in read barrier configuration (b/27467554).
-TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS := \
-  145-alloc-tracking-stress
+TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration with the default (Quick) compiler (AOT).
 # Quick has no support for read barriers and punts to the interpreter, so this list is composed of
