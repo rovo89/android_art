@@ -382,6 +382,9 @@ CompilerDriver::CompilerDriver(
 
   compiler_->Init();
 
+  if (compiler_options->VerifyOnlyProfile()) {
+    CHECK(profile_compilation_info_ != nullptr) << "Requires profile";
+  }
   if (boot_image_) {
     CHECK(image_classes_.get() != nullptr) << "Expected image classes for boot image";
   }
@@ -829,10 +832,12 @@ void CompilerDriver::PreCompile(jobject class_loader,
 
   const bool verification_enabled = compiler_options_->IsVerificationEnabled();
   const bool never_verify = compiler_options_->NeverVerify();
+  const bool verify_only_profile = compiler_options_->VerifyOnlyProfile();
 
   // We need to resolve for never_verify since it needs to run dex to dex to add the
   // RETURN_VOID_NO_BARRIER.
-  if (never_verify || verification_enabled) {
+  // Let the verifier resolve as needed for the verify_only_profile case.
+  if ((never_verify || verification_enabled) && !verify_only_profile) {
     Resolve(class_loader, dex_files, timings);
     VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
   }
@@ -913,6 +918,22 @@ bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_r
     LOG(INFO) << "[ProfileGuidedCompilation] "
         << (result ? "Compiled" : "Skipped") << " method:"
         << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file, true);
+  }
+  return result;
+}
+
+bool CompilerDriver::ShouldVerifyClassBasedOnProfile(const DexFile& dex_file,
+                                                     uint16_t class_idx) const {
+  if (!compiler_options_->VerifyOnlyProfile()) {
+    // No profile, verify everything.
+    return true;
+  }
+  DCHECK(profile_compilation_info_ != nullptr);
+  bool result = profile_compilation_info_->ContainsClass(dex_file, class_idx);
+  if (kDebugProfileGuidedCompilation) {
+    LOG(INFO) << "[ProfileGuidedCompilation] "
+        << (result ? "Verified" : "Skipped") << " method:"
+        << dex_file.GetClassDescriptor(dex_file.GetClassDef(class_idx));
   }
   return result;
 }
@@ -2196,6 +2217,10 @@ class VerifyClassVisitor : public CompilationVisitor {
     ATRACE_CALL();
     ScopedObjectAccess soa(Thread::Current());
     const DexFile& dex_file = *manager_->GetDexFile();
+    if (!manager_->GetCompiler()->ShouldVerifyClassBasedOnProfile(dex_file, class_def_index)) {
+      // Skip verification since the class is not in the profile.
+      return;
+    }
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     ClassLinker* class_linker = manager_->GetClassLinker();
@@ -2661,6 +2686,7 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status
       case mirror::Class::kStatusRetryVerificationAtRuntime:
       case mirror::Class::kStatusVerified:
       case mirror::Class::kStatusInitialized:
+      case mirror::Class::kStatusResolved:
         break;  // Expected states.
       default:
         LOG(FATAL) << "Unexpected class status for class "
