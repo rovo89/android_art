@@ -564,9 +564,7 @@ TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
   537-checker-arraycopy
 
 # Tests that should fail in the read barrier configuration with JIT (Optimizing compiler).
-# 145: Test sometimes times out in read barrier configuration (b/27467554).
-TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS := \
-  145-alloc-tracking-stress
+TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
