@@ -194,7 +194,8 @@ static inline vixl::Operand OperandFromMemOperand(const vixl::MemOperand& mem_op
 }
 
 static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* instr) {
-  DCHECK(constant->IsIntConstant() || constant->IsLongConstant() || constant->IsNullConstant());
+  DCHECK(constant->IsIntConstant() || constant->IsLongConstant() || constant->IsNullConstant())
+      << constant->DebugName();
 
   // For single uses we let VIXL handle the constant generation since it will
   // use registers that are not managed by the register allocator (wip0, wip1).
@@ -221,7 +222,8 @@ static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
            instr->IsBoundsCheck() ||
            instr->IsCompare() ||
            instr->IsCondition() ||
-           instr->IsSub());
+           instr->IsSub())
+        << instr->DebugName();
     // Uses aliases of ADD/SUB instructions.
     // If `value` does not fit but `-value` does, VIXL will automatically use
     // the 'opposite' instruction.
