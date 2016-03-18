@@ -37,7 +37,7 @@ static constexpr const uint64_t kMinimumTimeBetweenCodeCacheUpdatesNs = 2000 * k
 static constexpr const uint64_t kRandomDelayMaxMs = 40 * 1000;  // 40 seconds
 static constexpr const uint64_t kMaxBackoffMs = 5 * 60 * 1000;  // 5 minutes
 static constexpr const uint64_t kSavePeriodMs = 40 * 1000;  // 40 seconds
-static constexpr const uint64_t kInitialDelayMs = 2 * 1000;  // 2 seconds
+static constexpr const uint64_t kSaveResolvedClassesDelayMs = 2 * 1000;  // 2 seconds
 static constexpr const double kBackoffCoef = 1.5;
 
 static constexpr const uint32_t kMinimumNrOrMethodsToSave = 10;
@@ -54,7 +54,6 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       foreign_dex_profile_path_(foreign_dex_profile_path),
       code_cache_last_update_time_ns_(0),
       shutting_down_(false),
-      first_profile_(true),
       wait_lock_("ProfileSaver wait lock"),
       period_condition_("ProfileSaver period condition", wait_lock_),
       total_bytes_written_(0),
@@ -66,6 +65,13 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       total_ns_of_work_(0),
       total_number_of_foreign_dex_marks_(0) {
   AddTrackedLocations(output_filename, code_paths);
+  // We only need to save the resolved classes if the profile file is empty.
+  // Otherwise we must have already save them (we always do it during the first
+  // ever profile save).
+  // TODO(calin) This only considers the case of the primary profile file.
+  // Anything that gets loaded in the same VM will not have their resolved
+  // classes save (unless they started before the initial saving was done).
+  save_resolved_classes_ = !FileExistsAndNotEmpty(output_filename);
   app_data_dir_ = "";
   if (!app_data_dir.empty()) {
     // The application directory is used to determine which dex files are owned by app.
@@ -88,14 +94,12 @@ void ProfileSaver::Run() {
 
   uint64_t save_period_ms = kSavePeriodMs;
   VLOG(profiler) << "Save profiling information every " << save_period_ms << " ms";
-
-  bool first_iteration = true;
   while (!ShuttingDown(self)) {
     uint64_t sleep_time_ms;
-    if (first_iteration) {
+    if (save_resolved_classes_) {
       // Sleep less long for the first iteration since we want to record loaded classes shortly
       // after app launch.
-      sleep_time_ms = kInitialDelayMs;
+      sleep_time_ms = kSaveResolvedClassesDelayMs;
     } else {
       const uint64_t random_sleep_delay_ms = rand() % kRandomDelayMaxMs;
       sleep_time_ms = save_period_ms + random_sleep_delay_ms;
@@ -111,7 +115,7 @@ void ProfileSaver::Run() {
 
     uint64_t start = NanoTime();
 
-    if (!ProcessProfilingInfo() && save_period_ms < kMaxBackoffMs) {
+    if (!ProcessProfilingInfo(save_resolved_classes_) && save_period_ms < kMaxBackoffMs) {
       // If we don't need to save now it is less likely that we will need to do
       // so in the future. Increase the time between saves according to the
       // kBackoffCoef, but make it no larger than kMaxBackoffMs.
@@ -120,16 +124,16 @@ void ProfileSaver::Run() {
       // Reset the period to the initial value as it's highly likely to JIT again.
       save_period_ms = kSavePeriodMs;
     }
-    first_iteration = false;
+    save_resolved_classes_ = false;
 
     total_ns_of_work_ += (NanoTime() - start);
   }
 }
 
-bool ProfileSaver::ProcessProfilingInfo() {
+bool ProfileSaver::ProcessProfilingInfo(bool save_resolved_classes) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   uint64_t last_update_time_ns = jit_code_cache_->GetLastUpdateTimeNs();
-  if (!first_profile_ && last_update_time_ns - code_cache_last_update_time_ns_
+  if (!save_resolved_classes && last_update_time_ns - code_cache_last_update_time_ns_
           < kMinimumTimeBetweenCodeCacheUpdatesNs) {
     VLOG(profiler) << "Not enough time has passed since the last code cache update."
         << "Last update: " << last_update_time_ns
@@ -145,6 +149,12 @@ bool ProfileSaver::ProcessProfilingInfo() {
     MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
     tracked_locations = tracked_dex_base_locations_;
   }
+
+  std::set<DexCacheResolvedClasses> resolved_classes;
+  if (save_resolved_classes) {
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+    resolved_classes = class_linker->GetResolvedClasses(/*ignore boot classes*/true);
+  }
   for (const auto& it : tracked_locations) {
     if (ShuttingDown(Thread::Current())) {
       return true;
@@ -157,24 +167,31 @@ bool ProfileSaver::ProcessProfilingInfo() {
       jit_code_cache_->GetCompiledArtMethods(locations, methods);
       total_number_of_code_cache_queries_++;
     }
+
+    std::set<DexCacheResolvedClasses> resolved_classes_for_location;
+    if (save_resolved_classes) {
+      bool resolved_classes_already_in_file = FileExistsAndNotEmpty(filename);
+      if (!resolved_classes_already_in_file) {
+        for (const DexCacheResolvedClasses& classes : resolved_classes) {
+          if (locations.find(classes.GetDexLocation()) != locations.end()) {
+            resolved_classes_for_location.insert(classes);
+          }
+        }
+      }
+    }
     // Always save for the first one for loaded classes profile.
-    if (methods.size() < kMinimumNrOrMethodsToSave && !first_profile_) {
+    if (methods.size() < kMinimumNrOrMethodsToSave && !save_resolved_classes) {
       VLOG(profiler) << "Not enough information to save to: " << filename
           <<" Nr of methods: " << methods.size();
       total_number_of_skipped_writes_++;
       return false;
     }
-
-    std::set<DexCacheResolvedClasses> resolved_classes;
-    if (first_profile_) {
-      ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-      resolved_classes = class_linker->GetResolvedClasses(/*ignore boot classes*/true);
-    }
-
     uint64_t bytes_written;
-    if (!ProfileCompilationInfo::SaveProfilingInfo(filename, methods,
-                                                   resolved_classes,
-                                                   &bytes_written)) {
+    if (!ProfileCompilationInfo::SaveProfilingInfo(
+            filename,
+            methods,
+            resolved_classes_for_location,
+            &bytes_written)) {
       LOG(WARNING) << "Could not save profiling info to " << filename;
       total_number_of_failed_writes_++;
       return false;
@@ -185,7 +202,6 @@ bool ProfileSaver::ProcessProfilingInfo() {
       }
     }
   }
-  first_profile_ = false;
   return true;
 }
 
