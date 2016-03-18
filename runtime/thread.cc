@@ -511,23 +511,8 @@ static size_t FixStackSize(size_t stack_size) {
   return stack_size;
 }
 
-// Global variable to prevent the compiler optimizing away the page reads for the stack.
-uint8_t dont_optimize_this;
-
 // Install a protected region in the stack.  This is used to trigger a SIGSEGV if a stack
 // overflow is detected.  It is located right below the stack_begin_.
-//
-// There is a little complexity here that deserves a special mention.  On some
-// architectures, the stack created using a VM_GROWSDOWN flag
-// to prevent memory being allocated when it's not needed.  This flag makes the
-// kernel only allocate memory for the stack by growing down in memory.  Because we
-// want to put an mprotected region far away from that at the stack top, we need
-// to make sure the pages for the stack are mapped in before we call mprotect.  We do
-// this by reading every page from the stack bottom (highest address) to the stack top.
-// We then madvise this away.
-
-// AddressSanitizer does not like the part of this functions that reads every stack page.
-// Looks a lot like an out-of-bounds access.
 ATTRIBUTE_NO_SANITIZE_ADDRESS
 void Thread::InstallImplicitProtection() {
   uint8_t* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
@@ -535,27 +520,57 @@ void Thread::InstallImplicitProtection() {
   uint8_t* stack_top = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(&stack_himem) &
       ~(kPageSize - 1));    // Page containing current top of stack.
 
-  // First remove the protection on the protected region as will want to read and
-  // write it.  This may fail (on the first attempt when the stack is not mapped)
-  // but we ignore that.
+  // Try to directly protect the stack.
+  VLOG(threads) << "installing stack protected region at " << std::hex <<
+        static_cast<void*>(pregion) << " to " <<
+        static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
+  if (ProtectStack(/* fatal_on_error */ false)) {
+    // Tell the kernel that we won't be needing these pages any more.
+    // NB. madvise will probably write zeroes into the memory (on linux it does).
+    uint32_t unwanted_size = stack_top - pregion - kPageSize;
+    madvise(pregion, unwanted_size, MADV_DONTNEED);
+    return;
+  }
+
+  // There is a little complexity here that deserves a special mention.  On some
+  // architectures, the stack is created using a VM_GROWSDOWN flag
+  // to prevent memory being allocated when it's not needed.  This flag makes the
+  // kernel only allocate memory for the stack by growing down in memory.  Because we
+  // want to put an mprotected region far away from that at the stack top, we need
+  // to make sure the pages for the stack are mapped in before we call mprotect.
+  //
+  // The failed mprotect in UnprotectStack is an indication of a thread with VM_GROWSDOWN
+  // with a non-mapped stack (usually only the main thread).
+  //
+  // We map in the stack by reading every page from the stack bottom (highest address)
+  // to the stack top. (We then madvise this away.) This must be done by reading from the
+  // current stack pointer downwards. Any access more than a page below the current SP
+  // might cause a segv.
+  // TODO: This comment may be out of date. It seems possible to speed this up. As
+  //       this is normally done once in the zygote on startup, ignore for now.
+  //
+  // AddressSanitizer does not like the part of this functions that reads every stack page.
+  // Looks a lot like an out-of-bounds access.
+
+  // (Defensively) first remove the protection on the protected region as will want to read
+  // and write it. Ignore errors.
   UnprotectStack();
 
-  // Map in the stack.  This must be done by reading from the
-  // current stack pointer downwards as the stack may be mapped using VM_GROWSDOWN
-  // in the kernel.  Any access more than a page below the current SP might cause
-  // a segv.
+  VLOG(threads) << "Need to map in stack for thread at " << std::hex <<
+      static_cast<void*>(pregion);
 
   // Read every page from the high address to the low.
+  volatile uint8_t dont_optimize_this;
   for (uint8_t* p = stack_top; p >= pregion; p -= kPageSize) {
     dont_optimize_this = *p;
   }
 
-  VLOG(threads) << "installing stack protected region at " << std::hex <<
+  VLOG(threads) << "(again) installing stack protected region at " << std::hex <<
       static_cast<void*>(pregion) << " to " <<
       static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
 
   // Protect the bottom of the stack to prevent read/write to it.
-  ProtectStack();
+  ProtectStack(/* fatal_on_error */ true);
 
   // Tell the kernel that we won't be needing these pages any more.
   // NB. madvise will probably write zeroes into the memory (on linux it does).
@@ -2945,14 +2960,18 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   return os;
 }
 
-void Thread::ProtectStack() {
+bool Thread::ProtectStack(bool fatal_on_error) {
   void* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
   VLOG(threads) << "Protecting stack at " << pregion;
   if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
-    LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. "
-        "Reason: "
-        << strerror(errno) << " size:  " << kStackOverflowProtectedSize;
+    if (fatal_on_error) {
+      LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. "
+          "Reason: "
+          << strerror(errno) << " size:  " << kStackOverflowProtectedSize;
+    }
+    return false;
   }
+  return true;
 }
 
 bool Thread::UnprotectStack() {
