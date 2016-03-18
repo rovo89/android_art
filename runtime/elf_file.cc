@@ -1830,6 +1830,14 @@ bool ElfFile::GetSectionOffsetAndSize(const char* section_name, uint64_t* offset
   }
 }
 
+bool ElfFile::HasSection(const std::string& name) const {
+  if (elf64_.get() != nullptr) {
+    return elf64_->FindSectionByName(name) != nullptr;
+  } else {
+    return elf32_->FindSectionByName(name) != nullptr;
+  }
+}
+
 uint64_t ElfFile::FindSymbolAddress(unsigned section_type,
                                     const std::string& symbol_name,
                                     bool build_map) {
