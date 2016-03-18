@@ -92,9 +92,7 @@ class OatFile {
   // Indicates whether the oat file was compiled with full debugging capability.
   bool IsDebuggable() const;
 
-  bool IsExtractOnly() const;
-
-  bool IsProfileGuideCompiled() const;
+  CompilerFilter::Filter GetCompilerFilter() const;
 
   const std::string& GetLocation() const {
     return location_;
