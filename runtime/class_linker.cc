@@ -3991,7 +3991,12 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
   oat_file_class_status = oat_dex_file->GetOatClass(class_def_index).GetStatus();
   if (oat_file_class_status == mirror::Class::kStatusVerified ||
       oat_file_class_status == mirror::Class::kStatusInitialized) {
-      return true;
+    return true;
+  }
+  // If we only verified a subset of the classes at compile time, we can end up with classes that
+  // were resolved by the verifier.
+  if (oat_file_class_status == mirror::Class::kStatusResolved) {
+    return false;
   }
   if (oat_file_class_status == mirror::Class::kStatusRetryVerificationAtRuntime) {
     // Compile time verification failed with a soft error. Compile time verification can fail
