@@ -128,7 +128,7 @@ static File* CreateOrOpen(const char* name, bool* created) {
     if (f.get() != nullptr) {
       if (fchmod(f->Fd(), 0644) != 0) {
         PLOG(ERROR) << "Unable to make " << name << " world readable";
-        TEMP_FAILURE_RETRY(unlink(name));
+        unlink(name);
         return nullptr;
       }
     }
@@ -440,7 +440,7 @@ bool PatchOat::ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
   }
 
   // Delete the original file, since we won't need it.
-  TEMP_FAILURE_RETRY(unlink(output_oat_filename.c_str()));
+  unlink(output_oat_filename.c_str());
 
   // Create a symlink from the old oat to the new oat
   if (symlink(input_oat_filename.c_str(), output_oat_filename.c_str()) < 0) {
@@ -1135,7 +1135,7 @@ static int patchoat_oat(TimingLogger& timings,
     if (!success) {
       if (new_oat_out) {
         CHECK(!output_oat_filename.empty());
-        TEMP_FAILURE_RETRY(unlink(output_oat_filename.c_str()));
+        unlink(output_oat_filename.c_str());
       }
     }
 
