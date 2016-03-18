@@ -912,8 +912,7 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
       bool needs_constructor_barrier = false;
       for (size_t i = 0; i != number_of_iputs; ++i) {
         HInstruction* value = GetInvokeInputForArgVRegIndex(invoke_instruction, iput_args[i]);
-        if (!value->IsConstant() ||
-            (!value->AsConstant()->IsZero() && !value->IsNullConstant())) {
+        if (!value->IsConstant() || !value->AsConstant()->IsZeroBitPattern()) {
           if (dex_cache.GetReference() == nullptr) {
             dex_cache = handles_->NewHandle(resolved_method->GetDexCache());
           }

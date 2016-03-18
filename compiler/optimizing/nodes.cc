@@ -2402,10 +2402,10 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
     return replacement;
   } else if (cond->IsIntConstant()) {
     HIntConstant* int_const = cond->AsIntConstant();
-    if (int_const->IsZero()) {
+    if (int_const->IsFalse()) {
       return GetIntConstant(1);
     } else {
-      DCHECK(int_const->IsOne());
+      DCHECK(int_const->IsTrue()) << int_const->GetValue();
       return GetIntConstant(0);
     }
   } else {

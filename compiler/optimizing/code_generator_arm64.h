@@ -257,6 +257,9 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
                                vixl::Register obj,
                                uint32_t offset);
 
+  // Generate a floating-point comparison.
+  void GenerateFcmp(HInstruction* instruction);
+
   void HandleShift(HBinaryOperation* instr);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);

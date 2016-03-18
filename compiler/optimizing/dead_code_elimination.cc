@@ -41,11 +41,11 @@ static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
       HIf* if_instruction = last_instruction->AsIf();
       HInstruction* condition = if_instruction->InputAt(0);
       if (condition->IsIntConstant()) {
-        if (condition->AsIntConstant()->IsOne()) {
+        if (condition->AsIntConstant()->IsTrue()) {
           live_successors = live_successors.SubArray(0u, 1u);
           DCHECK_EQ(live_successors[0], if_instruction->IfTrueSuccessor());
         } else {
-          DCHECK(condition->AsIntConstant()->IsZero());
+          DCHECK(condition->AsIntConstant()->IsFalse()) << condition->AsIntConstant()->GetValue();
           live_successors = live_successors.SubArray(1u, 1u);
           DCHECK_EQ(live_successors[0], if_instruction->IfFalseSuccessor());
         }

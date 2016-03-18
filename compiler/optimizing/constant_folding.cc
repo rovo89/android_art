@@ -120,7 +120,7 @@ void HConstantFoldingVisitor::VisitTypeConversion(HTypeConversion* inst) {
 void HConstantFoldingVisitor::VisitDivZeroCheck(HDivZeroCheck* inst) {
   // We can safely remove the check if the input is a non-null constant.
   HInstruction* check_input = inst->InputAt(0);
-  if (check_input->IsConstant() && !check_input->AsConstant()->IsZero()) {
+  if (check_input->IsConstant() && !check_input->AsConstant()->IsArithmeticZero()) {
     inst->ReplaceWith(check_input);
     inst->GetBlock()->RemoveInstruction(inst);
   }
@@ -130,7 +130,7 @@ void HConstantFoldingVisitor::VisitDivZeroCheck(HDivZeroCheck* inst) {
 void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instruction) {
   DCHECK(instruction->IsShl() || instruction->IsShr() || instruction->IsUShr());
   HInstruction* left = instruction->GetLeft();
-  if (left->IsConstant() && left->AsConstant()->IsZero()) {
+  if (left->IsConstant() && left->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    SHL dst, 0, shift_amount
     // with
@@ -142,7 +142,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instr
 
 void InstructionWithAbsorbingInputSimplifier::VisitAbove(HAbove* instruction) {
   if (instruction->GetLeft()->IsConstant() &&
-      instruction->GetLeft()->AsConstant()->IsZero()) {
+      instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    ABOVE dst, 0, src  // unsigned 0 > src is always false
     // with
@@ -154,7 +154,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitAbove(HAbove* instruction) {
 
 void InstructionWithAbsorbingInputSimplifier::VisitAboveOrEqual(HAboveOrEqual* instruction) {
   if (instruction->GetRight()->IsConstant() &&
-      instruction->GetRight()->AsConstant()->IsZero()) {
+      instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    ABOVE_OR_EQUAL dst, src, 0  // unsigned src >= 0 is always true
     // with
@@ -166,7 +166,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitAboveOrEqual(HAboveOrEqual* i
 
 void InstructionWithAbsorbingInputSimplifier::VisitBelow(HBelow* instruction) {
   if (instruction->GetRight()->IsConstant() &&
-      instruction->GetRight()->AsConstant()->IsZero()) {
+      instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    BELOW dst, src, 0  // unsigned src < 0 is always false
     // with
@@ -178,7 +178,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitBelow(HBelow* instruction) {
 
 void InstructionWithAbsorbingInputSimplifier::VisitBelowOrEqual(HBelowOrEqual* instruction) {
   if (instruction->GetLeft()->IsConstant() &&
-      instruction->GetLeft()->AsConstant()->IsZero()) {
+      instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    BELOW_OR_EQUAL dst, 0, src  // unsigned 0 <= src is always true
     // with
@@ -190,7 +190,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitBelowOrEqual(HBelowOrEqual* i
 
 void InstructionWithAbsorbingInputSimplifier::VisitAnd(HAnd* instruction) {
   HConstant* input_cst = instruction->GetConstantRight();
-  if ((input_cst != nullptr) && input_cst->IsZero()) {
+  if ((input_cst != nullptr) && input_cst->IsZeroBitPattern()) {
     // Replace code looking like
     //    AND dst, src, 0
     // with
@@ -224,7 +224,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitMul(HMul* instruction) {
   HConstant* input_cst = instruction->GetConstantRight();
   Primitive::Type type = instruction->GetType();
   if (Primitive::IsIntOrLongType(type) &&
-      (input_cst != nullptr) && input_cst->IsZero()) {
+      (input_cst != nullptr) && input_cst->IsArithmeticZero()) {
     // Replace code looking like
     //    MUL dst, src, 0
     // with
@@ -264,7 +264,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitRem(HRem* instruction) {
   HBasicBlock* block = instruction->GetBlock();
 
   if (instruction->GetLeft()->IsConstant() &&
-      instruction->GetLeft()->AsConstant()->IsZero()) {
+      instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    REM dst, 0, src
     // with

@@ -291,12 +291,12 @@ static bool MatchIfInstanceOf(HIf* ifInstruction,
     if (rhs != nullptr) {
       HInstruction* lhs = input->AsEqual()->GetLeastConstantLeft();
       if (lhs->IsInstanceOf() && rhs->IsIntConstant()) {
-        if (rhs->AsIntConstant()->IsOne()) {
+        if (rhs->AsIntConstant()->IsTrue()) {
           // Case (1a)
           *trueBranch = ifInstruction->IfTrueSuccessor();
         } else {
           // Case (2a)
-          DCHECK(rhs->AsIntConstant()->IsZero());
+          DCHECK(rhs->AsIntConstant()->IsFalse()) << rhs->AsIntConstant()->GetValue();
           *trueBranch = ifInstruction->IfFalseSuccessor();
         }
         *instanceOf = lhs->AsInstanceOf();
@@ -308,12 +308,12 @@ static bool MatchIfInstanceOf(HIf* ifInstruction,
     if (rhs != nullptr) {
       HInstruction* lhs = input->AsNotEqual()->GetLeastConstantLeft();
       if (lhs->IsInstanceOf() && rhs->IsIntConstant()) {
-        if (rhs->AsIntConstant()->IsZero()) {
+        if (rhs->AsIntConstant()->IsFalse()) {
           // Case (1b)
           *trueBranch = ifInstruction->IfTrueSuccessor();
         } else {
           // Case (2b)
-          DCHECK(rhs->AsIntConstant()->IsOne());
+          DCHECK(rhs->AsIntConstant()->IsTrue()) << rhs->AsIntConstant()->GetValue();
           *trueBranch = ifInstruction->IfFalseSuccessor();
         }
         *instanceOf = lhs->AsInstanceOf();

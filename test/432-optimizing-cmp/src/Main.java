@@ -41,6 +41,10 @@ public class Main {
   }
 
   private static void cmpFloat() throws Exception {
+    expectEq(0F, 0F);
+    expectEq(-0F, 0F);
+    expectEq(0F, -0F);
+    expectEq(-0F, -0F);
     expectLt(3.1F, 5.1F);
     expectGt(5.1F, 3.1F);
     expectLt(Float.MIN_VALUE, Float.MAX_VALUE);
@@ -49,6 +53,9 @@ public class Main {
     expectFalse(Float.NaN, 3.1F);
 
     expectEquals(0, smaliCmpGtFloat(0F, 0F));
+    expectEquals(0, smaliCmpGtFloat(-0F, 0F));
+    expectEquals(0, smaliCmpGtFloat(0F, -0F));
+    expectEquals(0, smaliCmpGtFloat(-0F, -0F));
     expectEquals(0, smaliCmpGtFloat(1F, 1F));
     expectEquals(-1, smaliCmpGtFloat(1.1F, 2.1F));
     expectEquals(1, smaliCmpGtFloat(2.1F, 1.1F));
@@ -60,6 +67,9 @@ public class Main {
     expectEquals(1, smaliCmpGtFloat(Float.NaN, 5F));
 
     expectEquals(0, smaliCmpLtFloat(0F, 0F));
+    expectEquals(0, smaliCmpLtFloat(-0F, 0F));
+    expectEquals(0, smaliCmpLtFloat(0F, -0F));
+    expectEquals(0, smaliCmpLtFloat(-0F, -0F));
     expectEquals(0, smaliCmpLtFloat(1F, 1F));
     expectEquals(-1, smaliCmpLtFloat(1.1F, 2.1F));
     expectEquals(1, smaliCmpLtFloat(2.1F, 1.1F));
@@ -72,6 +82,10 @@ public class Main {
   }
 
   private static void cmpDouble() throws Exception {
+    expectEq(0D, 0D);
+    expectEq(-0D, 0D);
+    expectEq(0D, -0D);
+    expectEq(-0D, -0D);
     expectLt(3.1D, 5.1D);
     expectGt(5.1D, 3.1D);
     expectLt(Double.MIN_VALUE, Double.MAX_VALUE);
@@ -80,6 +94,9 @@ public class Main {
     expectFalse(Double.NaN, 3.1D);
 
     expectEquals(0, smaliCmpGtDouble(0D, 0D));
+    expectEquals(0, smaliCmpGtDouble(-0D, 0D));
+    expectEquals(0, smaliCmpGtDouble(0D, -0D));
+    expectEquals(0, smaliCmpGtDouble(-0D, -0D));
     expectEquals(0, smaliCmpGtDouble(1D, 1D));
     expectEquals(-1, smaliCmpGtDouble(1.1D, 2.1D));
     expectEquals(1, smaliCmpGtDouble(2.1D, 1.1D));
@@ -91,6 +108,9 @@ public class Main {
     expectEquals(1, smaliCmpGtDouble(Double.NaN, 5D));
 
     expectEquals(0, smaliCmpLtDouble(0D, 0D));
+    expectEquals(0, smaliCmpLtDouble(-0D, 0D));
+    expectEquals(0, smaliCmpLtDouble(0D, -0D));
+    expectEquals(0, smaliCmpLtDouble(-0D, -0D));
     expectEquals(0, smaliCmpLtDouble(1D, 1D));
     expectEquals(-1, smaliCmpLtDouble(1.1D, 2.1D));
     expectEquals(1, smaliCmpLtDouble(2.1D, 1.1D));
@@ -102,7 +122,15 @@ public class Main {
     expectEquals(-1, smaliCmpLtDouble(Float.NaN, 5D));
   }
 
- static boolean $opt$lt(long a, long b) {
+  static boolean $opt$eq(float a, float b) {
+    return a == b;
+  }
+
+  static boolean $opt$eq(double a, double b) {
+    return a == b;
+  }
+
+  static boolean $opt$lt(long a, long b) {
     return a < b;
   }
 
@@ -181,6 +209,12 @@ public class Main {
     }
   }
 
+  public static void expectEq(float a, float b) {
+    if (!$opt$eq(a, b)) {
+      throw new Error("Expected: " + a + " == " + b);
+    }
+  }
+
   public static void expectLt(float a, float b) {
     if (!$opt$lt(a, b)) {
       throw new Error("Expected: " + a + " < " + b);
@@ -199,6 +233,12 @@ public class Main {
     }
     if ($opt$gt(a, b)) {
       throw new Error("Not expecting: " + a + " > " + b);
+    }
+  }
+
+  public static void expectEq(double a, double b) {
+    if (!$opt$eq(a, b)) {
+      throw new Error("Expected: " + a + " == " + b);
     }
   }
 
@@ -224,4 +264,3 @@ public class Main {
   }
 
 }
-
