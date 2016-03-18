@@ -272,8 +272,10 @@
   names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
 },
 {
-  description: "Wrong junit constructor for test",
+  description: "Made for extending, shouldn't be run",
   result: EXEC_FAILED,
-  names: [ "jsr166.CollectionTest#testEmptyMeansEmpty" ]
+  names: ["jsr166.CollectionTest#testEmptyMeansEmpty,
+          "jsr166.Collection8Test#testForEach",
+          "jsr166.Collection8Test#testForEachConcurrentStressTest"]
 }
 ]
