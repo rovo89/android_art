@@ -816,7 +816,7 @@ class Dex2Oat FINAL {
       Usage("Profile file should not be specified with both --profile-file-fd and --profile-file");
     }
 
-    if (compiler_options_->IsVerificationEnabled() && !have_profile_file && !have_profile_fd) {
+    if (compiler_options_->VerifyOnlyProfile() && !have_profile_file && !have_profile_fd) {
       Usage("verify-profile compiler filter must be used with a profile file or fd");
     }
 
