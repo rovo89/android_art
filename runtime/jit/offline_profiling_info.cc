@@ -374,6 +374,18 @@ bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) c
   return false;
 }
 
+bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, uint16_t class_def_idx) const {
+  auto info_it = info_.find(GetProfileDexFileKey(dex_file.GetLocation()));
+  if (info_it != info_.end()) {
+    if (dex_file.GetLocationChecksum() != info_it->second.checksum) {
+      return false;
+    }
+    const std::set<uint16_t>& classes = info_it->second.class_set;
+    return classes.find(class_def_idx) != classes.end();
+  }
+  return false;
+}
+
 uint32_t ProfileCompilationInfo::GetNumberOfMethods() const {
   uint32_t total = 0;
   for (const auto& it : info_) {

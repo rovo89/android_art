@@ -91,7 +91,8 @@ class CompilerDriver {
                  Compiler::Kind compiler_kind,
                  InstructionSet instruction_set,
                  const InstructionSetFeatures* instruction_set_features,
-                 bool boot_image, std::unordered_set<std::string>* image_classes,
+                 bool boot_image,
+                 std::unordered_set<std::string>* image_classes,
                  std::unordered_set<std::string>* compiled_classes,
                  std::unordered_set<std::string>* compiled_methods,
                  size_t thread_count,
@@ -434,6 +435,10 @@ class CompilerDriver {
   // Checks whether profile guided compilation is enabled and if the method should be compiled
   // according to the profile file.
   bool ShouldCompileBasedOnProfile(const MethodReference& method_ref) const;
+
+  // Checks whether profile guided verification is enabled and if the method should be verified
+  // according to the profile file.
+  bool ShouldVerifyClassBasedOnProfile(const DexFile& dex_file, uint16_t class_idx) const;
 
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       REQUIRES(!compiled_classes_lock_);
