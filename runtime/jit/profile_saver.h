@@ -65,13 +65,21 @@ class ProfileSaver {
   void Run() REQUIRES(!Locks::profiler_lock_, !wait_lock_);
   // Processes the existing profiling info from the jit code cache and returns
   // true if it needed to be saved to disk.
-  bool ProcessProfilingInfo(bool save_resolved_classes);
+  bool ProcessProfilingInfo();
   // Returns true if the saver is shutting down (ProfileSaver::Stop() has been called).
   bool ShuttingDown(Thread* self) REQUIRES(!Locks::profiler_lock_);
 
   void AddTrackedLocations(const std::string& output_filename,
                            const std::vector<std::string>& code_paths)
       REQUIRES(Locks::profiler_lock_);
+
+  // Retrieves the cached profile compilation info for the given profile file.
+  // If no entry exists, a new empty one will be created, added to the cache and
+  // then returned.
+  ProfileCompilationInfo* GetCachedProfiledInfo(const std::string& filename);
+  // Fetches the current resolved classes from the ClassLinker and stores them
+  // in the profile_cache_ for later save.
+  void FetchAndCacheResolvedClasses();
 
   static bool MaybeRecordDexUseInternal(
       const std::string& dex_location,
@@ -91,9 +99,15 @@ class ProfileSaver {
       GUARDED_BY(Locks::profiler_lock_);
   std::string foreign_dex_profile_path_;
   std::string app_data_dir_;
-  uint64_t code_cache_last_update_time_ns_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
-  bool save_resolved_classes_;
+  uint32_t last_save_number_of_methods_;
+  uint32_t last_save_number_of_classes__;
+
+  // A local cache for the profile information. Maps each tracked file to its
+  // profile information. The size of this cache is usually very small and tops
+  // to just a few hundreds entries in the ProfileCompilationInfo objects.
+  // It helps avoiding unnecessary writes to disk.
+  SafeMap<std::string, ProfileCompilationInfo> profile_cache_;
 
   // Save period condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -104,9 +118,11 @@ class ProfileSaver {
   uint64_t total_number_of_code_cache_queries_;
   uint64_t total_number_of_skipped_writes_;
   uint64_t total_number_of_failed_writes_;
-  uint64_t total_ns_of_sleep_;
+  uint64_t total_ms_of_sleep_;
   uint64_t total_ns_of_work_;
   uint64_t total_number_of_foreign_dex_marks_;
+  // TODO(calin): replace with an actual size.
+  uint64_t max_number_of_profile_entries_cached_;
 
   DISALLOW_COPY_AND_ASSIGN(ProfileSaver);
 };
