@@ -1780,6 +1780,99 @@ void IntrinsicCodeGeneratorMIPS::VisitUnsafePutLongVolatile(HInvoke* invoke) {
                codegen_);
 }
 
+static void CreateIntIntIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorMIPS* codegen) {
+  MipsAssembler* assembler = codegen->GetAssembler();
+  bool isR6 = codegen->GetInstructionSetFeatures().IsR6();
+  Register base = locations->InAt(1).AsRegister<Register>();
+  Register offset_lo = locations->InAt(2).AsRegisterPairLow<Register>();
+  Register expected = locations->InAt(3).AsRegister<Register>();
+  Register value = locations->InAt(4).AsRegister<Register>();
+  Register out = locations->Out().AsRegister<Register>();
+
+  DCHECK_NE(base, out);
+  DCHECK_NE(offset_lo, out);
+  DCHECK_NE(expected, out);
+
+  if (type == Primitive::kPrimNot) {
+    // Mark card for object assuming new value is stored.
+    codegen->MarkGCCard(base, value);
+  }
+
+  // do {
+  //   tmp_value = [tmp_ptr] - expected;
+  // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
+  // result = tmp_value != 0;
+
+  MipsLabel loop_head, exit_loop;
+  __ Addu(TMP, base, offset_lo);
+  __ Sync(0);
+  __ Bind(&loop_head);
+  if ((type == Primitive::kPrimInt) || (type == Primitive::kPrimNot)) {
+    if (isR6) {
+      __ LlR6(out, TMP);
+    } else {
+      __ LlR2(out, TMP);
+    }
+  } else {
+      LOG(FATAL) << "Unsupported op size " << type;
+      UNREACHABLE();
+  }
+  __ Subu(out, out, expected);          // If we didn't get the 'expected'
+  __ Sltiu(out, out, 1);                // value, set 'out' to false, and
+  __ Beqz(out, &exit_loop);             // return.
+  __ Move(out, value);  // Use 'out' for the 'store conditional' instruction.
+                        // If we use 'value' directly, we would lose 'value'
+                        // in the case that the store fails.  Whether the
+                        // store succeeds, or fails, it will load the
+                        // correct boolean value into the 'out' register.
+  // This test isn't really necessary. We only support Primitive::kPrimInt,
+  // Primitive::kPrimNot, and we already verified that we're working on one
+  // of those two types. It's left here in case the code needs to support
+  // other types in the future.
+  if ((type == Primitive::kPrimInt) || (type == Primitive::kPrimNot)) {
+    if (isR6) {
+      __ ScR6(out, TMP);
+    } else {
+      __ ScR2(out, TMP);
+    }
+  }
+  __ Beqz(out, &loop_head);     // If we couldn't do the read-modify-write
+                                // cycle atomically then retry.
+  __ Bind(&exit_loop);
+  __ Sync(0);
+}
+
+// boolean sun.misc.Unsafe.compareAndSwapInt(Object o, long offset, int expected, int x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeCASInt(HInvoke* invoke) {
+  CreateIntIntIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeCASInt(HInvoke* invoke) {
+  GenCas(invoke->GetLocations(), Primitive::kPrimInt, codegen_);
+}
+
+// boolean sun.misc.Unsafe.compareAndSwapObject(Object o, long offset, Object expected, Object x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeCASObject(HInvoke* invoke) {
+  CreateIntIntIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeCASObject(HInvoke* invoke) {
+  GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
+}
+
 // char java.lang.String.charAt(int index)
 void IntrinsicLocationsBuilderMIPS::VisitStringCharAt(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
@@ -2347,9 +2440,7 @@ UNIMPLEMENTED_INTRINSIC(MIPS, MathFloor)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRint)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundFloat)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASInt)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASObject)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(MIPS, StringGetCharsNoCheck)

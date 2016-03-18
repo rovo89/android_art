@@ -485,6 +485,28 @@ void MipsAssembler::Swr(Register rt, Register rs, uint16_t imm16) {
   EmitI(0x2e, rs, rt, imm16);
 }
 
+void MipsAssembler::LlR2(Register rt, Register base, int16_t imm16) {
+  CHECK(!IsR6());
+  EmitI(0x30, base, rt, imm16);
+}
+
+void MipsAssembler::ScR2(Register rt, Register base, int16_t imm16) {
+  CHECK(!IsR6());
+  EmitI(0x38, base, rt, imm16);
+}
+
+void MipsAssembler::LlR6(Register rt, Register base, int16_t imm9) {
+  CHECK(IsR6());
+  CHECK(IsInt<9>(imm9));
+  EmitI(0x1f, base, rt, ((imm9 & 0x1ff) << 7) | 0x36);
+}
+
+void MipsAssembler::ScR6(Register rt, Register base, int16_t imm9) {
+  CHECK(IsR6());
+  CHECK(IsInt<9>(imm9));
+  EmitI(0x1f, base, rt, ((imm9 & 0x1ff) << 7) | 0x26);
+}
+
 void MipsAssembler::Slt(Register rd, Register rs, Register rt) {
   EmitR(0, rs, rt, rd, 0, 0x2a);
 }

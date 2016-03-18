@@ -489,6 +489,14 @@ TEST_F(AssemblerMIPSTest, Swr) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Swr, -16, "swr ${reg1}, {imm}(${reg2})"), "Swr");
 }
 
+TEST_F(AssemblerMIPSTest, LlR2) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::LlR2, -16, "ll ${reg1}, {imm}(${reg2})"), "LlR2");
+}
+
+TEST_F(AssemblerMIPSTest, ScR2) {
+  DriverStr(RepeatRRIb(&mips::MipsAssembler::ScR2, -16, "sc ${reg1}, {imm}(${reg2})"), "ScR2");
+}
+
 TEST_F(AssemblerMIPSTest, Slt) {
   DriverStr(RepeatRRR(&mips::MipsAssembler::Slt, "slt ${reg1}, ${reg2}, ${reg3}"), "Slt");
 }
