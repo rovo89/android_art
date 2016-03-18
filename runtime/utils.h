@@ -296,6 +296,7 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_m
 
 // Returns true if the file exists.
 bool FileExists(const std::string& filename);
+bool FileExistsAndNotEmpty(const std::string& filename);
 
 class VoidFunctor {
  public:
