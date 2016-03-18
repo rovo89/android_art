@@ -96,7 +96,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
 
   bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
-  void SimplifyRotate(HInvoke* invoke, bool is_left);
+  void SimplifyRotate(HInvoke* invoke, bool is_left, Primitive::Type type);
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
   void SimplifyCompare(HInvoke* invoke, bool is_signum, Primitive::Type type);
@@ -262,10 +262,8 @@ static bool IsSubRegBitsMinusOther(HSub* sub, size_t reg_bits, HInstruction* oth
 bool InstructionSimplifierVisitor::ReplaceRotateWithRor(HBinaryOperation* op,
                                                         HUShr* ushr,
                                                         HShl* shl) {
-  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
-  HRor* ror = new (GetGraph()->GetArena()) HRor(ushr->GetType(),
-                                                ushr->GetLeft(),
-                                                ushr->GetRight());
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr()) << op->DebugName();
+  HRor* ror = new (GetGraph()->GetArena()) HRor(ushr->GetType(), ushr->GetLeft(), ushr->GetRight());
   op->GetBlock()->ReplaceAndRemoveInstructionWith(op, ror);
   if (!ushr->HasUses()) {
     ushr->GetBlock()->RemoveInstruction(ushr);
@@ -1232,7 +1230,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       // with
       //    SHL dst, src, log2(pow_of_2)
       HIntConstant* shift = GetGraph()->GetIntConstant(WhichPowerOf2(factor));
-      HShl* shl = new(allocator) HShl(type, input_other, shift);
+      HShl* shl = new (allocator) HShl(type, input_other, shift);
       block->ReplaceAndRemoveInstructionWith(instruction, shl);
       RecordSimplification();
     } else if (IsPowerOfTwo(factor - 1)) {
@@ -1531,7 +1529,9 @@ void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
   }
 }
 
-void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke, bool is_left) {
+void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke,
+                                                  bool is_left,
+                                                  Primitive::Type type) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
   DCHECK_EQ(invoke->GetOriginalInvokeType(), InvokeType::kStatic);
   HInstruction* value = invoke->InputAt(0);
@@ -1541,7 +1541,7 @@ void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke, bool is_left)
     distance = new (GetGraph()->GetArena()) HNeg(distance->GetType(), distance);
     invoke->GetBlock()->InsertInstructionBefore(distance, invoke);
   }
-  HRor* ror = new (GetGraph()->GetArena()) HRor(value->GetType(), value, distance);
+  HRor* ror = new (GetGraph()->GetArena()) HRor(type, value, distance);
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, ror);
   // Remove ClinitCheck and LoadClass, if possible.
   HInstruction* clinit = invoke->InputAt(invoke->InputCount() - 1);
@@ -1694,12 +1694,16 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
       SimplifySystemArrayCopy(instruction);
       break;
     case Intrinsics::kIntegerRotateRight:
+      SimplifyRotate(instruction, /* is_left */ false, Primitive::kPrimInt);
+      break;
     case Intrinsics::kLongRotateRight:
-      SimplifyRotate(instruction, false);
+      SimplifyRotate(instruction, /* is_left */ false, Primitive::kPrimLong);
       break;
     case Intrinsics::kIntegerRotateLeft:
+      SimplifyRotate(instruction, /* is_left */ true, Primitive::kPrimInt);
+      break;
     case Intrinsics::kLongRotateLeft:
-      SimplifyRotate(instruction, true);
+      SimplifyRotate(instruction, /* is_left */ true, Primitive::kPrimLong);
       break;
     case Intrinsics::kIntegerCompare:
       SimplifyCompare(instruction, /* is_signum */ false, Primitive::kPrimInt);
