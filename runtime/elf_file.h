@@ -69,6 +69,8 @@ class ElfFile {
 
   bool GetSectionOffsetAndSize(const char* section_name, uint64_t* offset, uint64_t* size) const;
 
+  bool HasSection(const std::string& name) const;
+
   uint64_t FindSymbolAddress(unsigned section_type,
                              const std::string& symbol_name,
                              bool build_map);
