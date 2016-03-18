@@ -29,304 +29,302 @@ public class Main {
   }
 
   public static void main(String[] args) {
-    shlInt();
-    shlLong();
-    shrInt();
-    shrLong();
-    ushrInt();
-    ushrLong();
+    testShlInt();
+    testShlLong();
+    testShrInt();
+    testShrLong();
+    testUShrInt();
+    testUShrLong();
   }
 
-  private static void shlInt() {
-    expectEquals(48, $opt$ShlConst2(12));
-    expectEquals(12, $opt$ShlConst0(12));
-    expectEquals(-48, $opt$Shl(-12, 2));
-    expectEquals(1024, $opt$Shl(32, 5));
+  private static void testShlInt() {
+    expectEquals(48, $opt$ShlIntConst2(12));
+    expectEquals(12, $opt$ShlIntConst0(12));
+    expectEquals(-48, $opt$ShlInt(-12, 2));
+    expectEquals(1024, $opt$ShlInt(32, 5));
 
-    expectEquals(7, $opt$Shl(7, 0));
-    expectEquals(14, $opt$Shl(7, 1));
-    expectEquals(0, $opt$Shl(0, 30));
+    expectEquals(7, $opt$ShlInt(7, 0));
+    expectEquals(14, $opt$ShlInt(7, 1));
+    expectEquals(0, $opt$ShlInt(0, 30));
 
-    expectEquals(1073741824L, $opt$Shl(1, 30));
-    expectEquals(Integer.MIN_VALUE, $opt$Shl(1, 31));  // overflow
-    expectEquals(Integer.MIN_VALUE, $opt$Shl(1073741824, 1));  // overflow
-    expectEquals(1073741824, $opt$Shl(268435456, 2));
+    expectEquals(1073741824L, $opt$ShlInt(1, 30));
+    expectEquals(Integer.MIN_VALUE, $opt$ShlInt(1, 31));  // overflow
+    expectEquals(Integer.MIN_VALUE, $opt$ShlInt(1073741824, 1));  // overflow
+    expectEquals(1073741824, $opt$ShlInt(268435456, 2));
 
     // Only the 5 lower bits should be used for shifting (& 0x1f).
-    expectEquals(7, $opt$Shl(7, 32));  // 32 & 0x1f = 0
-    expectEquals(14, $opt$Shl(7, 33));  // 33 & 0x1f = 1
-    expectEquals(32, $opt$Shl(1, 101));  // 101 & 0x1f = 5
+    expectEquals(7, $opt$ShlInt(7, 32));  // 32 & 0x1f = 0
+    expectEquals(14, $opt$ShlInt(7, 33));  // 33 & 0x1f = 1
+    expectEquals(32, $opt$ShlInt(1, 101));  // 101 & 0x1f = 5
 
-    expectEquals(Integer.MIN_VALUE, $opt$Shl(1, -1));  // -1 & 0x1f = 31
-    expectEquals(14, $opt$Shl(7, -31));  // -31 & 0x1f = 1
-    expectEquals(7, $opt$Shl(7, -32));  // -32 & 0x1f = 0
-    expectEquals(-536870912, $opt$Shl(7, -3));  // -3 & 0x1f = 29
+    expectEquals(Integer.MIN_VALUE, $opt$ShlInt(1, -1));  // -1 & 0x1f = 31
+    expectEquals(14, $opt$ShlInt(7, -31));  // -31 & 0x1f = 1
+    expectEquals(7, $opt$ShlInt(7, -32));  // -32 & 0x1f = 0
+    expectEquals(-536870912, $opt$ShlInt(7, -3));  // -3 & 0x1f = 29
 
-    expectEquals(Integer.MIN_VALUE, $opt$Shl(7, Integer.MAX_VALUE));
-    expectEquals(7, $opt$Shl(7, Integer.MIN_VALUE));
+    expectEquals(Integer.MIN_VALUE, $opt$ShlInt(7, Integer.MAX_VALUE));
+    expectEquals(7, $opt$ShlInt(7, Integer.MIN_VALUE));
   }
 
-  private static void shlLong() {
-    expectEquals(48L, $opt$ShlConst2(12L));
-    expectEquals(12L, $opt$ShlConst0(12L));
-    expectEquals(-48L, $opt$Shl(-12L, 2L));
-    expectEquals(1024L, $opt$Shl(32L, 5L));
+  private static void testShlLong() {
+    expectEquals(48L, $opt$ShlLongConst2(12L));
+    expectEquals(12L, $opt$ShlLongConst0(12L));
+    expectEquals(-48L, $opt$ShlLong(-12L, 2));
+    expectEquals(1024L, $opt$ShlLong(32L, 5));
 
-    expectEquals(7L, $opt$Shl(7L, 0L));
-    expectEquals(14L, $opt$Shl(7L, 1L));
-    expectEquals(0L, $opt$Shl(0L, 30L));
+    expectEquals(7L, $opt$ShlLong(7L, 0));
+    expectEquals(14L, $opt$ShlLong(7L, 1));
+    expectEquals(0L, $opt$ShlLong(0L, 30));
 
-    expectEquals(1073741824L, $opt$Shl(1L, 30L));
-    expectEquals(2147483648L, $opt$Shl(1L, 31L));
-    expectEquals(2147483648L, $opt$Shl(1073741824L, 1L));
+    expectEquals(1073741824L, $opt$ShlLong(1L, 30));
+    expectEquals(2147483648L, $opt$ShlLong(1L, 31));
+    expectEquals(2147483648L, $opt$ShlLong(1073741824L, 1));
 
     // Long shifts can use up to 6 lower bits.
-    expectEquals(4294967296L, $opt$Shl(1L, 32L));
-    expectEquals(60129542144L, $opt$Shl(7L, 33L));
-    expectEquals(Long.MIN_VALUE, $opt$Shl(1L, 63L));  // overflow
+    expectEquals(4294967296L, $opt$ShlLong(1L, 32));
+    expectEquals(60129542144L, $opt$ShlLong(7L, 33));
+    expectEquals(Long.MIN_VALUE, $opt$ShlLong(1L, 63));  // overflow
 
     // Only the 6 lower bits should be used for shifting (& 0x3f).
-    expectEquals(7L, $opt$Shl(7L, 64L));  // 64 & 0x3f = 0
-    expectEquals(14L, $opt$Shl(7L, 65L));  // 65 & 0x3f = 1
-    expectEquals(137438953472L, $opt$Shl(1L, 101L));  // 101 & 0x3f = 37
+    expectEquals(7L, $opt$ShlLong(7L, 64));  // 64 & 0x3f = 0
+    expectEquals(14L, $opt$ShlLong(7L, 65));  // 65 & 0x3f = 1
+    expectEquals(137438953472L, $opt$ShlLong(1L, 101));  // 101 & 0x3f = 37
 
-    expectEquals(Long.MIN_VALUE, $opt$Shl(1L, -1L));  // -1 & 0x3f = 63
-    expectEquals(14L, $opt$Shl(7L, -63L));  // -63 & 0x3f = 1
-    expectEquals(7L, $opt$Shl(7L, -64L));  // -64 & 0x3f = 0
-    expectEquals(2305843009213693952L, $opt$Shl(1L, -3L));  // -3 & 0x3f = 61
+    expectEquals(Long.MIN_VALUE, $opt$ShlLong(1L, -1));  // -1 & 0x3f = 63
+    expectEquals(14L, $opt$ShlLong(7L, -63));  // -63 & 0x3f = 1
+    expectEquals(7L, $opt$ShlLong(7L, -64));  // -64 & 0x3f = 0
+    expectEquals(2305843009213693952L, $opt$ShlLong(1L, -3));  // -3 & 0x3f = 61
 
-    expectEquals(Long.MIN_VALUE, $opt$Shl(7L, Long.MAX_VALUE));
-    expectEquals(7L, $opt$Shl(7L, Long.MIN_VALUE));
+    expectEquals(Long.MIN_VALUE, $opt$ShlLong(7L, Integer.MAX_VALUE));
+    expectEquals(7L, $opt$ShlLong(7L, Integer.MIN_VALUE));
 
     // Exercise some special cases handled by backends/simplifier.
-    expectEquals(24L, $opt$ShlConst1(12L));
-    expectEquals(0x2345678900000000L, $opt$ShlConst32(0x123456789L));
-    expectEquals(0x2490249000000000L, $opt$ShlConst33(0x12481248L));
-    expectEquals(0x4920492000000000L, $opt$ShlConst34(0x12481248L));
-    expectEquals(0x9240924000000000L, $opt$ShlConst35(0x12481248L));
+    expectEquals(24L, $opt$ShlLongConst1(12L));
+    expectEquals(0x2345678900000000L, $opt$ShlLongConst32(0x123456789L));
+    expectEquals(0x2490249000000000L, $opt$ShlLongConst33(0x12481248L));
+    expectEquals(0x4920492000000000L, $opt$ShlLongConst34(0x12481248L));
+    expectEquals(0x9240924000000000L, $opt$ShlLongConst35(0x12481248L));
   }
 
-  private static void shrInt() {
-    expectEquals(3, $opt$ShrConst2(12));
-    expectEquals(12, $opt$ShrConst0(12));
-    expectEquals(-3, $opt$Shr(-12, 2));
-    expectEquals(1, $opt$Shr(32, 5));
+  private static void testShrInt() {
+    expectEquals(3, $opt$ShrIntConst2(12));
+    expectEquals(12, $opt$ShrIntConst0(12));
+    expectEquals(-3, $opt$ShrInt(-12, 2));
+    expectEquals(1, $opt$ShrInt(32, 5));
 
-    expectEquals(7, $opt$Shr(7, 0));
-    expectEquals(3, $opt$Shr(7, 1));
-    expectEquals(0, $opt$Shr(0, 30));
-    expectEquals(0, $opt$Shr(1, 30));
-    expectEquals(-1, $opt$Shr(-1, 30));
+    expectEquals(7, $opt$ShrInt(7, 0));
+    expectEquals(3, $opt$ShrInt(7, 1));
+    expectEquals(0, $opt$ShrInt(0, 30));
+    expectEquals(0, $opt$ShrInt(1, 30));
+    expectEquals(-1, $opt$ShrInt(-1, 30));
 
-    expectEquals(0, $opt$Shr(Integer.MAX_VALUE, 31));
-    expectEquals(-1, $opt$Shr(Integer.MIN_VALUE, 31));
+    expectEquals(0, $opt$ShrInt(Integer.MAX_VALUE, 31));
+    expectEquals(-1, $opt$ShrInt(Integer.MIN_VALUE, 31));
 
     // Only the 5 lower bits should be used for shifting (& 0x1f).
-    expectEquals(7, $opt$Shr(7, 32));  // 32 & 0x1f = 0
-    expectEquals(3, $opt$Shr(7, 33));  // 33 & 0x1f = 1
+    expectEquals(7, $opt$ShrInt(7, 32));  // 32 & 0x1f = 0
+    expectEquals(3, $opt$ShrInt(7, 33));  // 33 & 0x1f = 1
 
-    expectEquals(0, $opt$Shr(1, -1));  // -1 & 0x1f = 31
-    expectEquals(3, $opt$Shr(7, -31));  // -31 & 0x1f = 1
-    expectEquals(7, $opt$Shr(7, -32));  // -32 & 0x1f = 0
-    expectEquals(-4, $opt$Shr(Integer.MIN_VALUE, -3));  // -3 & 0x1f = 29
+    expectEquals(0, $opt$ShrInt(1, -1));  // -1 & 0x1f = 31
+    expectEquals(3, $opt$ShrInt(7, -31));  // -31 & 0x1f = 1
+    expectEquals(7, $opt$ShrInt(7, -32));  // -32 & 0x1f = 0
+    expectEquals(-4, $opt$ShrInt(Integer.MIN_VALUE, -3));  // -3 & 0x1f = 29
 
-    expectEquals(0, $opt$Shr(7, Integer.MAX_VALUE));
-    expectEquals(7, $opt$Shr(7, Integer.MIN_VALUE));
+    expectEquals(0, $opt$ShrInt(7, Integer.MAX_VALUE));
+    expectEquals(7, $opt$ShrInt(7, Integer.MIN_VALUE));
   }
 
-  private static void shrLong() {
-    expectEquals(3L, $opt$ShrConst2(12L));
-    expectEquals(12L, $opt$ShrConst0(12L));
-    expectEquals(-3L, $opt$Shr(-12L, 2L));
-    expectEquals(1, $opt$Shr(32, 5));
+  private static void testShrLong() {
+    expectEquals(3L, $opt$ShrLongConst2(12L));
+    expectEquals(12L, $opt$ShrLongConst0(12L));
+    expectEquals(-3L, $opt$ShrLong(-12L, 2));
+    expectEquals(1, $opt$ShrLong(32, 5));
 
-    expectEquals(7L, $opt$Shr(7L, 0L));
-    expectEquals(3L, $opt$Shr(7L, 1L));
-    expectEquals(0L, $opt$Shr(0L, 30L));
-    expectEquals(0L, $opt$Shr(1L, 30L));
-    expectEquals(-1L, $opt$Shr(-1L, 30L));
+    expectEquals(7L, $opt$ShrLong(7L, 0));
+    expectEquals(3L, $opt$ShrLong(7L, 1));
+    expectEquals(0L, $opt$ShrLong(0L, 30));
+    expectEquals(0L, $opt$ShrLong(1L, 30));
+    expectEquals(-1L, $opt$ShrLong(-1L, 30));
 
-
-    expectEquals(1L, $opt$Shr(1073741824L, 30L));
-    expectEquals(1L, $opt$Shr(2147483648L, 31L));
-    expectEquals(1073741824L, $opt$Shr(2147483648L, 1L));
+    expectEquals(1L, $opt$ShrLong(1073741824L, 30));
+    expectEquals(1L, $opt$ShrLong(2147483648L, 31));
+    expectEquals(1073741824L, $opt$ShrLong(2147483648L, 1));
 
     // Long shifts can use up to 6 lower bits.
-    expectEquals(1L, $opt$Shr(4294967296L, 32L));
-    expectEquals(7L, $opt$Shr(60129542144L, 33L));
-    expectEquals(0L, $opt$Shr(Long.MAX_VALUE, 63L));
-    expectEquals(-1L, $opt$Shr(Long.MIN_VALUE, 63L));
+    expectEquals(1L, $opt$ShrLong(4294967296L, 32));
+    expectEquals(7L, $opt$ShrLong(60129542144L, 33));
+    expectEquals(0L, $opt$ShrLong(Long.MAX_VALUE, 63));
+    expectEquals(-1L, $opt$ShrLong(Long.MIN_VALUE, 63));
 
     // Only the 6 lower bits should be used for shifting (& 0x3f).
-    expectEquals(7L, $opt$Shr(7L, 64L));  // 64 & 0x3f = 0
-    expectEquals(3L, $opt$Shr(7L, 65L));  // 65 & 0x3f = 1
+    expectEquals(7L, $opt$ShrLong(7L, 64));  // 64 & 0x3f = 0
+    expectEquals(3L, $opt$ShrLong(7L, 65));  // 65 & 0x3f = 1
 
-    expectEquals(-1L, $opt$Shr(Long.MIN_VALUE, -1L));  // -1 & 0x3f = 63
-    expectEquals(3L, $opt$Shr(7L, -63L));  // -63 & 0x3f = 1
-    expectEquals(7L, $opt$Shr(7L, -64L));  // -64 & 0x3f = 0
-    expectEquals(1L, $opt$Shr(2305843009213693952L, -3L));  // -3 & 0x3f = 61
-    expectEquals(-4L, $opt$Shr(Integer.MIN_VALUE, -3));  // -3 & 0x1f = 29
+    expectEquals(-1L, $opt$ShrLong(Long.MIN_VALUE, -1));  // -1 & 0x3f = 63
+    expectEquals(3L, $opt$ShrLong(7L, -63));  // -63 & 0x3f = 1
+    expectEquals(7L, $opt$ShrLong(7L, -64));  // -64 & 0x3f = 0
+    expectEquals(1L, $opt$ShrLong(2305843009213693952L, -3));  // -3 & 0x3f = 61
+    expectEquals(-1L, $opt$ShrLong(Integer.MIN_VALUE, -3));  // -3 & 0x1f = 29
 
-    expectEquals(0L, $opt$Shr(7L, Long.MAX_VALUE));
-    expectEquals(7L, $opt$Shr(7L, Long.MIN_VALUE));
+    expectEquals(0L, $opt$ShrLong(7L, Integer.MAX_VALUE));
+    expectEquals(7L, $opt$ShrLong(7L, Integer.MIN_VALUE));
   }
 
-  private static void ushrInt() {
-    expectEquals(3, $opt$UShrConst2(12));
-    expectEquals(12, $opt$UShrConst0(12));
-    expectEquals(1073741821, $opt$UShr(-12, 2));
-    expectEquals(1, $opt$UShr(32, 5));
+  private static void testUShrInt() {
+    expectEquals(3, $opt$UShrIntConst2(12));
+    expectEquals(12, $opt$UShrIntConst0(12));
+    expectEquals(1073741821, $opt$UShrInt(-12, 2));
+    expectEquals(1, $opt$UShrInt(32, 5));
 
-    expectEquals(7, $opt$UShr(7, 0));
-    expectEquals(3, $opt$UShr(7, 1));
-    expectEquals(0, $opt$UShr(0, 30));
-    expectEquals(0, $opt$UShr(1, 30));
-    expectEquals(3, $opt$UShr(-1, 30));
+    expectEquals(7, $opt$UShrInt(7, 0));
+    expectEquals(3, $opt$UShrInt(7, 1));
+    expectEquals(0, $opt$UShrInt(0, 30));
+    expectEquals(0, $opt$UShrInt(1, 30));
+    expectEquals(3, $opt$UShrInt(-1, 30));
 
-    expectEquals(0, $opt$UShr(Integer.MAX_VALUE, 31));
-    expectEquals(1, $opt$UShr(Integer.MIN_VALUE, 31));
+    expectEquals(0, $opt$UShrInt(Integer.MAX_VALUE, 31));
+    expectEquals(1, $opt$UShrInt(Integer.MIN_VALUE, 31));
 
     // Only the 5 lower bits should be used for shifting (& 0x1f).
-    expectEquals(7, $opt$UShr(7, 32));  // 32 & 0x1f = 0
-    expectEquals(3, $opt$UShr(7, 33));  // 33 & 0x1f = 1
+    expectEquals(7, $opt$UShrInt(7, 32));  // 32 & 0x1f = 0
+    expectEquals(3, $opt$UShrInt(7, 33));  // 33 & 0x1f = 1
 
-    expectEquals(0, $opt$UShr(1, -1));  // -1 & 0x1f = 31
-    expectEquals(3, $opt$UShr(7, -31));  // -31 & 0x1f = 1
-    expectEquals(7, $opt$UShr(7, -32));  // -32 & 0x1f = 0
-    expectEquals(4, $opt$UShr(Integer.MIN_VALUE, -3));  // -3 & 0x1f = 29
+    expectEquals(0, $opt$UShrInt(1, -1));  // -1 & 0x1f = 31
+    expectEquals(3, $opt$UShrInt(7, -31));  // -31 & 0x1f = 1
+    expectEquals(7, $opt$UShrInt(7, -32));  // -32 & 0x1f = 0
+    expectEquals(4, $opt$UShrInt(Integer.MIN_VALUE, -3));  // -3 & 0x1f = 29
 
-    expectEquals(0, $opt$UShr(7, Integer.MAX_VALUE));
-    expectEquals(7, $opt$UShr(7, Integer.MIN_VALUE));
+    expectEquals(0, $opt$UShrInt(7, Integer.MAX_VALUE));
+    expectEquals(7, $opt$UShrInt(7, Integer.MIN_VALUE));
   }
 
-  private static void ushrLong() {
-    expectEquals(3L, $opt$UShrConst2(12L));
-    expectEquals(12L, $opt$UShrConst0(12L));
-    expectEquals(4611686018427387901L, $opt$UShr(-12L, 2L));
-    expectEquals(1, $opt$UShr(32, 5));
+  private static void testUShrLong() {
+    expectEquals(3L, $opt$UShrLongConst2(12L));
+    expectEquals(12L, $opt$UShrLongConst0(12L));
+    expectEquals(4611686018427387901L, $opt$UShrLong(-12L, 2));
+    expectEquals(1, $opt$UShrLong(32, 5));
 
-    expectEquals(7L, $opt$UShr(7L, 0L));
-    expectEquals(3L, $opt$UShr(7L, 1L));
-    expectEquals(0L, $opt$UShr(0L, 30L));
-    expectEquals(0L, $opt$UShr(1L, 30L));
-    expectEquals(17179869183L, $opt$UShr(-1L, 30L));
+    expectEquals(7L, $opt$UShrLong(7L, 0));
+    expectEquals(3L, $opt$UShrLong(7L, 1));
+    expectEquals(0L, $opt$UShrLong(0L, 30));
+    expectEquals(0L, $opt$UShrLong(1L, 30));
+    expectEquals(17179869183L, $opt$UShrLong(-1L, 30));
 
-
-    expectEquals(1L, $opt$UShr(1073741824L, 30L));
-    expectEquals(1L, $opt$UShr(2147483648L, 31L));
-    expectEquals(1073741824L, $opt$UShr(2147483648L, 1L));
+    expectEquals(1L, $opt$UShrLong(1073741824L, 30));
+    expectEquals(1L, $opt$UShrLong(2147483648L, 31));
+    expectEquals(1073741824L, $opt$UShrLong(2147483648L, 1));
 
     // Long shifts can use use up to 6 lower bits.
-    expectEquals(1L, $opt$UShr(4294967296L, 32L));
-    expectEquals(7L, $opt$UShr(60129542144L, 33L));
-    expectEquals(0L, $opt$UShr(Long.MAX_VALUE, 63L));
-    expectEquals(1L, $opt$UShr(Long.MIN_VALUE, 63L));
+    expectEquals(1L, $opt$UShrLong(4294967296L, 32));
+    expectEquals(7L, $opt$UShrLong(60129542144L, 33));
+    expectEquals(0L, $opt$UShrLong(Long.MAX_VALUE, 63));
+    expectEquals(1L, $opt$UShrLong(Long.MIN_VALUE, 63));
 
     // Only the 6 lower bits should be used for shifting (& 0x3f).
-    expectEquals(7L, $opt$UShr(7L, 64L));  // 64 & 0x3f = 0
-    expectEquals(3L, $opt$UShr(7L, 65L));  // 65 & 0x3f = 1
+    expectEquals(7L, $opt$UShrLong(7L, 64));  // 64 & 0x3f = 0
+    expectEquals(3L, $opt$UShrLong(7L, 65));  // 65 & 0x3f = 1
 
-    expectEquals(1L, $opt$UShr(Long.MIN_VALUE, -1L));  // -1 & 0x3f = 63
-    expectEquals(3L, $opt$UShr(7L, -63L));  // -63 & 0x3f = 1
-    expectEquals(7L, $opt$UShr(7L, -64L));  // -64 & 0x3f = 0
-    expectEquals(1L, $opt$UShr(2305843009213693952L, -3L));  // -3 & 0x3f = 61
-    expectEquals(4L, $opt$UShr(Long.MIN_VALUE, -3L));  // -3 & 0x3f = 61
+    expectEquals(1L, $opt$UShrLong(Long.MIN_VALUE, -1));  // -1 & 0x3f = 63
+    expectEquals(3L, $opt$UShrLong(7L, -63));  // -63 & 0x3f = 1
+    expectEquals(7L, $opt$UShrLong(7L, -64));  // -64 & 0x3f = 0
+    expectEquals(1L, $opt$UShrLong(2305843009213693952L, -3));  // -3 & 0x3f = 61
+    expectEquals(4L, $opt$UShrLong(Long.MIN_VALUE, -3));  // -3 & 0x3f = 61
 
-    expectEquals(0L, $opt$UShr(7L, Long.MAX_VALUE));
-    expectEquals(7L, $opt$UShr(7L, Long.MIN_VALUE));
+    expectEquals(0L, $opt$UShrLong(7L, Integer.MAX_VALUE));
+    expectEquals(7L, $opt$UShrLong(7L, Integer.MIN_VALUE));
   }
 
-  static int $opt$Shl(int a, int b) {
-    return a << b;
+
+  static int $opt$ShlInt(int value, int distance) {
+    return value << distance;
   }
 
-  static long $opt$Shl(long a, long b) {
-    return a << b;
+  static long $opt$ShlLong(long value, int distance) {
+    return value << distance;
   }
 
-  static int $opt$Shr(int a, int b) {
-    return a >> b;
+  static int $opt$ShrInt(int value, int distance) {
+    return value >> distance;
   }
 
-  static long $opt$Shr(long a, long b) {
-    return a >> b;
+  static long $opt$ShrLong(long value, int distance) {
+    return value >> distance;
   }
 
-  static int $opt$UShr(int a, int b) {
-    return a >>> b;
+  static int $opt$UShrInt(int value, int distance) {
+    return value >>> distance;
   }
 
-  static long $opt$UShr(long a, long b) {
-    return a >>> b;
+  static long $opt$UShrLong(long value, int distance) {
+    return value >>> distance;
   }
 
-  static int $opt$ShlConst2(int a) {
-    return a << 2;
+  static int $opt$ShlIntConst2(int value) {
+    return value << 2;
   }
 
-  static long $opt$ShlConst2(long a) {
-    return a << 2L;
+  static long $opt$ShlLongConst2(long value) {
+    return value << 2;
   }
 
-  static int $opt$ShrConst2(int a) {
-    return a >> 2;
+  static int $opt$ShrIntConst2(int value) {
+    return value >> 2;
   }
 
-  static long $opt$ShrConst2(long a) {
-    return a >> 2L;
+  static long $opt$ShrLongConst2(long value) {
+    return value >> 2;
   }
 
-  static int $opt$UShrConst2(int a) {
-    return a >>> 2;
+  static int $opt$UShrIntConst2(int value) {
+    return value >>> 2;
   }
 
-  static long $opt$UShrConst2(long a) {
-    return a >>> 2L;
+  static long $opt$UShrLongConst2(long value) {
+    return value >>> 2;
   }
 
-  static int $opt$ShlConst0(int a) {
-    return a << 0;
+  static int $opt$ShlIntConst0(int value) {
+    return value << 0;
   }
 
-  static long $opt$ShlConst0(long a) {
-    return a << 0L;
+  static long $opt$ShlLongConst0(long value) {
+    return value << 0;
   }
 
-  static int $opt$ShrConst0(int a) {
-    return a >> 0;
+  static int $opt$ShrIntConst0(int value) {
+    return value >> 0;
   }
 
-  static long $opt$ShrConst0(long a) {
-    return a >> 0L;
+  static long $opt$ShrLongConst0(long value) {
+    return value >> 0;
   }
 
-  static int $opt$UShrConst0(int a) {
-    return a >>> 0;
+  static int $opt$UShrIntConst0(int value) {
+    return value >>> 0;
   }
 
-  static long $opt$UShrConst0(long a) {
-    return a >>> 0L;
+  static long $opt$UShrLongConst0(long value) {
+    return value >>> 0;
   }
 
-  static long $opt$ShlConst1(long a) {
-    return a << 1L;
+  static long $opt$ShlLongConst1(long value) {
+    return value << 1;
   }
 
-  static long $opt$ShlConst32(long a) {
-    return a << 32L;
+  static long $opt$ShlLongConst32(long value) {
+    return value << 32;
   }
 
-  static long $opt$ShlConst33(long a) {
-    return a << 33L;
+  static long $opt$ShlLongConst33(long value) {
+    return value << 33;
   }
 
-  static long $opt$ShlConst34(long a) {
-    return a << 34L;
+  static long $opt$ShlLongConst34(long value) {
+    return value << 34;
   }
 
-  static long $opt$ShlConst35(long a) {
-    return a << 35L;
+  static long $opt$ShlLongConst35(long value) {
+    return value << 35;
   }
 
 }
-
