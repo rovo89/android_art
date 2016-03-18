@@ -760,7 +760,8 @@ static void SanityCheckArtMethod(ArtMethod* m,
                                  const std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
-    CHECK(m->GetDeclaringClass() == nullptr) << PrettyMethod(m);
+    mirror::Class* declaring_class = m->GetDeclaringClassUnchecked();
+    CHECK(declaring_class == nullptr) << declaring_class << " " << PrettyMethod(m);
   } else if (m->IsCopied()) {
     CHECK(m->GetDeclaringClass() != nullptr) << PrettyMethod(m);
   } else if (expected_class != nullptr) {
