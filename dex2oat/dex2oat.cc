@@ -256,6 +256,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("  --compiler-filter="
                 "(verify-none"
                 "|verify-at-runtime"
+                "|verify-profile"
                 "|interpret-only"
                 "|space"
                 "|balanced"
@@ -263,6 +264,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
                 "|everything"
                 "|time):");
   UsageError("      select compiler filter.");
+  UsageError("      verify-profile requires a --profile(-fd) to also be passed in.");
   UsageError("      Example: --compiler-filter=everything");
   UsageError("      Default: speed");
   UsageError("");
@@ -808,8 +810,14 @@ class Dex2Oat FINAL {
       }
     }
 
-    if (!profile_file_.empty() && (profile_file_fd_ != kInvalidFd)) {
+    const bool have_profile_file = !profile_file_.empty();
+    const bool have_profile_fd = profile_file_fd_ != kInvalidFd;
+    if (have_profile_file && have_profile_fd) {
       Usage("Profile file should not be specified with both --profile-file-fd and --profile-file");
+    }
+
+    if (compiler_options_->IsVerificationEnabled() && !have_profile_file && !have_profile_fd) {
+      Usage("verify-profile compiler filter must be used with a profile file or fd");
     }
 
     if (!parser_options->oat_symbols.empty()) {
@@ -1453,8 +1461,8 @@ class Dex2Oat FINAL {
     }
 
     /*
-     * If we're not in interpret-only or verify-none or verify-at-runtime mode, go ahead and
-     * compile small applications.  Don't bother to check if we're doing the image.
+     * If we're not in interpret-only or verify-none or verify-at-runtime or verify-profile mode,
+     * go ahead and compile small applications.  Don't bother to check if we're doing the image.
      */
     if (!IsBootImage() &&
         compiler_options_->IsCompilationEnabled() &&
