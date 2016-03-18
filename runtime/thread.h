@@ -1038,7 +1038,7 @@ class Thread {
     tlsPtr_.rosalloc_runs[index] = run;
   }
 
-  void ProtectStack();
+  bool ProtectStack(bool fatal_on_error = true);
   bool UnprotectStack();
 
   void SetMterpDefaultIBase(void* ibase) {
