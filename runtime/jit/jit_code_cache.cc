@@ -366,7 +366,8 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     if (osr) {
       number_of_osr_compilations_++;
       osr_code_map_.Put(method, code_ptr);
-    } else {
+    } else if (!Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
+      // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
       Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
           method, method_header->GetEntryPoint());
     }
