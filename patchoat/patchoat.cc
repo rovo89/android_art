@@ -1100,6 +1100,7 @@ static int patchoat_oat(TimingLogger& timings,
     if (input_oat == nullptr) {
       // Unlikely, but ensure exhaustive logging in non-0 exit code case
       LOG(ERROR) << "Failed to open input oat file by its FD" << input_oat_fd;
+      return EXIT_FAILURE;
     }
   } else {
     CHECK(!input_oat_filename.empty());
@@ -1108,7 +1109,19 @@ static int patchoat_oat(TimingLogger& timings,
       int err = errno;
       LOG(ERROR) << "Failed to open input oat file " << input_oat_filename
           << ": " << strerror(err) << "(" << err << ")";
+      return EXIT_FAILURE;
     }
+  }
+
+  std::string error_msg;
+  std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat.get(), PROT_READ, MAP_PRIVATE, &error_msg));
+  if (elf.get() == nullptr) {
+    LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
+    return EXIT_FAILURE;
+  }
+  if (!elf->HasSection(".text.oat_patches")) {
+    LOG(ERROR) << "missing oat patch section in input oat file " << input_oat->GetPath();
+    return EXIT_FAILURE;
   }
 
   if (output_oat_fd != -1) {
@@ -1144,23 +1157,15 @@ static int patchoat_oat(TimingLogger& timings,
     }
   };
 
-  if (input_oat.get() == nullptr || output_oat.get() == nullptr) {
-    LOG(ERROR) << "Failed to open input/output oat files";
+  if (output_oat.get() == nullptr) {
     cleanup(false);
     return EXIT_FAILURE;
   }
 
   if (match_delta) {
-    std::string error_msg;
     // Figure out what the current delta is so we can match it to the desired delta.
-    std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat.get(), PROT_READ, MAP_PRIVATE,
-                                               &error_msg));
     off_t current_delta = 0;
-    if (elf.get() == nullptr) {
-      LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
-      cleanup(false);
-      return EXIT_FAILURE;
-    } else if (!ReadOatPatchDelta(elf.get(), &current_delta, &error_msg)) {
+    if (!ReadOatPatchDelta(elf.get(), &current_delta, &error_msg)) {
       LOG(ERROR) << "Unable to get current delta: " << error_msg;
       cleanup(false);
       return EXIT_FAILURE;
@@ -1183,7 +1188,6 @@ static int patchoat_oat(TimingLogger& timings,
 
   ScopedFlock output_oat_lock;
   if (lock_output) {
-    std::string error_msg;
     if (!output_oat_lock.Init(output_oat.get(), &error_msg)) {
       LOG(ERROR) << "Unable to lock output oat " << output_oat->GetPath() << ": " << error_msg;
       cleanup(false);
