@@ -945,7 +945,7 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
                             Primitive::PrettyDescriptor(result_type)));
     }
   } else {
-    // Use the first input, so that we can also make this check for shift operations.
+    // Use the first input, so that we can also make this check for shift and rotate operations.
     if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(lhs_type)) {
       AddError(StringPrintf("Binary operation %s %d has a result kind different "
                             "from its input kind: %s vs %s.",

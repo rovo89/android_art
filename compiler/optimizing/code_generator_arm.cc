@@ -3273,7 +3273,8 @@ void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
     __ Bind(&end);
   }
 }
-void LocationsBuilderARM::HandleRotate(HRor* ror) {
+
+void LocationsBuilderARM::VisitRor(HRor* ror) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(ror, LocationSummary::kNoCall);
   switch (ror->GetResultType()) {
@@ -3300,7 +3301,7 @@ void LocationsBuilderARM::HandleRotate(HRor* ror) {
   }
 }
 
-void InstructionCodeGeneratorARM::HandleRotate(HRor* ror) {
+void InstructionCodeGeneratorARM::VisitRor(HRor* ror) {
   LocationSummary* locations = ror->GetLocations();
   Primitive::Type type = ror->GetResultType();
   switch (type) {
@@ -3316,14 +3317,6 @@ void InstructionCodeGeneratorARM::HandleRotate(HRor* ror) {
       LOG(FATAL) << "Unexpected operation type " << type;
       UNREACHABLE();
   }
-}
-
-void LocationsBuilderARM::VisitRor(HRor* op) {
-  HandleRotate(op);
-}
-
-void InstructionCodeGeneratorARM::VisitRor(HRor* op) {
-  HandleRotate(op);
 }
 
 void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {

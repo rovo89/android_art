@@ -4689,7 +4689,12 @@ class HXor : public HBinaryOperation {
 class HRor : public HBinaryOperation {
  public:
   HRor(Primitive::Type result_type, HInstruction* value, HInstruction* distance)
-    : HBinaryOperation(result_type, value, distance) {}
+    : HBinaryOperation(result_type, value, distance) {
+    if (kIsDebugBuild) {
+      DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
+      DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
+    }
+  }
 
   template <typename T, typename U, typename V>
   T Compute(T x, U y, V max_shift_value) const {

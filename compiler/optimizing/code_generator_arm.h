@@ -174,7 +174,6 @@ class LocationsBuilderARM : public HGraphVisitor {
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(LocationSummary* locations);
   void HandleLongRotate(LocationSummary* locations);
-  void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
@@ -222,7 +221,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(LocationSummary* locations);
   void HandleLongRotate(LocationSummary* locations);
-  void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
 
   void GenerateWideAtomicStore(Register addr, uint32_t offset,
