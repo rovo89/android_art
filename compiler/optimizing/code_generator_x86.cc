@@ -3981,8 +3981,7 @@ void InstructionCodeGeneratorX86::VisitRor(HRor* ror) {
     __ cmovl(kNotEqual, first_reg_hi, first_reg_lo);
     __ cmovl(kNotEqual, first_reg_lo, temp_reg);
   } else {
-    int32_t shift_amt =
-      CodeGenerator::GetInt64ValueOf(second.GetConstant()) & kMaxLongShiftValue;
+    int32_t shift_amt = CodeGenerator::GetInt64ValueOf(second.GetConstant()) & kMaxLongShiftValue;
     if (shift_amt == 0) {
       // Already fine.
       return;
