@@ -229,6 +229,7 @@ bool ImageWriter::Write(int image_fd,
 
     CHECK_EQ(image_header->storage_mode_, image_storage_mode_);
     switch (image_storage_mode_) {
+      case ImageHeader::kStorageModeLZ4HC:  // Fall-through.
       case ImageHeader::kStorageModeLZ4: {
         const size_t compressed_max_size = LZ4_compressBound(image_data_size);
         compressed_data.reset(new char[compressed_max_size]);
@@ -239,6 +240,8 @@ bool ImageWriter::Write(int image_fd,
 
         break;
       }
+      /*
+       * Disabled due to image_test64 flakyness. Both use same decompression. b/27560444
       case ImageHeader::kStorageModeLZ4HC: {
         // Bound is same as non HC.
         const size_t compressed_max_size = LZ4_compressBound(image_data_size);
@@ -249,6 +252,7 @@ bool ImageWriter::Write(int image_fd,
             image_data_size);
         break;
       }
+      */
       case ImageHeader::kStorageModeUncompressed: {
         data_size = image_data_size;
         image_data_to_write = image_data;
@@ -264,6 +268,16 @@ bool ImageWriter::Write(int image_fd,
       image_data_to_write = &compressed_data[0];
       VLOG(compiler) << "Compressed from " << image_data_size << " to " << data_size << " in "
                      << PrettyDuration(NanoTime() - compress_start_time);
+      if (kIsDebugBuild) {
+        std::unique_ptr<uint8_t[]> temp(new uint8_t[image_data_size]);
+        const size_t decompressed_size = LZ4_decompress_safe(
+            reinterpret_cast<char*>(&compressed_data[0]),
+            reinterpret_cast<char*>(&temp[0]),
+            data_size,
+            image_data_size);
+        CHECK_EQ(decompressed_size, image_data_size);
+        CHECK_EQ(memcmp(image_data, &temp[0], image_data_size), 0) << image_storage_mode_;
+      }
     }
 
     // Write out the image + fields + methods.
@@ -2024,7 +2038,6 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
   memcpy(copy, orig, ArtMethod::Size(target_ptr_size_));
 
   copy->SetDeclaringClass(GetImageAddress(orig->GetDeclaringClassUnchecked()));
-
   ArtMethod** orig_resolved_methods = orig->GetDexCacheResolvedMethods(target_ptr_size_);
   copy->SetDexCacheResolvedMethods(NativeLocationInImage(orig_resolved_methods), target_ptr_size_);
   GcRoot<mirror::Class>* orig_resolved_types = orig->GetDexCacheResolvedTypes(target_ptr_size_);
