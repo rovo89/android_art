@@ -473,7 +473,7 @@ class GvnDeadCodeEliminationTest : public testing::Test {
         gvn_(),
         dce_(),
         value_names_(),
-        live_in_v_(new (&cu_.arena) ArenaBitVector(&cu_.arena, kMaxSsaRegs, false, kBitMapMisc)) {
+        live_in_v_(new (&cu_.arena) ArenaBitVector(&cu_.arena, kMaxSsaRegs, false)) {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     cu_.access_flags = kAccStatic;  // Don't let "this" interfere with this test.
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));

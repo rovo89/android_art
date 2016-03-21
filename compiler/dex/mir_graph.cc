@@ -1809,7 +1809,7 @@ void MIRGraph::SSATransformationStart() {
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
   temp_.ssa.num_vregs = GetNumOfCodeAndTempVRs();
   temp_.ssa.work_live_vregs = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), temp_.ssa.num_vregs, false, kBitMapRegisterV);
+      temp_scoped_alloc_.get(), temp_.ssa.num_vregs, false);
 }
 
 void MIRGraph::SSATransformationEnd() {
@@ -1869,7 +1869,7 @@ static BasicBlock* SelectTopologicalSortOrderFallBack(
   BasicBlock* fall_back = nullptr;
   size_t fall_back_num_reachable = 0u;
   // Reuse the same bit vector for each candidate to mark reachable unvisited blocks.
-  ArenaBitVector candidate_reachable(allocator, mir_graph->GetNumBlocks(), false, kBitMapMisc);
+  ArenaBitVector candidate_reachable(allocator, mir_graph->GetNumBlocks(), false);
   AllNodesIterator iter(mir_graph);
   for (BasicBlock* candidate = iter.Next(); candidate != nullptr; candidate = iter.Next()) {
     if (candidate->hidden ||                            // Hidden, or
@@ -1944,7 +1944,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
   ScopedArenaVector<size_t> visited_cnt_values(num_blocks, 0u, allocator.Adapter());
   ScopedArenaVector<BasicBlockId> loop_head_stack(allocator.Adapter());
   size_t max_nested_loops = 0u;
-  ArenaBitVector loop_exit_blocks(&allocator, num_blocks, false, kBitMapMisc);
+  ArenaBitVector loop_exit_blocks(&allocator, num_blocks, false);
   loop_exit_blocks.ClearAllBits();
 
   // Count the number of blocks to process and add the entry block(s).
@@ -2051,7 +2051,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
       }
       // Compute blocks from which the loop head is reachable and process those blocks first.
       ArenaBitVector* reachable =
-          new (&allocator) ArenaBitVector(&allocator, num_blocks, false, kBitMapMisc);
+          new (&allocator) ArenaBitVector(&allocator, num_blocks, false);
       loop_head_reachable_from[bb->id] = reachable;
       ComputeUnvisitedReachableFrom(this, bb->id, reachable, &tmp_stack);
       // Now mark as loop head. (Even if it's only a fall back when we don't find a true loop.)

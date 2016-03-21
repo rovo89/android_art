@@ -40,7 +40,7 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
       : allocator_(allocator),
         num_buckets_(kMinimumNumberOfBuckets),
         buckets_(allocator->AllocArray<Node*>(num_buckets_, kArenaAllocGvn)),
-        buckets_owned_(allocator, num_buckets_, false),
+        buckets_owned_(allocator, num_buckets_, false, kArenaAllocGvn),
         num_entries_(0) {
     // ArenaAllocator returns zeroed memory, so no need to set buckets to null.
     DCHECK(IsPowerOfTwo(num_buckets_));
@@ -53,7 +53,7 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
       : allocator_(allocator),
         num_buckets_(to_copy.IdealBucketCount()),
         buckets_(allocator->AllocArray<Node*>(num_buckets_, kArenaAllocGvn)),
-        buckets_owned_(allocator, num_buckets_, false),
+        buckets_owned_(allocator, num_buckets_, false, kArenaAllocGvn),
         num_entries_(to_copy.num_entries_) {
     // ArenaAllocator returns zeroed memory, so entries of buckets_ and
     // buckets_owned_ are initialized to null and false, respectively.

@@ -97,7 +97,7 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   }
   // Classify blocks as reachable/unreachable.
   ArenaAllocator* allocator = graph_->GetArena();
-  ArenaBitVector live_blocks(allocator, graph_->GetBlocks().size(), false);
+  ArenaBitVector live_blocks(allocator, graph_->GetBlocks().size(), false, kArenaAllocDCE);
 
   MarkReachableBlocks(graph_, &live_blocks);
   bool removed_one_or_more_blocks = false;
