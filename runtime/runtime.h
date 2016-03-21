@@ -35,6 +35,7 @@
 #include "method_reference.h"
 #include "object_callbacks.h"
 #include "offsets.h"
+#include "process_state.h"
 #include "profiler_options.h"
 #include "quick/quick_method_frame_info.h"
 #include "runtime_stats.h"
@@ -626,6 +627,13 @@ class Runtime {
     pruned_dalvik_cache_ = pruned;
   }
 
+  void UpdateProcessState(ProcessState process_state);
+
+  // Returns true if we currently care about long mutator pause.
+  bool InJankPerceptibleProcessState() const {
+    return process_state_ == kProcessStateJankPerceptible;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -843,6 +851,9 @@ class Runtime {
 
   // Whether the dalvik cache was pruned when initializing the runtime.
   bool pruned_dalvik_cache_;
+
+  // Whether or not we currently care about pause times.
+  ProcessState process_state_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

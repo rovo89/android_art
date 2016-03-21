@@ -117,6 +117,10 @@ static constexpr uint64_t kNativeAllocationFinalizeTimeout = MsToNs(250u);
 // For deterministic compilation, we need the heap to be at a well-known address.
 static constexpr uint32_t kAllocSpaceBeginForDeterministicAoT = 0x40000000;
 
+static inline bool CareAboutPauseTimes() {
+  return Runtime::Current()->InJankPerceptibleProcessState();
+}
+
 Heap::Heap(size_t initial_size,
            size_t growth_limit,
            size_t min_free,
@@ -175,8 +179,6 @@ Heap::Heap(size_t initial_size,
       max_allowed_footprint_(initial_size),
       native_footprint_gc_watermark_(initial_size),
       native_need_to_run_finalization_(false),
-      // Initially assume we perceive jank in case the process state is never updated.
-      process_state_(kProcessStateJankPerceptible),
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
@@ -924,17 +926,18 @@ void Heap::ThreadFlipEnd(Thread* self) {
   thread_flip_cond_->Broadcast(self);
 }
 
-void Heap::UpdateProcessState(ProcessState process_state) {
-  if (process_state_ != process_state) {
-    process_state_ = process_state;
+void Heap::UpdateProcessState(ProcessState old_process_state, ProcessState new_process_state) {
+  if (old_process_state != new_process_state) {
+    const bool jank_perceptible = new_process_state == kProcessStateJankPerceptible;
     for (size_t i = 1; i <= kCollectorTransitionStressIterations; ++i) {
       // Start at index 1 to avoid "is always false" warning.
       // Have iteration 1 always transition the collector.
-      TransitionCollector((((i & 1) == 1) == (process_state_ == kProcessStateJankPerceptible))
-                          ? foreground_collector_type_ : background_collector_type_);
+      TransitionCollector((((i & 1) == 1) == jank_perceptible)
+          ? foreground_collector_type_
+          : background_collector_type_);
       usleep(kCollectorTransitionStressWait);
     }
-    if (process_state_ == kProcessStateJankPerceptible) {
+    if (jank_perceptible) {
       // Transition back to foreground right away to prevent jank.
       RequestCollectorTransition(foreground_collector_type_, 0);
     } else {
@@ -2204,8 +2207,8 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   } else {
     saved_str = " expanded " + PrettySize(-delta_allocated);
   }
-  VLOG(heap) << "Heap transition to " << process_state_ << " took "
-      << PrettyDuration(duration) << saved_str;
+  VLOG(heap) << "Collector transition to " << collector_type << " took "
+             << PrettyDuration(duration) << saved_str;
 }
 
 void Heap::ChangeCollector(CollectorType collector_type) {
