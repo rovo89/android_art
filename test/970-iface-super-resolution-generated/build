@@ -31,7 +31,7 @@ USES_JAVA_SOURCE="false"
 if [[ $@ == *"--jvm"* ]]; then
   USES_JAVA_SOURCE="true"
 elif [[ "$USE_JACK" == "true" ]]; then
-  if $JACK -D jack.java.source.version=1.8 2>/dev/null; then
+  if $JACK -D jack.java.source.version=1.8 -D jack.android.min-api-level=24 2>/dev/null; then
     USES_JAVA_SOURCE="true"
   else
     echo "WARNING: Cannot use jack because it does not support JLS 1.8. Falling back to smali" >&2

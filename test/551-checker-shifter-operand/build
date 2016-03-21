@@ -58,8 +58,8 @@ EXPERIMENTAL=""
 
 # Setup experimental flag mappings in a bash associative array.
 declare -A JACK_EXPERIMENTAL_ARGS
-JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8"
-JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8"
+JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
+JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 
 while true; do
   if [ "x$1" = "x--dx-option" ]; then
