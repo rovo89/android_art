@@ -31,9 +31,9 @@ class BlockInfo : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   BlockInfo(ArenaAllocator* allocator, const HBasicBlock& block, size_t number_of_ssa_values)
       : block_(block),
-        live_in_(allocator, number_of_ssa_values, false),
-        live_out_(allocator, number_of_ssa_values, false),
-        kill_(allocator, number_of_ssa_values, false) {
+        live_in_(allocator, number_of_ssa_values, false, kArenaAllocSsaLiveness),
+        live_out_(allocator, number_of_ssa_values, false, kArenaAllocSsaLiveness),
+        kill_(allocator, number_of_ssa_values, false, kArenaAllocSsaLiveness) {
     UNUSED(block_);
     live_in_.ClearAllBits();
     live_out_.ClearAllBits();

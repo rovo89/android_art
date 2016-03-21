@@ -80,7 +80,7 @@ static void UpdateLoopPhisIn(HEnvironment* environment, HLoopInformation* info) 
 void LICM::Run() {
   DCHECK(side_effects_.HasRun());
   // Only used during debug.
-  ArenaBitVector visited(graph_->GetArena(), graph_->GetBlocks().size(), false);
+  ArenaBitVector visited(graph_->GetArena(), graph_->GetBlocks().size(), false, kArenaAllocLICM);
 
   // Post order visit to visit inner loops before outer loops.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {

@@ -927,7 +927,7 @@ bool MIRGraph::EliminateNullChecksGate() {
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
   temp_.nce.num_vregs = GetNumOfCodeAndTempVRs();
   temp_.nce.work_vregs_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), temp_.nce.num_vregs, false, kBitMapNullCheck);
+      temp_scoped_alloc_.get(), temp_.nce.num_vregs, false);
   temp_.nce.ending_vregs_to_check_matrix =
       temp_scoped_alloc_->AllocArray<ArenaBitVector*>(GetNumBlocks(), kArenaAllocMisc);
   std::fill_n(temp_.nce.ending_vregs_to_check_matrix, GetNumBlocks(), nullptr);
@@ -1095,7 +1095,7 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
     temp_.nce.ending_vregs_to_check_matrix[bb->id] = vregs_to_check;
     // Create a new vregs_to_check for next BB.
     temp_.nce.work_vregs_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
-        temp_scoped_alloc_.get(), temp_.nce.num_vregs, false, kBitMapNullCheck);
+        temp_scoped_alloc_.get(), temp_.nce.num_vregs, false);
   } else if (!vregs_to_check->SameBitsSet(old_ending_ssa_regs_to_check)) {
     nce_changed = true;
     temp_.nce.ending_vregs_to_check_matrix[bb->id] = vregs_to_check;
@@ -1238,7 +1238,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
   // 2 bits for each class: is class initialized, is class in dex cache.
   temp_.cice.num_class_bits = 2u * unique_class_count;
   temp_.cice.work_classes_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), temp_.cice.num_class_bits, false, kBitMapClInitCheck);
+      temp_scoped_alloc_.get(), temp_.cice.num_class_bits, false);
   temp_.cice.ending_classes_to_check_matrix =
       temp_scoped_alloc_->AllocArray<ArenaBitVector*>(GetNumBlocks(), kArenaAllocMisc);
   std::fill_n(temp_.cice.ending_classes_to_check_matrix, GetNumBlocks(), nullptr);
@@ -1335,7 +1335,7 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
     temp_.cice.ending_classes_to_check_matrix[bb->id] = classes_to_check;
     // Create a new classes_to_check for next BB.
     temp_.cice.work_classes_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
-        temp_scoped_alloc_.get(), temp_.cice.num_class_bits, false, kBitMapClInitCheck);
+        temp_scoped_alloc_.get(), temp_.cice.num_class_bits, false);
   } else if (!classes_to_check->Equal(old_ending_classes_to_check)) {
     changed = true;
     temp_.cice.ending_classes_to_check_matrix[bb->id] = classes_to_check;
@@ -1517,7 +1517,7 @@ void MIRGraph::InlineSpecialMethodsStart() {
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
   temp_.smi.num_indexes = method_lowering_infos_.size();
   temp_.smi.processed_indexes = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), temp_.smi.num_indexes, false, kBitMapMisc);
+      temp_scoped_alloc_.get(), temp_.smi.num_indexes, false);
   temp_.smi.processed_indexes->ClearAllBits();
   temp_.smi.lowering_infos =
       temp_scoped_alloc_->AllocArray<uint16_t>(temp_.smi.num_indexes, kArenaAllocGrowableArray);

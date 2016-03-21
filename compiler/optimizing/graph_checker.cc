@@ -812,7 +812,10 @@ void GraphChecker::VisitPhi(HPhi* phi) {
               phi->GetRegNumber(),
               type_str.str().c_str()));
         } else {
-          ArenaBitVector visited(GetGraph()->GetArena(), 0, /* expandable */ true);
+          ArenaBitVector visited(GetGraph()->GetArena(),
+                                 0,
+                                 /* expandable */ true,
+                                 kArenaAllocGraphChecker);
           if (!IsConstantEquivalent(phi, other_phi, &visited)) {
             AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
                                   "are not equivalents of constants.",

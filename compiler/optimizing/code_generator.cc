@@ -856,7 +856,8 @@ void CodeGenerator::RecordCatchBlockInfo() {
     uint32_t register_mask = 0;   // Not used.
 
     // The stack mask is not used, so we leave it empty.
-    ArenaBitVector* stack_mask = new (arena) ArenaBitVector(arena, 0, /* expandable */ true);
+    ArenaBitVector* stack_mask =
+        ArenaBitVector::Create(arena, 0, /* expandable */ true, kArenaAllocCodeGenerator);
 
     stack_map_stream_.BeginStackMapEntry(dex_pc,
                                          native_pc,

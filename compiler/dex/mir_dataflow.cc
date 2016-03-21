@@ -989,11 +989,11 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
   if (bb->data_flow_info == nullptr) return false;
 
   use_v = bb->data_flow_info->use_v =
-      new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false, kBitMapUse);
+      new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false);
   def_v = bb->data_flow_info->def_v =
-      new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false, kBitMapDef);
+      new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false);
   live_in_v = bb->data_flow_info->live_in_v =
-      new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false, kBitMapLiveIn);
+      new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false);
 
   for (mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
     uint64_t df_attributes = GetDataFlowAttributes(mir);

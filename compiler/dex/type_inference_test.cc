@@ -494,7 +494,7 @@ class TypeInferenceTest : public testing::Test {
         code_item_(nullptr),
         ssa_reps_(),
         allocator_(),
-        live_in_v_(new (&cu_.arena) ArenaBitVector(&cu_.arena, kMaxSsaRegs, false, kBitMapMisc)),
+        live_in_v_(new (&cu_.arena) ArenaBitVector(&cu_.arena, kMaxSsaRegs, false)),
         type_defs_(nullptr),
         type_count_(0u),
         ifield_defs_(nullptr),

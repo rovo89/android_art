@@ -21,36 +21,78 @@
 
 namespace art {
 
-template <typename ArenaAlloc>
-class ArenaBitVectorAllocator FINAL : public Allocator,
-    public ArenaObject<kArenaAllocGrowableBitMap> {
+template <bool kCount>
+class ArenaBitVectorAllocatorKindImpl;
+
+template <>
+class ArenaBitVectorAllocatorKindImpl<false> {
  public:
-  explicit ArenaBitVectorAllocator(ArenaAlloc* arena) : arena_(arena) {}
-  ~ArenaBitVectorAllocator() {}
+  // Not tracking allocations, ignore the supplied kind and arbitrarily provide kArenaAllocSTL.
+  explicit ArenaBitVectorAllocatorKindImpl(ArenaAllocKind kind ATTRIBUTE_UNUSED) {}
+  ArenaBitVectorAllocatorKindImpl(const ArenaBitVectorAllocatorKindImpl&) = default;
+  ArenaBitVectorAllocatorKindImpl& operator=(const ArenaBitVectorAllocatorKindImpl&) = default;
+  ArenaAllocKind Kind() { return kArenaAllocGrowableBitMap; }
+};
+
+template <bool kCount>
+class ArenaBitVectorAllocatorKindImpl {
+ public:
+  explicit ArenaBitVectorAllocatorKindImpl(ArenaAllocKind kind) : kind_(kind) { }
+  ArenaBitVectorAllocatorKindImpl(const ArenaBitVectorAllocatorKindImpl&) = default;
+  ArenaBitVectorAllocatorKindImpl& operator=(const ArenaBitVectorAllocatorKindImpl&) = default;
+  ArenaAllocKind Kind() { return kind_; }
+
+ private:
+  ArenaAllocKind kind_;
+};
+
+using ArenaBitVectorAllocatorKind =
+    ArenaBitVectorAllocatorKindImpl<kArenaAllocatorCountAllocations>;
+
+template <typename ArenaAlloc>
+class ArenaBitVectorAllocator FINAL : public Allocator, private ArenaBitVectorAllocatorKind {
+ public:
+  static ArenaBitVectorAllocator* Create(ArenaAlloc* arena, ArenaAllocKind kind) {
+    void* storage = arena->template Alloc<ArenaBitVectorAllocator>(kind);
+    return new (storage) ArenaBitVectorAllocator(arena, kind);
+  }
+
+  ~ArenaBitVectorAllocator() {
+    LOG(FATAL) << "UNREACHABLE";
+    UNREACHABLE();
+  }
 
   virtual void* Alloc(size_t size) {
-    return arena_->Alloc(size, kArenaAllocGrowableBitMap);
+    return arena_->Alloc(size, this->Kind());
   }
 
   virtual void Free(void*) {}  // Nop.
 
  private:
+  ArenaBitVectorAllocator(ArenaAlloc* arena, ArenaAllocKind kind)
+      : ArenaBitVectorAllocatorKind(kind), arena_(arena) { }
+
   ArenaAlloc* const arena_;
+
   DISALLOW_COPY_AND_ASSIGN(ArenaBitVectorAllocator);
 };
 
-ArenaBitVector::ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits,
-                               bool expandable, OatBitMapKind kind)
-  :  BitVector(start_bits, expandable,
-               new (arena) ArenaBitVectorAllocator<ArenaAllocator>(arena)), kind_(kind) {
-  UNUSED(kind_);
+ArenaBitVector::ArenaBitVector(ArenaAllocator* arena,
+                               unsigned int start_bits,
+                               bool expandable,
+                               ArenaAllocKind kind)
+  :  BitVector(start_bits,
+               expandable,
+               ArenaBitVectorAllocator<ArenaAllocator>::Create(arena, kind)) {
 }
 
-ArenaBitVector::ArenaBitVector(ScopedArenaAllocator* arena, unsigned int start_bits,
-                               bool expandable, OatBitMapKind kind)
-  :  BitVector(start_bits, expandable,
-               new (arena) ArenaBitVectorAllocator<ScopedArenaAllocator>(arena)), kind_(kind) {
-  UNUSED(kind_);
+ArenaBitVector::ArenaBitVector(ScopedArenaAllocator* arena,
+                               unsigned int start_bits,
+                               bool expandable,
+                               ArenaAllocKind kind)
+  :  BitVector(start_bits,
+               expandable,
+               ArenaBitVectorAllocator<ScopedArenaAllocator>::Create(arena, kind)) {
 }
 
 }  // namespace art
