@@ -738,10 +738,12 @@ class LSEVisitor : public HGraphVisitor {
           DCHECK(instruction->IsArrayGet()) << instruction->DebugName();
           HInstruction* array = instruction->AsArrayGet()->GetArray();
           DCHECK(array->IsNullCheck()) << array->DebugName();
-          DCHECK(array->InputAt(0)->IsNullConstant()) << array->InputAt(0)->DebugName();
+          HInstruction* input = HuntForOriginalReference(array->InputAt(0));
+          DCHECK(input->IsNullConstant()) << input->DebugName();
           array = heap_value->AsArrayGet()->GetArray();
           DCHECK(array->IsNullCheck()) << array->DebugName();
-          DCHECK(array->InputAt(0)->IsNullConstant()) << array->InputAt(0)->DebugName();
+          input = HuntForOriginalReference(array->InputAt(0));
+          DCHECK(input->IsNullConstant()) << input->DebugName();
         }
         return;
       }
