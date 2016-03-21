@@ -144,7 +144,7 @@ void MIRGraph::ComputeDefBlockMatrix() {
   /* Initialize num_register vectors with num_blocks bits each */
   for (i = 0; i < num_registers; i++) {
     temp_.ssa.def_block_matrix[i] = new (temp_scoped_alloc_.get()) ArenaBitVector(
-        arena_, GetNumBlocks(), false, kBitMapBMatrix);
+        arena_, GetNumBlocks(), false);
     temp_.ssa.def_block_matrix[i]->ClearAllBits();
   }
 
@@ -248,12 +248,9 @@ void MIRGraph::InitializeDominationInfo(BasicBlock* bb) {
   int num_total_blocks = GetBasicBlockListCount();
 
   if (bb->dominators == nullptr) {
-    bb->dominators = new (arena_) ArenaBitVector(arena_, num_total_blocks,
-                                                 true /* expandable */, kBitMapDominators);
-    bb->i_dominated = new (arena_) ArenaBitVector(arena_, num_total_blocks,
-                                                  true /* expandable */, kBitMapIDominated);
-    bb->dom_frontier = new (arena_) ArenaBitVector(arena_, num_total_blocks,
-                                                   true /* expandable */, kBitMapDomFrontier);
+    bb->dominators = new (arena_) ArenaBitVector(arena_, num_total_blocks, true /* expandable */);
+    bb->i_dominated = new (arena_) ArenaBitVector(arena_, num_total_blocks, true /* expandable */);
+    bb->dom_frontier = new (arena_) ArenaBitVector(arena_, num_total_blocks, true /* expandable */);
   } else {
     bb->dominators->ClearAllBits();
     bb->i_dominated->ClearAllBits();
@@ -471,7 +468,7 @@ void MIRGraph::FindPhiNodeBlocks() {
   }
 
   ArenaBitVector* phi_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapBMatrix);
+      temp_scoped_alloc_.get(), GetNumBlocks(), false);
 
   // Reuse the def_block_matrix storage for phi_node_blocks.
   ArenaBitVector** def_block_matrix = temp_.ssa.def_block_matrix;

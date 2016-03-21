@@ -54,7 +54,7 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   DCHECK_EQ(visited->GetHighestBitSet(), -1);
 
   // Nodes that we're currently visiting, indexed by block id.
-  ArenaBitVector visiting(arena_, blocks_.size(), false);
+  ArenaBitVector visiting(arena_, blocks_.size(), false, kArenaAllocGraphBuilder);
   // Number of successors visited from a given node, indexed by block id.
   ArenaVector<size_t> successors_visited(blocks_.size(), 0u, arena_->Adapter());
   // Stack of nodes that we're currently visiting (same as marked in "visiting" above).
@@ -140,7 +140,7 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
   //     collect both normal- and exceptional-flow values at the same time.
   SimplifyCatchBlocks();
 
-  ArenaBitVector visited(arena_, blocks_.size(), false);
+  ArenaBitVector visited(arena_, blocks_.size(), false, kArenaAllocGraphBuilder);
 
   // (2) Find the back edges in the graph doing a DFS traversal.
   FindBackEdges(&visited);

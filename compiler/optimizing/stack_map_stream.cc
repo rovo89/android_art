@@ -37,7 +37,7 @@ void StackMapStream::BeginStackMapEntry(uint32_t dex_pc,
   current_entry_.same_dex_register_map_as_ = kNoSameDexMapFound;
   if (num_dex_registers != 0) {
     current_entry_.live_dex_registers_mask =
-        new (allocator_) ArenaBitVector(allocator_, num_dex_registers, true);
+        ArenaBitVector::Create(allocator_, num_dex_registers, true, kArenaAllocStackMapStream);
   } else {
     current_entry_.live_dex_registers_mask = nullptr;
   }
@@ -111,7 +111,7 @@ void StackMapStream::BeginInlineInfoEntry(uint32_t method_index,
   current_inline_info_.dex_register_locations_start_index = dex_register_locations_.size();
   if (num_dex_registers != 0) {
     current_inline_info_.live_dex_registers_mask =
-        new (allocator_) ArenaBitVector(allocator_, num_dex_registers, true);
+        ArenaBitVector::Create(allocator_, num_dex_registers, true, kArenaAllocStackMapStream);
   } else {
     current_inline_info_.live_dex_registers_mask = nullptr;
   }
@@ -256,7 +256,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
   // Ensure we reached the end of the Dex registers location_catalog.
   DCHECK_EQ(location_catalog_offset, dex_register_location_catalog_region.size());
 
-  ArenaBitVector empty_bitmask(allocator_, 0, /* expandable */ false);
+  ArenaBitVector empty_bitmask(allocator_, 0, /* expandable */ false, kArenaAllocStackMapStream);
   uintptr_t next_dex_register_map_offset = 0;
   uintptr_t next_inline_info_offset = 0;
   for (size_t i = 0, e = stack_maps_.size(); i < e; ++i) {

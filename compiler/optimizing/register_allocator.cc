@@ -445,7 +445,7 @@ class AllRangesIterator : public ValueObject {
 bool RegisterAllocator::ValidateInternal(bool log_fatal_on_failure) const {
   // To simplify unit testing, we eagerly create the array of intervals, and
   // call the helper method.
-  ArenaVector<LiveInterval*> intervals(allocator_->Adapter(kArenaAllocRegisterAllocator));
+  ArenaVector<LiveInterval*> intervals(allocator_->Adapter(kArenaAllocRegisterAllocatorValidate));
   for (size_t i = 0; i < liveness_.GetNumberOfSsaValues(); ++i) {
     HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i);
     if (ShouldProcess(processing_core_registers_, instruction->GetLiveInterval())) {
@@ -483,13 +483,21 @@ bool RegisterAllocator::ValidateIntervals(const ArenaVector<LiveInterval*>& inte
       ? codegen.GetNumberOfCoreRegisters()
       : codegen.GetNumberOfFloatingPointRegisters();
   ArenaVector<ArenaBitVector*> liveness_of_values(
-      allocator->Adapter(kArenaAllocRegisterAllocator));
+      allocator->Adapter(kArenaAllocRegisterAllocatorValidate));
   liveness_of_values.reserve(number_of_registers + number_of_spill_slots);
+
+  size_t max_end = 0u;
+  for (LiveInterval* start_interval : intervals) {
+    for (AllRangesIterator it(start_interval); !it.Done(); it.Advance()) {
+      max_end = std::max(max_end, it.CurrentRange()->GetEnd());
+    }
+  }
 
   // Allocate a bit vector per register. A live interval that has a register
   // allocated will populate the associated bit vector based on its live ranges.
   for (size_t i = 0; i < number_of_registers + number_of_spill_slots; ++i) {
-    liveness_of_values.push_back(new (allocator) ArenaBitVector(allocator, 0, true));
+    liveness_of_values.push_back(
+        ArenaBitVector::Create(allocator, max_end, false, kArenaAllocRegisterAllocatorValidate));
   }
 
   for (LiveInterval* start_interval : intervals) {

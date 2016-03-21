@@ -30,7 +30,10 @@ class GraphChecker : public HGraphDelegateVisitor {
     : HGraphDelegateVisitor(graph),
       errors_(graph->GetArena()->Adapter(kArenaAllocGraphChecker)),
       dump_prefix_(dump_prefix),
-      seen_ids_(graph->GetArena(), graph->GetCurrentInstructionId(), false) {}
+      seen_ids_(graph->GetArena(),
+                graph->GetCurrentInstructionId(),
+                false,
+                kArenaAllocGraphChecker) {}
 
   // Check the whole graph (in reverse post-order).
   void Run() {

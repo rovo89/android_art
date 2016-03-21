@@ -645,7 +645,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
         irreducible_(false),
         back_edges_(graph->GetArena()->Adapter(kArenaAllocLoopInfoBackEdges)),
         // Make bit vector growable, as the number of blocks may change.
-        blocks_(graph->GetArena(), graph->GetBlocks().size(), true) {
+        blocks_(graph->GetArena(), graph->GetBlocks().size(), true, kArenaAllocLoopInfoBackEdges) {
     back_edges_.reserve(kDefaultNumberOfBackEdges);
   }
 
