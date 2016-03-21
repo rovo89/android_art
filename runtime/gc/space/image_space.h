@@ -149,6 +149,8 @@ class ImageSpace : public MemMapSpace {
     return GetImageHeader().GetOatFileEnd();
   }
 
+  void DumpSections(std::ostream& os) const;
+
  protected:
   // Tries to initialize an ImageSpace from the given image path, returning null on error.
   //

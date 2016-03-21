@@ -1520,6 +1520,17 @@ ImageSpace* ImageSpace::CreateFromAppImage(const char* image,
                                      /*out*/error_msg);
 }
 
+void ImageSpace::DumpSections(std::ostream& os) const {
+  const uint8_t* base = Begin();
+  const ImageHeader& header = GetImageHeader();
+  for (size_t i = 0; i < ImageHeader::kSectionCount; ++i) {
+    auto section_type = static_cast<ImageHeader::ImageSections>(i);
+    const ImageSection& section = header.GetImageSection(section_type);
+    os << section_type << " " << reinterpret_cast<const void*>(base + section.Offset())
+       << "-" << reinterpret_cast<const void*>(base + section.End()) << "\n";
+  }
+}
+
 }  // namespace space
 }  // namespace gc
 }  // namespace art
