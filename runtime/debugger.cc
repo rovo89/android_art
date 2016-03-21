@@ -44,7 +44,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "quick/inline_method_analyser.h"
 #include "reflection.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
@@ -53,7 +52,6 @@
 #include "handle_scope-inl.h"
 #include "thread_list.h"
 #include "utf.h"
-#include "verifier/method_verifier-inl.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -3239,27 +3237,6 @@ void Dbg::ManageDeoptimization() {
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
 }
 
-static bool IsMethodPossiblyInlined(Thread* self, ArtMethod* m)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = m->GetCodeItem();
-  if (code_item == nullptr) {
-    // TODO We should not be asked to watch location in a native or abstract method so the code item
-    // should never be null. We could just check we never encounter this case.
-    return false;
-  }
-  // Note: method verifier may cause thread suspension.
-  self->AssertThreadSuspensionIsAllowable();
-  StackHandleScope<2> hs(self);
-  mirror::Class* declaring_class = m->GetDeclaringClass();
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-  verifier::MethodVerifier verifier(self, dex_cache->GetDexFile(), dex_cache, class_loader,
-                                    &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                    m->GetAccessFlags(), false, true, false, true);
-  // Note: we don't need to verify the method.
-  return InlineMethodAnalyser::AnalyseMethodCode(&verifier, nullptr);
-}
-
 static const Breakpoint* FindFirstBreakpointForMethod(ArtMethod* m)
     SHARED_REQUIRES(Locks::mutator_lock_, Locks::breakpoint_lock_) {
   for (Breakpoint& breakpoint : gBreakpoints) {
@@ -3322,33 +3299,22 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
   }
 
   if (first_breakpoint == nullptr) {
-    // There is no breakpoint on this method yet: we need to deoptimize. If this method may be
-    // inlined or default, we deoptimize everything; otherwise we deoptimize only this method. We
+    // There is no breakpoint on this method yet: we need to deoptimize. If this method is default,
+    // we deoptimize everything; otherwise we deoptimize only this method. We
     // deoptimize with defaults because we do not know everywhere they are used. It is possible some
-    // of the copies could be inlined or otherwise missed.
+    // of the copies could be missed.
     // TODO Deoptimizing on default methods might not be necessary in all cases.
-    // Note: IsMethodPossiblyInlined goes into the method verifier and may cause thread suspension.
-    // Therefore we must not hold any lock when we call it.
-    bool need_full_deoptimization = m->IsDefault() || IsMethodPossiblyInlined(self, m);
+    bool need_full_deoptimization = m->IsDefault();
     if (need_full_deoptimization) {
-      VLOG(jdwp) << "Need full deoptimization because of possible inlining or copying of method "
+      VLOG(jdwp) << "Need full deoptimization because of copying of method "
                  << PrettyMethod(m);
       return DeoptimizationRequest::kFullDeoptimization;
     } else {
       // We don't need to deoptimize if the method has not been compiled.
       const bool is_compiled = m->HasAnyCompiledCode();
       if (is_compiled) {
-        ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-        // If the method may be called through its direct code pointer (without loading
-        // its updated entrypoint), we need full deoptimization to not miss the breakpoint.
-        if (class_linker->MayBeCalledWithDirectCodePointer(m)) {
-          VLOG(jdwp) << "Need full deoptimization because of possible direct code call "
-                     << "into image for compiled method " << PrettyMethod(m);
-          return DeoptimizationRequest::kFullDeoptimization;
-        } else {
-          VLOG(jdwp) << "Need selective deoptimization for compiled method " << PrettyMethod(m);
-          return DeoptimizationRequest::kSelectiveDeoptimization;
-        }
+        VLOG(jdwp) << "Need selective deoptimization for compiled method " << PrettyMethod(m);
+        return DeoptimizationRequest::kSelectiveDeoptimization;
       } else {
         // Method is not compiled: we don't need to deoptimize.
         VLOG(jdwp) << "No need for deoptimization for non-compiled method " << PrettyMethod(m);

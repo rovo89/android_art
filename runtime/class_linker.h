@@ -549,10 +549,6 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns true if the method can be called with its direct code pointer, false otherwise.
-  bool MayBeCalledWithDirectCodePointer(ArtMethod* m)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
-
   // Creates a GlobalRef PathClassLoader that can be used to load classes from the given dex files.
   // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
   jobject CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files)

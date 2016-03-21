@@ -7557,34 +7557,6 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
   return descriptor;
 }
 
-bool ClassLinker::MayBeCalledWithDirectCodePointer(ArtMethod* m) {
-  Runtime* const runtime = Runtime::Current();
-  if (runtime->UseJit()) {
-    // JIT can have direct code pointers from any method to any other method.
-    return true;
-  }
-  // Non-image methods don't use direct code pointer.
-  if (!m->GetDeclaringClass()->IsBootStrapClassLoaded()) {
-    return false;
-  }
-  if (m->IsPrivate()) {
-    // The method can only be called inside its own oat file. Therefore it won't be called using
-    // its direct code if the oat file has been compiled in PIC mode.
-    const DexFile& dex_file = m->GetDeclaringClass()->GetDexFile();
-    const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
-    if (oat_dex_file == nullptr) {
-      // No oat file: the method has not been compiled.
-      return false;
-    }
-    const OatFile* oat_file = oat_dex_file->GetOatFile();
-    return oat_file != nullptr && !oat_file->IsPic();
-  } else {
-    // The method can be called outside its own oat file. Therefore it won't be called using its
-    // direct code pointer only if all loaded oat files have been compiled in PIC mode.
-    return runtime->GetOatFileManager().HaveNonPicOatFile();
-  }
-}
-
 jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files) {
   // SOAAlreadyRunnable is protected, and we need something to add a global reference.
   // We could move the jobject to the callers, but all call-sites do this...
