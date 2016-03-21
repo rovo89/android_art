@@ -144,6 +144,10 @@ static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resol
   } else if (!resolved_method->GetDeclaringClass()->IsAssignableFrom(info.GetTypeHandle().Get())) {
     // The method that we're trying to call is not in the receiver's class or super classes.
     return nullptr;
+  } else if (info.GetTypeHandle()->IsErroneous()) {
+    // If the type is erroneous, do not go further, as we are going to query the vtable or
+    // imt table, that we can only safely do on non-erroneous classes.
+    return nullptr;
   }
 
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
