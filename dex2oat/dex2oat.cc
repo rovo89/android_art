@@ -48,7 +48,6 @@
 #include "compiler_callbacks.h"
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
-#include "dex/pass_manager.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/verification_results.h"
@@ -341,20 +340,6 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --profile-file-fd=<number>: same as --profile-file but accepts a file descriptor.");
   UsageError("      Cannot be used together with --profile-file.");
-  UsageError("");
-  UsageError("  --print-pass-names: print a list of pass names");
-  UsageError("");
-  UsageError("  --disable-passes=<pass-names>:  disable one or more passes separated by comma.");
-  UsageError("      Example: --disable-passes=UseCount,BBOptimizations");
-  UsageError("");
-  UsageError("  --print-pass-options: print a list of passes that have configurable options along "
-             "with the setting.");
-  UsageError("      Will print default if no overridden setting exists.");
-  UsageError("");
-  UsageError("  --pass-options=Pass1Name:Pass1OptionName:Pass1Option#,"
-             "Pass2Name:Pass2OptionName:Pass2Option#");
-  UsageError("      Used to specify a pass specific option. The setting itself must be integer.");
-  UsageError("      Separator used between options is a comma.");
   UsageError("");
   UsageError("  --swap-file=<file-name>:  specifies a file to use for swap.");
   UsageError("      Example: --swap-file=/data/tmp/swap.001");

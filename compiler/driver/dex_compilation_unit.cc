@@ -17,7 +17,6 @@
 #include "dex_compilation_unit.h"
 
 #include "base/stringprintf.h"
-#include "dex/compiler_ir.h"
 #include "mirror/dex_cache.h"
 #include "utils.h"
 
