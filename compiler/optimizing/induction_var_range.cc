@@ -58,19 +58,41 @@ static bool IsIntAndGet(HInstruction* instruction, int64_t* value) {
 }
 
 /**
- * An upper bound a * (length / a) + b, where a > 0, can be conservatively rewritten as length + b
+ * An upper bound a * (length / a) + b, where a >= 1, can be conservatively rewritten as length + b
  * because length >= 0 is true. This makes it more likely the bound is useful to clients.
  */
 static InductionVarRange::Value SimplifyMax(InductionVarRange::Value v) {
   int64_t value;
   if (v.is_known &&
-      v.a_constant > 1 &&
+      v.a_constant >= 1 &&
       v.instruction->IsDiv() &&
       v.instruction->InputAt(0)->IsArrayLength() &&
       IsIntAndGet(v.instruction->InputAt(1), &value) && v.a_constant == value) {
     return InductionVarRange::Value(v.instruction->InputAt(0), 1, v.b_constant);
   }
   return v;
+}
+
+/**
+ * Corrects a value for type to account for arithmetic wrap-around in lower precision.
+ */
+static InductionVarRange::Value CorrectForType(InductionVarRange::Value v, Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimByte: {
+      // Constants within range only.
+      // TODO: maybe some room for improvement, like allowing widening conversions
+      const int32_t min = Primitive::MinValueOfIntegralType(type);
+      const int32_t max = Primitive::MaxValueOfIntegralType(type);
+      return (v.is_known && v.a_constant == 0 && min <= v.b_constant && v.b_constant <= max)
+          ? v
+          : InductionVarRange::Value();
+    }
+    default:
+      // At int or higher.
+      return v;
+  }
 }
 
 /** Helper method to test for a constant value. */
@@ -114,6 +136,18 @@ bool InductionVarRange::GetInductionRange(HInstruction* context,
   if (info == nullptr) {
     return false;  // no induction information
   }
+  // Type int or lower (this is not too restrictive since intended clients, like
+  // bounds check elimination, will have truncated higher precision induction
+  // at their use point already).
+  switch (info->type) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimByte:
+      break;
+    default:
+      return false;
+  }
   // Set up loop information.
   HBasicBlock* header = loop->GetHeader();
   bool in_body = context->GetBlock() != header;
@@ -128,25 +162,27 @@ bool InductionVarRange::GetInductionRange(HInstruction* context,
 
 bool InductionVarRange::RefineOuter(/*in-out*/ Value* min_val,
                                     /*in-out*/ Value* max_val) const {
-  Value v1_min = RefineOuter(*min_val, /* is_min */ true);
-  Value v2_max = RefineOuter(*max_val, /* is_min */ false);
-  // The refined range is safe if both sides refine the same instruction. Otherwise, since two
-  // different ranges are combined, the new refined range is safe to pass back to the client if
-  // the extremes of the computed ranges ensure no arithmetic wrap-around anomalies occur.
-  if (min_val->instruction != max_val->instruction) {
-    Value v1_max = RefineOuter(*min_val, /* is_min */ false);
-    Value v2_min = RefineOuter(*max_val, /* is_min */ true);
-    if (!IsConstantValue(v1_max) ||
-        !IsConstantValue(v2_min) ||
-        v1_max.b_constant > v2_min.b_constant) {
-      return false;
+  if (min_val->instruction != nullptr || max_val->instruction != nullptr) {
+    Value v1_min = RefineOuter(*min_val, /* is_min */ true);
+    Value v2_max = RefineOuter(*max_val, /* is_min */ false);
+    // The refined range is safe if both sides refine the same instruction. Otherwise, since two
+    // different ranges are combined, the new refined range is safe to pass back to the client if
+    // the extremes of the computed ranges ensure no arithmetic wrap-around anomalies occur.
+    if (min_val->instruction != max_val->instruction) {
+      Value v1_max = RefineOuter(*min_val, /* is_min */ false);
+      Value v2_min = RefineOuter(*max_val, /* is_min */ true);
+      if (!IsConstantValue(v1_max) ||
+          !IsConstantValue(v2_min) ||
+          v1_max.b_constant > v2_min.b_constant) {
+        return false;
+      }
     }
-  }
-  // Did something change?
-  if (v1_min.instruction != min_val->instruction || v2_max.instruction != max_val->instruction) {
-    *min_val = v1_min;
-    *max_val = v2_max;
-    return true;
+    // Did something change?
+    if (v1_min.instruction != min_val->instruction || v2_max.instruction != max_val->instruction) {
+      *min_val = v1_min;
+      *max_val = v2_max;
+      return true;
+    }
   }
   return false;
 }
@@ -277,7 +313,12 @@ InductionVarRange::Value InductionVarRange::GetLinear(HInductionVarAnalysis::Ind
           if (HInductionVarAnalysis::InductionEqual(trip_expr->op_b, info->op_b)) {
             // Analyze cancelled trip with just the positive operand (trip_expr->op_a).
             HInductionVarAnalysis::InductionInfo cancelled_trip(
-                trip->induction_class, trip->operation, trip_expr->op_a, trip->op_b, nullptr);
+                trip->induction_class,
+                trip->operation,
+                trip_expr->op_a,
+                trip->op_b,
+                nullptr,
+                trip->type);
             return GetVal(&cancelled_trip, trip, in_body, is_min);
           }
         } else if (is_min && stride_value == -1) {
@@ -289,9 +330,10 @@ InductionVarRange::Value InductionVarRange::GetLinear(HInductionVarAnalysis::Ind
                 HInductionVarAnalysis::kNeg,
                 nullptr,
                 trip_expr->op_b,
-                nullptr);
+                nullptr,
+                trip->type);
             HInductionVarAnalysis::InductionInfo cancelled_trip(
-                trip->induction_class, trip->operation, &neg, trip->op_b, nullptr);
+                trip->induction_class, trip->operation, &neg, trip->op_b, nullptr, trip->type);
             return SubValue(Value(0), GetVal(&cancelled_trip, trip, in_body, !is_min));
           }
         }
@@ -322,6 +364,12 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     }
   } else if (instruction->IsArrayLength() && instruction->InputAt(0)->IsNewArray()) {
     return GetFetch(instruction->InputAt(0)->InputAt(0), trip, in_body, is_min);
+  } else if (instruction->IsTypeConversion()) {
+    // Since analysis is 32-bit (or narrower) we allow a widening along the path.
+    if (instruction->AsTypeConversion()->GetInputType() == Primitive::kPrimInt &&
+        instruction->AsTypeConversion()->GetResultType() == Primitive::kPrimLong) {
+      return GetFetch(instruction->InputAt(0), trip, in_body, is_min);
+    }
   } else if (is_min) {
     // Special case for finding minimum: minimum of trip-count in loop-body is 1.
     if (trip != nullptr && in_body && instruction == trip->op_a->fetch) {
@@ -374,7 +422,7 @@ InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::Induct
         }
         break;
       case HInductionVarAnalysis::kLinear: {
-        return GetLinear(info, trip, in_body, is_min);
+        return CorrectForType(GetLinear(info, trip, in_body, is_min), info->type);
       }
       case HInductionVarAnalysis::kWrapAround:
       case HInductionVarAnalysis::kPeriodic:
@@ -613,8 +661,12 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                                      bool in_body,
                                      bool is_min) const {
   if (info != nullptr) {
-    // Handle current operation.
+    // Verify type safety.
     Primitive::Type type = Primitive::kPrimInt;
+    if (info->type != type) {
+      return false;
+    }
+    // Handle current operation.
     HInstruction* opa = nullptr;
     HInstruction* opb = nullptr;
     switch (info->induction_class) {
@@ -667,13 +719,10 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
             }
             break;
           case HInductionVarAnalysis::kFetch:
-            if (info->fetch->GetType() == type) {
-              if (graph != nullptr) {
-                *result = info->fetch;  // already in HIR
-              }
-              return true;
+            if (graph != nullptr) {
+              *result = info->fetch;  // already in HIR
             }
-            break;
+            return true;
           case HInductionVarAnalysis::kTripCountInLoop:
           case HInductionVarAnalysis::kTripCountInLoopUnsafe:
             if (!in_body && !is_min) {  // one extra!

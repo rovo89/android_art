@@ -97,17 +97,20 @@ class HInductionVarAnalysis : public HOptimization {
                   InductionOp op,
                   InductionInfo* a,
                   InductionInfo* b,
-                  HInstruction* f)
+                  HInstruction* f,
+                  Primitive::Type t)
         : induction_class(ic),
           operation(op),
           op_a(a),
           op_b(b),
-          fetch(f) {}
+          fetch(f),
+          type(t) {}
     InductionClass induction_class;
     InductionOp operation;
     InductionInfo* op_a;
     InductionInfo* op_b;
     HInstruction* fetch;
+    Primitive::Type type;  // precision of induction
   };
 
   bool IsVisitedNode(HInstruction* instruction) const {
@@ -121,17 +124,24 @@ class HInductionVarAnalysis : public HOptimization {
 
   InductionInfo* CreateInvariantFetch(HInstruction* f) {
     DCHECK(f != nullptr);
-    return new (graph_->GetArena()) InductionInfo(kInvariant, kFetch, nullptr, nullptr, f);
+    return new (graph_->GetArena())
+        InductionInfo(kInvariant, kFetch, nullptr, nullptr, f, f->GetType());
   }
 
-  InductionInfo* CreateTripCount(InductionOp op, InductionInfo* a, InductionInfo* b) {
+  InductionInfo* CreateTripCount(InductionOp op,
+                                 InductionInfo* a,
+                                 InductionInfo* b,
+                                 Primitive::Type type) {
     DCHECK(a != nullptr);
-    return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
+    return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr, type);
   }
 
-  InductionInfo* CreateInduction(InductionClass ic, InductionInfo* a, InductionInfo* b) {
+  InductionInfo* CreateInduction(InductionClass ic,
+                                 InductionInfo* a,
+                                 InductionInfo* b,
+                                 Primitive::Type type) {
     DCHECK(a != nullptr && b != nullptr);
-    return new (graph_->GetArena()) InductionInfo(ic, kNop, a, b, nullptr);
+    return new (graph_->GetArena()) InductionInfo(ic, kNop, a, b, nullptr, type);
   }
 
   // Methods for analysis.
@@ -148,6 +158,7 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
   InductionInfo* TransferShl(InductionInfo* a, InductionInfo* b, Primitive::Type type);
   InductionInfo* TransferNeg(InductionInfo* a);
+  InductionInfo* TransferCnv(InductionInfo* a, Primitive::Type from, Primitive::Type to);
 
   // Solvers.
   InductionInfo* SolvePhi(HInstruction* phi, size_t input_index);
@@ -161,6 +172,7 @@ class HInductionVarAnalysis : public HOptimization {
                              HInstruction* y,
                              InductionOp op,
                              bool is_first_call);
+  InductionInfo* SolveCnv(HTypeConversion* conversion);
 
   // Trip count information.
   void VisitControl(HLoopInformation* loop);
@@ -181,6 +193,11 @@ class HInductionVarAnalysis : public HOptimization {
                 int64_t stride_value,
                 Primitive::Type type,
                 IfCondition cmp);
+  bool FitsNarrowerControl(InductionInfo* lower_expr,
+                           InductionInfo* upper_expr,
+                           int64_t stride_value,
+                           Primitive::Type type,
+                           IfCondition cmp);
 
   // Assign and lookup.
   void AssignInfo(HLoopInformation* loop, HInstruction* instruction, InductionInfo* info);
@@ -205,6 +222,7 @@ class HInductionVarAnalysis : public HOptimization {
   ArenaVector<HInstruction*> scc_;
   ArenaSafeMap<HInstruction*, NodeInfo> map_;
   ArenaSafeMap<HInstruction*, InductionInfo*> cycle_;
+  Primitive::Type type_;
 
   /**
    * Maintains the results of the analysis as a mapping from loops to a mapping from instructions
