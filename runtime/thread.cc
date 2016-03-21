@@ -46,7 +46,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/allocator/rosalloc.h"
 #include "gc/heap.h"
-#include "gc/space/space.h"
+#include "gc/space/space-inl.h"
 #include "handle_scope-inl.h"
 #include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
@@ -90,6 +90,8 @@ bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
 ConditionVariable* Thread::resume_cond_ = nullptr;
 const size_t Thread::kStackOverflowImplicitCheckSize = GetStackOverflowReservedBytes(kRuntimeISA);
+// Enabled for b/27493510. TODO: disable when fixed.
+static constexpr bool kVerifyImageObjectsMarked = true;
 
 // For implicit overflow checks we reserve an extra piece of memory at the bottom
 // of the stack (lowest memory).  The higher portion of the memory
@@ -2716,11 +2718,37 @@ class ReferenceMapVisitor : public StackVisitor {
 
  private:
   // Visiting the declaring class is necessary so that we don't unload the class of a method that
-  // is executing. We need to ensure that the code stays mapped.
-  void VisitDeclaringClass(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
+  // is executing. We need to ensure that the code stays mapped. NO_THREAD_SAFETY_ANALYSIS since
+  // the threads do not all hold the heap bitmap lock for parallel GC.
+  void VisitDeclaringClass(ArtMethod* method)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      NO_THREAD_SAFETY_ANALYSIS {
     mirror::Class* klass = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
     // klass can be null for runtime methods.
     if (klass != nullptr) {
+      if (kVerifyImageObjectsMarked) {
+        gc::Heap* const heap = Runtime::Current()->GetHeap();
+        gc::space::ContinuousSpace* space = heap->FindContinuousSpaceFromObject(klass,
+                                                                                /*fail_ok*/true);
+        if (space != nullptr && space->IsImageSpace()) {
+          bool failed = false;
+          if (!space->GetLiveBitmap()->Test(klass)) {
+            failed = true;
+            LOG(INTERNAL_FATAL) << "Unmarked object in image " << *space;
+          } else if (!heap->GetLiveBitmap()->Test(klass)) {
+            failed = true;
+            LOG(INTERNAL_FATAL) << "Unmarked object in image through live bitmap " << *space;
+          }
+          if (failed) {
+            GetThread()->Dump(LOG(INTERNAL_FATAL));
+            space->AsImageSpace()->DumpSections(LOG(INTERNAL_FATAL));
+            LOG(INTERNAL_FATAL) << "Method@" << method->GetDexMethodIndex() << ":" << method
+                                << " klass@" << klass;
+            // Pretty info last in case it crashes.
+            LOG(FATAL) << "Method " << PrettyMethod(method) << " klass " << PrettyClass(klass);
+          }
+        }
+      }
       mirror::Object* new_ref = klass;
       visitor_(&new_ref, -1, this);
       if (new_ref != klass) {
