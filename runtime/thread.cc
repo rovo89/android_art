@@ -561,6 +561,7 @@ void Thread::InstallImplicitProtection() {
 
   // Read every page from the high address to the low.
   volatile uint8_t dont_optimize_this;
+  UNUSED(dont_optimize_this);
   for (uint8_t* p = stack_top; p >= pregion; p -= kPageSize) {
     dont_optimize_this = *p;
   }
