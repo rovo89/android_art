@@ -383,6 +383,55 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.inductionOOB(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.inductionOOB(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.inductionOOB(int[]) BCE (after)
+  /// CHECK-NOT: Deoptimize
+  private static void inductionOOB(int[] a) {
+    // Careless range analysis would remove the bounds check.
+    // However, the narrower induction b wraps around arithmetically
+    // before it reaches the end of arrays longer than 127.
+    byte b = 0;
+    for (int i = 0; i < a.length; i++) {
+      a[b++] = i;
+    }
+  }
+
+  /// CHECK-START: void Main.controlOOB(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.controlOOB(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.controlOOB(int[]) BCE (after)
+  /// CHECK-NOT: Deoptimize
+  private static void controlOOB(int[] a) {
+    // As above, but now the loop control also wraps around.
+    for (byte i = 0; i < a.length; i++) {
+      a[i] = -i;
+    }
+  }
+
+  /// CHECK-START: void Main.conversionOOB(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.conversionOOB(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.conversionOOB(int[]) BCE (after)
+  /// CHECK-NOT: Deoptimize
+  private static void conversionOOB(int[] a) {
+    // As above, but with wrap around caused by an explicit conversion.
+    for (int i = 0; i < a.length; ) {
+      a[i] = i;
+      i = (byte) (i + 1);
+    }
+  }
+
   /// CHECK-START: int[] Main.add() BCE (before)
   /// CHECK-DAG: BoundsCheck
   //
@@ -750,6 +799,8 @@ public class Main {
 
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
+    int[] a200 = new int[200];
+
     // Sorting.
     int[] sort = { 5, 4, 1, 9, 10, 2, 7, 6, 3, 8 };
     bubble(sort);
@@ -884,6 +935,36 @@ public class Main {
       sResult += 1000;
     }
     expectEquals(1111, sResult);
+    sResult = 0;
+    try {
+      inductionOOB(a200);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1000, sResult);
+    for (int i = 0; i < 200; i++) {
+      expectEquals(i < 128 ? i : 0, a200[i]);
+    }
+    sResult = 0;
+    try {
+      controlOOB(a200);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1000, sResult);
+    for (int i = 0; i < 200; i++) {
+      expectEquals(i < 128 ? -i : 0, a200[i]);
+    }
+    sResult = 0;
+    try {
+      conversionOOB(a200);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1000, sResult);
+    for (int i = 0; i < 200; i++) {
+      expectEquals(i < 128 ? i : 0, a200[i]);
+    }
 
     // Addition.
     {
@@ -989,6 +1070,8 @@ public class Main {
         dynamicBCEAndConstantIndicesAllPrimTypes(x, x1, x2, x3, x4, x5, x6, x7, x8, 0, 10));
     Integer[] x9 = { 9 };
     expectEquals(145, dynamicBCEAndConstantIndexRefType(x, x9, 0, 10));
+
+    System.out.println("passed");
   }
 
   private static void expectEquals(int expected, int result) {

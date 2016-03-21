@@ -454,19 +454,82 @@ public class Main {
     return result;
   }
 
+  /// CHECK-START: int Main.linearLong() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.linearLong() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearLong() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int result = 0;
+    // Induction on constant interval is done in higher precision than necessary,
+    // but truncated at the use as subscript.
+    for (long i = 0; i < 10; i++) {
+      result += x[(int)i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearLongAlt(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.linearLongAlt(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearLongAlt(int[] x) {
+    int result = 0;
+    // Induction on array length is done in higher precision than necessary,
+    // but truncated at the use as subscript.
+    for (long i = 0; i < x.length; i++) {
+      result += x[(int)i];
+    }
+    return result;
+  }
+
   /// CHECK-START: int Main.linearShort() BCE (before)
   /// CHECK-DAG: BoundsCheck
   //
   /// CHECK-START: int Main.linearShort() BCE (after)
-  /// CHECK-DAG: BoundsCheck
-  //
-  /// CHECK-START: int Main.linearShort() BCE (after)
+  /// CHECK-NOT: BoundsCheck
   /// CHECK-NOT: Deoptimize
   private static int linearShort() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
-    // TODO: make this work
+    // Induction is done in short precision, but fits.
     for (short i = 0; i < 10; i++) {
+      result += x[i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearChar() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.linearChar() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearChar() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int result = 0;
+    // Induction is done in char precision, but fits.
+    for (char i = 0; i < 10; i++) {
+      result += x[i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearByte() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.linearByte() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int linearByte() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int result = 0;
+    // Induction is done in byte precision, but fits.
+    for (byte i = 0; i < 10; i++) {
       result += x[i];
     }
     return result;
@@ -633,6 +696,30 @@ public class Main {
     }
   }
 
+  /// CHECK-START: int[] Main.linearTriangularOOB() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int[] Main.linearTriangularOOB() BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int[] Main.linearTriangularOOB() BCE (after)
+  /// CHECK-NOT: Deoptimize
+  private static int[] linearTriangularOOB() {
+    int[] a = new int[200];
+    try {
+      for (int i = 0; i < 200; i++) {
+        // Lower bound must be recognized as lower precision induction with arithmetic
+        // wrap-around to -128 when i exceeds 127.
+        for (int j = (byte) i; j < 200; j++) {
+          a[j] += 1;
+        }
+      }
+    } catch (ArrayIndexOutOfBoundsException e) {
+      return a;
+    }
+    return null;  // failure if this is reached
+  }
+
   //
   // Verifier.
   //
@@ -706,13 +793,25 @@ public class Main {
     expectEquals(55, linearForNEArrayLengthDown(x));
     expectEquals(55, linearDoWhileUp());
     expectEquals(55, linearDoWhileDown());
+    expectEquals(55, linearLong());
+    expectEquals(55, linearLongAlt(x));
     expectEquals(55, linearShort());
+    expectEquals(55, linearChar());
+    expectEquals(55, linearByte());
     expectEquals(55, invariantFromPreLoop(x, 1));
     linearTriangularOnTwoArrayLengths(10);
     linearTriangularOnOneArrayLength(10);
     linearTriangularOnParameter(10);
     linearTriangularVariationsInnerStrict(10);
     linearTriangularVariationsInnerNonStrict(10);
+    {
+      int[] t = linearTriangularOOB();
+      for (int i = 0; i < 200; i++) {
+        expectEquals(i <= 127 ? i + 1 : 128, t[i]);
+      }
+    }
+
+    System.out.println("passed");
   }
 
   private static void expectEquals(int expected, int result) {
