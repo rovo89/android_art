@@ -196,7 +196,7 @@ void CodeGenerator::GenerateSlowPaths() {
       code_start = GetAssembler()->CodeSize();
     }
     // Record the dex pc at start of slow path (required for java line number mapping).
-    MaybeRecordNativeDebugInfo(nullptr /* instruction */, slow_path->GetDexPc());
+    MaybeRecordNativeDebugInfo(slow_path->GetInstruction(), slow_path->GetDexPc(), slow_path);
     slow_path->EmitNativeCode(this);
     if (disasm_info_ != nullptr) {
       disasm_info_->AddSlowPathInterval(slow_path, code_start, GetAssembler()->CodeSize());
@@ -234,6 +234,12 @@ void CodeGenerator::Compile(CodeAllocator* allocator) {
     MaybeRecordNativeDebugInfo(nullptr /* instruction */, block->GetDexPc());
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
+      if (current->HasEnvironment()) {
+        // Create stackmap for HNativeDebugInfo or any instruction which calls native code.
+        // Note that we need correct mapping for the native PC of the call instruction,
+        // so the runtime's stackmap is not sufficient since it is at PC after the call.
+        MaybeRecordNativeDebugInfo(current, block->GetDexPc());
+      }
       DisassemblyScope disassembly_scope(current, *this);
       DCHECK(CheckTypeConsistency(current));
       current->Accept(instruction_visitor);
@@ -706,7 +712,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
                                  uint32_t dex_pc,
                                  SlowPathCode* slow_path) {
   if (instruction != nullptr) {
-    // The code generated for some type conversions and comparisons
+    // The code generated for some type conversions
     // may call the runtime, thus normally requiring a subsequent
     // call to this method. However, the method verifier does not
     // produce PC information for certain instructions, which are
@@ -717,7 +723,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
     // CodeGenerator::RecordPcInfo without triggering an error in
     // CodeGenerator::BuildNativeGCMap ("Missing ref for dex pc 0x")
     // thereafter.
-    if (instruction->IsTypeConversion() || instruction->IsCompare()) {
+    if (instruction->IsTypeConversion()) {
       return;
     }
     if (instruction->IsRem()) {
@@ -823,13 +829,15 @@ bool CodeGenerator::HasStackMapAtCurrentPc() {
   return count > 0 && stack_map_stream_.GetStackMap(count - 1).native_pc_offset == pc;
 }
 
-void CodeGenerator::MaybeRecordNativeDebugInfo(HInstruction* instruction, uint32_t dex_pc) {
+void CodeGenerator::MaybeRecordNativeDebugInfo(HInstruction* instruction,
+                                               uint32_t dex_pc,
+                                               SlowPathCode* slow_path) {
   if (GetCompilerOptions().GetNativeDebuggable() && dex_pc != kNoDexPc) {
     if (HasStackMapAtCurrentPc()) {
       // Ensure that we do not collide with the stack map of the previous instruction.
       GenerateNop();
     }
-    RecordPcInfo(instruction, dex_pc);
+    RecordPcInfo(instruction, dex_pc, slow_path);
   }
 }
 
@@ -1107,6 +1115,16 @@ void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
       // reverted otherwise the stack maps at the throw point will not be correct.
       RecordPcInfo(null_check, null_check->GetDexPc());
     }
+  }
+}
+
+void CodeGenerator::GenerateNullCheck(HNullCheck* instruction) {
+  if (IsImplicitNullCheckAllowed(instruction)) {
+    MaybeRecordStat(kImplicitNullCheckGenerated);
+    GenerateImplicitNullCheck(instruction);
+  } else {
+    MaybeRecordStat(kExplicitNullCheckGenerated);
+    GenerateExplicitNullCheck(instruction);
   }
 }
 

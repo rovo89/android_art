@@ -106,6 +106,10 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
   Label* GetEntryLabel() { return &entry_label_; }
   Label* GetExitLabel() { return &exit_label_; }
 
+  HInstruction* GetInstruction() const {
+    return instruction_;
+  }
+
   uint32_t GetDexPc() const {
     return instruction_ != nullptr ? instruction_->GetDexPc() : kNoDexPc;
   }
@@ -274,10 +278,15 @@ class CodeGenerator {
   // Check whether we have already recorded mapping at this PC.
   bool HasStackMapAtCurrentPc();
   // Record extra stack maps if we support native debugging.
-  void MaybeRecordNativeDebugInfo(HInstruction* instruction, uint32_t dex_pc);
+  void MaybeRecordNativeDebugInfo(HInstruction* instruction,
+                                  uint32_t dex_pc,
+                                  SlowPathCode* slow_path = nullptr);
 
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
+  void GenerateNullCheck(HNullCheck* null_check);
+  virtual void GenerateImplicitNullCheck(HNullCheck* null_check) = 0;
+  virtual void GenerateExplicitNullCheck(HNullCheck* null_check) = 0;
 
   // Records a stack map which the runtime might use to set catch phi values
   // during exception delivery.

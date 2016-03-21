@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_NATIVE_JAVA_LANG_RUNTIME_H_
-#define ART_RUNTIME_NATIVE_JAVA_LANG_RUNTIME_H_
-
-#include <jni.h>
-
-namespace art {
-
-void register_java_lang_Runtime(JNIEnv* env);
-
-}  // namespace art
-
-#endif  // ART_RUNTIME_NATIVE_JAVA_LANG_RUNTIME_H_
+public class Main {
+  public static void main(String[] args) throws Exception {
+    Class<?> c = Class.forName("TestCase");
+    c.getMethod("topLevel").invoke(null);
+  }
+}

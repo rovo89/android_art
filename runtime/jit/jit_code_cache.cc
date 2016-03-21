@@ -40,6 +40,9 @@ static constexpr int kProtAll = PROT_READ | PROT_WRITE | PROT_EXEC;
 static constexpr int kProtData = PROT_READ | PROT_WRITE;
 static constexpr int kProtCode = PROT_READ | PROT_EXEC;
 
+static constexpr size_t kCodeSizeLogThreshold = 50 * KB;
+static constexpr size_t kStackMapSizeLogThreshold = 50 * KB;
+
 #define CHECKED_MPROTECT(memory, size, prot)                \
   do {                                                      \
     int rc = mprotect(memory, size, prot);                  \
@@ -134,7 +137,10 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       number_of_compilations_(0),
       number_of_osr_compilations_(0),
       number_of_deoptimizations_(0),
-      number_of_collections_(0) {
+      number_of_collections_(0),
+      histogram_stack_map_memory_use_("Memory used for stack maps", 16),
+      histogram_code_memory_use_("Memory used for compiled code", 16),
+      histogram_profiling_info_memory_use_("Memory used for profiling info", 16) {
 
   DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
@@ -377,6 +383,13 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
         << " dcache_size=" << PrettySize(DataCacheSizeLocked()) << ": "
         << reinterpret_cast<const void*>(method_header->GetEntryPoint()) << ","
         << reinterpret_cast<const void*>(method_header->GetEntryPoint() + method_header->code_size_);
+    histogram_code_memory_use_.AddValue(code_size);
+    if (code_size > kCodeSizeLogThreshold) {
+      LOG(INFO) << "JIT allocated "
+                << PrettySize(code_size)
+                << " for compiled code of "
+                << PrettyMethod(method);
+    }
   }
 
   return reinterpret_cast<uint8_t*>(method_header);
@@ -405,7 +418,7 @@ void JitCodeCache::ClearData(Thread* self, void* data) {
   FreeData(reinterpret_cast<uint8_t*>(data));
 }
 
-uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
+uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size, ArtMethod* method) {
   size = RoundUp(size, sizeof(void*));
   uint8_t* result = nullptr;
 
@@ -425,15 +438,14 @@ uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
     result = AllocateData(size);
   }
 
-  return result;
-}
-
-uint8_t* JitCodeCache::AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end) {
-  uint8_t* result = ReserveData(self, end - begin);
-  if (result == nullptr) {
-    return nullptr;  // Out of space in the data cache.
+  MutexLock mu(self, lock_);
+  histogram_stack_map_memory_use_.AddValue(size);
+  if (size > kStackMapSizeLogThreshold) {
+    LOG(INFO) << "JIT allocated "
+              << PrettySize(size)
+              << " for stack maps of "
+              << PrettyMethod(method);
   }
-  std::copy(begin, end, result);
   return result;
 }
 
@@ -868,6 +880,7 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self ATTRIBUTE_UNU
 
   method->SetProfilingInfo(info);
   profiling_infos_.push_back(info);
+  histogram_profiling_info_memory_use_.AddValue(profile_info_size);
   return info;
 }
 
@@ -1021,6 +1034,9 @@ void JitCodeCache::Dump(std::ostream& os) {
         << number_of_osr_compilations_ << "\n"
      << "Total number of deoptimizations: " << number_of_deoptimizations_ << "\n"
      << "Total number of JIT code cache collections: " << number_of_collections_ << std::endl;
+  histogram_stack_map_memory_use_.PrintMemoryUse(os);
+  histogram_code_memory_use_.PrintMemoryUse(os);
+  histogram_profiling_info_memory_use_.PrintMemoryUse(os);
 }
 
 }  // namespace jit

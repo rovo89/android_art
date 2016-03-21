@@ -34,8 +34,12 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void RecordSimplification() {
     simplification_occurred_ = true;
     simplifications_at_current_position_++;
-    if (stats_) {
-      stats_->RecordStat(kInstructionSimplifications);
+    MaybeRecordStat(kInstructionSimplifications);
+  }
+
+  void MaybeRecordStat(MethodCompilationStat stat) {
+    if (stats_ != nullptr) {
+      stats_->RecordStat(stat);
     }
   }
 
@@ -92,10 +96,10 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
 
   bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
-  void SimplifyRotate(HInvoke* invoke, bool is_left);
+  void SimplifyRotate(HInvoke* invoke, bool is_left, Primitive::Type type);
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
-  void SimplifyCompare(HInvoke* invoke, bool has_zero_op);
+  void SimplifyCompare(HInvoke* invoke, bool is_signum, Primitive::Type type);
   void SimplifyIsNaN(HInvoke* invoke);
   void SimplifyFP2Int(HInvoke* invoke);
   void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
@@ -235,7 +239,10 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
   HInstruction* input_other = instruction->GetLeastConstantLeft();
 
   if (input_cst != nullptr) {
-    if (input_cst->IsZero()) {
+    int64_t cst = Int64FromConstant(input_cst);
+    int64_t mask =
+        (input_other->GetType() == Primitive::kPrimLong) ? kMaxLongShiftValue : kMaxIntShiftValue;
+    if ((cst & mask) == 0) {
       // Replace code looking like
       //    SHL dst, src, 0
       // with
@@ -255,10 +262,8 @@ static bool IsSubRegBitsMinusOther(HSub* sub, size_t reg_bits, HInstruction* oth
 bool InstructionSimplifierVisitor::ReplaceRotateWithRor(HBinaryOperation* op,
                                                         HUShr* ushr,
                                                         HShl* shl) {
-  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
-  HRor* ror = new (GetGraph()->GetArena()) HRor(ushr->GetType(),
-                                                ushr->GetLeft(),
-                                                ushr->GetRight());
+  DCHECK(op->IsAdd() || op->IsXor() || op->IsOr()) << op->DebugName();
+  HRor* ror = new (GetGraph()->GetArena()) HRor(ushr->GetType(), ushr->GetLeft(), ushr->GetRight());
   op->GetBlock()->ReplaceAndRemoveInstructionWith(op, ror);
   if (!ushr->HasUses()) {
     ushr->GetBlock()->RemoveInstruction(ushr);
@@ -463,19 +468,17 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
 
   if (object->IsNullConstant()) {
     check_cast->GetBlock()->RemoveInstruction(check_cast);
-    if (stats_ != nullptr) {
-      stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
-    }
+    MaybeRecordStat(MethodCompilationStat::kRemovedCheckedCast);
     return;
   }
 
-  bool outcome;
+  // Note: The `outcome` is initialized to please valgrind - the compiler can reorder
+  // the return value check with the `outcome` check, b/27651442 .
+  bool outcome = false;
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome) {
       check_cast->GetBlock()->RemoveInstruction(check_cast);
-      if (stats_ != nullptr) {
-        stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
-      }
+      MaybeRecordStat(MethodCompilationStat::kRemovedCheckedCast);
       if (!load_class->HasUses()) {
         // We cannot rely on DCE to remove the class because the `HLoadClass` thinks it can throw.
         // However, here we know that it cannot because the checkcast was successfull, hence
@@ -505,14 +508,18 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
 
   HGraph* graph = GetGraph();
   if (object->IsNullConstant()) {
+    MaybeRecordStat(kRemovedInstanceOf);
     instruction->ReplaceWith(graph->GetIntConstant(0));
     instruction->GetBlock()->RemoveInstruction(instruction);
     RecordSimplification();
     return;
   }
 
-  bool outcome;
+  // Note: The `outcome` is initialized to please valgrind - the compiler can reorder
+  // the return value check with the `outcome` check, b/27651442 .
+  bool outcome = false;
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
+    MaybeRecordStat(kRemovedInstanceOf);
     if (outcome && can_be_null) {
       // Type test will succeed, we just need a null test.
       HNotEqual* test = new (graph->GetArena()) HNotEqual(graph->GetNullConstant(), object);
@@ -867,9 +874,7 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
         return;
       }
     }
-  } else if (input->IsAnd() &&
-      Primitive::IsIntegralType(result_type) &&
-      input->HasOnlyOneNonEnvironmentUse()) {
+  } else if (input->IsAnd() && Primitive::IsIntegralType(result_type)) {
     DCHECK(Primitive::IsIntegralType(input_type));
     HAnd* input_and = input->AsAnd();
     HConstant* constant = input_and->GetConstantRight();
@@ -879,10 +884,18 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
       size_t trailing_ones = CTZ(~static_cast<uint64_t>(value));
       if (trailing_ones >= kBitsPerByte * Primitive::ComponentSize(result_type)) {
         // The `HAnd` is useless, for example in `(byte) (x & 0xff)`, get rid of it.
-        input_and->ReplaceWith(input_and->GetLeastConstantLeft());
-        input_and->GetBlock()->RemoveInstruction(input_and);
-        RecordSimplification();
-        return;
+        HInstruction* original_input = input_and->GetLeastConstantLeft();
+        if (IsTypeConversionImplicit(original_input->GetType(), result_type)) {
+          instruction->ReplaceWith(original_input);
+          instruction->GetBlock()->RemoveInstruction(instruction);
+          RecordSimplification();
+          return;
+        } else if (input->HasOnlyOneNonEnvironmentUse()) {
+          input_and->ReplaceWith(original_input);
+          input_and->GetBlock()->RemoveInstruction(input_and);
+          RecordSimplification();
+          return;
+        }
       }
     }
   }
@@ -1217,7 +1230,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       // with
       //    SHL dst, src, log2(pow_of_2)
       HIntConstant* shift = GetGraph()->GetIntConstant(WhichPowerOf2(factor));
-      HShl* shl = new(allocator) HShl(type, input_other, shift);
+      HShl* shl = new (allocator) HShl(type, input_other, shift);
       block->ReplaceAndRemoveInstructionWith(instruction, shl);
       RecordSimplification();
     } else if (IsPowerOfTwo(factor - 1)) {
@@ -1516,7 +1529,9 @@ void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
   }
 }
 
-void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke, bool is_left) {
+void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke,
+                                                  bool is_left,
+                                                  Primitive::Type type) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
   DCHECK_EQ(invoke->GetOriginalInvokeType(), InvokeType::kStatic);
   HInstruction* value = invoke->InputAt(0);
@@ -1526,7 +1541,7 @@ void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke, bool is_left)
     distance = new (GetGraph()->GetArena()) HNeg(distance->GetType(), distance);
     invoke->GetBlock()->InsertInstructionBefore(distance, invoke);
   }
-  HRor* ror = new (GetGraph()->GetArena()) HRor(value->GetType(), value, distance);
+  HRor* ror = new (GetGraph()->GetArena()) HRor(type, value, distance);
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, ror);
   // Remove ClinitCheck and LoadClass, if possible.
   HInstruction* clinit = invoke->InputAt(invoke->InputCount() - 1);
@@ -1604,12 +1619,13 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
   }
 }
 
-void InstructionSimplifierVisitor::SimplifyCompare(HInvoke* invoke, bool is_signum) {
+void InstructionSimplifierVisitor::SimplifyCompare(HInvoke* invoke,
+                                                   bool is_signum,
+                                                   Primitive::Type type) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
   uint32_t dex_pc = invoke->GetDexPc();
   HInstruction* left = invoke->InputAt(0);
   HInstruction* right;
-  Primitive::Type type = left->GetType();
   if (!is_signum) {
     right = invoke->InputAt(1);
   } else if (type == Primitive::kPrimLong) {
@@ -1678,20 +1694,28 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
       SimplifySystemArrayCopy(instruction);
       break;
     case Intrinsics::kIntegerRotateRight:
+      SimplifyRotate(instruction, /* is_left */ false, Primitive::kPrimInt);
+      break;
     case Intrinsics::kLongRotateRight:
-      SimplifyRotate(instruction, false);
+      SimplifyRotate(instruction, /* is_left */ false, Primitive::kPrimLong);
       break;
     case Intrinsics::kIntegerRotateLeft:
+      SimplifyRotate(instruction, /* is_left */ true, Primitive::kPrimInt);
+      break;
     case Intrinsics::kLongRotateLeft:
-      SimplifyRotate(instruction, true);
+      SimplifyRotate(instruction, /* is_left */ true, Primitive::kPrimLong);
       break;
     case Intrinsics::kIntegerCompare:
+      SimplifyCompare(instruction, /* is_signum */ false, Primitive::kPrimInt);
+      break;
     case Intrinsics::kLongCompare:
-      SimplifyCompare(instruction, /* is_signum */ false);
+      SimplifyCompare(instruction, /* is_signum */ false, Primitive::kPrimLong);
       break;
     case Intrinsics::kIntegerSignum:
+      SimplifyCompare(instruction, /* is_signum */ true, Primitive::kPrimInt);
+      break;
     case Intrinsics::kLongSignum:
-      SimplifyCompare(instruction, /* is_signum */ true);
+      SimplifyCompare(instruction, /* is_signum */ true, Primitive::kPrimLong);
       break;
     case Intrinsics::kFloatIsNaN:
     case Intrinsics::kDoubleIsNaN:

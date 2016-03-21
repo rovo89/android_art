@@ -293,7 +293,11 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   }
 
   if (actual_method != nullptr) {
-    return TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ true);
+    bool result = TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ true);
+    if (result && !invoke_instruction->IsInvokeStaticOrDirect()) {
+      MaybeRecordStat(kInlinedInvokeVirtualOrInterface);
+    }
+    return result;
   }
 
   DCHECK(!invoke_instruction->IsInvokeStaticOrDirect());
@@ -1279,10 +1283,14 @@ void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
         // some functionality from the reference type propagation.
         DCHECK(return_replacement->IsPhi());
         size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        ReferenceTypeInfo::TypeHandle return_handle =
-            handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
-        return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
-            return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+        mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
+        if (cls != nullptr) {
+          ReferenceTypeInfo::TypeHandle return_handle = handles_->NewHandle(cls);
+          return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
+              return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
+        } else {
+          return_replacement->SetReferenceTypeInfo(graph_->GetInexactObjectRti());
+        }
       }
 
       if (do_rtp) {

@@ -133,22 +133,24 @@ void ThreadList::DumpForSigQuit(std::ostream& os) {
       suspend_all_historam_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
     }
   }
-  Dump(os, Runtime::Current()->GetDumpNativeStackOnSigQuit());
-  DumpUnattachedThreads(os);
+  bool dump_native_stack = Runtime::Current()->GetDumpNativeStackOnSigQuit();
+  Dump(os, dump_native_stack);
+  DumpUnattachedThreads(os, dump_native_stack);
 }
 
-static void DumpUnattachedThread(std::ostream& os, pid_t tid) NO_THREAD_SAFETY_ANALYSIS {
+static void DumpUnattachedThread(std::ostream& os, pid_t tid, bool dump_native_stack)
+    NO_THREAD_SAFETY_ANALYSIS {
   // TODO: No thread safety analysis as DumpState with a null thread won't access fields, should
   // refactor DumpState to avoid skipping analysis.
   Thread::DumpState(os, nullptr, tid);
   DumpKernelStack(os, tid, "  kernel: ", false);
-  if (kDumpUnattachedThreadNativeStack) {
+  if (dump_native_stack && kDumpUnattachedThreadNativeStack) {
     DumpNativeStack(os, tid, nullptr, "  native: ");
   }
   os << "\n";
 }
 
-void ThreadList::DumpUnattachedThreads(std::ostream& os) {
+void ThreadList::DumpUnattachedThreads(std::ostream& os, bool dump_native_stack) {
   DIR* d = opendir("/proc/self/task");
   if (!d) {
     return;
@@ -166,7 +168,7 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
         contains = Contains(tid);
       }
       if (!contains) {
-        DumpUnattachedThread(os, tid);
+        DumpUnattachedThread(os, tid, dump_native_stack);
       }
     }
   }

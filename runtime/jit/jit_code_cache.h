@@ -20,6 +20,7 @@
 #include "instrumentation.h"
 
 #include "atomic.h"
+#include "base/histogram-inl.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/accounting/bitmap.h"
@@ -109,18 +110,12 @@ class JitCodeCache {
   bool ContainsMethod(ArtMethod* method) REQUIRES(!lock_);
 
   // Reserve a region of data of size at least "size". Returns null if there is no more room.
-  uint8_t* ReserveData(Thread* self, size_t size)
+  uint8_t* ReserveData(Thread* self, size_t size, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   // Clear data from the data portion of the code cache.
   void ClearData(Thread* self, void* data)
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!lock_);
-
-  // Add a data array of size (end - begin) with the associated contents, returns null if there
-  // is no more room.
-  uint8_t* AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -331,6 +326,15 @@ class JitCodeCache {
 
   // Number of code cache collections done throughout the lifetime of the JIT.
   size_t number_of_collections_ GUARDED_BY(lock_);
+
+  // Histograms for keeping track of stack map size statistics.
+  Histogram<uint64_t> histogram_stack_map_memory_use_ GUARDED_BY(lock_);
+
+  // Histograms for keeping track of code size statistics.
+  Histogram<uint64_t> histogram_code_memory_use_ GUARDED_BY(lock_);
+
+  // Histograms for keeping track of profiling info statistics.
+  Histogram<uint64_t> histogram_profiling_info_memory_use_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };

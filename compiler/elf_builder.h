@@ -841,7 +841,7 @@ class ElfBuilder FINAL {
       load.p_type    = PT_LOAD;
       load.p_flags   = PF_R;
       load.p_offset  = load.p_vaddr = load.p_paddr = 0;
-      load.p_filesz  = load.p_memsz = sections_[0]->header_.sh_offset;
+      load.p_filesz  = load.p_memsz = sizeof(Elf_Ehdr) + sizeof(Elf_Phdr) * kMaxProgramHeaders;
       load.p_align   = kPageSize;
       phdrs.push_back(load);
     }

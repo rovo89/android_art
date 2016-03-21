@@ -174,7 +174,6 @@ class LocationsBuilderARM : public HGraphVisitor {
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(LocationSummary* locations);
   void HandleLongRotate(LocationSummary* locations);
-  void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
@@ -222,7 +221,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(LocationSummary* locations);
   void HandleLongRotate(LocationSummary* locations);
-  void HandleRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
 
   void GenerateWideAtomicStore(Register addr, uint32_t offset,
@@ -274,9 +272,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
                                Location root,
                                Register obj,
                                uint32_t offset);
-
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              Label* true_target,
@@ -513,6 +508,9 @@ class CodeGeneratorARM : public CodeGenerator {
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
   void GenerateNop();
+
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

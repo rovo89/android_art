@@ -2543,7 +2543,7 @@ class HFloatConstant : public HConstant {
     return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>((-1.0f));
   }
   bool IsZero() const OVERRIDE {
-    return value_ == 0.0f;
+    return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>(0.0f);
   }
   bool IsOne() const OVERRIDE {
     return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>(1.0f);
@@ -2585,7 +2585,7 @@ class HDoubleConstant : public HConstant {
     return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((-1.0));
   }
   bool IsZero() const OVERRIDE {
-    return value_ == 0.0;
+    return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((0.0));
   }
   bool IsOne() const OVERRIDE {
     return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>(1.0);
@@ -3428,7 +3428,10 @@ class HAboveOrEqual : public HCondition {
 // Result is 0 if input0 == input1, 1 if input0 > input1, or -1 if input0 < input1.
 class HCompare : public HBinaryOperation {
  public:
-  HCompare(Primitive::Type type,
+  // Note that `comparison_type` is the type of comparison performed
+  // between the comparison's inputs, not the type of the instantiated
+  // HCompare instruction (which is always Primitive::kPrimInt).
+  HCompare(Primitive::Type comparison_type,
            HInstruction* first,
            HInstruction* second,
            ComparisonBias bias,
@@ -3436,11 +3439,13 @@ class HCompare : public HBinaryOperation {
       : HBinaryOperation(Primitive::kPrimInt,
                          first,
                          second,
-                         SideEffectsForArchRuntimeCalls(type),
+                         SideEffectsForArchRuntimeCalls(comparison_type),
                          dex_pc) {
     SetPackedField<ComparisonBiasField>(bias);
-    DCHECK_EQ(type, first->GetType());
-    DCHECK_EQ(type, second->GetType());
+    if (kIsDebugBuild) {
+      DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(first->GetType()));
+      DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(second->GetType()));
+    }
   }
 
   template <typename T>
@@ -3485,9 +3490,9 @@ class HCompare : public HBinaryOperation {
     return GetBias() == ComparisonBias::kGtBias;
   }
 
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type type) {
-    // MIPS64 uses a runtime call for FP comparisons.
-    return Primitive::IsFloatingPointType(type) ? SideEffects::CanTriggerGC() : SideEffects::None();
+  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type type ATTRIBUTE_UNUSED) {
+    // Comparisons do not require a runtime call in any back end.
+    return SideEffects::None();
   }
 
   DECLARE_INSTRUCTION(Compare);
@@ -4684,7 +4689,12 @@ class HXor : public HBinaryOperation {
 class HRor : public HBinaryOperation {
  public:
   HRor(Primitive::Type result_type, HInstruction* value, HInstruction* distance)
-    : HBinaryOperation(result_type, value, distance) {}
+    : HBinaryOperation(result_type, value, distance) {
+    if (kIsDebugBuild) {
+      DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
+      DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
+    }
+  }
 
   template <typename T, typename U, typename V>
   T Compute(T x, U y, V max_shift_value) const {

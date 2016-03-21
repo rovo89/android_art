@@ -26,6 +26,7 @@
 
 #include "base/bit_utils.h"
 #include "base/time_utils.h"
+#include "utils.h"
 
 namespace art {
 
@@ -197,6 +198,13 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double 
      << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit, kFractionalDigits) << " "
      << "Avg: " << FormatDuration(Mean() * kAdjust, unit, kFractionalDigits) << " Max: "
      << FormatDuration(Max() * kAdjust, unit, kFractionalDigits) << "\n";
+}
+
+template <class Value>
+inline void Histogram<Value>::PrintMemoryUse(std::ostream &os) const {
+  os << Name()
+     << ": Avg: " << PrettySize(Mean()) << " Max: "
+     << PrettySize(Max()) << " Min: " << PrettySize(Min()) << "\n";
 }
 
 template <class Value>

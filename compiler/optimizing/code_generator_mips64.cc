@@ -1691,6 +1691,10 @@ void LocationsBuilderMIPS64::VisitCompare(HCompare* compare) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare);
 
   switch (in_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
@@ -1719,6 +1723,10 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
   //  1 if: left  > right
   // -1 if: left  < right
   switch (in_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
@@ -1726,17 +1734,17 @@ void InstructionCodeGeneratorMIPS64::VisitCompare(HCompare* instruction) {
       bool use_imm = rhs_location.IsConstant();
       GpuRegister rhs = ZERO;
       if (use_imm) {
-        if (in_type == Primitive::kPrimInt) {
-          int32_t value = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant()->AsConstant());
-          if (value != 0) {
-            rhs = AT;
-            __ LoadConst32(rhs, value);
-          }
-        } else {
+        if (in_type == Primitive::kPrimLong) {
           int64_t value = CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()->AsConstant());
           if (value != 0) {
             rhs = AT;
             __ LoadConst64(rhs, value);
+          }
+        } else {
+          int32_t value = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant()->AsConstant());
+          if (value != 0) {
+            rhs = AT;
+            __ LoadConst32(rhs, value);
           }
         }
       } else {
@@ -2172,8 +2180,8 @@ void InstructionCodeGeneratorMIPS64::VisitDivZeroCheck(HDivZeroCheck* instructio
 
   Primitive::Type type = instruction->GetType();
 
-  if ((type == Primitive::kPrimBoolean) || !Primitive::IsIntegralType(type)) {
-      LOG(FATAL) << "Unexpected type " << type << " for DivZeroCheck.";
+  if (!Primitive::IsIntegralType(type)) {
+    LOG(FATAL) << "Unexpected type " << type << " for DivZeroCheck.";
     return;
   }
 
@@ -2718,8 +2726,8 @@ void LocationsBuilderMIPS64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
   new (GetGraph()->GetArena()) LocationSummary(info);
 }
 
-void InstructionCodeGeneratorMIPS64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+void InstructionCodeGeneratorMIPS64::VisitNativeDebugInfo(HNativeDebugInfo*) {
+  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
 }
 
 void CodeGeneratorMIPS64::GenerateNop() {
@@ -3550,19 +3558,19 @@ void LocationsBuilderMIPS64::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorMIPS64::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  if (codegen_->CanMoveNullCheckToUser(instruction)) {
+void CodeGeneratorMIPS64::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
   Location obj = instruction->GetLocations()->InAt(0);
 
   __ Lw(ZERO, obj.AsRegister<GpuRegister>(), 0);
-  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
-void InstructionCodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instruction) {
+void CodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathMIPS64(instruction);
-  codegen_->AddSlowPath(slow_path);
+  AddSlowPath(slow_path);
 
   Location obj = instruction->GetLocations()->InAt(0);
 
@@ -3570,11 +3578,7 @@ void InstructionCodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instr
 }
 
 void InstructionCodeGeneratorMIPS64::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
-    GenerateImplicitNullCheck(instruction);
-  } else {
-    GenerateExplicitNullCheck(instruction);
-  }
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderMIPS64::VisitOr(HOr* instruction) {

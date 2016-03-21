@@ -622,9 +622,11 @@ void Dbg::GoActive() {
   }
 
   Runtime* runtime = Runtime::Current();
-  // Since boot image code is AOT compiled as not debuggable, we need to patch
+  // Since boot image code may be AOT compiled as not debuggable, we need to patch
   // entry points of methods in boot image to interpreter bridge.
-  if (!runtime->GetInstrumentation()->IsForcedInterpretOnly()) {
+  // However, the performance cost of this is non-negligible during native-debugging due to the
+  // forced JIT, so we keep the AOT code in that case in exchange for limited native debugging.
+  if (!runtime->GetInstrumentation()->IsForcedInterpretOnly() && !runtime->IsNativeDebuggable()) {
     ScopedObjectAccess soa(self);
     UpdateEntryPointsClassVisitor visitor(runtime->GetInstrumentation());
     runtime->GetClassLinker()->VisitClasses(&visitor);

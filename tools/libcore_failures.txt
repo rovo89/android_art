@@ -270,5 +270,12 @@
   description: "Only work with --mode=activity",
   result: EXEC_FAILED,
   names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
+},
+{
+  description: "Made for extending, shouldn't be run",
+  result: EXEC_FAILED,
+  names: ["jsr166.CollectionTest#testEmptyMeansEmpty",
+          "jsr166.Collection8Test#testForEach",
+          "jsr166.Collection8Test#testForEachConcurrentStressTest"]
 }
 ]

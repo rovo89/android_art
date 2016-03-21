@@ -94,7 +94,6 @@
 #include "native/java_lang_Class.h"
 #include "native/java_lang_DexCache.h"
 #include "native/java_lang_Object.h"
-#include "native/java_lang_Runtime.h"
 #include "native/java_lang_String.h"
 #include "native/java_lang_StringFactory.h"
 #include "native/java_lang_System.h"
@@ -204,6 +203,7 @@ Runtime::Runtime()
       implicit_suspend_checks_(false),
       no_sig_chain_(false),
       is_native_bridge_loaded_(false),
+      is_native_debuggable_(false),
       zygote_max_failed_boots_(0),
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
@@ -1364,6 +1364,7 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   GetInternTable()->DumpForSigQuit(os);
   GetJavaVM()->DumpForSigQuit(os);
   GetHeap()->DumpForSigQuit(os);
+  oat_file_manager_->DumpForSigQuit(os);
   if (GetJit() != nullptr) {
     GetJit()->DumpForSigQuit(os);
   } else {

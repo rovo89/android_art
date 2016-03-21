@@ -271,8 +271,6 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_fp, bool is_wide);
 
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   template<class LabelType>
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
@@ -541,6 +539,8 @@ class CodeGeneratorX86 : public CodeGenerator {
   }
 
   void GenerateNop();
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

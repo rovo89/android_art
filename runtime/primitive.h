@@ -166,6 +166,20 @@ class Primitive {
     return type == kPrimLong || type == kPrimDouble;
   }
 
+  // Return the general kind of `type`, fusing integer-like types as kPrimInt.
+  static Type PrimitiveKind(Type type) {
+    switch (type) {
+      case kPrimBoolean:
+      case kPrimByte:
+      case kPrimShort:
+      case kPrimChar:
+      case kPrimInt:
+        return kPrimInt;
+      default:
+        return type;
+    }
+  }
+
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Primitive);
 };

@@ -18,6 +18,7 @@
 #define ART_RUNTIME_BASE_LENGTH_PREFIXED_ARRAY_H_
 
 #include <stddef.h>  // for offsetof()
+#include <string.h>  // for memset()
 
 #include "stride_iterator.h"
 #include "base/bit_utils.h"
@@ -82,6 +83,13 @@ class LengthPrefixedArray {
   // Update the length but does not reallocate storage.
   void SetSize(size_t length) {
     size_ = dchecked_integral_cast<uint32_t>(length);
+  }
+
+  // Clear the potentially uninitialized padding between the size_ and actual data.
+  void ClearPadding(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
+    size_t gap_offset = offsetof(LengthPrefixedArray<T>, data);
+    size_t gap_size = OffsetOfElement(0, element_size, alignment) - gap_offset;
+    memset(reinterpret_cast<uint8_t*>(this) + gap_offset, 0, gap_size);
   }
 
  private:

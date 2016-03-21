@@ -2555,8 +2555,18 @@ uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
   size_t num_32 = 0;
   size_t num_64 = 0;
   if (class_data != nullptr) {
+    // We allow duplicate definitions of the same field in a class_data_item
+    // but ignore the repeated indexes here, b/21868015.
+    uint32_t last_field_idx = DexFile::kDexNoIndex;
     for (ClassDataItemIterator it(dex_file, class_data); it.HasNextStaticField(); it.Next()) {
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(it.GetMemberIndex());
+      uint32_t field_idx = it.GetMemberIndex();
+      // Ordering enforced by DexFileVerifier.
+      DCHECK(last_field_idx == DexFile::kDexNoIndex || last_field_idx <= field_idx);
+      if (UNLIKELY(field_idx == last_field_idx)) {
+        continue;
+      }
+      last_field_idx = field_idx;
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
       const char* descriptor = dex_file.GetFieldTypeDescriptor(field_id);
       char c = descriptor[0];
       switch (c) {
@@ -2739,13 +2749,18 @@ bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* 
     return true;
   }
 
-  if (runtime->UseJit() && runtime->GetJit()->JitAtFirstUse()) {
-    // The force JIT uses the interpreter entry point to execute the JIT.
-    return true;
+  if (runtime->IsNativeDebuggable()) {
+    DCHECK(runtime->UseJit() && runtime->GetJit()->JitAtFirstUse());
+    // If we are doing native debugging, ignore application's AOT code,
+    // since we want to JIT it with extra stackmaps for native debugging.
+    // On the other hand, keep all AOT code from the boot image, since the
+    // blocking JIT would results in non-negligible performance impact.
+    return !runtime->GetHeap()->IsInBootImageOatFile(quick_code);
   }
 
   if (Dbg::IsDebuggerActive()) {
-    // Boot image classes are AOT-compiled as non-debuggable.
+    // Boot image classes may be AOT-compiled as non-debuggable.
+    // This is not suitable for the Java debugger, so ignore the AOT code.
     return runtime->GetHeap()->IsInBootImageOatFile(quick_code);
   }
 

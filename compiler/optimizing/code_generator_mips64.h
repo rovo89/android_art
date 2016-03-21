@@ -228,8 +228,6 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
                       const FieldInfo& field_info,
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              Mips64Label* true_target,
@@ -354,6 +352,8 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   }
 
   void GenerateNop();
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Labels for each block that will be compiled.

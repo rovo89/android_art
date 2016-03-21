@@ -2070,6 +2070,10 @@ void LocationsBuilderMIPS::VisitCompare(HCompare* compare) {
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
 
   switch (in_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
@@ -2100,6 +2104,10 @@ void InstructionCodeGeneratorMIPS::VisitCompare(HCompare* instruction) {
   //  1 if: left  > right
   // -1 if: left  < right
   switch (in_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
       Register lhs = locations->InAt(0).AsRegister<Register>();
       Register rhs = locations->InAt(1).AsRegister<Register>();
@@ -2530,6 +2538,7 @@ void InstructionCodeGeneratorMIPS::VisitDivZeroCheck(HDivZeroCheck* instruction)
   Primitive::Type type = instruction->GetType();
 
   switch (type) {
+    case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
@@ -3393,8 +3402,8 @@ void LocationsBuilderMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
   new (GetGraph()->GetArena()) LocationSummary(info);
 }
 
-void InstructionCodeGeneratorMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+void InstructionCodeGeneratorMIPS::VisitNativeDebugInfo(HNativeDebugInfo*) {
+  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
 }
 
 void CodeGeneratorMIPS::GenerateNop() {
@@ -4395,19 +4404,19 @@ void LocationsBuilderMIPS::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorMIPS::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  if (codegen_->CanMoveNullCheckToUser(instruction)) {
+void CodeGeneratorMIPS::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
   Location obj = instruction->GetLocations()->InAt(0);
 
   __ Lw(ZERO, obj.AsRegister<Register>(), 0);
-  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
-void InstructionCodeGeneratorMIPS::GenerateExplicitNullCheck(HNullCheck* instruction) {
+void CodeGeneratorMIPS::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathMIPS(instruction);
-  codegen_->AddSlowPath(slow_path);
+  AddSlowPath(slow_path);
 
   Location obj = instruction->GetLocations()->InAt(0);
 
@@ -4415,11 +4424,7 @@ void InstructionCodeGeneratorMIPS::GenerateExplicitNullCheck(HNullCheck* instruc
 }
 
 void InstructionCodeGeneratorMIPS::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
-    GenerateImplicitNullCheck(instruction);
-  } else {
-    GenerateExplicitNullCheck(instruction);
-  }
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderMIPS::VisitOr(HOr* instruction) {

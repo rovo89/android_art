@@ -258,8 +258,6 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
                                uint32_t offset);
 
   void HandleShift(HBinaryOperation* instr);
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              vixl::Label* true_target,
@@ -536,6 +534,9 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
   void GenerateNop();
+
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier

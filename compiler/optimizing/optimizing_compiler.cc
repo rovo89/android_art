@@ -63,6 +63,7 @@
 #include "instruction_simplifier_arm.h"
 #include "intrinsics.h"
 #include "jit/debugger_interface.h"
+#include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jni/quick/jni_compiler.h"
 #include "licm.h"
@@ -697,7 +698,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       CodeGenerator::Create(graph,
                             instruction_set,
                             *compiler_driver->GetInstructionSetFeatures(),
-                            compiler_driver->GetCompilerOptions()));
+                            compiler_driver->GetCompilerOptions(),
+                            compilation_stats_.get()));
   if (codegen.get() == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;
@@ -891,7 +893,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   }
 
   size_t stack_map_size = codegen->ComputeStackMapsSize();
-  uint8_t* stack_map_data = code_cache->ReserveData(self, stack_map_size);
+  uint8_t* stack_map_data = code_cache->ReserveData(self, stack_map_size, method);
   if (stack_map_data == nullptr) {
     return false;
   }
@@ -944,6 +946,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                                  std::unique_ptr<const uint8_t[]>(elf_file.data()),
                                  elf_file.size());
   }
+
+  Runtime::Current()->GetJit()->AddMemoryUsage(method, arena.BytesUsed());
 
   return true;
 }

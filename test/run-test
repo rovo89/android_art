@@ -45,7 +45,7 @@ export JAVAC="javac -g -source 1.7 -target 1.7 -Xlint:-options"
 export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
-export USE_JACK="false"
+export USE_JACK="true"
 export SMALI_ARGS="--experimental --api-level 23"
 
 # If dx was not set by the environment variable, assume it is in the path.
@@ -71,11 +71,6 @@ fi
 # If jack was not set by the environment variable, assume it is in the path.
 if [ -z "$JACK" ]; then
   export JACK="jack"
-fi
-
-# If the tree is compiled with Jack, build test with Jack by default.
-if [ "$ANDROID_COMPILE_WITH_JACK" = "true" ]; then
-  USE_JACK="true"
 fi
 
 # ANDROID_BUILD_TOP is not set in a build environment.
@@ -394,7 +389,7 @@ if [ "$gc_verify" = "true" ]; then
   run_args="${run_args} --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc"
 fi
 if [ "$gc_stress" = "true" ]; then
-  run_args="${run_args} --runtime-option -Xgc:SS,gcstress --runtime-option -Xms2m --runtime-option -Xmx16m"
+  run_args="${run_args} --gc-stress --runtime-option -Xgc:SS,gcstress --runtime-option -Xms2m --runtime-option -Xmx16m"
 fi
 if [ "$trace" = "true" ]; then
     run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file-size:2000000"

@@ -728,6 +728,23 @@ class LSEVisitor : public HGraphVisitor {
       // This acts like GVN but with better aliasing analysis.
       heap_values[idx] = instruction;
     } else {
+      if (Primitive::PrimitiveKind(heap_value->GetType())
+              != Primitive::PrimitiveKind(instruction->GetType())) {
+        // The only situation where the same heap location has different type is when
+        // we do an array get from a null constant. In order to stay properly typed
+        // we do not merge the array gets.
+        if (kIsDebugBuild) {
+          DCHECK(heap_value->IsArrayGet()) << heap_value->DebugName();
+          DCHECK(instruction->IsArrayGet()) << instruction->DebugName();
+          HInstruction* array = instruction->AsArrayGet()->GetArray();
+          DCHECK(array->IsNullCheck()) << array->DebugName();
+          DCHECK(array->InputAt(0)->IsNullConstant()) << array->InputAt(0)->DebugName();
+          array = heap_value->AsArrayGet()->GetArray();
+          DCHECK(array->IsNullCheck()) << array->DebugName();
+          DCHECK(array->InputAt(0)->IsNullConstant()) << array->InputAt(0)->DebugName();
+        }
+        return;
+      }
       removed_loads_.push_back(instruction);
       substitute_instructions_for_loads_.push_back(heap_value);
       TryRemovingNullCheck(instruction);

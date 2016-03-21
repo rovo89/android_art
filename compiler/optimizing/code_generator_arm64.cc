@@ -2388,6 +2388,10 @@ void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
   Primitive::Type in_type = compare->InputAt(0)->GetType();
   switch (in_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
@@ -2417,6 +2421,10 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
   //  1 if: left  > right
   // -1 if: left  < right
   switch (in_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       Register result = OutputRegister(compare);
@@ -2718,8 +2726,8 @@ void InstructionCodeGeneratorARM64::VisitDivZeroCheck(HDivZeroCheck* instruction
 
   Primitive::Type type = instruction->GetType();
 
-  if ((type == Primitive::kPrimBoolean) || !Primitive::IsIntegralType(type)) {
-      LOG(FATAL) << "Unexpected type " << type << " for DivZeroCheck.";
+  if (!Primitive::IsIntegralType(type)) {
+    LOG(FATAL) << "Unexpected type " << type << " for DivZeroCheck.";
     return;
   }
 
@@ -3084,8 +3092,8 @@ void LocationsBuilderARM64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
   new (GetGraph()->GetArena()) LocationSummary(info);
 }
 
-void InstructionCodeGeneratorARM64::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  codegen_->MaybeRecordNativeDebugInfo(info, info->GetDexPc());
+void InstructionCodeGeneratorARM64::VisitNativeDebugInfo(HNativeDebugInfo*) {
+  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
 }
 
 void CodeGeneratorARM64::GenerateNop() {
@@ -4193,20 +4201,20 @@ void LocationsBuilderARM64::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  if (codegen_->CanMoveNullCheckToUser(instruction)) {
+void CodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
 
   BlockPoolsScope block_pools(GetVIXLAssembler());
   Location obj = instruction->GetLocations()->InAt(0);
   __ Ldr(wzr, HeapOperandFrom(obj, Offset(0)));
-  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
-void InstructionCodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instruction) {
+void CodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM64(instruction);
-  codegen_->AddSlowPath(slow_path);
+  AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
   Location obj = locations->InAt(0);
@@ -4215,11 +4223,7 @@ void InstructionCodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instru
 }
 
 void InstructionCodeGeneratorARM64::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
-    GenerateImplicitNullCheck(instruction);
-  } else {
-    GenerateExplicitNullCheck(instruction);
-  }
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderARM64::VisitOr(HOr* instruction) {
