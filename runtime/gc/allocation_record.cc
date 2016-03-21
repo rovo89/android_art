@@ -288,6 +288,12 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, m
     records->new_record_condition_.WaitHoldingLocks(self);
   }
 
+  if (!heap->IsAllocTrackingEnabled()) {
+    // Return if the allocation tracking has been disabled while waiting for system weak access
+    // above.
+    return;
+  }
+
   DCHECK_LE(records->Size(), records->alloc_record_max_);
 
   // Get stack trace.

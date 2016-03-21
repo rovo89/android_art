@@ -3960,31 +3960,31 @@ void Heap::SweepAllocationRecords(IsMarkedVisitor* visitor) const {
 
 void Heap::AllowNewAllocationRecords() const {
   CHECK(!kUseReadBarrier);
-  if (IsAllocTrackingEnabled()) {
-    MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
-    if (IsAllocTrackingEnabled()) {
-      GetAllocationRecords()->AllowNewAllocationRecords();
-    }
+  MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
+  AllocRecordObjectMap* allocation_records = GetAllocationRecords();
+  if (allocation_records != nullptr) {
+    allocation_records->AllowNewAllocationRecords();
   }
 }
 
 void Heap::DisallowNewAllocationRecords() const {
   CHECK(!kUseReadBarrier);
-  if (IsAllocTrackingEnabled()) {
-    MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
-    if (IsAllocTrackingEnabled()) {
-      GetAllocationRecords()->DisallowNewAllocationRecords();
-    }
+  MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
+  AllocRecordObjectMap* allocation_records = GetAllocationRecords();
+  if (allocation_records != nullptr) {
+    allocation_records->DisallowNewAllocationRecords();
   }
 }
 
 void Heap::BroadcastForNewAllocationRecords() const {
   CHECK(kUseReadBarrier);
-  if (IsAllocTrackingEnabled()) {
-    MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
-    if (IsAllocTrackingEnabled()) {
-      GetAllocationRecords()->BroadcastForNewAllocationRecords();
-    }
+  // Always broadcast without checking IsAllocTrackingEnabled() because IsAllocTrackingEnabled() may
+  // be set to false while some threads are waiting for system weak access in
+  // AllocRecordObjectMap::RecordAllocation() and we may fail to wake them up. b/27467554.
+  MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
+  AllocRecordObjectMap* allocation_records = GetAllocationRecords();
+  if (allocation_records != nullptr) {
+    allocation_records->BroadcastForNewAllocationRecords();
   }
 }
 
