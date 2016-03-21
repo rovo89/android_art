@@ -1475,6 +1475,311 @@ void IntrinsicCodeGeneratorMIPS::VisitThreadCurrentThread(HInvoke* invoke) {
                     Thread::PeerOffset<kMipsPointerSize>().Int32Value());
 }
 
+static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  bool can_call =
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile;
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           can_call ?
+                                                               LocationSummary::kCallOnSlowPath :
+                                                               LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+static void GenUnsafeGet(HInvoke* invoke,
+                         Primitive::Type type,
+                         bool is_volatile,
+                         bool is_R6,
+                         CodeGeneratorMIPS* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
+  DCHECK((type == Primitive::kPrimInt) ||
+         (type == Primitive::kPrimLong) ||
+         (type == Primitive::kPrimNot)) << type;
+  MipsAssembler* assembler = codegen->GetAssembler();
+  // Object pointer.
+  Register base = locations->InAt(1).AsRegister<Register>();
+  // The "offset" argument is passed as a "long". Since this code is for
+  // a 32-bit processor, we can only use 32-bit addresses, so we only
+  // need the low 32-bits of offset.
+  Register offset_lo = invoke->GetLocations()->InAt(2).AsRegisterPairLow<Register>();
+
+  __ Addu(TMP, base, offset_lo);
+  if (is_volatile) {
+    __ Sync(0);
+  }
+  if (type == Primitive::kPrimLong) {
+    Register trg_lo = locations->Out().AsRegisterPairLow<Register>();
+    Register trg_hi = locations->Out().AsRegisterPairHigh<Register>();
+
+    if (is_R6) {
+      __ Lw(trg_lo, TMP, 0);
+      __ Lw(trg_hi, TMP, 4);
+    } else {
+      __ Lwr(trg_lo, TMP, 0);
+      __ Lwl(trg_lo, TMP, 3);
+      __ Lwr(trg_hi, TMP, 4);
+      __ Lwl(trg_hi, TMP, 7);
+    }
+  } else {
+    Register trg = locations->Out().AsRegister<Register>();
+
+    if (is_R6) {
+      __ Lw(trg, TMP, 0);
+    } else {
+      __ Lwr(trg, TMP, 0);
+      __ Lwl(trg, TMP, 3);
+    }
+  }
+}
+
+// int sun.misc.Unsafe.getInt(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeGet(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeGet(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimInt, /* is_volatile */ false, IsR6(), codegen_);
+}
+
+// int sun.misc.Unsafe.getIntVolatile(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimInt, /* is_volatile */ true, IsR6(), codegen_);
+}
+
+// long sun.misc.Unsafe.getLong(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetLong(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetLong(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ false, IsR6(), codegen_);
+}
+
+// long sun.misc.Unsafe.getLongVolatile(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ true, IsR6(), codegen_);
+}
+
+// Object sun.misc.Unsafe.getObject(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetObject(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetObject(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimNot, /* is_volatile */ false, IsR6(), codegen_);
+}
+
+// Object sun.misc.Unsafe.getObjectVolatile(Object o, long offset)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, Primitive::kPrimNot, /* is_volatile */ true, IsR6(), codegen_);
+}
+
+static void CreateIntIntIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+}
+
+static void GenUnsafePut(LocationSummary* locations,
+                         Primitive::Type type,
+                         bool is_volatile,
+                         bool is_ordered,
+                         bool is_R6,
+                         CodeGeneratorMIPS* codegen) {
+  DCHECK((type == Primitive::kPrimInt) ||
+         (type == Primitive::kPrimLong) ||
+         (type == Primitive::kPrimNot)) << type;
+  MipsAssembler* assembler = codegen->GetAssembler();
+  // Object pointer.
+  Register base = locations->InAt(1).AsRegister<Register>();
+  // The "offset" argument is passed as a "long", i.e., it's 64-bits in
+  // size. Since this code is for a 32-bit processor, we can only use
+  // 32-bit addresses, so we only need the low 32-bits of offset.
+  Register offset_lo = locations->InAt(2).AsRegisterPairLow<Register>();
+
+  __ Addu(TMP, base, offset_lo);
+  if (is_volatile || is_ordered) {
+    __ Sync(0);
+  }
+  if ((type == Primitive::kPrimInt) || (type == Primitive::kPrimNot)) {
+    Register value = locations->InAt(3).AsRegister<Register>();
+
+    if (is_R6) {
+      __ Sw(value, TMP, 0);
+    } else {
+      __ Swr(value, TMP, 0);
+      __ Swl(value, TMP, 3);
+    }
+  } else {
+    Register value_lo = locations->InAt(3).AsRegisterPairLow<Register>();
+    Register value_hi = locations->InAt(3).AsRegisterPairHigh<Register>();
+
+    if (is_R6) {
+      __ Sw(value_lo, TMP, 0);
+      __ Sw(value_hi, TMP, 4);
+    } else {
+      __ Swr(value_lo, TMP, 0);
+      __ Swl(value_lo, TMP, 3);
+      __ Swr(value_hi, TMP, 4);
+      __ Swl(value_hi, TMP, 7);
+    }
+  }
+
+  if (is_volatile) {
+    __ Sync(0);
+  }
+
+  if (type == Primitive::kPrimNot) {
+    codegen->MarkGCCard(base, locations->InAt(3).AsRegister<Register>());
+  }
+}
+
+// void sun.misc.Unsafe.putInt(Object o, long offset, int x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePut(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePut(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimInt,
+               /* is_volatile */ false,
+               /* is_ordered */ false,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putOrderedInt(Object o, long offset, int x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutOrdered(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimInt,
+               /* is_volatile */ false,
+               /* is_ordered */ true,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putIntVolatile(Object o, long offset, int x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutVolatile(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimInt,
+               /* is_volatile */ true,
+               /* is_ordered */ false,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putObject(Object o, long offset, Object x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutObject(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutObject(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimNot,
+               /* is_volatile */ false,
+               /* is_ordered */ false,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putOrderedObject(Object o, long offset, Object x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimNot,
+               /* is_volatile */ false,
+               /* is_ordered */ true,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putObjectVolatile(Object o, long offset, Object x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimNot,
+               /* is_volatile */ true,
+               /* is_ordered */ false,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putLong(Object o, long offset, long x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutLong(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutLong(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimLong,
+               /* is_volatile */ false,
+               /* is_ordered */ false,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putOrderedLong(Object o, long offset, long x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutLongOrdered(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutLongOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimLong,
+               /* is_volatile */ false,
+               /* is_ordered */ true,
+               IsR6(),
+               codegen_);
+}
+
+// void sun.misc.Unsafe.putLongVolatile(Object o, long offset, long x)
+void IntrinsicLocationsBuilderMIPS::VisitUnsafePutLongVolatile(HInvoke* invoke) {
+  CreateIntIntIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitUnsafePutLongVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke->GetLocations(),
+               Primitive::kPrimLong,
+               /* is_volatile */ true,
+               /* is_ordered */ false,
+               IsR6(),
+               codegen_);
+}
+
 // char java.lang.String.charAt(int index)
 void IntrinsicLocationsBuilderMIPS::VisitStringCharAt(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
@@ -1482,7 +1787,7 @@ void IntrinsicLocationsBuilderMIPS::VisitStringCharAt(HInvoke* invoke) {
                                                             kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  // The inputs will be considered live at the last instruction and restored. This will overwrite
+  // The inputs will be considered live at the last instruction and restored. This would overwrite
   // the output with kNoOutputOverlap.
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
@@ -2042,21 +2347,6 @@ UNIMPLEMENTED_INTRINSIC(MIPS, MathFloor)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRint)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundFloat)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGet)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetVolatile)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetLong)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetLongVolatile)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetObject)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetObjectVolatile)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePut)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutOrdered)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutVolatile)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutObject)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutObjectOrdered)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutObjectVolatile)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutLong)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutLongOrdered)
-UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutLongVolatile)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASInt)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASObject)
