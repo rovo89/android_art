@@ -368,6 +368,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   mirror/class.h \
   oat.h \
   object_callbacks.h \
+  process_state.h \
   profiler_options.h \
   quick/inline_method_analyser.h \
   runtime.h \

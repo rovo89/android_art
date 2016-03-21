@@ -209,7 +209,9 @@ Runtime::Runtime()
       oat_file_manager_(nullptr),
       is_low_memory_mode_(false),
       safe_mode_(false),
-      pruned_dalvik_cache_(false) {
+      pruned_dalvik_cache_(false),
+      // Initially assume we perceive jank in case the process state is never updated.
+      process_state_(kProcessStateJankPerceptible) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
   interpreter::CheckInterpreterAsmConstants();
@@ -1953,6 +1955,12 @@ double Runtime::GetHashTableMinLoadFactor() const {
 
 double Runtime::GetHashTableMaxLoadFactor() const {
   return is_low_memory_mode_ ? kLowMemoryMaxLoadFactor : kNormalMaxLoadFactor;
+}
+
+void Runtime::UpdateProcessState(ProcessState process_state) {
+  ProcessState old_process_state = process_state_;
+  process_state_ = process_state;
+  GetHeap()->UpdateProcessState(old_process_state, process_state);
 }
 
 }  // namespace art

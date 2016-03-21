@@ -845,7 +845,9 @@ class CardScanTask : public MarkStackTask<false> {
 };
 
 size_t MarkSweep::GetThreadCount(bool paused) const {
-  if (heap_->GetThreadPool() == nullptr || !heap_->CareAboutPauseTimes()) {
+  // Use less threads if we are in a background state (non jank perceptible) since we want to leave
+  // more CPU time for the foreground apps.
+  if (heap_->GetThreadPool() == nullptr || !Runtime::Current()->InJankPerceptibleProcessState()) {
     return 1;
   }
   return (paused ? heap_->GetParallelGCThreadCount() : heap_->GetConcGCThreadCount()) + 1;

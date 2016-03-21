@@ -36,6 +36,7 @@
 #include "globals.h"
 #include "object_callbacks.h"
 #include "offsets.h"
+#include "process_state.h"
 #include "safe_map.h"
 #include "verify_object.h"
 
@@ -115,14 +116,6 @@ static constexpr bool kUseRosAlloc = true;
 
 // If true, use thread-local allocation stack.
 static constexpr bool kUseThreadLocalAllocationStack = true;
-
-// The process state passed in from the activity manager, used to determine when to do trimming
-// and compaction.
-enum ProcessState {
-  kProcessStateJankPerceptible = 0,
-  kProcessStateJankImperceptible = 1,
-};
-std::ostream& operator<<(std::ostream& os, const ProcessState& process_state);
 
 class Heap {
  public:
@@ -382,7 +375,7 @@ class Heap {
   collector::GcType WaitForGcToComplete(GcCause cause, Thread* self) REQUIRES(!*gc_complete_lock_);
 
   // Update the heap's process state to a new value, may cause compaction to occur.
-  void UpdateProcessState(ProcessState process_state)
+  void UpdateProcessState(ProcessState old_process_state, ProcessState new_process_state)
       REQUIRES(!*pending_task_lock_, !*gc_complete_lock_);
 
   bool HaveContinuousSpaces() const NO_THREAD_SAFETY_ANALYSIS {
@@ -663,11 +656,6 @@ class Heap {
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os) REQUIRES(!*gc_complete_lock_);
   void ResetGcPerformanceInfo() REQUIRES(!*gc_complete_lock_);
-
-  // Returns true if we currently care about pause times.
-  bool CareAboutPauseTimes() const {
-    return process_state_ == kProcessStateJankPerceptible;
-  }
 
   // Thread pool.
   void CreateThreadPool();
@@ -1151,9 +1139,6 @@ class Heap {
 
   // Whether or not we need to run finalizers in the next native allocation.
   bool native_need_to_run_finalization_;
-
-  // Whether or not we currently care about pause times.
-  ProcessState process_state_;
 
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
