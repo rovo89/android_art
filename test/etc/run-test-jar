@@ -329,9 +329,17 @@ if [ "$JIT" = "y" ]; then
     INT_OPTS="-Xusejit:true"
     if [ "$VERIFY" = "y" ] ; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-at-runtime"
+      if [ "$PREBUILD" = "n" ]; then
+        # Make sure that if we have noprebuild we still JIT as DexClassLoader will
+        # try to compile the dex file.
+        INT_OPTS="${INT_OPTS} -Xcompiler-option --compiler-filter=verify-at-runtime"
+      fi
     else
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
       DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
+      if [ "$PREBUILD" = "n" ]; then
+        INT_OPTS="${INT_OPTS} -Xcompiler-option --compiler-filter=verify-none"
+      fi
     fi
 fi
 
