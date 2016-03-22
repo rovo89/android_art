@@ -925,9 +925,12 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
   Primitive::Type lhs_type = op->InputAt(0)->GetType();
   Primitive::Type rhs_type = op->InputAt(1)->GetType();
   Primitive::Type result_type = op->GetType();
+
+  // Type consistency between inputs.
   if (op->IsUShr() || op->IsShr() || op->IsShl() || op->IsRor()) {
     if (Primitive::PrimitiveKind(rhs_type) != Primitive::kPrimInt) {
-      AddError(StringPrintf("Shift operation %s %d has a non-int kind second input: %s of type %s.",
+      AddError(StringPrintf("Shift/rotate operation %s %d has a non-int kind second input: "
+                            "%s of type %s.",
                             op->DebugName(), op->GetId(),
                             op->InputAt(1)->DebugName(),
                             Primitive::PrettyDescriptor(rhs_type)));
@@ -941,20 +944,37 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
     }
   }
 
+  // Type consistency between result and input(s).
   if (op->IsCompare()) {
     if (result_type != Primitive::kPrimInt) {
       AddError(StringPrintf("Compare operation %d has a non-int result type: %s.",
                             op->GetId(),
                             Primitive::PrettyDescriptor(result_type)));
     }
-  } else {
-    // Use the first input, so that we can also make this check for shift and rotate operations.
-    if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(lhs_type)) {
-      AddError(StringPrintf("Binary operation %s %d has a result kind different "
-                            "from its input kind: %s vs %s.",
+  } else if (op->IsUShr() || op->IsShr() || op->IsShl() || op->IsRor()) {
+    // Only check the first input (value), as the second one (distance)
+    // must invariably be of kind `int`.
+    if (result_type != Primitive::PrimitiveKind(lhs_type)) {
+      AddError(StringPrintf("Shift/rotate operation %s %d has a result type different "
+                            "from its left-hand side (value) input kind: %s vs %s.",
                             op->DebugName(), op->GetId(),
                             Primitive::PrettyDescriptor(result_type),
                             Primitive::PrettyDescriptor(lhs_type)));
+    }
+  } else {
+    if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(lhs_type)) {
+      AddError(StringPrintf("Binary operation %s %d has a result kind different "
+                            "from its left-hand side input kind: %s vs %s.",
+                            op->DebugName(), op->GetId(),
+                            Primitive::PrettyDescriptor(result_type),
+                            Primitive::PrettyDescriptor(lhs_type)));
+    }
+    if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(rhs_type)) {
+      AddError(StringPrintf("Binary operation %s %d has a result kind different "
+                            "from its right-hand side input kind: %s vs %s.",
+                            op->DebugName(), op->GetId(),
+                            Primitive::PrettyDescriptor(result_type),
+                            Primitive::PrettyDescriptor(rhs_type)));
     }
   }
 }

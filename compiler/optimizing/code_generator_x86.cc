@@ -3775,7 +3775,7 @@ void InstructionCodeGeneratorX86::HandleShift(HBinaryOperation* op) {
           __ shrl(first_reg, second_reg);
         }
       } else {
-        int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue;
+        int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance;
         if (shift == 0) {
           return;
         }
@@ -3803,7 +3803,7 @@ void InstructionCodeGeneratorX86::HandleShift(HBinaryOperation* op) {
         }
       } else {
         // Shift by a constant.
-        int shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue;
+        int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance;
         // Nothing to do if the shift is 0, as the input is already the output.
         if (shift != 0) {
           if (op->IsShl()) {
@@ -3960,7 +3960,7 @@ void InstructionCodeGeneratorX86::VisitRor(HRor* ror) {
       Register second_reg = second.AsRegister<Register>();
       __ rorl(first_reg, second_reg);
     } else {
-      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance);
       __ rorl(first_reg, imm);
     }
     return;
@@ -3981,7 +3981,7 @@ void InstructionCodeGeneratorX86::VisitRor(HRor* ror) {
     __ cmovl(kNotEqual, first_reg_hi, first_reg_lo);
     __ cmovl(kNotEqual, first_reg_lo, temp_reg);
   } else {
-    int32_t shift_amt = CodeGenerator::GetInt64ValueOf(second.GetConstant()) & kMaxLongShiftValue;
+    int32_t shift_amt = second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance;
     if (shift_amt == 0) {
       // Already fine.
       return;

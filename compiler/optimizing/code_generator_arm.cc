@@ -3221,7 +3221,7 @@ void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
   if (rhs.IsConstant()) {
     uint64_t rot = CodeGenerator::GetInt64ValueOf(rhs.GetConstant());
     // Map all rotations to +ve. equivalents on the interval [0,63].
-    rot &= kMaxLongShiftValue;
+    rot &= kMaxLongShiftDistance;
     // For rotates over a word in size, 'pre-rotate' by 32-bits to keep rotate
     // logic below to a simple pair of binary orr.
     // (e.g. 34 bits == in_reg swap + 2 bits right.)
@@ -3374,7 +3374,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
       if (second.IsRegister()) {
         Register second_reg = second.AsRegister<Register>();
         // ARM doesn't mask the shift count so we need to do it ourselves.
-        __ and_(out_reg, second_reg, ShifterOperand(kMaxIntShiftValue));
+        __ and_(out_reg, second_reg, ShifterOperand(kMaxIntShiftDistance));
         if (op->IsShl()) {
           __ Lsl(out_reg, first_reg, out_reg);
         } else if (op->IsShr()) {
@@ -3384,7 +3384,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
         }
       } else {
         int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
-        uint32_t shift_value = static_cast<uint32_t>(cst & kMaxIntShiftValue);
+        uint32_t shift_value = cst & kMaxIntShiftDistance;
         if (shift_value == 0) {  // ARM does not support shifting with 0 immediate.
           __ Mov(out_reg, first_reg);
         } else if (op->IsShl()) {
@@ -3410,7 +3410,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
         Register second_reg = second.AsRegister<Register>();
 
         if (op->IsShl()) {
-          __ and_(o_l, second_reg, ShifterOperand(kMaxLongShiftValue));
+          __ and_(o_l, second_reg, ShifterOperand(kMaxLongShiftDistance));
           // Shift the high part
           __ Lsl(o_h, high, o_l);
           // Shift the low part and `or` what overflew on the high part
@@ -3424,7 +3424,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
           // Shift the low part
           __ Lsl(o_l, low, o_l);
         } else if (op->IsShr()) {
-          __ and_(o_h, second_reg, ShifterOperand(kMaxLongShiftValue));
+          __ and_(o_h, second_reg, ShifterOperand(kMaxLongShiftDistance));
           // Shift the low part
           __ Lsr(o_l, low, o_h);
           // Shift the high part and `or` what underflew on the low part
@@ -3438,7 +3438,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
           // Shift the high part
           __ Asr(o_h, high, o_h);
         } else {
-          __ and_(o_h, second_reg, ShifterOperand(kMaxLongShiftValue));
+          __ and_(o_h, second_reg, ShifterOperand(kMaxLongShiftDistance));
           // same as Shr except we use `Lsr`s and not `Asr`s
           __ Lsr(o_l, low, o_h);
           __ rsb(temp, o_h, ShifterOperand(kArmBitsPerWord));
@@ -3454,7 +3454,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
         DCHECK_NE(o_l, high);
         DCHECK_NE(o_h, low);
         int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
-        uint32_t shift_value = static_cast<uint32_t>(cst & kMaxLongShiftValue);
+        uint32_t shift_value = cst & kMaxLongShiftDistance;
         if (shift_value > 32) {
           if (op->IsShl()) {
             __ Lsl(o_h, low, shift_value - 32);

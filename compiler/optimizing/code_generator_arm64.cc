@@ -1818,9 +1818,8 @@ void InstructionCodeGeneratorARM64::HandleShift(HBinaryOperation* instr) {
       Register lhs = InputRegisterAt(instr, 0);
       Operand rhs = InputOperandAt(instr, 1);
       if (rhs.IsImmediate()) {
-        uint32_t shift_value = (type == Primitive::kPrimInt)
-          ? static_cast<uint32_t>(rhs.immediate() & kMaxIntShiftValue)
-          : static_cast<uint32_t>(rhs.immediate() & kMaxLongShiftValue);
+        uint32_t shift_value = rhs.immediate() &
+            (type == Primitive::kPrimInt ? kMaxIntShiftDistance : kMaxLongShiftDistance);
         if (instr->IsShl()) {
           __ Lsl(dst, lhs, shift_value);
         } else if (instr->IsShr()) {
@@ -1921,9 +1920,8 @@ void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
   // conversion) can have a different type from the current instruction's type,
   // so we manually indicate the type.
   Register right_reg = RegisterFrom(instruction->GetLocations()->InAt(1), type);
-  int64_t shift_amount = (type == Primitive::kPrimInt)
-    ? static_cast<uint32_t>(instruction->GetShiftAmount() & kMaxIntShiftValue)
-    : static_cast<uint32_t>(instruction->GetShiftAmount() & kMaxLongShiftValue);
+  int64_t shift_amount = instruction->GetShiftAmount() &
+      (type == Primitive::kPrimInt ? kMaxIntShiftDistance : kMaxLongShiftDistance);
 
   Operand right_operand(0);
 
