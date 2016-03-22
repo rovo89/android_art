@@ -682,10 +682,6 @@ void JitCodeCache::RemoveUnmarkedCode(Thread* self) {
     if (GetLiveBitmap()->Test(allocation)) {
       ++it;
     } else {
-      const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-      if (method_header->GetEntryPoint() == GetQuickToInterpreterBridge()) {
-        method->ClearCounter();
-      }
       FreeCode(code_ptr, method);
       it = method_code_map_.erase(it);
     }
@@ -704,7 +700,13 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
         if (!ContainsPc(ptr) && !info->IsInUseByCompiler()) {
           info->GetMethod()->SetProfilingInfo(nullptr);
         }
-        info->SetSavedEntryPoint(nullptr);
+
+        if (info->GetSavedEntryPoint() != nullptr) {
+          info->SetSavedEntryPoint(nullptr);
+          // We are going to move this method back to interpreter. Clear the counter now to
+          // give it a chance to be hot again.
+          info->GetMethod()->ClearCounter();
+        }
       }
     } else if (kIsDebugBuild) {
       // Sanity check that the profiling infos do not have a dangling entry point.
@@ -930,6 +932,10 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
   if (info == nullptr) {
     VLOG(jit) << PrettyMethod(method) << " needs a ProfilingInfo to be compiled";
+    // Because the counter is not atomic, there are some rare cases where we may not
+    // hit the threshold for creating the ProfilingInfo. Reset the counter now to
+    // "correct" this.
+    method->ClearCounter();
     return false;
   }
 
