@@ -22,7 +22,6 @@
 #include "compiled_method.h"
 #include "compiler.h"
 #include "debug/method_debug_info.h"
-#include "dex/pass_manager.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/verification_results.h"

@@ -247,12 +247,6 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/reflection_test.cc \
   compiler/compiled_method_test.cc \
   compiler/debug/dwarf/dwarf_test.cc \
-  compiler/dex/gvn_dead_code_elimination_test.cc \
-  compiler/dex/global_value_numbering_test.cc \
-  compiler/dex/local_value_numbering_test.cc \
-  compiler/dex/mir_graph_test.cc \
-  compiler/dex/mir_optimization_test.cc \
-  compiler/dex/type_inference_test.cc \
   compiler/driver/compiled_method_storage_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
@@ -284,7 +278,6 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/utils/test_dex_file_builder_test.cc \
 
 COMPILER_GTEST_COMMON_SRC_FILES_all := \
-  compiler/dex/quick/quick_cfi_test.cc \
   compiler/jni/jni_cfi_test.cc \
   compiler/optimizing/codegen_test.cc \
   compiler/optimizing/constant_folding_test.cc \
@@ -374,7 +367,6 @@ COMPILER_GTEST_HOST_SRC_FILES_mips64 := \
 
 COMPILER_GTEST_HOST_SRC_FILES_x86 := \
   $(COMPILER_GTEST_COMMON_SRC_FILES_x86) \
-  compiler/dex/quick/x86/quick_assemble_x86_test.cc \
   compiler/utils/x86/assembler_x86_test.cc \
 
 COMPILER_GTEST_HOST_SRC_FILES_x86_64 := \

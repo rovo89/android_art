@@ -18,8 +18,6 @@
 
 #include <fstream>
 
-#include "dex/pass_manager.h"
-
 namespace art {
 
 CompilerOptions::CompilerOptions()
@@ -42,7 +40,6 @@ CompilerOptions::CompilerOptions()
       implicit_suspend_checks_(false),
       compile_pic_(false),
       verbose_methods_(nullptr),
-      pass_manager_options_(),
       abort_on_hard_verifier_failure_(false),
       init_failure_output_(nullptr),
       dump_cfg_file_name_(""),
@@ -98,7 +95,6 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
     implicit_suspend_checks_(implicit_suspend_checks),
     compile_pic_(compile_pic),
     verbose_methods_(verbose_methods),
-    pass_manager_options_(),
     abort_on_hard_verifier_failure_(abort_on_hard_verifier_failure),
     init_failure_output_(init_failure_output),
     dump_cfg_file_name_(dump_cfg_file_name),
@@ -132,34 +128,6 @@ void CompilerOptions::ParseInlineDepthLimit(const StringPiece& option, UsageFn U
 
 void CompilerOptions::ParseInlineMaxCodeUnits(const StringPiece& option, UsageFn Usage) {
   ParseUintOption(option, "--inline-max-code-units", &inline_max_code_units_, Usage);
-}
-
-void CompilerOptions::ParseDisablePasses(const StringPiece& option,
-                                         UsageFn Usage ATTRIBUTE_UNUSED) {
-  DCHECK(option.starts_with("--disable-passes="));
-  const std::string disable_passes = option.substr(strlen("--disable-passes=")).data();
-  pass_manager_options_.SetDisablePassList(disable_passes);
-}
-
-void CompilerOptions::ParsePrintPasses(const StringPiece& option,
-                                       UsageFn Usage ATTRIBUTE_UNUSED) {
-  DCHECK(option.starts_with("--print-passes="));
-  const std::string print_passes = option.substr(strlen("--print-passes=")).data();
-  pass_manager_options_.SetPrintPassList(print_passes);
-}
-
-void CompilerOptions::ParseDumpCfgPasses(const StringPiece& option,
-                                         UsageFn Usage ATTRIBUTE_UNUSED) {
-  DCHECK(option.starts_with("--dump-cfg-passes="));
-  const std::string dump_passes_string = option.substr(strlen("--dump-cfg-passes=")).data();
-  pass_manager_options_.SetDumpPassList(dump_passes_string);
-}
-
-void CompilerOptions::ParsePassOptions(const StringPiece& option,
-                                       UsageFn Usage ATTRIBUTE_UNUSED) {
-  DCHECK(option.starts_with("--pass-options="));
-  const std::string pass_options = option.substr(strlen("--pass-options=")).data();
-  pass_manager_options_.SetOverriddenPassOptions(pass_options);
 }
 
 void CompilerOptions::ParseDumpInitFailures(const StringPiece& option,
@@ -234,20 +202,6 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     include_patch_information_ = false;
   } else if (option == "--abort-on-hard-verifier-error") {
     abort_on_hard_verifier_failure_ = true;
-  } else if (option == "--print-pass-names") {
-    pass_manager_options_.SetPrintPassNames(true);
-  } else if (option.starts_with("--disable-passes=")) {
-    ParseDisablePasses(option, Usage);
-  } else if (option.starts_with("--print-passes=")) {
-    ParsePrintPasses(option, Usage);
-  } else if (option == "--print-all-passes") {
-    pass_manager_options_.SetPrintAllPasses();
-  } else if (option.starts_with("--dump-cfg-passes=")) {
-    ParseDumpCfgPasses(option, Usage);
-  } else if (option == "--print-pass-options") {
-    pass_manager_options_.SetPrintPassOptions(true);
-  } else if (option.starts_with("--pass-options=")) {
-    ParsePassOptions(option, Usage);
   } else if (option.starts_with("--dump-init-failures=")) {
     ParseDumpInitFailures(option, Usage);
   } else if (option.starts_with("--dump-cfg=")) {

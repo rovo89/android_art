@@ -20,7 +20,6 @@
 #include "nodes.h"
 #include "builder.h"
 #include "common_compiler_test.h"
-#include "compiler/dex/pass_manager.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "handle_scope-inl.h"
