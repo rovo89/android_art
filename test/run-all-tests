@@ -47,9 +47,6 @@ while true; do
     elif [ "x$1" = "x--no-image" ]; then
         run_args="${run_args} --no-image"
         shift
-    elif [ "x$1" = "x--quick" ]; then
-        run_args="${run_args} --quick"
-        shift
     elif [ "x$1" = "x--optimizing" ]; then
         run_args="${run_args} --optimizing"
         shift
@@ -181,7 +178,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --trace --no-patchoat --no-dex2oat --use-java-home --pic-image"
         echo "    --pic-test --strace --debuggable --dalvik --dex2oat-swap"
         echo "    --build-only --build-with-jack --build-with-javac-dx"
-        echo "    --never-clean --image --no-image --quick --optimizing"
+        echo "    --never-clean --image --no-image --optimizing"
         echo "    --no-relocate --no-prebuild"
         echo "  Specific Runtime Options:"
         echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
