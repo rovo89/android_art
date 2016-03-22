@@ -789,7 +789,9 @@ bool HInductionVarAnalysis::FitsNarrowerControl(InductionInfo* lower_expr,
     min++;
   }
   // Do both bounds fit the range?
-  int64_t value;
+  // Note: The `value` is initialized to please valgrind - the compiler can reorder
+  // the return value check with the `value` check, b/27651442 .
+  int64_t value = 0;
   return IsAtLeast(lower_expr, &value) && value >= min &&
          IsAtMost(lower_expr, &value)  && value <= max &&
          IsAtLeast(upper_expr, &value) && value >= min &&
