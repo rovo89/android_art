@@ -21,40 +21,12 @@ include art/build/Android.common_build.mk
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
 	debug/elf_debug_writer.cc \
-	dex/global_value_numbering.cc \
-	dex/gvn_dead_code_elimination.cc \
-	dex/local_value_numbering.cc \
-	dex/type_inference.cc \
-	dex/quick/codegen_util.cc \
-	dex/quick/dex_file_method_inliner.cc \
-	dex/quick/dex_file_to_method_inliner_map.cc \
-	dex/quick/gen_common.cc \
-	dex/quick/gen_invoke.cc \
-	dex/quick/gen_loadstore.cc \
-	dex/quick/lazy_debug_frame_opcode_writer.cc \
-	dex/quick/local_optimizations.cc \
-	dex/quick/mir_to_lir.cc \
-	dex/quick/quick_compiler.cc \
-	dex/quick/ralloc_util.cc \
-	dex/quick/resource_mask.cc \
 	dex/dex_to_dex_compiler.cc \
-	dex/bb_optimizations.cc \
-	dex/compiler_ir.cc \
-	dex/mir_analysis.cc \
-	dex/mir_dataflow.cc \
-	dex/mir_field_info.cc \
-	dex/mir_graph.cc \
-	dex/mir_method_info.cc \
-	dex/mir_optimization.cc \
-	dex/post_opt_passes.cc \
-	dex/pass_driver_me_opts.cc \
-	dex/pass_driver_me_post_opt.cc \
-	dex/pass_manager.cc \
-	dex/ssa_transformation.cc \
 	dex/verified_method.cc \
 	dex/verification_results.cc \
-	dex/vreg_analysis.cc \
 	dex/quick_compiler_callbacks.cc \
+	dex/quick/dex_file_method_inliner.cc \
+	dex/quick/dex_file_to_method_inliner_map.cc \
 	driver/compiled_method_storage.cc \
 	driver/compiler_driver.cc \
 	driver/compiler_options.cc \
@@ -111,12 +83,6 @@ LIBART_COMPILER_SRC_FILES := \
 	oat_writer.cc
 
 LIBART_COMPILER_SRC_FILES_arm := \
-	dex/quick/arm/assemble_arm.cc \
-	dex/quick/arm/call_arm.cc \
-	dex/quick/arm/fp_arm.cc \
-	dex/quick/arm/int_arm.cc \
-	dex/quick/arm/target_arm.cc \
-	dex/quick/arm/utility_arm.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	linker/arm/relative_patcher_arm_base.cc \
 	linker/arm/relative_patcher_thumb2.cc \
@@ -133,12 +99,6 @@ LIBART_COMPILER_SRC_FILES_arm := \
 # 32bit one.
 LIBART_COMPILER_SRC_FILES_arm64 := \
     $(LIBART_COMPILER_SRC_FILES_arm) \
-	dex/quick/arm64/assemble_arm64.cc \
-	dex/quick/arm64/call_arm64.cc \
-	dex/quick/arm64/fp_arm64.cc \
-	dex/quick/arm64/int_arm64.cc \
-	dex/quick/arm64/target_arm64.cc \
-	dex/quick/arm64/utility_arm64.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	linker/arm64/relative_patcher_arm64.cc \
 	optimizing/code_generator_arm64.cc \
@@ -150,12 +110,6 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
 	utils/arm64/managed_register_arm64.cc \
 
 LIBART_COMPILER_SRC_FILES_mips := \
-	dex/quick/mips/assemble_mips.cc \
-	dex/quick/mips/call_mips.cc \
-	dex/quick/mips/fp_mips.cc \
-	dex/quick/mips/int_mips.cc \
-	dex/quick/mips/target_mips.cc \
-	dex/quick/mips/utility_mips.cc \
 	jni/quick/mips/calling_convention_mips.cc \
 	optimizing/code_generator_mips.cc \
 	optimizing/intrinsics_mips.cc \
@@ -172,12 +126,6 @@ LIBART_COMPILER_SRC_FILES_mips64 := \
 
 
 LIBART_COMPILER_SRC_FILES_x86 := \
-	dex/quick/x86/assemble_x86.cc \
-	dex/quick/x86/call_x86.cc \
-	dex/quick/x86/fp_x86.cc \
-	dex/quick/x86/int_x86.cc \
-	dex/quick/x86/target_x86.cc \
-	dex/quick/x86/utility_x86.cc \
 	jni/quick/x86/calling_convention_x86.cc \
 	linker/x86/relative_patcher_x86.cc \
 	linker/x86/relative_patcher_x86_base.cc \
@@ -200,26 +148,20 @@ LIBART_COMPILER_SRC_FILES_x86_64 := \
 LIBART_COMPILER_CFLAGS :=
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
-  dex/quick/resource_mask.h \
   dex/compiler_enums.h \
   dex/dex_to_dex_compiler.h \
-  dex/global_value_numbering.h \
-  dex/pass_me.h \
   driver/compiler_driver.h \
   driver/compiler_options.h \
   image_writer.h \
   optimizing/locations.h
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_arm := \
-  dex/quick/arm/arm_lir.h \
   utils/arm/constants_arm.h
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_arm64 := \
-  $(LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_arm) \
-  dex/quick/arm64/arm64_lir.h
+  $(LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_arm)
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_mips := \
-  dex/quick/mips/mips_lir.h \
   utils/mips/assembler_mips.h
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_mips64 := \
