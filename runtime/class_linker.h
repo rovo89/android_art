@@ -565,7 +565,7 @@ class ClassLinker {
       REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* CreateRuntimeMethod();
+  ArtMethod* CreateRuntimeMethod(LinearAlloc* linear_alloc);
 
   // Clear the ArrayClass cache. This is necessary when cleaning up for the image, as the cache
   // entries are roots, but potentially not image classes.

@@ -1402,11 +1402,42 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
 END_FUNCTION art_quick_proxy_invoke_handler
 
     /*
-     * Called to resolve an imt conflict. xmm7 is a hidden argument that holds the target method's
-     * dex method index.
+     * Called to resolve an imt conflict.
+     * eax is the conflict ArtMethod.
+     * xmm7 is a hidden argument that holds the target interface method's dex method index.
+     *
+     * Note that this stub writes to eax.
+     * Because of lack of free registers, it also saves and restores edi.
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
+    PUSH EDI
+    movl 8(%esp), %edi // Load referrer
+    movl ART_METHOD_DEX_CACHE_METHODS_OFFSET_32(%edi), %edi   // Load dex cache methods array
+    pushl ART_METHOD_JNI_OFFSET_32(%eax)  // Push ImtConflictTable.
+    CFI_ADJUST_CFA_OFFSET(4)
     movd %xmm7, %eax              // get target method index stored in xmm7
+    movl 0(%edi, %eax, __SIZEOF_POINTER__), %edi  // Load interface method
+    popl %eax  // Pop ImtConflictTable.
+    CFI_ADJUST_CFA_OFFSET(-4)
+.Limt_table_iterate:
+    cmpl %edi, 0(%eax)
+    jne .Limt_table_next_entry
+    // We successuflly hit an entry in the table. Load the target method
+    // and jump to it.
+    POP EDI
+    movl __SIZEOF_POINTER__(%eax), %eax
+    jmp *ART_METHOD_QUICK_CODE_OFFSET_32(%eax)
+.Limt_table_next_entry:
+    // If the entry is null, the interface method is not in the ImtConflictTable.
+    cmpl LITERAL(0), 0(%eax)
+    jz .Lconflict_trampoline
+    // Iterate over the entries of the ImtConflictTable.
+    addl LITERAL(2 * __SIZEOF_POINTER__), %eax
+    jmp .Limt_table_iterate
+.Lconflict_trampoline:
+    // Call the runtime stub to populate the ImtConflictTable and jump to the
+    // resolved method.
+    POP EDI
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END_FUNCTION art_quick_imt_conflict_trampoline
 

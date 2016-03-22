@@ -1225,11 +1225,35 @@ ENTRY art_quick_proxy_invoke_handler
 END art_quick_proxy_invoke_handler
 
     /*
-     * Called to resolve an imt conflict. r12 is a hidden argument that holds the target method's
-     * dex method index.
+     * Called to resolve an imt conflict.
+     * r0 is the conflict ArtMethod.
+     * r12 is a hidden argument that holds the target interface method's dex method index.
+     *
+     * Note that this stub writes to r0, r4, and r12.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    mov    r0, r12
+    ldr r4, [sp, #0]  // Load referrer
+    ldr r4, [r4, #ART_METHOD_DEX_CACHE_METHODS_OFFSET_32]   // Load dex cache methods array
+    ldr r12, [r4, r12, lsl #POINTER_SIZE_SHIFT]  // Load interface method
+    ldr r0, [r0, #ART_METHOD_JNI_OFFSET_32]  // Load ImtConflictTable
+    ldr r4, [r0]  // Load first entry in ImtConflictTable.
+.Limt_table_iterate:
+    cmp r4, r12
+    // Branch if found. Benchmarks have shown doing a branch here is better.
+    beq .Limt_table_found
+    // If the entry is null, the interface method is not in the ImtConflictTable.
+    cbz r4, .Lconflict_trampoline
+    // Iterate over the entries of the ImtConflictTable.
+    ldr r4, [r0, #(2 * __SIZEOF_POINTER__)]!
+    b .Limt_table_iterate
+.Limt_table_found:
+    // We successuflly hit an entry in the table. Load the target method
+    // and jump to it.
+    ldr r0, [r0, #__SIZEOF_POINTER__]
+    ldr pc, [r0, #ART_METHOD_QUICK_CODE_OFFSET_32]
+.Lconflict_trampoline:
+    // Call the runtime stub to populate the ImtConflictTable and jump to the
+    // resolved method.
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END art_quick_imt_conflict_trampoline
 
