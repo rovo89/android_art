@@ -19,6 +19,9 @@
 #include "art_method-inl.h"
 #include "common_runtime_test.h"
 #include "quick/quick_method_frame_info.h"
+// Common tests are declared next to the constants.
+#define ADD_TEST_EQ(x, y) EXPECT_EQ(x, y);
+#include "asm_support.h"
 
 namespace art {
 
@@ -52,10 +55,6 @@ class ArchTest : public CommonRuntimeTest {
         << frame_info.FpSpillMask() << std::dec;
   }
 };
-
-// Common tests are declared next to the constants.
-#define ADD_TEST_EQ(x, y) EXPECT_EQ(x, y);
-#include "asm_support.h"
 
 TEST_F(ArchTest, CheckCommonOffsetsAndSizes) {
   CheckAsmSupportOffsetsAndSizes();
