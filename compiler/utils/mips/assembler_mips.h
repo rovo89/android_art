@@ -191,6 +191,11 @@ class MipsAssembler FINAL : public Assembler {
   void Swl(Register rt, Register rs, uint16_t imm16);
   void Swr(Register rt, Register rs, uint16_t imm16);
 
+  void LlR2(Register rt, Register base, int16_t imm16 = 0);
+  void ScR2(Register rt, Register base, int16_t imm16 = 0);
+  void LlR6(Register rt, Register base, int16_t imm9 = 0);
+  void ScR6(Register rt, Register base, int16_t imm9 = 0);
+
   void Slt(Register rd, Register rs, Register rt);
   void Sltu(Register rd, Register rs, Register rt);
   void Slti(Register rt, Register rs, uint16_t imm16);
