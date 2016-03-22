@@ -38,7 +38,8 @@ ENTRY art_jni_dlsym_lookup_stub
     .cfi_rel_offset 5, 4
     sw    $a0, 0($sp)
     .cfi_rel_offset 4, 0
-    jal   artFindNativeMethod   # (Thread*)
+    la    $t9, artFindNativeMethod
+    jalr  $t9                   # (Thread*)
     move  $a0, $s1              # pass Thread::Current()
     lw    $a0, 0($sp)           # restore registers from stack
     lw    $a1, 4($sp)
