@@ -917,6 +917,19 @@ void GraphChecker::VisitCondition(HCondition* op) {
   }
 }
 
+void GraphChecker::VisitNeg(HNeg* instruction) {
+  VisitInstruction(instruction);
+  Primitive::Type input_type = instruction->InputAt(0)->GetType();
+  Primitive::Type result_type = instruction->GetType();
+  if (result_type != Primitive::PrimitiveKind(input_type)) {
+    AddError(StringPrintf("Binary operation %s %d has a result type different "
+                          "from its input kind: %s vs %s.",
+                          instruction->DebugName(), instruction->GetId(),
+                          Primitive::PrettyDescriptor(result_type),
+                          Primitive::PrettyDescriptor(input_type)));
+  }
+}
+
 void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
   VisitInstruction(op);
   Primitive::Type lhs_type = op->InputAt(0)->GetType();

@@ -320,6 +320,48 @@ public class Main {
   }
 
 
+  /// CHECK-START: int Main.rotateLeftIntWithByteDistance(int, byte) intrinsics_recognition (after)
+  /// CHECK-DAG:     <<Method:[ij]\d+>> CurrentMethod
+  /// CHECK:         <<ArgVal:i\d+>>  ParameterValue
+  /// CHECK:         <<ArgDist:b\d+>> ParameterValue
+  /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect [<<ArgVal>>,<<ArgDist>>,<<Method>>] intrinsic:IntegerRotateLeft
+  /// CHECK-DAG:                      Return [<<Result>>]
+
+  /// CHECK-START: int Main.rotateLeftIntWithByteDistance(int, byte) instruction_simplifier (after)
+  /// CHECK:         <<ArgVal:i\d+>>  ParameterValue
+  /// CHECK:         <<ArgDist:b\d+>> ParameterValue
+  /// CHECK-DAG:     <<NegDist:i\d+>> Neg [<<ArgDist>>]
+  /// CHECK-DAG:     <<Result:i\d+>>  Ror [<<ArgVal>>,<<NegDist>>]
+  /// CHECK-DAG:                      Return [<<Result>>]
+
+  /// CHECK-START: int Main.rotateLeftIntWithByteDistance(int, byte) instruction_simplifier (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
+
+  private static int rotateLeftIntWithByteDistance(int value, byte distance) {
+    return Integer.rotateLeft(value, distance);
+  }
+
+  /// CHECK-START: int Main.rotateRightIntWithByteDistance(int, byte) intrinsics_recognition (after)
+  /// CHECK-DAG:     <<Method:[ij]\d+>> CurrentMethod
+  /// CHECK:         <<ArgVal:i\d+>>  ParameterValue
+  /// CHECK:         <<ArgDist:b\d+>> ParameterValue
+  /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect [<<ArgVal>>,<<ArgDist>>,<<Method>>] intrinsic:IntegerRotateRight
+  /// CHECK-DAG:                      Return [<<Result>>]
+
+  /// CHECK-START: int Main.rotateRightIntWithByteDistance(int, byte) instruction_simplifier (after)
+  /// CHECK:         <<ArgVal:i\d+>>  ParameterValue
+  /// CHECK:         <<ArgDist:b\d+>> ParameterValue
+  /// CHECK-DAG:     <<Result:i\d+>>  Ror [<<ArgVal>>,<<ArgDist>>]
+  /// CHECK-DAG:                      Return [<<Result>>]
+
+  /// CHECK-START: int Main.rotateRightIntWithByteDistance(int, byte) instruction_simplifier (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
+
+  private static int rotateRightIntWithByteDistance(int value, byte distance) {
+    return Integer.rotateRight(value, distance);
+  }
+
+
   public static void testRotateLeftBoolean() {
     for (int i = 0; i < 40; i++) {  // overshoot a bit
       int j = i & 31;
@@ -518,6 +560,45 @@ public class Main {
   }
 
 
+  public static void testRotateLeftIntWithByteDistance() {
+    expectEqualsInt(0x00000001, rotateLeftIntWithByteDistance(0x00000001, (byte)0));
+    expectEqualsInt(0x00000002, rotateLeftIntWithByteDistance(0x00000001, (byte)1));
+    expectEqualsInt(0x80000000, rotateLeftIntWithByteDistance(0x00000001, (byte)31));
+    expectEqualsInt(0x00000001, rotateLeftIntWithByteDistance(0x00000001, (byte)32));  // overshoot
+    expectEqualsInt(0x00000003, rotateLeftIntWithByteDistance(0x80000001, (byte)1));
+    expectEqualsInt(0x00000006, rotateLeftIntWithByteDistance(0x80000001, (byte)2));
+    expectEqualsInt(0x23456781, rotateLeftIntWithByteDistance(0x12345678, (byte)4));
+    expectEqualsInt(0xBCDEF09A, rotateLeftIntWithByteDistance(0x9ABCDEF0, (byte)8));
+    for (byte i = 0; i < 40; i++) {  // overshoot a bit
+      byte j = (byte)(i & 31);
+      expectEqualsInt(0x00000000, rotateLeftIntWithByteDistance(0x00000000, i));
+      expectEqualsInt(0xFFFFFFFF, rotateLeftIntWithByteDistance(0xFFFFFFFF, i));
+      expectEqualsInt(1 << j, rotateLeftIntWithByteDistance(0x00000001, i));
+      expectEqualsInt((0x12345678 << j) | (0x12345678 >>> -j),
+                      rotateLeftIntWithByteDistance(0x12345678, i));
+    }
+  }
+
+  public static void testRotateRightIntWithByteDistance() {
+    expectEqualsInt(0x80000000, rotateRightIntWithByteDistance(0x80000000, (byte)0));
+    expectEqualsInt(0x40000000, rotateRightIntWithByteDistance(0x80000000, (byte)1));
+    expectEqualsInt(0x00000001, rotateRightIntWithByteDistance(0x80000000, (byte)31));
+    expectEqualsInt(0x80000000, rotateRightIntWithByteDistance(0x80000000, (byte)32));  // overshoot
+    expectEqualsInt(0xC0000000, rotateRightIntWithByteDistance(0x80000001, (byte)1));
+    expectEqualsInt(0x60000000, rotateRightIntWithByteDistance(0x80000001, (byte)2));
+    expectEqualsInt(0x81234567, rotateRightIntWithByteDistance(0x12345678, (byte)4));
+    expectEqualsInt(0xF09ABCDE, rotateRightIntWithByteDistance(0x9ABCDEF0, (byte)8));
+    for (byte i = 0; i < 40; i++) {  // overshoot a bit
+      byte j = (byte)(i & 31);
+      expectEqualsInt(0x00000000, rotateRightIntWithByteDistance(0x00000000, i));
+      expectEqualsInt(0xFFFFFFFF, rotateRightIntWithByteDistance(0xFFFFFFFF, i));
+      expectEqualsInt(0x80000000 >>> j, rotateRightIntWithByteDistance(0x80000000, i));
+      expectEqualsInt((0x12345678 >>> j) | (0x12345678 << -j),
+                      rotateRightIntWithByteDistance(0x12345678, i));
+    }
+  }
+
+
   public static void main(String args[]) {
     testRotateLeftBoolean();
     testRotateLeftByte();
@@ -532,6 +613,10 @@ public class Main {
     testRotateRightChar();
     testRotateRightInt();
     testRotateRightLong();
+
+    // Also exercise distance values with types other than int.
+    testRotateLeftIntWithByteDistance();
+    testRotateRightIntWithByteDistance();
 
     System.out.println("passed");
   }

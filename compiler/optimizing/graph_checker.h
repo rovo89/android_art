@@ -56,6 +56,7 @@ class GraphChecker : public HGraphDelegateVisitor {
   void VisitInstanceOf(HInstanceOf* check) OVERRIDE;
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
   void VisitLoadException(HLoadException* load) OVERRIDE;
+  void VisitNeg(HNeg* instruction) OVERRIDE;
   void VisitPackedSwitch(HPackedSwitch* instruction) OVERRIDE;
   void VisitReturn(HReturn* ret) OVERRIDE;
   void VisitReturnVoid(HReturnVoid* ret) OVERRIDE;

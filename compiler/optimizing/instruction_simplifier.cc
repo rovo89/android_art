@@ -1538,7 +1538,10 @@ void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke,
   HInstruction* distance = invoke->InputAt(1);
   // Replace the invoke with an HRor.
   if (is_left) {
-    distance = new (GetGraph()->GetArena()) HNeg(distance->GetType(), distance);
+    // Unconditionally set the type of the negated distance to `int`,
+    // as shift and rotate operations expect a 32-bit (or narrower)
+    // value for their distance input.
+    distance = new (GetGraph()->GetArena()) HNeg(Primitive::kPrimInt, distance);
     invoke->GetBlock()->InsertInstructionBefore(distance, invoke);
   }
   HRor* ror = new (GetGraph()->GetArena()) HRor(type, value, distance);
