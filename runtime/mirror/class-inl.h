@@ -388,8 +388,6 @@ inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
       }
       return false;
     }
-    DCHECK_EQ(this->CanAccessMember(access_to, field->GetAccessFlags()),
-              this->CanAccessMember(dex_access_to, field->GetAccessFlags()));
   }
   if (LIKELY(this->CanAccessMember(access_to, field->GetAccessFlags()))) {
     return true;

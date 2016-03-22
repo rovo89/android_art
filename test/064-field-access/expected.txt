@@ -1,2 +1,3 @@
 good
 Got expected failure
+Got expected failure
