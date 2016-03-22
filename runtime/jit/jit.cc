@@ -319,11 +319,6 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
     return false;
   }
 
-  if (kRuntimeISA == kMips || kRuntimeISA == kMips64) {
-    VLOG(jit) << "OSR not supported on this platform: " << kRuntimeISA;
-    return false;
-  }
-
   if (UNLIKELY(__builtin_frame_address(0) < thread->GetStackEnd())) {
     // Don't attempt to do an OSR if we are close to the stack limit. Since
     // the interpreter frames are still on stack, OSR has the potential
