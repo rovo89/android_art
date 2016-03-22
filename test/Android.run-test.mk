@@ -221,11 +221,9 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(ART_TEST_RUN_TEST_SKIP), $(ALL_ADDRESS_SIZES))
 
 
-# Disable 097-duplicate-method while investigation (broken by latest Jack release, b/27358065)
 # Disable 137-cfi (b/27391690).
 # Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
-  097-duplicate-method \
   577-profile-foreign-dex \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
