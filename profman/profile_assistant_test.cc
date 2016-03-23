@@ -102,8 +102,8 @@ TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
   ASSERT_TRUE(result.Load(reference_profile_fd));
 
   ProfileCompilationInfo expected;
-  ASSERT_TRUE(expected.Load(info1));
-  ASSERT_TRUE(expected.Load(info2));
+  ASSERT_TRUE(expected.MergeWith(info1));
+  ASSERT_TRUE(expected.MergeWith(info2));
   ASSERT_TRUE(expected.Equals(result));
 
   // The information from profiles must remain the same.
@@ -145,9 +145,9 @@ TEST_F(ProfileAssistantTest, AdviseCompilationNonEmptyReferences) {
   ASSERT_TRUE(result.Load(reference_profile_fd));
 
   ProfileCompilationInfo expected;
-  ASSERT_TRUE(expected.Load(info1));
-  ASSERT_TRUE(expected.Load(info2));
-  ASSERT_TRUE(expected.Load(reference_info));
+  ASSERT_TRUE(expected.MergeWith(info1));
+  ASSERT_TRUE(expected.MergeWith(info2));
+  ASSERT_TRUE(expected.MergeWith(reference_info));
   ASSERT_TRUE(expected.Equals(result));
 
   // The information from profiles must remain the same.

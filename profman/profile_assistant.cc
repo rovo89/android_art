@@ -54,7 +54,7 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
 
   for (size_t i = 0; i < new_info.size(); i++) {
     // Merge all data into a single object.
-    if (!info.Load(new_info[i])) {
+    if (!info.MergeWith(new_info[i])) {
       LOG(WARNING) << "Could not merge profile data at index " << i;
       return kErrorBadProfiles;
     }

@@ -49,6 +49,79 @@ std::string ProfileCompilationInfo::GetProfileDexFileKey(const std::string& dex_
   }
 }
 
+bool ProfileCompilationInfo::AddMethodsAndClasses(
+    const std::vector<ArtMethod*>& methods,
+    const std::set<DexCacheResolvedClasses>& resolved_classes) {
+  ScopedObjectAccess soa(Thread::Current());
+  for (ArtMethod* method : methods) {
+    const DexFile* dex_file = method->GetDexFile();
+    if (!AddMethodIndex(GetProfileDexFileKey(dex_file->GetLocation()),
+                        dex_file->GetLocationChecksum(),
+                        method->GetDexMethodIndex())) {
+      return false;
+    }
+  }
+  for (const DexCacheResolvedClasses& dex_cache : resolved_classes) {
+    if (!AddResolvedClasses(dex_cache)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ProfileCompilationInfo::MergeAndSave(const std::string& filename, uint64_t* bytes_written) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
+  ScopedFlock flock;
+  std::string error;
+  if (!flock.Init(filename.c_str(), O_RDWR | O_NOFOLLOW | O_CLOEXEC, /* block */ false, &error)) {
+    LOG(WARNING) << "Couldn't lock the profile file " << filename << ": " << error;
+    return false;
+  }
+
+  int fd = flock.GetFile()->Fd();
+
+  // Load the file but keep a copy around to be able to infer if the content has changed.
+  ProfileCompilationInfo fileInfo;
+  if (!fileInfo.Load(fd)) {
+    LOG(WARNING) << "Could not load previous profile data from file " << filename;
+    return false;
+  }
+
+  // Merge the content of file into the current object.
+  if (!MergeWith(fileInfo)) {
+    LOG(WARNING) << "Could not merge previous profile data from file " << filename;
+  }
+
+  // If after the merge we have the same data as what is the file there's no point
+  // in actually doing the write. The file will be exactly the same as before.
+  if (Equals(fileInfo)) {
+    if (bytes_written != nullptr) {
+      *bytes_written = 0;
+    }
+    return true;
+  }
+
+  // We need to clear the data because we don't support append to the profiles yet.
+  if (!flock.GetFile()->ClearContent()) {
+    PLOG(WARNING) << "Could not clear profile file: " << filename;
+    return false;
+  }
+
+  // This doesn't need locking because we are trying to lock the file for exclusive
+  // access and fail immediately if we can't.
+  bool result = Save(fd);
+  if (result) {
+    VLOG(profiler) << "Successfully saved profile info to " << filename
+        << " Size: " << GetFileSizeBytes(filename);
+    if (bytes_written != nullptr) {
+      *bytes_written = GetFileSizeBytes(filename);
+    }
+  } else {
+    VLOG(profiler) << "Failed to save profile info to " << filename;
+  }
+  return result;
+}
+
 bool ProfileCompilationInfo::SaveProfilingInfo(
     const std::string& filename,
     const std::vector<ArtMethod*>& methods,
@@ -62,54 +135,16 @@ bool ProfileCompilationInfo::SaveProfilingInfo(
     return true;
   }
 
-  ScopedTrace trace(__PRETTY_FUNCTION__);
-  ScopedFlock flock;
-  std::string error;
-  if (!flock.Init(filename.c_str(), O_RDWR | O_NOFOLLOW | O_CLOEXEC, /* block */ false, &error)) {
-    LOG(WARNING) << "Couldn't lock the profile file " << filename << ": " << error;
-    return false;
-  }
-
-  int fd = flock.GetFile()->Fd();
-
   ProfileCompilationInfo info;
-  if (!info.Load(fd)) {
-    LOG(WARNING) << "Could not load previous profile data from file " << filename;
-    return false;
-  }
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    for (ArtMethod* method : methods) {
-      const DexFile* dex_file = method->GetDexFile();
-      if (!info.AddMethodIndex(GetProfileDexFileKey(dex_file->GetLocation()),
-                               dex_file->GetLocationChecksum(),
-                               method->GetDexMethodIndex())) {
-        return false;
-      }
-    }
-    for (const DexCacheResolvedClasses& dex_cache : resolved_classes) {
-      info.AddResolvedClasses(dex_cache);
-    }
-  }
-
-  if (!flock.GetFile()->ClearContent()) {
-    PLOG(WARNING) << "Could not clear profile file: " << filename;
-    return false;
-  }
-
-  // This doesn't need locking because we are trying to lock the file for exclusive
-  // access and fail immediately if we can't.
-  bool result = info.Save(fd);
-  if (result) {
-    VLOG(profiler) << "Successfully saved profile info to " << filename
-        << " Size: " << GetFileSizeBytes(filename);
+  if (!info.AddMethodsAndClasses(methods, resolved_classes)) {
+    LOG(WARNING) << "Checksum mismatch when processing methods and resolved classes for "
+        << filename;
     if (bytes_written != nullptr) {
-      *bytes_written = GetFileSizeBytes(filename);
+      *bytes_written = 0;
     }
-  } else {
-    VLOG(profiler) << "Failed to save profile info to " << filename;
+    return false;
   }
-  return result;
+  return info.MergeAndSave(filename, bytes_written);
 }
 
 static bool WriteToFile(int fd, const std::ostringstream& os) {
@@ -341,7 +376,7 @@ bool ProfileCompilationInfo::Load(int fd) {
   return true;
 }
 
-bool ProfileCompilationInfo::Load(const ProfileCompilationInfo& other) {
+bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
   for (const auto& other_it : other.info_) {
     const std::string& other_dex_location = other_it.first;
     const DexFileData& other_dex_data = other_it.second;
@@ -390,6 +425,14 @@ uint32_t ProfileCompilationInfo::GetNumberOfMethods() const {
   uint32_t total = 0;
   for (const auto& it : info_) {
     total += it.second.method_set.size();
+  }
+  return total;
+}
+
+uint32_t ProfileCompilationInfo::GetNumberOfResolvedClasses() const {
+  uint32_t total = 0;
+  for (const auto& it : info_) {
+    total += it.second.class_set.size();
   }
   return total;
 }
@@ -447,6 +490,12 @@ std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses() c
     ret.insert(classes);
   }
   return ret;
+}
+
+void ProfileCompilationInfo::ClearResolvedClasses() {
+  for (auto& pair : info_) {
+    pair.second.class_set.clear();
+  }
 }
 
 }  // namespace art
