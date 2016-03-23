@@ -320,11 +320,8 @@ bool DoAnalyseConstructor(const DexFile::CodeItem* code_item,
         return false;
       }
       if (target_method->GetDeclaringClass()->IsObjectClass()) {
-        if (kIsDebugBuild) {
-          Instruction::Code op = Instruction::At(target_method->GetCodeItem()->insns_)->Opcode();
-          DCHECK(op == Instruction::RETURN_VOID || op == Instruction::RETURN_VOID_NO_BARRIER)
-              << op;
-        }
+        DCHECK_EQ(Instruction::At(target_method->GetCodeItem()->insns_)->Opcode(),
+                  Instruction::RETURN_VOID);
       } else {
         const DexFile::CodeItem* target_code_item = target_method->GetCodeItem();
         if (target_code_item == nullptr) {
