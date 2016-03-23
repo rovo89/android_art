@@ -56,7 +56,6 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   bool TryDeMorganNegationFactoring(HBinaryOperation* op);
   void VisitShift(HBinaryOperation* shift);
 
-  void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
   void VisitEqual(HEqual* equal) OVERRIDE;
   void VisitNotEqual(HNotEqual* equal) OVERRIDE;
   void VisitBooleanNot(HBooleanNot* bool_not) OVERRIDE;
@@ -552,22 +551,6 @@ void InstructionSimplifierVisitor::VisitStaticFieldSet(HStaticFieldSet* instruct
       && CanEnsureNotNullAt(instruction->GetValue(), instruction)) {
     instruction->ClearValueCanBeNull();
   }
-}
-
-void InstructionSimplifierVisitor::VisitSuspendCheck(HSuspendCheck* check) {
-  HBasicBlock* block = check->GetBlock();
-  // Currently always keep the suspend check at entry.
-  if (block->IsEntryBlock()) return;
-
-  // Currently always keep suspend checks at loop entry.
-  if (block->IsLoopHeader() && block->GetFirstInstruction() == check) {
-    DCHECK(block->GetLoopInformation()->GetSuspendCheck() == check);
-    return;
-  }
-
-  // Remove the suspend check that was added at build time for the baseline
-  // compiler.
-  block->RemoveInstruction(check);
 }
 
 static HCondition* GetOppositeConditionSwapOps(ArenaAllocator* arena, HInstruction* cond) {

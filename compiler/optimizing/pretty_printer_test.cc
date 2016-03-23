@@ -135,13 +135,13 @@ TEST_F(PrettyPrinterTest, CFG3) {
 TEST_F(PrettyPrinterTest, CFG4) {
   const char* expected =
     "BasicBlock 0, succ: 3\n"
-    "  3: SuspendCheck\n"
-    "  4: Goto 3\n"
+    "  2: SuspendCheck\n"
+    "  3: Goto 3\n"
     "BasicBlock 1, pred: 3, 1, succ: 1\n"
-    "  0: SuspendCheck\n"
-    "  1: Goto 1\n"
+    "  5: SuspendCheck\n"
+    "  0: Goto 1\n"
     "BasicBlock 3, pred: 0, succ: 1\n"
-    "  5: Goto 1\n";
+    "  4: Goto 1\n";
 
   const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::NOP,
@@ -204,20 +204,20 @@ TEST_F(PrettyPrinterTest, CFG7) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  1: IntConstant [5, 5]\n"
-    "  11: SuspendCheck\n"
-    "  12: Goto 1\n"
+    "  10: SuspendCheck\n"
+    "  11: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 5, 6\n"
     "  5: Equal(1, 1) [6]\n"
     "  6: If(5)\n"
     "BasicBlock 2, pred: 6, 3, succ: 3\n"
     "  7: Goto 3\n"
     "BasicBlock 3, pred: 5, 2, succ: 2\n"
-    "  8: SuspendCheck\n"
-    "  9: Goto 2\n"
+    "  14: SuspendCheck\n"
+    "  8: Goto 2\n"
     "BasicBlock 5, pred: 1, succ: 3\n"
-    "  13: Goto 3\n"
+    "  12: Goto 3\n"
     "BasicBlock 6, pred: 1, succ: 2\n"
-    "  14: Goto 2\n";
+    "  13: Goto 2\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
