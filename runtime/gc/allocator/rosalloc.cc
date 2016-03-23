@@ -2102,6 +2102,94 @@ void RosAlloc::LogFragmentationAllocFailure(std::ostream& os, size_t failed_allo
   }
 }
 
+void RosAlloc::DumpStats(std::ostream& os) {
+  Thread* self = Thread::Current();
+  CHECK(Locks::mutator_lock_->IsExclusiveHeld(self))
+      << "The mutator locks isn't exclusively locked at " << __PRETTY_FUNCTION__;
+  size_t num_large_objects = 0;
+  size_t num_pages_large_objects = 0;
+  // These arrays are zero initialized.
+  std::unique_ptr<size_t[]> num_runs(new size_t[kNumOfSizeBrackets]());
+  std::unique_ptr<size_t[]> num_pages_runs(new size_t[kNumOfSizeBrackets]());
+  std::unique_ptr<size_t[]> num_slots(new size_t[kNumOfSizeBrackets]());
+  std::unique_ptr<size_t[]> num_used_slots(new size_t[kNumOfSizeBrackets]());
+  std::unique_ptr<size_t[]> num_metadata_bytes(new size_t[kNumOfSizeBrackets]());
+  ReaderMutexLock rmu(self, bulk_free_lock_);
+  MutexLock lock_mu(self, lock_);
+  for (size_t i = 0; i < page_map_size_; ) {
+    uint8_t pm = page_map_[i];
+    switch (pm) {
+      case kPageMapReleased:
+      case kPageMapEmpty:
+        ++i;
+        break;
+      case kPageMapLargeObject: {
+        size_t num_pages = 1;
+        size_t idx = i + 1;
+        while (idx < page_map_size_ && page_map_[idx] == kPageMapLargeObjectPart) {
+          num_pages++;
+          idx++;
+        }
+        num_large_objects++;
+        num_pages_large_objects += num_pages;
+        i += num_pages;
+        break;
+      }
+      case kPageMapLargeObjectPart:
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm) << std::endl
+                   << DumpPageMap();
+        break;
+      case kPageMapRun: {
+        Run* run = reinterpret_cast<Run*>(base_ + i * kPageSize);
+        size_t idx = run->size_bracket_idx_;
+        size_t num_pages = numOfPages[idx];
+        num_runs[idx]++;
+        num_pages_runs[idx] += num_pages;
+        num_slots[idx] += numOfSlots[idx];
+        size_t num_free_slots = run->NumberOfFreeSlots();
+        num_used_slots[idx] += numOfSlots[idx] - num_free_slots;
+        num_metadata_bytes[idx] += headerSizes[idx];
+        i += num_pages;
+        break;
+      }
+      case kPageMapRunPart:
+        // Fall-through.
+      default:
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm) << std::endl
+                   << DumpPageMap();
+        break;
+    }
+  }
+  os << "RosAlloc stats:\n";
+  for (size_t i = 0; i < kNumOfSizeBrackets; ++i) {
+    os << "Bracket " << i << " (" << bracketSizes[i] << "):"
+       << " #runs=" << num_runs[i]
+       << " #pages=" << num_pages_runs[i]
+       << " (" << PrettySize(num_pages_runs[i] * kPageSize) << ")"
+       << " #metadata_bytes=" << PrettySize(num_metadata_bytes[i])
+       << " #slots=" << num_slots[i] << " (" << PrettySize(num_slots[i] * bracketSizes[i]) << ")"
+       << " #used_slots=" << num_used_slots[i]
+       << " (" << PrettySize(num_used_slots[i] * bracketSizes[i]) << ")\n";
+  }
+  os << "Large #allocations=" << num_large_objects
+     << " #pages=" << num_pages_large_objects
+     << " (" << PrettySize(num_pages_large_objects * kPageSize) << ")\n";
+  size_t total_num_pages = 0;
+  size_t total_metadata_bytes = 0;
+  size_t total_allocated_bytes = 0;
+  for (size_t i = 0; i < kNumOfSizeBrackets; ++i) {
+    total_num_pages += num_pages_runs[i];
+    total_metadata_bytes += num_metadata_bytes[i];
+    total_allocated_bytes += num_used_slots[i] * bracketSizes[i];
+  }
+  total_num_pages += num_pages_large_objects;
+  total_allocated_bytes += num_pages_large_objects * kPageSize;
+  os << "Total #total_bytes=" << PrettySize(total_num_pages * kPageSize)
+     << " #metadata_bytes=" << PrettySize(total_metadata_bytes)
+     << " #used_bytes=" << PrettySize(total_allocated_bytes) << "\n";
+  os << "\n";
+}
+
 }  // namespace allocator
 }  // namespace gc
 }  // namespace art

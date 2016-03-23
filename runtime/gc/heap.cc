@@ -116,6 +116,8 @@ static constexpr uint64_t kNativeAllocationFinalizeTimeout = MsToNs(250u);
 
 // For deterministic compilation, we need the heap to be at a well-known address.
 static constexpr uint32_t kAllocSpaceBeginForDeterministicAoT = 0x40000000;
+// Dump the rosalloc stats on SIGQUIT.
+static constexpr bool kDumpRosAllocStatsOnSigQuit = false;
 
 static inline bool CareAboutPauseTimes() {
   return Runtime::Current()->InJankPerceptibleProcessState();
@@ -1177,6 +1179,10 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
       blocking_gc_count_rate_histogram_.DumpBins(os);
       os << "\n";
     }
+  }
+
+  if (kDumpRosAllocStatsOnSigQuit && rosalloc_space_ != nullptr) {
+    rosalloc_space_->DumpStats(os);
   }
 
   BaseMutex::DumpAll(os);
