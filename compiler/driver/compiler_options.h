@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "base/macros.h"
-#include "compiler_filter.h"
 #include "globals.h"
 #include "utils.h"
 
@@ -30,8 +29,20 @@ namespace art {
 
 class CompilerOptions FINAL {
  public:
+  enum CompilerFilter {
+    kVerifyNone,          // Skip verification and compile nothing except JNI stubs.
+    kInterpretOnly,       // Verify, and compile only JNI stubs.
+    kVerifyAtRuntime,     // Only compile JNI stubs and verify at runtime.
+    kSpace,               // Maximize space savings.
+    kBalanced,            // Try to get the best performance return on compilation investment.
+    kSpeed,               // Maximize runtime performance.
+    kEverything,          // Force compilation of everything capable of being compiled.
+    kTime,                // Compile methods, but minimize compilation time.
+    kVerifyProfile,       // Verify only the classes in the profile.
+  };
+
   // Guide heuristics to determine whether to compile method if profile data not available.
-  static const CompilerFilter::Filter kDefaultCompilerFilter = CompilerFilter::kSpeed;
+  static const CompilerFilter kDefaultCompilerFilter = kSpeed;
   static const size_t kDefaultHugeMethodThreshold = 10000;
   static const size_t kDefaultLargeMethodThreshold = 600;
   static const size_t kDefaultSmallMethodThreshold = 60;
@@ -53,7 +64,7 @@ class CompilerOptions FINAL {
   CompilerOptions();
   ~CompilerOptions();
 
-  CompilerOptions(CompilerFilter::Filter compiler_filter,
+  CompilerOptions(CompilerFilter compiler_filter,
                   size_t huge_method_threshold,
                   size_t large_method_threshold,
                   size_t small_method_threshold,
@@ -77,32 +88,40 @@ class CompilerOptions FINAL {
                   bool dump_cfg_append,
                   bool force_determinism);
 
-  CompilerFilter::Filter GetCompilerFilter() const {
+  CompilerFilter GetCompilerFilter() const {
     return compiler_filter_;
   }
 
-  void SetCompilerFilter(CompilerFilter::Filter compiler_filter) {
+  void SetCompilerFilter(CompilerFilter compiler_filter) {
     compiler_filter_ = compiler_filter;
   }
 
   bool VerifyAtRuntime() const {
-    return compiler_filter_ == CompilerFilter::kVerifyAtRuntime;
+    return compiler_filter_ == CompilerOptions::kVerifyAtRuntime;
   }
 
   bool IsCompilationEnabled() const {
-    return CompilerFilter::IsCompilationEnabled(compiler_filter_);
+    return compiler_filter_ != CompilerOptions::kVerifyNone &&
+           compiler_filter_ != CompilerOptions::kInterpretOnly &&
+           compiler_filter_ != CompilerOptions::kVerifyAtRuntime &&
+           compiler_filter_ != CompilerOptions::kVerifyProfile;
   }
 
   bool IsVerificationEnabled() const {
-    return CompilerFilter::IsVerificationEnabled(compiler_filter_);
+    return compiler_filter_ != CompilerOptions::kVerifyNone &&
+           compiler_filter_ != CompilerOptions::kVerifyAtRuntime;
   }
 
   bool NeverVerify() const {
-    return compiler_filter_ == CompilerFilter::kVerifyNone;
+    return compiler_filter_ == CompilerOptions::kVerifyNone;
+  }
+
+  bool IsExtractOnly() const {
+    return compiler_filter_ == CompilerOptions::kVerifyAtRuntime;
   }
 
   bool VerifyOnlyProfile() const {
-    return compiler_filter_ == CompilerFilter::kVerifyProfile;
+    return compiler_filter_ == CompilerOptions::kVerifyProfile;
   }
 
   size_t GetHugeMethodThreshold() const {
@@ -252,7 +271,7 @@ class CompilerOptions FINAL {
   void ParseLargeMethodMax(const StringPiece& option, UsageFn Usage);
   void ParseHugeMethodMax(const StringPiece& option, UsageFn Usage);
 
-  CompilerFilter::Filter compiler_filter_;
+  CompilerFilter compiler_filter_;
   size_t huge_method_threshold_;
   size_t large_method_threshold_;
   size_t small_method_threshold_;
@@ -298,6 +317,7 @@ class CompilerOptions FINAL {
 
   DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };
+std::ostream& operator<<(std::ostream& os, const CompilerOptions::CompilerFilter& rhs);
 
 }  // namespace art
 

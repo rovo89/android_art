@@ -21,7 +21,6 @@
 
 #include "arch/instruction_set.h"
 #include "base/macros.h"
-#include "compiler_filter.h"
 #include "dex_file.h"
 #include "safe_map.h"
 
@@ -32,7 +31,7 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr uint8_t kOatMagic[] = { 'o', 'a', 't', '\n' };
-  static constexpr uint8_t kOatVersion[] = { '0', '7', '6', '\0' };
+  static constexpr uint8_t kOatVersion[] = { '0', '7', '5', '\0' };
 
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
@@ -40,12 +39,14 @@ class PACKED(4) OatHeader {
   static constexpr const char* kPicKey = "pic";
   static constexpr const char* kDebuggableKey = "debuggable";
   static constexpr const char* kNativeDebuggableKey = "native-debuggable";
-  static constexpr const char* kCompilerFilter = "compiler-filter";
+  static constexpr const char* kCompilationType = "compilation-type";
   static constexpr const char* kClassPathKey = "classpath";
   static constexpr const char* kBootClassPath = "bootclasspath";
 
   static constexpr const char kTrueValue[] = "true";
   static constexpr const char kFalseValue[] = "false";
+  static constexpr const char kExtractOnlyValue[] = "extract-only";
+  static constexpr const char kProfileGuideCompiledValue[] = "profile-guide";
 
 
   static OatHeader* Create(InstructionSet instruction_set,
@@ -111,7 +112,8 @@ class PACKED(4) OatHeader {
   bool IsPic() const;
   bool IsDebuggable() const;
   bool IsNativeDebuggable() const;
-  CompilerFilter::Filter GetCompilerFilter() const;
+  bool IsExtractOnly() const;
+  bool IsProfileGuideCompiled() const;
 
  private:
   bool KeyHasValue(const char* key, const char* value, size_t value_size) const;

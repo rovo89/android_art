@@ -348,8 +348,7 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jobject cookie
 static jint GetDexOptNeeded(JNIEnv* env,
                             const char* filename,
                             const char* instruction_set,
-                            const char* compiler_filter_name,
-                            bool profile_changed) {
+                            const int target_compilation_type_mask) {
   if ((filename == nullptr) || !OS::FileExists(filename)) {
     LOG(ERROR) << "DexFile_getDexOptNeeded file '" << filename << "' does not exist";
     ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
@@ -366,24 +365,17 @@ static jint GetDexOptNeeded(JNIEnv* env,
     return -1;
   }
 
-  CompilerFilter::Filter filter;
-  if (!CompilerFilter::ParseCompilerFilter(compiler_filter_name, &filter)) {
-    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
-    std::string message(StringPrintf("Compiler filter %s is invalid.", compiler_filter_name));
-    env->ThrowNew(iae.get(), message.c_str());
-    return -1;
-  }
-
   // TODO: Verify the dex location is well formed, and throw an IOException if
   // not?
-
-  OatFileAssistant oat_file_assistant(filename, target_instruction_set, profile_changed, false);
+  OatFileAssistant oat_file_assistant(filename, target_compilation_type_mask,
+      target_instruction_set, false);
 
   // Always treat elements of the bootclasspath as up-to-date.
   if (oat_file_assistant.IsInBootClassPath()) {
     return OatFileAssistant::kNoDexOptNeeded;
   }
-  return oat_file_assistant.GetDexOptNeeded(filter);
+
+  return oat_file_assistant.GetDexOptNeeded();
 }
 
 static jint DexFile_getDexOptNeeded(JNIEnv* env,
@@ -401,18 +393,10 @@ static jint DexFile_getDexOptNeeded(JNIEnv* env,
     return -1;
   }
 
-  // TODO: Take profile changed and compiler filter as arguments.
-  // For now, we use "speed" by default, unless EXTRACT_ONLY = 0x4 was
-  // included in the mask.
-  const char* compiler_filter = "speed";
-  if (javaTargetCompilationTypeMask & 0x4) {
-    compiler_filter = "verify-at-runtime";
-  }
   return GetDexOptNeeded(env,
                          filename.c_str(),
                          instruction_set.c_str(),
-                         compiler_filter,
-                         /*profile_changed*/false);
+                         javaTargetCompilationTypeMask);
 }
 
 // public API
@@ -423,8 +407,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
       env,
       filename.c_str(),
       instruction_set,
-      "speed-profile",
-      /*profile_changed*/false);
+      OatFileAssistant::kFullCompilation | OatFileAssistant::kProfileGuideCompilation);
   return (status != OatFileAssistant::kNoDexOptNeeded) ? JNI_TRUE : JNI_FALSE;
 }
 
