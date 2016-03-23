@@ -257,11 +257,14 @@ NO_RETURN static void Usage(const char* fmt, ...) {
                 "|verify-at-runtime"
                 "|verify-profile"
                 "|interpret-only"
+                "|time"
+                "|space-profile"
                 "|space"
                 "|balanced"
+                "|speed-profile"
                 "|speed"
-                "|everything"
-                "|time):");
+                "|everything-profile"
+                "|everything):");
   UsageError("      select compiler filter.");
   UsageError("      verify-profile requires a --profile(-fd) to also be passed in.");
   UsageError("      Example: --compiler-filter=everything");
@@ -798,10 +801,6 @@ class Dex2Oat FINAL {
       Usage("Profile file should not be specified with both --profile-file-fd and --profile-file");
     }
 
-    if (compiler_options_->VerifyOnlyProfile() && !have_profile_file && !have_profile_fd) {
-      Usage("verify-profile compiler filter must be used with a profile file or fd");
-    }
-
     if (!parser_options->oat_symbols.empty()) {
       oat_unstripped_ = std::move(parser_options->oat_symbols);
     }
@@ -834,14 +833,14 @@ class Dex2Oat FINAL {
     // time here, which is orthogonal to space.
     if (compiler_options_->inline_depth_limit_ == CompilerOptions::kUnsetInlineDepthLimit) {
       compiler_options_->inline_depth_limit_ =
-          (compiler_options_->compiler_filter_ == CompilerOptions::kSpace)
+          (compiler_options_->compiler_filter_ == CompilerFilter::kSpace)
           // Implementation of the space filter: limit inlining depth.
           ? CompilerOptions::kSpaceFilterInlineDepthLimit
           : CompilerOptions::kDefaultInlineDepthLimit;
     }
     if (compiler_options_->inline_max_code_units_ == CompilerOptions::kUnsetInlineMaxCodeUnits) {
       compiler_options_->inline_max_code_units_ =
-          (compiler_options_->compiler_filter_ == CompilerOptions::kSpace)
+          (compiler_options_->compiler_filter_ == CompilerFilter::kSpace)
           // Implementation of the space filter: limit inlining max code units.
           ? CompilerOptions::kSpaceFilterInlineMaxCodeUnits
           : CompilerOptions::kDefaultInlineMaxCodeUnits;
@@ -1029,11 +1028,8 @@ class Dex2Oat FINAL {
     key_value_store_->Put(
         OatHeader::kNativeDebuggableKey,
         compiler_options_->GetNativeDebuggable() ? OatHeader::kTrueValue : OatHeader::kFalseValue);
-    if (compiler_options_->IsExtractOnly()) {
-      key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kExtractOnlyValue);
-    } else if (UseProfileGuidedCompilation()) {
-      key_value_store_->Put(OatHeader::kCompilationType, OatHeader::kProfileGuideCompiledValue);
-    }
+    key_value_store_->Put(OatHeader::kCompilerFilter,
+        CompilerFilter::NameOfFilter(compiler_options_->GetCompilerFilter()));
   }
 
   // Parse the arguments from the command line. In case of an unrecognized option or impossible
@@ -1322,13 +1318,7 @@ class Dex2Oat FINAL {
         return false;
       }
 
-      if (compiler_options_->IsExtractOnly()) {
-        // ExtractOnly oat files only contain non-quickened DEX code and are
-        // therefore independent of the image file.
-        image_file_location_oat_checksum_ = 0u;
-        image_file_location_oat_data_begin_ = 0u;
-        image_patch_delta_ = 0;
-      } else {
+      if (CompilerFilter::DependsOnImageChecksum(compiler_options_->GetCompilerFilter())) {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
         std::vector<gc::space::ImageSpace*> image_spaces =
             Runtime::Current()->GetHeap()->GetBootImageSpaces();
@@ -1345,6 +1335,10 @@ class Dex2Oat FINAL {
         if (!image_file_location.empty()) {
           key_value_store_->Put(OatHeader::kImageLocationKey, image_file_location);
         }
+      } else {
+        image_file_location_oat_checksum_ = 0u;
+        image_file_location_oat_data_begin_ = 0u;
+        image_patch_delta_ = 0;
       }
 
       // Open dex files for class path.
@@ -1456,7 +1450,7 @@ class Dex2Oat FINAL {
         num_methods += dex_file->NumMethodIds();
       }
       if (num_methods <= compiler_options_->GetNumDexMethodsThreshold()) {
-        compiler_options_->SetCompilerFilter(CompilerOptions::kSpeed);
+        compiler_options_->SetCompilerFilter(CompilerFilter::kSpeed);
         VLOG(compiler) << "Below method threshold, compiling anyways";
       }
     }
@@ -1857,7 +1851,7 @@ class Dex2Oat FINAL {
   }
 
   bool UseProfileGuidedCompilation() const {
-    return !profile_file_.empty() || (profile_file_fd_ != kInvalidFd);
+    return CompilerFilter::DependsOnProfile(compiler_options_->GetCompilerFilter());
   }
 
   bool LoadProfile() {
@@ -1865,7 +1859,7 @@ class Dex2Oat FINAL {
 
     profile_compilation_info_.reset(new ProfileCompilationInfo());
     ScopedFlock flock;
-    bool success = false;
+    bool success = true;
     std::string error;
     if (profile_file_fd_ != -1) {
       // The file doesn't need to be flushed so don't check the usage.
@@ -1874,7 +1868,7 @@ class Dex2Oat FINAL {
       if (flock.Init(&file, &error)) {
         success = profile_compilation_info_->Load(profile_file_fd_);
       }
-    } else {
+    } else if (profile_file_ != "") {
       if (flock.Init(profile_file_.c_str(), O_RDONLY, /* block */ true, &error)) {
         success = profile_compilation_info_->Load(flock.GetFile()->Fd());
       }

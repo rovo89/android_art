@@ -44,6 +44,7 @@ LIBART_COMMON_SRC_FILES := \
   class_table.cc \
   code_simulator_container.cc \
   common_throws.cc \
+  compiler_filter.cc \
   debugger.cc \
   dex_file.cc \
   dex_file_verifier.cc \

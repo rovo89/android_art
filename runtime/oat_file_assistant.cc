@@ -44,19 +44,18 @@
 namespace art {
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
-                                   const int target_compilation_type_mask,
                                    const InstructionSet isa,
+                                   bool profile_changed,
                                    bool load_executable)
-    : OatFileAssistant(dex_location, nullptr, target_compilation_type_mask, isa, load_executable)
+    : OatFileAssistant(dex_location, nullptr, isa, profile_changed, load_executable)
 { }
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const char* oat_location,
-                                   const int target_compilation_type_mask,
                                    const InstructionSet isa,
+                                   bool profile_changed,
                                    bool load_executable)
-    : target_compilation_type_mask_(target_compilation_type_mask), isa_(isa),
-      load_executable_(load_executable) {
+    : isa_(isa), profile_changed_(profile_changed), load_executable_(load_executable) {
   CHECK(dex_location != nullptr) << "OatFileAssistant: null dex location";
   dex_location_.assign(dex_location);
 
@@ -116,42 +115,78 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   return true;
 }
 
-// Returns the compilation mode of the given oat file.
-static OatFileAssistant::CompilationType GetCompilationType(const OatFile& oat_file) {
-    if (oat_file.IsExtractOnly()) {
-      return OatFileAssistant::kExtractOnly;
-    }
-    if (oat_file.IsProfileGuideCompiled()) {
-      return OatFileAssistant::kProfileGuideCompilation;
-    }
-    // Assume that if the oat files is not extract-only or profile-guide compiled
-    // then it must be fully compiled.
-    // NB: this does not necessary mean that the oat file is actually fully compiled. It
-    // might have been compiled in a different way (e.g. interpret-only) which does
-    // not record a type in the header.
-    return OatFileAssistant::kFullCompilation;
+bool OatFileAssistant::OatFileCompilerFilterIsOkay(CompilerFilter::Filter target) {
+  const OatFile* oat_file = GetOatFile();
+  if (oat_file != nullptr) {
+    CompilerFilter::Filter current = oat_file->GetCompilerFilter();
+    return CompilerFilter::IsAsGoodAs(current, target);
+  }
+  return false;
 }
 
-OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded() {
-  if (OatFileIsUpToDate() || OdexFileIsUpToDate()) {
-    return kNoDexOptNeeded;
+bool OatFileAssistant::OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target) {
+  const OatFile* odex_file = GetOdexFile();
+  if (odex_file != nullptr) {
+    CompilerFilter::Filter current = odex_file->GetCompilerFilter();
+    return CompilerFilter::IsAsGoodAs(current, target);
+  }
+  return false;
+}
+
+OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target) {
+  bool compilation_desired = CompilerFilter::IsCompilationEnabled(target);
+
+  // See if the oat file is in good shape as is.
+  bool oat_okay = OatFileCompilerFilterIsOkay(target);
+  if (oat_okay) {
+    if (compilation_desired) {
+      if (OatFileIsUpToDate()) {
+        return kNoDexOptNeeded;
+      }
+    } else {
+      if (!OatFileIsOutOfDate()) {
+        return kNoDexOptNeeded;
+      }
+    }
   }
 
-  if (OdexFileNeedsRelocation()) {
-    return kPatchOatNeeded;
+  // See if the odex file is in good shape as is.
+  bool odex_okay = OdexFileCompilerFilterIsOkay(target);
+  if (odex_okay) {
+    if (compilation_desired) {
+      if (OdexFileIsUpToDate()) {
+        return kNoDexOptNeeded;
+      }
+    } else {
+      if (!OdexFileIsOutOfDate()) {
+        return kNoDexOptNeeded;
+      }
+    }
   }
 
-  if (OatFileNeedsRelocation()) {
-    return kSelfPatchOatNeeded;
+  // See if we can get an up-to-date file by running patchoat.
+  if (compilation_desired) {
+    if (odex_okay && OdexFileNeedsRelocation()) {
+      // TODO: don't return kPatchOatNeeded if the odex file contains no
+      // patch information.
+      return kPatchOatNeeded;
+    }
+
+    if (oat_okay && OatFileNeedsRelocation()) {
+      // TODO: don't return kSelfPatchOatNeeded if the oat file contains no
+      // patch information.
+      return kSelfPatchOatNeeded;
+    }
   }
 
+  // We can only run dex2oat if there are original dex files.
   return HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
 }
 
-bool OatFileAssistant::MakeUpToDate(std::string* error_msg) {
-  switch (GetDexOptNeeded()) {
+bool OatFileAssistant::MakeUpToDate(CompilerFilter::Filter target, std::string* error_msg) {
+  switch (GetDexOptNeeded(target)) {
     case kNoDexOptNeeded: return true;
-    case kDex2OatNeeded: return GenerateOatFile(error_msg);
+    case kDex2OatNeeded: return GenerateOatFile(target, error_msg);
     case kPatchOatNeeded: return RelocateOatFile(OdexFileName(), error_msg);
     case kSelfPatchOatNeeded: return RelocateOatFile(OatFileName(), error_msg);
   }
@@ -410,11 +445,6 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
 }
 
 bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
-  // Verify the file satisfies the desired compilation type.
-  if ((target_compilation_type_mask_ & GetCompilationType(file)) == 0) {
-    return true;
-  }
-
   // Verify the dex checksum.
   // Note: GetOatDexFile will return null if the dex checksum doesn't match
   // what we provide, which verifies the primary dex checksum for us.
@@ -457,36 +487,38 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     }
   }
 
-  if (file.IsExtractOnly()) {
-    VLOG(oat) << "Oat file is extract-only. Image checksum test skipped.";
-    if (kIsDebugBuild) {
-      // Sanity check that no classes have compiled code. Does not test that
-      // the DEX code has not been quickened.
-      std::string error_msg;
-      for (const OatFile::OatDexFile* current : file.GetOatDexFiles()) {
-        std::unique_ptr<const DexFile> dex_file = current->OpenDexFile(&error_msg);
-        DCHECK(dex_file != nullptr);
-        for (size_t i = 0, e = dex_file->NumClassDefs(); i < e; ++i) {
-          DCHECK_EQ(current->GetOatClass(i).GetType(), kOatClassNoneCompiled);
-        }
-      }
-    }
-    return false;
-  }
+  CompilerFilter::Filter current_compiler_filter = file.GetCompilerFilter();
+  VLOG(oat) << "Compiler filter for " << file.GetLocation() << " is " << current_compiler_filter;
 
   // Verify the image checksum
-  const ImageInfo* image_info = GetImageInfo();
-  if (image_info == nullptr) {
-    VLOG(oat) << "No image for oat image checksum to match against.";
-    return true;
+  if (CompilerFilter::DependsOnImageChecksum(current_compiler_filter)) {
+    const ImageInfo* image_info = GetImageInfo();
+    if (image_info == nullptr) {
+      VLOG(oat) << "No image for oat image checksum to match against.";
+      return true;
+    }
+
+    if (file.GetOatHeader().GetImageFileLocationOatChecksum() != image_info->oat_checksum) {
+      VLOG(oat) << "Oat image checksum does not match image checksum.";
+      return true;
+    }
+  } else {
+    VLOG(oat) << "Image checksum test skipped for compiler filter " << current_compiler_filter;
   }
 
-  if (file.GetOatHeader().GetImageFileLocationOatChecksum() != image_info->oat_checksum) {
-    VLOG(oat) << "Oat image checksum does not match image checksum.";
-    return true;
+  // Verify the profile hasn't changed recently.
+  // TODO: Move this check to OatFileCompilerFilterIsOkay? Nothing bad should
+  // happen if we use an oat file compiled with an out-of-date profile.
+  if (CompilerFilter::DependsOnProfile(current_compiler_filter)) {
+    if (profile_changed_) {
+      VLOG(oat) << "The profile has changed recently.";
+      return true;
+    }
+  } else {
+    VLOG(oat) << "Profile check skipped for compiler filter " << current_compiler_filter;
   }
 
-  // The checksums are all good; the dex file is not out of date.
+  // Everything looks good; the dex file is not out of date.
   return false;
 }
 
@@ -499,40 +531,44 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
     return false;
   }
 
-  if (file.IsPic() || file.IsExtractOnly()) {
-    // Oat files compiled in PIC mode do not require relocation and extract-only
-    // oat files do not contain any compiled code. Skip the relocation test.
-    VLOG(oat) << "Oat relocation test skipped.";
-    return true;
-  }
+  CompilerFilter::Filter current_compiler_filter = file.GetCompilerFilter();
 
-  const ImageInfo* image_info = GetImageInfo();
-  if (image_info == nullptr) {
-    VLOG(oat) << "No image to check oat relocation against.";
-    return false;
-  }
+  if (CompilerFilter::IsCompilationEnabled(current_compiler_filter)) {
+    if (!file.IsPic()) {
+      const ImageInfo* image_info = GetImageInfo();
+      if (image_info == nullptr) {
+        VLOG(oat) << "No image to check oat relocation against.";
+        return false;
+      }
 
-  // Verify the oat_data_begin recorded for the image in the oat file matches
-  // the actual oat_data_begin for boot.oat in the image.
-  const OatHeader& oat_header = file.GetOatHeader();
-  uintptr_t oat_data_begin = oat_header.GetImageFileLocationOatDataBegin();
-  if (oat_data_begin != image_info->oat_data_begin) {
-    VLOG(oat) << file.GetLocation() <<
-      ": Oat file image oat_data_begin (" << oat_data_begin << ")"
-      << " does not match actual image oat_data_begin ("
-      << image_info->oat_data_begin << ")";
-    return false;
-  }
+      // Verify the oat_data_begin recorded for the image in the oat file matches
+      // the actual oat_data_begin for boot.oat in the image.
+      const OatHeader& oat_header = file.GetOatHeader();
+      uintptr_t oat_data_begin = oat_header.GetImageFileLocationOatDataBegin();
+      if (oat_data_begin != image_info->oat_data_begin) {
+        VLOG(oat) << file.GetLocation() <<
+          ": Oat file image oat_data_begin (" << oat_data_begin << ")"
+          << " does not match actual image oat_data_begin ("
+          << image_info->oat_data_begin << ")";
+        return false;
+      }
 
-  // Verify the oat_patch_delta recorded for the image in the oat file matches
-  // the actual oat_patch_delta for the image.
-  int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
-  if (oat_patch_delta != image_info->patch_delta) {
-    VLOG(oat) << file.GetLocation() <<
-      ": Oat file image patch delta (" << oat_patch_delta << ")"
-      << " does not match actual image patch delta ("
-      << image_info->patch_delta << ")";
-    return false;
+      // Verify the oat_patch_delta recorded for the image in the oat file matches
+      // the actual oat_patch_delta for the image.
+      int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
+      if (oat_patch_delta != image_info->patch_delta) {
+        VLOG(oat) << file.GetLocation() <<
+          ": Oat file image patch delta (" << oat_patch_delta << ")"
+          << " does not match actual image patch delta ("
+          << image_info->patch_delta << ")";
+        return false;
+      }
+    } else {
+      // Oat files compiled in PIC mode do not require relocation.
+      VLOG(oat) << "Oat relocation test skipped for PIC oat file";
+    }
+  } else {
+    VLOG(oat) << "Oat relocation test skipped for compiler filter " << current_compiler_filter;
   }
   return true;
 }
@@ -589,17 +625,8 @@ bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
   return true;
 }
 
-bool OatFileAssistant::GenerateOatFile(std::string* error_msg) {
+bool OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::string* error_msg) {
   CHECK(error_msg != nullptr);
-
-  // TODO: Currently we only know how to make a fully-compiled oat file.
-  // Perhaps we should support generating other kinds of oat files?
-  if ((target_compilation_type_mask_ & kFullCompilation) == 0) {
-    *error_msg = "Generation of oat file for dex location " + dex_location_
-      + " not attempted because full compilation was not specified"
-      + " as an acceptable target compilation type.";
-    return false;
-  }
 
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsDex2OatEnabled()) {
@@ -642,6 +669,7 @@ bool OatFileAssistant::GenerateOatFile(std::string* error_msg) {
   args.push_back("--dex-file=" + dex_location_);
   args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
   args.push_back("--oat-location=" + oat_file_name);
+  args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(target));
 
   if (!Dex2Oat(args, error_msg)) {
     // Manually delete the file. This ensures there is no garbage left over if
@@ -751,8 +779,7 @@ bool OatFileAssistant::DexFilenameToOdexFilename(const std::string& location,
 
 std::string OatFileAssistant::DalvikCacheDirectory() {
   // Note: We don't cache this, because it will only be called once by
-  // OatFileName, and we don't care about the performance of the profiling
-  // code, which isn't used in practice.
+  // OatFileName.
 
   // TODO: The work done in GetDalvikCache is overkill for what we need.
   // Ideally a new API for getting the DalvikCacheDirectory the way we want

@@ -132,5 +132,6 @@ RUNTIME_OPTIONS_KEY (void (*)(int32_t status), \
                                                                           // We don't call abort(3) by default; see
                                                                           // Runtime::Abort.
 RUNTIME_OPTIONS_KEY (void (*)(),          HookAbort,                      nullptr)
+RUNTIME_OPTIONS_KEY (std::string,         OatFileManagerCompilerFilter,   "speed")
 
 #undef RUNTIME_OPTIONS_KEY
