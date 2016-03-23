@@ -1208,9 +1208,8 @@ void InstructionCodeGeneratorMIPS64::HandleShift(HBinaryOperation* instr) {
       }
 
       if (use_imm) {
-        uint32_t shift_value = (type == Primitive::kPrimInt)
-          ? static_cast<uint32_t>(rhs_imm & kMaxIntShiftValue)
-          : static_cast<uint32_t>(rhs_imm & kMaxLongShiftValue);
+        uint32_t shift_value = rhs_imm &
+            (type == Primitive::kPrimInt ? kMaxIntShiftDistance : kMaxLongShiftDistance);
 
         if (shift_value == 0) {
           if (dst != lhs) {

@@ -1455,9 +1455,8 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
   bool use_imm = rhs_location.IsConstant();
   Register rhs_reg = use_imm ? ZERO : rhs_location.AsRegister<Register>();
   int64_t rhs_imm = use_imm ? CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()) : 0;
-  const uint32_t shift_mask = (type == Primitive::kPrimInt)
-      ? kMaxIntShiftValue
-      : kMaxLongShiftValue;
+  const uint32_t shift_mask =
+      (type == Primitive::kPrimInt) ? kMaxIntShiftDistance : kMaxLongShiftDistance;
   const uint32_t shift_value = rhs_imm & shift_mask;
   // Are the INS (Insert Bit Field) and ROTR instructions supported?
   bool has_ins_rotr = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
