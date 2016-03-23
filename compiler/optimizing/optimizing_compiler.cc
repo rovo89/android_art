@@ -84,6 +84,8 @@
 
 namespace art {
 
+static constexpr size_t kArenaAllocatorMemoryReportThreshold = 8 * MB;
+
 /**
  * Used by the code generator, to allocate the code in a vector.
  */
@@ -761,13 +763,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     pass_observer.DumpDisassembly();
   }
 
-  if (kArenaAllocatorCountAllocations) {
-    if (arena->BytesAllocated() > 4 * MB) {
-      MemStats mem_stats(arena->GetMemStats());
-      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
-    }
-  }
-
   return codegen.release();
 }
 
@@ -812,6 +807,13 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     if (codegen.get() != nullptr) {
       MaybeRecordStat(MethodCompilationStat::kCompiled);
       method = Emit(&arena, &code_allocator, codegen.get(), compiler_driver, code_item);
+
+      if (kArenaAllocatorCountAllocations) {
+        if (arena.BytesAllocated() > kArenaAllocatorMemoryReportThreshold) {
+          MemStats mem_stats(arena.GetMemStats());
+          LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+        }
+      }
     }
   } else {
     if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
@@ -889,6 +891,13 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                    osr));
     if (codegen.get() == nullptr) {
       return false;
+    }
+
+    if (kArenaAllocatorCountAllocations) {
+      if (arena.BytesAllocated() > kArenaAllocatorMemoryReportThreshold) {
+        MemStats mem_stats(arena.GetMemStats());
+        LOG(INFO) << PrettyMethod(method_idx, *dex_file) << " " << Dumpable<MemStats>(mem_stats);
+      }
     }
   }
 
