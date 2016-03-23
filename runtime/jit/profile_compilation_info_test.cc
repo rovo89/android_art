@@ -49,7 +49,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     return methods;
   }
 
-  bool AddData(const std::string& dex_location,
+  bool AddMethod(const std::string& dex_location,
                uint32_t checksum,
                uint16_t method_index,
                ProfileCompilationInfo* info) {
@@ -118,8 +118,8 @@ TEST_F(ProfileCompilationInfoTest, SaveFd) {
   ProfileCompilationInfo saved_info;
   // Save a few methods.
   for (uint16_t i = 0; i < 10; i++) {
-    ASSERT_TRUE(AddData("dex_location1", /* checksum */ 1, /* method_idx */ i, &saved_info));
-    ASSERT_TRUE(AddData("dex_location2", /* checksum */ 2, /* method_idx */ i, &saved_info));
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, /* method_idx */ i, &saved_info));
+    ASSERT_TRUE(AddMethod("dex_location2", /* checksum */ 2, /* method_idx */ i, &saved_info));
   }
   ASSERT_TRUE(saved_info.Save(GetFd(profile)));
   ASSERT_EQ(0, profile.GetFile()->Flush());
@@ -132,9 +132,9 @@ TEST_F(ProfileCompilationInfoTest, SaveFd) {
 
   // Save more methods.
   for (uint16_t i = 0; i < 100; i++) {
-    ASSERT_TRUE(AddData("dex_location1", /* checksum */ 1, /* method_idx */ i, &saved_info));
-    ASSERT_TRUE(AddData("dex_location2", /* checksum */ 2, /* method_idx */ i, &saved_info));
-    ASSERT_TRUE(AddData("dex_location3", /* checksum */ 3, /* method_idx */ i, &saved_info));
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, /* method_idx */ i, &saved_info));
+    ASSERT_TRUE(AddMethod("dex_location2", /* checksum */ 2, /* method_idx */ i, &saved_info));
+    ASSERT_TRUE(AddMethod("dex_location3", /* checksum */ 3, /* method_idx */ i, &saved_info));
   }
   ASSERT_TRUE(profile.GetFile()->ResetOffset());
   ASSERT_TRUE(saved_info.Save(GetFd(profile)));
@@ -147,25 +147,25 @@ TEST_F(ProfileCompilationInfoTest, SaveFd) {
   ASSERT_TRUE(loaded_info2.Equals(saved_info));
 }
 
-TEST_F(ProfileCompilationInfoTest, AddDataFail) {
+TEST_F(ProfileCompilationInfoTest, AddMethodsAndClassesFail) {
   ScratchFile profile;
 
   ProfileCompilationInfo info;
-  ASSERT_TRUE(AddData("dex_location", /* checksum */ 1, /* method_idx */ 1, &info));
+  ASSERT_TRUE(AddMethod("dex_location", /* checksum */ 1, /* method_idx */ 1, &info));
   // Trying to add info for an existing file but with a different checksum.
-  ASSERT_FALSE(AddData("dex_location", /* checksum */ 2, /* method_idx */ 2, &info));
+  ASSERT_FALSE(AddMethod("dex_location", /* checksum */ 2, /* method_idx */ 2, &info));
 }
 
-TEST_F(ProfileCompilationInfoTest, LoadFail) {
+TEST_F(ProfileCompilationInfoTest, MergeFail) {
   ScratchFile profile;
 
   ProfileCompilationInfo info1;
-  ASSERT_TRUE(AddData("dex_location", /* checksum */ 1, /* method_idx */ 1, &info1));
+  ASSERT_TRUE(AddMethod("dex_location", /* checksum */ 1, /* method_idx */ 1, &info1));
   // Use the same file, change the checksum.
   ProfileCompilationInfo info2;
-  ASSERT_TRUE(AddData("dex_location", /* checksum */ 2, /* method_idx */ 2, &info2));
+  ASSERT_TRUE(AddMethod("dex_location", /* checksum */ 2, /* method_idx */ 2, &info2));
 
-  ASSERT_FALSE(info1.Load(info2));
+  ASSERT_FALSE(info1.MergeWith(info2));
 }
 
 }  // namespace art

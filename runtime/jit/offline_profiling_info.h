@@ -49,14 +49,23 @@ class ProfileCompilationInfo {
                                 const std::set<DexCacheResolvedClasses>& resolved_classes,
                                 uint64_t* bytes_written = nullptr);
 
+  // Add the given methods and classes to the current profile object.
+  bool AddMethodsAndClasses(const std::vector<ArtMethod*>& methods,
+                            const std::set<DexCacheResolvedClasses>& resolved_classes);
   // Loads profile information from the given file descriptor.
   bool Load(int fd);
-  // Loads the data from another ProfileCompilationInfo object.
-  bool Load(const ProfileCompilationInfo& info);
+  // Merge the data from another ProfileCompilationInfo into the current object.
+  bool MergeWith(const ProfileCompilationInfo& info);
   // Saves the profile data to the given file descriptor.
   bool Save(int fd);
+  // Loads and merges profile information from the given file into the current
+  // object and tries to save it back to disk.
+  bool MergeAndSave(const std::string& filename, uint64_t* bytes_written);
+
   // Returns the number of methods that were profiled.
   uint32_t GetNumberOfMethods() const;
+  // Returns the number of resolved classes that were profiled.
+  uint32_t GetNumberOfResolvedClasses() const;
 
   // Returns true if the method reference is present in the profiling info.
   bool ContainsMethod(const MethodReference& method_ref) const;
@@ -71,14 +80,17 @@ class ProfileCompilationInfo {
   std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
                        bool print_full_dex_location = true) const;
 
-  // For testing purposes.
   bool Equals(const ProfileCompilationInfo& other);
+
   static std::string GetProfileDexFileKey(const std::string& dex_location);
 
   // Returns the class descriptors for all of the classes in the profiles' class sets.
   // Note the dex location is actually the profile key, the caller needs to call back in to the
   // profile info stuff to generate a map back to the dex location.
   std::set<DexCacheResolvedClasses> GetResolvedClasses() const;
+
+  // Clears the resolved classes from the current object.
+  void ClearResolvedClasses();
 
  private:
   struct DexFileData {
