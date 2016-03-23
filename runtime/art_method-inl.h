@@ -264,13 +264,6 @@ inline bool ArtMethod::IsResolutionMethod() {
   return result;
 }
 
-inline bool ArtMethod::IsImtConflictMethod() {
-  bool result = this == Runtime::Current()->GetImtConflictMethod();
-  // Check that if we do think it is phony it looks like the imt conflict method.
-  DCHECK(!result || IsRuntimeMethod());
-  return result;
-}
-
 inline bool ArtMethod::IsImtUnimplementedMethod() {
   bool result = this == Runtime::Current()->GetImtUnimplementedMethod();
   // Check that if we do think it is phony it looks like the imt unimplemented method.
@@ -463,7 +456,10 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
       interface_method->VisitRoots(visitor, pointer_size);
     }
     visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
-    if (!IsNative()) {
+    // Runtime methods and native methods use the same field as the profiling info for
+    // storing their own data (jni entrypoint for native methods, and ImtConflictTable for
+    // some runtime methods).
+    if (!IsNative() && !IsRuntimeMethod()) {
       ProfilingInfo* profiling_info = GetProfilingInfo(pointer_size);
       if (profiling_info != nullptr) {
         profiling_info->VisitRoots(visitor);

@@ -44,6 +44,76 @@ class Class;
 class PointerArray;
 }  // namespace mirror
 
+// Table to resolve IMT conflicts at runtime. The table is attached to
+// the jni entrypoint of IMT conflict ArtMethods.
+// The table contains a list of pairs of { interface_method, implementation_method }
+// with the last entry being null to make an assembly implementation of a lookup
+// faster.
+class ImtConflictTable {
+ public:
+  // Build a new table copying `other` and adding the new entry formed of
+  // the pair { `interface_method`, `implementation_method` }
+  ImtConflictTable(ImtConflictTable* other,
+                   ArtMethod* interface_method,
+                   ArtMethod* implementation_method) {
+    size_t index = 0;
+    while (other->entries_[index].interface_method != nullptr) {
+      entries_[index] = other->entries_[index];
+      index++;
+    }
+    entries_[index].interface_method = interface_method;
+    entries_[index].implementation_method = implementation_method;
+    // Add the null marker.
+    entries_[index + 1].interface_method = nullptr;
+    entries_[index + 1].implementation_method = nullptr;
+  }
+
+  // Lookup the implementation ArtMethod associated to `interface_method`. Return null
+  // if not found.
+  ArtMethod* Lookup(ArtMethod* interface_method) const {
+    uint32_t table_index = 0;
+    ArtMethod* current_interface_method;
+    while ((current_interface_method = entries_[table_index].interface_method) != nullptr) {
+      if (current_interface_method == interface_method) {
+        return entries_[table_index].implementation_method;
+      }
+      table_index++;
+    }
+    return nullptr;
+  }
+
+  // Compute the size in bytes taken by this table.
+  size_t ComputeSize() const {
+    uint32_t table_index = 0;
+    size_t total_size = 0;
+    while ((entries_[table_index].interface_method) != nullptr) {
+      total_size += sizeof(Entry);
+      table_index++;
+    }
+    // Add the end marker.
+    return total_size + sizeof(Entry);
+  }
+
+  // Compute the size in bytes needed for copying the given `table` and add
+  // one more entry.
+  static size_t ComputeSizeWithOneMoreEntry(ImtConflictTable* table) {
+    return table->ComputeSize() + sizeof(Entry);
+  }
+
+  struct Entry {
+    ArtMethod* interface_method;
+    ArtMethod* implementation_method;
+  };
+
+ private:
+  // Array of entries that the assembly stubs will iterate over. Note that this is
+  // not fixed size, and we allocate data prior to calling the constructor
+  // of ImtConflictTable.
+  Entry entries_[0];
+
+  DISALLOW_COPY_AND_ASSIGN(ImtConflictTable);
+};
+
 class ArtMethod FINAL {
  public:
   ArtMethod() : access_flags_(0), dex_code_item_offset_(0), dex_method_index_(0),
@@ -338,6 +408,15 @@ class ArtMethod FINAL {
     return reinterpret_cast<ProfilingInfo*>(GetEntryPointFromJniPtrSize(pointer_size));
   }
 
+  ImtConflictTable* GetImtConflictTable(size_t pointer_size) {
+    DCHECK(IsRuntimeMethod());
+    return reinterpret_cast<ImtConflictTable*>(GetEntryPointFromJniPtrSize(pointer_size));
+  }
+
+  ALWAYS_INLINE void SetImtConflictTable(ImtConflictTable* table) {
+    SetEntryPointFromJniPtrSize(table, sizeof(void*));
+  }
+
   ALWAYS_INLINE void SetProfilingInfo(ProfilingInfo* info) {
     SetEntryPointFromJniPtrSize(info, sizeof(void*));
   }
@@ -375,8 +454,6 @@ class ArtMethod FINAL {
   bool IsCalleeSaveMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool IsResolutionMethod() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  bool IsImtConflictMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool IsImtUnimplementedMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -537,7 +614,7 @@ class ArtMethod FINAL {
     GcRoot<mirror::Class>* dex_cache_resolved_types_;
 
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
-    // or the profiling data for non-native methods.
+    // or the profiling data for non-native methods, or an ImtConflictTable.
     void* entry_point_from_jni_;
 
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
