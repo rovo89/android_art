@@ -172,8 +172,8 @@ class RegType {
   }
   virtual bool HasClassVirtual() const { return false; }
   bool IsJavaLangObject() const SHARED_REQUIRES(Locks::mutator_lock_);
-  bool IsArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_);
-  bool IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_);
+  virtual bool IsArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_);
+  virtual bool IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_);
   Primitive::Type GetPrimitiveType() const;
   bool IsJavaLangObjectArray() const
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -904,6 +904,9 @@ class UnresolvedMergedType FINAL : public UnresolvedType {
   bool IsUnresolvedMergedReference() const OVERRIDE { return true; }
 
   bool IsUnresolvedTypes() const OVERRIDE { return true; }
+
+  bool IsArrayTypes() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsObjectArrayTypes() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::string Dump() const OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
