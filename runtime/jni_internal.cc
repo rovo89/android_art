@@ -2419,8 +2419,6 @@ class JNI {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     bool is_copy = array_data != elements;
     size_t bytes = array->GetLength() * component_size;
-    VLOG(heap) << "Release primitive array " << soa.Env() << " array_data " << array_data
-               << " elements " << elements;
     if (is_copy) {
       // Sanity check: If elements is not the same as the java array's data, it better not be a
       // heap address. TODO: This might be slow to check, may be worth keeping track of which
