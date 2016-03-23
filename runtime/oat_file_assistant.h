@@ -24,7 +24,6 @@
 #include "arch/instruction_set.h"
 #include "base/scoped_flock.h"
 #include "base/unix_file/fd_file.h"
-#include "compiler_filter.h"
 #include "oat_file.h"
 #include "os.h"
 #include "profiler.h"
@@ -86,6 +85,20 @@ class OatFileAssistant {
     kOatUpToDate,
   };
 
+  // Represents the different compilation types of oat files that OatFileAssitant
+  // and external GetDexOptNeeded callers care about.
+  // Note: these should be able to be used as part of a mask.
+  enum CompilationType {
+    // Matches Java: dalvik.system.DexFile.COMPILATION_TYPE_FULL = 1
+    kFullCompilation = 1,
+
+    // Matches Java: dalvik.system.DexFile.COMPILATION_TYPE_PROFILE_GUIDE = 2
+    kProfileGuideCompilation = 2,
+
+    // Matches Java: dalvik.system.DexFile.COMPILATION_TYPE_EXTRACT_ONLY = 4
+    kExtractOnly = 4,
+  };
+
   // Constructs an OatFileAssistant object to assist the oat file
   // corresponding to the given dex location with the target instruction set.
   //
@@ -97,26 +110,27 @@ class OatFileAssistant {
   // Note: Currently the dex_location must have an extension.
   // TODO: Relax this restriction?
   //
+  // The target compilation type specifies a set of CompilationTypes that
+  // should be considered up to date. An oat file compiled in a way not
+  // included in the set is considered out of date. For example, to consider
+  // otherwise up-to-date fully compiled and profile-guide compiled oat
+  // files as up to date, but to consider extract-only files as out of date,
+  // specify: (kFullCompilation | kProfileGuideCompilation).
+  //
   // The isa should be either the 32 bit or 64 bit variant for the current
   // device. For example, on an arm device, use arm or arm64. An oat file can
   // be loaded executable only if the ISA matches the current runtime.
-  //
-  // profile_changed should be true if the profile has recently changed
-  // for this dex location.
-  //
-  // load_executable should be true if the caller intends to try and load
-  // executable code for this dex location.
   OatFileAssistant(const char* dex_location,
+                   int target_compilation_type_mask,
                    const InstructionSet isa,
-                   bool profile_changed,
                    bool load_executable);
 
   // Constructs an OatFileAssistant, providing an explicit target oat_location
   // to use instead of the standard oat location.
   OatFileAssistant(const char* dex_location,
                    const char* oat_location,
+                   int target_compilation_type_mask,
                    const InstructionSet isa,
-                   bool profile_changed,
                    bool load_executable);
 
   ~OatFileAssistant();
@@ -144,18 +158,16 @@ class OatFileAssistant {
   bool Lock(std::string* error_msg);
 
   // Return what action needs to be taken to produce up-to-date code for this
-  // dex location that is at least as good as an oat file generated with the
-  // given compiler filter.
-  DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter);
+  // dex location.
+  DexOptNeeded GetDexOptNeeded();
 
   // Attempts to generate or relocate the oat file as needed to make it up to
-  // date with in a way that is at least as good as an oat file generated with
-  // the given compiler filter.
+  // date.
   // Returns true on success.
   //
   // If there is a failure, the value of error_msg will be set to a string
   // describing why there was failure. error_msg must not be null.
-  bool MakeUpToDate(CompilerFilter::Filter target_compiler_filter, std::string* error_msg);
+  bool MakeUpToDate(std::string* error_msg);
 
   // Returns an oat file that can be used for loading dex files.
   // Returns null if no suitable oat file was found.
@@ -239,7 +251,7 @@ class OatFileAssistant {
   // describing why there was failure. error_msg must not be null.
   bool RelocateOatFile(const std::string* input_file, std::string* error_msg);
 
-  // Generate the oat file from the dex file using the given compiler filter.
+  // Generate the oat file from the dex file.
   // This does not check the current status before attempting to generate the
   // oat file.
   // Returns true on success.
@@ -247,7 +259,7 @@ class OatFileAssistant {
   //
   // If there is a failure, the value of error_msg will be set to a string
   // describing why there was failure. error_msg must not be null.
-  bool GenerateOatFile(CompilerFilter::Filter filter, std::string* error_msg);
+  bool GenerateOatFile(std::string* error_msg);
 
   // Executes dex2oat using the current runtime configuration overridden with
   // the given arguments. This does not check to see if dex2oat is enabled in
@@ -303,10 +315,6 @@ class OatFileAssistant {
   // The caller shouldn't clean up or free the returned pointer.
   const OatFile* GetOdexFile();
 
-  // Returns true if the compiler filter used to generate the odex file is at
-  // least as good as the given target filter.
-  bool OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target);
-
   // Returns true if the odex file is opened executable.
   bool OdexFileIsExecutable();
 
@@ -318,10 +326,6 @@ class OatFileAssistant {
   // Loads the file if needed. Returns null if the file failed to load.
   // The caller shouldn't clean up or free the returned pointer.
   const OatFile* GetOatFile();
-
-  // Returns true if the compiler filter used to generate the oat file is at
-  // least as good as the given target filter.
-  bool OatFileCompilerFilterIsOkay(CompilerFilter::Filter target);
 
   // Returns true if the oat file is opened executable.
   bool OatFileIsExecutable();
@@ -342,13 +346,11 @@ class OatFileAssistant {
   ScopedFlock flock_;
 
   std::string dex_location_;
+  const int target_compilation_type_mask_;
 
   // In a properly constructed OatFileAssistant object, isa_ should be either
   // the 32 or 64 bit variant for the current device.
   const InstructionSet isa_ = kNone;
-
-  // Whether the profile has recently changed.
-  bool profile_changed_ = false;
 
   // Whether we will attempt to load oat files executable.
   bool load_executable_ = false;

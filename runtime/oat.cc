@@ -29,6 +29,8 @@ constexpr uint8_t OatHeader::kOatMagic[4];
 constexpr uint8_t OatHeader::kOatVersion[4];
 constexpr const char OatHeader::kTrueValue[];
 constexpr const char OatHeader::kFalseValue[];
+constexpr const char OatHeader::kExtractOnlyValue[];
+constexpr const char OatHeader::kProfileGuideCompiledValue[];
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -470,13 +472,16 @@ bool OatHeader::IsNativeDebuggable() const {
   return IsKeyEnabled(OatHeader::kNativeDebuggableKey);
 }
 
-CompilerFilter::Filter OatHeader::GetCompilerFilter() const {
-  CompilerFilter::Filter filter;
-  const char* key_value = GetStoreValueByKey(kCompilerFilter);
-  CHECK(key_value != nullptr) << "compiler-filter not found in oat header";
-  CHECK(CompilerFilter::ParseCompilerFilter(key_value, &filter))
-      << "Invalid compiler-filter in oat header: " << key_value;
-  return filter;
+bool OatHeader::IsExtractOnly() const {
+  return KeyHasValue(kCompilationType,
+                     kExtractOnlyValue,
+                     sizeof(kExtractOnlyValue));
+}
+
+bool OatHeader::IsProfileGuideCompiled() const {
+  return KeyHasValue(kCompilationType,
+                     kProfileGuideCompiledValue,
+                     sizeof(kProfileGuideCompiledValue));
 }
 
 bool OatHeader::KeyHasValue(const char* key, const char* value, size_t value_size) const {
