@@ -145,8 +145,8 @@ void HGraphBuilder::MaybeRecordStat(MethodCompilationStat compilation_stat) {
 bool HGraphBuilder::SkipCompilation(const DexFile::CodeItem& code_item,
                                     size_t number_of_branches) {
   const CompilerOptions& compiler_options = compiler_driver_->GetCompilerOptions();
-  CompilerFilter::Filter compiler_filter = compiler_options.GetCompilerFilter();
-  if (compiler_filter == CompilerFilter::kEverything) {
+  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
+  if (compiler_filter == CompilerOptions::kEverything) {
     return false;
   }
 

@@ -54,8 +54,7 @@ class NoPatchoatTest {
     }
 
     const OatFile* oat_file = oat_dex_file->GetOatFile();
-    return !oat_file->IsPic()
-        && CompilerFilter::IsCompilationEnabled(oat_file->GetCompilerFilter());
+    return !oat_file->IsPic() && !oat_file->IsExtractOnly();
   }
 };
 

@@ -52,7 +52,7 @@ CompilerOptions::~CompilerOptions() {
   // because we don't want to include the PassManagerOptions definition from the header file.
 }
 
-CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
+CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
                                  size_t huge_method_threshold,
                                  size_t large_method_threshold,
                                  size_t small_method_threshold,
@@ -147,7 +147,25 @@ void CompilerOptions::ParseDumpInitFailures(const StringPiece& option,
 bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usage) {
   if (option.starts_with("--compiler-filter=")) {
     const char* compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
-    if (!CompilerFilter::ParseCompilerFilter(compiler_filter_string, &compiler_filter_)) {
+    if (strcmp(compiler_filter_string, "verify-none") == 0) {
+      compiler_filter_ = CompilerOptions::kVerifyNone;
+    } else if (strcmp(compiler_filter_string, "interpret-only") == 0) {
+      compiler_filter_ = CompilerOptions::kInterpretOnly;
+    } else if (strcmp(compiler_filter_string, "verify-at-runtime") == 0) {
+      compiler_filter_ = CompilerOptions::kVerifyAtRuntime;
+    } else if (strcmp(compiler_filter_string, "space") == 0) {
+      compiler_filter_ = CompilerOptions::kSpace;
+    } else if (strcmp(compiler_filter_string, "balanced") == 0) {
+      compiler_filter_ = CompilerOptions::kBalanced;
+    } else if (strcmp(compiler_filter_string, "speed") == 0) {
+      compiler_filter_ = CompilerOptions::kSpeed;
+    } else if (strcmp(compiler_filter_string, "everything") == 0) {
+      compiler_filter_ = CompilerOptions::kEverything;
+    } else if (strcmp(compiler_filter_string, "time") == 0) {
+      compiler_filter_ = CompilerOptions::kTime;
+    } else if (strcmp(compiler_filter_string, "verify-profile") == 0) {
+      compiler_filter_ = CompilerOptions::kVerifyProfile;
+    } else {
       Usage("Unknown --compiler-filter value %s", compiler_filter_string);
     }
   } else if (option == "--compile-pic") {

@@ -308,10 +308,13 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   Locks::mutator_lock_->AssertNotHeld(self);
   Runtime* const runtime = Runtime::Current();
 
+  int target_compilation_type_mask = OatFileAssistant::kFullCompilation
+    | OatFileAssistant::kProfileGuideCompilation
+    | OatFileAssistant::kExtractOnly;
   OatFileAssistant oat_file_assistant(dex_location,
                                       oat_location,
+                                      target_compilation_type_mask,
                                       kRuntimeISA,
-                                      /*profile_changed*/false,
                                       !runtime->IsAotCompiler());
 
   // Lock the target oat location to avoid races generating and loading the
@@ -327,7 +330,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
 
   // Update the oat file on disk if we can. This may fail, but that's okay.
   // Best effort is all that matters here.
-  if (!oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, /*out*/ &error_msg)) {
+  if (!oat_file_assistant.MakeUpToDate(/*out*/&error_msg)) {
     LOG(INFO) << error_msg;
   }
 
@@ -481,7 +484,15 @@ void OatFileManager::DumpForSigQuit(std::ostream& os) {
     if (ContainsElement(boot_oat_files, oat_file.get())) {
       continue;
     }
-    os << oat_file->GetLocation() << ": " << oat_file->GetCompilerFilter() << "\n";
+    // Use "platform-default" if it's neither extract nor profile guided.
+    // Saying 'full' could be misleading if for example the platform uses
+    // compiler filters.
+    const char* status = oat_file->IsExtractOnly()
+        ? OatHeader::kExtractOnlyValue
+        : oat_file->IsProfileGuideCompiled()
+            ? OatHeader::kProfileGuideCompiledValue
+            : "platform-default";
+    os << oat_file->GetLocation() << ": " << status << "\n";
   }
 }
 

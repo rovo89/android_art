@@ -109,7 +109,7 @@ bool VerificationResults::IsCandidateForCompilation(MethodReference&,
     return false;
   }
   // Don't compile class initializers unless kEverything.
-  if ((compiler_options_->GetCompilerFilter() != CompilerFilter::kEverything) &&
+  if ((compiler_options_->GetCompilerFilter() != CompilerOptions::kEverything) &&
      ((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
     return false;
   }
