@@ -21,7 +21,6 @@
 #include "art_method.h"
 #include "class_linker.h"
 #include "compiled_method.h"
-#include "dex/pass_manager.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"

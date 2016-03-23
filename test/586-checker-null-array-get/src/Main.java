@@ -17,6 +17,7 @@
 public class Main {
   public static Object[] getObjectArray() { return null; }
   public static long[] getLongArray() { return null; }
+  public static Object getNull() { return null; }
 
   public static void main(String[] args) {
     try {
@@ -35,6 +36,36 @@ public class Main {
   public static void foo() {
     longField = getLongArray()[0];
     objectField = getObjectArray()[0];
+  }
+
+  /// CHECK-START: void Main.bar() load_store_elimination (after)
+  /// CHECK-DAG: <<Null:l\d+>>       NullConstant
+  /// CHECK-DAG: <<BoundType:l\d+>>  BoundType [<<Null>>]
+  /// CHECK-DAG: <<CheckL:l\d+>>     NullCheck [<<BoundType>>]
+  /// CHECK-DAG: <<GetL0:l\d+>>      ArrayGet [<<CheckL>>,{{i\d+}}]
+  /// CHECK-DAG: <<GetL1:l\d+>>      ArrayGet [<<CheckL>>,{{i\d+}}]
+  /// CHECK-DAG: <<GetL2:l\d+>>      ArrayGet [<<CheckL>>,{{i\d+}}]
+  /// CHECK-DAG: <<GetL3:l\d+>>      ArrayGet [<<CheckL>>,{{i\d+}}]
+  /// CHECK-DAG: <<CheckJ:l\d+>>     NullCheck [<<Null>>]
+  /// CHECK-DAG: <<GetJ0:j\d+>>      ArrayGet [<<CheckJ>>,{{i\d+}}]
+  /// CHECK-DAG: <<GetJ1:j\d+>>      ArrayGet [<<CheckJ>>,{{i\d+}}]
+  /// CHECK-DAG: <<GetJ2:j\d+>>      ArrayGet [<<CheckJ>>,{{i\d+}}]
+  /// CHECK-DAG: <<GetJ3:j\d+>>      ArrayGet [<<CheckJ>>,{{i\d+}}]
+  public static void bar() {
+    // We create multiple accesses that will lead the bounds check
+    // elimination pass to add a HDeoptimize. Not having the bounds check helped
+    // the load store elimination think it could merge two ArrayGet with different
+    // types.
+    String[] array = ((String[])getNull());
+    objectField = array[0];
+    objectField = array[1];
+    objectField = array[2];
+    objectField = array[3];
+    long[] longArray = getLongArray();
+    longField = longArray[0];
+    longField = longArray[1];
+    longField = longArray[2];
+    longField = longArray[3];
   }
 
   public static long longField;

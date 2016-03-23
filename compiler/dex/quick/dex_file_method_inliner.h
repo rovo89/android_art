@@ -31,12 +31,6 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
-class BasicBlock;
-struct CallInfo;
-class MIR;
-class MIRGraph;
-class Mir2Lir;
-
 /**
  * Handles inlining of methods from a particular DexFile.
  *
@@ -75,25 +69,9 @@ class DexFileMethodInliner {
     bool IsIntrinsic(uint32_t method_index, InlineMethod* intrinsic) REQUIRES(!lock_);
 
     /**
-     * Generate code for an intrinsic function invocation.
-     */
-    bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) REQUIRES(!lock_);
-
-    /**
      * Check whether a particular method index corresponds to a special function.
      */
     bool IsSpecial(uint32_t method_index) REQUIRES(!lock_);
-
-    /**
-     * Generate code for a special function.
-     */
-    bool GenSpecial(Mir2Lir* backend, uint32_t method_idx) REQUIRES(!lock_);
-
-    /**
-     * Try to inline an invoke.
-     */
-    bool GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke, uint32_t method_idx)
-        REQUIRES(!lock_);
 
     /**
      * Gets the thread pointer entrypoint offset for a string init method index and pointer size.
@@ -404,15 +382,6 @@ class DexFileMethodInliner {
     friend class DexFileToMethodInlinerMap;
 
     bool AddInlineMethod(int32_t method_idx, const InlineMethod& method) REQUIRES(!lock_);
-
-    static bool GenInlineConst(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                               MIR* move_result, const InlineMethod& method);
-    static bool GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                                   MIR* move_result, const InlineMethod& method);
-    static bool GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                              MIR* move_result, const InlineMethod& method);
-    static bool GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                              MIR* move_result, const InlineMethod& method);
 
     ReaderWriterMutex lock_;
     /*

@@ -548,7 +548,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
       uint32_t imt_index = resolved_method->GetDexMethodIndex() % mirror::Class::kImtSize;
       ArtMethod* imt_method = (*this_object)->GetClass()->GetEmbeddedImTableEntry(
           imt_index, class_linker->GetImagePointerSize());
-      if (!imt_method->IsImtConflictMethod() && !imt_method->IsImtUnimplementedMethod()) {
+      if (!imt_method->IsRuntimeMethod()) {
         if (kIsDebugBuild) {
           mirror::Class* klass = (*this_object)->GetClass();
           ArtMethod* method = klass->FindVirtualMethodForInterface(

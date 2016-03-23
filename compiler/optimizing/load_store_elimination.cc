@@ -186,7 +186,10 @@ class HeapLocationCollector : public HGraphVisitor {
       : HGraphVisitor(graph),
         ref_info_array_(graph->GetArena()->Adapter(kArenaAllocLSE)),
         heap_locations_(graph->GetArena()->Adapter(kArenaAllocLSE)),
-        aliasing_matrix_(graph->GetArena(), kInitialAliasingMatrixBitVectorSize, true),
+        aliasing_matrix_(graph->GetArena(),
+                         kInitialAliasingMatrixBitVectorSize,
+                         true,
+                         kArenaAllocLSE),
         has_heap_stores_(false),
         has_volatile_(false),
         has_monitor_operations_(false),
@@ -738,10 +741,12 @@ class LSEVisitor : public HGraphVisitor {
           DCHECK(instruction->IsArrayGet()) << instruction->DebugName();
           HInstruction* array = instruction->AsArrayGet()->GetArray();
           DCHECK(array->IsNullCheck()) << array->DebugName();
-          DCHECK(array->InputAt(0)->IsNullConstant()) << array->InputAt(0)->DebugName();
+          HInstruction* input = HuntForOriginalReference(array->InputAt(0));
+          DCHECK(input->IsNullConstant()) << input->DebugName();
           array = heap_value->AsArrayGet()->GetArray();
           DCHECK(array->IsNullCheck()) << array->DebugName();
-          DCHECK(array->InputAt(0)->IsNullConstant()) << array->InputAt(0)->DebugName();
+          input = HuntForOriginalReference(array->InputAt(0));
+          DCHECK(input->IsNullConstant()) << input->DebugName();
         }
         return;
       }

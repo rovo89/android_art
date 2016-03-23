@@ -30,7 +30,10 @@ class GraphChecker : public HGraphDelegateVisitor {
     : HGraphDelegateVisitor(graph),
       errors_(graph->GetArena()->Adapter(kArenaAllocGraphChecker)),
       dump_prefix_(dump_prefix),
-      seen_ids_(graph->GetArena(), graph->GetCurrentInstructionId(), false) {}
+      seen_ids_(graph->GetArena(),
+                graph->GetCurrentInstructionId(),
+                false,
+                kArenaAllocGraphChecker) {}
 
   // Check the whole graph (in reverse post-order).
   void Run() {
@@ -56,6 +59,7 @@ class GraphChecker : public HGraphDelegateVisitor {
   void VisitInstanceOf(HInstanceOf* check) OVERRIDE;
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
   void VisitLoadException(HLoadException* load) OVERRIDE;
+  void VisitNeg(HNeg* instruction) OVERRIDE;
   void VisitPackedSwitch(HPackedSwitch* instruction) OVERRIDE;
   void VisitReturn(HReturn* ret) OVERRIDE;
   void VisitReturnVoid(HReturnVoid* ret) OVERRIDE;

@@ -1986,7 +1986,7 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method,
                                          const ImageInfo& image_info,
                                          bool* quick_is_interpreted) {
   DCHECK(!method->IsResolutionMethod()) << PrettyMethod(method);
-  DCHECK(!method->IsImtConflictMethod()) << PrettyMethod(method);
+  DCHECK_NE(method, Runtime::Current()->GetImtConflictMethod()) << PrettyMethod(method);
   DCHECK(!method->IsImtUnimplementedMethod()) << PrettyMethod(method);
   DCHECK(method->IsInvokable()) << PrettyMethod(method);
   DCHECK(!IsInBootImage(method)) << PrettyMethod(method);

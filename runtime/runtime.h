@@ -386,7 +386,8 @@ class Runtime {
   void SetImtConflictMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
   void SetImtUnimplementedMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* CreateImtConflictMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* CreateImtConflictMethod(LinearAlloc* linear_alloc)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {

@@ -53,6 +53,32 @@ static void RotateEntryPhiFirst(HLoopInformation* loop,
   }
 }
 
+/**
+ * Returns true if the from/to types denote a narrowing, integral conversion (precision loss).
+ */
+static bool IsNarrowingIntegralConversion(Primitive::Type from, Primitive::Type to) {
+  switch (from) {
+    case Primitive::kPrimLong:
+      return to == Primitive::kPrimByte || to == Primitive::kPrimShort
+          || to == Primitive::kPrimChar || to == Primitive::kPrimInt;
+    case Primitive::kPrimInt:
+      return to == Primitive::kPrimByte || to == Primitive::kPrimShort
+          || to == Primitive::kPrimChar;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      return to == Primitive::kPrimByte;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Returns narrowest data type.
+ */
+static Primitive::Type Narrowest(Primitive::Type type1, Primitive::Type type2) {
+  return Primitive::ComponentSize(type1) <= Primitive::ComponentSize(type2) ? type1 : type2;
+}
+
 //
 // Class methods.
 //
@@ -148,6 +174,9 @@ void HInductionVarAnalysis::VisitNode(HLoopInformation* loop, HInstruction* inst
       }
     }
 
+    // Type of induction.
+    type_ = scc_[0]->GetType();
+
     // Classify the SCC.
     if (scc_.size() == 1 && !scc_[0]->IsLoopHeaderPhi()) {
       ClassifyTrivial(loop, scc_[0]);
@@ -197,14 +226,13 @@ void HInductionVarAnalysis::ClassifyTrivial(HLoopInformation* loop, HInstruction
                        instruction->InputAt(0)->GetType());
   } else if (instruction->IsNeg()) {
     info = TransferNeg(LookupInfo(loop, instruction->InputAt(0)));
+  } else if (instruction->IsTypeConversion()) {
+    info = TransferCnv(LookupInfo(loop, instruction->InputAt(0)),
+                       instruction->AsTypeConversion()->GetInputType(),
+                       instruction->AsTypeConversion()->GetResultType());
+
   } else if (instruction->IsBoundsCheck()) {
     info = LookupInfo(loop, instruction->InputAt(0));  // Pass-through.
-  } else if (instruction->IsTypeConversion()) {
-    HTypeConversion* conversion = instruction->AsTypeConversion();
-    // TODO: accept different conversion scenarios.
-    if (conversion->GetResultType() == conversion->GetInputType()) {
-      info = LookupInfo(loop, conversion->GetInput());
-    }
   }
 
   // Successfully classified?
@@ -239,7 +267,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
   if (size == 1) {
     InductionInfo* update = TransferPhi(loop, phi, /* input_index */ 1);
     if (update != nullptr) {
-      AssignInfo(loop, phi, CreateInduction(kWrapAround, initial, update));
+      AssignInfo(loop, phi, CreateInduction(kWrapAround, initial, update, type_));
     }
     return;
   }
@@ -257,6 +285,8 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     } else if (instruction->IsSub()) {
       update = SolveAddSub(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kSub, true);
+    } else if (instruction->IsTypeConversion()) {
+      update = SolveCnv(instruction->AsTypeConversion());
     }
     if (update == nullptr) {
       return;
@@ -271,7 +301,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
       case kInvariant:
         // Classify first phi and then the rest of the cycle "on-demand".
         // Statements are scanned in order.
-        AssignInfo(loop, phi, CreateInduction(kLinear, induction, initial));
+        AssignInfo(loop, phi, CreateInduction(kLinear, induction, initial, type_));
         for (size_t i = 1; i < size; i++) {
           ClassifyTrivial(loop, scc_[i]);
         }
@@ -301,9 +331,10 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::RotatePeriodicInduc
   //   (b, c, d, e, a)
   // in preparation of assigning this to the previous variable in the sequence.
   if (induction->induction_class == kInvariant) {
-    return CreateInduction(kPeriodic, induction, last);
+    return CreateInduction(kPeriodic, induction, last, type_);
   }
-  return CreateInduction(kPeriodic, induction->op_a, RotatePeriodicInduction(induction->op_b, last));
+  return CreateInduction(
+      kPeriodic, induction->op_a, RotatePeriodicInduction(induction->op_b, last), type_);
 }
 
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferPhi(HLoopInformation* loop,
@@ -332,8 +363,10 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
     if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(op, a, b);
     } else if (a->induction_class == kLinear && b->induction_class == kLinear) {
-      return CreateInduction(
-          kLinear, TransferAddSub(a->op_a, b->op_a, op), TransferAddSub(a->op_b, b->op_b, op));
+      return CreateInduction(kLinear,
+                             TransferAddSub(a->op_a, b->op_a, op),
+                             TransferAddSub(a->op_b, b->op_b, op),
+                             type_);
     } else if (a->induction_class == kInvariant) {
       InductionInfo* new_a = b->op_a;
       InductionInfo* new_b = TransferAddSub(a, b->op_b, op);
@@ -343,7 +376,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
       } else if (op == kSub) {  // Negation required.
         new_a = TransferNeg(new_a);
       }
-      return CreateInduction(b->induction_class, new_a, new_b);
+      return CreateInduction(b->induction_class, new_a, new_b, type_);
     } else if (b->induction_class == kInvariant) {
       InductionInfo* new_a = a->op_a;
       InductionInfo* new_b = TransferAddSub(a->op_b, b, op);
@@ -351,7 +384,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
         DCHECK(a->induction_class == kWrapAround || a->induction_class == kPeriodic);
         new_a = TransferAddSub(new_a, b, op);
       }
-      return CreateInduction(a->induction_class, new_a, new_b);
+      return CreateInduction(a->induction_class, new_a, new_b, type_);
     }
   }
   return nullptr;
@@ -366,9 +399,15 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferMul(Inducti
     if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(kMul, a, b);
     } else if (a->induction_class == kInvariant) {
-      return CreateInduction(b->induction_class, TransferMul(a, b->op_a), TransferMul(a, b->op_b));
+      return CreateInduction(b->induction_class,
+                             TransferMul(a, b->op_a),
+                             TransferMul(a, b->op_b),
+                             type_);
     } else if (b->induction_class == kInvariant) {
-      return CreateInduction(a->induction_class, TransferMul(a->op_a, b), TransferMul(a->op_b, b));
+      return CreateInduction(a->induction_class,
+                             TransferMul(a->op_a, b),
+                             TransferMul(a->op_b, b),
+                             type_);
     }
   }
   return nullptr;
@@ -400,7 +439,24 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferNeg(Inducti
     if (a->induction_class == kInvariant) {
       return CreateInvariantOp(kNeg, nullptr, a);
     }
-    return CreateInduction(a->induction_class, TransferNeg(a->op_a), TransferNeg(a->op_b));
+    return CreateInduction(a->induction_class, TransferNeg(a->op_a), TransferNeg(a->op_b), type_);
+  }
+  return nullptr;
+}
+
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferCnv(InductionInfo* a,
+                                                                         Primitive::Type from,
+                                                                         Primitive::Type to) {
+  if (a != nullptr) {
+    // Allow narrowing conversion in certain cases.
+    if (IsNarrowingIntegralConversion(from, to)) {
+      if (a->induction_class == kLinear) {
+        if (a->type == to || (a->type == from && IsNarrowingIntegralConversion(from, to))) {
+          return CreateInduction(kLinear, a->op_a, a->op_b, to);
+        }
+      }
+      // TODO: other cases useful too?
+    }
   }
   return nullptr;
 }
@@ -442,11 +498,11 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhiAllInputs(
     if (a != nullptr && a->induction_class == kInvariant) {
       if (phi->InputAt(1) == entry_phi) {
         InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
-        return CreateInduction(kPeriodic, a, initial);
+        return CreateInduction(kPeriodic, a, initial, type_);
       }
       InductionInfo* b = SolvePhi(phi, /* input_index */ 1);
       if (b != nullptr && b->induction_class == kPeriodic) {
-        return CreateInduction(kPeriodic, a, b);
+        return CreateInduction(kPeriodic, a, b, type_);
       }
     }
   }
@@ -489,11 +545,26 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
       InductionInfo* a = LookupInfo(loop, x);
       if (a != nullptr && a->induction_class == kInvariant) {
         InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
-        return CreateInduction(kPeriodic, CreateInvariantOp(kSub, a, initial), initial);
+        return CreateInduction(kPeriodic, CreateInvariantOp(kSub, a, initial), initial, type_);
       }
     }
   }
 
+  return nullptr;
+}
+
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveCnv(HTypeConversion* conversion) {
+  Primitive::Type from = conversion->GetInputType();
+  Primitive::Type to = conversion->GetResultType();
+  // A narrowing conversion is allowed within the cycle of a linear induction, provided that the
+  // narrowest encountered type is recorded with the induction to account for the precision loss.
+  if (IsNarrowingIntegralConversion(from, to)) {
+    auto it = cycle_.find(conversion->GetInput());
+    if (it != cycle_.end() && it->second->induction_class == kInvariant) {
+      type_ = Narrowest(type_, to);
+      return it->second;
+    }
+  }
   return nullptr;
 }
 
@@ -512,12 +583,10 @@ void HInductionVarAnalysis::VisitControl(HLoopInformation* loop) {
       InductionInfo* a = LookupInfo(loop, condition->InputAt(0));
       InductionInfo* b = LookupInfo(loop, condition->InputAt(1));
       Primitive::Type type = condition->InputAt(0)->GetType();
-      // Determine if the loop control uses integral arithmetic and an if-exit (X outside) or an
-      // if-iterate (X inside), always expressed as if-iterate when passing into VisitCondition().
-      if (type != Primitive::kPrimInt && type != Primitive::kPrimLong) {
-        // Loop control is not 32/64-bit integral.
-      } else if (a == nullptr || b == nullptr) {
-        // Loop control is not a sequence.
+      // Determine if the loop control uses a known sequence on an if-exit (X outside) or on
+      // an if-iterate (X inside), expressed as if-iterate when passed into VisitCondition().
+      if (a == nullptr || b == nullptr) {
+        return;  // Loop control is not a sequence.
       } else if (if_true->GetLoopInformation() != loop && if_false->GetLoopInformation() == loop) {
         VisitCondition(loop, a, b, type, condition->GetOppositeCondition());
       } else if (if_true->GetLoopInformation() == loop && if_false->GetLoopInformation() != loop) {
@@ -558,6 +627,14 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
     if (cmp == kCondNE && ((stride_value == +1 && IsTaken(lower_expr, upper_expr, kCondLE)) ||
                            (stride_value == -1 && IsTaken(lower_expr, upper_expr, kCondGE)))) {
       cmp = stride_value > 0 ? kCondLT : kCondGT;
+    }
+    // Only accept integral condition. A mismatch between the type of condition and the induction
+    // is only allowed if the, necessarily narrower, induction range fits the narrower control.
+    if (type != Primitive::kPrimInt && type != Primitive::kPrimLong) {
+      return;  // not integral
+    } else if (type != a->type &&
+               !FitsNarrowerControl(lower_expr, upper_expr, stride_value, a->type, cmp)) {
+      return;  // mismatched type
     }
     // Normalize a linear loop control with a nonzero stride:
     //   stride > 0, either i < U or i <= U
@@ -640,7 +717,7 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
   InductionInfo* taken_test = CreateInvariantOp(op, lower_expr, upper_expr);
   AssignInfo(loop,
              loop->GetHeader()->GetLastInstruction(),
-             CreateTripCount(tcKind, trip_count, taken_test));
+             CreateTripCount(tcKind, trip_count, taken_test, type));
 }
 
 bool HInductionVarAnalysis::IsTaken(InductionInfo* lower_expr,
@@ -675,10 +752,8 @@ bool HInductionVarAnalysis::IsFinite(InductionInfo* upper_expr,
                                      int64_t stride_value,
                                      Primitive::Type type,
                                      IfCondition cmp) {
-  const int64_t min = type == Primitive::kPrimInt ? std::numeric_limits<int32_t>::min()
-                                                  : std::numeric_limits<int64_t>::min();
-  const int64_t max = type == Primitive::kPrimInt ? std::numeric_limits<int32_t>::max()
-                                                  : std::numeric_limits<int64_t>::max();
+  const int64_t min = Primitive::MinValueOfIntegralType(type);
+  const int64_t max = Primitive::MaxValueOfIntegralType(type);
   // Some rules under which it is certain at compile-time that the loop is finite.
   int64_t value;
   switch (cmp) {
@@ -696,6 +771,31 @@ bool HInductionVarAnalysis::IsFinite(InductionInfo* upper_expr,
       LOG(FATAL) << "CONDITION UNREACHABLE";
   }
   return false;  // not certain, may be infinite
+}
+
+bool HInductionVarAnalysis::FitsNarrowerControl(InductionInfo* lower_expr,
+                                                InductionInfo* upper_expr,
+                                                int64_t stride_value,
+                                                Primitive::Type type,
+                                                IfCondition cmp) {
+  int64_t min = Primitive::MinValueOfIntegralType(type);
+  int64_t max = Primitive::MaxValueOfIntegralType(type);
+  // Inclusive test need one extra.
+  if (stride_value != 1 && stride_value != -1) {
+    return false;  // non-unit stride
+  } else if (cmp == kCondLE) {
+    max--;
+  } else if (cmp == kCondGE) {
+    min++;
+  }
+  // Do both bounds fit the range?
+  // Note: The `value` is initialized to please valgrind - the compiler can reorder
+  // the return value check with the `value` check, b/27651442 .
+  int64_t value = 0;
+  return IsAtLeast(lower_expr, &value) && value >= min &&
+         IsAtMost(lower_expr, &value)  && value <= max &&
+         IsAtLeast(upper_expr, &value) && value >= min &&
+         IsAtMost(upper_expr, &value)  && value <= max;
 }
 
 void HInductionVarAnalysis::AssignInfo(HLoopInformation* loop,
@@ -794,7 +894,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
       return CreateSimplifiedInvariant(kSub, b->op_b, b->op_a);
     }
   }
-  return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
+  return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr, b->type);
 }
 
 bool HInductionVarAnalysis::IsExact(InductionInfo* info, int64_t* value) {
@@ -856,18 +956,22 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
         case kTripCountInBodyUnsafe: inv += " (TC-body-unsafe) "; break;
       }
       inv += InductionToString(info->op_b);
-      return inv + ")";
+      inv += ")";
+      return inv;
     } else {
       DCHECK(info->operation == kNop);
       if (info->induction_class == kLinear) {
         return "(" + InductionToString(info->op_a) + " * i + " +
-                     InductionToString(info->op_b) + ")";
+                     InductionToString(info->op_b) + "):" +
+                     Primitive::PrettyDescriptor(info->type);
       } else if (info->induction_class == kWrapAround) {
         return "wrap(" + InductionToString(info->op_a) + ", " +
-                         InductionToString(info->op_b) + ")";
+                         InductionToString(info->op_b) + "):" +
+                         Primitive::PrettyDescriptor(info->type);
       } else if (info->induction_class == kPeriodic) {
         return "periodic(" + InductionToString(info->op_a) + ", " +
-                             InductionToString(info->op_b) + ")";
+                             InductionToString(info->op_b) + "):" +
+                             Primitive::PrettyDescriptor(info->type);
       }
     }
   }

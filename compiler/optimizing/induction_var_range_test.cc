@@ -139,37 +139,40 @@ class InductionVarRangeTest : public CommonCompilerTest {
 
   /** Constructs a trip-count. */
   HInductionVarAnalysis::InductionInfo* CreateTripCount(int32_t tc, bool in_loop, bool safe) {
+    Primitive::Type type = Primitive::kPrimInt;
     if (in_loop && safe) {
       return iva_->CreateTripCount(
-          HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc), nullptr);
+          HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc), nullptr, type);
     } else if (in_loop) {
       return iva_->CreateTripCount(
-          HInductionVarAnalysis::kTripCountInLoopUnsafe, CreateConst(tc), nullptr);
+          HInductionVarAnalysis::kTripCountInLoopUnsafe, CreateConst(tc), nullptr, type);
     } else if (safe) {
       return iva_->CreateTripCount(
-          HInductionVarAnalysis::kTripCountInBody, CreateConst(tc), nullptr);
+          HInductionVarAnalysis::kTripCountInBody, CreateConst(tc), nullptr, type);
     } else {
       return iva_->CreateTripCount(
-          HInductionVarAnalysis::kTripCountInBodyUnsafe, CreateConst(tc), nullptr);
+          HInductionVarAnalysis::kTripCountInBodyUnsafe, CreateConst(tc), nullptr, type);
     }
   }
 
   /** Constructs a linear a * i + b induction. */
   HInductionVarAnalysis::InductionInfo* CreateLinear(int32_t a, int32_t b) {
-    return iva_->CreateInduction(HInductionVarAnalysis::kLinear, CreateConst(a), CreateConst(b));
+    return iva_->CreateInduction(
+        HInductionVarAnalysis::kLinear, CreateConst(a), CreateConst(b), Primitive::kPrimInt);
   }
 
   /** Constructs a range [lo, hi] using a periodic induction. */
   HInductionVarAnalysis::InductionInfo* CreateRange(int32_t lo, int32_t hi) {
     return iva_->CreateInduction(
-        HInductionVarAnalysis::kPeriodic, CreateConst(lo), CreateConst(hi));
+        HInductionVarAnalysis::kPeriodic, CreateConst(lo), CreateConst(hi), Primitive::kPrimInt);
   }
 
   /** Constructs a wrap-around induction consisting of a constant, followed info */
   HInductionVarAnalysis::InductionInfo* CreateWrapAround(
       int32_t initial,
       HInductionVarAnalysis::InductionInfo* info) {
-    return iva_->CreateInduction(HInductionVarAnalysis::kWrapAround, CreateConst(initial), info);
+    return iva_->CreateInduction(
+        HInductionVarAnalysis::kWrapAround, CreateConst(initial), info, Primitive::kPrimInt);
   }
 
   /** Constructs a wrap-around induction consisting of a constant, followed by a range. */

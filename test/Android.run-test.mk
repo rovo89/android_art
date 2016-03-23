@@ -111,9 +111,6 @@ ifeq ($(ART_TEST_RUN_TEST_NO_DEX2OAT),true)
   PREBUILD_TYPES += no-dex2oat
 endif
 COMPILER_TYPES :=
-ifeq ($(ART_TEST_DEFAULT_COMPILER),true)
-  COMPILER_TYPES += default
-endif
 ifeq ($(ART_TEST_INTERPRETER_ACCESS_CHECKS),true)
   COMPILER_TYPES += interp-ac
 endif
@@ -221,11 +218,9 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(ART_TEST_RUN_TEST_SKIP), $(ALL_ADDRESS_SIZES))
 
 
-# Disable 097-duplicate-method while investigation (broken by latest Jack release, b/27358065)
 # Disable 137-cfi (b/27391690).
 # Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
-  097-duplicate-method \
   577-profile-foreign-dex \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -298,9 +293,12 @@ endif
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
 
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
+# 529 and 555: b/27784033
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat \
-  554-jit-profile-file
+  554-jit-profile-file \
+  529-checker-unresolved \
+  555-checker-regression-x86const
 
 ifneq (,$(filter no-prebuild,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),no-prebuild, \
@@ -471,19 +469,6 @@ endif
 
 TEST_ART_BROKEN_JIT_RUN_TESTS :=
 
-# Known broken tests for the default compiler (Quick).
-TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
-  457-regs \
-  563-checker-fakestring
-
-ifneq (,$(filter default,$(COMPILER_TYPES)))
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_DEFAULT_RUN_TESTS),$(ALL_ADDRESS_SIZES))
-endif
-
-TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
-
 # Known broken tests for the mips32 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
     510-checker-try-catch \
@@ -540,13 +525,6 @@ TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 # Tests that should fail in the read barrier configuration with the interpreter.
 TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS :=
 
-# Tests that should fail in the read barrier configuration with the default (Quick) compiler (AOT).
-# Quick has no support for read barriers and punts to the interpreter, so this list is composed of
-# tests expected to fail with the interpreter, both on the concurrent collector and in general.
-TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS := \
-  $(TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS) \
-  $(TEST_ART_BROKEN_INTERPRETER_RUN_TESTS)
-
 # Tests that should fail in the read barrier configuration with the Optimizing compiler (AOT).
 # 484: Baker's fast path based read barrier compiler instrumentation generates code containing
 #      more parallel moves on x86, thus some Checker assertions may fail.
@@ -570,13 +548,6 @@ ifeq ($(ART_USE_READ_BARRIER),true)
         $(TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
   endif
 
-  ifneq (,$(filter default,$(COMPILER_TYPES)))
-    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
-        $(PREBUILD_TYPES),default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
-        $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
-        $(TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
-  endif
-
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
     ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
         $(PREBUILD_TYPES),optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
@@ -592,30 +563,15 @@ ifeq ($(ART_USE_READ_BARRIER),true)
   endif
 endif
 
-TEST_ART_BROKEN_DEFAULT_READ_BARRIER_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS :=
 TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
 
-# Tests that should fail in the heap poisoning configuration with the default (Quick) compiler.
-# 137: Quick has no support for read barriers and punts to the
-#      interpreter, but CFI unwinding expects managed frames.
-# 554: Quick does not support JIT profiling.
-TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS := \
-  137-cfi \
-  554-jit-profile-file
 # Tests that should fail in the heap poisoning configuration with the Optimizing compiler.
 # 055: Exceeds run time limits due to heap poisoning instrumentation (on ARM and ARM64 devices).
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS := \
   055-enum-performance
 
 ifeq ($(ART_HEAP_POISONING),true)
-  ifneq (,$(filter default,$(COMPILER_TYPES)))
-    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
-        $(PREBUILD_TYPES),default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
-        $(TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
-  endif
-
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
     ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
         $(PREBUILD_TYPES),optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
@@ -624,7 +580,6 @@ ifeq ($(ART_HEAP_POISONING),true)
   endif
 endif
 
-TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
 # Clear variables ahead of appending to them when defining tests.
@@ -704,7 +659,7 @@ endif
 
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
-#    {4: interpreter default optimizing jit interp-ac}-
+#    {4: interpreter optimizing jit interp-ac}-
 #    {5: relocate nrelocate relocate-npatchoat}-
 #    {6: trace or ntrace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
 #    {9: no-image image picimage}-{10: pictest npictest}-
@@ -779,16 +734,11 @@ define define-test-art-run-test
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_INTERPRETER_ACCESS_CHECKS_RULES
       run_test_options += --interpreter --verify-soft-fail
     else
-      ifeq ($(4),default)
-        test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
-        run_test_options += --quick
+      ifeq ($(4),jit)
+        test_groups += ART_RUN_TEST_$$(uc_host_or_target)_JIT_RULES
+        run_test_options += --jit
       else
-        ifeq ($(4),jit)
-          test_groups += ART_RUN_TEST_$$(uc_host_or_target)_JIT_RULES
-          run_test_options += --jit
-        else
-          $$(error found $(4) expected $(COMPILER_TYPES))
-        endif
+        $$(error found $(4) expected $(COMPILER_TYPES))
       endif
     endif
   endif

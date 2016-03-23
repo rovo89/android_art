@@ -645,7 +645,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
         irreducible_(false),
         back_edges_(graph->GetArena()->Adapter(kArenaAllocLoopInfoBackEdges)),
         // Make bit vector growable, as the number of blocks may change.
-        blocks_(graph->GetArena(), graph->GetBlocks().size(), true) {
+        blocks_(graph->GetArena(), graph->GetBlocks().size(), true, kArenaAllocLoopInfoBackEdges) {
     back_edges_.reserve(kDefaultNumberOfBackEdges);
   }
 
@@ -4148,7 +4148,9 @@ class HInvokeInterface : public HInvoke {
 class HNeg : public HUnaryOperation {
  public:
   HNeg(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc = kNoDexPc)
-      : HUnaryOperation(result_type, input, dex_pc) {}
+      : HUnaryOperation(result_type, input, dex_pc) {
+    DCHECK_EQ(result_type, Primitive::PrimitiveKind(input->GetType()));
+  }
 
   template <typename T> T Compute(T x) const { return -x; }
 

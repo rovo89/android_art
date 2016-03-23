@@ -44,27 +44,9 @@ static constexpr bool kArenaAllocatorCountAllocations = false;
 // Type of allocation for memory tuning.
 enum ArenaAllocKind {
   kArenaAllocMisc,
-  kArenaAllocBBList,
-  kArenaAllocBBPredecessors,
-  kArenaAllocDfsPreOrder,
-  kArenaAllocDfsPostOrder,
-  kArenaAllocDomPostOrder,
-  kArenaAllocTopologicalSortOrder,
-  kArenaAllocLoweringInfo,
-  kArenaAllocLIR,
-  kArenaAllocLIRResourceMask,
   kArenaAllocSwitchTable,
-  kArenaAllocFillArrayData,
   kArenaAllocSlowPaths,
-  kArenaAllocMIR,
-  kArenaAllocDFInfo,
-  kArenaAllocGrowableArray,
   kArenaAllocGrowableBitMap,
-  kArenaAllocSSAToDalvikMap,
-  kArenaAllocDalvikToSSAMap,
-  kArenaAllocDebugInfo,
-  kArenaAllocRegAlloc,
-  kArenaAllocData,
   kArenaAllocSTL,
   kArenaAllocGraphBuilder,
   kArenaAllocGraph,
@@ -91,22 +73,23 @@ enum ArenaAllocKind {
   kArenaAllocMoveOperands,
   kArenaAllocCodeBuffer,
   kArenaAllocStackMaps,
-  kArenaAllocBaselineMaps,
   kArenaAllocOptimization,
   kArenaAllocGvn,
   kArenaAllocInductionVarAnalysis,
   kArenaAllocBoundsCheckElimination,
+  kArenaAllocDCE,
+  kArenaAllocLSE,
+  kArenaAllocLICM,
   kArenaAllocSsaLiveness,
   kArenaAllocSsaPhiElimination,
   kArenaAllocReferenceTypePropagation,
-  kArenaAllocPrimitiveTypePropagation,
   kArenaAllocSideEffectsAnalysis,
   kArenaAllocRegisterAllocator,
+  kArenaAllocRegisterAllocatorValidate,
   kArenaAllocStackMapStream,
   kArenaAllocCodeGenerator,
   kArenaAllocParallelMoveResolver,
   kArenaAllocGraphChecker,
-  kArenaAllocLSE,
   kArenaAllocVerifier,
   kNumArenaAllocKinds
 };
@@ -353,6 +336,11 @@ class ArenaAllocator
     memcpy(new_ptr, ptr, ptr_size);
     // TODO: Call free on ptr if linear alloc supports free.
     return new_ptr;
+  }
+
+  template <typename T>
+  T* Alloc(ArenaAllocKind kind = kArenaAllocMisc) {
+    return AllocArray<T>(1, kind);
   }
 
   template <typename T>

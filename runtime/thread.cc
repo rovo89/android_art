@@ -44,6 +44,7 @@
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc_map.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/allocator/rosalloc.h"
 #include "gc/heap.h"
 #include "gc/space/space-inl.h"
@@ -563,6 +564,7 @@ void Thread::InstallImplicitProtection() {
 
   // Read every page from the high address to the low.
   volatile uint8_t dont_optimize_this;
+  UNUSED(dont_optimize_this);
   for (uint8_t* p = stack_top; p >= pregion; p -= kPageSize) {
     dont_optimize_this = *p;
   }

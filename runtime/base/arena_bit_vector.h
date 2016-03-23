@@ -25,43 +25,33 @@ namespace art {
 class ArenaAllocator;
 class ScopedArenaAllocator;
 
-// Type of growable bitmap for memory tuning.
-enum OatBitMapKind {
-  kBitMapMisc = 0,
-  kBitMapUse,
-  kBitMapDef,
-  kBitMapLiveIn,
-  kBitMapBMatrix,
-  kBitMapDominators,
-  kBitMapIDominated,
-  kBitMapDomFrontier,
-  kBitMapRegisterV,
-  kBitMapTempSSARegisterV,
-  kBitMapNullCheck,
-  kBitMapClInitCheck,
-  kBitMapPredecessors,
-  kNumBitMapKinds
-};
-
-std::ostream& operator<<(std::ostream& os, const OatBitMapKind& kind);
-
 /*
  * A BitVector implementation that uses Arena allocation.
  */
 class ArenaBitVector : public BitVector, public ArenaObject<kArenaAllocGrowableBitMap> {
  public:
-  ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
-                 OatBitMapKind kind = kBitMapMisc);
-  ArenaBitVector(ScopedArenaAllocator* arena, uint32_t start_bits, bool expandable,
-                 OatBitMapKind kind = kBitMapMisc);
+  template <typename Allocator>
+  static ArenaBitVector* Create(Allocator* arena,
+                                uint32_t start_bits,
+                                bool expandable,
+                                ArenaAllocKind kind = kArenaAllocGrowableBitMap) {
+    void* storage = arena->template Alloc<ArenaBitVector>(kind);
+    return new (storage) ArenaBitVector(arena, start_bits, expandable, kind);
+  }
+
+  ArenaBitVector(ArenaAllocator* arena,
+                 uint32_t start_bits,
+                 bool expandable,
+                 ArenaAllocKind kind = kArenaAllocGrowableBitMap);
+  ArenaBitVector(ScopedArenaAllocator* arena,
+                 uint32_t start_bits,
+                 bool expandable,
+                 ArenaAllocKind kind = kArenaAllocGrowableBitMap);
   ~ArenaBitVector() {}
 
  private:
-  const OatBitMapKind kind_;      // for memory use tuning. TODO: currently unused.
-
   DISALLOW_COPY_AND_ASSIGN(ArenaBitVector);
 };
-
 
 }  // namespace art
 

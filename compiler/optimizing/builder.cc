@@ -367,7 +367,8 @@ GraphAnalysisResult HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item
   ArenaBitVector* native_debug_info_locations;
   if (native_debuggable) {
     const uint32_t num_instructions = code_item.insns_size_in_code_units_;
-    native_debug_info_locations = new (arena_) ArenaBitVector (arena_, num_instructions, false);
+    native_debug_info_locations =
+        ArenaBitVector::Create(arena_, num_instructions, false, kArenaAllocGraphBuilder);
     FindNativeDebugInfoLocations(code_item, native_debug_info_locations);
   }
 

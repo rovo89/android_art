@@ -152,6 +152,11 @@ class ScopedArenaAllocator
   }
 
   template <typename T>
+  T* Alloc(ArenaAllocKind kind = kArenaAllocMisc) {
+    return AllocArray<T>(1, kind);
+  }
+
+  template <typename T>
   T* AllocArray(size_t length, ArenaAllocKind kind = kArenaAllocMisc) {
     return static_cast<T*>(Alloc(length * sizeof(T), kind));
   }

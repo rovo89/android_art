@@ -17,7 +17,6 @@
 #include "graph_checker.h"
 
 #include <algorithm>
-#include <map>
 #include <string>
 #include <sstream>
 
@@ -32,19 +31,19 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   current_block_ = block;
 
   // Check consistency with respect to predecessors of `block`.
-  ArenaSafeMap<HBasicBlock*, size_t> predecessors_count(
-      std::less<HBasicBlock*>(), GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
-  for (HBasicBlock* p : block->GetPredecessors()) {
-    auto it = predecessors_count.find(p);
-    if (it != predecessors_count.end()) {
-      ++it->second;
-    } else {
-      predecessors_count.Put(p, 1u);
+  // Note: Counting duplicates with a sorted vector uses up to 6x less memory
+  // than ArenaSafeMap<HBasicBlock*, size_t>.
+  ArenaVector<HBasicBlock*> sorted_predecessors(
+      block->GetPredecessors().begin(),
+      block->GetPredecessors().end(),
+      GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
+  std::sort(sorted_predecessors.begin(), sorted_predecessors.end());
+  for (auto it = sorted_predecessors.begin(), end = sorted_predecessors.end(); it != end; ) {
+    HBasicBlock* p = *it++;
+    size_t p_count_in_block_predecessors = 1u;
+    for (; it != end && *it == p; ++it) {
+      ++p_count_in_block_predecessors;
     }
-  }
-  for (auto& pc : predecessors_count) {
-    HBasicBlock* p = pc.first;
-    size_t p_count_in_block_predecessors = pc.second;
     size_t block_count_in_p_successors =
         std::count(p->GetSuccessors().begin(), p->GetSuccessors().end(), block);
     if (p_count_in_block_predecessors != block_count_in_p_successors) {
@@ -57,19 +56,19 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Check consistency with respect to successors of `block`.
-  ArenaSafeMap<HBasicBlock*, size_t> successors_count(
-      std::less<HBasicBlock*>(), GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
-  for (HBasicBlock* s : block->GetSuccessors()) {
-    auto it = successors_count.find(s);
-    if (it != successors_count.end()) {
-      ++it->second;
-    } else {
-      successors_count.Put(s, 1u);
+  // Note: Counting duplicates with a sorted vector uses up to 6x less memory
+  // than ArenaSafeMap<HBasicBlock*, size_t>.
+  ArenaVector<HBasicBlock*> sorted_successors(
+      block->GetSuccessors().begin(),
+      block->GetSuccessors().end(),
+      GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
+  std::sort(sorted_successors.begin(), sorted_successors.end());
+  for (auto it = sorted_successors.begin(), end = sorted_successors.end(); it != end; ) {
+    HBasicBlock* s = *it++;
+    size_t s_count_in_block_successors = 1u;
+    for (; it != end && *it == s; ++it) {
+      ++s_count_in_block_successors;
     }
-  }
-  for (auto& sc : successors_count) {
-    HBasicBlock* s = sc.first;
-    size_t s_count_in_block_successors = sc.second;
     size_t block_count_in_s_predecessors =
         std::count(s->GetPredecessors().begin(), s->GetPredecessors().end(), block);
     if (s_count_in_block_successors != block_count_in_s_predecessors) {
@@ -812,7 +811,10 @@ void GraphChecker::VisitPhi(HPhi* phi) {
               phi->GetRegNumber(),
               type_str.str().c_str()));
         } else {
-          ArenaBitVector visited(GetGraph()->GetArena(), 0, /* expandable */ true);
+          ArenaBitVector visited(GetGraph()->GetArena(),
+                                 0,
+                                 /* expandable */ true,
+                                 kArenaAllocGraphChecker);
           if (!IsConstantEquivalent(phi, other_phi, &visited)) {
             AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
                                   "are not equivalents of constants.",
@@ -914,6 +916,19 @@ void GraphChecker::VisitCondition(HCondition* op) {
           "Condition %s %d uses an object as right-hand side input.",
           op->DebugName(), op->GetId()));
     }
+  }
+}
+
+void GraphChecker::VisitNeg(HNeg* instruction) {
+  VisitInstruction(instruction);
+  Primitive::Type input_type = instruction->InputAt(0)->GetType();
+  Primitive::Type result_type = instruction->GetType();
+  if (result_type != Primitive::PrimitiveKind(input_type)) {
+    AddError(StringPrintf("Binary operation %s %d has a result type different "
+                          "from its input kind: %s vs %s.",
+                          instruction->DebugName(), instruction->GetId(),
+                          Primitive::PrettyDescriptor(result_type),
+                          Primitive::PrettyDescriptor(input_type)));
   }
 }
 

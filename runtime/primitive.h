@@ -180,6 +180,46 @@ class Primitive {
     }
   }
 
+  static int64_t MinValueOfIntegralType(Type type) {
+    switch (type) {
+      case kPrimBoolean:
+        return std::numeric_limits<bool>::min();
+      case kPrimByte:
+        return std::numeric_limits<int8_t>::min();
+      case kPrimChar:
+        return std::numeric_limits<uint16_t>::min();
+      case kPrimShort:
+        return std::numeric_limits<int16_t>::min();
+      case kPrimInt:
+        return std::numeric_limits<int32_t>::min();
+      case kPrimLong:
+        return std::numeric_limits<int64_t>::min();
+      default:
+        LOG(FATAL) << "non integral type";
+    }
+    return 0;
+  }
+
+  static int64_t MaxValueOfIntegralType(Type type) {
+    switch (type) {
+      case kPrimBoolean:
+        return std::numeric_limits<bool>::max();
+      case kPrimByte:
+        return std::numeric_limits<int8_t>::max();
+      case kPrimChar:
+        return std::numeric_limits<uint16_t>::max();
+      case kPrimShort:
+        return std::numeric_limits<int16_t>::max();
+      case kPrimInt:
+        return std::numeric_limits<int32_t>::max();
+      case kPrimLong:
+        return std::numeric_limits<int64_t>::max();
+      default:
+        LOG(FATAL) << "non integral type";
+    }
+    return 0;
+  }
+
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Primitive);
 };

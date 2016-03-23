@@ -23,6 +23,7 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
+#include "linear_alloc.h"
 #include "method_reference.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -2118,48 +2119,73 @@ extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
   return artInvokeCommon<kVirtual, true>(method_idx, this_object, self, sp);
 }
 
-// Determine target of interface dispatch. This object is known non-null.
-extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
+// Determine target of interface dispatch. This object is known non-null. First argument
+// is there for consistency but should not be used, as some architectures overwrite it
+// in the assembly trampoline.
+extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUTE_UNUSED,
                                                       mirror::Object* this_object,
-                                                      Thread* self, ArtMethod** sp)
+                                                      Thread* self,
+                                                      ArtMethod** sp)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> cls(hs.NewHandle(this_object->GetClass()));
+
   // The optimizing compiler currently does not inline methods that have an interface
   // invocation. We use the outer method directly to avoid fetching a stack map, which is
   // more expensive.
   ArtMethod* caller_method = QuickArgumentVisitor::GetOuterMethod(sp);
   DCHECK_EQ(caller_method, QuickArgumentVisitor::GetCallingMethod(sp));
+
+  // Fetch the dex_method_idx of the target interface method from the caller.
+  uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
+
+  const DexFile::CodeItem* code_item = caller_method->GetCodeItem();
+  CHECK_LT(dex_pc, code_item->insns_size_in_code_units_);
+  const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
+  Instruction::Code instr_code = instr->Opcode();
+  CHECK(instr_code == Instruction::INVOKE_INTERFACE ||
+        instr_code == Instruction::INVOKE_INTERFACE_RANGE)
+      << "Unexpected call into interface trampoline: " << instr->DumpString(nullptr);
+  uint32_t dex_method_idx;
+  if (instr_code == Instruction::INVOKE_INTERFACE) {
+    dex_method_idx = instr->VRegB_35c();
+  } else {
+    CHECK_EQ(instr_code, Instruction::INVOKE_INTERFACE_RANGE);
+    dex_method_idx = instr->VRegB_3rc();
+  }
+
   ArtMethod* interface_method = caller_method->GetDexCacheResolvedMethod(
       dex_method_idx, sizeof(void*));
   DCHECK(interface_method != nullptr) << dex_method_idx << " " << PrettyMethod(caller_method);
-  ArtMethod* method;
+  ArtMethod* method = nullptr;
+
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
-    method = this_object->GetClass()->FindVirtualMethodForInterface(
-        interface_method, sizeof(void*));
+    // If the dex cache already resolved the interface method, look whether we have
+    // a match in the ImtConflictTable.
+    uint32_t imt_index = interface_method->GetDexMethodIndex();
+    ArtMethod* conflict_method = cls->GetEmbeddedImTableEntry(
+        imt_index % mirror::Class::kImtSize, sizeof(void*));
+    DCHECK(conflict_method->IsRuntimeMethod()) << PrettyMethod(conflict_method);
+    ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+    method = current_table->Lookup(interface_method);
+    if (method != nullptr) {
+      return GetTwoWordSuccessValue(
+          reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode()),
+          reinterpret_cast<uintptr_t>(method));
+    }
+
+    // No match, use the IfTable.
+    method = cls->FindVirtualMethodForInterface(interface_method, sizeof(void*));
     if (UNLIKELY(method == nullptr)) {
       ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(
           interface_method, this_object, caller_method);
       return GetTwoWordFailureValue();  // Failure.
     }
   } else {
+    // The dex cache did not resolve the method, look it up in the dex file
+    // of the caller,
     DCHECK_EQ(interface_method, Runtime::Current()->GetResolutionMethod());
-    if (kIsDebugBuild) {
-      uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
-      const DexFile::CodeItem* code = caller_method->GetCodeItem();
-      CHECK_LT(dex_pc, code->insns_size_in_code_units_);
-      const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
-      Instruction::Code instr_code = instr->Opcode();
-      CHECK(instr_code == Instruction::INVOKE_INTERFACE ||
-            instr_code == Instruction::INVOKE_INTERFACE_RANGE)
-          << "Unexpected call into interface trampoline: " << instr->DumpString(nullptr);
-      if (instr_code == Instruction::INVOKE_INTERFACE) {
-        CHECK_EQ(dex_method_idx, instr->VRegB_35c());
-      } else {
-        CHECK_EQ(instr_code, Instruction::INVOKE_INTERFACE_RANGE);
-        CHECK_EQ(dex_method_idx, instr->VRegB_3rc());
-      }
-    }
-
     const DexFile* dex_file = caller_method->GetDeclaringClass()->GetDexCache()
         ->GetDexFile();
     uint32_t shorty_len;
@@ -2179,7 +2205,50 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
       CHECK(self->IsExceptionPending());
       return GetTwoWordFailureValue();  // Failure.
     }
+    interface_method = caller_method->GetDexCacheResolvedMethod(dex_method_idx, sizeof(void*));
+    DCHECK(!interface_method->IsRuntimeMethod());
   }
+
+  // We arrive here if we have found an implementation, and it is not in the ImtConflictTable.
+  // We create a new table with the new pair { interface_method, method }.
+  uint32_t imt_index = interface_method->GetDexMethodIndex();
+  ArtMethod* conflict_method = cls->GetEmbeddedImTableEntry(
+      imt_index % mirror::Class::kImtSize, sizeof(void*));
+  ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+  Runtime* runtime = Runtime::Current();
+  LinearAlloc* linear_alloc = (cls->GetClassLoader() == nullptr)
+      ? runtime->GetLinearAlloc()
+      : cls->GetClassLoader()->GetAllocator();
+  bool is_new_entry = (conflict_method == runtime->GetImtConflictMethod());
+
+  // Create a new entry if the existing one is the shared conflict method.
+  ArtMethod* new_conflict_method = is_new_entry
+      ? runtime->CreateImtConflictMethod(linear_alloc)
+      : conflict_method;
+
+  // Allocate a new table. Note that we will leak this table at the next conflict,
+  // but that's a tradeoff compared to making the table fixed size.
+  void* data = linear_alloc->Alloc(
+      self, ImtConflictTable::ComputeSizeWithOneMoreEntry(current_table));
+  CHECK(data != nullptr) << "Out of memory";
+  ImtConflictTable* new_table = new (data) ImtConflictTable(
+      current_table, interface_method, method);
+
+  // Do a fence to ensure threads see the data in the table before it is assigned
+  // to the conlict method.
+  // Note that there is a race in the presence of multiple threads and we may leak
+  // memory from the LinearAlloc, but that's a tradeoff compared to using
+  // atomic operations.
+  QuasiAtomic::ThreadFenceRelease();
+  new_conflict_method->SetImtConflictTable(new_table);
+  if (is_new_entry) {
+    // Update the IMT if we create a new conflict method. No fence needed here, as the
+    // data is consistent.
+    cls->SetEmbeddedImTableEntry(imt_index % mirror::Class::kImtSize,
+                                 new_conflict_method,
+                                 sizeof(void*));
+  }
+
   const void* code = method->GetEntryPointFromQuickCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
