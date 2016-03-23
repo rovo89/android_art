@@ -1257,12 +1257,8 @@ bool OatFile::IsDebuggable() const {
   return GetOatHeader().IsDebuggable();
 }
 
-bool OatFile::IsExtractOnly() const {
-  return GetOatHeader().IsExtractOnly();
-}
-
-bool OatFile::IsProfileGuideCompiled() const {
-  return GetOatHeader().IsProfileGuideCompiled();
+CompilerFilter::Filter OatFile::GetCompilerFilter() const {
+  return GetOatHeader().GetCompilerFilter();
 }
 
 static constexpr char kDexClassPathEncodingSeparator = '*';
