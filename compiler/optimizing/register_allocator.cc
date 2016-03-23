@@ -1927,7 +1927,13 @@ void RegisterAllocator::Resolve() {
         BitVector* live = liveness_.GetLiveInSet(*block);
         for (uint32_t idx : live->Indexes()) {
           LiveInterval* interval = liveness_.GetInstructionFromSsaIndex(idx)->GetLiveInterval();
-          DCHECK(!interval->GetSiblingAt(block->GetLifetimeStart())->HasRegister());
+          LiveInterval* sibling = interval->GetSiblingAt(block->GetLifetimeStart());
+          // `GetSiblingAt` returns the sibling that contains a position, but there could be
+          // a lifetime hole in it. `CoversSlow` returns whether the interval is live at that
+          // position.
+          if (sibling->CoversSlow(block->GetLifetimeStart())) {
+            DCHECK(!sibling->HasRegister());
+          }
         }
       }
     } else {
