@@ -22,8 +22,7 @@
 
 namespace art {
 
-DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
-                                       jobject class_loader,
+DexCompilationUnit::DexCompilationUnit(jobject class_loader,
                                        ClassLinker* class_linker,
                                        const DexFile& dex_file,
                                        const DexFile::CodeItem* code_item,
@@ -32,8 +31,7 @@ DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
                                        uint32_t access_flags,
                                        const VerifiedMethod* verified_method,
                                        Handle<mirror::DexCache> dex_cache)
-    : cu_(cu),
-      class_loader_(class_loader),
+    : class_loader_(class_loader),
       class_linker_(class_linker),
       dex_file_(&dex_file),
       code_item_(code_item),

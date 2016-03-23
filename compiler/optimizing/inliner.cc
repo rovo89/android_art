@@ -1013,7 +1013,6 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
   DexCompilationUnit dex_compilation_unit(
-      nullptr,
       caller_compilation_unit_.GetClassLoader(),
       class_linker,
       callee_dex_file,
