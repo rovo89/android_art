@@ -60,6 +60,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
+#include "compiler_filter.h"
 #include "debugger.h"
 #include "elf_file.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
@@ -958,6 +959,16 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   zygote_max_failed_boots_ = runtime_options.GetOrDefault(Opt::ZygoteMaxFailedBoots);
   experimental_flags_ = runtime_options.GetOrDefault(Opt::Experimental);
   is_low_memory_mode_ = runtime_options.Exists(Opt::LowMemoryMode);
+
+  {
+    CompilerFilter::Filter filter;
+    std::string filter_str = runtime_options.GetOrDefault(Opt::OatFileManagerCompilerFilter);
+    if (!CompilerFilter::ParseCompilerFilter(filter_str.c_str(), &filter)) {
+      LOG(ERROR) << "Cannot parse compiler filter " << filter_str;
+      return false;
+    }
+    OatFileManager::SetCompilerFilter(filter);
+  }
 
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
