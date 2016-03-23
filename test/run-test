@@ -241,11 +241,11 @@ while true; do
         run_args="${run_args} --zygote"
         shift
     elif [ "x$1" = "x--interpreter" ]; then
-        run_args="${run_args} --interpreter"
+        run_args="${run_args} --interpreter --runtime-option -XOatFileManagerCompilerFilter:verify-at-runtime"
         image_suffix="-interpreter"
         shift
     elif [ "x$1" = "x--jit" ]; then
-        run_args="${run_args} --jit"
+        run_args="${run_args} --jit --runtime-option -XOatFileManagerCompilerFilter:verify-at-runtime"
         image_suffix="-jit"
         shift
     elif [ "x$1" = "x--optimizing" ]; then
@@ -253,10 +253,10 @@ while true; do
         image_suffix="-optimizing"
         shift
     elif [ "x$1" = "x--no-verify" ]; then
-        run_args="${run_args} --no-verify"
+        run_args="${run_args} --no-verify --runtime-option -XOatFileManagerCompilerFilter:verify-none"
         shift
     elif [ "x$1" = "x--verify-soft-fail" ]; then
-        run_args="${run_args} --verify-soft-fail"
+        run_args="${run_args} --verify-soft-fail --runtime-option -XOatFileManagerCompilerFilter:verify-at-runtime"
         image_suffix="-interp-ac"
         shift
     elif [ "x$1" = "x--no-optimize" ]; then
