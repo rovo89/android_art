@@ -1623,8 +1623,8 @@ ArtMethod* Runtime::CreateImtConflictMethod(LinearAlloc* linear_alloc) {
     method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
     method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictStub());
+    method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
   }
-  method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
   return method;
 }
 
@@ -1632,7 +1632,9 @@ void Runtime::SetImtConflictMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   CHECK(method->IsRuntimeMethod());
   imt_conflict_method_ = method;
-  method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
+  if (!IsAotCompiler()) {
+    method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
+  }
 }
 
 ArtMethod* Runtime::CreateResolutionMethod() {
@@ -1950,7 +1952,9 @@ void Runtime::SetImtUnimplementedMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   CHECK(method->IsRuntimeMethod());
   imt_unimplemented_method_ = method;
-  method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
+  if (!IsAotCompiler()) {
+    method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
+  }
 }
 
 bool Runtime::IsVerificationEnabled() const {
