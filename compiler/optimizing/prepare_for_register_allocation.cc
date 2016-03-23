@@ -47,6 +47,19 @@ void PrepareForRegisterAllocation::VisitBoundType(HBoundType* bound_type) {
   bound_type->GetBlock()->RemoveInstruction(bound_type);
 }
 
+void PrepareForRegisterAllocation::VisitArraySet(HArraySet* instruction) {
+  HInstruction* value = instruction->GetValue();
+  // PrepareForRegisterAllocation::VisitBoundType may have replaced a
+  // BoundType (as value input of this ArraySet) with a NullConstant.
+  // If so, this ArraySet no longer needs a type check.
+  if (value->IsNullConstant()) {
+    DCHECK_EQ(value->GetType(), Primitive::kPrimNot);
+    if (instruction->NeedsTypeCheck()) {
+      instruction->ClearNeedsTypeCheck();
+    }
+  }
+}
+
 void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
   // Try to find a static invoke or a new-instance from which this check originated.
   HInstruction* implicit_clinit = nullptr;
