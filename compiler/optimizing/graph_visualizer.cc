@@ -382,6 +382,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void VisitArraySet(HArraySet* array_set) OVERRIDE {
     StartAttributeStream("value_can_be_null") << std::boolalpha
         << array_set->GetValueCanBeNull() << std::noboolalpha;
+    StartAttributeStream("needs_type_check") << std::boolalpha
+        << array_set->NeedsTypeCheck() << std::noboolalpha;
   }
 
   void VisitCompare(HCompare* compare) OVERRIDE {
