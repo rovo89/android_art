@@ -928,6 +928,9 @@ class RosAlloc {
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes)
       REQUIRES(!bulk_free_lock_, !lock_);
 
+  void DumpStats(std::ostream& os)
+      REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_) REQUIRES(!bulk_free_lock_);
+
  private:
   friend std::ostream& operator<<(std::ostream& os, const RosAlloc::PageMapKind& rhs);
 
