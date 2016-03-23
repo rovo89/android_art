@@ -3799,7 +3799,7 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
           __ shrl(first_reg, second_reg);
         }
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance);
         if (op->IsShl()) {
           __ shll(first_reg, imm);
         } else if (op->IsShr()) {
@@ -3821,7 +3821,7 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
           __ shrq(first_reg, second_reg);
         }
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue);
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance);
         if (op->IsShl()) {
           __ shlq(first_reg, imm);
         } else if (op->IsShr()) {
@@ -3868,7 +3868,7 @@ void InstructionCodeGeneratorX86_64::VisitRor(HRor* ror) {
         CpuRegister second_reg = second.AsRegister<CpuRegister>();
         __ rorl(first_reg, second_reg);
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance);
         __ rorl(first_reg, imm);
       }
       break;
@@ -3877,7 +3877,7 @@ void InstructionCodeGeneratorX86_64::VisitRor(HRor* ror) {
         CpuRegister second_reg = second.AsRegister<CpuRegister>();
         __ rorq(first_reg, second_reg);
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue);
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance);
         __ rorq(first_reg, imm);
       }
       break;
