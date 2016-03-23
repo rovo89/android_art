@@ -16,13 +16,13 @@
 
 .super Ljava/lang/Object;
 
-## CHECK-START-X86: int IrreducibleLoop.simpleLoop(int) dead_code_elimination (before)
+## CHECK-START-X86: int IrreducibleLoop.simpleLoop1(int) dead_code_elimination (before)
 ## CHECK-DAG: <<Method:(i|j)\d+>> CurrentMethod
 ## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
 ## CHECK-DAG:                     Goto irreducible:true
 ## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>,<<Method>>] loop:none
 ## CHECK-DAG:                     InvokeStaticOrDirect [{{i\d+}},<<Method>>] loop:none
-.method public static simpleLoop(I)I
+.method public static simpleLoop1(I)I
    .registers 3
    const/16 v0, 42
    invoke-static {v0}, LIrreducibleLoop;->$noinline$m(I)V
@@ -51,6 +51,53 @@
 
    :b45
    invoke-static {v0}, LIrreducibleLoop;->$noinline$m(I)V
+   goto :b26
+
+   :b26
+   return v0
+.end method
+
+## CHECK-START-X86: int IrreducibleLoop.simpleLoop2(int) dead_code_elimination (before)
+## CHECK-DAG: <<Method:(i|j)\d+>> CurrentMethod
+## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
+## CHECK-DAG:                     Goto irreducible:true
+## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>,<<Method>>] loop:none
+## CHECK-DAG:                     InvokeStaticOrDirect [{{i\d+}},<<Method>>] loop:none
+.method public static simpleLoop2(I)I
+   .registers 3
+   const/16 v0, 42
+
+   :try_start1
+   invoke-static {v0}, LIrreducibleLoop;->$noinline$m(I)V
+   div-int v0, v0, v0
+   :try_end1
+   .catchall {:try_start1 .. :try_end1} :b14
+
+   :try_start2
+   invoke-static {v0}, LIrreducibleLoop;->$noinline$m(I)V
+   div-int v0, v0, v0
+   :try_end2
+   .catchall {:try_start2 .. :try_end2} :b45
+   goto :b49
+
+   :b14
+   goto :b15
+
+   :b45
+   goto :b15
+
+   :b15
+   goto :b16
+
+   :b16
+   goto :b49
+
+   :b49
+   invoke-static {v0}, LIrreducibleLoop;->$noinline$m(I)V
+   div-int v0, v0, v0
+   :try_end3
+   .catchall {:b49 .. :try_end3} :b49
+   if-eqz p0, :b16
    goto :b26
 
    :b26
