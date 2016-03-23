@@ -72,7 +72,7 @@ ScratchFile::ScratchFile() {
   filename_ = getenv("ANDROID_DATA");
   filename_ += "/TmpFile-XXXXXX";
   int fd = mkstemp(&filename_[0]);
-  CHECK_NE(-1, fd);
+  CHECK_NE(-1, fd) << strerror(errno) << " for " << filename_;
   file_.reset(new File(fd, GetFilename(), true));
 }
 
