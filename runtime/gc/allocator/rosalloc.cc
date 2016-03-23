@@ -1653,14 +1653,14 @@ void RosAlloc::Initialize() {
     if (i < kNumThreadLocalSizeBrackets) {
       numOfPages[i] = 1;
     } else if (i < (kNumThreadLocalSizeBrackets + kNumRegularSizeBrackets) / 2) {
-      numOfPages[i] = 4;
+      numOfPages[i] = 1;
     } else if (i < kNumRegularSizeBrackets) {
-      numOfPages[i] = 8;
+      numOfPages[i] = 1;
     } else if (i == kNumOfSizeBrackets - 2) {
-      numOfPages[i] = 16;
+      numOfPages[i] = 2;
     } else {
       DCHECK_EQ(i, kNumOfSizeBrackets - 1);
-      numOfPages[i] = 32;
+      numOfPages[i] = 4;
     }
     if (kTraceRosAlloc) {
       LOG(INFO) << "numOfPages[" << i << "]=" << numOfPages[i];
