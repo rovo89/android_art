@@ -162,7 +162,7 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
   // (6) Compute the dominance information and the reverse post order.
   ComputeDominanceInformation();
 
-  // (7) Analyze loops discover through back edge analysis, and
+  // (7) Analyze loops discovered through back edge analysis, and
   //     set the loop information on each block.
   GraphAnalysisResult result = AnalyzeLoops();
   if (result != kAnalysisSuccess) {
@@ -247,7 +247,7 @@ void HGraph::ComputeDominanceInformation() {
   }
 
   // Populate `dominated_blocks_` information after computing all dominators.
-  // The potential presence of irreducible loops require to do it after.
+  // The potential presence of irreducible loops requires to do it after.
   for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     if (!block->IsEntryBlock()) {
@@ -460,7 +460,7 @@ void HGraph::SimplifyCFG() {
     if (block->IsLoopHeader()) {
       SimplifyLoop(block);
     } else if (!block->IsEntryBlock() && block->GetFirstInstruction()->IsSuspendCheck()) {
-      // We are being called by the dead code elimiation pass, and what used to be
+      // We are being called by the dead code elimination pass, and what used to be
       // a loop got dismantled. Just remove the suspend check.
       block->RemoveInstruction(block->GetFirstInstruction());
     }
@@ -2373,7 +2373,7 @@ void HInstruction::RemoveEnvironmentUsers() {
   env_uses_.Clear();
 }
 
-// Returns an instruction with the opposite boolean value from 'cond'.
+// Returns an instruction with the opposite Boolean value from 'cond'.
 HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* cursor) {
   ArenaAllocator* allocator = GetArena();
 
