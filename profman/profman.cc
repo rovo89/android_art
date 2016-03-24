@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#include "errno.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -67,6 +69,9 @@ NO_RETURN static void Usage(const char *fmt, ...) {
 
   UsageError("Command: %s", CommandLine().c_str());
   UsageError("Usage: profman [options]...");
+  UsageError("");
+  UsageError("  --dump-info-for=<filename>: dumps the content of the profile file");
+  UsageError("      to standard output in a human readable form.");
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("      Can be specified multiple time, in which case the data from the different");
@@ -117,9 +122,11 @@ class ProfMan FINAL {
       const StringPiece option(argv[i]);
       const bool log_options = false;
       if (log_options) {
-        LOG(INFO) << "patchoat: option[" << i << "]=" << argv[i];
+        LOG(INFO) << "profman: option[" << i << "]=" << argv[i];
       }
-      if (option.starts_with("--profile-file=")) {
+      if (option.starts_with("--dump-info-for=")) {
+        dump_info_for_ = option.substr(strlen("--dump-info-for=")).ToString();
+      } else if (option.starts_with("--profile-file=")) {
         profile_files_.push_back(option.substr(strlen("--profile-file=")).ToString());
       } else if (option.starts_with("--profile-file-fd=")) {
         ParseFdForCollection(option, "--profile-file-fd", &profile_files_fd_);
@@ -132,13 +139,23 @@ class ProfMan FINAL {
       }
     }
 
-    if (profile_files_.empty() && profile_files_fd_.empty()) {
+    bool has_profiles = !profile_files_.empty() || !profile_files_fd_.empty();
+    bool has_reference_profile = !reference_profile_file_.empty() ||
+        (reference_profile_file_fd_ != -1);
+
+    if (!dump_info_for_.empty()) {
+      if (has_profiles || has_reference_profile) {
+        Usage("dump-info-for cannot be specified together with other options");
+      }
+      return;
+    }
+    if (!has_profiles) {
       Usage("No profile files specified.");
     }
     if (!profile_files_.empty() && !profile_files_fd_.empty()) {
       Usage("Profile files should not be specified with both --profile-file-fd and --profile-file");
     }
-    if (!reference_profile_file_.empty() && (reference_profile_file_fd_ != -1)) {
+    if (!has_reference_profile) {
       Usage("--reference-profile-file-fd should only be supplied with --profile-file-fd");
     }
     if (reference_profile_file_.empty() && (reference_profile_file_fd_ == -1)) {
@@ -158,6 +175,27 @@ class ProfMan FINAL {
       result = ProfileAssistant::ProcessProfiles(profile_files_, reference_profile_file_);
     }
     return result;
+  }
+
+  int DumpProfileInfo() {
+    int fd = open(dump_info_for_.c_str(), O_RDWR);
+    if (fd < 0) {
+      std::cerr << "Cannot open " << dump_info_for_ << strerror(errno);
+      return -1;
+    }
+    ProfileCompilationInfo info;
+    if (!info.Load(fd)) {
+      std::cerr << "Cannot load profile info from " << dump_info_for_;
+      return -1;
+    }
+    std::string dump = info.DumpInfo(/*dex_files*/ nullptr);
+    info.Save(fd);
+    std::cout << dump << "\n";
+    return 0;
+  }
+
+  bool ShouldOnlyDumpProfile() {
+    return !dump_info_for_.empty();
   }
 
  private:
@@ -186,6 +224,7 @@ class ProfMan FINAL {
   std::string reference_profile_file_;
   int reference_profile_file_fd_;
   uint64_t start_ns_;
+  std::string dump_info_for_;
 };
 
 // See ProfileAssistant::ProcessingResult for return codes.
@@ -195,6 +234,9 @@ static int profman(int argc, char** argv) {
   // Parse arguments. Argument mistakes will lead to exit(EXIT_FAILURE) in UsageError.
   profman.ParseArgs(argc, argv);
 
+  if (profman.ShouldOnlyDumpProfile()) {
+    return profman.DumpProfileInfo();
+  }
   // Process profile information and assess if we need to do a profile guided compilation.
   // This operation involves I/O.
   return profman.ProcessProfiles();
