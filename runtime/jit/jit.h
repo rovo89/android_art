@@ -110,17 +110,18 @@ class Jit {
                                         JValue* result)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static bool LoadCompiler(std::string* error_msg);
+
  private:
   Jit();
-  bool LoadCompiler(std::string* error_msg);
 
   // JIT compiler
-  void* jit_library_handle_;
-  void* jit_compiler_handle_;
-  void* (*jit_load_)(bool*);
-  void (*jit_unload_)(void*);
-  bool (*jit_compile_method_)(void*, ArtMethod*, Thread*, bool);
-  void (*jit_types_loaded_)(void*, mirror::Class**, size_t count);
+  static void* jit_library_handle_;
+  static void* jit_compiler_handle_;
+  static void* (*jit_load_)(bool*);
+  static void (*jit_unload_)(void*);
+  static bool (*jit_compile_method_)(void*, ArtMethod*, Thread*, bool);
+  static void (*jit_types_loaded_)(void*, mirror::Class**, size_t count);
 
   // Performance monitoring.
   bool dump_info_on_shutdown_;
@@ -132,7 +133,7 @@ class Jit {
   std::unique_ptr<jit::JitCodeCache> code_cache_;
 
   bool save_profiling_info_;
-  bool generate_debug_info_;
+  static bool generate_debug_info_;
 
   DISALLOW_COPY_AND_ASSIGN(Jit);
 };
