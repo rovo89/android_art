@@ -567,10 +567,16 @@ bool Runtime::Start() {
     }
   }
 
-  // If we are the zygote then we need to wait until after forking to create the code cache
-  // due to SELinux restrictions on r/w/x memory regions.
-  if (!IsZygote() && jit_options_->UseJIT()) {
-    CreateJit();
+  if (jit_options_->UseJIT()) {
+    std::string error_msg;
+    if (!IsZygote()) {
+    // If we are the zygote then we need to wait until after forking to create the code cache
+    // due to SELinux restrictions on r/w/x memory regions.
+      CreateJit();
+    } else if (!jit::Jit::LoadCompiler(&error_msg)) {
+      // Try to load compiler pre zygote to reduce PSS. b/27744947
+      LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
+    }
   }
 
   if (!IsImageDex2OatEnabled() || !GetHeap()->HasBootImageSpace()) {
