@@ -133,7 +133,6 @@ class HGraphBuilder : public ValueObject {
   HLocal* GetLocalAt(uint32_t register_index) const;
   void UpdateLocal(uint32_t register_index, HInstruction* instruction, uint32_t dex_pc) const;
   HInstruction* LoadLocal(uint32_t register_index, Primitive::Type type, uint32_t dex_pc) const;
-  void PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex_pc);
   void InitializeParameters(uint16_t number_of_parameters);
 
   // Returns whether the current method needs access check for the type.

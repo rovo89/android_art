@@ -106,7 +106,6 @@ void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_pc) {
   HBasicBlock* fallthrough_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
   DCHECK(branch_target != nullptr);
   DCHECK(fallthrough_target != nullptr);
-  PotentiallyAddSuspendCheck(branch_target, dex_pc);
   HInstruction* first = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
   HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt, dex_pc);
   T* comparison = new (arena_) T(first, second, dex_pc);
@@ -125,7 +124,6 @@ void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_pc) {
   HBasicBlock* fallthrough_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
   DCHECK(branch_target != nullptr);
   DCHECK(fallthrough_target != nullptr);
-  PotentiallyAddSuspendCheck(branch_target, dex_pc);
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
   T* comparison = new (arena_) T(value, graph_->GetIntConstant(0, dex_pc), dex_pc);
   current_block_->AddInstruction(comparison);
@@ -1788,7 +1786,6 @@ void HGraphBuilder::BuildSwitchCaseHelper(const Instruction& instruction, size_t
                                           int32_t target_offset, uint32_t dex_pc) {
   HBasicBlock* case_target = FindBlockStartingAt(dex_pc + target_offset);
   DCHECK(case_target != nullptr);
-  PotentiallyAddSuspendCheck(case_target, dex_pc);
 
   // The current case's value.
   HInstruction* this_case_value = graph_->GetIntConstant(case_value_int, dex_pc);
@@ -1821,23 +1818,6 @@ void HGraphBuilder::BuildSwitchCaseHelper(const Instruction& instruction, size_t
     DCHECK(default_target != nullptr);
     current_block_->AddSuccessor(default_target);
     current_block_ = nullptr;
-  }
-}
-
-void HGraphBuilder::PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex_pc) {
-  int32_t target_offset = target->GetDexPc() - dex_pc;
-  if (target_offset <= 0) {
-    // DX generates back edges to the first encountered return. We can save
-    // time of later passes by not adding redundant suspend checks.
-    HInstruction* last_in_target = target->GetLastInstruction();
-    if (last_in_target != nullptr &&
-        (last_in_target->IsReturn() || last_in_target->IsReturnVoid())) {
-      return;
-    }
-
-    // Add a suspend check to backward branches which may potentially loop. We
-    // can remove them after we recognize loops in the graph.
-    current_block_->AddInstruction(new (arena_) HSuspendCheck(dex_pc));
   }
 }
 
@@ -1972,7 +1952,6 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       int32_t offset = instruction.GetTargetOffset();
       HBasicBlock* target = FindBlockStartingAt(offset + dex_pc);
       DCHECK(target != nullptr);
-      PotentiallyAddSuspendCheck(target, dex_pc);
       current_block_->AddInstruction(new (arena_) HGoto(dex_pc));
       current_block_->AddSuccessor(target);
       current_block_ = nullptr;
