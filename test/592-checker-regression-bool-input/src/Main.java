@@ -39,7 +39,6 @@ public class Main {
   }
 
   public static void main(String[] args) throws Throwable {
-    System.loadLibrary(args[0]);
     Class<?> c = Class.forName("TestCase");
     Method m = c.getMethod("testCase");
 
