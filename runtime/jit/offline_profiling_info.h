@@ -44,14 +44,6 @@ class ProfileCompilationInfo {
   static const uint8_t kProfileMagic[];
   static const uint8_t kProfileVersion[];
 
-  // Saves profile information about the given methods in the given file.
-  // Note that the saving proceeds only if the file can be locked for exclusive access.
-  // If not (the locking is not blocking), the function does not save and returns false.
-  static bool SaveProfilingInfo(const std::string& filename,
-                                const std::vector<ArtMethod*>& methods,
-                                const std::set<DexCacheResolvedClasses>& resolved_classes,
-                                uint64_t* bytes_written = nullptr);
-
   // Add the given methods and classes to the current profile object.
   bool AddMethodsAndClasses(const std::vector<ArtMethod*>& methods,
                             const std::set<DexCacheResolvedClasses>& resolved_classes);
@@ -63,7 +55,10 @@ class ProfileCompilationInfo {
   bool Save(int fd);
   // Loads and merges profile information from the given file into the current
   // object and tries to save it back to disk.
-  bool MergeAndSave(const std::string& filename, uint64_t* bytes_written);
+  // If `force` is true then the save will go through even if the given file
+  // has bad data or its version does not match. In this cases the profile content
+  // is ignored.
+  bool MergeAndSave(const std::string& filename, uint64_t* bytes_written, bool force);
 
   // Returns the number of methods that were profiled.
   uint32_t GetNumberOfMethods() const;

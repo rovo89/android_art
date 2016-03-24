@@ -75,7 +75,9 @@ bool ProfileCompilationInfo::AddMethodsAndClasses(
   return true;
 }
 
-bool ProfileCompilationInfo::MergeAndSave(const std::string& filename, uint64_t* bytes_written) {
+bool ProfileCompilationInfo::MergeAndSave(const std::string& filename,
+                                          uint64_t* bytes_written,
+                                          bool force) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   ScopedFlock flock;
   std::string error;
@@ -88,26 +90,35 @@ bool ProfileCompilationInfo::MergeAndSave(const std::string& filename, uint64_t*
 
   // Load the file but keep a copy around to be able to infer if the content has changed.
   ProfileCompilationInfo fileInfo;
-  if (!fileInfo.Load(fd)) {
-    LOG(WARNING) << "Could not load previous profile data from file " << filename;
+  ProfileLoadSatus status = fileInfo.LoadInternal(fd, &error);
+  if (status == kProfileLoadSuccess) {
+    // Merge the content of file into the current object.
+    if (MergeWith(fileInfo)) {
+      // If after the merge we have the same data as what is the file there's no point
+      // in actually doing the write. The file will be exactly the same as before.
+      if (Equals(fileInfo)) {
+        if (bytes_written != nullptr) {
+          *bytes_written = 0;
+        }
+        return true;
+      }
+    } else {
+      LOG(WARNING) << "Could not merge previous profile data from file " << filename;
+      if (!force) {
+        return false;
+      }
+    }
+  } else if (force &&
+        ((status == kProfileLoadVersionMismatch) || (status == kProfileLoadBadData))) {
+      // Log a warning but don't return false. We will clear the profile anyway.
+      LOG(WARNING) << "Clearing bad or obsolete profile data from file "
+          << filename << ": " << error;
+  } else {
+    LOG(WARNING) << "Could not load profile data from file " << filename << ": " << error;
     return false;
   }
 
-  // Merge the content of file into the current object.
-  if (!MergeWith(fileInfo)) {
-    LOG(WARNING) << "Could not merge previous profile data from file " << filename;
-  }
-
-  // If after the merge we have the same data as what is the file there's no point
-  // in actually doing the write. The file will be exactly the same as before.
-  if (Equals(fileInfo)) {
-    if (bytes_written != nullptr) {
-      *bytes_written = 0;
-    }
-    return true;
-  }
-
-  // We need to clear the data because we don't support append to the profiles yet.
+  // We need to clear the data because we don't support appending to the profiles yet.
   if (!flock.GetFile()->ClearContent()) {
     PLOG(WARNING) << "Could not clear profile file: " << filename;
     return false;
@@ -126,31 +137,6 @@ bool ProfileCompilationInfo::MergeAndSave(const std::string& filename, uint64_t*
     VLOG(profiler) << "Failed to save profile info to " << filename;
   }
   return result;
-}
-
-bool ProfileCompilationInfo::SaveProfilingInfo(
-    const std::string& filename,
-    const std::vector<ArtMethod*>& methods,
-    const std::set<DexCacheResolvedClasses>& resolved_classes,
-    uint64_t* bytes_written) {
-  if (methods.empty() && resolved_classes.empty()) {
-    VLOG(profiler) << "No info to save to " << filename;
-    if (bytes_written != nullptr) {
-      *bytes_written = 0;
-    }
-    return true;
-  }
-
-  ProfileCompilationInfo info;
-  if (!info.AddMethodsAndClasses(methods, resolved_classes)) {
-    LOG(WARNING) << "Checksum mismatch when processing methods and resolved classes for "
-        << filename;
-    if (bytes_written != nullptr) {
-      *bytes_written = 0;
-    }
-    return false;
-  }
-  return info.MergeAndSave(filename, bytes_written);
 }
 
 // Returns true if all the bytes were successfully written to the file descriptor.
@@ -535,17 +521,24 @@ ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::LoadInternal(
 }
 
 bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
+  // First verify that all checksums match. This will avoid adding garbage to
+  // the current profile info.
+  // Note that the number of elements should be very small, so this should not
+  // be a performance issue.
+  for (const auto& other_it : other.info_) {
+    auto info_it = info_.find(other_it.first);
+    if ((info_it != info_.end()) && (info_it->second.checksum != other_it.second.checksum)) {
+      LOG(WARNING) << "Checksum mismatch for dex " << other_it.first;
+      return false;
+    }
+  }
+  // All checksums match. Import the data.
   for (const auto& other_it : other.info_) {
     const std::string& other_dex_location = other_it.first;
     const DexFileData& other_dex_data = other_it.second;
-
     auto info_it = info_.find(other_dex_location);
     if (info_it == info_.end()) {
       info_it = info_.Put(other_dex_location, DexFileData(other_dex_data.checksum));
-    }
-    if (info_it->second.checksum != other_dex_data.checksum) {
-      LOG(WARNING) << "Checksum mismatch for dex " << other_dex_location;
-      return false;
     }
     info_it->second.method_set.insert(other_dex_data.method_set.begin(),
                                       other_dex_data.method_set.end());
