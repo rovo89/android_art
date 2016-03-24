@@ -16,7 +16,8 @@
 
 #include "offline_profiling_info.h"
 
-#include <fstream>
+#include "errno.h"
+#include <limits.h>
 #include <vector>
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -33,6 +34,11 @@
 #include "safe_map.h"
 
 namespace art {
+
+const uint8_t ProfileCompilationInfo::kProfileMagic[] = { 'p', 'r', 'o', '\0' };
+const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '1', '\0' };
+
+static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
 
 // Transform the actual dex location into relative paths.
 // Note: this is OK because we don't store profiles of different apps into the same file.
@@ -147,85 +153,105 @@ bool ProfileCompilationInfo::SaveProfilingInfo(
   return info.MergeAndSave(filename, bytes_written);
 }
 
-static bool WriteToFile(int fd, const std::ostringstream& os) {
-  std::string data(os.str());
-  const char *p = data.c_str();
-  size_t length = data.length();
-  do {
-    int n = TEMP_FAILURE_RETRY(write(fd, p, length));
-    if (n < 0) {
-      PLOG(WARNING) << "Failed to write to descriptor: " << fd;
+// Returns true if all the bytes were successfully written to the file descriptor.
+static bool WriteBuffer(int fd, const uint8_t* buffer, size_t byte_count) {
+  while (byte_count > 0) {
+    int bytes_written = TEMP_FAILURE_RETRY(write(fd, buffer, byte_count));
+    if (bytes_written == -1) {
       return false;
     }
-    p += n;
-    length -= n;
-  } while (length > 0);
+    byte_count -= bytes_written;  // Reduce the number of remaining bytes.
+    buffer += bytes_written;  // Move the buffer forward.
+  }
   return true;
 }
 
-static constexpr const char kFieldSeparator = ',';
-static constexpr const char kLineSeparator = '\n';
-static constexpr const char* kClassesMarker = "classes";
+// Add the string bytes to the buffer.
+static void AddStringToBuffer(std::vector<uint8_t>* buffer, const std::string& value) {
+  buffer->insert(buffer->end(), value.begin(), value.end());
+}
+
+// Insert each byte, from low to high into the buffer.
+template <typename T>
+static void AddUintToBuffer(std::vector<uint8_t>* buffer, T value) {
+  for (size_t i = 0; i < sizeof(T); i++) {
+    buffer->push_back((value >> (i * kBitsPerByte)) & 0xff);
+  }
+}
+
+static constexpr size_t kLineHeaderSize =
+    3 * sizeof(uint16_t) +  // method_set.size + class_set.size + dex_location.size
+    sizeof(uint32_t);       // checksum
 
 /**
  * Serialization format:
- *    dex_location1,dex_location_checksum1,method_id11,method_id12...,classes,class_id1,class_id2...
- *    dex_location2,dex_location_checksum2,method_id21,method_id22...,classes,class_id1,class_id2...
- * e.g.
- *    app.apk,131232145,11,23,454,54,classes,1,2,4,1234
- *    app.apk:classes5.dex,218490184,39,13,49,1
+ *    magic,version,number_of_lines
+ *    dex_location1,number_of_methods1,number_of_classes1,dex_location_checksum1, \
+ *        method_id11,method_id12...,class_id1,class_id2...
+ *    dex_location2,number_of_methods2,number_of_classes2,dex_location_checksum2, \
+ *        method_id21,method_id22...,,class_id1,class_id2...
+ *    .....
  **/
 bool ProfileCompilationInfo::Save(int fd) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   DCHECK_GE(fd, 0);
-  // TODO(calin): Profile this and see how much memory it takes. If too much,
-  // write to file directly.
-  std::ostringstream os;
+
+  // Cache at most 5KB before writing.
+  static constexpr size_t kMaxSizeToKeepBeforeWriting = 5 * KB;
+  // Use a vector wrapper to avoid keeping track of offsets when we add elements.
+  std::vector<uint8_t> buffer;
+  WriteBuffer(fd, kProfileMagic, sizeof(kProfileMagic));
+  WriteBuffer(fd, kProfileVersion, sizeof(kProfileVersion));
+  AddUintToBuffer(&buffer, static_cast<uint16_t>(info_.size()));
+
   for (const auto& it : info_) {
+    if (buffer.size() > kMaxSizeToKeepBeforeWriting) {
+      if (!WriteBuffer(fd, buffer.data(), buffer.size())) {
+        return false;
+      }
+      buffer.clear();
+    }
     const std::string& dex_location = it.first;
     const DexFileData& dex_data = it.second;
     if (dex_data.method_set.empty() && dex_data.class_set.empty()) {
       continue;
     }
 
-    os << dex_location << kFieldSeparator << dex_data.checksum;
+    if (dex_location.size() >= kMaxDexFileKeyLength) {
+      LOG(WARNING) << "DexFileKey exceeds allocated limit";
+      return false;
+    }
+
+    // Make sure that the buffer has enough capacity to avoid repeated resizings
+    // while we add data.
+    size_t required_capacity = buffer.size() +
+        kLineHeaderSize +
+        dex_location.size() +
+        sizeof(uint16_t) * (dex_data.class_set.size() + dex_data.method_set.size());
+
+    buffer.reserve(required_capacity);
+
+    DCHECK_LE(dex_location.size(), std::numeric_limits<uint16_t>::max());
+    DCHECK_LE(dex_data.method_set.size(), std::numeric_limits<uint16_t>::max());
+    DCHECK_LE(dex_data.class_set.size(), std::numeric_limits<uint16_t>::max());
+    AddUintToBuffer(&buffer, static_cast<uint16_t>(dex_location.size()));
+    AddUintToBuffer(&buffer, static_cast<uint16_t>(dex_data.method_set.size()));
+    AddUintToBuffer(&buffer, static_cast<uint16_t>(dex_data.class_set.size()));
+    AddUintToBuffer(&buffer, dex_data.checksum);  // uint32_t
+
+    AddStringToBuffer(&buffer, dex_location);
+
     for (auto method_it : dex_data.method_set) {
-      os << kFieldSeparator << method_it;
+      AddUintToBuffer(&buffer, method_it);
     }
-    if (!dex_data.class_set.empty()) {
-      os << kFieldSeparator << kClassesMarker;
-      for (auto class_id : dex_data.class_set) {
-        os << kFieldSeparator << class_id;
-      }
+    for (auto class_id : dex_data.class_set) {
+      AddUintToBuffer(&buffer, class_id);
     }
-    os << kLineSeparator;
+    DCHECK_EQ(required_capacity, buffer.size())
+        << "Failed to add the expected number of bytes in the buffer";
   }
 
-  return WriteToFile(fd, os);
-}
-
-// TODO(calin): This a duplicate of Utils::Split fixing the case where the first character
-// is the separator. Merge the fix into Utils::Split once verified that it doesn't break its users.
-static void SplitString(const std::string& s, char separator, std::vector<std::string>* result) {
-  const char* p = s.data();
-  const char* end = p + s.size();
-  // Check if the first character is the separator.
-  if (p != end && *p ==separator) {
-    result->push_back("");
-    ++p;
-  }
-  // Process the rest of the characters.
-  while (p != end) {
-    if (*p == separator) {
-      ++p;
-    } else {
-      const char* start = p;
-      while (++p != end && *p != separator) {
-        // Skip to the next occurrence of the separator.
-      }
-      result->push_back(std::string(start, p - start));
-    }
-  }
+  return WriteBuffer(fd, buffer.data(), buffer.size());
 }
 
 ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData(
@@ -275,105 +301,237 @@ bool ProfileCompilationInfo::AddClassIndex(const std::string& dex_location,
   return true;
 }
 
-bool ProfileCompilationInfo::ProcessLine(const std::string& line) {
-  std::vector<std::string> parts;
-  SplitString(line, kFieldSeparator, &parts);
-  if (parts.size() < 3) {
-    LOG(WARNING) << "Invalid line: " << line;
-    return false;
-  }
-
-  const std::string& dex_location = parts[0];
-  uint32_t checksum;
-  if (!ParseInt(parts[1].c_str(), &checksum)) {
-    return false;
-  }
-
-  for (size_t i = 2; i < parts.size(); i++) {
-    if (parts[i] == kClassesMarker) {
-      ++i;
-      // All of the remaining idx are class def indexes.
-      for (++i; i < parts.size(); ++i) {
-        uint32_t class_def_idx;
-        if (!ParseInt(parts[i].c_str(), &class_def_idx)) {
-          LOG(WARNING) << "Cannot parse class_def_idx " << parts[i];
-          return false;
-        } else if (class_def_idx >= std::numeric_limits<uint16_t>::max()) {
-          LOG(WARNING) << "Class def idx " << class_def_idx << " is larger than uint16_t max";
-          return false;
-        }
-        if (!AddClassIndex(dex_location, checksum, class_def_idx)) {
-          return false;
-        }
-      }
-      break;
-    }
-    uint32_t method_idx;
-    if (!ParseInt(parts[i].c_str(), &method_idx)) {
-      LOG(WARNING) << "Cannot parse method_idx " << parts[i];
-      return false;
-    }
+bool ProfileCompilationInfo::ProcessLine(SafeBuffer& line_buffer,
+                                         uint16_t method_set_size,
+                                         uint16_t class_set_size,
+                                         uint32_t checksum,
+                                         const std::string& dex_location) {
+  for (uint16_t i = 0; i < method_set_size; i++) {
+    uint16_t method_idx = line_buffer.ReadUintAndAdvance<uint16_t>();
     if (!AddMethodIndex(dex_location, checksum, method_idx)) {
       return false;
     }
   }
+
+  for (uint16_t i = 0; i < class_set_size; i++) {
+    uint16_t class_def_idx = line_buffer.ReadUintAndAdvance<uint16_t>();
+    if (!AddClassIndex(dex_location, checksum, class_def_idx)) {
+      return false;
+    }
+  }
   return true;
 }
 
-// Parses the buffer (of length n) starting from start_from and identify new lines
-// based on kLineSeparator marker.
-// Returns the first position after kLineSeparator in the buffer (starting from start_from),
-// or -1 if the marker doesn't appear.
-// The processed characters are appended to the given line.
-static int GetLineFromBuffer(char* buffer, int n, int start_from, std::string& line) {
-  if (start_from >= n) {
-    return -1;
+// Tests for EOF by trying to read 1 byte from the descriptor.
+// Returns:
+//   0 if the descriptor is at the EOF,
+//  -1 if there was an IO error
+//   1 if the descriptor has more content to read
+static int testEOF(int fd) {
+  uint8_t buffer[1];
+  return TEMP_FAILURE_RETRY(read(fd, buffer, 1));
+}
+
+// Reads an uint value previously written with AddUintToBuffer.
+template <typename T>
+T ProfileCompilationInfo::SafeBuffer::ReadUintAndAdvance() {
+  static_assert(std::is_unsigned<T>::value, "Type is not unsigned");
+  CHECK_LE(ptr_current_ + sizeof(T), ptr_end_);
+  T value = 0;
+  for (size_t i = 0; i < sizeof(T); i++) {
+    value += ptr_current_[i] << (i * kBitsPerByte);
   }
-  int new_line_pos = -1;
-  for (int i = start_from; i < n; i++) {
-    if (buffer[i] == kLineSeparator) {
-      new_line_pos = i;
-      break;
+  ptr_current_ += sizeof(T);
+  return value;
+}
+
+bool ProfileCompilationInfo::SafeBuffer::CompareAndAdvance(const uint8_t* data, size_t data_size) {
+  if (ptr_current_ + data_size > ptr_end_) {
+    return false;
+  }
+  if (memcmp(ptr_current_, data, data_size) == 0) {
+    ptr_current_ += data_size;
+    return true;
+  }
+  return false;
+}
+
+ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::SafeBuffer::FillFromFd(
+      int fd,
+      const std::string& source,
+      /*out*/std::string* error) {
+  size_t byte_count = ptr_end_ - ptr_current_;
+  uint8_t* buffer = ptr_current_;
+  while (byte_count > 0) {
+    int bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer, byte_count));
+    if (bytes_read == 0) {
+      *error += "Profile EOF reached prematurely for " + source;
+      return kProfileLoadBadData;
+    } else if (bytes_read < 0) {
+      *error += "Profile IO error for " + source + strerror(errno);
+      return kProfileLoadIOError;
     }
+    byte_count -= bytes_read;
+    buffer += bytes_read;
   }
-  int append_limit = new_line_pos == -1 ? n : new_line_pos;
-  line.append(buffer + start_from, append_limit - start_from);
-  // Jump over kLineSeparator and return the position of the next character.
-  return new_line_pos == -1 ? new_line_pos : new_line_pos + 1;
+  return kProfileLoadSuccess;
+}
+
+ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::ReadProfileHeader(
+      int fd,
+      /*out*/uint16_t* number_of_lines,
+      /*out*/std::string* error) {
+  // Read magic and version
+  const size_t kMagicVersionSize =
+    sizeof(kProfileMagic) +
+    sizeof(kProfileVersion) +
+    sizeof(uint16_t);  // number of lines
+
+  SafeBuffer safe_buffer(kMagicVersionSize);
+
+  ProfileLoadSatus status = safe_buffer.FillFromFd(fd, "ReadProfileHeader", error);
+  if (status != kProfileLoadSuccess) {
+    return status;
+  }
+
+  if (!safe_buffer.CompareAndAdvance(kProfileMagic, sizeof(kProfileMagic))) {
+    *error = "Profile missing magic";
+    return kProfileLoadVersionMismatch;
+  }
+  if (!safe_buffer.CompareAndAdvance(kProfileVersion, sizeof(kProfileVersion))) {
+    *error = "Profile version mismatch";
+    return kProfileLoadVersionMismatch;
+  }
+  *number_of_lines = safe_buffer.ReadUintAndAdvance<uint16_t>();
+  return kProfileLoadSuccess;
+}
+
+ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::ReadProfileLineHeader(
+      int fd,
+      /*out*/ProfileLineHeader* line_header,
+      /*out*/std::string* error) {
+  SafeBuffer header_buffer(kLineHeaderSize);
+  ProfileLoadSatus status = header_buffer.FillFromFd(fd, "ReadProfileHeader", error);
+  if (status != kProfileLoadSuccess) {
+    return status;
+  }
+
+  uint16_t dex_location_size = header_buffer.ReadUintAndAdvance<uint16_t>();
+  line_header->method_set_size = header_buffer.ReadUintAndAdvance<uint16_t>();
+  line_header->class_set_size = header_buffer.ReadUintAndAdvance<uint16_t>();
+  line_header->checksum = header_buffer.ReadUintAndAdvance<uint32_t>();
+
+  if (dex_location_size == 0 || dex_location_size > kMaxDexFileKeyLength) {
+    *error = "DexFileKey has an invalid size: " + std::to_string(dex_location_size);
+    return kProfileLoadBadData;
+  }
+
+  SafeBuffer location_buffer(dex_location_size);
+  status = location_buffer.FillFromFd(fd, "ReadProfileHeaderDexLocation", error);
+  if (status != kProfileLoadSuccess) {
+    return status;
+  }
+  line_header->dex_location.assign(
+      reinterpret_cast<char*>(location_buffer.Get()), dex_location_size);
+  return kProfileLoadSuccess;
+}
+
+ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::ReadProfileLine(
+      int fd,
+      const ProfileLineHeader& line_header,
+      /*out*/std::string* error) {
+  // Make sure that we don't try to read everything in memory (in case the profile if full).
+  // Split readings in chunks of at most 10kb.
+  static constexpr uint16_t kMaxNumberOfEntriesToRead = 5120;
+  uint16_t methods_left_to_read = line_header.method_set_size;
+  uint16_t classes_left_to_read = line_header.class_set_size;
+
+  while ((methods_left_to_read > 0) || (classes_left_to_read > 0)) {
+    uint16_t methods_to_read = std::min(kMaxNumberOfEntriesToRead, methods_left_to_read);
+    uint16_t max_classes_to_read = kMaxNumberOfEntriesToRead - methods_to_read;
+    uint16_t classes_to_read = std::min(max_classes_to_read, classes_left_to_read);
+
+    size_t line_size = sizeof(uint16_t) * (methods_to_read + classes_to_read);
+    SafeBuffer line_buffer(line_size);
+
+    ProfileLoadSatus status = line_buffer.FillFromFd(fd, "ReadProfileLine", error);
+    if (status != kProfileLoadSuccess) {
+      return status;
+    }
+    if (!ProcessLine(line_buffer,
+                     methods_to_read,
+                     classes_to_read,
+                     line_header.checksum,
+                     line_header.dex_location)) {
+      *error = "Error when reading profile file line";
+      return kProfileLoadBadData;
+    }
+    methods_left_to_read -= methods_to_read;
+    classes_left_to_read -= classes_to_read;
+  }
+  return kProfileLoadSuccess;
 }
 
 bool ProfileCompilationInfo::Load(int fd) {
+  std::string error;
+  ProfileLoadSatus status = LoadInternal(fd, &error);
+
+  if (status == kProfileLoadSuccess) {
+    return true;
+  } else {
+    PLOG(WARNING) << "Error when reading profile " << error;
+    return false;
+  }
+}
+
+ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::LoadInternal(
+      int fd, std::string* error) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   DCHECK_GE(fd, 0);
 
-  std::string current_line;
-  const int kBufferSize = 1024;
-  char buffer[kBufferSize];
-
-  while (true) {
-    int n = TEMP_FAILURE_RETRY(read(fd, buffer, kBufferSize));
-    if (n < 0) {
-      PLOG(WARNING) << "Error when reading profile file";
-      return false;
-    } else if (n == 0) {
-      break;
-    }
-    // Detect the new lines from the buffer. If we manage to complete a line,
-    // process it. Otherwise append to the current line.
-    int current_start_pos = 0;
-    while (current_start_pos < n) {
-      current_start_pos = GetLineFromBuffer(buffer, n, current_start_pos, current_line);
-      if (current_start_pos == -1) {
-        break;
-      }
-      if (!ProcessLine(current_line)) {
-        return false;
-      }
-      // Reset the current line (we just processed it).
-      current_line.clear();
-    }
+  struct stat stat_buffer;
+  if (fstat(fd, &stat_buffer) != 0) {
+    return kProfileLoadIOError;
   }
-  return true;
+  // We allow empty profile files.
+  // Profiles may be created by ActivityManager or installd before we manage to
+  // process them in the runtime or profman.
+  if (stat_buffer.st_size == 0) {
+    return kProfileLoadSuccess;
+  }
+  // Read profile header: magic + version + number_of_lines.
+  uint16_t number_of_lines;
+  ProfileLoadSatus status = ReadProfileHeader(fd, &number_of_lines, error);
+  if (status != kProfileLoadSuccess) {
+    return status;
+  }
+
+  while (number_of_lines > 0) {
+    ProfileLineHeader line_header;
+    // First, read the line header to get the amount of data we need to read.
+    status = ReadProfileLineHeader(fd, &line_header, error);
+    if (status != kProfileLoadSuccess) {
+      return status;
+    }
+
+    // Now read the actual profile line.
+    status = ReadProfileLine(fd, line_header, error);
+    if (status != kProfileLoadSuccess) {
+      return status;
+    }
+    number_of_lines--;
+  }
+
+  // Check that we read everything and that profiles don't contain junk data.
+  int result = testEOF(fd);
+  if (result == 0) {
+    return kProfileLoadSuccess;
+  } else if (result < 0) {
+    return kProfileLoadIOError;
+  } else {
+    *error = "Unexpected content in the profile file";
+    return kProfileLoadBadData;
+  }
 }
 
 bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
@@ -470,7 +628,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
           os << "\n  " << PrettyMethod(method_it, *dex_file, true);
         }
       }
-      os << "\n  " << method_it;
+      os << ", " << method_it;
     }
   }
   return os.str();
