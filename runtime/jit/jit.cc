@@ -38,6 +38,15 @@ namespace jit {
 
 static constexpr bool kEnableOnStackReplacement = true;
 
+// JIT compiler
+void* Jit::jit_library_handle_= nullptr;
+void* Jit::jit_compiler_handle_ = nullptr;
+void* (*Jit::jit_load_)(bool*) = nullptr;
+void (*Jit::jit_unload_)(void*) = nullptr;
+bool (*Jit::jit_compile_method_)(void*, ArtMethod*, Thread*, bool) = nullptr;
+void (*Jit::jit_types_loaded_)(void*, mirror::Class**, size_t count) = nullptr;
+bool Jit::generate_debug_info_ = false;
+
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
   jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
@@ -96,22 +105,16 @@ void Jit::AddTimingLogger(const TimingLogger& logger) {
   cumulative_timings_.AddLogger(logger);
 }
 
-Jit::Jit() : jit_library_handle_(nullptr),
-             jit_compiler_handle_(nullptr),
-             jit_load_(nullptr),
-             jit_compile_method_(nullptr),
-             dump_info_on_shutdown_(false),
+Jit::Jit() : dump_info_on_shutdown_(false),
              cumulative_timings_("JIT timings"),
              memory_use_("Memory used for compilation", 16),
              lock_("JIT memory use lock"),
-             save_profiling_info_(false),
-             generate_debug_info_(false) {
-}
+             save_profiling_info_(false) {}
 
 Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   std::unique_ptr<Jit> jit(new Jit);
   jit->dump_info_on_shutdown_ = options->DumpJitInfoOnShutdown();
-  if (!jit->LoadCompiler(error_msg)) {
+  if (jit_compiler_handle_ == nullptr && !LoadCompiler(error_msg)) {
     return nullptr;
   }
   jit->code_cache_.reset(JitCodeCache::Create(
@@ -252,9 +255,11 @@ Jit::~Jit() {
   DeleteThreadPool();
   if (jit_compiler_handle_ != nullptr) {
     jit_unload_(jit_compiler_handle_);
+    jit_compiler_handle_ = nullptr;
   }
   if (jit_library_handle_ != nullptr) {
     dlclose(jit_library_handle_);
+    jit_library_handle_ = nullptr;
   }
 }
 
