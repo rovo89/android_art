@@ -1412,13 +1412,13 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
     // Nothing to do. The code always falls through.
     return;
   } else if (cond->IsIntConstant()) {
-    // Constant condition, statically compared against 1.
-    if (cond->AsIntConstant()->IsOne()) {
+    // Constant condition, statically compared against "true" (integer value 1).
+    if (cond->AsIntConstant()->IsTrue()) {
       if (true_target != nullptr) {
         __ b(true_target);
       }
     } else {
-      DCHECK(cond->AsIntConstant()->IsZero());
+      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
       if (false_target != nullptr) {
         __ b(false_target);
       }
