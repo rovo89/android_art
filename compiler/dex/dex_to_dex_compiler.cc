@@ -327,10 +327,16 @@ CompiledMethod* ArtCompileDEX(
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-    art::DexCompilationUnit unit(nullptr, class_loader, class_linker,
-                                 dex_file, code_item, class_def_idx, method_idx, access_flags,
-                                 driver->GetVerifiedMethod(&dex_file, method_idx),
-                                 hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file)));
+    art::DexCompilationUnit unit(
+        class_loader,
+        class_linker,
+        dex_file,
+        code_item,
+        class_def_idx,
+        method_idx,
+        access_flags,
+        driver->GetVerifiedMethod(&dex_file, method_idx),
+        hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file)));
     art::optimizer::DexCompiler dex_compiler(*driver, unit, dex_to_dex_compilation_level);
     dex_compiler.Compile();
     if (dex_compiler.GetQuickenedInfo().empty()) {
