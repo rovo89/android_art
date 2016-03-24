@@ -21,6 +21,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
+#include "linear_alloc.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
@@ -1999,14 +2000,28 @@ TEST_F(StubTest, IMT) {
   // 1. imt_conflict
 
   // Contains.
-  // TODO(ngeoffray): Re-enable this test. They are now broken with the ImtConflictTable.
-  // b/27794971
-/*
+
+  // We construct the ImtConflictTable ourselves, as we cannot go into the runtime stub
+  // that will create it: the runtime stub expects to be called by compiled code.
+  ArtMethod* runtime_conflict_method = Runtime::Current()->GetImtConflictMethod();
+  LinearAlloc* linear_alloc = Runtime::Current()->GetLinearAlloc();
+  ArtMethod* conflict_method = Runtime::Current()->CreateImtConflictMethod(linear_alloc);
+  ImtConflictTable* runtime_conflict_table =
+      runtime_conflict_method->GetImtConflictTable(sizeof(void*));
+  void* data = linear_alloc->Alloc(
+      self,
+      ImtConflictTable::ComputeSizeWithOneMoreEntry(runtime_conflict_table));
+  ImtConflictTable* new_table = new (data) ImtConflictTable(
+      runtime_conflict_table, inf_contains, contains_amethod);
+  conflict_method->SetImtConflictTable(new_table);
+
   size_t result =
-      Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
+      Invoke3WithReferrerAndHidden(reinterpret_cast<size_t>(conflict_method),
+                                   reinterpret_cast<size_t>(array_list.Get()),
                                    reinterpret_cast<size_t>(obj.Get()),
                                    StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline),
-                                   self, contains_amethod,
+                                   self,
+                                   contains_amethod,
                                    static_cast<size_t>(inf_contains->GetDexMethodIndex()));
 
   ASSERT_FALSE(self->IsExceptionPending());
@@ -2020,25 +2035,29 @@ TEST_F(StubTest, IMT) {
 
   // Contains.
 
-  result = Invoke3WithReferrerAndHidden(
-      0U, reinterpret_cast<size_t>(array_list.Get()), reinterpret_cast<size_t>(obj.Get()),
-      StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline), self, contains_amethod,
-      static_cast<size_t>(inf_contains->GetDexMethodIndex()));
+  result =
+      Invoke3WithReferrerAndHidden(reinterpret_cast<size_t>(conflict_method),
+                                   reinterpret_cast<size_t>(array_list.Get()),
+                                   reinterpret_cast<size_t>(obj.Get()),
+                                   StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline),
+                                   self,
+                                   contains_amethod,
+                                   static_cast<size_t>(inf_contains->GetDexMethodIndex()));
 
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
-*/
+
   // 2. regular interface trampoline
 
-  size_t result = Invoke3WithReferrer(static_cast<size_t>(inf_contains->GetDexMethodIndex()),
-                                      reinterpret_cast<size_t>(array_list.Get()),
-                                      reinterpret_cast<size_t>(obj.Get()),
-                                      StubTest::GetEntrypoint(self,
-                                         kQuickInvokeInterfaceTrampolineWithAccessCheck),
-                                      self, contains_amethod);
+  result = Invoke3WithReferrer(static_cast<size_t>(inf_contains->GetDexMethodIndex()),
+                               reinterpret_cast<size_t>(array_list.Get()),
+                               reinterpret_cast<size_t>(obj.Get()),
+                               StubTest::GetEntrypoint(self,
+                                   kQuickInvokeInterfaceTrampolineWithAccessCheck),
+                               self, contains_amethod);
 
   ASSERT_FALSE(self->IsExceptionPending());
-  EXPECT_EQ(static_cast<size_t>(JNI_FALSE), result);
+  EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
 
   result = Invoke3WithReferrer(
       static_cast<size_t>(inf_contains->GetDexMethodIndex()),
