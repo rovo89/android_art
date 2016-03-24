@@ -259,8 +259,7 @@ class OptimizingCompiler FINAL : public Compiler {
   explicit OptimizingCompiler(CompilerDriver* driver);
   ~OptimizingCompiler();
 
-  bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file, CompilationUnit* cu) const
-      OVERRIDE;
+  bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file) const OVERRIDE;
 
   CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                           uint32_t access_flags,
@@ -282,8 +281,6 @@ class OptimizingCompiler FINAL : public Compiler {
     return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
         InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
   }
-
-  void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;
 
   void Init() OVERRIDE;
 
@@ -365,12 +362,8 @@ OptimizingCompiler::~OptimizingCompiler() {
   }
 }
 
-void OptimizingCompiler::InitCompilationUnit(CompilationUnit& cu ATTRIBUTE_UNUSED) const {
-}
-
 bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
-                                          const DexFile& dex_file ATTRIBUTE_UNUSED,
-                                          CompilationUnit* cu ATTRIBUTE_UNUSED) const {
+                                          const DexFile& dex_file ATTRIBUTE_UNUSED) const {
   return true;
 }
 
@@ -662,9 +655,15 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   }
 
   DexCompilationUnit dex_compilation_unit(
-    nullptr, class_loader, Runtime::Current()->GetClassLinker(), dex_file, code_item,
-    class_def_idx, method_idx, access_flags,
-    nullptr, dex_cache);
+      class_loader,
+      Runtime::Current()->GetClassLinker(),
+      dex_file,
+      code_item,
+      class_def_idx,
+      method_idx,
+      access_flags,
+      /* verified_method */ nullptr,
+      dex_cache);
 
   bool requires_barrier = dex_compilation_unit.IsConstructor()
       && compiler_driver->RequiresConstructorBarrier(Thread::Current(),

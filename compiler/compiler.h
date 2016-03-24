@@ -27,8 +27,6 @@ namespace jit {
 }
 
 class ArtMethod;
-class Backend;
-struct CompilationUnit;
 class CompilerDriver;
 class CompiledMethod;
 class OatWriter;
@@ -46,8 +44,7 @@ class Compiler {
 
   virtual void UnInit() const = 0;
 
-  virtual bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file, CompilationUnit* cu)
-      const = 0;
+  virtual bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file) const = 0;
 
   virtual CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                                   uint32_t access_flags,
@@ -76,8 +73,6 @@ class Compiler {
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {
     return maximum_compilation_time_before_warning_;
   }
-
-  virtual void InitCompilationUnit(CompilationUnit& cu) const = 0;
 
   virtual ~Compiler() {}
 
