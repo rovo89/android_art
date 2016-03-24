@@ -418,6 +418,20 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
   }
 
+  void VisitInstanceFieldGet(HInstanceFieldGet* iget) OVERRIDE {
+    StartAttributeStream("field_name") << PrettyField(iget->GetFieldInfo().GetFieldIndex(),
+                                                      iget->GetFieldInfo().GetDexFile(),
+                                                      /* with type */ false);
+    StartAttributeStream("field_type") << iget->GetFieldType();
+  }
+
+  void VisitInstanceFieldSet(HInstanceFieldSet* iset) OVERRIDE {
+    StartAttributeStream("field_name") << PrettyField(iset->GetFieldInfo().GetFieldIndex(),
+                                                      iset->GetFieldInfo().GetDexFile(),
+                                                      /* with type */ false);
+    StartAttributeStream("field_type") << iset->GetFieldType();
+  }
+
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* field_access) OVERRIDE {
     StartAttributeStream("field_type") << field_access->GetFieldType();
   }
