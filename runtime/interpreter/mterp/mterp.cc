@@ -21,6 +21,7 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "mterp.h"
 #include "jit/jit.h"
+#include "jit/jit_instrumentation.h"
 #include "debugger.h"
 
 namespace art {
@@ -432,7 +433,7 @@ extern "C" bool MterpHandleException(Thread* self, ShadowFrame* shadow_frame)
 }
 
 extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
   if (inst->Opcode(inst_data) == Instruction::MOVE_EXCEPTION) {
@@ -444,7 +445,7 @@ extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame)
 }
 
 extern "C" void MterpLogDivideByZeroException(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -452,7 +453,7 @@ extern "C" void MterpLogDivideByZeroException(Thread* self, ShadowFrame* shadow_
 }
 
 extern "C" void MterpLogArrayIndexException(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -460,7 +461,7 @@ extern "C" void MterpLogArrayIndexException(Thread* self, ShadowFrame* shadow_fr
 }
 
 extern "C" void MterpLogNegativeArraySizeException(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -468,7 +469,7 @@ extern "C" void MterpLogNegativeArraySizeException(Thread* self, ShadowFrame* sh
 }
 
 extern "C" void MterpLogNoSuchMethodException(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -476,7 +477,7 @@ extern "C" void MterpLogNoSuchMethodException(Thread* self, ShadowFrame* shadow_
 }
 
 extern "C" void MterpLogExceptionThrownException(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -484,7 +485,7 @@ extern "C" void MterpLogExceptionThrownException(Thread* self, ShadowFrame* shad
 }
 
 extern "C" void MterpLogNullObjectException(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -492,7 +493,7 @@ extern "C" void MterpLogNullObjectException(Thread* self, ShadowFrame* shadow_fr
 }
 
 extern "C" void MterpLogFallback(Thread* self, ShadowFrame* shadow_frame)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -501,7 +502,7 @@ extern "C" void MterpLogFallback(Thread* self, ShadowFrame* shadow_frame)
 }
 
 extern "C" void MterpLogOSR(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -509,7 +510,7 @@ extern "C" void MterpLogOSR(Thread* self, ShadowFrame* shadow_frame, int32_t off
 }
 
 extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame, uint32_t flags)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -521,7 +522,7 @@ extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame,
 }
 
 extern "C" bool MterpSuspendCheck(Thread* self)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   self->AllowThreadSuspension();
   return MterpShouldSwitchInterpreters();
 }
@@ -617,7 +618,7 @@ extern "C" int artSetObjInstanceFromMterp(uint32_t field_idx, mirror::Object* ob
 }
 
 extern "C" mirror::Object* artAGetObjectFromMterp(mirror::Object* arr, int32_t index)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (UNLIKELY(arr == nullptr)) {
     ThrowNullPointerExceptionFromInterpreter();
     return nullptr;
@@ -631,7 +632,7 @@ extern "C" mirror::Object* artAGetObjectFromMterp(mirror::Object* arr, int32_t i
 }
 
 extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t field_offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (UNLIKELY(obj == nullptr)) {
     ThrowNullPointerExceptionFromInterpreter();
     return nullptr;
@@ -639,13 +640,82 @@ extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t 
   return obj->GetFieldObject<mirror::Object>(MemberOffset(field_offset));
 }
 
+/*
+ * Create a hotness_countdown based on the current method hotness_count and profiling
+ * mode.  In short, determine how many hotness events we hit before reporting back
+ * to the full instrumentation via MterpAddHotnessBatch.  Called once on entry to the method,
+ * and regenerated following batch updates.
+ */
+extern "C" int MterpSetUpHotnessCountdown(ArtMethod* method, ShadowFrame* shadow_frame)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint16_t hotness_count = method->GetCounter();
+  int32_t countdown_value = jit::kJitHotnessDisabled;
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit::JitInstrumentationCache* cache = jit->GetInstrumentationCache();
+    int32_t warm_threshold = cache->WarmMethodThreshold();
+    int32_t hot_threshold = cache->HotMethodThreshold();
+    if (hotness_count < warm_threshold) {
+      countdown_value  = warm_threshold - hotness_count;
+    } else if (hotness_count < hot_threshold) {
+      countdown_value = hot_threshold - hotness_count;
+    } else {
+      countdown_value = jit::kJitCheckForOSR;
+    }
+  }
+  /*
+   * The actual hotness threshold may exceed the range of our int16_t countdown value.  This is
+   * not a problem, though.  We can just break it down into smaller chunks.
+   */
+  countdown_value = std::min(countdown_value,
+                             static_cast<int32_t>(std::numeric_limits<int16_t>::max()));
+  shadow_frame->SetCachedHotnessCountdown(countdown_value);
+  shadow_frame->SetHotnessCountdown(countdown_value);
+  return countdown_value;
+}
+
+/*
+ * Report a batch of hotness events to the instrumentation and then return the new
+ * countdown value to the next time we should report.
+ */
+extern "C" int16_t MterpAddHotnessBatch(ArtMethod* method,
+                                        ShadowFrame* shadow_frame,
+                                        Thread* self)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    int16_t count = shadow_frame->GetCachedHotnessCountdown() - shadow_frame->GetHotnessCountdown();
+    jit->GetInstrumentationCache()->AddSamples(self, method, count);
+  }
+  return MterpSetUpHotnessCountdown(method, shadow_frame);
+}
+
+// TUNING: Unused by arm/arm64.  Remove when x86/x86_64/mips/mips64 mterps support batch updates.
 extern "C" bool  MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* method = shadow_frame->GetMethod();
   JValue* result = shadow_frame->GetResultRegister();
   uint32_t dex_pc = shadow_frame->GetDexPC();
-  const auto* const instrumentation = Runtime::Current()->GetInstrumentation();
-  instrumentation->Branch(self, method, dex_pc, offset);
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if ((jit != nullptr) && (offset <= 0)) {
+    jit->GetInstrumentationCache()->AddSamples(self, method, 1);
+  }
+  int16_t countdown_value = MterpSetUpHotnessCountdown(method, shadow_frame);
+  if (countdown_value == jit::kJitCheckForOSR) {
+    return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);
+  } else {
+    return false;
+  }
+}
+
+extern "C" bool MterpMaybeDoOnStackReplacement(Thread* self,
+                                               ShadowFrame* shadow_frame,
+                                               int32_t offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  ArtMethod* method = shadow_frame->GetMethod();
+  JValue* result = shadow_frame->GetResultRegister();
+  uint32_t dex_pc = shadow_frame->GetDexPC();
+  // Assumes caller has already determined that an OSR check is appropriate.
   return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);
 }
 

@@ -107,6 +107,104 @@ MterpException:
     GET_INST_OPCODE ip
     GOTO_OPCODE ip
     /* NOTE: no fallthrough */
+/*
+ * Common handling for branches with support for Jit profiling.
+ * On entry:
+ *    wINST          <= signed offset
+ *    wPROFILE       <= signed hotness countdown (expanded to 32 bits)
+ *    condition bits <= set to establish sign of offset (use "NoFlags" entry if not)
+ *
+ * We have quite a few different cases for branch profiling, OSR detection and
+ * suspend check support here.
+ *
+ * Taken backward branches:
+ *    If profiling active, do hotness countdown and report if we hit zero.
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *    Is there a pending suspend request?  If so, suspend.
+ *
+ * Taken forward branches and not-taken backward branches:
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *
+ * Our most common case is expected to be a taken backward branch with active jit profiling,
+ * but no full OSR check and no pending suspend request.
+ * Next most common case is not-taken branch with no full OSR check.
+ *
+ */
+MterpCommonTakenBranchNoFlags:
+    cmp     wINST, #0
+    b.gt    .L_forward_branch           // don't add forward branches to hotness
+    tbnz    wPROFILE, #31, .L_no_count_backwards  // go if negative
+    subs    wPROFILE, wPROFILE, #1      // countdown
+    b.eq    .L_add_batch                // counted down to zero - report
+.L_resume_backward_branch:
+    ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
+    add     w2, wINST, wINST            // w2<- byte offset
+    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
+    REFRESH_IBASE
+    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    b.ne    .L_suspend_request_pending
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+.L_suspend_request_pending:
+    EXPORT_PC
+    mov     x0, xSELF
+    bl      MterpSuspendCheck           // (self)
+    cbnz    x0, MterpFallback
+    REFRESH_IBASE                       // might have changed during suspend
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+.L_no_count_backwards:
+    cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
+    b.ne    .L_resume_backward_branch
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, xINST
+    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
+    b.ne    MterpOnStackReplacement
+    b       .L_resume_backward_branch
+
+.L_forward_branch:
+    cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
+    b.eq    .L_check_osr_forward
+.L_resume_forward_branch:
+    add     w2, wINST, wINST            // w2<- byte offset
+    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+.L_check_osr_forward:
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, xINST
+    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
+    b.ne    MterpOnStackReplacement
+    b       .L_resume_forward_branch
+
+.L_add_batch:
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
+    ldr     x0, [xFP, #OFF_FP_METHOD]
+    mov     x2, xSELF
+    bl      MterpAddHotnessBatch        // (method, shadow_frame, self)
+    mov     wPROFILE, w0                // restore new hotness countdown to wPROFILE
+    b       .L_no_count_backwards
+
+/*
+ * Entered from the conditional branch handlers when OSR check request active on
+ * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
+ */
+.L_check_not_taken_osr:
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, #2
+    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
+    b.ne    MterpOnStackReplacement
+    FETCH_ADVANCE_INST 2
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
 
 /*
  * Check for suspend check request.  Assumes wINST already loaded, xPC advanced and
@@ -175,10 +273,11 @@ MterpReturn:
 check2:
     mov     x0, #1                                  // signal return to caller.
 MterpDone:
-    ldp     fp, lr, [sp, #48]
-    ldp     xPC, xFP, [sp, #32]
-    ldp     xSELF, xINST, [sp, #16]
-    ldp     xIBASE, xREFS, [sp], #64
+    ldp     fp, lr, [sp, #64]
+    ldp     xPC, xFP, [sp, #48]
+    ldp     xSELF, xINST, [sp, #32]
+    ldp     xIBASE, xREFS, [sp, #16]
+    ldp     xPROFILE, x27, [sp], #80
     ret
 
     .cfi_endproc
