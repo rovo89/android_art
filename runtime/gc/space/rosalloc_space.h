@@ -144,6 +144,8 @@ class RosAllocSpace : public MallocSpace {
     rosalloc_->LogFragmentationAllocFailure(os, failed_alloc_bytes);
   }
 
+  void DumpStats(std::ostream& os);
+
  protected:
   RosAllocSpace(MemMap* mem_map, size_t initial_size, const std::string& name,
                 allocator::RosAlloc* rosalloc, uint8_t* begin, uint8_t* end, uint8_t* limit,

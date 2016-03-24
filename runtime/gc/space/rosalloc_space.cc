@@ -368,6 +368,11 @@ void RosAllocSpace::Clear() {
   SetFootprintLimit(footprint_limit);
 }
 
+void RosAllocSpace::DumpStats(std::ostream& os) {
+  ScopedSuspendAll ssa(__FUNCTION__);
+  rosalloc_->DumpStats(os);
+}
+
 }  // namespace space
 
 namespace allocator {
