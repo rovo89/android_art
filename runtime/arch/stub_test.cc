@@ -2003,16 +2003,15 @@ TEST_F(StubTest, IMT) {
 
   // We construct the ImtConflictTable ourselves, as we cannot go into the runtime stub
   // that will create it: the runtime stub expects to be called by compiled code.
-  ArtMethod* runtime_conflict_method = Runtime::Current()->GetImtConflictMethod();
   LinearAlloc* linear_alloc = Runtime::Current()->GetLinearAlloc();
   ArtMethod* conflict_method = Runtime::Current()->CreateImtConflictMethod(linear_alloc);
-  ImtConflictTable* runtime_conflict_table =
-      runtime_conflict_method->GetImtConflictTable(sizeof(void*));
+  static ImtConflictTable::Entry empty_entry = { nullptr, nullptr };
+  ImtConflictTable* empty_conflict_table = reinterpret_cast<ImtConflictTable*>(&empty_entry);
   void* data = linear_alloc->Alloc(
       self,
-      ImtConflictTable::ComputeSizeWithOneMoreEntry(runtime_conflict_table));
+      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table));
   ImtConflictTable* new_table = new (data) ImtConflictTable(
-      runtime_conflict_table, inf_contains, contains_amethod);
+      empty_conflict_table, inf_contains, contains_amethod);
   conflict_method->SetImtConflictTable(new_table);
 
   size_t result =
