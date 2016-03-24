@@ -149,44 +149,32 @@ TEST_F(DeadCodeEliminationTest, AdditionsAndInconditionalJumps) {
     "  5: IntConstant [9]\n"
     "  13: IntConstant [14]\n"
     "  18: IntConstant [19]\n"
-    "  24: IntConstant [25]\n"
-    "  29: SuspendCheck\n"
-    "  30: Goto 1\n"
+    "  23: IntConstant [24]\n"
+    "  28: SuspendCheck\n"
+    "  29: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 3\n"
     "  9: Add(3, 5) [19]\n"
     "  11: Goto 3\n"
     "BasicBlock 2, pred: 3, succ: 4\n"
-    "  14: Add(19, 13) [25]\n"
+    "  14: Add(19, 13) [24]\n"
     "  16: Goto 4\n"
     "BasicBlock 3, pred: 1, succ: 2\n"
     "  19: Add(9, 18) [14]\n"
-    "  21: SuspendCheck\n"
-    "  22: Goto 2\n"
+    "  21: Goto 2\n"
     "BasicBlock 4, pred: 2, succ: 5\n"
-    "  25: Add(14, 24)\n"
-    "  27: ReturnVoid\n"
+    "  24: Add(14, 23)\n"
+    "  26: ReturnVoid\n"
     "BasicBlock 5, pred: 4\n"
-    "  28: Exit\n";
+    "  27: Exit\n";
 
-  // The SuspendCheck instruction following this Add instruction
-  // inserts the latter in an environment, thus making it "used" and
-  // therefore non removable.  It ensures that some other Add and
-  // IntConstant instructions cannot be removed, as they are direct
-  // or indirect inputs of the initial Add instruction.
   std::string expected_after =
     "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"
-    "  5: IntConstant [9]\n"
-    "  18: IntConstant [19]\n"
-    "  29: SuspendCheck\n"
-    "  30: Goto 1\n"
+    "  28: SuspendCheck\n"
+    "  29: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 5\n"
-    "  9: Add(3, 5) [19]\n"
-    "  19: Add(9, 18) []\n"
-    "  21: SuspendCheck\n"
-    "  27: ReturnVoid\n"
+    "  26: ReturnVoid\n"
     "BasicBlock 5, pred: 1\n"
-    "  28: Exit\n";
+    "  27: Exit\n";
 
   TestCode(data, expected_before, expected_after);
 }
