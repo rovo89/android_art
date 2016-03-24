@@ -616,19 +616,29 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
       std::string multidex_suffix = DexFile::GetMultiDexSuffix(location);
       os << (multidex_suffix.empty() ? kFirstDexFileKeySubstitute : multidex_suffix);
     }
-    for (const auto method_it : dex_data.method_set) {
-      if (dex_files != nullptr) {
-        const DexFile* dex_file = nullptr;
-        for (size_t i = 0; i < dex_files->size(); i++) {
-          if (location == (*dex_files)[i]->GetLocation()) {
-            dex_file = (*dex_files)[i];
-          }
-        }
-        if (dex_file != nullptr) {
-          os << "\n  " << PrettyMethod(method_it, *dex_file, true);
+    const DexFile* dex_file = nullptr;
+    if (dex_files != nullptr) {
+      for (size_t i = 0; i < dex_files->size(); i++) {
+        if (location == (*dex_files)[i]->GetLocation()) {
+          dex_file = (*dex_files)[i];
         }
       }
-      os << ", " << method_it;
+    }
+    os << "\n\tmethods: ";
+    for (const auto method_it : dex_data.method_set) {
+      if (dex_file != nullptr) {
+        os << "\n\t\t" << PrettyMethod(method_it, *dex_file, true);
+      } else {
+        os << method_it << ",";
+      }
+    }
+    os << "\n\tclasses: ";
+    for (const auto class_it : dex_data.class_set) {
+      if (dex_file != nullptr) {
+        os << "\n\t\t" << PrettyType(class_it, *dex_file);
+      } else {
+        os << class_it << ",";
+      }
     }
   }
   return os.str();
