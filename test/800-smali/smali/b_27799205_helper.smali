@@ -38,3 +38,10 @@
 
        return-void
 .end method
+
+.method public static run6()V
+.registers 1
+       invoke-static {}, LB27799205_6;->run()V
+
+       return-void
+.end method
