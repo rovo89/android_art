@@ -187,22 +187,6 @@ class ShadowFrame {
     return (dex_pc_ptr_ == nullptr) ? dex_pc_ : dex_pc_ptr_ - code_item_->insns_;
   }
 
-  int16_t GetCachedHotnessCountdown() const {
-    return cached_hotness_countdown_;
-  }
-
-  void SetCachedHotnessCountdown(int16_t cached_hotness_countdown) {
-    cached_hotness_countdown_ = cached_hotness_countdown;
-  }
-
-  int16_t GetHotnessCountdown() const {
-    return hotness_countdown_;
-  }
-
-  void SetHotnessCountdown(int16_t hotness_countdown) {
-    hotness_countdown_ = hotness_countdown;
-  }
-
   void SetDexPC(uint32_t dex_pc) {
     dex_pc_ = dex_pc;
     dex_pc_ptr_ = nullptr;
@@ -413,14 +397,6 @@ class ShadowFrame {
     return OFFSETOF_MEMBER(ShadowFrame, code_item_);
   }
 
-  static size_t CachedHotnessCountdownOffset() {
-    return OFFSETOF_MEMBER(ShadowFrame, cached_hotness_countdown_);
-  }
-
-  static size_t HotnessCountdownOffset() {
-    return OFFSETOF_MEMBER(ShadowFrame, hotness_countdown_);
-  }
-
   // Create ShadowFrame for interpreter using provided memory.
   static ShadowFrame* CreateShadowFrameImpl(uint32_t num_vregs,
                                             ShadowFrame* link,
@@ -430,7 +406,7 @@ class ShadowFrame {
     return new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
   }
 
-  const uint16_t* GetDexPCPtr() {
+  uint16_t* GetDexPCPtr() {
     return dex_pc_ptr_;
   }
 
@@ -467,13 +443,11 @@ class ShadowFrame {
   ShadowFrame* link_;
   ArtMethod* method_;
   JValue* result_register_;
-  const uint16_t* dex_pc_ptr_;
+  uint16_t* dex_pc_ptr_;
   const DexFile::CodeItem* code_item_;
   LockCountData lock_count_data_;  // This may contain GC roots when lock counting is active.
   const uint32_t number_of_vregs_;
   uint32_t dex_pc_;
-  int16_t cached_hotness_countdown_;
-  int16_t hotness_countdown_;
 
   // This is a two-part array:
   //  - [0..number_of_vregs) holds the raw virtual registers, and each element here is always 4
