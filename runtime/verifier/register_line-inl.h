@@ -127,17 +127,6 @@ inline void RegisterLine::CopyRegister2(MethodVerifier* verifier, uint32_t vdst,
   }
 }
 
-inline size_t RegisterLine::GetMaxNonZeroReferenceReg(MethodVerifier* verifier,
-                                                      size_t max_ref_reg) const {
-  size_t i = static_cast<int>(max_ref_reg) < 0 ? 0 : max_ref_reg;
-  for (; i < num_regs_; i++) {
-    if (GetRegisterType(verifier, i).IsNonZeroReferenceTypes()) {
-      max_ref_reg = i;
-    }
-  }
-  return max_ref_reg;
-}
-
 inline bool RegisterLine::VerifyRegisterType(MethodVerifier* verifier, uint32_t vsrc,
                                              const RegType& check_type) {
   // Verify the src register type against the check type refining the type of the register

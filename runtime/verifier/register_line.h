@@ -346,11 +346,6 @@ class RegisterLine {
   bool MergeRegisters(MethodVerifier* verifier, const RegisterLine* incoming_line)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  size_t GetMaxNonZeroReferenceReg(MethodVerifier* verifier, size_t max_ref_reg) const;
-
-  // Write a bit at each register location that holds a reference.
-  void WriteReferenceBitMap(MethodVerifier* verifier, std::vector<uint8_t>* data, size_t max_bytes);
-
   size_t GetMonitorEnterCount() const {
     return monitors_.size();
   }

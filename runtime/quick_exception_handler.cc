@@ -342,11 +342,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         updated_vregs = GetThread()->GetUpdatedVRegFlags(frame_id);
         DCHECK(updated_vregs != nullptr);
       }
-      if (GetCurrentOatQuickMethodHeader()->IsOptimized()) {
-        HandleOptimizingDeoptimization(method, new_frame, updated_vregs);
-      } else {
-        HandleQuickDeoptimization(method, new_frame, updated_vregs);
-      }
+      HandleOptimizingDeoptimization(method, new_frame, updated_vregs);
       if (updated_vregs != nullptr) {
         // Calling Thread::RemoveDebuggerShadowFrameMapping will also delete the updated_vregs
         // array so this must come after we processed the frame.
@@ -473,132 +469,6 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
 
   static VRegKind GetVRegKind(uint16_t reg, const std::vector<int32_t>& kinds) {
     return static_cast<VRegKind>(kinds.at(reg * 2));
-  }
-
-  void HandleQuickDeoptimization(ArtMethod* m,
-                                 ShadowFrame* new_frame,
-                                 const bool* updated_vregs)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    const DexFile::CodeItem* code_item = m->GetCodeItem();
-    CHECK(code_item != nullptr) << "No code item for " << PrettyMethod(m);
-    uint16_t num_regs = code_item->registers_size_;
-    uint32_t dex_pc = GetDexPc();
-    StackHandleScope<2> hs(GetThread());  // Dex cache and class loader.
-    mirror::Class* declaring_class = m->GetDeclaringClass();
-    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
-    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-    verifier::MethodVerifier verifier(GetThread(), h_dex_cache->GetDexFile(), h_dex_cache,
-                                      h_class_loader, &m->GetClassDef(), code_item,
-                                      m->GetDexMethodIndex(), m, m->GetAccessFlags(), true, true,
-                                      true, true);
-    bool verifier_success = verifier.Verify();
-    CHECK(verifier_success) << PrettyMethod(m);
-    {
-      ScopedStackedShadowFramePusher pusher(GetThread(), new_frame,
-                                            StackedShadowFrameType::kShadowFrameUnderConstruction);
-      const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
-
-      // Markers for dead values, used when the verifier knows a Dex register is undefined,
-      // or when the compiler knows the register has not been initialized, or is not used
-      // anymore in the method.
-      static constexpr uint32_t kDeadValue = 0xEBADDE09;
-      static constexpr uint64_t kLongDeadValue = 0xEBADDE09EBADDE09;
-      for (uint16_t reg = 0; reg < num_regs; ++reg) {
-        if (updated_vregs != nullptr && updated_vregs[reg]) {
-          // Keep the value set by debugger.
-          continue;
-        }
-        VRegKind kind = GetVRegKind(reg, kinds);
-        switch (kind) {
-          case kUndefined:
-            new_frame->SetVReg(reg, kDeadValue);
-            break;
-          case kConstant:
-            new_frame->SetVReg(reg, kinds.at((reg * 2) + 1));
-            break;
-          case kReferenceVReg: {
-            uint32_t value = 0;
-            // Check IsReferenceVReg in case the compiled GC map doesn't agree with the verifier.
-            // We don't want to copy a stale reference into the shadow frame as a reference.
-            // b/20736048
-            if (GetVReg(m, reg, kind, &value) && IsReferenceVReg(m, reg)) {
-              new_frame->SetVRegReference(reg, reinterpret_cast<mirror::Object*>(value));
-            } else {
-              new_frame->SetVReg(reg, kDeadValue);
-            }
-            break;
-          }
-          case kLongLoVReg:
-            if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
-              // Treat it as a "long" register pair.
-              uint64_t value = 0;
-              if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &value)) {
-                new_frame->SetVRegLong(reg, value);
-              } else {
-                new_frame->SetVRegLong(reg, kLongDeadValue);
-              }
-            } else {
-              uint32_t value = 0;
-              if (GetVReg(m, reg, kind, &value)) {
-                new_frame->SetVReg(reg, value);
-              } else {
-                new_frame->SetVReg(reg, kDeadValue);
-              }
-            }
-            break;
-          case kLongHiVReg:
-            if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
-              // Nothing to do: we treated it as a "long" register pair.
-            } else {
-              uint32_t value = 0;
-              if (GetVReg(m, reg, kind, &value)) {
-                new_frame->SetVReg(reg, value);
-              } else {
-                new_frame->SetVReg(reg, kDeadValue);
-              }
-            }
-            break;
-          case kDoubleLoVReg:
-            if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
-              uint64_t value = 0;
-              if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &value)) {
-                // Treat it as a "double" register pair.
-                new_frame->SetVRegLong(reg, value);
-              } else {
-                new_frame->SetVRegLong(reg, kLongDeadValue);
-              }
-            } else {
-              uint32_t value = 0;
-              if (GetVReg(m, reg, kind, &value)) {
-                new_frame->SetVReg(reg, value);
-              } else {
-                new_frame->SetVReg(reg, kDeadValue);
-              }
-            }
-            break;
-          case kDoubleHiVReg:
-            if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
-              // Nothing to do: we treated it as a "double" register pair.
-            } else {
-              uint32_t value = 0;
-              if (GetVReg(m, reg, kind, &value)) {
-                new_frame->SetVReg(reg, value);
-              } else {
-                new_frame->SetVReg(reg, kDeadValue);
-              }
-            }
-            break;
-          default:
-            uint32_t value = 0;
-            if (GetVReg(m, reg, kind, &value)) {
-              new_frame->SetVReg(reg, value);
-            } else {
-              new_frame->SetVReg(reg, kDeadValue);
-            }
-            break;
-        }
-      }
-    }
   }
 
   QuickExceptionHandler* const exception_handler_;
