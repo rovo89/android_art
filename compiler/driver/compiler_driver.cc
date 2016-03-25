@@ -2212,7 +2212,8 @@ void CompilerDriver::Verify(jobject class_loader,
 
 class VerifyClassVisitor : public CompilationVisitor {
  public:
-  explicit VerifyClassVisitor(const ParallelCompilationManager* manager) : manager_(manager) {}
+  VerifyClassVisitor(const ParallelCompilationManager* manager, LogSeverity log_level)
+     : manager_(manager), log_level_(log_level) {}
 
   virtual void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
     ATRACE_CALL();
@@ -2250,7 +2251,7 @@ class VerifyClassVisitor : public CompilationVisitor {
                                                 &class_def,
                                                 Runtime::Current()->GetCompilerCallbacks(),
                                                 true /* allow soft failures */,
-                                                true /* log hard failures */,
+                                                log_level_,
                                                 &error_msg) ==
                                                     verifier::MethodVerifier::kHardFailure) {
         LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
@@ -2259,7 +2260,7 @@ class VerifyClassVisitor : public CompilationVisitor {
       }
     } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
       CHECK(klass->IsResolved()) << PrettyClass(klass.Get());
-      class_linker->VerifyClass(soa.Self(), klass);
+      class_linker->VerifyClass(soa.Self(), klass, log_level_);
 
       if (klass->IsErroneous()) {
         // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
@@ -2282,6 +2283,7 @@ class VerifyClassVisitor : public CompilationVisitor {
 
  private:
   const ParallelCompilationManager* const manager_;
+  const LogSeverity log_level_;
 };
 
 void CompilerDriver::VerifyDexFile(jobject class_loader,
@@ -2294,7 +2296,10 @@ void CompilerDriver::VerifyDexFile(jobject class_loader,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, dex_files,
                                      thread_pool);
-  VerifyClassVisitor visitor(&context);
+  LogSeverity log_level = GetCompilerOptions().AbortOnHardVerifierFailure()
+                              ? LogSeverity::INTERNAL_FATAL
+                              : LogSeverity::WARNING;
+  VerifyClassVisitor visitor(&context, log_level);
   context.ForAll(0, dex_file.NumClassDefs(), &visitor, thread_count);
 }
 

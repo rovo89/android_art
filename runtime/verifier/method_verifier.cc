@@ -122,7 +122,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         mirror::Class* klass,
                                                         CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
-                                                        bool log_hard_failures,
+                                                        LogSeverity log_level,
                                                         std::string* error) {
   if (klass->IsVerified()) {
     return kNoFailure;
@@ -161,7 +161,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                      class_def,
                      callbacks,
                      allow_soft_failures,
-                     log_hard_failures,
+                     log_level,
                      error);
 }
 
@@ -195,7 +195,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
                                                           Handle<mirror::ClassLoader> class_loader,
                                                           CompilerCallbacks* callbacks,
                                                           bool allow_soft_failures,
-                                                          bool log_hard_failures,
+                                                          LogSeverity log_level,
                                                           bool need_precise_constants,
                                                           std::string* error_string) {
   DCHECK(it != nullptr);
@@ -236,7 +236,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
                                                       it->GetMethodAccessFlags(),
                                                       callbacks,
                                                       allow_soft_failures,
-                                                      log_hard_failures,
+                                                      log_level,
                                                       need_precise_constants,
                                                       &hard_failure_msg);
     if (result.kind == kHardFailure) {
@@ -266,7 +266,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         const DexFile::ClassDef* class_def,
                                                         CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
-                                                        bool log_hard_failures,
+                                                        LogSeverity log_level,
                                                         std::string* error) {
   DCHECK(class_def != nullptr);
   ScopedTrace trace(__FUNCTION__);
@@ -299,7 +299,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                           class_loader,
                                                           callbacks,
                                                           allow_soft_failures,
-                                                          log_hard_failures,
+                                                          log_level,
                                                           false /* need precise constants */,
                                                           error);
   // Virtual methods.
@@ -312,7 +312,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                            class_loader,
                                                            callbacks,
                                                            allow_soft_failures,
-                                                           log_hard_failures,
+                                                           log_level,
                                                            false /* need precise constants */,
                                                            error);
 
@@ -360,7 +360,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          uint32_t method_access_flags,
                                                          CompilerCallbacks* callbacks,
                                                          bool allow_soft_failures,
-                                                         bool log_hard_failures,
+                                                         LogSeverity log_level,
                                                          bool need_precise_constants,
                                                          std::string* hard_failure_msg) {
   MethodVerifier::FailureData result;
@@ -407,9 +407,12 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
       result.kind = kSoftFailure;
     } else {
       CHECK(verifier.have_pending_hard_failure_);
-      if (VLOG_IS_ON(verifier) || log_hard_failures) {
-        verifier.DumpFailures(LOG(INFO) << "Verification error in "
-                                        << PrettyMethod(method_idx, *dex_file) << "\n");
+      if (VLOG_IS_ON(verifier)) {
+        log_level = LogSeverity::VERBOSE;
+      }
+      if (log_level > LogSeverity::VERBOSE) {
+        verifier.DumpFailures(LOG(log_level) << "Verification error in "
+                                             << PrettyMethod(method_idx, *dex_file) << "\n");
       }
       if (hard_failure_msg != nullptr) {
         CHECK(!verifier.failure_messages_.empty());
