@@ -2425,6 +2425,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         if (!array_type.IsArrayTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid fill-array-data with array type "
                                             << array_type;
+        } else if (array_type.IsUnresolvedTypes()) {
+          // If it's an unresolved array type, it must be non-primitive.
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid fill-array-data for array of type "
+                                            << array_type;
         } else {
           const RegType& component_type = reg_types_.GetComponentType(array_type, GetClassLoader());
           DCHECK(!component_type.IsConflict());
@@ -4209,6 +4213,7 @@ void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled, boo
       const RegType& precise_type = reg_types_.FromUninitialized(res_type);
       work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_22c(), precise_type);
     } else {
+      DCHECK(!res_type.IsUnresolvedMergedReference());
       // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
       // the list and fail. It's legal, if silly, for arg_count to be zero.
       const RegType& expected_type = reg_types_.GetComponentType(res_type, GetClassLoader());
@@ -4253,6 +4258,15 @@ void MethodVerifier::VerifyAGet(const Instruction* inst,
       }
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aget";
+    } else if (array_type.IsUnresolvedTypes()) {
+      // Unresolved array types must be reference array types.
+      if (is_primitive) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
+                    << " source for category 1 aget";
+      } else {
+        Fail(VERIFY_ERROR_NO_CLASS) << "cannot verify aget for " << array_type
+            << " because of missing class";
+      }
     } else {
       /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type, GetClassLoader());
@@ -4363,6 +4377,15 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
       work_line_->VerifyRegisterType(this, inst->VRegA_23x(), *modified_reg_type);
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
+    } else if (array_type.IsUnresolvedTypes()) {
+      // Unresolved array types must be reference array types.
+      if (is_primitive) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "put insn has type '" << insn_type
+                                          << "' but unresolved type '" << array_type << "'";
+      } else {
+        Fail(VERIFY_ERROR_NO_CLASS) << "cannot verify aput for " << array_type
+                                    << " because of missing class";
+      }
     } else {
       const RegType& component_type = reg_types_.GetComponentType(array_type, GetClassLoader());
       const uint32_t vregA = inst->VRegA_23x();

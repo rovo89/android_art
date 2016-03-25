@@ -164,6 +164,15 @@ public class Main {
                 null));
         testCases.add(new TestCase("b/26965384", "B26965384", "run", null, new VerifyError(),
                 null));
+        testCases.add(new TestCase("b/27799205 (1)", "B27799205Helper", "run1", null, null, null));
+        testCases.add(new TestCase("b/27799205 (2)", "B27799205Helper", "run2", null,
+                new VerifyError(), null));
+        testCases.add(new TestCase("b/27799205 (3)", "B27799205Helper", "run3", null,
+                new VerifyError(), null));
+        testCases.add(new TestCase("b/27799205 (4)", "B27799205Helper", "run4", null,
+                new VerifyError(), null));
+        testCases.add(new TestCase("b/27799205 (5)", "B27799205Helper", "run5", null,
+                new VerifyError(), null));
     }
 
     public void runTests() {
