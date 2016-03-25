@@ -211,7 +211,9 @@ bool ProfileSaver::ProcessProfilingInfo() {
       continue;
     }
     uint64_t bytes_written;
-    if (cached_info->MergeAndSave(filename, &bytes_written)) {
+    // Force the save. In case the profile data is corrupted or the the profile
+    // has the wrong version this will "fix" the file to the correct format.
+    if (cached_info->MergeAndSave(filename, &bytes_written, /*force*/ true)) {
       last_save_number_of_methods_ = cached_info->GetNumberOfMethods();
       last_save_number_of_classes__ = cached_info->GetNumberOfResolvedClasses();
       // Clear resolved classes. No need to store them around as
