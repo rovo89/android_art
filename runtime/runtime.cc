@@ -573,7 +573,7 @@ bool Runtime::Start() {
     // If we are the zygote then we need to wait until after forking to create the code cache
     // due to SELinux restrictions on r/w/x memory regions.
       CreateJit();
-    } else if (!jit::Jit::LoadCompiler(&error_msg)) {
+    } else if (!jit::Jit::LoadCompilerLibrary(&error_msg)) {
       // Try to load compiler pre zygote to reduce PSS. b/27744947
       LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
     }
