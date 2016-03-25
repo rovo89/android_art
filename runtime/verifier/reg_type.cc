@@ -878,7 +878,7 @@ bool RegType::CanAssignArray(const RegType& src, RegTypeCache& reg_types,
     return false;
   }
 
-  if (IsUnresolvedTypes() || src.IsUnresolvedTypes()) {
+  if (IsUnresolvedMergedReference() || src.IsUnresolvedMergedReference()) {
     // An unresolved array type means that it's an array of some reference type. Reference arrays
     // can never be assigned to primitive-type arrays, and vice versa. So it is a soft error if
     // both arrays are reference arrays, otherwise a hard error.
