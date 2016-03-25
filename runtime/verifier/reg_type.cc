@@ -517,9 +517,21 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   }
 }
 
+bool RegType::IsJavaLangObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  return IsReference() && GetClass()->IsObjectClass();
+}
+
 bool RegType::IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
-    // Primitive arrays will always resolve
+  if (IsUnresolvedTypes()) {
+    DCHECK(!IsUnresolvedMergedReference());
+
+    if (IsUnresolvedSuperClass()) {
+      // Cannot be an array, as the superclass of arrays is java.lang.Object (which cannot be
+      // unresolved).
+      return false;
+    }
+
+    // Primitive arrays will always resolve.
     DCHECK(descriptor_[1] == 'L' || descriptor_[1] == '[');
     return descriptor_[0] == '[';
   } else if (HasClass()) {
@@ -530,12 +542,15 @@ bool RegType::IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
   }
 }
 
-bool RegType::IsJavaLangObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
-  return IsReference() && GetClass()->IsObjectClass();
-}
-
 bool RegType::IsArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
+  if (IsUnresolvedTypes()) {
+    DCHECK(!IsUnresolvedMergedReference());
+
+    if (IsUnresolvedSuperClass()) {
+      // Cannot be an array, as the superclass of arrays is java.lang.Object (which cannot be
+      // unresolved).
+      return false;
+    }
     return descriptor_[0] == '[';
   } else if (HasClass()) {
     return GetClass()->IsArrayClass();
@@ -793,11 +808,50 @@ UnresolvedMergedType::UnresolvedMergedType(const RegType& resolved,
   }
 }
 void UnresolvedMergedType::CheckInvariants() const {
+  CHECK(reg_type_cache_ != nullptr);
+
   // Unresolved merged types: merged types should be defined.
   CHECK(descriptor_.empty()) << *this;
   CHECK(klass_.IsNull()) << *this;
+
+  CHECK(!resolved_part_.IsConflict());
   CHECK(resolved_part_.IsReferenceTypes());
   CHECK(!resolved_part_.IsUnresolvedTypes());
+
+  CHECK(resolved_part_.IsZero() ||
+        !(resolved_part_.IsArrayTypes() && !resolved_part_.IsObjectArrayTypes()));
+
+  CHECK_GT(unresolved_types_.NumSetBits(), 0U);
+  bool unresolved_is_array =
+      reg_type_cache_->GetFromId(unresolved_types_.GetHighestBitSet()).IsArrayTypes();
+  for (uint32_t idx : unresolved_types_.Indexes()) {
+    const RegType& t = reg_type_cache_->GetFromId(idx);
+    CHECK_EQ(unresolved_is_array, t.IsArrayTypes());
+  }
+
+  if (!resolved_part_.IsZero()) {
+    CHECK_EQ(resolved_part_.IsArrayTypes(), unresolved_is_array);
+  }
+}
+
+bool UnresolvedMergedType::IsArrayTypes() const {
+  // For a merge to be an array, both the resolved and the unresolved part need to be object
+  // arrays.
+  // (Note: we encode a missing resolved part [which doesn't need to be an array] as zero.)
+
+  if (!resolved_part_.IsZero() && !resolved_part_.IsArrayTypes()) {
+    return false;
+  }
+
+  // It is enough to check just one of the merged types. Otherwise the merge should have been
+  // collapsed (checked in CheckInvariants on construction).
+  uint32_t idx = unresolved_types_.GetHighestBitSet();
+  const RegType& unresolved = reg_type_cache_->GetFromId(idx);
+  return unresolved.IsArrayTypes();
+}
+bool UnresolvedMergedType::IsObjectArrayTypes() const {
+  // Same as IsArrayTypes, as primitive arrays are always resolved.
+  return IsArrayTypes();
 }
 
 void UnresolvedReferenceType::CheckInvariants() const {
@@ -821,6 +875,14 @@ bool RegType::CanAssignArray(const RegType& src, RegTypeCache& reg_types,
                              Handle<mirror::ClassLoader> class_loader, bool* soft_error) const {
   if (!IsArrayTypes() || !src.IsArrayTypes()) {
     *soft_error = false;
+    return false;
+  }
+
+  if (IsUnresolvedTypes() || src.IsUnresolvedTypes()) {
+    // An unresolved array type means that it's an array of some reference type. Reference arrays
+    // can never be assigned to primitive-type arrays, and vice versa. So it is a soft error if
+    // both arrays are reference arrays, otherwise a hard error.
+    *soft_error = IsObjectArrayTypes() && src.IsObjectArrayTypes();
     return false;
   }
 

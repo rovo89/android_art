@@ -347,29 +347,39 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
                        kDefaultArenaBitVectorBytes * kBitsPerByte,  // Allocate at least 8 bytes.
                        true);                                       // Is expandable.
   const RegType* left_resolved;
+  bool left_unresolved_is_array;
   if (left.IsUnresolvedMergedReference()) {
-    const UnresolvedMergedType* left_merge = down_cast<const UnresolvedMergedType*>(&left);
-    types.Copy(&left_merge->GetUnresolvedTypes());
-    left_resolved = &left_merge->GetResolvedPart();
+    const UnresolvedMergedType& left_merge = *down_cast<const UnresolvedMergedType*>(&left);
+
+    types.Copy(&left_merge.GetUnresolvedTypes());
+    left_resolved = &left_merge.GetResolvedPart();
+    left_unresolved_is_array = left.IsArrayTypes();
   } else if (left.IsUnresolvedTypes()) {
     types.ClearAllBits();
     types.SetBit(left.GetId());
     left_resolved = &Zero();
+    left_unresolved_is_array = left.IsArrayTypes();
   } else {
     types.ClearAllBits();
     left_resolved = &left;
+    left_unresolved_is_array = false;
   }
 
   const RegType* right_resolved;
+  bool right_unresolved_is_array;
   if (right.IsUnresolvedMergedReference()) {
-    const UnresolvedMergedType* right_merge = down_cast<const UnresolvedMergedType*>(&right);
-    types.Union(&right_merge->GetUnresolvedTypes());
-    right_resolved = &right_merge->GetResolvedPart();
+    const UnresolvedMergedType& right_merge = *down_cast<const UnresolvedMergedType*>(&right);
+
+    types.Union(&right_merge.GetUnresolvedTypes());
+    right_resolved = &right_merge.GetResolvedPart();
+    right_unresolved_is_array = right.IsArrayTypes();
   } else if (right.IsUnresolvedTypes()) {
     types.SetBit(right.GetId());
     right_resolved = &Zero();
+    right_unresolved_is_array = right.IsArrayTypes();
   } else {
     right_resolved = &right;
+    right_unresolved_is_array = false;
   }
 
   // Merge the resolved parts. Left and right might be equal, so use SafeMerge.
@@ -377,6 +387,23 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
   // If we get a conflict here, the merge result is a conflict, not an unresolved merge type.
   if (resolved_parts_merged.IsConflict()) {
     return Conflict();
+  }
+
+  bool resolved_merged_is_array = resolved_parts_merged.IsArrayTypes();
+  if (left_unresolved_is_array || right_unresolved_is_array || resolved_merged_is_array) {
+    // Arrays involved, see if we need to merge to Object.
+
+    // Is the resolved part a primitive array?
+    if (resolved_merged_is_array && !resolved_parts_merged.IsObjectArrayTypes()) {
+      return JavaLangObject(false /* precise */);
+    }
+
+    // Is any part not an array (but exists)?
+    if ((!left_unresolved_is_array && left_resolved != &left) ||
+        (!right_unresolved_is_array && right_resolved != &right) ||
+        !resolved_merged_is_array) {
+      return JavaLangObject(false /* precise */);
+    }
   }
 
   // Check if entry already exists.
@@ -584,6 +611,7 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, mirror::Clas
   if (!array.IsArrayTypes()) {
     return Conflict();
   } else if (array.IsUnresolvedTypes()) {
+    DCHECK(!array.IsUnresolvedTypes());  // Caller must make sure not to ask for this.
     const std::string descriptor(array.GetDescriptor().as_string());
     return FromDescriptor(loader, descriptor.c_str() + 1, false);
   } else {
