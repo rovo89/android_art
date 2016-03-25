@@ -67,6 +67,17 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     return static_cast<uint32_t>(file.GetFd());
   }
 
+  bool SaveProfilingInfo(
+      const std::string& filename,
+      const std::vector<ArtMethod*>& methods,
+      const std::set<DexCacheResolvedClasses>& resolved_classes) {
+    ProfileCompilationInfo info;
+    if (!info.AddMethodsAndClasses(methods, resolved_classes)) {
+      return false;
+    }
+    return info.MergeAndSave(filename, nullptr, false);
+  }
+
   // Cannot sizeof the actual arrays so hardcode the values here.
   // They should not change anyway.
   static constexpr int kProfileMagicSize = 4;
@@ -87,9 +98,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
   // Save virtual methods from Main.
   std::set<DexCacheResolvedClasses> resolved_classes;
   std::vector<ArtMethod*> main_methods = GetVirtualMethods(class_loader, "LMain;");
-  ASSERT_TRUE(ProfileCompilationInfo::SaveProfilingInfo(profile.GetFilename(),
-                                                        main_methods,
-                                                        resolved_classes));
+  ASSERT_TRUE(SaveProfilingInfo(profile.GetFilename(), main_methods, resolved_classes));
 
   // Check that what we saved is in the profile.
   ProfileCompilationInfo info1;
@@ -104,9 +113,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
 
   // Save virtual methods from Second.
   std::vector<ArtMethod*> second_methods = GetVirtualMethods(class_loader, "LSecond;");
-  ASSERT_TRUE(ProfileCompilationInfo::SaveProfilingInfo(profile.GetFilename(),
-                                                        second_methods,
-                                                        resolved_classes));
+  ASSERT_TRUE(SaveProfilingInfo(profile.GetFilename(), second_methods, resolved_classes));
 
   // Check that what we saved is in the profile (methods form Main and Second).
   ProfileCompilationInfo info2;
