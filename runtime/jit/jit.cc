@@ -134,7 +134,7 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   return jit.release();
 }
 
-bool Jit::LoadCompiler(std::string* error_msg) {
+bool Jit::LoadCompilerLibrary(std::string* error_msg) {
   jit_library_handle_ = dlopen(
       kIsDebugBuild ? "libartd-compiler.so" : "libart-compiler.so", RTLD_NOW);
   if (jit_library_handle_ == nullptr) {
@@ -168,6 +168,13 @@ bool Jit::LoadCompiler(std::string* error_msg) {
   if (jit_types_loaded_ == nullptr) {
     dlclose(jit_library_handle_);
     *error_msg = "JIT couldn't find jit_types_loaded entry point";
+    return false;
+  }
+  return true;
+}
+
+bool Jit::LoadCompiler(std::string* error_msg) {
+  if (jit_library_handle_ == nullptr && !LoadCompilerLibrary(error_msg)) {
     return false;
   }
   bool will_generate_debug_symbols = false;
