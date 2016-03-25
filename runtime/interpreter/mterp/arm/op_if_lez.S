@@ -1,1 +1,1 @@
-%include "arm/zcmp.S" { "revcmp":"gt" }
+%include "arm/zcmp.S" { "condition":"le" }
