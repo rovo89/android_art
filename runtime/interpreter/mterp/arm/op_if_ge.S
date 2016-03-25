@@ -1,1 +1,1 @@
-%include "arm/bincmp.S" { "condition":"ge" }
+%include "arm/bincmp.S" { "revcmp":"lt" }
