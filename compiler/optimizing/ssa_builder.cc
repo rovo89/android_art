@@ -458,6 +458,7 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
   }
 
   for (HNewInstance* new_instance : uninitialized_strings_) {
+    DCHECK(new_instance->IsInBlock());
     // Replace NewInstance of String with NullConstant if not used prior to
     // calling StringFactory. In case of deoptimization, the interpreter is
     // expected to skip null check on the `this` argument of the StringFactory call.
@@ -972,7 +973,13 @@ void SsaBuilder::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
     // Replacing the NewInstance might render it redundant. Keep a list of these
     // to be visited once it is clear whether it is has remaining uses.
     if (arg_this->IsNewInstance()) {
-      uninitialized_strings_.push_back(arg_this->AsNewInstance());
+      HNewInstance* new_instance = arg_this->AsNewInstance();
+      // Note that in some rare cases (b/27847265), the same NewInstance may be seen
+      // multiple times. We should only consider it once for removal, so we
+      // ensure it is not added more than once.
+      if (!ContainsElement(uninitialized_strings_, new_instance)) {
+        uninitialized_strings_.push_back(new_instance);
+      }
     } else {
       DCHECK(arg_this->IsPhi());
       // NewInstance is not the direct input of the StringFactory call. It might
