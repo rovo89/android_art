@@ -110,10 +110,12 @@ class Jit {
                                         JValue* result)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static bool LoadCompiler(std::string* error_msg);
+  static bool LoadCompilerLibrary(std::string* error_msg);
 
  private:
   Jit();
+
+  static bool LoadCompiler(std::string* error_msg);
 
   // JIT compiler
   static void* jit_library_handle_;
