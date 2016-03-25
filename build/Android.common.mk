@@ -63,7 +63,11 @@ ifdef TARGET_2ND_ARCH
     ART_TARGET_ARCH_64 := $(TARGET_ARCH)
   else
     # TODO: ???
-    $(error Do not know what to do with this multi-target configuration!)
+    $(warning Do not know what to do with this multi-target configuration!)
+    ART_PHONY_TEST_TARGET_SUFFIX := 32
+    2ND_ART_PHONY_TEST_TARGET_SUFFIX :=
+    ART_TARGET_ARCH_32 := $(TARGET_ARCH)
+    ART_TARGET_ARCH_64 :=
   endif
 else
   ifneq ($(filter %64,$(TARGET_ARCH)),)
