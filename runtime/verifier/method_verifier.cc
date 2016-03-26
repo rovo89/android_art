@@ -4258,7 +4258,7 @@ void MethodVerifier::VerifyAGet(const Instruction* inst,
       }
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aget";
-    } else if (array_type.IsUnresolvedTypes()) {
+    } else if (array_type.IsUnresolvedMergedReference()) {
       // Unresolved array types must be reference array types.
       if (is_primitive) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
@@ -4266,6 +4266,10 @@ void MethodVerifier::VerifyAGet(const Instruction* inst,
       } else {
         Fail(VERIFY_ERROR_NO_CLASS) << "cannot verify aget for " << array_type
             << " because of missing class";
+        // Approximate with java.lang.Object[].
+        work_line_->SetRegisterType<LockOp::kClear>(this,
+                                                    inst->VRegA_23x(),
+                                                    reg_types_.JavaLangObject(false));
       }
     } else {
       /* verify the class */
@@ -4377,7 +4381,7 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
       work_line_->VerifyRegisterType(this, inst->VRegA_23x(), *modified_reg_type);
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
-    } else if (array_type.IsUnresolvedTypes()) {
+    } else if (array_type.IsUnresolvedMergedReference()) {
       // Unresolved array types must be reference array types.
       if (is_primitive) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "put insn has type '" << insn_type
