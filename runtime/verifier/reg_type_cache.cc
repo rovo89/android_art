@@ -611,7 +611,7 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, mirror::Clas
   if (!array.IsArrayTypes()) {
     return Conflict();
   } else if (array.IsUnresolvedTypes()) {
-    DCHECK(!array.IsUnresolvedTypes());  // Caller must make sure not to ask for this.
+    DCHECK(!array.IsUnresolvedMergedReference());  // Caller must make sure not to ask for this.
     const std::string descriptor(array.GetDescriptor().as_string());
     return FromDescriptor(loader, descriptor.c_str() + 1, false);
   } else {

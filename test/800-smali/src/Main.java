@@ -173,6 +173,7 @@ public class Main {
                 new VerifyError(), null));
         testCases.add(new TestCase("b/27799205 (5)", "B27799205Helper", "run5", null,
                 new VerifyError(), null));
+        testCases.add(new TestCase("b/27799205 (6)", "B27799205Helper", "run6", null, null, null));
     }
 
     public void runTests() {
