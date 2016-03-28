@@ -88,7 +88,7 @@ class TestDexFileBuilder {
     std::memset(header_data.data, 0, sizeof(header_data.data));
     DexFile::Header* header = reinterpret_cast<DexFile::Header*>(&header_data.data);
     std::copy_n(DexFile::kDexMagic, 4u, header->magic_);
-    std::copy_n(DexFile::kDexMagicVersion, 4u, header->magic_ + 4u);
+    std::copy_n(DexFile::kDexMagicVersions[0], 4u, header->magic_ + 4u);
     header->header_size_ = sizeof(DexFile::Header);
     header->endian_tag_ = DexFile::kDexEndianConstant;
     header->link_size_ = 0u;  // Unused.

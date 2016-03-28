@@ -58,7 +58,10 @@ class ZipArchive;
 class DexFile {
  public:
   static const uint8_t kDexMagic[];
-  static const uint8_t kDexMagicVersion[];
+  static constexpr size_t kNumDexVersions = 2;
+  static constexpr size_t kDexVersionLen = 4;
+  static const uint8_t kDexMagicVersions[kNumDexVersions][kDexVersionLen];
+
   static constexpr size_t kSha1DigestSize = 20;
   static constexpr uint32_t kDexEndianConstant = 0x12345678;
 
@@ -71,7 +74,7 @@ class DexFile {
   // The value of an invalid index.
   static const uint16_t kDexNoIndex16 = 0xFFFF;
 
-  // The separator charactor in MultiDex locations.
+  // The separator character in MultiDex locations.
   static constexpr char kMultiDexSeparator = ':';
 
   // A string version of the previous. This is a define so that we can merge string literals in the
