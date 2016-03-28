@@ -22,13 +22,13 @@
 
 #include "art_method-inl.h"
 #include "base/systrace.h"
-#include "scoped_thread_state_change.h"
+#include "base/time_utils.h"
+#include "compiler_filter.h"
 #include "oat_file_manager.h"
+#include "scoped_thread_state_change.h"
+
 
 namespace art {
-
-// An arbitrary value to throttle save requests. Set to 2s for now.
-static constexpr const uint64_t kMilisecondsToNano = 1000000;
 
 // TODO: read the constants from ProfileOptions,
 // Add a random delay each time we go to sleep so that we don't hammer the CPU
@@ -261,6 +261,23 @@ void* ProfileSaver::RunProfileSaverThread(void* arg) {
   return nullptr;
 }
 
+static bool ShouldProfileLocation(const std::string& location) {
+  const OatFileManager& oat_manager = Runtime::Current()->GetOatFileManager();
+  const OatFile* oat_file = oat_manager.FindOpenedOatFileFromOatLocation(location);
+  if (oat_file == nullptr) {
+    // This can happen if we fallback to run code directly from the APK.
+    // Profile it with the hope that the background dexopt will get us back into
+    // a good state.
+    LOG(WARNING) << "Accepting to profile an un-opened oat file " << location;
+    return true;
+  }
+  CompilerFilter::Filter filter = oat_file->GetCompilerFilter();
+  if (filter == CompilerFilter::kSpeed || CompilerFilter::kEverything) {
+    return false;
+  }
+  return true;
+}
+
 void ProfileSaver::Start(const std::string& output_filename,
                          jit::JitCodeCache* jit_code_cache,
                          const std::vector<std::string>& code_paths,
@@ -269,6 +286,21 @@ void ProfileSaver::Start(const std::string& output_filename,
   DCHECK(Runtime::Current()->UseJit());
   DCHECK(!output_filename.empty());
   DCHECK(jit_code_cache != nullptr);
+
+  std::vector<std::string> code_paths_to_profile;
+
+  for (const std::string& location : code_paths) {
+    if (ShouldProfileLocation(location))  {
+      code_paths_to_profile.push_back(location);
+    } else {
+      VLOG(profiler)
+        << "Skip profiling oat file because it's already speed|everything compiled:"
+        << location;
+    }
+  }
+  if (code_paths_to_profile.empty()) {
+    return;
+  }
 
   MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
   if (instance_ != nullptr) {
@@ -359,6 +391,9 @@ void ProfileSaver::AddTrackedLocations(const std::string& output_filename,
 }
 
 void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
+  if (!ShouldProfileLocation(dex_location)) {
+    return;
+  }
   std::set<std::string> app_code_paths;
   std::string foreign_dex_profile_path;
   std::string app_data_dir;
@@ -477,7 +512,7 @@ void ProfileSaver::DumpInfo(std::ostream& os) {
      << "ProfileSaver total_number_of_skipped_writes=" << total_number_of_skipped_writes_ << '\n'
      << "ProfileSaver total_number_of_failed_writes=" << total_number_of_failed_writes_ << '\n'
      << "ProfileSaver total_ms_of_sleep=" << total_ms_of_sleep_ << '\n'
-     << "ProfileSaver total_ms_of_work=" << (total_ns_of_work_ / kMilisecondsToNano) << '\n'
+     << "ProfileSaver total_ms_of_work=" << NsToMs(total_ns_of_work_) << '\n'
      << "ProfileSaver total_number_of_foreign_dex_marks="
      << total_number_of_foreign_dex_marks_ << '\n'
      << "ProfileSaver max_number_profile_entries_cached="
