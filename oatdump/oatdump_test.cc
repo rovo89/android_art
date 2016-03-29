@@ -84,8 +84,8 @@ class OatDumpTest : public CommonRuntimeTest {
   std::string core_oat_location_;
 };
 
-// Disable tests on arm as they are taking too long to run for hammerhead. b/27824283.
-#ifndef __arm__
+// Disable tests on arm and mips as they are taking too long to run. b/27824283.
+#if !defined(__arm__) && !defined(__mips__)
 TEST_F(OatDumpTest, TestImage) {
   std::string error_msg;
   ASSERT_TRUE(Exec(kModeArt, {}, &error_msg)) << error_msg;
