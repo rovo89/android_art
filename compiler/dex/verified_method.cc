@@ -30,7 +30,6 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "utils.h"
-#include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier-inl.h"
 #include "verifier/reg_type-inl.h"
 #include "verifier/register_line-inl.h"
@@ -49,14 +48,6 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
                          method_verifier->HasInstructionThatWillThrow()));
 
   if (compile) {
-    /* Generate a register map. */
-    if (!verified_method->GenerateGcMap(method_verifier)) {
-      return nullptr;  // Not a real failure, but a failure to encode.
-    }
-    if (kIsDebugBuild) {
-      VerifyGcMap(method_verifier, verified_method->dex_gc_map_);
-    }
-
     // TODO: move this out when DEX-to-DEX supports devirtualization.
     if (method_verifier->HasVirtualOrInterfaceInvokes()) {
       verified_method->GenerateDevirtMap(method_verifier);
@@ -88,120 +79,6 @@ const DexFileReference* VerifiedMethod::GetDequickenIndex(uint32_t dex_pc) const
 
 bool VerifiedMethod::IsSafeCast(uint32_t pc) const {
   return std::binary_search(safe_cast_set_.begin(), safe_cast_set_.end(), pc);
-}
-
-bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
-  DCHECK(dex_gc_map_.empty());
-  size_t num_entries, ref_bitmap_bits, pc_bits;
-  ComputeGcMapSizes(method_verifier, &num_entries, &ref_bitmap_bits, &pc_bits);
-  const size_t ref_bitmap_bytes = RoundUp(ref_bitmap_bits, kBitsPerByte) / kBitsPerByte;
-  static constexpr size_t kFormatBits = 3;
-  // We have 16 - kFormatBits available for the ref_bitmap_bytes.
-  if ((ref_bitmap_bytes >> (16u - kFormatBits)) != 0) {
-    LOG(WARNING) << "Cannot encode GC map for method with " << ref_bitmap_bits << " registers: "
-                 << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
-                                 *method_verifier->GetMethodReference().dex_file);
-    return false;
-  }
-  // There are 2 bytes to encode the number of entries.
-  if (num_entries > std::numeric_limits<uint16_t>::max()) {
-    LOG(WARNING) << "Cannot encode GC map for method with " << num_entries << " entries: "
-                 << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
-                                 *method_verifier->GetMethodReference().dex_file);
-    return false;
-  }
-  size_t pc_bytes;
-  verifier::RegisterMapFormat format;
-  if (pc_bits <= kBitsPerByte) {
-    format = verifier::kRegMapFormatCompact8;
-    pc_bytes = 1;
-  } else if (pc_bits <= kBitsPerByte * 2) {
-    format = verifier::kRegMapFormatCompact16;
-    pc_bytes = 2;
-  } else {
-    LOG(WARNING) << "Cannot encode GC map for method with "
-                 << (1 << pc_bits) << " instructions (number is rounded up to nearest power of 2): "
-                 << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
-                                 *method_verifier->GetMethodReference().dex_file);
-    return false;
-  }
-  size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries) + 4;
-  dex_gc_map_.reserve(table_size);
-  // Write table header.
-  dex_gc_map_.push_back(format | ((ref_bitmap_bytes & ~0xFF) >> (kBitsPerByte - kFormatBits)));
-  dex_gc_map_.push_back(ref_bitmap_bytes & 0xFF);
-  dex_gc_map_.push_back(num_entries & 0xFF);
-  dex_gc_map_.push_back((num_entries >> 8) & 0xFF);
-  // Write table data.
-  const DexFile::CodeItem* code_item = method_verifier->CodeItem();
-  for (size_t i = 0; i < code_item->insns_size_in_code_units_; i++) {
-    if (method_verifier->GetInstructionFlags(i).IsCompileTimeInfoPoint()) {
-      dex_gc_map_.push_back(i & 0xFF);
-      if (pc_bytes == 2) {
-        dex_gc_map_.push_back((i >> 8) & 0xFF);
-      }
-      verifier::RegisterLine* line = method_verifier->GetRegLine(i);
-      line->WriteReferenceBitMap(method_verifier, &dex_gc_map_, ref_bitmap_bytes);
-    }
-  }
-  DCHECK_EQ(dex_gc_map_.size(), table_size);
-  return true;
-}
-
-void VerifiedMethod::VerifyGcMap(verifier::MethodVerifier* method_verifier,
-                                 const std::vector<uint8_t>& data) {
-  // Check that for every GC point there is a map entry, there aren't entries for non-GC points,
-  // that the table data is well formed and all references are marked (or not) in the bitmap.
-  verifier::DexPcToReferenceMap map(&data[0]);
-  CHECK_EQ(data.size(), map.RawSize()) << map.NumEntries() << " " << map.RegWidth();
-  size_t map_index = 0;
-  const DexFile::CodeItem* code_item = method_verifier->CodeItem();
-  for (size_t i = 0; i < code_item->insns_size_in_code_units_; i++) {
-    const uint8_t* reg_bitmap = map.FindBitMap(i, false);
-    if (method_verifier->GetInstructionFlags(i).IsCompileTimeInfoPoint()) {
-      DCHECK_LT(map_index, map.NumEntries());
-      DCHECK_EQ(map.GetDexPc(map_index), i);
-      DCHECK_EQ(map.GetBitMap(map_index), reg_bitmap);
-      map_index++;
-      verifier::RegisterLine* line = method_verifier->GetRegLine(i);
-      for (size_t j = 0; j < code_item->registers_size_; j++) {
-        if (line->GetRegisterType(method_verifier, j).IsNonZeroReferenceTypes()) {
-          DCHECK_LT(j / kBitsPerByte, map.RegWidth());
-          DCHECK_EQ((reg_bitmap[j / kBitsPerByte] >> (j % kBitsPerByte)) & 1, 1);
-        } else if ((j / kBitsPerByte) < map.RegWidth()) {
-          DCHECK_EQ((reg_bitmap[j / kBitsPerByte] >> (j % kBitsPerByte)) & 1, 0);
-        } else {
-          // If a register doesn't contain a reference then the bitmap may be shorter than the line.
-        }
-      }
-    } else {
-      DCHECK(i >= 65536 || reg_bitmap == nullptr);
-    }
-  }
-}
-
-void VerifiedMethod::ComputeGcMapSizes(verifier::MethodVerifier* method_verifier,
-                                       size_t* gc_points, size_t* ref_bitmap_bits,
-                                       size_t* log2_max_gc_pc) {
-  size_t local_gc_points = 0;
-  size_t max_insn = 0;
-  size_t max_ref_reg = -1;
-  const DexFile::CodeItem* code_item = method_verifier->CodeItem();
-  for (size_t i = 0; i < code_item->insns_size_in_code_units_; i++) {
-    if (method_verifier->GetInstructionFlags(i).IsCompileTimeInfoPoint()) {
-      local_gc_points++;
-      max_insn = i;
-      verifier::RegisterLine* line = method_verifier->GetRegLine(i);
-      max_ref_reg = line->GetMaxNonZeroReferenceReg(method_verifier, max_ref_reg);
-    }
-  }
-  *gc_points = local_gc_points;
-  *ref_bitmap_bits = max_ref_reg + 1;  // If max register is 0 we need 1 bit to encode (ie +1).
-  size_t i = 0;
-  while ((1U << i) <= max_insn) {
-    i++;
-  }
-  *log2_max_gc_pc = i;
 }
 
 bool VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verifier) {
