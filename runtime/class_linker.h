@@ -449,7 +449,9 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  void VerifyClass(Thread* self, Handle<mirror::Class> klass)
+  void VerifyClass(Thread* self,
+                   Handle<mirror::Class> klass,
+                   LogSeverity log_level = LogSeverity::NONE)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file,
