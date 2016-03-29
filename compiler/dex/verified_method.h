@@ -47,10 +47,6 @@ class VerifiedMethod {
       SHARED_REQUIRES(Locks::mutator_lock_);
   ~VerifiedMethod() = default;
 
-  const std::vector<uint8_t>& GetDexGcMap() const {
-    return dex_gc_map_;
-  }
-
   const DevirtualizationMap& GetDevirtMap() const {
     return devirt_map_;
   }
@@ -114,7 +110,6 @@ class VerifiedMethod {
   void GenerateSafeCastSet(verifier::MethodVerifier* method_verifier)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  std::vector<uint8_t> dex_gc_map_;
   DevirtualizationMap devirt_map_;
   // Dequicken map is required for compiling quickened byte codes. The quicken maps from
   // dex PC to dex method index or dex field index based on the instruction.

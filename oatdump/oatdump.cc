@@ -61,7 +61,6 @@
 #include "stack_map.h"
 #include "ScopedLocalRef.h"
 #include "thread_list.h"
-#include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "vmap_table.h"
 #include "well_known_classes.h"
