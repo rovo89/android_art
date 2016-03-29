@@ -21,6 +21,7 @@
 #include "base/stringprintf.h"
 #include "class_linker.h"
 #include "common_throws.h"
+#include "compiler_filter.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
@@ -390,7 +391,8 @@ static jint DexFile_getDexOptNeeded(JNIEnv* env,
                                     jclass,
                                     jstring javaFilename,
                                     jstring javaInstructionSet,
-                                    jint javaTargetCompilationTypeMask) {
+                                    jstring javaTargetCompilerFilter,
+                                    jboolean newProfile) {
   ScopedUtfChars filename(env, javaFilename);
   if (env->ExceptionCheck()) {
     return -1;
@@ -401,18 +403,16 @@ static jint DexFile_getDexOptNeeded(JNIEnv* env,
     return -1;
   }
 
-  // TODO: Take profile changed and compiler filter as arguments.
-  // For now, we use "speed" by default, unless EXTRACT_ONLY = 0x4 was
-  // included in the mask.
-  const char* compiler_filter = "speed";
-  if (javaTargetCompilationTypeMask & 0x4) {
-    compiler_filter = "verify-at-runtime";
+  ScopedUtfChars target_compiler_filter(env, javaTargetCompilerFilter);
+  if (env->ExceptionCheck()) {
+    return -1;
   }
+
   return GetDexOptNeeded(env,
                          filename.c_str(),
                          instruction_set.c_str(),
-                         compiler_filter,
-                         /*profile_changed*/false);
+                         target_compiler_filter.c_str(),
+                         newProfile == JNI_TRUE);
 }
 
 // public API
@@ -428,6 +428,34 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   return (status != OatFileAssistant::kNoDexOptNeeded) ? JNI_TRUE : JNI_FALSE;
 }
 
+static jboolean DexFile_isValidCompilerFilter(JNIEnv* env,
+                                            jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                            jstring javaCompilerFilter) {
+  ScopedUtfChars compiler_filter(env, javaCompilerFilter);
+  if (env->ExceptionCheck()) {
+    return -1;
+  }
+
+  CompilerFilter::Filter filter;
+  return CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter)
+      ? JNI_TRUE : JNI_FALSE;
+}
+
+static jboolean DexFile_isProfileGuidedCompilerFilter(JNIEnv* env,
+                                                      jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                      jstring javaCompilerFilter) {
+  ScopedUtfChars compiler_filter(env, javaCompilerFilter);
+  if (env->ExceptionCheck()) {
+    return -1;
+  }
+
+  CompilerFilter::Filter filter;
+  if (!CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter)) {
+    return JNI_FALSE;
+  }
+  return CompilerFilter::DependsOnProfile(filter) ? JNI_TRUE : JNI_FALSE;
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile,
@@ -440,7 +468,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, getDexOptNeeded,
-                "(Ljava/lang/String;Ljava/lang/String;I)I"),
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I"),
   NATIVE_METHOD(DexFile, openDexFileNative,
                 "(Ljava/lang/String;"
                 "Ljava/lang/String;"
@@ -448,6 +476,8 @@ static JNINativeMethod gMethods[] = {
                 "Ljava/lang/ClassLoader;"
                 "[Ldalvik/system/DexPathList$Element;"
                 ")Ljava/lang/Object;"),
+  NATIVE_METHOD(DexFile, isValidCompilerFilter, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(DexFile, isProfileGuidedCompilerFilter, "(Ljava/lang/String;)Z"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
