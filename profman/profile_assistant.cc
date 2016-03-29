@@ -21,44 +21,41 @@
 
 namespace art {
 
-// Minimum number of new methods that profiles must contain to enable recompilation.
+// Minimum number of new methods/classes that profiles
+// must contain to enable recompilation.
 static constexpr const uint32_t kMinNewMethodsForCompilation = 10;
+static constexpr const uint32_t kMinNewClassesForCompilation = 10;
 
 ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
         const std::vector<ScopedFlock>& profile_files,
         const ScopedFlock& reference_profile_file) {
   DCHECK(!profile_files.empty());
 
-  std::vector<ProfileCompilationInfo> new_info(profile_files.size());
-  bool should_compile = false;
-  // Read the main profile files.
-  for (size_t i = 0; i < new_info.size(); i++) {
-    if (!new_info[i].Load(profile_files[i].GetFile()->Fd())) {
-      LOG(WARNING) << "Could not load profile file at index " << i;
-      return kErrorBadProfiles;
-    }
-    // Do we have enough new profiled methods that will make the compilation worthwhile?
-    should_compile |= (new_info[i].GetNumberOfMethods() > kMinNewMethodsForCompilation);
-  }
-
-  if (!should_compile) {
-    return kSkipCompilation;
-  }
-
-  // Merge information.
   ProfileCompilationInfo info;
+  // Load the reference profile.
   if (!info.Load(reference_profile_file.GetFile()->Fd())) {
     LOG(WARNING) << "Could not load reference profile file";
     return kErrorBadProfiles;
   }
 
-  for (size_t i = 0; i < new_info.size(); i++) {
-    // Merge all data into a single object.
-    if (!info.MergeWith(new_info[i])) {
-      LOG(WARNING) << "Could not merge profile data at index " << i;
+  // Store the current state of the reference profile before merging with the current profiles.
+  uint32_t number_of_methods = info.GetNumberOfMethods();
+  uint32_t number_of_classes = info.GetNumberOfResolvedClasses();
+
+  // Merge all current profiles.
+  for (size_t i = 0; i < profile_files.size(); i++) {
+    if (!info.Load(profile_files[i].GetFile()->Fd())) {
+      LOG(WARNING) << "Could not load profile file at index " << i;
       return kErrorBadProfiles;
     }
   }
+
+  // Check if there is enough new information added by the current profiles.
+  if (((info.GetNumberOfMethods() - number_of_methods) < kMinNewMethodsForCompilation) &&
+      ((info.GetNumberOfResolvedClasses() - number_of_classes) < kMinNewClassesForCompilation)) {
+    return kSkipCompilation;
+  }
+
   // We were successful in merging all profile information. Update the reference profile.
   if (!reference_profile_file.GetFile()->ClearContent()) {
     PLOG(WARNING) << "Could not clear reference profile file";
