@@ -91,7 +91,7 @@ TEST(Node, InsertInstruction) {
   entry->InsertInstructionBefore(to_insert, parameter2);
 
   ASSERT_TRUE(parameter1->HasUses());
-  ASSERT_TRUE(parameter1->GetUses().HasOnlyOneUse());
+  ASSERT_TRUE(parameter1->GetUses().HasExactlyOneElement());
 }
 
 /**
@@ -115,7 +115,7 @@ TEST(Node, AddInstruction) {
   entry->AddInstruction(to_add);
 
   ASSERT_TRUE(parameter->HasUses());
-  ASSERT_TRUE(parameter->GetUses().HasOnlyOneUse());
+  ASSERT_TRUE(parameter->GetUses().HasExactlyOneElement());
 }
 
 TEST(Node, ParentEnvironment) {
@@ -134,7 +134,7 @@ TEST(Node, ParentEnvironment) {
   entry->AddInstruction(new (&allocator) HExit());
 
   ASSERT_TRUE(parameter1->HasUses());
-  ASSERT_TRUE(parameter1->GetUses().HasOnlyOneUse());
+  ASSERT_TRUE(parameter1->GetUses().HasExactlyOneElement());
 
   HEnvironment* environment = new (&allocator) HEnvironment(
       &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, with_environment);
@@ -145,7 +145,7 @@ TEST(Node, ParentEnvironment) {
   with_environment->SetRawEnvironment(environment);
 
   ASSERT_TRUE(parameter1->HasEnvironmentUses());
-  ASSERT_TRUE(parameter1->GetEnvUses().HasOnlyOneUse());
+  ASSERT_TRUE(parameter1->GetEnvUses().HasExactlyOneElement());
 
   HEnvironment* parent1 = new (&allocator) HEnvironment(
       &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, nullptr);

@@ -108,8 +108,8 @@ static void AddDependentInstructionsToWorklist(HInstruction* instruction,
   // marked dead/conflicting too, so we add them to the worklist. Otherwise we
   // add users whose type does not match and needs to be updated.
   bool add_all_live_phis = instruction->IsPhi() && instruction->AsPhi()->IsDead();
-  for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
-    HInstruction* user = it.Current()->GetUser();
+  for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
+    HInstruction* user = use.GetUser();
     if (user->IsPhi() && user->AsPhi()->IsLive()) {
       if (add_all_live_phis || user->GetType() != instruction->GetType()) {
         worklist->push_back(user->AsPhi());
@@ -409,27 +409,24 @@ bool SsaBuilder::FixAmbiguousArrayOps() {
 }
 
 static bool HasAliasInEnvironments(HInstruction* instruction) {
-  for (HUseIterator<HEnvironment*> use_it(instruction->GetEnvUses());
-       !use_it.Done();
-       use_it.Advance()) {
-    HEnvironment* use = use_it.Current()->GetUser();
-    HUseListNode<HEnvironment*>* next = use_it.Current()->GetNext();
-    if (next != nullptr && next->GetUser() == use) {
+  HEnvironment* last_user = nullptr;
+  for (const HUseListNode<HEnvironment*>& use : instruction->GetEnvUses()) {
+    DCHECK(use.GetUser() != nullptr);
+    // Note: The first comparison (== null) always fails.
+    if (use.GetUser() == last_user) {
       return true;
     }
+    last_user = use.GetUser();
   }
 
   if (kIsDebugBuild) {
     // Do a quadratic search to ensure same environment uses are next
     // to each other.
-    for (HUseIterator<HEnvironment*> use_it(instruction->GetEnvUses());
-         !use_it.Done();
-         use_it.Advance()) {
-      HUseListNode<HEnvironment*>* current = use_it.Current();
-      HUseListNode<HEnvironment*>* next = current->GetNext();
-      while (next != nullptr) {
+    const HUseList<HEnvironment*>& env_uses = instruction->GetEnvUses();
+    for (auto current = env_uses.begin(), end = env_uses.end(); current != end; ++current) {
+      auto next = current;
+      for (++next; next != end; ++next) {
         DCHECK(next->GetUser() != current->GetUser());
-        next = next->GetNext();
       }
     }
   }

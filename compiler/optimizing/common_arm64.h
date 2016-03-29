@@ -199,7 +199,7 @@ static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
 
   // For single uses we let VIXL handle the constant generation since it will
   // use registers that are not managed by the register allocator (wip0, wip1).
-  if (constant->GetUses().HasOnlyOneUse()) {
+  if (constant->GetUses().HasExactlyOneElement()) {
     return true;
   }
 

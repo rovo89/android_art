@@ -608,12 +608,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     for (HInstructionIterator it(list); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       int bci = 0;
-      size_t num_uses = 0;
-      for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
-           !use_it.Done();
-           use_it.Advance()) {
-        ++num_uses;
-      }
+      size_t num_uses = instruction->GetUses().SizeSlow();
       AddIndent();
       output_ << bci << " " << num_uses << " "
               << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";

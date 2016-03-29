@@ -409,9 +409,9 @@ bool InstructionSimplifierVisitor::CanEnsureNotNullAt(HInstruction* input, HInst
     return true;
   }
 
-  for (HUseIterator<HInstruction*> it(input->GetUses()); !it.Done(); it.Advance()) {
-    HInstruction* use = it.Current()->GetUser();
-    if (use->IsNullCheck() && use->StrictlyDominates(at)) {
+  for (const HUseListNode<HInstruction*>& use : input->GetUses()) {
+    HInstruction* user = use.GetUser();
+    if (user->IsNullCheck() && user->StrictlyDominates(at)) {
       return true;
     }
   }
@@ -1070,12 +1070,12 @@ void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   }
 
   // Is the Compare only used for this purpose?
-  if (!left->GetUses().HasOnlyOneUse()) {
+  if (!left->GetUses().HasExactlyOneElement()) {
     // Someone else also wants the result of the compare.
     return;
   }
 
-  if (!left->GetEnvUses().IsEmpty()) {
+  if (!left->GetEnvUses().empty()) {
     // There is a reference to the compare result in an environment. Do we really need it?
     if (GetGraph()->IsDebuggable()) {
       return;
