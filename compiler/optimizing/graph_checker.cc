@@ -32,11 +32,9 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 
   // Check consistency with respect to predecessors of `block`.
   // Note: Counting duplicates with a sorted vector uses up to 6x less memory
-  // than ArenaSafeMap<HBasicBlock*, size_t>.
-  ArenaVector<HBasicBlock*> sorted_predecessors(
-      block->GetPredecessors().begin(),
-      block->GetPredecessors().end(),
-      GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
+  // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
+  ArenaVector<HBasicBlock*>& sorted_predecessors = blocks_storage_;
+  sorted_predecessors.assign(block->GetPredecessors().begin(), block->GetPredecessors().end());
   std::sort(sorted_predecessors.begin(), sorted_predecessors.end());
   for (auto it = sorted_predecessors.begin(), end = sorted_predecessors.end(); it != end; ) {
     HBasicBlock* p = *it++;
@@ -57,11 +55,9 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 
   // Check consistency with respect to successors of `block`.
   // Note: Counting duplicates with a sorted vector uses up to 6x less memory
-  // than ArenaSafeMap<HBasicBlock*, size_t>.
-  ArenaVector<HBasicBlock*> sorted_successors(
-      block->GetSuccessors().begin(),
-      block->GetSuccessors().end(),
-      GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
+  // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
+  ArenaVector<HBasicBlock*>& sorted_successors = blocks_storage_;
+  sorted_successors.assign(block->GetSuccessors().begin(), block->GetSuccessors().end());
   std::sort(sorted_successors.begin(), sorted_successors.end());
   for (auto it = sorted_successors.begin(), end = sorted_successors.end(); it != end; ) {
     HBasicBlock* s = *it++;
@@ -811,10 +807,11 @@ void GraphChecker::VisitPhi(HPhi* phi) {
               phi->GetRegNumber(),
               type_str.str().c_str()));
         } else {
-          ArenaBitVector visited(GetGraph()->GetArena(),
-                                 0,
-                                 /* expandable */ true,
-                                 kArenaAllocGraphChecker);
+          // If we get here, make sure we allocate all the necessary storage at once
+          // because the BitVector reallocation strategy has very bad worst-case behavior.
+          ArenaBitVector& visited = visited_storage_;
+          visited.SetBit(GetGraph()->GetCurrentInstructionId());
+          visited.ClearAllBits();
           if (!IsConstantEquivalent(phi, other_phi, &visited)) {
             AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
                                   "are not equivalents of constants.",

@@ -33,7 +33,9 @@ class GraphChecker : public HGraphDelegateVisitor {
       seen_ids_(graph->GetArena(),
                 graph->GetCurrentInstructionId(),
                 false,
-                kArenaAllocGraphChecker) {}
+                kArenaAllocGraphChecker),
+      blocks_storage_(graph->GetArena()->Adapter(kArenaAllocGraphChecker)),
+      visited_storage_(graph->GetArena(), 0u, true, kArenaAllocGraphChecker) {}
 
   // Check the whole graph (in reverse post-order).
   void Run() {
@@ -101,6 +103,10 @@ class GraphChecker : public HGraphDelegateVisitor {
   // String displayed before dumped errors.
   const char* const dump_prefix_;
   ArenaBitVector seen_ids_;
+
+  // To reduce the total arena memory allocation, we reuse the same storage.
+  ArenaVector<HBasicBlock*> blocks_storage_;
+  ArenaBitVector visited_storage_;
 
   DISALLOW_COPY_AND_ASSIGN(GraphChecker);
 };
