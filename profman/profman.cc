@@ -189,7 +189,6 @@ class ProfMan FINAL {
       return -1;
     }
     std::string dump = info.DumpInfo(/*dex_files*/ nullptr);
-    info.Save(fd);
     std::cout << dump << "\n";
     return 0;
   }
