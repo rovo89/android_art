@@ -3750,7 +3750,7 @@ bool ClassLinker::AttemptSupertypeVerification(Thread* self,
   return false;
 }
 
-void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
+void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass, LogSeverity log_level) {
   // TODO: assert that the monitor on the Class is held
   ObjectLock<mirror::Class> lock(self, klass);
 
@@ -3853,7 +3853,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
                                                              klass.Get(),
                                                              runtime->GetCompilerCallbacks(),
                                                              runtime->IsAotCompiler(),
-                                                             runtime->IsAotCompiler(),
+                                                             log_level,
                                                              &error_msg);
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {

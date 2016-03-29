@@ -37,8 +37,13 @@ class MethodVerifierTest : public CommonRuntimeTest {
 
     // Verify the class
     std::string error_msg;
-    ASSERT_TRUE(MethodVerifier::VerifyClass(self, klass, nullptr, true, true, &error_msg)
-                    == MethodVerifier::kNoFailure) << error_msg;
+    MethodVerifier::FailureKind failure = MethodVerifier::VerifyClass(self,
+                                                                      klass,
+                                                                      nullptr,
+                                                                      true,
+                                                                      LogSeverity::WARNING,
+                                                                      &error_msg);
+    ASSERT_TRUE(failure == MethodVerifier::kNoFailure) << error_msg;
   }
 
   void VerifyDexFile(const DexFile& dex)
