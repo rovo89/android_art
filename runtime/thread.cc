@@ -70,7 +70,6 @@
 #include "thread_list.h"
 #include "thread-inl.h"
 #include "utils.h"
-#include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "verify_object-inl.h"
 #include "vmap_table.h"

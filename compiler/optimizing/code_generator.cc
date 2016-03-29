@@ -54,7 +54,6 @@
 #include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
-#include "verifier/dex_gc_map.h"
 #include "vmap_table.h"
 
 namespace art {

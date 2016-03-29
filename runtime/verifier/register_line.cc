@@ -543,24 +543,5 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
   return changed;
 }
 
-void RegisterLine::WriteReferenceBitMap(MethodVerifier* verifier,
-                                        std::vector<uint8_t>* data, size_t max_bytes) {
-  for (size_t i = 0; i < num_regs_; i += 8) {
-    uint8_t val = 0;
-    for (size_t j = 0; j < 8 && (i + j) < num_regs_; j++) {
-      // Note: we write 1 for a Reference but not for Null
-      if (GetRegisterType(verifier, i + j).IsNonZeroReferenceTypes()) {
-        val |= 1 << j;
-      }
-    }
-    if ((i / 8) >= max_bytes) {
-      DCHECK_EQ(0, val);
-      continue;
-    }
-    DCHECK_LT(i / 8, max_bytes) << "val=" << static_cast<uint32_t>(val);
-    data->push_back(val);
-  }
-}
-
 }  // namespace verifier
 }  // namespace art
