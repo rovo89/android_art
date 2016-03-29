@@ -1331,7 +1331,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
 .Limt_table_iterate:
     cmpq %r10, 0(%rdi)
     jne .Limt_table_next_entry
-    // We successuflly hit an entry in the table. Load the target method
+    // We successfully hit an entry in the table. Load the target method
     // and jump to it.
     movq __SIZEOF_POINTER__(%rdi), %rdi
     jmp *ART_METHOD_QUICK_CODE_OFFSET_64(%rdi)
