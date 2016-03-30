@@ -86,11 +86,7 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   }
 }
 
-static void RemoveAsUser(HInstruction* instruction) {
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
-    instruction->RemoveAsUserOfInput(i);
-  }
-
+static void RemoveEnvironmentUses(HInstruction* instruction) {
   for (HEnvironment* environment = instruction->GetEnvironment();
        environment != nullptr;
        environment = environment->GetParent()) {
@@ -100,6 +96,14 @@ static void RemoveAsUser(HInstruction* instruction) {
       }
     }
   }
+}
+
+static void RemoveAsUser(HInstruction* instruction) {
+  for (size_t i = 0; i < instruction->InputCount(); i++) {
+    instruction->RemoveAsUserOfInput(i);
+  }
+
+  RemoveEnvironmentUses(instruction);
 }
 
 void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const {
@@ -1005,6 +1009,11 @@ bool HInstruction::StrictlyDominates(HInstruction* other_instruction) const {
       }
     }
   }
+}
+
+void HInstruction::RemoveEnvironment() {
+  RemoveEnvironmentUses(this);
+  environment_ = nullptr;
 }
 
 void HInstruction::ReplaceWith(HInstruction* other) {
@@ -2383,6 +2392,59 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
       return os << "none";
     default:
       LOG(FATAL) << "Unknown ClinitCheckRequirement: " << static_cast<int>(rhs);
+      UNREACHABLE();
+  }
+}
+
+bool HLoadString::InstructionDataEquals(HInstruction* other) const {
+  HLoadString* other_load_string = other->AsLoadString();
+  if (string_index_ != other_load_string->string_index_ ||
+      GetPackedFields() != other_load_string->GetPackedFields()) {
+    return false;
+  }
+  LoadKind load_kind = GetLoadKind();
+  if (HasAddress(load_kind)) {
+    return GetAddress() == other_load_string->GetAddress();
+  } else if (HasStringReference(load_kind)) {
+    return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
+  } else {
+    DCHECK(HasDexCacheReference(load_kind)) << load_kind;
+    // If the string indexes and dex files are the same, dex cache element offsets
+    // must also be the same, so we don't need to compare them.
+    return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
+  }
+}
+
+void HLoadString::SetLoadKindInternal(LoadKind load_kind) {
+  // Once sharpened, the load kind should not be changed again.
+  DCHECK_EQ(GetLoadKind(), LoadKind::kDexCacheViaMethod);
+  SetPackedField<LoadKindField>(load_kind);
+
+  if (load_kind != LoadKind::kDexCacheViaMethod) {
+    RemoveAsUserOfInput(0u);
+    SetRawInputAt(0u, nullptr);
+  }
+  if (!NeedsEnvironment()) {
+    RemoveEnvironment();
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs) {
+  switch (rhs) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      return os << "BootImageLinkTimeAddress";
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      return os << "BootImageLinkTimePcRelative";
+    case HLoadString::LoadKind::kBootImageAddress:
+      return os << "BootImageAddress";
+    case HLoadString::LoadKind::kDexCacheAddress:
+      return os << "DexCacheAddress";
+    case HLoadString::LoadKind::kDexCachePcRelative:
+      return os << "DexCachePcRelative";
+    case HLoadString::LoadKind::kDexCacheViaMethod:
+      return os << "DexCacheViaMethod";
+    default:
+      LOG(FATAL) << "Unknown HLoadString::LoadKind: " << static_cast<int>(rhs);
       UNREACHABLE();
   }
 }

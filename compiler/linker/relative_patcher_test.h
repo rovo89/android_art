@@ -150,12 +150,19 @@ class RelativePatcherTest : public testing::Test {
                                 offset + patch.LiteralOffset(), target_offset);
           } else if (patch.Type() == kLinkerPatchDexCacheArray) {
             uint32_t target_offset = dex_cache_arrays_begin_ + patch.TargetDexCacheElementOffset();
-            patcher_->PatchDexCacheReference(&patched_code_,
-                                             patch,
-                                             offset + patch.LiteralOffset(),
-                                             target_offset);
+            patcher_->PatchPcRelativeReference(&patched_code_,
+                                               patch,
+                                               offset + patch.LiteralOffset(),
+                                               target_offset);
+          } else if (patch.Type() == kLinkerPatchStringRelative) {
+            uint32_t target_offset = string_index_to_offset_map_.Get(patch.TargetStringIndex());
+            patcher_->PatchPcRelativeReference(&patched_code_,
+                                               patch,
+                                               offset + patch.LiteralOffset(),
+                                               target_offset);
           } else {
-            LOG(FATAL) << "Bad patch type.";
+            LOG(FATAL) << "Bad patch type. " << patch.Type();
+            UNREACHABLE();
           }
         }
       }
@@ -257,6 +264,7 @@ class RelativePatcherTest : public testing::Test {
   MethodOffsetMap method_offset_map_;
   std::unique_ptr<RelativePatcher> patcher_;
   uint32_t dex_cache_arrays_begin_;
+  SafeMap<uint32_t, uint32_t> string_index_to_offset_map_;
   std::vector<MethodReference> compiled_method_refs_;
   std::vector<std::unique_ptr<CompiledMethod>> compiled_methods_;
   std::vector<uint8_t> patched_code_;

@@ -21,10 +21,10 @@
 namespace art {
 namespace linker {
 
-void X86_64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
-                                                   const LinkerPatch& patch,
-                                                   uint32_t patch_offset,
-                                                   uint32_t target_offset) {
+void X86_64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
+                                                     const LinkerPatch& patch,
+                                                     uint32_t patch_offset,
+                                                     uint32_t target_offset) {
   DCHECK_LE(patch.LiteralOffset() + 4u, code->size());
   // Unsigned arithmetic with its well-defined overflow behavior is just fine here.
   uint32_t displacement = target_offset - patch_offset;

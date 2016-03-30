@@ -35,12 +35,14 @@ TEST_F(InternTableTest, Intern) {
   Handle<mirror::String> foo_3(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo")));
   Handle<mirror::String> bar(hs.NewHandle(intern_table.InternStrong(3, "bar")));
+  ASSERT_TRUE(foo_1.Get() != nullptr);
+  ASSERT_TRUE(foo_2.Get() != nullptr);
+  ASSERT_TRUE(foo_3.Get() != nullptr);
+  ASSERT_TRUE(bar.Get() != nullptr);
+  EXPECT_EQ(foo_1.Get(), foo_2.Get());
   EXPECT_TRUE(foo_1->Equals("foo"));
   EXPECT_TRUE(foo_2->Equals("foo"));
   EXPECT_TRUE(foo_3->Equals("foo"));
-  EXPECT_TRUE(foo_1.Get() != nullptr);
-  EXPECT_TRUE(foo_2.Get() != nullptr);
-  EXPECT_EQ(foo_1.Get(), foo_2.Get());
   EXPECT_NE(foo_1.Get(), bar.Get());
   EXPECT_NE(foo_2.Get(), bar.Get());
   EXPECT_NE(foo_3.Get(), bar.Get());
@@ -173,6 +175,41 @@ TEST_F(InternTableTest, ContainsWeak) {
     EXPECT_FALSE(t.ContainsWeak(interned_foo_2.Get()));
     EXPECT_EQ(interned_foo_1.Get(), interned_foo_2.Get());
   }
+}
+
+TEST_F(InternTableTest, LookupStrong) {
+  ScopedObjectAccess soa(Thread::Current());
+  InternTable intern_table;
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::String> foo(hs.NewHandle(intern_table.InternStrong(3, "foo")));
+  Handle<mirror::String> bar(hs.NewHandle(intern_table.InternStrong(3, "bar")));
+  Handle<mirror::String> foobar(hs.NewHandle(intern_table.InternStrong(6, "foobar")));
+  ASSERT_TRUE(foo.Get() != nullptr);
+  ASSERT_TRUE(bar.Get() != nullptr);
+  ASSERT_TRUE(foobar.Get() != nullptr);
+  ASSERT_TRUE(foo->Equals("foo"));
+  ASSERT_TRUE(bar->Equals("bar"));
+  ASSERT_TRUE(foobar->Equals("foobar"));
+  ASSERT_NE(foo.Get(), bar.Get());
+  ASSERT_NE(foo.Get(), foobar.Get());
+  ASSERT_NE(bar.Get(), foobar.Get());
+  mirror::String* lookup_foo = intern_table.LookupStrong(soa.Self(), 3, "foo");
+  EXPECT_EQ(lookup_foo, foo.Get());
+  mirror::String* lookup_bar = intern_table.LookupStrong(soa.Self(), 3, "bar");
+  EXPECT_EQ(lookup_bar, bar.Get());
+  mirror::String* lookup_foobar = intern_table.LookupStrong(soa.Self(), 6, "foobar");
+  EXPECT_EQ(lookup_foobar, foobar.Get());
+  mirror::String* lookup_foox = intern_table.LookupStrong(soa.Self(), 4, "foox");
+  EXPECT_TRUE(lookup_foox == nullptr);
+  mirror::String* lookup_fooba = intern_table.LookupStrong(soa.Self(), 5, "fooba");
+  EXPECT_TRUE(lookup_fooba == nullptr);
+  mirror::String* lookup_foobaR = intern_table.LookupStrong(soa.Self(), 6, "foobaR");
+  EXPECT_TRUE(lookup_foobaR == nullptr);
+  // Try a hash conflict.
+  ASSERT_EQ(ComputeUtf16HashFromModifiedUtf8("foobar", 6),
+            ComputeUtf16HashFromModifiedUtf8("foobbS", 6));
+  mirror::String* lookup_foobbS = intern_table.LookupStrong(soa.Self(), 6, "foobbS");
+  EXPECT_TRUE(lookup_foobbS == nullptr);
 }
 
 }  // namespace art

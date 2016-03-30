@@ -799,6 +799,8 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
@@ -4340,6 +4342,8 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOr
 
   // We disable pc-relative load when there is an irreducible loop, as the optimization
   // is incompatible with it.
+  // TODO: Create as many X86ComputeBaseMethodAddress instructions
+  // as needed for methods with irreducible loops.
   if (GetGraph()->HasIrreducibleLoops() &&
       (dispatch_info.method_load_kind ==
           HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative)) {
@@ -4401,18 +4405,17 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ movl(temp.AsRegister<Register>(), Immediate(invoke->GetMethodAddress()));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
-      __ movl(temp.AsRegister<Register>(), Immediate(0));  // Placeholder.
+      __ movl(temp.AsRegister<Register>(), Immediate(/* placeholder */ 0));
       method_patches_.emplace_back(invoke->GetTargetMethod());
       __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       Register base_reg = GetInvokeStaticOrDirectExtraParameter(invoke,
                                                                 temp.AsRegister<Register>());
-      uint32_t offset = invoke->GetDexCacheArrayOffset();
       __ movl(temp.AsRegister<Register>(), Address(base_reg, kDummy32BitOffset));
-      // Add the patch entry and bind its label at the end of the instruction.
-      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file, offset);
-      __ Bind(&pc_relative_dex_cache_patches_.back().label);
+      // Bind a new fixup label at the end of the "movl" insn.
+      uint32_t offset = invoke->GetDexCacheArrayOffset();
+      __ Bind(NewPcRelativeDexCacheArrayPatch(*invoke->GetTargetMethod().dex_file, offset));
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
@@ -4494,12 +4497,33 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
       temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
 }
 
+void CodeGeneratorX86::RecordSimplePatch() {
+  if (GetCompilerOptions().GetIncludePatchInformation()) {
+    simple_patches_.emplace_back();
+    __ Bind(&simple_patches_.back());
+  }
+}
+
+void CodeGeneratorX86::RecordStringPatch(HLoadString* load_string) {
+  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex());
+  __ Bind(&string_patches_.back().label);
+}
+
+Label* CodeGeneratorX86::NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
+                                                         uint32_t element_offset) {
+  // Add the patch entry and bind its label at the end of the instruction.
+  pc_relative_dex_cache_patches_.emplace_back(dex_file, element_offset);
+  return &pc_relative_dex_cache_patches_.back().label;
+}
+
 void CodeGeneratorX86::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
       method_patches_.size() +
       relative_call_patches_.size() +
-      pc_relative_dex_cache_patches_.size();
+      pc_relative_dex_cache_patches_.size() +
+      simple_patches_.size() +
+      string_patches_.size();
   linker_patches->reserve(size);
   // The label points to the end of the "movl" insn but the literal offset for method
   // patch needs to point to the embedded constant which occupies the last 4 bytes.
@@ -4522,6 +4546,26 @@ void CodeGeneratorX86::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
                                                               &info.target_dex_file,
                                                               GetMethodAddressOffset(),
                                                               info.element_offset));
+  }
+  for (const Label& label : simple_patches_) {
+    uint32_t literal_offset = label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+    linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
+  }
+  if (GetCompilerOptions().GetCompilePic()) {
+    for (const StringPatchInfo<Label>& info : string_patches_) {
+      uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+      linker_patches->push_back(LinkerPatch::RelativeStringPatch(literal_offset,
+                                                                 &info.dex_file,
+                                                                 GetMethodAddressOffset(),
+                                                                 info.string_index));
+    }
+  } else {
+    for (const StringPatchInfo<Label>& info : string_patches_) {
+      uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+      linker_patches->push_back(LinkerPatch::StringPatch(literal_offset,
+                                                         &info.dex_file,
+                                                         info.string_index));
+    }
   }
 }
 
@@ -5916,14 +5960,15 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
     DCHECK(!cls->MustGenerateClinitCheck());
     // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
     GenerateGcRootFieldLoad(
-        cls, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
+        cls, out_loc, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
   } else {
     // /* GcRoot<mirror::Class>[] */ out =
     //        current_method.ptr_sized_fields_->dex_cache_resolved_types_
     __ movl(out, Address(current_method,
                          ArtMethod::DexCacheResolvedTypesOffset(kX86PointerSize).Int32Value()));
     // /* GcRoot<mirror::Class> */ out = out[type_index]
-    GenerateGcRootFieldLoad(cls, out_loc, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
+    GenerateGcRootFieldLoad(
+        cls, out_loc, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
 
     if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
       DCHECK(cls->CanCallRuntime());
@@ -5972,12 +6017,58 @@ void InstructionCodeGeneratorX86::GenerateClassInitializationCheck(
   // No need for memory fence, thanks to the X86 memory model.
 }
 
+HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
+    HLoadString::LoadKind desired_string_load_kind) {
+  if (kEmitCompilerReadBarrier) {
+    switch (desired_string_load_kind) {
+      case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      case HLoadString::LoadKind::kBootImageAddress:
+        // TODO: Implement for read barrier.
+        return HLoadString::LoadKind::kDexCacheViaMethod;
+      default:
+        break;
+    }
+  }
+  switch (desired_string_load_kind) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      DCHECK(!GetCompilerOptions().GetCompilePic());
+      break;
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      DCHECK(GetCompilerOptions().GetCompilePic());
+      FALLTHROUGH_INTENDED;
+    case HLoadString::LoadKind::kDexCachePcRelative:
+      DCHECK(!Runtime::Current()->UseJit());  // Note: boot image is also non-JIT.
+      // We disable pc-relative load when there is an irreducible loop, as the optimization
+      // is incompatible with it.
+      // TODO: Create as many X86ComputeBaseMethodAddress instructions as needed for methods
+      // with irreducible loops.
+      if (GetGraph()->HasIrreducibleLoops()) {
+        return HLoadString::LoadKind::kDexCacheViaMethod;
+      }
+      break;
+    case HLoadString::LoadKind::kBootImageAddress:
+      break;
+    case HLoadString::LoadKind::kDexCacheAddress:
+      DCHECK(Runtime::Current()->UseJit());
+      break;
+    case HLoadString::LoadKind::kDexCacheViaMethod:
+      break;
+  }
+  return desired_string_load_kind;
+}
+
 void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+  LocationSummary::CallKind call_kind = (load->NeedsEnvironment() || kEmitCompilerReadBarrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
+  HLoadString::LoadKind load_kind = load->GetLoadKind();
+  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod ||
+      load_kind == HLoadString::LoadKind::kBootImageLinkTimePcRelative ||
+      load_kind == HLoadString::LoadKind::kDexCachePcRelative) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -5985,16 +6076,61 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   Register out = out_loc.AsRegister<Register>();
-  Register current_method = locations->InAt(0).AsRegister<Register>();
 
-  // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
-  GenerateGcRootFieldLoad(
-      load, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
-  // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
-  __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
-  // /* GcRoot<mirror::String> */ out = out[string_index]
-  GenerateGcRootFieldLoad(
-      load, out_loc, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+  switch (load->GetLoadKind()) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      __ movl(out, Immediate(/* placeholder */ 0));
+      codegen_->RecordStringPatch(load);
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      Register method_address = locations->InAt(0).AsRegister<Register>();
+      __ leal(out, Address(method_address, CodeGeneratorX86::kDummy32BitOffset));
+      codegen_->RecordStringPatch(load);
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kBootImageAddress: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK_NE(load->GetAddress(), 0u);
+      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      __ movl(out, Immediate(address));
+      codegen_->RecordSimplePatch();
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kDexCacheAddress: {
+      DCHECK_NE(load->GetAddress(), 0u);
+      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      GenerateGcRootFieldLoad(load, out_loc, Address::Absolute(address));
+      break;
+    }
+    case HLoadString::LoadKind::kDexCachePcRelative: {
+      Register base_reg = locations->InAt(0).AsRegister<Register>();
+      uint32_t offset = load->GetDexCacheElementOffset();
+      Label* fixup_label = codegen_->NewPcRelativeDexCacheArrayPatch(load->GetDexFile(), offset);
+      GenerateGcRootFieldLoad(
+          load, out_loc, Address(base_reg, CodeGeneratorX86::kDummy32BitOffset), fixup_label);
+      break;
+    }
+    case HLoadString::LoadKind::kDexCacheViaMethod: {
+      Register current_method = locations->InAt(0).AsRegister<Register>();
+
+      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
+      GenerateGcRootFieldLoad(
+          load, out_loc, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
+
+      // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
+      __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
+      // /* GcRoot<mirror::String> */ out = out[string_index]
+      GenerateGcRootFieldLoad(
+          load, out_loc, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected load kind: " << load->GetLoadKind();
+      UNREACHABLE();
+  }
 
   if (!load->IsInDexCache()) {
     SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86(load);
@@ -6692,21 +6828,24 @@ void InstructionCodeGeneratorX86::GenerateReferenceLoadTwoRegisters(HInstruction
 
 void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(HInstruction* instruction,
                                                           Location root,
-                                                          Register obj,
-                                                          uint32_t offset) {
+                                                          const Address& address,
+                                                          Label* fixup_label) {
   Register root_reg = root.AsRegister<Register>();
   if (kEmitCompilerReadBarrier) {
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
       // Baker's read barrier are used:
       //
-      //   root = obj.field;
+      //   root = *address;
       //   if (Thread::Current()->GetIsGcMarking()) {
       //     root = ReadBarrier::Mark(root)
       //   }
 
-      // /* GcRoot<mirror::Object> */ root = *(obj + offset)
-      __ movl(root_reg, Address(obj, offset));
+      // /* GcRoot<mirror::Object> */ root = *address
+      __ movl(root_reg, address);
+      if (fixup_label != nullptr) {
+        __ Bind(fixup_label);
+      }
       static_assert(
           sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(GcRoot<mirror::Object>),
           "art::mirror::CompressedReference<mirror::Object> and art::GcRoot<mirror::Object> "
@@ -6727,15 +6866,21 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(HInstruction* instruct
     } else {
       // GC root loaded through a slow path for read barriers other
       // than Baker's.
-      // /* GcRoot<mirror::Object>* */ root = obj + offset
-      __ leal(root_reg, Address(obj, offset));
+      // /* GcRoot<mirror::Object>* */ root = address
+      __ leal(root_reg, address);
+      if (fixup_label != nullptr) {
+        __ Bind(fixup_label);
+      }
       // /* mirror::Object* */ root = root->Read()
       codegen_->GenerateReadBarrierForRootSlow(instruction, root, root);
     }
   } else {
     // Plain GC root load with no read barrier.
-    // /* GcRoot<mirror::Object> */ root = *(obj + offset)
-    __ movl(root_reg, Address(obj, offset));
+    // /* GcRoot<mirror::Object> */ root = *address
+    __ movl(root_reg, address);
+    if (fixup_label != nullptr) {
+      __ Bind(fixup_label);
+    }
     // Note that GC roots are not affected by heap poisoning, thus we
     // do not have to unpoison `root_reg` here.
   }
