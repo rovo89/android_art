@@ -34,10 +34,10 @@ namespace art {
 // Add a random delay each time we go to sleep so that we don't hammer the CPU
 // with all profile savers running at the same time.
 static constexpr const uint64_t kRandomDelayMaxMs = 30 * 1000;  // 30 seconds
-static constexpr const uint64_t kMaxBackoffMs = 5 * 60 * 1000;  // 5 minutes
+static constexpr const uint64_t kMaxBackoffMs = 10 * 60 * 1000;  // 10 minutes
 static constexpr const uint64_t kSavePeriodMs = 20 * 1000;  // 20 seconds
 static constexpr const uint64_t kSaveResolvedClassesDelayMs = 2 * 1000;  // 2 seconds
-static constexpr const double kBackoffCoef = 1.5;
+static constexpr const double kBackoffCoef = 2.0;
 
 static constexpr const uint32_t kMinimumNumberOfMethodsToSave = 10;
 static constexpr const uint32_t kMinimumNumberOfClassesToSave = 10;
@@ -54,7 +54,7 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       foreign_dex_profile_path_(foreign_dex_profile_path),
       shutting_down_(false),
       last_save_number_of_methods_(0),
-      last_save_number_of_classes__(0),
+      last_save_number_of_classes_(0),
       wait_lock_("ProfileSaver wait lock"),
       period_condition_("ProfileSaver period condition", wait_lock_),
       total_bytes_written_(0),
@@ -125,9 +125,11 @@ void ProfileSaver::Run() {
         // so in the future. Increase the time between saves according to the
         // kBackoffCoef, but make it no larger than kMaxBackoffMs.
         save_period_ms = static_cast<uint64_t>(kBackoffCoef * save_period_ms);
+        VLOG(profiler) << "Profile saver: nothing to save, delaying period to: " << save_period_ms;
       } else {
         // Reset the period to the initial value as it's highly likely to JIT again.
         save_period_ms = kSavePeriodMs;
+        VLOG(profiler) << "Profile saver: saved something, period reset to: " << save_period_ms;
       }
     }
     cache_resolved_classes = false;
@@ -197,14 +199,16 @@ bool ProfileSaver::ProcessProfilingInfo() {
 
     ProfileCompilationInfo* cached_info = GetCachedProfiledInfo(filename);
     cached_info->AddMethodsAndClasses(methods, std::set<DexCacheResolvedClasses>());
-    uint32_t delta_number_of_methods =
-        cached_info->GetNumberOfMethods() - last_save_number_of_methods_;
-    uint32_t delta_number_of_classes =
-        cached_info->GetNumberOfResolvedClasses() - last_save_number_of_classes__;
+    int64_t delta_number_of_methods =
+        cached_info->GetNumberOfMethods() -
+        static_cast<int64_t>(last_save_number_of_methods_);
+    int64_t delta_number_of_classes =
+        cached_info->GetNumberOfResolvedClasses() -
+        static_cast<int64_t>(last_save_number_of_classes_);
 
     if (delta_number_of_methods < kMinimumNumberOfMethodsToSave &&
         delta_number_of_classes < kMinimumNumberOfClassesToSave) {
-     VLOG(profiler) << "Not enough information to save to: " << filename
+      VLOG(profiler) << "Not enough information to save to: " << filename
           << " Nr of methods: " << delta_number_of_methods
           << " Nr of classes: " << delta_number_of_classes;
       total_number_of_skipped_writes_++;
@@ -215,13 +219,14 @@ bool ProfileSaver::ProcessProfilingInfo() {
     // has the wrong version this will "fix" the file to the correct format.
     if (cached_info->MergeAndSave(filename, &bytes_written, /*force*/ true)) {
       last_save_number_of_methods_ = cached_info->GetNumberOfMethods();
-      last_save_number_of_classes__ = cached_info->GetNumberOfResolvedClasses();
+      last_save_number_of_classes_ = cached_info->GetNumberOfResolvedClasses();
       // Clear resolved classes. No need to store them around as
       // they don't change after the first write.
       cached_info->ClearResolvedClasses();
       if (bytes_written > 0) {
         total_number_of_writes_++;
         total_bytes_written_ += bytes_written;
+        profile_file_saved = true;
       } else {
         // At this point we could still have avoided the write.
         // We load and merge the data from the file lazily at its first ever
@@ -229,12 +234,9 @@ bool ProfileSaver::ProcessProfilingInfo() {
         // in the file.
         total_number_of_skipped_writes_++;
       }
-      profile_file_saved = true;
     } else {
       LOG(WARNING) << "Could not save profiling info to " << filename;
       total_number_of_failed_writes_++;
-      // TODO: (calin): if we failed because of bad profiling data or parsing
-      // errors we should clear the profile file.
     }
     total_number_of_profile_entries_cached +=
         cached_info->GetNumberOfMethods() +
@@ -268,7 +270,6 @@ static bool ShouldProfileLocation(const std::string& location) {
     // This can happen if we fallback to run code directly from the APK.
     // Profile it with the hope that the background dexopt will get us back into
     // a good state.
-    LOG(WARNING) << "Accepting to profile an un-opened oat file " << location;
     return true;
   }
   CompilerFilter::Filter filter = oat_file->GetCompilerFilter();

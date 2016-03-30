@@ -101,7 +101,7 @@ class ProfileSaver {
   std::string app_data_dir_;
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
   uint32_t last_save_number_of_methods_;
-  uint32_t last_save_number_of_classes__;
+  uint32_t last_save_number_of_classes_;
 
   // A local cache for the profile information. Maps each tracked file to its
   // profile information. The size of this cache is usually very small and tops
