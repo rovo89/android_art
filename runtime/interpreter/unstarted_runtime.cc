@@ -454,42 +454,32 @@ void UnstartedRuntime::UnstartedThreadLocalGet(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
   std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
   bool ok = false;
-  if (caller == "java.lang.String java.lang.IntegralToString.convertInt"
-                "(java.lang.AbstractStringBuilder, int)") {
+  if (caller == "void java.lang.FloatingDecimal.developLongDigits(int, long, long)" ||
+      caller == "java.lang.String java.lang.FloatingDecimal.toJavaFormatString()") {
     // Allocate non-threadlocal buffer.
-    result->SetL(mirror::CharArray::Alloc(self, 11));
+    result->SetL(mirror::CharArray::Alloc(self, 26));
     ok = true;
-  } else if (caller == "java.lang.RealToString java.lang.RealToString.getInstance()") {
-    // Note: RealToString is implemented and used in a different fashion than IntegralToString.
-    // Conversion is done over an actual object of RealToString (the conversion method is an
-    // instance method). This means it is not as clear whether it is correct to return a new
-    // object each time. The caller needs to be inspected by hand to see whether it (incorrectly)
-    // stores the object for later use.
-    // See also b/19548084 for a possible rewrite and bringing it in line with IntegralToString.
-    if (shadow_frame->GetLink()->GetLink() != nullptr) {
-      std::string caller2(PrettyMethod(shadow_frame->GetLink()->GetLink()->GetMethod()));
-      if (caller2 == "java.lang.String java.lang.Double.toString(double)") {
-        // Allocate new object.
-        StackHandleScope<2> hs(self);
-        Handle<mirror::Class> h_real_to_string_class(hs.NewHandle(
-            shadow_frame->GetLink()->GetMethod()->GetDeclaringClass()));
-        Handle<mirror::Object> h_real_to_string_obj(hs.NewHandle(
-            h_real_to_string_class->AllocObject(self)));
-        if (h_real_to_string_obj.Get() != nullptr) {
-          auto* cl = Runtime::Current()->GetClassLinker();
-          ArtMethod* init_method = h_real_to_string_class->FindDirectMethod(
-              "<init>", "()V", cl->GetImagePointerSize());
-          if (init_method == nullptr) {
-            h_real_to_string_class->DumpClass(LOG(FATAL), mirror::Class::kDumpClassFullDetail);
-          } else {
-            JValue invoke_result;
-            EnterInterpreterFromInvoke(self, init_method, h_real_to_string_obj.Get(), nullptr,
-                                       nullptr);
-            if (!self->IsExceptionPending()) {
-              result->SetL(h_real_to_string_obj.Get());
-              ok = true;
-            }
-          }
+  } else if (caller ==
+             "java.lang.FloatingDecimal java.lang.FloatingDecimal.getThreadLocalInstance()") {
+    // Allocate new object.
+    StackHandleScope<2> hs(self);
+    Handle<mirror::Class> h_real_to_string_class(hs.NewHandle(
+        shadow_frame->GetLink()->GetMethod()->GetDeclaringClass()));
+    Handle<mirror::Object> h_real_to_string_obj(hs.NewHandle(
+        h_real_to_string_class->AllocObject(self)));
+    if (h_real_to_string_obj.Get() != nullptr) {
+      auto* cl = Runtime::Current()->GetClassLinker();
+      ArtMethod* init_method = h_real_to_string_class->FindDirectMethod(
+          "<init>", "()V", cl->GetImagePointerSize());
+      if (init_method == nullptr) {
+        h_real_to_string_class->DumpClass(LOG(FATAL), mirror::Class::kDumpClassFullDetail);
+      } else {
+        JValue invoke_result;
+        EnterInterpreterFromInvoke(self, init_method, h_real_to_string_obj.Get(), nullptr,
+                                   nullptr);
+        if (!self->IsExceptionPending()) {
+          result->SetL(h_real_to_string_obj.Get());
+          ok = true;
         }
       }
     }
