@@ -690,32 +690,47 @@ void UnstartedRuntime::UnstartedSecurityGetSecurityPropertiesReader(
     Thread* self, ShadowFrame* shadow_frame ATTRIBUTE_UNUSED, JValue* result,
     size_t arg_offset ATTRIBUTE_UNUSED) {
   Runtime* runtime = Runtime::Current();
-  const std::vector<const DexFile*>& path = runtime->GetClassLinker()->GetBootClassPath();
-  std::string canonical(DexFile::GetDexCanonicalLocation(path[0]->GetLocation().c_str()));
+
+  std::vector<std::string> split;
+  Split(runtime->GetBootClassPathString(), ':', &split);
+  if (split.empty()) {
+    AbortTransactionOrFail(self,
+                           "Boot classpath not set or split error:: %s",
+                           runtime->GetBootClassPathString().c_str());
+    return;
+  }
+  const std::string& source = split[0];
+
   mirror::String* string_data;
 
   // Use a block to enclose the I/O and MemMap code so buffers are released early.
   {
     std::string error_msg;
-    std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(canonical.c_str(), &error_msg));
+    std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(source.c_str(), &error_msg));
     if (zip_archive.get() == nullptr) {
-      AbortTransactionOrFail(self, "Could not open zip file %s: %s", canonical.c_str(),
+      AbortTransactionOrFail(self,
+                             "Could not open zip file %s: %s",
+                             source.c_str(),
                              error_msg.c_str());
       return;
     }
     std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find("java/security/security.properties",
                                                           &error_msg));
     if (zip_entry.get() == nullptr) {
-      AbortTransactionOrFail(self, "Could not find security.properties file in %s: %s",
-                             canonical.c_str(), error_msg.c_str());
+      AbortTransactionOrFail(self,
+                             "Could not find security.properties file in %s: %s",
+                             source.c_str(),
+                             error_msg.c_str());
       return;
     }
-    std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(canonical.c_str(),
+    std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(source.c_str(),
                                                            "java/security/security.properties",
                                                            &error_msg));
     if (map.get() == nullptr) {
-      AbortTransactionOrFail(self, "Could not unzip security.properties file in %s: %s",
-                             canonical.c_str(), error_msg.c_str());
+      AbortTransactionOrFail(self,
+                             "Could not unzip security.properties file in %s: %s",
+                             source.c_str(),
+                             error_msg.c_str());
       return;
     }
 
@@ -728,8 +743,7 @@ void UnstartedRuntime::UnstartedSecurityGetSecurityPropertiesReader(
   }
 
   if (string_data == nullptr) {
-    AbortTransactionOrFail(self, "Could not create string from file content of %s",
-                           canonical.c_str());
+    AbortTransactionOrFail(self, "Could not create string from file content of %s", source.c_str());
     return;
   }
 
