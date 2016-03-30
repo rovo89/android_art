@@ -107,6 +107,9 @@ class DexFile {
     uint32_t data_size_;  // unused
     uint32_t data_off_;  // unused
 
+    // Decode the dex magic version
+    uint32_t GetVersion() const;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(Header);
   };
@@ -479,7 +482,9 @@ class DexFile {
   }
 
   // Decode the dex magic version
-  uint32_t GetVersion() const;
+  uint32_t GetVersion() const {
+    return GetHeader().GetVersion();
+  }
 
   // Returns true if the byte string points to the magic value.
   static bool IsMagicValid(const uint8_t* magic);

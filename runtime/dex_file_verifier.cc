@@ -2465,7 +2465,13 @@ bool DexFileVerifier::CheckFieldAccessFlags(uint32_t idx,
                                 GetFieldDescriptionOrError(begin_, header_, idx).c_str(),
                                 field_access_flags,
                                 PrettyJavaAccessFlags(field_access_flags).c_str());
-      return false;
+      if (header_->GetVersion() >= 37) {
+        return false;
+      } else {
+        // Allow in older versions, but warn.
+        LOG(WARNING) << "This dex file is invalid and will be rejected in the future. Error is: "
+                     << *error_msg;
+      }
     }
     // Interface fields may be synthetic, but may not have other flags.
     constexpr uint32_t kDisallowed = ~(kPublicFinalStatic | kAccSynthetic);
@@ -2474,7 +2480,13 @@ bool DexFileVerifier::CheckFieldAccessFlags(uint32_t idx,
                                 GetFieldDescriptionOrError(begin_, header_, idx).c_str(),
                                 field_access_flags,
                                 PrettyJavaAccessFlags(field_access_flags).c_str());
-      return false;
+      if (header_->GetVersion() >= 37) {
+        return false;
+      } else {
+        // Allow in older versions, but warn.
+        LOG(WARNING) << "This dex file is invalid and will be rejected in the future. Error is: "
+                     << *error_msg;
+      }
     }
     return true;
   }
@@ -2657,7 +2669,13 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
         *error_msg = StringPrintf("Interface method %" PRIu32 "(%s) is not public and abstract",
             method_index,
             GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
-        return false;
+        if (header_->GetVersion() >= 37) {
+          return false;
+        } else {
+          // Allow in older versions, but warn.
+          LOG(WARNING) << "This dex file is invalid and will be rejected in the future. Error is: "
+                       << *error_msg;
+        }
       }
       // At this point, we know the method is public and abstract. This means that all the checks
       // for invalid combinations above applies. In addition, interface methods must not be

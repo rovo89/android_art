@@ -506,8 +506,8 @@ bool DexFile::IsVersionValid(const uint8_t* magic) {
   return false;
 }
 
-uint32_t DexFile::GetVersion() const {
-  const char* version = reinterpret_cast<const char*>(&GetHeader().magic_[sizeof(kDexMagic)]);
+uint32_t DexFile::Header::GetVersion() const {
+  const char* version = reinterpret_cast<const char*>(&magic_[sizeof(kDexMagic)]);
   return atoi(version);
 }
 
