@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_H_
 #define ART_RUNTIME_MIRROR_OBJECT_H_
 
+#include "base/casts.h"
 #include "globals.h"
 #include "object_reference.h"
 #include "offsets.h"
@@ -490,7 +491,7 @@ class MANAGED LOCKABLE Object {
           field_offset, static_cast<int32_t>(ptr));
     } else {
       SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-          field_offset, static_cast<int64_t>(reinterpret_cast<uintptr_t>(new_value)));
+          field_offset, reinterpret_cast64<int64_t>(new_value));
     }
   }
   // TODO fix thread safety analysis broken by the use of template. This should be
@@ -531,9 +532,7 @@ class MANAGED LOCKABLE Object {
       return reinterpret_cast<T>(GetField32<kVerifyFlags, kIsVolatile>(field_offset));
     } else {
       int64_t v = GetField64<kVerifyFlags, kIsVolatile>(field_offset);
-      // Check that we dont lose any non 0 bits.
-      DCHECK_EQ(static_cast<int64_t>(static_cast<uintptr_t>(v)), v);
-      return reinterpret_cast<T>(static_cast<uintptr_t>(v));
+      return reinterpret_cast64<T>(v);
     }
   }
 

@@ -16,6 +16,7 @@
 
 #include "sharpening.h"
 
+#include "base/casts.h"
 #include "class_linker.h"
 #include "code_generator.h"
 #include "driver/dex_compilation_unit.h"
@@ -180,46 +181,42 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
         // MIPS/MIPS64 or compiler_driver_test. Do not sharpen.
         desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
       } else {
-        DCHECK(ContainsElement(compiler_driver_->GetDexFilesForOatFile(),
-                               &load_string->GetDexFile()));
+        DCHECK(ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file));
         is_in_dex_cache = true;
         desired_load_kind = codegen_->GetCompilerOptions().GetCompilePic()
             ? HLoadString::LoadKind::kBootImageLinkTimePcRelative
             : HLoadString::LoadKind::kBootImageLinkTimeAddress;
       }
+    } else if (runtime->UseJit()) {
+      // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
+      // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
+      mirror::String* string = dex_cache->GetResolvedString(string_index);
+      is_in_dex_cache = (string != nullptr);
+      if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
+        desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
+        address = reinterpret_cast64<uint64_t>(string);
+      } else {
+        // Note: If the string is not in the dex cache, the instruction needs environment
+        // and will not be inlined across dex files. Within a dex file, the slow-path helper
+        // loads the correct string and inlined frames are used correctly for OOM stack trace.
+        // TODO: Write a test for this.
+        desired_load_kind = HLoadString::LoadKind::kDexCacheAddress;
+        void* dex_cache_element_address = &dex_cache->GetStrings()[string_index];
+        address = reinterpret_cast64<uint64_t>(dex_cache_element_address);
+      }
     } else {
-      // Not compiling boot image. Try to lookup the string without allocating if not found.
+      // AOT app compilation. Try to lookup the string without allocating if not found.
       mirror::String* string = class_linker->LookupString(dex_file, string_index, dex_cache);
-      if (runtime->UseJit()) {
-        // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
-        // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
-        is_in_dex_cache = (string != nullptr);
-        if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
-          desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
-          // Convert to uintptr_t first to avoid sign-extension if a 32-bit pointer is "signed."
-          address = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(string));
-        } else {
-          // Note: If the string is not in the dex cache, the instruction needs environment
-          // and will not be inlined across dex files. Within a dex file, the slow-path helper
-          // loads the correct string and inlined frames are used correctly for OOM stack trace.
-          // TODO: Write a test for this.
-          desired_load_kind = HLoadString::LoadKind::kDexCacheAddress;
-          void* dex_cache_element_address = &dex_cache->GetStrings()[string_index];
-          // Convert to uintptr_t first to avoid sign-extension if a 32-bit pointer is "signed."
-          address = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(dex_cache_element_address));
-        }
-      } else if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
+      if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
         if (codegen_->GetCompilerOptions().GetCompilePic()) {
           // Use PC-relative load from the dex cache if the dex file belongs
           // to the oat file that we're currently compiling.
-          desired_load_kind =
-              ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &load_string->GetDexFile())
-                  ? HLoadString::LoadKind::kDexCachePcRelative
-                  : HLoadString::LoadKind::kDexCacheViaMethod;
+          desired_load_kind = ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file)
+              ? HLoadString::LoadKind::kDexCachePcRelative
+              : HLoadString::LoadKind::kDexCacheViaMethod;
         } else {
           desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
-          // Convert to uintptr_t first to avoid sign-extension if a 32-bit pointer is "signed."
-          address = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(string));
+          address = reinterpret_cast64<uint64_t>(string);
         }
       } else {
         // Not JIT and the string is not in boot image.

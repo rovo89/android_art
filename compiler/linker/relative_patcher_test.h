@@ -142,26 +142,26 @@ class RelativePatcherTest : public testing::Test {
         patched_code_.assign(code.begin(), code.end());
         code = ArrayRef<const uint8_t>(patched_code_);
         for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-          if (patch.Type() == kLinkerPatchCallRelative) {
+          if (patch.GetType() == LinkerPatch::Type::kCallRelative) {
             auto result = method_offset_map_.FindMethodOffset(patch.TargetMethod());
             uint32_t target_offset =
                 result.first ? result.second : kTrampolineOffset + compiled_method->CodeDelta();
             patcher_->PatchCall(&patched_code_, patch.LiteralOffset(),
                                 offset + patch.LiteralOffset(), target_offset);
-          } else if (patch.Type() == kLinkerPatchDexCacheArray) {
+          } else if (patch.GetType() == LinkerPatch::Type::kDexCacheArray) {
             uint32_t target_offset = dex_cache_arrays_begin_ + patch.TargetDexCacheElementOffset();
             patcher_->PatchPcRelativeReference(&patched_code_,
                                                patch,
                                                offset + patch.LiteralOffset(),
                                                target_offset);
-          } else if (patch.Type() == kLinkerPatchStringRelative) {
+          } else if (patch.GetType() == LinkerPatch::Type::kStringRelative) {
             uint32_t target_offset = string_index_to_offset_map_.Get(patch.TargetStringIndex());
             patcher_->PatchPcRelativeReference(&patched_code_,
                                                patch,
                                                offset + patch.LiteralOffset(),
                                                target_offset);
           } else {
-            LOG(FATAL) << "Bad patch type. " << patch.Type();
+            LOG(FATAL) << "Bad patch type. " << patch.GetType();
             UNREACHABLE();
           }
         }
