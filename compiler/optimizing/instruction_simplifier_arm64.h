@@ -51,6 +51,22 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
     return TryMergeIntoShifterOperand(use, bitfield_op, true);
   }
 
+  /**
+   * This simplifier uses a special-purpose BB visitor.
+   * (1) No need to visit Phi nodes.
+   * (2) Since statements can be removed in a "forward" fashion,
+   *     the visitor should test if each statement is still there.
+   */
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
+    // TODO: fragile iteration, provide more robust iterators?
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instruction = it.Current();
+      if (instruction->IsInBlock()) {
+        instruction->Accept(this);
+      }
+    }
+  }
+
   // HInstruction visitors, sorted alphabetically.
   void VisitAnd(HAnd* instruction) OVERRIDE;
   void VisitArrayGet(HArrayGet* instruction) OVERRIDE;
