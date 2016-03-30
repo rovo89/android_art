@@ -444,6 +444,12 @@ void UnstartedRuntime::UnstartedSystemArraycopyInt(
   UnstartedRuntime::UnstartedSystemArraycopy(self, shadow_frame, result, arg_offset);
 }
 
+void UnstartedRuntime::UnstartedSystemGetSecurityManager(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame ATTRIBUTE_UNUSED,
+    JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
+  result->SetL(nullptr);
+}
+
 void UnstartedRuntime::UnstartedThreadLocalGet(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
   std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
@@ -1232,6 +1238,19 @@ void UnstartedRuntime::UnstartedJNIUnsafeCompareAndSwapInt(
                                                                  expectedValue, newValue);
   }
   result->SetZ(success ? JNI_TRUE : JNI_FALSE);
+}
+
+void UnstartedRuntime::UnstartedJNIUnsafeGetIntVolatile(
+    Thread* self, ArtMethod* method ATTRIBUTE_UNUSED, mirror::Object* receiver ATTRIBUTE_UNUSED,
+    uint32_t* args, JValue* result) {
+  mirror::Object* obj = reinterpret_cast<mirror::Object*>(args[0]);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
+    return;
+  }
+
+  jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
+  result->SetI(obj->GetField32Volatile(MemberOffset(offset)));
 }
 
 void UnstartedRuntime::UnstartedJNIUnsafePutObject(
