@@ -1248,6 +1248,10 @@ void OatFile::OatMethod::LinkMethod(ArtMethod* method) const {
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
 }
 
+bool OatFile::HasPatchInfo() const {
+  return GetOatHeader().HasPatchInfo();
+}
+
 bool OatFile::IsPic() const {
   return GetOatHeader().IsPic();
   // TODO: Check against oat_patches. b/18144996

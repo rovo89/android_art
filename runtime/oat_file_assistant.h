@@ -310,6 +310,9 @@ class OatFileAssistant {
   // Returns true if the odex file is opened executable.
   bool OdexFileIsExecutable();
 
+  // Returns true if the odex file has patch info required to run patchoat.
+  bool OdexFileHasPatchInfo();
+
   // Clear any cached information about the odex file that depends on the
   // contents of the file.
   void ClearOdexFileCache();
@@ -325,6 +328,9 @@ class OatFileAssistant {
 
   // Returns true if the oat file is opened executable.
   bool OatFileIsExecutable();
+
+  // Returns true if the oat file has patch info required to run patchoat.
+  bool OatFileHasPatchInfo();
 
   // Clear any cached information about the oat file that depends on the
   // contents of the file.
