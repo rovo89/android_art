@@ -1005,4 +1005,19 @@ void GraphChecker::VisitBoundType(HBoundType* instruction) {
   }
 }
 
+void GraphChecker::VisitTypeConversion(HTypeConversion* instruction) {
+  VisitInstruction(instruction);
+  Primitive::Type result_type = instruction->GetResultType();
+  Primitive::Type input_type = instruction->GetInputType();
+  // Invariant: We should never generate a conversion to a Boolean value.
+  if (result_type == Primitive::kPrimBoolean) {
+    AddError(StringPrintf(
+        "%s %d converts to a %s (from a %s).",
+        instruction->DebugName(),
+        instruction->GetId(),
+        Primitive::PrettyDescriptor(result_type),
+        Primitive::PrettyDescriptor(input_type)));
+  }
+}
+
 }  // namespace art

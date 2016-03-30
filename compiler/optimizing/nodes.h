@@ -4902,6 +4902,8 @@ class HTypeConversion : public HExpression<1> {
                     dex_pc) {
     SetRawInputAt(0, input);
     DCHECK_NE(input->GetType(), result_type);
+    // Invariant: We should never generate a conversion to a Boolean value.
+    DCHECK_NE(Primitive::kPrimBoolean, result_type);
   }
 
   HInstruction* GetInput() const { return InputAt(0); }
