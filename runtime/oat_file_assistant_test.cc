@@ -230,6 +230,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
                                                      &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
     EXPECT_FALSE(odex_file->IsPic());
+    EXPECT_TRUE(odex_file->HasPatchInfo());
     EXPECT_EQ(filter, odex_file->GetCompilerFilter());
 
     if (CompilerFilter::IsCompilationEnabled(filter)) {
@@ -274,6 +275,44 @@ class OatFileAssistantTest : public CommonRuntimeTest {
                                                      &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
     EXPECT_TRUE(odex_file->IsPic());
+    EXPECT_EQ(filter, odex_file->GetCompilerFilter());
+  }
+
+  // Generate a non-PIC odex file without patch information for the purposes
+  // of test.  The generated odex file will be un-relocated.
+  // TODO: This won't work correctly if we depend on the boot image being
+  // randomly relocated by a non-zero amount. We should have a better solution
+  // for avoiding that flakiness and duplicating code to generate odex and oat
+  // files for test.
+  void GenerateNoPatchOdexForTest(const std::string& dex_location,
+                                  const std::string& odex_location,
+                                  CompilerFilter::Filter filter) {
+    // Temporarily redirect the dalvik cache so dex2oat doesn't find the
+    // relocated image file.
+    std::string android_data_tmp = GetScratchDir() + "AndroidDataTmp";
+    setenv("ANDROID_DATA", android_data_tmp.c_str(), 1);
+    std::vector<std::string> args;
+    args.push_back("--dex-file=" + dex_location);
+    args.push_back("--oat-file=" + odex_location);
+    args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
+    args.push_back("--runtime-arg");
+    args.push_back("-Xnorelocate");
+    std::string error_msg;
+    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+    setenv("ANDROID_DATA", android_data_.c_str(), 1);
+
+    // Verify the odex file was generated as expected.
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
+    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
+    EXPECT_FALSE(odex_file->IsPic());
+    EXPECT_FALSE(odex_file->HasPatchInfo());
     EXPECT_EQ(filter, odex_file->GetCompilerFilter());
   }
 
@@ -847,6 +886,37 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
   EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
   EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+
+  std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
+  ASSERT_TRUE(oat_file.get() != nullptr);
+  EXPECT_TRUE(oat_file->IsExecutable());
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
+  EXPECT_EQ(1u, dex_files.size());
+}
+
+// Case: We have a DEX file, no ODEX file and an OAT file that needs
+// relocation but doesn't have patch info.
+// Expect: The status is kDex2OatNeeded, because we can't run patchoat.
+TEST_F(OatFileAssistantTest, NoSelfRelocation) {
+  std::string dex_location = GetScratchDir() + "/NoSelfRelocation.jar";
+  std::string oat_location = GetOdexDir() + "/NoSelfRelocation.oat";
+
+  // Create the dex and odex files
+  Copy(GetDexSrc1(), dex_location);
+  GenerateNoPatchOdexForTest(dex_location, oat_location, CompilerFilter::kSpeed);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(),
+      oat_location.c_str(), kRuntimeISA, false, true);
+
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  // Make the oat file up to date.
+  std::string error_msg;
+  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
