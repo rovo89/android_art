@@ -545,12 +545,23 @@ class ArtMethod FINAL {
   ALWAYS_INLINE GcRoot<mirror::Class>* GetDexCacheResolvedTypes(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Note, hotness_counter_ updates are non-atomic but it doesn't need to be precise.  Also,
+  // given that the counter is only 16 bits wide we can expect wrap-around in some
+  // situations.  Consumers of hotness_count_ must be able to deal with that.
   uint16_t IncrementCounter() {
     return ++hotness_count_;
   }
 
   void ClearCounter() {
     hotness_count_ = 0;
+  }
+
+  void SetCounter(int16_t hotness_count) {
+    hotness_count_ = hotness_count;
+  }
+
+  uint16_t GetCounter() const {
+    return hotness_count_;
   }
 
   const uint8_t* GetQuickenedInfo() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -597,7 +608,7 @@ class ArtMethod FINAL {
   // ifTable.
   uint16_t method_index_;
 
-  // The hotness we measure for this method. Incremented by the interpreter. Not atomic, as we allow
+  // The hotness we measure for this method. Managed by the interpreter. Not atomic, as we allow
   // missing increments: if the method is hot, we will see it eventually.
   uint16_t hotness_count_;
 
