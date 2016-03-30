@@ -62,10 +62,10 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
       LOG(FATAL) << "Unexpected relative call patch.";
     }
 
-    virtual void PatchDexCacheReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                        const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                        uint32_t patch_offset ATTRIBUTE_UNUSED,
-                                        uint32_t target_offset ATTRIBUTE_UNUSED) {
+    void PatchPcRelativeReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                  const LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                  uint32_t patch_offset ATTRIBUTE_UNUSED,
+                                  uint32_t target_offset ATTRIBUTE_UNUSED) OVERRIDE {
       LOG(FATAL) << "Unexpected relative dex cache array patch.";
     }
 

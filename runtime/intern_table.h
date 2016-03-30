@@ -88,6 +88,9 @@ class InternTable {
   mirror::String* LookupStrong(Thread* self, mirror::String* s)
       REQUIRES(!Locks::intern_table_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::String* LookupStrong(Thread* self, uint32_t utf16_length, const char* utf8_data)
+      REQUIRES(!Locks::intern_table_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Lookup a weak intern, returns null if not found.
   mirror::String* LookupWeak(Thread* self, mirror::String* s)
@@ -136,10 +139,31 @@ class InternTable {
       REQUIRES(!Locks::intern_table_lock_);
 
  private:
+  // Modified UTF-8-encoded string treated as UTF16.
+  class Utf8String {
+   public:
+    Utf8String(uint32_t utf16_length, const char* utf8_data, int32_t hash)
+        : hash_(hash), utf16_length_(utf16_length), utf8_data_(utf8_data) { }
+
+    int32_t GetHash() const { return hash_; }
+    uint32_t GetUtf16Length() const { return utf16_length_; }
+    const char* GetUtf8Data() const { return utf8_data_; }
+
+   private:
+    int32_t hash_;
+    uint32_t utf16_length_;
+    const char* utf8_data_;
+  };
+
   class StringHashEquals {
    public:
     std::size_t operator()(const GcRoot<mirror::String>& root) const NO_THREAD_SAFETY_ANALYSIS;
     bool operator()(const GcRoot<mirror::String>& a, const GcRoot<mirror::String>& b) const
+        NO_THREAD_SAFETY_ANALYSIS;
+
+    // Utf8String can be used for lookup.
+    std::size_t operator()(const Utf8String& key) const { return key.GetHash(); }
+    bool operator()(const GcRoot<mirror::String>& a, const Utf8String& b) const
         NO_THREAD_SAFETY_ANALYSIS;
   };
   class GcRootEmptyFn {
@@ -158,6 +182,8 @@ class InternTable {
    public:
     Table();
     mirror::String* Find(mirror::String* s) SHARED_REQUIRES(Locks::mutator_lock_)
+        REQUIRES(Locks::intern_table_lock_);
+    mirror::String* Find(const Utf8String& string) SHARED_REQUIRES(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
     void Insert(mirror::String* s) SHARED_REQUIRES(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);

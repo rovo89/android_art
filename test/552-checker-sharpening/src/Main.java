@@ -22,6 +22,12 @@ public class Main {
     }
   }
 
+  public static void assertStringEquals(String expected, String result) {
+    if (expected != null ? !expected.equals(result) : result != null) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static boolean doThrow = false;
 
   private static int $noinline$foo(int x) {
@@ -185,6 +191,66 @@ public class Main {
     return x;
   }
 
+  /// CHECK-START: java.lang.String Main.$noinline$getBootImageString() sharpening (before)
+  /// CHECK:                LoadString load_kind:DexCacheViaMethod
+
+  /// CHECK-START-X86: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+
+  /// CHECK-START-X86_64: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+
+  /// CHECK-START-ARM: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+
+  /// CHECK-START-ARM64: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+
+  public static String $noinline$getBootImageString() {
+    // Prevent inlining to avoid the string comparison being optimized away.
+    if (doThrow) { throw new Error(); }
+    // Empty string is known to be in the boot image.
+    return "";
+  }
+
+  /// CHECK-START: java.lang.String Main.$noinline$getNonBootImageString() sharpening (before)
+  /// CHECK:                LoadString load_kind:DexCacheViaMethod
+
+  /// CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  /// CHECK:                LoadString load_kind:DexCachePcRelative
+
+  /// CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() pc_relative_fixups_x86 (after)
+  /// CHECK-DAG:            X86ComputeBaseMethodAddress
+  /// CHECK-DAG:            LoadString load_kind:DexCachePcRelative
+
+  /// CHECK-START-X86_64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  /// CHECK:                LoadString load_kind:DexCachePcRelative
+
+  /// CHECK-START-ARM: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  /// CHECK:                LoadString load_kind:DexCachePcRelative
+
+  /// CHECK-START-ARM: java.lang.String Main.$noinline$getNonBootImageString() dex_cache_array_fixups_arm (after)
+  /// CHECK-DAG:            ArmDexCacheArraysBase
+  /// CHECK-DAG:            LoadString load_kind:DexCachePcRelative
+
+  /// CHECK-START-ARM64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  /// CHECK:                LoadString load_kind:DexCachePcRelative
+
+  public static String $noinline$getNonBootImageString() {
+    // Prevent inlining to avoid the string comparison being optimized away.
+    if (doThrow) { throw new Error(); }
+    // This string is not in the boot image.
+    return "non-boot-image-string";
+  }
+
   public static void main(String[] args) {
     assertIntEquals(1, testSimple(1));
     assertIntEquals(1, testDiamond(false, 1));
@@ -194,5 +260,7 @@ public class Main {
     assertIntEquals(1, testLoopWithDiamond(null, false, 1));
     assertIntEquals(3, testLoopWithDiamond(new int[]{ 2 }, false, 1));
     assertIntEquals(-6, testLoopWithDiamond(new int[]{ 3, 4 }, true, 1));
+    assertStringEquals("", $noinline$getBootImageString());
+    assertStringEquals("non-boot-image-string", $noinline$getNonBootImageString());
   }
 }

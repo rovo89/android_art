@@ -104,10 +104,10 @@ class RelativePatcher {
                          uint32_t target_offset) = 0;
 
   // Patch a reference to a dex cache location.
-  virtual void PatchDexCacheReference(std::vector<uint8_t>* code,
-                                      const LinkerPatch& patch,
-                                      uint32_t patch_offset,
-                                      uint32_t target_offset) = 0;
+  virtual void PatchPcRelativeReference(std::vector<uint8_t>* code,
+                                        const LinkerPatch& patch,
+                                        uint32_t patch_offset,
+                                        uint32_t target_offset) = 0;
 
  protected:
   RelativePatcher()
