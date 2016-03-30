@@ -258,13 +258,13 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
                                          Location maybe_temp);
   // Generate a GC root reference load:
   //
-  //   root <- *(obj + offset)
+  //   root <- *address
   //
   // while honoring read barriers (if any).
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
-                               Register obj,
-                               uint32_t offset);
+                               const Address& address,
+                               Label* fixup_label = nullptr);
 
   // Push value to FPU stack. `is_fp` specifies whether the value is floating point or not.
   // `is_wide` specifies whether it is long/double or not.
@@ -388,6 +388,11 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Check if the desired_string_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadString::LoadKind GetSupportedLoadStringKind(
+      HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -398,6 +403,10 @@ class CodeGeneratorX86 : public CodeGenerator {
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   // Generate a call to a virtual method.
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+
+  void RecordSimplePatch();
+  void RecordStringPatch(HLoadString* load_string);
+  Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
@@ -542,6 +551,10 @@ class CodeGeneratorX86 : public CodeGenerator {
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
 
+  // When we don't know the proper offset for the value, we use kDummy32BitOffset.
+  // The correct value will be inserted when processing Assembler fixups.
+  static constexpr int32_t kDummy32BitOffset = 256;
+
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
   // and GenerateArrayLoadWithBakerReadBarrier.
@@ -578,6 +591,10 @@ class CodeGeneratorX86 : public CodeGenerator {
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
   // PC-relative DexCache access info.
   ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
+  // Patch locations for patchoat where the linker doesn't do any other work.
+  ArenaDeque<Label> simple_patches_;
+  // String patch locations.
+  ArenaDeque<StringPatchInfo<Label>> string_patches_;
 
   // Offset to the start of the constant area in the assembled code.
   // Used for fixups to the constant area.
@@ -591,10 +608,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   // from the value contained in the out register of this HX86ComputeBaseMethodAddress
   // instruction gives the address of the start of this method.
   int32_t method_address_offset_;
-
-  // When we don't know the proper offset for the value, we use kDummy32BitOffset.
-  // The correct value will be inserted when processing Assembler fixups.
-  static constexpr int32_t kDummy32BitOffset = 256;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
 };

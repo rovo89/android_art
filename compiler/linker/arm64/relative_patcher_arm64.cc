@@ -28,6 +28,16 @@
 namespace art {
 namespace linker {
 
+namespace {
+
+inline bool IsAdrpPatch(const LinkerPatch& patch) {
+  LinkerPatchType type = patch.Type();
+  return (type == kLinkerPatchStringRelative || type == kLinkerPatchDexCacheArray) &&
+      patch.LiteralOffset() == patch.PcInsnOffset();
+}
+
+}  // anonymous namespace
+
 Arm64RelativePatcher::Arm64RelativePatcher(RelativePatcherTargetProvider* provider,
                                            const Arm64InstructionSetFeatures* features)
     : ArmBaseRelativePatcher(provider, kArm64, CompileThunkCode(),
@@ -61,8 +71,7 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
   size_t num_adrp = 0u;
   DCHECK(compiled_method != nullptr);
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-    if (patch.Type() == kLinkerPatchDexCacheArray &&
-        patch.LiteralOffset() == patch.PcInsnOffset()) {  // ADRP patch
+    if (IsAdrpPatch(patch)) {
       ++num_adrp;
     }
   }
@@ -78,8 +87,7 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
   uint32_t thunk_offset = compiled_method->AlignCode(quick_code_offset + code.size());
   DCHECK(compiled_method != nullptr);
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-    if (patch.Type() == kLinkerPatchDexCacheArray &&
-        patch.LiteralOffset() == patch.PcInsnOffset()) {  // ADRP patch
+    if (IsAdrpPatch(patch)) {
       uint32_t patch_offset = quick_code_offset + patch.LiteralOffset();
       if (NeedsErratum843419Thunk(code, patch.LiteralOffset(), patch_offset)) {
         adrp_thunk_locations_.emplace_back(patch_offset, thunk_offset);
@@ -151,10 +159,10 @@ void Arm64RelativePatcher::PatchCall(std::vector<uint8_t>* code,
   SetInsn(code, literal_offset, insn);
 }
 
-void Arm64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
-                                                  const LinkerPatch& patch,
-                                                  uint32_t patch_offset,
-                                                  uint32_t target_offset) {
+void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
+                                                    const LinkerPatch& patch,
+                                                    uint32_t patch_offset,
+                                                    uint32_t target_offset) {
   DCHECK_EQ(patch_offset & 3u, 0u);
   DCHECK_EQ(target_offset & 3u, 0u);
   uint32_t literal_offset = patch.LiteralOffset();
@@ -199,8 +207,15 @@ void Arm64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
     // Write the new ADRP (or B to the erratum 843419 thunk).
     SetInsn(code, literal_offset, insn);
   } else {
-    // LDR 32-bit or 64-bit with imm12 == 0 (unset).
-    DCHECK_EQ(insn & 0xbffffc00, 0xb9400000) << insn;
+    if ((insn & 0xfffffc00) == 0x91000000) {
+      // ADD immediate, 64-bit with imm12 == 0 (unset).
+      DCHECK(patch.Type() == kLinkerPatchStringRelative) << patch.Type();
+      shift = 0u;  // No shift for ADD.
+    } else {
+      // LDR 32-bit or 64-bit with imm12 == 0 (unset).
+      DCHECK(patch.Type() == kLinkerPatchDexCacheArray) << patch.Type();
+      DCHECK_EQ(insn & 0xbffffc00, 0xb9400000) << std::hex << insn;
+    }
     if (kIsDebugBuild) {
       uint32_t adrp = GetInsn(code, pc_insn_offset);
       if ((adrp & 0x9f000000u) != 0x90000000u) {
@@ -263,7 +278,7 @@ bool Arm64RelativePatcher::NeedsErratum843419Thunk(ArrayRef<const uint8_t> code,
   DCHECK_EQ(patch_offset & 0x3u, 0u);
   if ((patch_offset & 0xff8) == 0xff8) {  // ...ff8 or ...ffc
     uint32_t adrp = GetInsn(code, literal_offset);
-    DCHECK_EQ(adrp & 0xff000000, 0x90000000);
+    DCHECK_EQ(adrp & 0x9f000000, 0x90000000);
     uint32_t next_offset = patch_offset + 4u;
     uint32_t next_insn = GetInsn(code, literal_offset + 4u);
 
@@ -274,6 +289,14 @@ bool Arm64RelativePatcher::NeedsErratum843419Thunk(ArrayRef<const uint8_t> code,
     // LDR <Wt>, [<Xn>, #pimm], where <Xn> == ADRP destination reg.
     if ((next_insn & 0xffc00000) == 0xb9400000 &&
         (((next_insn >> 5) ^ adrp) & 0x1f) == 0) {
+      return false;
+    }
+
+    // And since kLinkerPatchStringRelative is using the result of the ADRP for an ADD immediate,
+    // check for that as well. We generalize a bit to include ADD/ADDS/SUB/SUBS immediate that
+    // either uses the ADRP destination or stores the result to a different register.
+    if ((next_insn & 0x1f000000) == 0x11000000 &&
+        ((((next_insn >> 5) ^ adrp) & 0x1f) == 0 || ((next_insn ^ adrp) & 0x1f) != 0)) {
       return false;
     }
 

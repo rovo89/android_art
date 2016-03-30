@@ -21,10 +21,10 @@
 namespace art {
 namespace linker {
 
-void X86RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
-                                                const LinkerPatch& patch,
-                                                uint32_t patch_offset,
-                                                uint32_t target_offset) {
+void X86RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
+                                                  const LinkerPatch& patch,
+                                                  uint32_t patch_offset,
+                                                  uint32_t target_offset) {
   uint32_t anchor_literal_offset = patch.PcInsnOffset();
   uint32_t literal_offset = patch.LiteralOffset();
 

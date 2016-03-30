@@ -373,6 +373,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         << load_class->NeedsAccessCheck() << std::noboolalpha;
   }
 
+  void VisitLoadString(HLoadString* load_string) OVERRIDE {
+    StartAttributeStream("load_kind") << load_string->GetLoadKind();
+  }
+
   void VisitCheckCast(HCheckCast* check_cast) OVERRIDE {
     StartAttributeStream("check_kind") << check_cast->GetTypeCheckKind();
     StartAttributeStream("must_do_null_check") << std::boolalpha

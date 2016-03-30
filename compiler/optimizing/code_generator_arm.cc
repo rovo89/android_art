@@ -779,13 +779,19 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       move_resolver_(graph->GetArena(), this),
       assembler_(),
       isa_features_(isa_features),
+      uint32_literals_(std::less<uint32_t>(),
+                       graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       method_patches_(MethodReferenceComparator(),
                       graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       call_patches_(MethodReferenceComparator(),
                     graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      dex_cache_arrays_base_labels_(std::less<HArmDexCacheArraysBase*>(),
-                                    graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_string_patches_(StringReferenceValueComparator(),
+                                 graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_address_patches_(std::less<uint32_t>(),
+                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Always save the LR register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(LR));
 }
@@ -5221,12 +5227,57 @@ void InstructionCodeGeneratorARM::GenerateClassInitializationCheck(
   __ Bind(slow_path->GetExitLabel());
 }
 
+HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
+    HLoadString::LoadKind desired_string_load_kind) {
+  if (kEmitCompilerReadBarrier) {
+    switch (desired_string_load_kind) {
+      case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      case HLoadString::LoadKind::kBootImageAddress:
+        // TODO: Implement for read barrier.
+        return HLoadString::LoadKind::kDexCacheViaMethod;
+      default:
+        break;
+    }
+  }
+  switch (desired_string_load_kind) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      DCHECK(!GetCompilerOptions().GetCompilePic());
+      break;
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      DCHECK(GetCompilerOptions().GetCompilePic());
+      break;
+    case HLoadString::LoadKind::kBootImageAddress:
+      break;
+    case HLoadString::LoadKind::kDexCacheAddress:
+      DCHECK(Runtime::Current()->UseJit());
+      break;
+    case HLoadString::LoadKind::kDexCachePcRelative:
+      DCHECK(!Runtime::Current()->UseJit());
+      // We disable pc-relative load when there is an irreducible loop, as the optimization
+      // is incompatible with it.
+      // TODO: Create as many ArmDexCacheArraysBase instructions as needed for methods
+      // with irreducible loops.
+      if (GetGraph()->HasIrreducibleLoops()) {
+        return HLoadString::LoadKind::kDexCacheViaMethod;
+      }
+      break;
+    case HLoadString::LoadKind::kDexCacheViaMethod:
+      break;
+  }
+  return desired_string_load_kind;
+}
+
 void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+  LocationSummary::CallKind call_kind = (load->NeedsEnvironment() || kEmitCompilerReadBarrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
+  HLoadString::LoadKind load_kind = load->GetLoadKind();
+  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod ||
+      load_kind == HLoadString::LoadKind::kDexCachePcRelative) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -5234,16 +5285,73 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   Register out = out_loc.AsRegister<Register>();
-  Register current_method = locations->InAt(0).AsRegister<Register>();
 
-  // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
-  GenerateGcRootFieldLoad(
-      load, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
-  // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
-  __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
-  // /* GcRoot<mirror::String> */ out = out[string_index]
-  GenerateGcRootFieldLoad(
-      load, out_loc, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+  switch (load->GetLoadKind()) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      __ LoadLiteral(out, codegen_->DeduplicateBootImageStringLiteral(load->GetDexFile(),
+                                                                      load->GetStringIndex()));
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      CodeGeneratorARM::PcRelativePatchInfo* labels =
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+      __ BindTrackedLabel(&labels->movw_label);
+      __ movw(out, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->movt_label);
+      __ movt(out, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->add_pc_label);
+      __ add(out, out, ShifterOperand(PC));
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kBootImageAddress: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK_NE(load->GetAddress(), 0u);
+      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      __ LoadLiteral(out, codegen_->DeduplicateBootImageAddressLiteral(address));
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kDexCacheAddress: {
+      DCHECK_NE(load->GetAddress(), 0u);
+      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      // 16-bit LDR immediate has a 5-bit offset multiplied by the size and that gives
+      // a 128B range. To try and reduce the number of literals if we load multiple strings,
+      // simply split the dex cache address to a 128B aligned base loaded from a literal
+      // and the remaining offset embedded in the load.
+      static_assert(sizeof(GcRoot<mirror::String>) == 4u, "Expected GC root to be 4 bytes.");
+      DCHECK_ALIGNED(load->GetAddress(), 4u);
+      constexpr size_t offset_bits = /* encoded bits */ 5 + /* scale */ 2;
+      uint32_t base_address = address & ~MaxInt<uint32_t>(offset_bits);
+      uint32_t offset = address & MaxInt<uint32_t>(offset_bits);
+      __ LoadLiteral(out, codegen_->DeduplicateDexCacheAddressLiteral(base_address));
+      GenerateGcRootFieldLoad(load, out_loc, out, offset);
+      break;
+    }
+    case HLoadString::LoadKind::kDexCachePcRelative: {
+      Register base_reg = locations->InAt(0).AsRegister<Register>();
+      HArmDexCacheArraysBase* base = load->InputAt(0)->AsArmDexCacheArraysBase();
+      int32_t offset = load->GetDexCacheElementOffset() - base->GetElementOffset();
+      GenerateGcRootFieldLoad(load, out_loc, base_reg, offset);
+      break;
+    }
+    case HLoadString::LoadKind::kDexCacheViaMethod: {
+      Register current_method = locations->InAt(0).AsRegister<Register>();
+
+      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
+      GenerateGcRootFieldLoad(
+          load, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
+      // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
+      __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
+      // /* GcRoot<mirror::String> */ out = out[string_index]
+      GenerateGcRootFieldLoad(
+          load, out_loc, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected load kind: " << load->GetLoadKind();
+      UNREACHABLE();
+  }
 
   if (!load->IsInDexCache()) {
     SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM(load);
@@ -6220,6 +6328,8 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOr
   HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
   // We disable pc-relative load when there is an irreducible loop, as the optimization
   // is incompatible with it.
+  // TODO: Create as many ArmDexCacheArraysBase instructions as needed for methods
+  // with irreducible loops.
   if (GetGraph()->HasIrreducibleLoops() &&
       (dispatch_info.method_load_kind ==
           HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative)) {
@@ -6399,13 +6509,49 @@ void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   __ blx(LR);
 }
 
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeStringPatch(
+    const DexFile& dex_file, uint32_t string_index) {
+  return NewPcRelativePatch(dex_file, string_index, &pc_relative_string_patches_);
+}
+
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeDexCacheArrayPatch(
+    const DexFile& dex_file, uint32_t element_offset) {
+  return NewPcRelativePatch(dex_file, element_offset, &pc_relative_dex_cache_patches_);
+}
+
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativePatch(
+    const DexFile& dex_file, uint32_t offset_or_index, ArenaDeque<PcRelativePatchInfo>* patches) {
+  patches->emplace_back(dex_file, offset_or_index);
+  return &patches->back();
+}
+
+Literal* CodeGeneratorARM::DeduplicateBootImageStringLiteral(const DexFile& dex_file,
+                                                             uint32_t string_index) {
+  return boot_image_string_patches_.GetOrCreate(
+      StringReference(&dex_file, string_index),
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
+}
+
+Literal* CodeGeneratorARM::DeduplicateBootImageAddressLiteral(uint32_t address) {
+  bool needs_patch = GetCompilerOptions().GetIncludePatchInformation();
+  Uint32ToLiteralMap* map = needs_patch ? &boot_image_address_patches_ : &uint32_literals_;
+  return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), map);
+}
+
+Literal* CodeGeneratorARM::DeduplicateDexCacheAddressLiteral(uint32_t address) {
+  return DeduplicateUint32Literal(address, &uint32_literals_);
+}
+
 void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
       method_patches_.size() +
       call_patches_.size() +
       relative_call_patches_.size() +
-      /* MOVW+MOVT for each base */ 2u * dex_cache_arrays_base_labels_.size();
+      /* MOVW+MOVT for each base */ 2u * pc_relative_dex_cache_patches_.size() +
+      boot_image_string_patches_.size() +
+      /* MOVW+MOVT for each base */ 2u * pc_relative_string_patches_.size() +
+      boot_image_address_patches_.size();
   linker_patches->reserve(size);
   for (const auto& entry : method_patches_) {
     const MethodReference& target_method = entry.first;
@@ -6431,41 +6577,75 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
   }
-  for (const auto& pair : dex_cache_arrays_base_labels_) {
-    HArmDexCacheArraysBase* base = pair.first;
-    const DexCacheArraysBaseLabels* labels = &pair.second;
-    const DexFile& dex_file = base->GetDexFile();
-    size_t base_element_offset = base->GetElementOffset();
-    DCHECK(labels->add_pc_label.IsBound());
-    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(labels->add_pc_label.Position());
+  for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
+    const DexFile& dex_file = info.target_dex_file;
+    size_t base_element_offset = info.offset_or_index;
+    DCHECK(info.add_pc_label.IsBound());
+    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(info.add_pc_label.Position());
     // Add MOVW patch.
-    DCHECK(labels->movw_label.IsBound());
-    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(labels->movw_label.Position());
+    DCHECK(info.movw_label.IsBound());
+    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(info.movw_label.Position());
     linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(movw_offset,
                                                               &dex_file,
                                                               add_pc_offset,
                                                               base_element_offset));
     // Add MOVT patch.
-    DCHECK(labels->movt_label.IsBound());
-    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(labels->movt_label.Position());
+    DCHECK(info.movt_label.IsBound());
+    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(info.movt_label.Position());
     linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(movt_offset,
                                                               &dex_file,
                                                               add_pc_offset,
                                                               base_element_offset));
   }
+  for (const auto& entry : boot_image_string_patches_) {
+    const StringReference& target_string = entry.first;
+    Literal* literal = entry.second;
+    DCHECK(literal->GetLabel()->IsBound());
+    uint32_t literal_offset = literal->GetLabel()->Position();
+    linker_patches->push_back(LinkerPatch::StringPatch(literal_offset,
+                                                       target_string.dex_file,
+                                                       target_string.string_index));
+  }
+  for (const PcRelativePatchInfo& info : pc_relative_string_patches_) {
+    const DexFile& dex_file = info.target_dex_file;
+    uint32_t string_index = info.offset_or_index;
+    DCHECK(info.add_pc_label.IsBound());
+    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(info.add_pc_label.Position());
+    // Add MOVW patch.
+    DCHECK(info.movw_label.IsBound());
+    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(info.movw_label.Position());
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(movw_offset,
+                                                               &dex_file,
+                                                               add_pc_offset,
+                                                               string_index));
+    // Add MOVT patch.
+    DCHECK(info.movt_label.IsBound());
+    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(info.movt_label.Position());
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(movt_offset,
+                                                               &dex_file,
+                                                               add_pc_offset,
+                                                               string_index));
+  }
+  for (const auto& entry : boot_image_address_patches_) {
+    DCHECK(GetCompilerOptions().GetIncludePatchInformation());
+    Literal* literal = entry.second;
+    DCHECK(literal->GetLabel()->IsBound());
+    uint32_t literal_offset = literal->GetLabel()->Position();
+    linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
+  }
+}
+
+Literal* CodeGeneratorARM::DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map) {
+  return map->GetOrCreate(
+      value,
+      [this, value]() { return __ NewLiteral<uint32_t>(value); });
 }
 
 Literal* CodeGeneratorARM::DeduplicateMethodLiteral(MethodReference target_method,
                                                     MethodToLiteralMap* map) {
-  // Look up the literal for target_method.
-  auto lb = map->lower_bound(target_method);
-  if (lb != map->end() && !map->key_comp()(target_method, lb->first)) {
-    return lb->second;
-  }
-  // We don't have a literal for this method yet, insert a new one.
-  Literal* literal = __ NewLiteral<uint32_t>(0u);
-  map->PutBefore(lb, target_method, literal);
-  return literal;
+  return map->GetOrCreate(
+      target_method,
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
 }
 
 Literal* CodeGeneratorARM::DeduplicateMethodAddressLiteral(MethodReference target_method) {
@@ -6600,16 +6780,16 @@ void InstructionCodeGeneratorARM::VisitPackedSwitch(HPackedSwitch* switch_instr)
 void LocationsBuilderARM::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(base);
   locations->SetOut(Location::RequiresRegister());
-  codegen_->AddDexCacheArraysBase(base);
 }
 
 void InstructionCodeGeneratorARM::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
   Register base_reg = base->GetLocations()->Out().AsRegister<Register>();
-  CodeGeneratorARM::DexCacheArraysBaseLabels* labels = codegen_->GetDexCacheArraysBaseLabels(base);
+  CodeGeneratorARM::PcRelativePatchInfo* labels =
+      codegen_->NewPcRelativeDexCacheArrayPatch(base->GetDexFile(), base->GetElementOffset());
   __ BindTrackedLabel(&labels->movw_label);
-  __ movw(base_reg, 0u);
+  __ movw(base_reg, /* placeholder */ 0u);
   __ BindTrackedLabel(&labels->movt_label);
-  __ movt(base_reg, 0u);
+  __ movt(base_reg, /* placeholder */ 0u);
   __ BindTrackedLabel(&labels->add_pc_label);
   __ add(base_reg, base_reg, ShifterOperand(PC));
 }
