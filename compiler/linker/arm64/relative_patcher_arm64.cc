@@ -31,8 +31,9 @@ namespace linker {
 namespace {
 
 inline bool IsAdrpPatch(const LinkerPatch& patch) {
-  LinkerPatchType type = patch.Type();
-  return (type == kLinkerPatchStringRelative || type == kLinkerPatchDexCacheArray) &&
+  LinkerPatch::Type type = patch.GetType();
+  return
+      (type == LinkerPatch::Type::kStringRelative || type == LinkerPatch::Type::kDexCacheArray) &&
       patch.LiteralOffset() == patch.PcInsnOffset();
 }
 
@@ -209,11 +210,11 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   } else {
     if ((insn & 0xfffffc00) == 0x91000000) {
       // ADD immediate, 64-bit with imm12 == 0 (unset).
-      DCHECK(patch.Type() == kLinkerPatchStringRelative) << patch.Type();
+      DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative) << patch.GetType();
       shift = 0u;  // No shift for ADD.
     } else {
       // LDR 32-bit or 64-bit with imm12 == 0 (unset).
-      DCHECK(patch.Type() == kLinkerPatchDexCacheArray) << patch.Type();
+      DCHECK(patch.GetType() == LinkerPatch::Type::kDexCacheArray) << patch.GetType();
       DCHECK_EQ(insn & 0xbffffc00, 0xb9400000) << std::hex << insn;
     }
     if (kIsDebugBuild) {
@@ -292,9 +293,10 @@ bool Arm64RelativePatcher::NeedsErratum843419Thunk(ArrayRef<const uint8_t> code,
       return false;
     }
 
-    // And since kLinkerPatchStringRelative is using the result of the ADRP for an ADD immediate,
-    // check for that as well. We generalize a bit to include ADD/ADDS/SUB/SUBS immediate that
-    // either uses the ADRP destination or stores the result to a different register.
+    // And since LinkerPatch::Type::kStringRelative is using the result of the ADRP
+    // for an ADD immediate, check for that as well. We generalize a bit to include
+    // ADD/ADDS/SUB/SUBS immediate that either uses the ADRP destination or stores
+    // the result to a different register.
     if ((next_insn & 0x1f000000) == 0x11000000 &&
         ((((next_insn >> 5) ^ adrp) & 0x1f) == 0 || ((next_insn ^ adrp) & 0x1f) != 0)) {
       return false;
