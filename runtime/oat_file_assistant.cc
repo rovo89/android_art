@@ -166,15 +166,11 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter:
 
   // See if we can get an up-to-date file by running patchoat.
   if (compilation_desired) {
-    if (odex_okay && OdexFileNeedsRelocation()) {
-      // TODO: don't return kPatchOatNeeded if the odex file contains no
-      // patch information.
+    if (odex_okay && OdexFileNeedsRelocation() && OdexFileHasPatchInfo()) {
       return kPatchOatNeeded;
     }
 
-    if (oat_okay && OatFileNeedsRelocation()) {
-      // TODO: don't return kSelfPatchOatNeeded if the oat file contains no
-      // patch information.
+    if (oat_okay && OatFileNeedsRelocation() && OatFileHasPatchInfo()) {
       return kSelfPatchOatNeeded;
     }
   }
@@ -863,6 +859,11 @@ bool OatFileAssistant::OdexFileIsExecutable() {
   return (odex_file != nullptr && odex_file->IsExecutable());
 }
 
+bool OatFileAssistant::OdexFileHasPatchInfo() {
+  const OatFile* odex_file = GetOdexFile();
+  return (odex_file != nullptr && odex_file->HasPatchInfo());
+}
+
 void OatFileAssistant::ClearOdexFileCache() {
   odex_file_load_attempted_ = false;
   cached_odex_file_.reset();
@@ -897,6 +898,11 @@ const OatFile* OatFileAssistant::GetOatFile() {
 bool OatFileAssistant::OatFileIsExecutable() {
   const OatFile* oat_file = GetOatFile();
   return (oat_file != nullptr && oat_file->IsExecutable());
+}
+
+bool OatFileAssistant::OatFileHasPatchInfo() {
+  const OatFile* oat_file = GetOatFile();
+  return (oat_file != nullptr && oat_file->HasPatchInfo());
 }
 
 void OatFileAssistant::ClearOatFileCache() {
