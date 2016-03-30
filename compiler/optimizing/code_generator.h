@@ -443,6 +443,11 @@ class CodeGenerator {
                              uint32_t dex_pc,
                              SlowPathCode* slow_path) = 0;
 
+  // Check if the desired_string_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back info that should be used instead.
+  virtual HLoadString::LoadKind GetSupportedLoadStringKind(
+      HLoadString::LoadKind desired_string_load_kind) = 0;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   virtual HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -468,6 +473,18 @@ class CodeGenerator {
     explicit MethodPatchInfo(MethodReference m) : target_method(m), label() { }
 
     MethodReference target_method;
+    LabelType label;
+  };
+
+  // String patch info used for recording locations of required linker patches and
+  // target strings. The actual string address can be absolute or PC-relative.
+  template <typename LabelType>
+  struct StringPatchInfo {
+    StringPatchInfo(const DexFile& df, uint32_t index)
+        : dex_file(df), string_index(index), label() { }
+
+    const DexFile& dex_file;
+    uint32_t string_index;
     LabelType label;
   };
 

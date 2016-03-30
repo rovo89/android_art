@@ -56,10 +56,10 @@ void Thumb2RelativePatcher::PatchCall(std::vector<uint8_t>* code,
   SetInsn32(code, literal_offset, value);
 }
 
-void Thumb2RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
-                                                   const LinkerPatch& patch,
-                                                   uint32_t patch_offset,
-                                                   uint32_t target_offset) {
+void Thumb2RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
+                                                     const LinkerPatch& patch,
+                                                     uint32_t patch_offset,
+                                                     uint32_t target_offset) {
   uint32_t literal_offset = patch.LiteralOffset();
   uint32_t pc_literal_offset = patch.PcInsnOffset();
   uint32_t pc_base = patch_offset + (pc_literal_offset - literal_offset) + 4u /* PC adjustment */;

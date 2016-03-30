@@ -80,6 +80,15 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     HandleInvoke(invoke);
   }
 
+  void VisitLoadString(HLoadString* load_string) OVERRIDE {
+    HLoadString::LoadKind load_kind = load_string->GetLoadKind();
+    if (load_kind == HLoadString::LoadKind::kBootImageLinkTimePcRelative ||
+        load_kind == HLoadString::LoadKind::kDexCachePcRelative) {
+      InitializePCRelativeBasePointer();
+      load_string->AddSpecialInput(base_);
+    }
+  }
+
   void BinaryFP(HBinaryOperation* bin) {
     HConstant* rhs = bin->InputAt(1)->AsConstant();
     if (rhs != nullptr && Primitive::IsFloatingPointType(rhs->GetType())) {

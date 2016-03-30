@@ -23,6 +23,7 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm/assembler_thumb2.h"
+#include "utils/string_reference.h"
 
 namespace art {
 namespace arm {
@@ -403,6 +404,11 @@ class CodeGeneratorARM : public CodeGenerator {
 
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
 
+  // Check if the desired_string_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadString::LoadKind GetSupportedLoadStringKind(
+      HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -414,32 +420,34 @@ class CodeGeneratorARM : public CodeGenerator {
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
-  void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
-
-  // The PC-relative base address is loaded with three instructions, MOVW+MOVT
+  // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays
+  // and boot image strings. The only difference is the interpretation of the offset_or_index.
+  // The PC-relative address is loaded with three instructions, MOVW+MOVT
   // to load the offset to base_reg and then ADD base_reg, PC. The offset is
   // calculated from the ADD's effective PC, i.e. PC+4 on Thumb2. Though we
   // currently emit these 3 instructions together, instruction scheduling could
   // split this sequence apart, so we keep separate labels for each of them.
-  struct DexCacheArraysBaseLabels {
-    DexCacheArraysBaseLabels() = default;
-    DexCacheArraysBaseLabels(DexCacheArraysBaseLabels&& other) = default;
+  struct PcRelativePatchInfo {
+    PcRelativePatchInfo(const DexFile& dex_file, uint32_t off_or_idx)
+        : target_dex_file(dex_file), offset_or_index(off_or_idx) { }
+    PcRelativePatchInfo(PcRelativePatchInfo&& other) = default;
 
+    const DexFile& target_dex_file;
+    // Either the dex cache array element offset or the string index.
+    uint32_t offset_or_index;
     Label movw_label;
     Label movt_label;
     Label add_pc_label;
   };
 
-  void AddDexCacheArraysBase(HArmDexCacheArraysBase* base) {
-    DexCacheArraysBaseLabels labels;
-    dex_cache_arrays_base_labels_.Put(base, std::move(labels));
-  }
+  PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file, uint32_t string_index);
+  PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
+                                                       uint32_t element_offset);
+  Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file, uint32_t string_index);
+  Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
+  Literal* DeduplicateDexCacheAddressLiteral(uint32_t address);
 
-  DexCacheArraysBaseLabels* GetDexCacheArraysBaseLabels(HArmDexCacheArraysBase* base) {
-    auto it = dex_cache_arrays_base_labels_.find(base);
-    DCHECK(it != dex_cache_arrays_base_labels_.end());
-    return &it->second;
-  }
+  void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
@@ -525,14 +533,19 @@ class CodeGeneratorARM : public CodeGenerator {
 
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
+  using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, Literal*>;
   using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
-  using DexCacheArraysBaseToLabelsMap = ArenaSafeMap<HArmDexCacheArraysBase*,
-                                                     DexCacheArraysBaseLabels,
-                                                     std::less<HArmDexCacheArraysBase*>>;
+  using BootStringToLiteralMap = ArenaSafeMap<StringReference,
+                                              Literal*,
+                                              StringReferenceValueComparator>;
 
+  Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
   Literal* DeduplicateMethodAddressLiteral(MethodReference target_method);
   Literal* DeduplicateMethodCodeLiteral(MethodReference target_method);
+  PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
+                                          uint32_t offset_or_index,
+                                          ArenaDeque<PcRelativePatchInfo>* patches);
 
   // Labels for each block that will be compiled.
   Label* block_labels_;  // Indexed by block id.
@@ -543,14 +556,22 @@ class CodeGeneratorARM : public CodeGenerator {
   Thumb2Assembler assembler_;
   const ArmInstructionSetFeatures& isa_features_;
 
+  // Deduplication map for 32-bit literals, used for non-patchable boot image addresses.
+  Uint32ToLiteralMap uint32_literals_;
   // Method patch info, map MethodReference to a literal for method address and method code.
   MethodToLiteralMap method_patches_;
   MethodToLiteralMap call_patches_;
   // Relative call patch info.
   // Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
-
-  DexCacheArraysBaseToLabelsMap dex_cache_arrays_base_labels_;
+  // PC-relative patch info for each HArmDexCacheArraysBase.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
+  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
+  BootStringToLiteralMap boot_image_string_patches_;
+  // PC-relative String patch info.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // Deduplication map for patchable boot image addresses.
+  Uint32ToLiteralMap boot_image_address_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

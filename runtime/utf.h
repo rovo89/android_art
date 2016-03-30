@@ -83,6 +83,7 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
 int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset, size_t char_count)
     SHARED_REQUIRES(Locks::mutator_lock_);
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count);
+int32_t ComputeUtf16HashFromModifiedUtf8(const char* utf8, size_t utf16_length);
 
 // Compute a hash code of a modified UTF-8 string. Not the standard java hash since it returns a
 // uint32_t and hashes individual chars instead of codepoint words.

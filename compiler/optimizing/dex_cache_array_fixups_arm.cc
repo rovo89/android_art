@@ -44,6 +44,21 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
   }
 
  private:
+  void VisitLoadString(HLoadString* load_string) OVERRIDE {
+    // If this is a load with PC-relative access to the dex cache methods array,
+    // we need to add the dex cache arrays base as the special input.
+    if (load_string->GetLoadKind() == HLoadString::LoadKind::kDexCachePcRelative) {
+      // Initialize base for target dex file if needed.
+      const DexFile& dex_file = load_string->GetDexFile();
+      HArmDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(dex_file);
+      // Update the element offset in base.
+      DexCacheArraysLayout layout(kArmPointerSize, &dex_file);
+      base->UpdateElementOffset(layout.StringOffset(load_string->GetStringIndex()));
+      // Add the special argument base to the load.
+      load_string->AddSpecialInput(base);
+    }
+  }
+
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
     // If this is an invoke with PC-relative access to the dex cache methods array,
     // we need to add the dex cache arrays base as the special input.

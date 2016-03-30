@@ -3030,6 +3030,12 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS64* codeg
   return false;
 }
 
+HLoadString::LoadKind CodeGeneratorMIPS64::GetSupportedLoadStringKind(
+    HLoadString::LoadKind desired_string_load_kind ATTRIBUTE_UNUSED) {
+  // TODO: Implement other kinds.
+  return HLoadString::LoadKind::kDexCacheViaMethod;
+}
+
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS64::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method ATTRIBUTE_UNUSED) {
@@ -3284,9 +3290,9 @@ void InstructionCodeGeneratorMIPS64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_U
 }
 
 void LocationsBuilderMIPS64::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = load->IsInDexCache()
-      ? LocationSummary::kNoCall
-      : LocationSummary::kCallOnSlowPath;
+  LocationSummary::CallKind call_kind = load->NeedsEnvironment()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
