@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <limits>
+#include <stdint.h>
 #include <string.h>
 #include <type_traits>
 
@@ -34,7 +35,7 @@ namespace art {
 // When you use implicit_cast, the compiler checks that the cast is safe.
 // Such explicit implicit_casts are necessary in surprisingly many
 // situations where C++ demands an exact type match instead of an
-// argument type convertable to a target type.
+// argument type convertible to a target type.
 //
 // The From type can be inferred, so the preferred syntax for using
 // implicit_cast is the same as for static_cast etc.:
@@ -100,6 +101,29 @@ inline Dest dchecked_integral_cast(const Source source) {
           source <= static_cast<Source>(std::numeric_limits<Dest>::max())));
 
   return static_cast<Dest>(source);
+}
+
+// A version of reinterpret_cast<>() between pointers and int64_t/uint64_t
+// that goes through uintptr_t to avoid treating the pointer as "signed."
+
+template <typename Dest, typename Source>
+inline Dest reinterpret_cast64(Source source) {
+  // This is the overload for casting from int64_t/uint64_t to a pointer.
+  static_assert(std::is_same<Source, int64_t>::value || std::is_same<Source, uint64_t>::value,
+                "Source must be int64_t or uint64_t.");
+  static_assert(std::is_pointer<Dest>::value, "Dest must be a pointer.");
+  // Check that we don't lose any non-0 bits here.
+  DCHECK_EQ(static_cast<Source>(static_cast<uintptr_t>(source)), source);
+  return reinterpret_cast<Dest>(static_cast<uintptr_t>(source));
+}
+
+template <typename Dest, typename Source>
+inline Dest reinterpret_cast64(Source* ptr) {
+  // This is the overload for casting from a pointer to int64_t/uint64_t.
+  static_assert(std::is_same<Dest, int64_t>::value || std::is_same<Dest, uint64_t>::value,
+                "Dest must be int64_t or uint64_t.");
+  static_assert(sizeof(uintptr_t) <= sizeof(Dest), "Expecting at most 64-bit pointers.");
+  return static_cast<Dest>(reinterpret_cast<uintptr_t>(ptr));
 }
 
 }  // namespace art

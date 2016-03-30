@@ -1116,8 +1116,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
           quick_code = ArrayRef<const uint8_t>(patched_code_);
           for (const LinkerPatch& patch : compiled_method->GetPatches()) {
             uint32_t literal_offset = patch.LiteralOffset();
-            switch (patch.Type()) {
-              case kLinkerPatchCallRelative: {
+            switch (patch.GetType()) {
+              case LinkerPatch::Type::kCallRelative: {
                 // NOTE: Relative calls across oat files are not supported.
                 uint32_t target_offset = GetTargetOffset(patch);
                 writer_->relative_patcher_->PatchCall(&patched_code_,
@@ -1126,7 +1126,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                                                       target_offset);
                 break;
               }
-              case kLinkerPatchDexCacheArray: {
+              case LinkerPatch::Type::kDexCacheArray: {
                 uint32_t target_offset = GetDexCacheOffset(patch);
                 writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
                                                                      patch,
@@ -1134,7 +1134,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                                                                      target_offset);
                 break;
               }
-              case kLinkerPatchStringRelative: {
+              case LinkerPatch::Type::kStringRelative: {
                 uint32_t target_offset = GetTargetObjectOffset(GetTargetString(patch));
                 writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
                                                                      patch,
@@ -1142,28 +1142,28 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                                                                      target_offset);
                 break;
               }
-              case kLinkerPatchCall: {
+              case LinkerPatch::Type::kCall: {
                 uint32_t target_offset = GetTargetOffset(patch);
                 PatchCodeAddress(&patched_code_, literal_offset, target_offset);
                 break;
               }
-              case kLinkerPatchMethod: {
+              case LinkerPatch::Type::kMethod: {
                 ArtMethod* method = GetTargetMethod(patch);
                 PatchMethodAddress(&patched_code_, literal_offset, method);
                 break;
               }
-              case kLinkerPatchString: {
+              case LinkerPatch::Type::kString: {
                 mirror::String* string = GetTargetString(patch);
                 PatchObjectAddress(&patched_code_, literal_offset, string);
                 break;
               }
-              case kLinkerPatchType: {
+              case LinkerPatch::Type::kType: {
                 mirror::Class* type = GetTargetType(patch);
                 PatchObjectAddress(&patched_code_, literal_offset, type);
                 break;
               }
               default: {
-                DCHECK_EQ(patch.Type(), kLinkerPatchRecordPosition);
+                DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kRecordPosition);
                 break;
               }
             }
