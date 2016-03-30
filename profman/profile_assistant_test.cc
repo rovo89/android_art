@@ -29,6 +29,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
   void SetupProfile(const std::string& id,
                     uint32_t checksum,
                     uint16_t number_of_methods,
+                    uint16_t number_of_classes,
                     const ScratchFile& profile,
                     ProfileCompilationInfo* info,
                     uint16_t start_method_index = 0) {
@@ -40,6 +41,10 @@ class ProfileAssistantTest : public CommonRuntimeTest {
       ASSERT_TRUE(info->AddMethodIndex(dex_location1, dex_location_checksum1, i));
       ASSERT_TRUE(info->AddMethodIndex(dex_location2, dex_location_checksum2, i));
     }
+    for (uint16_t i = 0; i < number_of_classes; i++) {
+      ASSERT_TRUE(info->AddClassIndex(dex_location1, dex_location_checksum1, i));
+    }
+
     ASSERT_TRUE(info->Save(GetFd(profile)));
     ASSERT_EQ(0, profile.GetFile()->Flush());
     ASSERT_TRUE(profile.GetFile()->ResetOffset());
@@ -89,9 +94,9 @@ TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
 
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   ProfileCompilationInfo info1;
-  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, profile1, &info1);
+  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, 0, profile1, &info1);
   ProfileCompilationInfo info2;
-  SetupProfile("p2", 2, kNumberOfMethodsToEnableCompilation, profile2, &info2);
+  SetupProfile("p2", 2, kNumberOfMethodsToEnableCompilation, 0, profile2, &info2);
 
   // We should advise compilation.
   ASSERT_EQ(ProfileAssistant::kCompile,
@@ -111,6 +116,35 @@ TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
   CheckProfileInfo(profile2, info2);
 }
 
+// TODO(calin): Add more tests for classes.
+TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferencesBecauseOfClasses) {
+  ScratchFile profile1;
+  ScratchFile reference_profile;
+
+  std::vector<int> profile_fds({
+      GetFd(profile1)});
+  int reference_profile_fd = GetFd(reference_profile);
+
+  const uint16_t kNumberOfClassesToEnableCompilation = 100;
+  ProfileCompilationInfo info1;
+  SetupProfile("p1", 1, 0, kNumberOfClassesToEnableCompilation, profile1, &info1);
+
+  // We should advise compilation.
+  ASSERT_EQ(ProfileAssistant::kCompile,
+            ProcessProfiles(profile_fds, reference_profile_fd));
+  // The resulting compilation info must be equal to the merge of the inputs.
+  ProfileCompilationInfo result;
+  ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(result.Load(reference_profile_fd));
+
+  ProfileCompilationInfo expected;
+  ASSERT_TRUE(expected.MergeWith(info1));
+  ASSERT_TRUE(expected.Equals(result));
+
+  // The information from profiles must remain the same.
+  CheckProfileInfo(profile1, info1);
+}
+
 TEST_F(ProfileAssistantTest, AdviseCompilationNonEmptyReferences) {
   ScratchFile profile1;
   ScratchFile profile2;
@@ -124,15 +158,15 @@ TEST_F(ProfileAssistantTest, AdviseCompilationNonEmptyReferences) {
   // The new profile info will contain the methods with indices 0-100.
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   ProfileCompilationInfo info1;
-  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, profile1, &info1);
+  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, 0, profile1, &info1);
   ProfileCompilationInfo info2;
-  SetupProfile("p2", 2, kNumberOfMethodsToEnableCompilation, profile2, &info2);
+  SetupProfile("p2", 2, kNumberOfMethodsToEnableCompilation, 0, profile2, &info2);
 
 
   // The reference profile info will contain the methods with indices 50-150.
   const uint16_t kNumberOfMethodsAlreadyCompiled = 100;
   ProfileCompilationInfo reference_info;
-  SetupProfile("p1", 1, kNumberOfMethodsAlreadyCompiled, reference_profile,
+  SetupProfile("p1", 1, kNumberOfMethodsAlreadyCompiled, 0, reference_profile,
       &reference_info, kNumberOfMethodsToEnableCompilation / 2);
 
   // We should advise compilation.
@@ -167,9 +201,9 @@ TEST_F(ProfileAssistantTest, DoNotAdviseCompilation) {
 
   const uint16_t kNumberOfMethodsToSkipCompilation = 1;
   ProfileCompilationInfo info1;
-  SetupProfile("p1", 1, kNumberOfMethodsToSkipCompilation, profile1, &info1);
+  SetupProfile("p1", 1, kNumberOfMethodsToSkipCompilation, 0, profile1, &info1);
   ProfileCompilationInfo info2;
-  SetupProfile("p2", 2, kNumberOfMethodsToSkipCompilation, profile2, &info2);
+  SetupProfile("p2", 2, kNumberOfMethodsToSkipCompilation, 0, profile2, &info2);
 
   // We should not advise compilation.
   ASSERT_EQ(ProfileAssistant::kSkipCompilation,
@@ -207,9 +241,9 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfProfiles) {
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   // Assign different hashes for the same dex file. This will make merging of information to fail.
   ProfileCompilationInfo info1;
-  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, profile1, &info1);
+  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, 0, profile1, &info1);
   ProfileCompilationInfo info2;
-  SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, profile2, &info2);
+  SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, 0, profile2, &info2);
 
   // We should fail processing.
   ASSERT_EQ(ProfileAssistant::kErrorBadProfiles,
@@ -234,9 +268,9 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfReferenceProfiles) {
   const uint16_t kNumberOfMethodsToEnableCompilation = 100;
   // Assign different hashes for the same dex file. This will make merging of information to fail.
   ProfileCompilationInfo info1;
-  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, profile1, &info1);
+  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, 0, profile1, &info1);
   ProfileCompilationInfo reference_info;
-  SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, reference_profile, &reference_info);
+  SetupProfile("p1", 2, kNumberOfMethodsToEnableCompilation, 0, reference_profile, &reference_info);
 
   // We should not advise compilation.
   ASSERT_TRUE(profile1.GetFile()->ResetOffset());
