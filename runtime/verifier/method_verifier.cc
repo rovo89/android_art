@@ -724,13 +724,15 @@ bool MethodVerifier::Verify() {
 
   // If there aren't any instructions, make sure that's expected, then exit successfully.
   if (code_item_ == nullptr) {
+    // Only native or abstract methods may not have code.
+    if ((method_access_flags_ & (kAccNative | kAccAbstract)) == 0) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "zero-length code in concrete non-native method";
+      return false;
+    }
+
     // This should have been rejected by the dex file verifier. Only do in debug build.
+    // Note: the above will also be rejected in the dex file verifier, starting in dex version 37.
     if (kIsDebugBuild) {
-      // Only native or abstract methods may not have code.
-      if ((method_access_flags_ & (kAccNative | kAccAbstract)) == 0) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "zero-length code in concrete non-native method";
-        return false;
-      }
       if ((method_access_flags_ & kAccAbstract) != 0) {
         // Abstract methods are not allowed to have the following flags.
         static constexpr uint32_t kForbidden =
