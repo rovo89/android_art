@@ -725,11 +725,26 @@ static uint32_t ApplyMaskShifted(uint32_t src_value, uint32_t mask) {
   return result;
 }
 
+// Make the Dex file version 37.
+static void MakeDexVersion37(DexFile* dex_file) {
+  size_t offset = OFFSETOF_MEMBER(DexFile::Header, magic_) + 6;
+  CHECK_EQ(*(dex_file->Begin() + offset), '5');
+  *(const_cast<uint8_t*>(dex_file->Begin()) + offset) = '7';
+}
+
 TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_ok",
       [](DexFile* dex_file) {
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+      },
+      nullptr);
+  VerifyModification(
+      kMethodFlagsInterface,
+      "method_flags_interface_ok37",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
       },
       nullptr);
@@ -742,7 +757,18 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
       },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kMethodFlagsInterface,
+      "method_flags_interface_non_public",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
+      },
       "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
+
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_non_abstract",
@@ -781,11 +807,33 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
       },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kMethodFlagsInterface,
+      "method_flags_interface_non_public",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
+      },
       "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
+
   VerifyModification(
       kMethodFlagsInterface,
       "method_flags_interface_protected",
       [](DexFile* dex_file) {
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
+        OrMaskToMethodFlags(dex_file, "foo", kAccProtected);
+      },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kMethodFlagsInterface,
+      "method_flags_interface_protected",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
@@ -1070,6 +1118,14 @@ TEST_F(DexFileVerifierTest, FieldAccessFlagsInterface) {
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
       },
       nullptr);
+  VerifyModification(
+      kFieldFlagsInterfaceTestDex,
+      "field_flags_interface",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+      },
+      nullptr);
 
   VerifyModification(
       kFieldFlagsInterfaceTestDex,
@@ -1079,7 +1135,18 @@ TEST_F(DexFileVerifierTest, FieldAccessFlagsInterface) {
 
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
       },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kFieldFlagsInterfaceTestDex,
+      "field_flags_interface_non_public",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
+      },
       "Interface field is not public final static");
+
   VerifyModification(
       kFieldFlagsInterfaceTestDex,
       "field_flags_interface_non_final",
@@ -1088,7 +1155,18 @@ TEST_F(DexFileVerifierTest, FieldAccessFlagsInterface) {
 
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccFinal);
       },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kFieldFlagsInterfaceTestDex,
+      "field_flags_interface_non_final",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccFinal);
+      },
       "Interface field is not public final static");
+
   VerifyModification(
       kFieldFlagsInterfaceTestDex,
       "field_flags_interface_protected",
@@ -1098,11 +1176,34 @@ TEST_F(DexFileVerifierTest, FieldAccessFlagsInterface) {
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
         OrMaskToFieldFlags(dex_file, "foo", kAccProtected);
       },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kFieldFlagsInterfaceTestDex,
+      "field_flags_interface_protected",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
+        OrMaskToFieldFlags(dex_file, "foo", kAccProtected);
+      },
       "Interface field is not public final static");
+
   VerifyModification(
       kFieldFlagsInterfaceTestDex,
       "field_flags_interface_private",
       [](DexFile* dex_file) {
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
+        OrMaskToFieldFlags(dex_file, "foo", kAccPrivate);
+      },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kFieldFlagsInterfaceTestDex,
+      "field_flags_interface_private",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
 
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
@@ -1152,6 +1253,21 @@ TEST_F(DexFileVerifierTest, FieldAccessFlagsInterface) {
           }
           OrMaskToFieldFlags(dex_file, "foo", mask);
         },
+        nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+    VerifyModification(
+        kFieldFlagsInterfaceTestDex,
+        "field_flags_interface_disallowed",
+        [&](DexFile* dex_file) {
+          MakeDexVersion37(dex_file);
+          ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+
+          uint32_t mask = ApplyMaskShifted(kInterfaceDisallowed, i);
+          if ((mask & kAccProtected) != 0) {
+            mask &= ~kAccProtected;
+            ApplyMaskToFieldFlags(dex_file, "foo", ~kAccPublic);
+          }
+          OrMaskToFieldFlags(dex_file, "foo", mask);
+        },
         "Interface field has disallowed flag");
   }
 }
@@ -1178,6 +1294,14 @@ TEST_F(DexFileVerifierTest, FieldAccessFlagsInterfaceNonStatic) {
       kFieldFlagsInterfaceBadTestDex,
       "field_flags_interface_non_static",
       [](DexFile* dex_file) {
+        ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
+      },
+      nullptr);  // Should be allowed in older dex versions for backwards compatibility.
+  VerifyModification(
+      kFieldFlagsInterfaceBadTestDex,
+      "field_flags_interface_non_static",
+      [](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
         ApplyMaskToFieldFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
       },
       "Interface field is not public final static");
