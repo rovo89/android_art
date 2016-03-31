@@ -39,6 +39,7 @@
 
 namespace art {
 
+template <bool kResolve = true>
 inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
                                     const InlineInfo& inline_info,
                                     uint8_t inlining_depth)
@@ -49,6 +50,9 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   ArtMethod* caller = outer_method->GetDexCacheResolvedMethod(method_index, sizeof(void*));
   if (!caller->IsRuntimeMethod()) {
     return caller;
+  }
+  if (!kResolve) {
+    return nullptr;
   }
 
   // The method in the dex cache can be the runtime method responsible for invoking
@@ -64,7 +68,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   if (inlining_depth == 0) {
     class_loader.Assign(outer_method->GetClassLoader());
   } else {
-    caller = GetResolvedMethod(outer_method, inline_info, inlining_depth - 1);
+    caller = GetResolvedMethod<kResolve>(outer_method, inline_info, inlining_depth - 1);
     class_loader.Assign(caller->GetClassLoader());
   }
 
