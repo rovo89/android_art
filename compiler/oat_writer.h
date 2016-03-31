@@ -219,13 +219,6 @@ class OatWriter {
   class OatClass;
   class OatDexFile;
 
-  // The DataAccess classes are helper classes that provide access to members related to
-  // a given map, i.e. GC map, mapping table or vmap table. By abstracting these away
-  // we can share a lot of code for processing the maps with template classes below.
-  struct GcMapDataAccess;
-  struct MappingTableDataAccess;
-  struct VmapTableDataAccess;
-
   // The function VisitDexMethods() below iterates through all the methods in all
   // the compiled dex files in order of their definitions. The method visitor
   // classes provide individual bits of processing for each of the passes we need to
@@ -235,11 +228,9 @@ class OatWriter {
   class OatDexMethodVisitor;
   class InitOatClassesMethodVisitor;
   class InitCodeMethodVisitor;
-  template <typename DataAccess>
   class InitMapMethodVisitor;
   class InitImageMethodVisitor;
   class WriteCodeMethodVisitor;
-  template <typename DataAccess>
   class WriteMapMethodVisitor;
 
   // Visit all the methods in all the compiled dex files in their definition order
@@ -354,9 +345,7 @@ class OatWriter {
   uint32_t size_code_alignment_;
   uint32_t size_relative_call_thunks_;
   uint32_t size_misc_thunks_;
-  uint32_t size_mapping_table_;
   uint32_t size_vmap_table_;
-  uint32_t size_gc_map_;
   uint32_t size_oat_dex_file_location_size_;
   uint32_t size_oat_dex_file_location_data_;
   uint32_t size_oat_dex_file_location_checksum_;

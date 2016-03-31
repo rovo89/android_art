@@ -275,9 +275,7 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings)
     size_code_alignment_(0),
     size_relative_call_thunks_(0),
     size_misc_thunks_(0),
-    size_mapping_table_(0),
     size_vmap_table_(0),
-    size_gc_map_(0),
     size_oat_dex_file_location_size_(0),
     size_oat_dex_file_location_data_(0),
     size_oat_dex_file_location_checksum_(0),
@@ -498,72 +496,6 @@ void OatWriter::PrepareLayout(const CompilerDriver* compiler,
 OatWriter::~OatWriter() {
 }
 
-struct OatWriter::GcMapDataAccess {
-  static ArrayRef<const uint8_t> GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
-    return compiled_method->GetGcMap();
-  }
-
-  static uint32_t GetOffset(OatClass* oat_class, size_t method_offsets_index) ALWAYS_INLINE {
-    uint32_t offset = oat_class->method_headers_[method_offsets_index].gc_map_offset_;
-    return offset == 0u ? 0u :
-        (oat_class->method_offsets_[method_offsets_index].code_offset_ & ~1) - offset;
-  }
-
-  static void SetOffset(OatClass* oat_class, size_t method_offsets_index, uint32_t offset)
-      ALWAYS_INLINE {
-    oat_class->method_headers_[method_offsets_index].gc_map_offset_ =
-        (oat_class->method_offsets_[method_offsets_index].code_offset_ & ~1) - offset;
-  }
-
-  static const char* Name() {
-    return "GC map";
-  }
-};
-
-struct OatWriter::MappingTableDataAccess {
-  static ArrayRef<const uint8_t> GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
-    return compiled_method->GetMappingTable();
-  }
-
-  static uint32_t GetOffset(OatClass* oat_class, size_t method_offsets_index) ALWAYS_INLINE {
-    uint32_t offset = oat_class->method_headers_[method_offsets_index].mapping_table_offset_;
-    return offset == 0u ? 0u :
-        (oat_class->method_offsets_[method_offsets_index].code_offset_ & ~1) - offset;
-  }
-
-  static void SetOffset(OatClass* oat_class, size_t method_offsets_index, uint32_t offset)
-      ALWAYS_INLINE {
-    oat_class->method_headers_[method_offsets_index].mapping_table_offset_ =
-        (oat_class->method_offsets_[method_offsets_index].code_offset_ & ~1) - offset;
-  }
-
-  static const char* Name() {
-    return "mapping table";
-  }
-};
-
-struct OatWriter::VmapTableDataAccess {
-  static ArrayRef<const uint8_t> GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
-    return compiled_method->GetVmapTable();
-  }
-
-  static uint32_t GetOffset(OatClass* oat_class, size_t method_offsets_index) ALWAYS_INLINE {
-    uint32_t offset = oat_class->method_headers_[method_offsets_index].vmap_table_offset_;
-    return offset == 0u ? 0u :
-        (oat_class->method_offsets_[method_offsets_index].code_offset_ & ~1) - offset;
-  }
-
-  static void SetOffset(OatClass* oat_class, size_t method_offsets_index, uint32_t offset)
-      ALWAYS_INLINE {
-    oat_class->method_headers_[method_offsets_index].vmap_table_offset_ =
-        (oat_class->method_offsets_[method_offsets_index].code_offset_ & ~1) - offset;
-  }
-
-  static const char* Name() {
-    return "vmap table";
-  }
-};
-
 class OatWriter::DexMethodVisitor {
  public:
   DexMethodVisitor(OatWriter* writer, size_t offset)
@@ -726,26 +658,24 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       uint32_t thumb_offset = compiled_method->CodeDelta();
 
       // Deduplicate code arrays if we are not producing debuggable code.
-      bool deduped = false;
+      bool deduped = true;
       MethodReference method_ref(dex_file_, it.GetMemberIndex());
       if (debuggable_) {
         quick_code_offset = writer_->relative_patcher_->GetOffset(method_ref);
         if (quick_code_offset != 0u) {
           // Duplicate methods, we want the same code for both of them so that the oat writer puts
           // the same code in both ArtMethods so that we do not get different oat code at runtime.
-          deduped = true;
         } else {
           quick_code_offset = NewQuickCodeOffset(compiled_method, it, thumb_offset);
+          deduped = false;
         }
       } else {
-        auto lb = dedupe_map_.lower_bound(compiled_method);
-        if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(compiled_method, lb->first)) {
-          quick_code_offset = lb->second;
-          deduped = true;
-        } else {
-          quick_code_offset = NewQuickCodeOffset(compiled_method, it, thumb_offset);
-          dedupe_map_.PutBefore(lb, compiled_method, quick_code_offset);
-        }
+        quick_code_offset = dedupe_map_.GetOrCreate(
+            compiled_method,
+            [this, &deduped, compiled_method, &it, thumb_offset]() {
+              deduped = false;
+              return NewQuickCodeOffset(compiled_method, it, thumb_offset);
+            });
       }
 
       if (code_size != 0) {
@@ -763,33 +693,25 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       // Update quick method header.
       DCHECK_LT(method_offsets_index_, oat_class->method_headers_.size());
       OatQuickMethodHeader* method_header = &oat_class->method_headers_[method_offsets_index_];
-      uint32_t mapping_table_offset = method_header->mapping_table_offset_;
       uint32_t vmap_table_offset = method_header->vmap_table_offset_;
       // If we don't have quick code, then we must have a vmap, as that is how the dex2dex
       // compiler records its transformations.
       DCHECK(!quick_code.empty() || vmap_table_offset != 0);
-      uint32_t gc_map_offset = method_header->gc_map_offset_;
       // The code offset was 0 when the mapping/vmap table offset was set, so it's set
       // to 0-offset and we need to adjust it by code_offset.
       uint32_t code_offset = quick_code_offset - thumb_offset;
-      if (mapping_table_offset != 0u && code_offset != 0u) {
-        mapping_table_offset += code_offset;
-        DCHECK_LT(mapping_table_offset, code_offset) << "Overflow in oat offsets";
-      }
       if (vmap_table_offset != 0u && code_offset != 0u) {
         vmap_table_offset += code_offset;
         DCHECK_LT(vmap_table_offset, code_offset) << "Overflow in oat offsets";
       }
-      if (gc_map_offset != 0u && code_offset != 0u) {
-        gc_map_offset += code_offset;
-        DCHECK_LT(gc_map_offset, code_offset) << "Overflow in oat offsets";
-      }
       uint32_t frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
       uint32_t core_spill_mask = compiled_method->GetCoreSpillMask();
       uint32_t fp_spill_mask = compiled_method->GetFpSpillMask();
-      *method_header = OatQuickMethodHeader(mapping_table_offset, vmap_table_offset,
-                                            gc_map_offset, frame_size_in_bytes, core_spill_mask,
-                                            fp_spill_mask, code_size);
+      *method_header = OatQuickMethodHeader(vmap_table_offset,
+                                            frame_size_in_bytes,
+                                            core_spill_mask,
+                                            fp_spill_mask,
+                                            code_size);
 
       if (!deduped) {
         // Update offsets. (Checksum is updated when writing.)
@@ -844,15 +766,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         } else {
           status = mirror::Class::kStatusNotReady;
         }
-        ArrayRef<const uint8_t> gc_map = compiled_method->GetGcMap();
-        if (!gc_map.empty()) {
-          size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
-          bool is_native = it.MemberIsNative();
-          CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
-              << gc_map_size << " " << (is_native ? "true" : "false") << " "
-              << (status < mirror::Class::kStatusVerified) << " " << status << " "
-              << PrettyMethod(it.GetMemberIndex(), *dex_file_);
-        }
       }
 
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
@@ -872,14 +785,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         return lhs->GetQuickCode().data() < rhs->GetQuickCode().data();
       }
       // If the code is the same, all other fields are likely to be the same as well.
-      if (UNLIKELY(lhs->GetMappingTable().data() != rhs->GetMappingTable().data())) {
-        return lhs->GetMappingTable().data() < rhs->GetMappingTable().data();
-      }
       if (UNLIKELY(lhs->GetVmapTable().data() != rhs->GetVmapTable().data())) {
         return lhs->GetVmapTable().data() < rhs->GetVmapTable().data();
-      }
-      if (UNLIKELY(lhs->GetGcMap().data() != rhs->GetGcMap().data())) {
-        return lhs->GetGcMap().data() < rhs->GetGcMap().data();
       }
       if (UNLIKELY(lhs->GetPatches().data() != rhs->GetPatches().data())) {
         return lhs->GetPatches().data() < rhs->GetPatches().data();
@@ -907,7 +814,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   const bool debuggable_;
 };
 
-template <typename DataAccess>
 class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
  public:
   InitMapMethodVisitor(OatWriter* writer, size_t offset)
@@ -921,19 +827,21 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
 
     if (compiled_method != nullptr) {
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
-      DCHECK_EQ(DataAccess::GetOffset(oat_class, method_offsets_index_), 0u);
+      DCHECK_EQ(oat_class->method_headers_[method_offsets_index_].vmap_table_offset_, 0u);
 
-      ArrayRef<const uint8_t> map = DataAccess::GetData(compiled_method);
+      ArrayRef<const uint8_t> map = compiled_method->GetVmapTable();
       uint32_t map_size = map.size() * sizeof(map[0]);
       if (map_size != 0u) {
-        auto lb = dedupe_map_.lower_bound(map.data());
-        if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(map.data(), lb->first)) {
-          DataAccess::SetOffset(oat_class, method_offsets_index_, lb->second);
-        } else {
-          DataAccess::SetOffset(oat_class, method_offsets_index_, offset_);
-          dedupe_map_.PutBefore(lb, map.data(), offset_);
-          offset_ += map_size;
-        }
+        size_t offset = dedupe_map_.GetOrCreate(
+            map.data(),
+            [this, map_size]() {
+              uint32_t new_offset = offset_;
+              offset_ += map_size;
+              return new_offset;
+            });
+        // Code offset is not initialized yet, so set the map offset to 0u-offset.
+        DCHECK_EQ(oat_class->method_offsets_[method_offsets_index_].code_offset_, 0u);
+        oat_class->method_headers_[method_offsets_index_].vmap_table_offset_ = 0u - offset;
       }
       ++method_offsets_index_;
     }
@@ -1342,10 +1250,11 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 };
 
-template <typename DataAccess>
 class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
  public:
-  WriteMapMethodVisitor(OatWriter* writer, OutputStream* out, const size_t file_offset,
+  WriteMapMethodVisitor(OatWriter* writer,
+                        OutputStream* out,
+                        const size_t file_offset,
                         size_t relative_offset)
     : OatDexMethodVisitor(writer, relative_offset),
       out_(out),
@@ -1360,22 +1269,31 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
       size_t file_offset = file_offset_;
       OutputStream* out = out_;
 
-      uint32_t map_offset = DataAccess::GetOffset(oat_class, method_offsets_index_);
+      uint32_t map_offset = oat_class->method_headers_[method_offsets_index_].vmap_table_offset_;
+      uint32_t code_offset = oat_class->method_offsets_[method_offsets_index_].code_offset_;
       ++method_offsets_index_;
 
-      // Write deduplicated map.
-      ArrayRef<const uint8_t> map = DataAccess::GetData(compiled_method);
-      size_t map_size = map.size() * sizeof(map[0]);
-      DCHECK((map_size == 0u && map_offset == 0u) ||
-            (map_size != 0u && map_offset != 0u && map_offset <= offset_))
-          << map_size << " " << map_offset << " " << offset_ << " "
-          << PrettyMethod(it.GetMemberIndex(), *dex_file_) << " for " << DataAccess::Name();
-      if (map_size != 0u && map_offset == offset_) {
-        if (UNLIKELY(!writer_->WriteData(out, map.data(), map_size))) {
-          ReportWriteFailure(it);
-          return false;
+      DCHECK((compiled_method->GetVmapTable().size() == 0u && map_offset == 0u) ||
+             (compiled_method->GetVmapTable().size() != 0u && map_offset != 0u))
+          << compiled_method->GetVmapTable().size() << " " << map_offset << " "
+          << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+
+      if (map_offset != 0u) {
+        // Transform map_offset to actual oat data offset.
+        map_offset = (code_offset - compiled_method->CodeDelta()) - map_offset;
+        DCHECK_NE(map_offset, 0u);
+        DCHECK_LE(map_offset, offset_) << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+
+        ArrayRef<const uint8_t> map = compiled_method->GetVmapTable();
+        size_t map_size = map.size() * sizeof(map[0]);
+        if (map_offset == offset_) {
+          // Write deduplicated map (code info for Optimizing or transformation info for dex2dex).
+          if (UNLIKELY(!writer_->WriteData(out, map.data(), map_size))) {
+            ReportWriteFailure(it);
+            return false;
+          }
+          offset_ += map_size;
         }
-        offset_ += map_size;
       }
       DCHECK_OFFSET_();
     }
@@ -1388,7 +1306,7 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
   size_t const file_offset_;
 
   void ReportWriteFailure(const ClassDataItemIterator& it) {
-    PLOG(ERROR) << "Failed to write " << DataAccess::Name() << " for "
+    PLOG(ERROR) << "Failed to write map for "
         << PrettyMethod(it.GetMemberIndex(), *dex_file_) << " to " << out_->GetLocation();
   }
 };
@@ -1481,19 +1399,10 @@ size_t OatWriter::InitOatClasses(size_t offset) {
 }
 
 size_t OatWriter::InitOatMaps(size_t offset) {
-  #define VISIT(VisitorType)                          \
-    do {                                              \
-      VisitorType visitor(this, offset);              \
-      bool success = VisitDexMethods(&visitor);       \
-      DCHECK(success);                                \
-      offset = visitor.GetOffset();                   \
-    } while (false)
-
-  VISIT(InitMapMethodVisitor<GcMapDataAccess>);
-  VISIT(InitMapMethodVisitor<MappingTableDataAccess>);
-  VISIT(InitMapMethodVisitor<VmapTableDataAccess>);
-
-  #undef VISIT
+  InitMapMethodVisitor visitor(this, offset);
+  bool success = VisitDexMethods(&visitor);
+  DCHECK(success);
+  offset = visitor.GetOffset();
 
   return offset;
 }
@@ -1647,9 +1556,7 @@ bool OatWriter::WriteCode(OutputStream* out) {
     DO_STAT(size_code_alignment_);
     DO_STAT(size_relative_call_thunks_);
     DO_STAT(size_misc_thunks_);
-    DO_STAT(size_mapping_table_);
     DO_STAT(size_vmap_table_);
-    DO_STAT(size_gc_map_);
     DO_STAT(size_oat_dex_file_location_size_);
     DO_STAT(size_oat_dex_file_location_data_);
     DO_STAT(size_oat_dex_file_location_checksum_);
@@ -1764,28 +1671,13 @@ bool OatWriter::WriteClasses(OutputStream* out) {
 }
 
 size_t OatWriter::WriteMaps(OutputStream* out, const size_t file_offset, size_t relative_offset) {
-  #define VISIT(VisitorType)                                              \
-    do {                                                                  \
-      VisitorType visitor(this, out, file_offset, relative_offset);       \
-      if (UNLIKELY(!VisitDexMethods(&visitor))) {                         \
-        return 0;                                                         \
-      }                                                                   \
-      relative_offset = visitor.GetOffset();                              \
-    } while (false)
-
-  size_t gc_maps_offset = relative_offset;
-  VISIT(WriteMapMethodVisitor<GcMapDataAccess>);
-  size_gc_map_ = relative_offset - gc_maps_offset;
-
-  size_t mapping_tables_offset = relative_offset;
-  VISIT(WriteMapMethodVisitor<MappingTableDataAccess>);
-  size_mapping_table_ = relative_offset - mapping_tables_offset;
-
   size_t vmap_tables_offset = relative_offset;
-  VISIT(WriteMapMethodVisitor<VmapTableDataAccess>);
+  WriteMapMethodVisitor visitor(this, out, file_offset, relative_offset);
+  if (UNLIKELY(!VisitDexMethods(&visitor))) {
+    return 0;
+  }
+  relative_offset = visitor.GetOffset();
   size_vmap_table_ = relative_offset - vmap_tables_offset;
-
-  #undef VISIT
 
   return relative_offset;
 }

@@ -50,7 +50,6 @@
 #include "type_lookup_table.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
-#include "vmap_table.h"
 
 namespace art {
 

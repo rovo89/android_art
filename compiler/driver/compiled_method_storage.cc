@@ -174,11 +174,8 @@ CompiledMethodStorage::CompiledMethodStorage(int swap_fd)
       dedupe_code_("dedupe code", LengthPrefixedArrayAlloc<uint8_t>(swap_space_.get())),
       dedupe_src_mapping_table_("dedupe source mapping table",
                                 LengthPrefixedArrayAlloc<SrcMapElem>(swap_space_.get())),
-      dedupe_mapping_table_("dedupe mapping table",
-                            LengthPrefixedArrayAlloc<uint8_t>(swap_space_.get())),
       dedupe_vmap_table_("dedupe vmap table",
                          LengthPrefixedArrayAlloc<uint8_t>(swap_space_.get())),
-      dedupe_gc_map_("dedupe gc map", LengthPrefixedArrayAlloc<uint8_t>(swap_space_.get())),
       dedupe_cfi_info_("dedupe cfi info", LengthPrefixedArrayAlloc<uint8_t>(swap_space_.get())),
       dedupe_linker_patches_("dedupe cfi info",
                              LengthPrefixedArrayAlloc<LinkerPatch>(swap_space_.get())) {
@@ -196,9 +193,7 @@ void CompiledMethodStorage::DumpMemoryUsage(std::ostream& os, bool extended) con
   if (extended) {
     Thread* self = Thread::Current();
     os << "\nCode dedupe: " << dedupe_code_.DumpStats(self);
-    os << "\nMapping table dedupe: " << dedupe_mapping_table_.DumpStats(self);
     os << "\nVmap table dedupe: " << dedupe_vmap_table_.DumpStats(self);
-    os << "\nGC map dedupe: " << dedupe_gc_map_.DumpStats(self);
     os << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats(self);
   }
 }
@@ -221,15 +216,6 @@ void CompiledMethodStorage::ReleaseSrcMappingTable(const LengthPrefixedArray<Src
   ReleaseArrayIfNotDeduplicated(src_map);
 }
 
-const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateMappingTable(
-    const ArrayRef<const uint8_t>& table) {
-  return AllocateOrDeduplicateArray(table, &dedupe_mapping_table_);
-}
-
-void CompiledMethodStorage::ReleaseMappingTable(const LengthPrefixedArray<uint8_t>* table) {
-  ReleaseArrayIfNotDeduplicated(table);
-}
-
 const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateVMapTable(
     const ArrayRef<const uint8_t>& table) {
   return AllocateOrDeduplicateArray(table, &dedupe_vmap_table_);
@@ -237,15 +223,6 @@ const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateVMapTable(
 
 void CompiledMethodStorage::ReleaseVMapTable(const LengthPrefixedArray<uint8_t>* table) {
   ReleaseArrayIfNotDeduplicated(table);
-}
-
-const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateGCMap(
-    const ArrayRef<const uint8_t>& gc_map) {
-  return AllocateOrDeduplicateArray(gc_map, &dedupe_gc_map_);
-}
-
-void CompiledMethodStorage::ReleaseGCMap(const LengthPrefixedArray<uint8_t>* gc_map) {
-  ReleaseArrayIfNotDeduplicated(gc_map);
 }
 
 const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateCFIInfo(

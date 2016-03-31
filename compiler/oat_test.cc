@@ -442,7 +442,7 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   // it is time to update OatHeader::kOatVersion
   EXPECT_EQ(72U, sizeof(OatHeader));
   EXPECT_EQ(4U, sizeof(OatMethodOffsets));
-  EXPECT_EQ(28U, sizeof(OatQuickMethodHeader));
+  EXPECT_EQ(20U, sizeof(OatQuickMethodHeader));
   EXPECT_EQ(132 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
 }
 
