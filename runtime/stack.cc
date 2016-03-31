@@ -130,7 +130,11 @@ ArtMethod* StackVisitor::GetMethod() const {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
       InlineInfo inline_info = GetCurrentInlineInfo();
-      return GetResolvedMethod(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map);
+      DCHECK(walk_kind_ != StackWalkKind::kSkipInlinedFrames);
+      bool allow_resolve = walk_kind_ != StackWalkKind::kIncludeInlinedFramesNoResolve;
+      return allow_resolve
+          ? GetResolvedMethod<true>(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map)
+          : GetResolvedMethod<false>(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map);
     } else {
       return *cur_quick_frame_;
     }
@@ -859,7 +863,8 @@ void StackVisitor::WalkStack(bool include_transitions) {
         cur_oat_quick_method_header_ = method->GetOatQuickMethodHeader(cur_quick_frame_pc_);
         SanityCheckFrame();
 
-        if ((walk_kind_ == StackWalkKind::kIncludeInlinedFrames)
+        if ((walk_kind_ == StackWalkKind::kIncludeInlinedFrames ||
+             walk_kind_ == StackWalkKind::kIncludeInlinedFramesNoResolve)
             && (cur_oat_quick_method_header_ != nullptr)
             && cur_oat_quick_method_header_->IsOptimized()) {
           CodeInfo code_info = cur_oat_quick_method_header_->GetOptimizedCodeInfo();
