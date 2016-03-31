@@ -22,8 +22,15 @@ public class Main {
 
   public static void main(String[] args) throws Exception {
     Class<?> c = Class.forName("IrreducibleLoop");
-    Method m = c.getMethod("simpleLoop", int.class);
-    Object[] arguments = { 42 };
-    System.out.println(m.invoke(null, arguments));
+    {
+      Method m = c.getMethod("simpleLoop1", int.class);
+      Object[] arguments = { 42 };
+      System.out.println(m.invoke(null, arguments));
+    }
+    {
+      Method m = c.getMethod("simpleLoop2", int.class);
+      Object[] arguments = { 42 };
+      System.out.println(m.invoke(null, arguments));
+    }
   }
 }

@@ -1931,7 +1931,7 @@ void RegisterAllocator::Resolve() {
           // `GetSiblingAt` returns the sibling that contains a position, but there could be
           // a lifetime hole in it. `CoversSlow` returns whether the interval is live at that
           // position.
-          if (sibling->CoversSlow(block->GetLifetimeStart())) {
+          if ((sibling != nullptr) && sibling->CoversSlow(block->GetLifetimeStart())) {
             DCHECK(!sibling->HasRegister());
           }
         }

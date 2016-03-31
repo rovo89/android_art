@@ -142,6 +142,7 @@ class ParallelMoveResolverX86_64 : public ParallelMoveResolverWithSwap {
   void Exchange32(CpuRegister reg, int mem);
   void Exchange32(XmmRegister reg, int mem);
   void Exchange32(int mem1, int mem2);
+  void Exchange64(CpuRegister reg1, CpuRegister reg2);
   void Exchange64(CpuRegister reg, int mem);
   void Exchange64(XmmRegister reg, int mem);
   void Exchange64(int mem1, int mem2);
@@ -252,13 +253,13 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
                                          Location maybe_temp);
   // Generate a GC root reference load:
   //
-  //   root <- *(obj + offset)
+  //   root <- *address
   //
   // while honoring read barriers (if any).
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
-                               CpuRegister obj,
-                               uint32_t offset);
+                               const Address& address,
+                               Label* fixup_label = nullptr);
 
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
@@ -384,6 +385,11 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return false;
   }
 
+  // Check if the desired_string_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadString::LoadKind GetSupportedLoadStringKind(
+      HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -392,6 +398,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+
+  void RecordSimplePatch();
+  void RecordStringPatch(HLoadString* load_string);
+  Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
@@ -515,6 +525,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
 
+  // When we don't know the proper offset for the value, we use kDummy32BitOffset.
+  // We will fix this up in the linker later to have the right value.
+  static constexpr int32_t kDummy32BitOffset = 256;
+
  private:
   // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
   // and GenerateArrayLoadWithBakerReadBarrier.
@@ -552,10 +566,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
   // PC-relative DexCache access info.
   ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
-
-  // When we don't know the proper offset for the value, we use kDummy32BitOffset.
-  // We will fix this up in the linker later to have the right value.
-  static constexpr int32_t kDummy32BitOffset = 256;
+  // Patch locations for patchoat where the linker doesn't do any other work.
+  ArenaDeque<Label> simple_patches_;
+  // String patch locations.
+  ArenaDeque<StringPatchInfo<Label>> string_patches_;
 
   // Fixups for jump tables need to be handled specially.
   ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;

@@ -178,41 +178,47 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
                       : nullptr),
         indent_(0) {}
 
+  void Flush() {
+    // We use "\n" instead of std::endl to avoid implicit flushing which
+    // generates too many syscalls during debug-GC tests (b/27826765).
+    output_ << std::flush;
+  }
+
   void StartTag(const char* name) {
     AddIndent();
-    output_ << "begin_" << name << std::endl;
+    output_ << "begin_" << name << "\n";
     indent_++;
   }
 
   void EndTag(const char* name) {
     indent_--;
     AddIndent();
-    output_ << "end_" << name << std::endl;
+    output_ << "end_" << name << "\n";
   }
 
   void PrintProperty(const char* name, const char* property) {
     AddIndent();
-    output_ << name << " \"" << property << "\"" << std::endl;
+    output_ << name << " \"" << property << "\"\n";
   }
 
   void PrintProperty(const char* name, const char* property, int id) {
     AddIndent();
-    output_ << name << " \"" << property << id << "\"" << std::endl;
+    output_ << name << " \"" << property << id << "\"\n";
   }
 
   void PrintEmptyProperty(const char* name) {
     AddIndent();
-    output_ << name << std::endl;
+    output_ << name << "\n";
   }
 
   void PrintTime(const char* name) {
     AddIndent();
-    output_ << name << " " << time(nullptr) << std::endl;
+    output_ << name << " " << time(nullptr) << "\n";
   }
 
   void PrintInt(const char* name, int value) {
     AddIndent();
-    output_ << name << " " << value << std::endl;
+    output_ << name << " " << value << "\n";
   }
 
   void AddIndent() {
@@ -249,7 +255,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     if (block->IsEntryBlock() && (disasm_info_ != nullptr)) {
       output_ << " \"" << kDisassemblyBlockFrameEntry << "\" ";
     }
-    output_<< std::endl;
+    output_<< "\n";
   }
 
   void PrintSuccessors(HBasicBlock* block) {
@@ -258,7 +264,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     for (HBasicBlock* successor : block->GetNormalSuccessors()) {
       output_ << " \"B" << successor->GetBlockId() << "\" ";
     }
-    output_<< std::endl;
+    output_<< "\n";
   }
 
   void PrintExceptionHandlers(HBasicBlock* block) {
@@ -272,7 +278,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         !disasm_info_->GetSlowPathIntervals().empty()) {
       output_ << " \"" << kDisassemblyBlockSlowPaths << "\" ";
     }
-    output_<< std::endl;
+    output_<< "\n";
   }
 
   void DumpLocation(std::ostream& stream, const Location& location) {
@@ -367,6 +373,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         << load_class->NeedsAccessCheck() << std::noboolalpha;
   }
 
+  void VisitLoadString(HLoadString* load_string) OVERRIDE {
+    StartAttributeStream("load_kind") << load_string->GetLoadKind();
+  }
+
   void VisitCheckCast(HCheckCast* check_cast) OVERRIDE {
     StartAttributeStream("check_kind") << check_cast->GetTypeCheckKind();
     StartAttributeStream("must_do_null_check") << std::boolalpha
@@ -416,6 +426,20 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void VisitInvokeVirtual(HInvokeVirtual* invoke) OVERRIDE {
     VisitInvoke(invoke);
     StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
+  }
+
+  void VisitInstanceFieldGet(HInstanceFieldGet* iget) OVERRIDE {
+    StartAttributeStream("field_name") << PrettyField(iget->GetFieldInfo().GetFieldIndex(),
+                                                      iget->GetFieldInfo().GetDexFile(),
+                                                      /* with type */ false);
+    StartAttributeStream("field_type") << iget->GetFieldType();
+  }
+
+  void VisitInstanceFieldSet(HInstanceFieldSet* iset) OVERRIDE {
+    StartAttributeStream("field_name") << PrettyField(iset->GetFieldInfo().GetFieldIndex(),
+                                                      iset->GetFieldInfo().GetDexFile(),
+                                                      /* with type */ false);
+    StartAttributeStream("field_type") << iset->GetFieldType();
   }
 
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* field_access) OVERRIDE {
@@ -574,7 +598,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       auto it = disasm_info_->GetInstructionIntervals().find(instruction);
       if (it != disasm_info_->GetInstructionIntervals().end()
           && it->second.start != it->second.end) {
-        output_ << std::endl;
+        output_ << "\n";
         disassembler_->Disassemble(output_, it->second.start, it->second.end);
       }
     }
@@ -594,7 +618,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       output_ << bci << " " << num_uses << " "
               << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
       PrintInstruction(instruction);
-      output_ << " " << kEndInstructionMarker << std::endl;
+      output_ << " " << kEndInstructionMarker << "\n";
     }
   }
 
@@ -638,10 +662,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     output_ << "    0 0 disasm " << kDisassemblyBlockFrameEntry << " ";
     GeneratedCodeInterval frame_entry = disasm_info_->GetFrameEntryInterval();
     if (frame_entry.start != frame_entry.end) {
-      output_ << std::endl;
+      output_ << "\n";
       disassembler_->Disassemble(output_, frame_entry.start, frame_entry.end);
     }
-    output_ << kEndInstructionMarker << std::endl;
+    output_ << kEndInstructionMarker << "\n";
     DumpEndOfDisassemblyBlock();
   }
 
@@ -657,9 +681,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         GetGraph()->HasExitBlock() ? GetGraph()->GetExitBlock()->GetBlockId() : -1,
         -1);
     for (SlowPathCodeInfo info : disasm_info_->GetSlowPathIntervals()) {
-      output_ << "    0 0 disasm " << info.slow_path->GetDescription() << std::endl;
+      output_ << "    0 0 disasm " << info.slow_path->GetDescription() << "\n";
       disassembler_->Disassemble(output_, info.code_interval.start, info.code_interval.end);
-      output_ << kEndInstructionMarker << std::endl;
+      output_ << kEndInstructionMarker << "\n";
     }
     DumpEndOfDisassemblyBlock();
   }
@@ -680,6 +704,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       DumpDisassemblyBlockForSlowPaths();
     }
     EndTag("cfg");
+    Flush();
   }
 
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
@@ -719,7 +744,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       for (HInputIterator inputs(instruction); !inputs.Done(); inputs.Advance()) {
         output_ << inputs.Current()->GetId() << " ";
       }
-      output_ << "]" << std::endl;
+      output_ << "]\n";
     }
     EndTag("locals");
     EndTag("states");
@@ -761,6 +786,7 @@ void HGraphVisualizer::PrintHeader(const char* method_name) const {
   printer.PrintProperty("method", method_name);
   printer.PrintTime("date");
   printer.EndTag("compilation");
+  printer.Flush();
 }
 
 void HGraphVisualizer::DumpGraph(const char* pass_name,

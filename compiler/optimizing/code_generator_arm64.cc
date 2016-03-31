@@ -905,6 +905,8 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       isa_features_(isa_features),
+      uint32_literals_(std::less<uint32_t>(),
+                       graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       uint64_literals_(std::less<uint64_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       method_patches_(MethodReferenceComparator(),
@@ -912,7 +914,12 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       call_patches_(MethodReferenceComparator(),
                     graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_string_patches_(StringReferenceValueComparator(),
+                                 graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_address_patches_(std::less<uint32_t>(),
+                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
 }
@@ -1818,9 +1825,8 @@ void InstructionCodeGeneratorARM64::HandleShift(HBinaryOperation* instr) {
       Register lhs = InputRegisterAt(instr, 0);
       Operand rhs = InputOperandAt(instr, 1);
       if (rhs.IsImmediate()) {
-        uint32_t shift_value = (type == Primitive::kPrimInt)
-          ? static_cast<uint32_t>(rhs.immediate() & kMaxIntShiftValue)
-          : static_cast<uint32_t>(rhs.immediate() & kMaxLongShiftValue);
+        uint32_t shift_value = rhs.immediate() &
+            (type == Primitive::kPrimInt ? kMaxIntShiftDistance : kMaxLongShiftDistance);
         if (instr->IsShl()) {
           __ Lsl(dst, lhs, shift_value);
         } else if (instr->IsShr()) {
@@ -1921,9 +1927,8 @@ void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
   // conversion) can have a different type from the current instruction's type,
   // so we manually indicate the type.
   Register right_reg = RegisterFrom(instruction->GetLocations()->InAt(1), type);
-  int64_t shift_amount = (type == Primitive::kPrimInt)
-    ? static_cast<uint32_t>(instruction->GetShiftAmount() & kMaxIntShiftValue)
-    : static_cast<uint32_t>(instruction->GetShiftAmount() & kMaxLongShiftValue);
+  int64_t shift_amount = instruction->GetShiftAmount() &
+      (type == Primitive::kPrimInt ? kMaxIntShiftDistance : kMaxLongShiftDistance);
 
   Operand right_operand(0);
 
@@ -1949,7 +1954,7 @@ void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
       __ And(out, left, right_operand);
       break;
     case HInstruction::kNeg:
-      DCHECK(instruction->InputAt(0)->AsConstant()->IsZero());
+      DCHECK(instruction->InputAt(0)->AsConstant()->IsArithmeticZero());
       __ Neg(out, right_operand);
       break;
     case HInstruction::kOr:
@@ -1994,7 +1999,7 @@ void LocationsBuilderARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) 
   HInstruction* accumulator = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
   if (instr->GetOpKind() == HInstruction::kSub &&
       accumulator->IsConstant() &&
-      accumulator->AsConstant()->IsZero()) {
+      accumulator->AsConstant()->IsArithmeticZero()) {
     // Don't allocate register for Mneg instruction.
   } else {
     locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
@@ -2033,7 +2038,7 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
   } else {
     DCHECK(instr->GetOpKind() == HInstruction::kSub);
     HInstruction* accum_instr = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
-    if (accum_instr->IsConstant() && accum_instr->AsConstant()->IsZero()) {
+    if (accum_instr->IsConstant() && accum_instr->AsConstant()->IsArithmeticZero()) {
       __ Mneg(res, mul_left, mul_right);
     } else {
       Register accumulator = InputRegisterAt(instr, HMultiplyAccumulate::kInputAccumulatorIndex);
@@ -2378,9 +2383,35 @@ void InstructionCodeGeneratorARM64::VisitClinitCheck(HClinitCheck* check) {
   GenerateClassInitializationCheck(slow_path, InputRegisterAt(check, 0));
 }
 
-static bool IsFloatingPointZeroConstant(HInstruction* instruction) {
-  return (instruction->IsFloatConstant() && (instruction->AsFloatConstant()->GetValue() == 0.0f))
-      || (instruction->IsDoubleConstant() && (instruction->AsDoubleConstant()->GetValue() == 0.0));
+static bool IsFloatingPointZeroConstant(HInstruction* inst) {
+  return (inst->IsFloatConstant() && (inst->AsFloatConstant()->IsArithmeticZero()))
+      || (inst->IsDoubleConstant() && (inst->AsDoubleConstant()->IsArithmeticZero()));
+}
+
+void InstructionCodeGeneratorARM64::GenerateFcmp(HInstruction* instruction) {
+  FPRegister lhs_reg = InputFPRegisterAt(instruction, 0);
+  Location rhs_loc = instruction->GetLocations()->InAt(1);
+  if (rhs_loc.IsConstant()) {
+    // 0.0 is the only immediate that can be encoded directly in
+    // an FCMP instruction.
+    //
+    // Both the JLS (section 15.20.1) and the JVMS (section 6.5)
+    // specify that in a floating-point comparison, positive zero
+    // and negative zero are considered equal, so we can use the
+    // literal 0.0 for both cases here.
+    //
+    // Note however that some methods (Float.equal, Float.compare,
+    // Float.compareTo, Double.equal, Double.compare,
+    // Double.compareTo, Math.max, Math.min, StrictMath.max,
+    // StrictMath.min) consider 0.0 to be (strictly) greater than
+    // -0.0. So if we ever translate calls to these methods into a
+    // HCompare instruction, we must handle the -0.0 case with
+    // care here.
+    DCHECK(IsFloatingPointZeroConstant(rhs_loc.GetConstant()));
+    __ Fcmp(lhs_reg, 0.0);
+  } else {
+    __ Fcmp(lhs_reg, InputFPRegisterAt(instruction, 1));
+  }
 }
 
 void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
@@ -2438,14 +2469,7 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       Register result = OutputRegister(compare);
-      FPRegister left = InputFPRegisterAt(compare, 0);
-      if (compare->GetLocations()->InAt(1).IsConstant()) {
-        DCHECK(IsFloatingPointZeroConstant(compare->GetLocations()->InAt(1).GetConstant()));
-        // 0.0 is the only immediate that can be encoded directly in an FCMP instruction.
-        __ Fcmp(left, 0.0);
-      } else {
-        __ Fcmp(left, InputFPRegisterAt(compare, 1));
-      }
+      GenerateFcmp(compare);
       __ Cset(result, ne);
       __ Cneg(result, result, ARM64FPCondition(kCondLT, compare->IsGtBias()));
       break;
@@ -2485,14 +2509,7 @@ void InstructionCodeGeneratorARM64::HandleCondition(HCondition* instruction) {
   IfCondition if_cond = instruction->GetCondition();
 
   if (Primitive::IsFloatingPointType(instruction->InputAt(0)->GetType())) {
-    FPRegister lhs = InputFPRegisterAt(instruction, 0);
-    if (locations->InAt(1).IsConstant()) {
-      DCHECK(IsFloatingPointZeroConstant(locations->InAt(1).GetConstant()));
-      // 0.0 is the only immediate that can be encoded directly in an FCMP instruction.
-      __ Fcmp(lhs, 0.0);
-    } else {
-      __ Fcmp(lhs, InputFPRegisterAt(instruction, 1));
-    }
+    GenerateFcmp(instruction);
     __ Cset(res, ARM64FPCondition(if_cond, instruction->IsGtBias()));
   } else {
     // Integer cases.
@@ -2823,13 +2840,13 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
     // Nothing to do. The code always falls through.
     return;
   } else if (cond->IsIntConstant()) {
-    // Constant condition, statically compared against 1.
-    if (cond->AsIntConstant()->IsOne()) {
+    // Constant condition, statically compared against "true" (integer value 1).
+    if (cond->AsIntConstant()->IsTrue()) {
       if (true_target != nullptr) {
         __ B(true_target);
       }
     } else {
-      DCHECK(cond->AsIntConstant()->IsZero());
+      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
       if (false_target != nullptr) {
         __ B(false_target);
       }
@@ -2861,14 +2878,7 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
 
     Primitive::Type type = condition->InputAt(0)->GetType();
     if (Primitive::IsFloatingPointType(type)) {
-      FPRegister lhs = InputFPRegisterAt(condition, 0);
-      if (condition->GetLocations()->InAt(1).IsConstant()) {
-        DCHECK(IsFloatingPointZeroConstant(condition->GetLocations()->InAt(1).GetConstant()));
-        // 0.0 is the only immediate that can be encoded directly in an FCMP instruction.
-        __ Fcmp(lhs, 0.0);
-      } else {
-        __ Fcmp(lhs, InputFPRegisterAt(condition, 1));
-      }
+      GenerateFcmp(condition);
       if (true_target == nullptr) {
         IfCondition opposite_condition = condition->GetOppositeCondition();
         __ B(ARM64FPCondition(opposite_condition, condition->IsGtBias()), false_target);
@@ -3052,13 +3062,7 @@ void InstructionCodeGeneratorARM64::VisitSelect(HSelect* select) {
       csel_cond = HasSwappedInputs(variant) ? eq : ne;
     }
   } else if (IsConditionOnFloatingPointValues(cond)) {
-    Location rhs = cond->GetLocations()->InAt(1);
-    if (rhs.IsConstant()) {
-      DCHECK(IsFloatingPointZeroConstant(rhs.GetConstant()));
-      __ Fcmp(InputFPRegisterAt(cond, 0), 0.0);
-    } else {
-      __ Fcmp(InputFPRegisterAt(cond, 0), InputFPRegisterAt(cond, 1));
-    }
+    GenerateFcmp(cond);
     csel_cond = GetConditionForSelect(cond->AsCondition(), variant);
   } else {
     __ Cmp(InputRegisterAt(cond, 0), InputOperandAt(cond, 1));
@@ -3665,23 +3669,21 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       // Add ADRP with its PC-relative DexCache access patch.
-      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                                  invoke->GetDexCacheArrayOffset());
-      vixl::Label* pc_insn_label = &pc_relative_dex_cache_patches_.back().label;
+      const DexFile& dex_file = *invoke->GetTargetMethod().dex_file;
+      uint32_t element_offset = invoke->GetDexCacheArrayOffset();
+      vixl::Label* adrp_label = NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
       {
         vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
-        __ Bind(pc_insn_label);
-        __ adrp(XRegisterFrom(temp), 0);
+        __ Bind(adrp_label);
+        __ adrp(XRegisterFrom(temp), /* offset placeholder */ 0);
       }
-      pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
       // Add LDR with its PC-relative DexCache access patch.
-      pc_relative_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                                  invoke->GetDexCacheArrayOffset());
+      vixl::Label* ldr_label =
+          NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
       {
         vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
-        __ Bind(&pc_relative_dex_cache_patches_.back().label);
-        __ ldr(XRegisterFrom(temp), MemOperand(XRegisterFrom(temp), 0));
-        pc_relative_dex_cache_patches_.back().pc_insn_label = pc_insn_label;
+        __ Bind(ldr_label);
+        __ ldr(XRegisterFrom(temp), MemOperand(XRegisterFrom(temp), /* offset placeholder */ 0));
       }
       break;
     }
@@ -3775,13 +3777,58 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
   __ Blr(lr);
 }
 
+vixl::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(const DexFile& dex_file,
+                                                          uint32_t string_index,
+                                                          vixl::Label* adrp_label) {
+  return NewPcRelativePatch(dex_file, string_index, adrp_label, &pc_relative_string_patches_);
+}
+
+vixl::Label* CodeGeneratorARM64::NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
+                                                                 uint32_t element_offset,
+                                                                 vixl::Label* adrp_label) {
+  return NewPcRelativePatch(dex_file, element_offset, adrp_label, &pc_relative_dex_cache_patches_);
+}
+
+vixl::Label* CodeGeneratorARM64::NewPcRelativePatch(const DexFile& dex_file,
+                                                    uint32_t offset_or_index,
+                                                    vixl::Label* adrp_label,
+                                                    ArenaDeque<PcRelativePatchInfo>* patches) {
+  // Add a patch entry and return the label.
+  patches->emplace_back(dex_file, offset_or_index);
+  PcRelativePatchInfo* info = &patches->back();
+  vixl::Label* label = &info->label;
+  // If adrp_label is null, this is the ADRP patch and needs to point to its own label.
+  info->pc_insn_label = (adrp_label != nullptr) ? adrp_label : label;
+  return label;
+}
+
+vixl::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageStringLiteral(
+    const DexFile& dex_file, uint32_t string_index) {
+  return boot_image_string_patches_.GetOrCreate(
+      StringReference(&dex_file, string_index),
+      [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
+}
+
+vixl::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageAddressLiteral(uint64_t address) {
+  bool needs_patch = GetCompilerOptions().GetIncludePatchInformation();
+  Uint32ToLiteralMap* map = needs_patch ? &boot_image_address_patches_ : &uint32_literals_;
+  return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), map);
+}
+
+vixl::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateDexCacheAddressLiteral(uint64_t address) {
+  return DeduplicateUint64Literal(address);
+}
+
 void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
       method_patches_.size() +
       call_patches_.size() +
       relative_call_patches_.size() +
-      pc_relative_dex_cache_patches_.size();
+      pc_relative_dex_cache_patches_.size() +
+      boot_image_string_patches_.size() +
+      pc_relative_string_patches_.size() +
+      boot_image_address_patches_.size();
   linker_patches->reserve(size);
   for (const auto& entry : method_patches_) {
     const MethodReference& target_method = entry.first;
@@ -3802,38 +3849,51 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                              info.target_method.dex_file,
                                                              info.target_method.dex_method_index));
   }
-  for (const PcRelativeDexCacheAccessInfo& info : pc_relative_dex_cache_patches_) {
+  for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
     linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(info.label.location(),
                                                               &info.target_dex_file,
                                                               info.pc_insn_label->location(),
-                                                              info.element_offset));
+                                                              info.offset_or_index));
+  }
+  for (const auto& entry : boot_image_string_patches_) {
+    const StringReference& target_string = entry.first;
+    vixl::Literal<uint32_t>* literal = entry.second;
+    linker_patches->push_back(LinkerPatch::StringPatch(literal->offset(),
+                                                       target_string.dex_file,
+                                                       target_string.string_index));
+  }
+  for (const PcRelativePatchInfo& info : pc_relative_string_patches_) {
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(info.label.location(),
+                                                               &info.target_dex_file,
+                                                               info.pc_insn_label->location(),
+                                                               info.offset_or_index));
+  }
+  for (const auto& entry : boot_image_address_patches_) {
+    DCHECK(GetCompilerOptions().GetIncludePatchInformation());
+    vixl::Literal<uint32_t>* literal = entry.second;
+    linker_patches->push_back(LinkerPatch::RecordPosition(literal->offset()));
   }
 }
 
+vixl::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateUint32Literal(uint32_t value,
+                                                                      Uint32ToLiteralMap* map) {
+  return map->GetOrCreate(
+      value,
+      [this, value]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(value); });
+}
+
 vixl::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateUint64Literal(uint64_t value) {
-  // Look up the literal for value.
-  auto lb = uint64_literals_.lower_bound(value);
-  if (lb != uint64_literals_.end() && !uint64_literals_.key_comp()(value, lb->first)) {
-    return lb->second;
-  }
-  // We don't have a literal for this value, insert a new one.
-  vixl::Literal<uint64_t>* literal = __ CreateLiteralDestroyedWithPool<uint64_t>(value);
-  uint64_literals_.PutBefore(lb, value, literal);
-  return literal;
+  return uint64_literals_.GetOrCreate(
+      value,
+      [this, value]() { return __ CreateLiteralDestroyedWithPool<uint64_t>(value); });
 }
 
 vixl::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateMethodLiteral(
     MethodReference target_method,
     MethodToLiteralMap* map) {
-  // Look up the literal for target_method.
-  auto lb = map->lower_bound(target_method);
-  if (lb != map->end() && !map->key_comp()(target_method, lb->first)) {
-    return lb->second;
-  }
-  // We don't have a literal for this method yet, insert a new one.
-  vixl::Literal<uint64_t>* literal = __ CreateLiteralDestroyedWithPool<uint64_t>(0u);
-  map->PutBefore(lb, target_method, literal);
-  return literal;
+  return map->GetOrCreate(
+      target_method,
+      [this]() { return __ CreateLiteralDestroyedWithPool<uint64_t>(/* placeholder */ 0u); });
 }
 
 vixl::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateMethodAddressLiteral(
@@ -3958,28 +4018,135 @@ void InstructionCodeGeneratorARM64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UN
   // Nothing to do, this is driven by the code generator.
 }
 
+HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
+    HLoadString::LoadKind desired_string_load_kind) {
+  if (kEmitCompilerReadBarrier) {
+    switch (desired_string_load_kind) {
+      case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      case HLoadString::LoadKind::kBootImageAddress:
+        // TODO: Implement for read barrier.
+        return HLoadString::LoadKind::kDexCacheViaMethod;
+      default:
+        break;
+    }
+  }
+  switch (desired_string_load_kind) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      DCHECK(!GetCompilerOptions().GetCompilePic());
+      break;
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      DCHECK(GetCompilerOptions().GetCompilePic());
+      break;
+    case HLoadString::LoadKind::kBootImageAddress:
+      break;
+    case HLoadString::LoadKind::kDexCacheAddress:
+      DCHECK(Runtime::Current()->UseJit());
+      break;
+    case HLoadString::LoadKind::kDexCachePcRelative:
+      DCHECK(!Runtime::Current()->UseJit());
+      break;
+    case HLoadString::LoadKind::kDexCacheViaMethod:
+      break;
+  }
+  return desired_string_load_kind;
+}
+
 void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (!load->IsInDexCache() || kEmitCompilerReadBarrier)
+  LocationSummary::CallKind call_kind = (load->NeedsEnvironment() || kEmitCompilerReadBarrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
+  if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
   Location out_loc = load->GetLocations()->Out();
   Register out = OutputRegister(load);
-  Register current_method = InputRegisterAt(load, 0);
 
-  // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
-  GenerateGcRootFieldLoad(
-      load, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
-  // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
-  __ Ldr(out.X(), HeapOperand(out, mirror::Class::DexCacheStringsOffset().Uint32Value()));
-  // /* GcRoot<mirror::String> */ out = out[string_index]
-  GenerateGcRootFieldLoad(
-      load, out_loc, out.X(), CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+  switch (load->GetLoadKind()) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      DCHECK(!kEmitCompilerReadBarrier);
+      __ Ldr(out, codegen_->DeduplicateBootImageStringLiteral(load->GetDexFile(),
+                                                              load->GetStringIndex()));
+      return;  // No dex cache slow path.
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      // Add ADRP with its PC-relative String patch.
+      const DexFile& dex_file = load->GetDexFile();
+      uint32_t string_index = load->GetStringIndex();
+      vixl::Label* adrp_label = codegen_->NewPcRelativeStringPatch(dex_file, string_index);
+      {
+        vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(adrp_label);
+        __ adrp(out.X(), /* offset placeholder */ 0);
+      }
+      // Add ADD with its PC-relative String patch.
+      vixl::Label* add_label =
+          codegen_->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
+      {
+        vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(add_label);
+        __ add(out.X(), out.X(), Operand(/* offset placeholder */ 0));
+      }
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kBootImageAddress: {
+      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(load->GetAddress() != 0u && IsUint<32>(load->GetAddress()));
+      __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(load->GetAddress()));
+      return;  // No dex cache slow path.
+    }
+    case HLoadString::LoadKind::kDexCacheAddress: {
+      DCHECK_NE(load->GetAddress(), 0u);
+      // LDR immediate has a 12-bit offset multiplied by the size and for 32-bit loads
+      // that gives a 16KiB range. To try and reduce the number of literals if we load
+      // multiple strings, simply split the dex cache address to a 16KiB aligned base
+      // loaded from a literal and the remaining offset embedded in the load.
+      static_assert(sizeof(GcRoot<mirror::String>) == 4u, "Expected GC root to be 4 bytes.");
+      DCHECK_ALIGNED(load->GetAddress(), 4u);
+      constexpr size_t offset_bits = /* encoded bits */ 12 + /* scale */ 2;
+      uint64_t base_address = load->GetAddress() & ~MaxInt<uint64_t>(offset_bits);
+      uint32_t offset = load->GetAddress() & MaxInt<uint64_t>(offset_bits);
+      __ Ldr(out.X(), codegen_->DeduplicateDexCacheAddressLiteral(base_address));
+      GenerateGcRootFieldLoad(load, out_loc, out.X(), offset);
+      break;
+    }
+    case HLoadString::LoadKind::kDexCachePcRelative: {
+      // Add ADRP with its PC-relative DexCache access patch.
+      const DexFile& dex_file = load->GetDexFile();
+      uint32_t element_offset = load->GetDexCacheElementOffset();
+      vixl::Label* adrp_label = codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
+      {
+        vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(adrp_label);
+        __ adrp(out.X(), /* offset placeholder */ 0);
+      }
+      // Add LDR with its PC-relative DexCache access patch.
+      vixl::Label* ldr_label =
+          codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
+      GenerateGcRootFieldLoad(load, out_loc, out.X(), /* offset placeholder */ 0, ldr_label);
+      break;
+    }
+    case HLoadString::LoadKind::kDexCacheViaMethod: {
+      Register current_method = InputRegisterAt(load, 0);
+      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
+      GenerateGcRootFieldLoad(
+          load, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
+      // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
+      __ Ldr(out.X(), HeapOperand(out, mirror::Class::DexCacheStringsOffset().Uint32Value()));
+      // /* GcRoot<mirror::String> */ out = out[string_index]
+      GenerateGcRootFieldLoad(
+          load, out_loc, out.X(), CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected load kind: " << load->GetLoadKind();
+      UNREACHABLE();
+  }
 
   if (!load->IsInDexCache()) {
     SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
@@ -4794,7 +4961,8 @@ void InstructionCodeGeneratorARM64::GenerateReferenceLoadTwoRegisters(HInstructi
 void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instruction,
                                                             Location root,
                                                             vixl::Register obj,
-                                                            uint32_t offset) {
+                                                            uint32_t offset,
+                                                            vixl::Label* fixup_label) {
   Register root_reg = RegisterFrom(root, Primitive::kPrimNot);
   if (kEmitCompilerReadBarrier) {
     if (kUseBakerReadBarrier) {
@@ -4807,7 +4975,13 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
       //   }
 
       // /* GcRoot<mirror::Object> */ root = *(obj + offset)
-      __ Ldr(root_reg, MemOperand(obj, offset));
+      if (fixup_label == nullptr) {
+        __ Ldr(root_reg, MemOperand(obj, offset));
+      } else {
+        vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(fixup_label);
+        __ ldr(root_reg, MemOperand(obj, offset));
+      }
       static_assert(
           sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(GcRoot<mirror::Object>),
           "art::mirror::CompressedReference<mirror::Object> and art::GcRoot<mirror::Object> "
@@ -4832,14 +5006,26 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
       // GC root loaded through a slow path for read barriers other
       // than Baker's.
       // /* GcRoot<mirror::Object>* */ root = obj + offset
-      __ Add(root_reg.X(), obj.X(), offset);
+      if (fixup_label == nullptr) {
+        __ Add(root_reg.X(), obj.X(), offset);
+      } else {
+        vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(fixup_label);
+        __ add(root_reg.X(), obj.X(), offset);
+      }
       // /* mirror::Object* */ root = root->Read()
       codegen_->GenerateReadBarrierForRootSlow(instruction, root, root);
     }
   } else {
     // Plain GC root load with no read barrier.
     // /* GcRoot<mirror::Object> */ root = *(obj + offset)
-    __ Ldr(root_reg, MemOperand(obj, offset));
+    if (fixup_label == nullptr) {
+      __ Ldr(root_reg, MemOperand(obj, offset));
+    } else {
+      vixl::SingleEmissionCheckScope guard(GetVIXLAssembler());
+      __ Bind(fixup_label);
+      __ ldr(root_reg, MemOperand(obj, offset));
+    }
     // Note that GC roots are not affected by heap poisoning, thus we
     // do not have to unpoison `root_reg` here.
   }

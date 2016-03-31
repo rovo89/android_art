@@ -148,6 +148,7 @@ LIBART_COMPILER_SRC_FILES_x86_64 := \
 LIBART_COMPILER_CFLAGS :=
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
+  compiled_method.h \
   dex/compiler_enums.h \
   dex/dex_to_dex_compiler.h \
   driver/compiler_driver.h \
@@ -296,28 +297,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       include $(BUILD_HOST_STATIC_LIBRARY)
     else
       include $(BUILD_HOST_SHARED_LIBRARY)
-    endif
-  endif
-
-  ifeq ($$(art_target_or_host),target)
-    ifeq ($$(art_ndebug_or_debug),debug)
-      $(TARGET_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
-    else
-      $(TARGET_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
-    endif
-  else # host
-    ifeq ($$(art_ndebug_or_debug),debug)
-      ifeq ($$(art_static_or_shared),static)
-        $(HOST_OUT_EXECUTABLES)/dex2oatds: $$(LOCAL_INSTALLED_MODULE)
-      else
-        $(HOST_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
-      endif
-    else
-      ifeq ($$(art_static_or_shared),static)
-        $(HOST_OUT_EXECUTABLES)/dex2oats: $$(LOCAL_INSTALLED_MODULE)
-      else
-        $(HOST_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
-      endif
     endif
   endif
 

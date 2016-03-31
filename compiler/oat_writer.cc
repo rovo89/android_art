@@ -1046,6 +1046,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
     if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
       dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
+      DCHECK(dex_cache_ != nullptr);
     }
     return true;
   }
@@ -1115,28 +1116,56 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
           quick_code = ArrayRef<const uint8_t>(patched_code_);
           for (const LinkerPatch& patch : compiled_method->GetPatches()) {
             uint32_t literal_offset = patch.LiteralOffset();
-            if (patch.Type() == kLinkerPatchCallRelative) {
-              // NOTE: Relative calls across oat files are not supported.
-              uint32_t target_offset = GetTargetOffset(patch);
-              writer_->relative_patcher_->PatchCall(&patched_code_,
-                                                    literal_offset,
-                                                    offset_ + literal_offset,
-                                                    target_offset);
-            } else if (patch.Type() == kLinkerPatchDexCacheArray) {
-              uint32_t target_offset = GetDexCacheOffset(patch);
-              writer_->relative_patcher_->PatchDexCacheReference(&patched_code_,
-                                                                 patch,
-                                                                 offset_ + literal_offset,
-                                                                 target_offset);
-            } else if (patch.Type() == kLinkerPatchCall) {
-              uint32_t target_offset = GetTargetOffset(patch);
-              PatchCodeAddress(&patched_code_, literal_offset, target_offset);
-            } else if (patch.Type() == kLinkerPatchMethod) {
-              ArtMethod* method = GetTargetMethod(patch);
-              PatchMethodAddress(&patched_code_, literal_offset, method);
-            } else if (patch.Type() == kLinkerPatchType) {
-              mirror::Class* type = GetTargetType(patch);
-              PatchObjectAddress(&patched_code_, literal_offset, type);
+            switch (patch.GetType()) {
+              case LinkerPatch::Type::kCallRelative: {
+                // NOTE: Relative calls across oat files are not supported.
+                uint32_t target_offset = GetTargetOffset(patch);
+                writer_->relative_patcher_->PatchCall(&patched_code_,
+                                                      literal_offset,
+                                                      offset_ + literal_offset,
+                                                      target_offset);
+                break;
+              }
+              case LinkerPatch::Type::kDexCacheArray: {
+                uint32_t target_offset = GetDexCacheOffset(patch);
+                writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
+                                                                     patch,
+                                                                     offset_ + literal_offset,
+                                                                     target_offset);
+                break;
+              }
+              case LinkerPatch::Type::kStringRelative: {
+                uint32_t target_offset = GetTargetObjectOffset(GetTargetString(patch));
+                writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
+                                                                     patch,
+                                                                     offset_ + literal_offset,
+                                                                     target_offset);
+                break;
+              }
+              case LinkerPatch::Type::kCall: {
+                uint32_t target_offset = GetTargetOffset(patch);
+                PatchCodeAddress(&patched_code_, literal_offset, target_offset);
+                break;
+              }
+              case LinkerPatch::Type::kMethod: {
+                ArtMethod* method = GetTargetMethod(patch);
+                PatchMethodAddress(&patched_code_, literal_offset, method);
+                break;
+              }
+              case LinkerPatch::Type::kString: {
+                mirror::String* string = GetTargetString(patch);
+                PatchObjectAddress(&patched_code_, literal_offset, string);
+                break;
+              }
+              case LinkerPatch::Type::kType: {
+                mirror::Class* type = GetTargetType(patch);
+                PatchObjectAddress(&patched_code_, literal_offset, type);
+                break;
+              }
+              default: {
+                DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kRecordPosition);
+                break;
+              }
             }
           }
         }
@@ -1205,13 +1234,21 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return target_offset;
   }
 
-  mirror::Class* GetTargetType(const LinkerPatch& patch)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Class* GetTargetType(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::DexCache* dex_cache = (dex_file_ == patch.TargetTypeDexFile())
-        ? dex_cache_ : class_linker_->FindDexCache(Thread::Current(), *patch.TargetTypeDexFile());
+        ? dex_cache_
+        : class_linker_->FindDexCache(Thread::Current(), *patch.TargetTypeDexFile());
     mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
     CHECK(type != nullptr);
     return type;
+  }
+
+  mirror::String* GetTargetString(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
+    mirror::String* string = dex_cache_->GetResolvedString(patch.TargetStringIndex());
+    DCHECK(string != nullptr);
+    DCHECK(writer_->HasBootImage() ||
+           Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(string));
+    return string;
   }
 
   uint32_t GetDexCacheOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -1225,6 +1262,15 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       size_t start = writer_->dex_cache_arrays_offsets_.Get(patch.TargetDexCacheDexFile());
       return start + patch.TargetDexCacheElementOffset();
     }
+  }
+
+  uint32_t GetTargetObjectOffset(mirror::Object* object) SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(writer_->HasBootImage());
+    object = writer_->image_writer_->GetImageAddress(object);
+    size_t oat_index = writer_->image_writer_->GetOatIndexForDexFile(dex_file_);
+    uintptr_t oat_data_begin = writer_->image_writer_->GetOatDataBegin(oat_index);
+    // TODO: Clean up offset types. The target offset must be treated as signed.
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object) - oat_data_begin);
   }
 
   void PatchObjectAddress(std::vector<uint8_t>* code, uint32_t offset, mirror::Object* object)

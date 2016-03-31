@@ -109,7 +109,8 @@ class LoadedByMyClassLoader {
                 /* Load and initialize System */
   /// CHECK-NEXT: LoadClass gen_clinit_check:true
   /// CHECK-NEXT: StaticFieldGet
-  /// CHECK-NEXT: LoadString
+  // There may be HArmDexCacheArraysBase or HX86ComputeBaseMethodAddress here.
+  /// CHECK:      LoadString
   /// CHECK-NEXT: NullCheck
   /// CHECK-NEXT: InvokeVirtual
   public static void bar() {

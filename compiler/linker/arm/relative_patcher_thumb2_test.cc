@@ -30,6 +30,9 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
   static const ArrayRef<const uint8_t> kCallCode;
   static const uint8_t kNopRawCode[];
   static const ArrayRef<const uint8_t> kNopCode;
+  static const uint8_t kUnpatchedPcRelativeRawCode[];
+  static const ArrayRef<const uint8_t> kUnpatchedPcRelativeCode;
+  static const uint32_t kPcInsnOffset;
 
   // Branches within range [-256, 256) can be created from these by adding the low 8 bits.
   static constexpr uint32_t kBlPlus0 = 0xf000f800;
@@ -123,47 +126,9 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     return result;
   }
 
-  void TestDexCachereference(uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
-    dex_cache_arrays_begin_ = dex_cache_arrays_begin;
-    static const uint8_t raw_code[] = {
-        0x40, 0xf2, 0x00, 0x00,   // MOVW r0, #0 (placeholder)
-        0xc0, 0xf2, 0x00, 0x00,   // MOVT r0, #0 (placeholder)
-        0x78, 0x44,               // ADD r0, pc
-    };
-    constexpr uint32_t pc_insn_offset = 8u;
-    const ArrayRef<const uint8_t> code(raw_code);
-    LinkerPatch patches[] = {
-        LinkerPatch::DexCacheArrayPatch(0u, nullptr, pc_insn_offset, element_offset),
-        LinkerPatch::DexCacheArrayPatch(4u, nullptr, pc_insn_offset, element_offset),
-    };
-    AddCompiledMethod(MethodRef(1u), code, ArrayRef<const LinkerPatch>(patches));
-    Link();
-
-    uint32_t method1_offset = GetMethodOffset(1u);
-    uint32_t pc_base_offset = method1_offset + pc_insn_offset + 4u /* PC adjustment */;
-    uint32_t diff = dex_cache_arrays_begin_ + element_offset - pc_base_offset;
-    // Distribute the bits of the diff between the MOVW and MOVT:
-    uint32_t diffw = diff & 0xffffu;
-    uint32_t difft = diff >> 16;
-    uint32_t movw = 0xf2400000u |           // MOVW r0, #0 (placeholder),
-        ((diffw & 0xf000u) << (16 - 12)) |  // move imm4 from bits 12-15 to bits 16-19,
-        ((diffw & 0x0800u) << (26 - 11)) |  // move imm from bit 11 to bit 26,
-        ((diffw & 0x0700u) << (12 - 8)) |   // move imm3 from bits 8-10 to bits 12-14,
-        ((diffw & 0x00ffu));                // keep imm8 at bits 0-7.
-    uint32_t movt = 0xf2c00000u |           // MOVT r0, #0 (placeholder),
-        ((difft & 0xf000u) << (16 - 12)) |  // move imm4 from bits 12-15 to bits 16-19,
-        ((difft & 0x0800u) << (26 - 11)) |  // move imm from bit 11 to bit 26,
-        ((difft & 0x0700u) << (12 - 8)) |   // move imm3 from bits 8-10 to bits 12-14,
-        ((difft & 0x00ffu));                // keep imm8 at bits 0-7.
-    const uint8_t expected_code[] = {
-        static_cast<uint8_t>(movw >> 16), static_cast<uint8_t>(movw >> 24),
-        static_cast<uint8_t>(movw >> 0), static_cast<uint8_t>(movw >> 8),
-        static_cast<uint8_t>(movt >> 16), static_cast<uint8_t>(movt >> 24),
-        static_cast<uint8_t>(movt >> 0), static_cast<uint8_t>(movt >> 8),
-        0x78, 0x44,
-    };
-    EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
-  }
+  void TestDexCacheReference(uint32_t dex_cache_arrays_begin, uint32_t element_offset);
+  void TestStringReference(uint32_t string_offset);
+  void CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches, uint32_t target_offset);
 };
 
 const uint8_t Thumb2RelativePatcherTest::kCallRawCode[] = {
@@ -177,6 +142,67 @@ const uint8_t Thumb2RelativePatcherTest::kNopRawCode[] = {
 };
 
 const ArrayRef<const uint8_t> Thumb2RelativePatcherTest::kNopCode(kNopRawCode);
+
+const uint8_t Thumb2RelativePatcherTest::kUnpatchedPcRelativeRawCode[] = {
+    0x40, 0xf2, 0x00, 0x00,   // MOVW r0, #0 (placeholder)
+    0xc0, 0xf2, 0x00, 0x00,   // MOVT r0, #0 (placeholder)
+    0x78, 0x44,               // ADD r0, pc
+};
+const ArrayRef<const uint8_t> Thumb2RelativePatcherTest::kUnpatchedPcRelativeCode(
+    kUnpatchedPcRelativeRawCode);
+const uint32_t Thumb2RelativePatcherTest::kPcInsnOffset = 8u;
+
+void Thumb2RelativePatcherTest::TestDexCacheReference(uint32_t dex_cache_arrays_begin,
+                                                      uint32_t element_offset) {
+  dex_cache_arrays_begin_ = dex_cache_arrays_begin;
+  LinkerPatch patches[] = {
+      LinkerPatch::DexCacheArrayPatch(0u, nullptr, kPcInsnOffset, element_offset),
+      LinkerPatch::DexCacheArrayPatch(4u, nullptr, kPcInsnOffset, element_offset),
+  };
+  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches),
+                       dex_cache_arrays_begin_ + element_offset);
+}
+
+void Thumb2RelativePatcherTest::TestStringReference(uint32_t string_offset) {
+  constexpr uint32_t kStringIndex = 1u;
+  string_index_to_offset_map_.Put(kStringIndex, string_offset);
+  LinkerPatch patches[] = {
+      LinkerPatch::RelativeStringPatch(0u, nullptr, kPcInsnOffset, kStringIndex),
+      LinkerPatch::RelativeStringPatch(4u, nullptr, kPcInsnOffset, kStringIndex),
+  };
+  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), string_offset);
+}
+
+void Thumb2RelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches,
+                                                     uint32_t target_offset) {
+  AddCompiledMethod(MethodRef(1u), kUnpatchedPcRelativeCode, ArrayRef<const LinkerPatch>(patches));
+  Link();
+
+  uint32_t method1_offset = GetMethodOffset(1u);
+  uint32_t pc_base_offset = method1_offset + kPcInsnOffset + 4u /* PC adjustment */;
+  uint32_t diff = target_offset - pc_base_offset;
+  // Distribute the bits of the diff between the MOVW and MOVT:
+  uint32_t diffw = diff & 0xffffu;
+  uint32_t difft = diff >> 16;
+  uint32_t movw = 0xf2400000u |           // MOVW r0, #0 (placeholder),
+      ((diffw & 0xf000u) << (16 - 12)) |  // move imm4 from bits 12-15 to bits 16-19,
+      ((diffw & 0x0800u) << (26 - 11)) |  // move imm from bit 11 to bit 26,
+      ((diffw & 0x0700u) << (12 - 8)) |   // move imm3 from bits 8-10 to bits 12-14,
+      ((diffw & 0x00ffu));                // keep imm8 at bits 0-7.
+  uint32_t movt = 0xf2c00000u |           // MOVT r0, #0 (placeholder),
+      ((difft & 0xf000u) << (16 - 12)) |  // move imm4 from bits 12-15 to bits 16-19,
+      ((difft & 0x0800u) << (26 - 11)) |  // move imm from bit 11 to bit 26,
+      ((difft & 0x0700u) << (12 - 8)) |   // move imm3 from bits 8-10 to bits 12-14,
+      ((difft & 0x00ffu));                // keep imm8 at bits 0-7.
+  const uint8_t expected_code[] = {
+      static_cast<uint8_t>(movw >> 16), static_cast<uint8_t>(movw >> 24),
+      static_cast<uint8_t>(movw >> 0), static_cast<uint8_t>(movw >> 8),
+      static_cast<uint8_t>(movt >> 16), static_cast<uint8_t>(movt >> 24),
+      static_cast<uint8_t>(movt >> 0), static_cast<uint8_t>(movt >> 8),
+      0x78, 0x44,
+  };
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
+}
 
 TEST_F(Thumb2RelativePatcherTest, CallSelf) {
   LinkerPatch patches[] = {
@@ -366,23 +392,43 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarBefore) {
   EXPECT_TRUE(CheckThunk(thunk_offset));
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReferenceImm8) {
-  TestDexCachereference(0x00ff0000u, 0x00fcu);
+TEST_F(Thumb2RelativePatcherTest, DexCacheReference1) {
+  TestDexCacheReference(0x00ff0000u, 0x00fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReferenceImm3) {
-  TestDexCachereference(0x02ff0000u, 0x05fcu);
+TEST_F(Thumb2RelativePatcherTest, DexCacheReference2) {
+  TestDexCacheReference(0x02ff0000u, 0x05fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReferenceImm) {
-  TestDexCachereference(0x08ff0000u, 0x08fcu);
+TEST_F(Thumb2RelativePatcherTest, DexCacheReference3) {
+  TestDexCacheReference(0x08ff0000u, 0x08fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReferenceimm4) {
-  TestDexCachereference(0xd0ff0000u, 0x60fcu);
+TEST_F(Thumb2RelativePatcherTest, DexCacheReference4) {
+  TestDexCacheReference(0xd0ff0000u, 0x60fcu);
+  ASSERT_LT(GetMethodOffset(1u), 0xfcu);
+}
+
+TEST_F(Thumb2RelativePatcherTest, StringReference1) {
+  TestStringReference(0x00ff00fcu);
+  ASSERT_LT(GetMethodOffset(1u), 0xfcu);
+}
+
+TEST_F(Thumb2RelativePatcherTest, StringReference2) {
+  TestStringReference(0x02ff05fcu);
+  ASSERT_LT(GetMethodOffset(1u), 0xfcu);
+}
+
+TEST_F(Thumb2RelativePatcherTest, StringReference3) {
+  TestStringReference(0x08ff08fcu);
+  ASSERT_LT(GetMethodOffset(1u), 0xfcu);
+}
+
+TEST_F(Thumb2RelativePatcherTest, StringReference4) {
+  TestStringReference(0xd0ff60fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 

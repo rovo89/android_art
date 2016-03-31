@@ -3777,7 +3777,7 @@ bool ClassLinker::AttemptSupertypeVerification(Thread* self,
   return false;
 }
 
-void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
+void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass, LogSeverity log_level) {
   // TODO: assert that the monitor on the Class is held
   ObjectLock<mirror::Class> lock(self, klass);
 
@@ -3880,7 +3880,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
                                                              klass.Get(),
                                                              runtime->GetCompilerCallbacks(),
                                                              runtime->IsAotCompiler(),
-                                                             runtime->IsAotCompiler(),
+                                                             log_level,
                                                              &error_msg);
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
@@ -7048,6 +7048,23 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
   const char* utf8_data = dex_file.StringDataAndUtf16LengthByIdx(string_idx, &utf16_length);
   mirror::String* string = intern_table_->InternStrong(utf16_length, utf8_data);
   dex_cache->SetResolvedString(string_idx, string);
+  return string;
+}
+
+mirror::String* ClassLinker::LookupString(const DexFile& dex_file,
+                                          uint32_t string_idx,
+                                          Handle<mirror::DexCache> dex_cache) {
+  DCHECK(dex_cache.Get() != nullptr);
+  mirror::String* resolved = dex_cache->GetResolvedString(string_idx);
+  if (resolved != nullptr) {
+    return resolved;
+  }
+  uint32_t utf16_length;
+  const char* utf8_data = dex_file.StringDataAndUtf16LengthByIdx(string_idx, &utf16_length);
+  mirror::String* string = intern_table_->LookupStrong(Thread::Current(), utf16_length, utf8_data);
+  if (string != nullptr) {
+    dex_cache->SetResolvedString(string_idx, string);
+  }
   return string;
 }
 

@@ -86,11 +86,7 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   }
 }
 
-static void RemoveAsUser(HInstruction* instruction) {
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
-    instruction->RemoveAsUserOfInput(i);
-  }
-
+static void RemoveEnvironmentUses(HInstruction* instruction) {
   for (HEnvironment* environment = instruction->GetEnvironment();
        environment != nullptr;
        environment = environment->GetParent()) {
@@ -100,6 +96,14 @@ static void RemoveAsUser(HInstruction* instruction) {
       }
     }
   }
+}
+
+static void RemoveAsUser(HInstruction* instruction) {
+  for (size_t i = 0; i < instruction->InputCount(); i++) {
+    instruction->RemoveAsUserOfInput(i);
+  }
+
+  RemoveEnvironmentUses(instruction);
 }
 
 void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const {
@@ -162,7 +166,7 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
   // (6) Compute the dominance information and the reverse post order.
   ComputeDominanceInformation();
 
-  // (7) Analyze loops discover through back edge analysis, and
+  // (7) Analyze loops discovered through back edge analysis, and
   //     set the loop information on each block.
   GraphAnalysisResult result = AnalyzeLoops();
   if (result != kAnalysisSuccess) {
@@ -247,7 +251,7 @@ void HGraph::ComputeDominanceInformation() {
   }
 
   // Populate `dominated_blocks_` information after computing all dominators.
-  // The potential presence of irreducible loops require to do it after.
+  // The potential presence of irreducible loops requires to do it after.
   for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     if (!block->IsEntryBlock()) {
@@ -460,7 +464,7 @@ void HGraph::SimplifyCFG() {
     if (block->IsLoopHeader()) {
       SimplifyLoop(block);
     } else if (!block->IsEntryBlock() && block->GetFirstInstruction()->IsSuspendCheck()) {
-      // We are being called by the dead code elimiation pass, and what used to be
+      // We are being called by the dead code elimination pass, and what used to be
       // a loop got dismantled. Just remove the suspend check.
       block->RemoveInstruction(block->GetFirstInstruction());
     }
@@ -1005,6 +1009,11 @@ bool HInstruction::StrictlyDominates(HInstruction* other_instruction) const {
       }
     }
   }
+}
+
+void HInstruction::RemoveEnvironment() {
+  RemoveEnvironmentUses(this);
+  environment_ = nullptr;
 }
 
 void HInstruction::ReplaceWith(HInstruction* other) {
@@ -1654,21 +1663,77 @@ void HBasicBlock::DisconnectAndDelete() {
   // iteration.
   DCHECK(dominated_blocks_.empty());
 
-  // (1) Remove the block from all loops it is included in.
-  for (HLoopInformationOutwardIterator it(*this); !it.Done(); it.Advance()) {
-    HLoopInformation* loop_info = it.Current();
-    loop_info->Remove(this);
-    if (loop_info->IsBackEdge(*this)) {
-      // If this was the last back edge of the loop, we deliberately leave the
-      // loop in an inconsistent state and will fail GraphChecker unless the
-      // entire loop is removed during the pass.
-      loop_info->RemoveBackEdge(this);
-    }
+  // The following steps gradually remove the block from all its dependants in
+  // post order (b/27683071).
+
+  // (1) Store a basic block that we'll use in step (5) to find loops to be updated.
+  //     We need to do this before step (4) which destroys the predecessor list.
+  HBasicBlock* loop_update_start = this;
+  if (IsLoopHeader()) {
+    HLoopInformation* loop_info = GetLoopInformation();
+    // All other blocks in this loop should have been removed because the header
+    // was their dominator.
+    // Note that we do not remove `this` from `loop_info` as it is unreachable.
+    DCHECK(!loop_info->IsIrreducible());
+    DCHECK_EQ(loop_info->GetBlocks().NumSetBits(), 1u);
+    DCHECK_EQ(static_cast<uint32_t>(loop_info->GetBlocks().GetHighestBitSet()), GetBlockId());
+    loop_update_start = loop_info->GetPreHeader();
   }
 
-  // (2) Disconnect the block from its predecessors and update their
+  // (2) Disconnect the block from its successors and update their phis.
+  for (HBasicBlock* successor : successors_) {
+    // Delete this block from the list of predecessors.
+    size_t this_index = successor->GetPredecessorIndexOf(this);
+    successor->predecessors_.erase(successor->predecessors_.begin() + this_index);
+
+    // Check that `successor` has other predecessors, otherwise `this` is the
+    // dominator of `successor` which violates the order DCHECKed at the top.
+    DCHECK(!successor->predecessors_.empty());
+
+    // Remove this block's entries in the successor's phis. Skip exceptional
+    // successors because catch phi inputs do not correspond to predecessor
+    // blocks but throwing instructions. The inputs of the catch phis will be
+    // updated in step (3).
+    if (!successor->IsCatchBlock()) {
+      if (successor->predecessors_.size() == 1u) {
+        // The successor has just one predecessor left. Replace phis with the only
+        // remaining input.
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          HPhi* phi = phi_it.Current()->AsPhi();
+          phi->ReplaceWith(phi->InputAt(1 - this_index));
+          successor->RemovePhi(phi);
+        }
+      } else {
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
+        }
+      }
+    }
+  }
+  successors_.clear();
+
+  // (3) Remove instructions and phis. Instructions should have no remaining uses
+  //     except in catch phis. If an instruction is used by a catch phi at `index`,
+  //     remove `index`-th input of all phis in the catch block since they are
+  //     guaranteed dead. Note that we may miss dead inputs this way but the
+  //     graph will always remain consistent.
+  for (HBackwardInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* insn = it.Current();
+    RemoveUsesOfDeadInstruction(insn);
+    RemoveInstruction(insn);
+  }
+  for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
+    HPhi* insn = it.Current()->AsPhi();
+    RemoveUsesOfDeadInstruction(insn);
+    RemovePhi(insn);
+  }
+
+  // (4) Disconnect the block from its predecessors and update their
   //     control-flow instructions.
   for (HBasicBlock* predecessor : predecessors_) {
+    // We should not see any back edges as they would have been removed by step (3).
+    DCHECK(!IsInLoop() || !GetLoopInformation()->IsBackEdge(*predecessor));
+
     HInstruction* last_instruction = predecessor->GetLastInstruction();
     if (last_instruction->IsTryBoundary() && !IsCatchBlock()) {
       // This block is the only normal-flow successor of the TryBoundary which
@@ -1712,58 +1777,25 @@ void HBasicBlock::DisconnectAndDelete() {
   }
   predecessors_.clear();
 
-  // (3) Disconnect the block from its successors and update their phis.
-  for (HBasicBlock* successor : successors_) {
-    // Delete this block from the list of predecessors.
-    size_t this_index = successor->GetPredecessorIndexOf(this);
-    successor->predecessors_.erase(successor->predecessors_.begin() + this_index);
-
-    // Check that `successor` has other predecessors, otherwise `this` is the
-    // dominator of `successor` which violates the order DCHECKed at the top.
-    DCHECK(!successor->predecessors_.empty());
-
-    // Remove this block's entries in the successor's phis. Skip exceptional
-    // successors because catch phi inputs do not correspond to predecessor
-    // blocks but throwing instructions. Their inputs will be updated in step (4).
-    if (!successor->IsCatchBlock()) {
-      if (successor->predecessors_.size() == 1u) {
-        // The successor has just one predecessor left. Replace phis with the only
-        // remaining input.
-        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-          HPhi* phi = phi_it.Current()->AsPhi();
-          phi->ReplaceWith(phi->InputAt(1 - this_index));
-          successor->RemovePhi(phi);
-        }
-      } else {
-        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-          phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
-        }
-      }
+  // (5) Remove the block from all loops it is included in. Skip the inner-most
+  //     loop if this is the loop header (see definition of `loop_update_start`)
+  //     because the loop header's predecessor list has been destroyed in step (4).
+  for (HLoopInformationOutwardIterator it(*loop_update_start); !it.Done(); it.Advance()) {
+    HLoopInformation* loop_info = it.Current();
+    loop_info->Remove(this);
+    if (loop_info->IsBackEdge(*this)) {
+      // If this was the last back edge of the loop, we deliberately leave the
+      // loop in an inconsistent state and will fail GraphChecker unless the
+      // entire loop is removed during the pass.
+      loop_info->RemoveBackEdge(this);
     }
   }
-  successors_.clear();
 
-  // (4) Remove instructions and phis. Instructions should have no remaining uses
-  //     except in catch phis. If an instruction is used by a catch phi at `index`,
-  //     remove `index`-th input of all phis in the catch block since they are
-  //     guaranteed dead. Note that we may miss dead inputs this way but the
-  //     graph will always remain consistent.
-  for (HBackwardInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
-    HInstruction* insn = it.Current();
-    RemoveUsesOfDeadInstruction(insn);
-    RemoveInstruction(insn);
-  }
-  for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
-    HPhi* insn = it.Current()->AsPhi();
-    RemoveUsesOfDeadInstruction(insn);
-    RemovePhi(insn);
-  }
-
-  // Disconnect from the dominator.
+  // (6) Disconnect from the dominator.
   dominator_->RemoveDominatedBlock(this);
   SetDominator(nullptr);
 
-  // Delete from the graph, update reverse post order.
+  // (7) Delete from the graph, update reverse post order.
   graph_->DeleteDeadEmptyBlock(this);
   SetGraph(nullptr);
 }
@@ -2364,6 +2396,59 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
   }
 }
 
+bool HLoadString::InstructionDataEquals(HInstruction* other) const {
+  HLoadString* other_load_string = other->AsLoadString();
+  if (string_index_ != other_load_string->string_index_ ||
+      GetPackedFields() != other_load_string->GetPackedFields()) {
+    return false;
+  }
+  LoadKind load_kind = GetLoadKind();
+  if (HasAddress(load_kind)) {
+    return GetAddress() == other_load_string->GetAddress();
+  } else if (HasStringReference(load_kind)) {
+    return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
+  } else {
+    DCHECK(HasDexCacheReference(load_kind)) << load_kind;
+    // If the string indexes and dex files are the same, dex cache element offsets
+    // must also be the same, so we don't need to compare them.
+    return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
+  }
+}
+
+void HLoadString::SetLoadKindInternal(LoadKind load_kind) {
+  // Once sharpened, the load kind should not be changed again.
+  DCHECK_EQ(GetLoadKind(), LoadKind::kDexCacheViaMethod);
+  SetPackedField<LoadKindField>(load_kind);
+
+  if (load_kind != LoadKind::kDexCacheViaMethod) {
+    RemoveAsUserOfInput(0u);
+    SetRawInputAt(0u, nullptr);
+  }
+  if (!NeedsEnvironment()) {
+    RemoveEnvironment();
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs) {
+  switch (rhs) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+      return os << "BootImageLinkTimeAddress";
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+      return os << "BootImageLinkTimePcRelative";
+    case HLoadString::LoadKind::kBootImageAddress:
+      return os << "BootImageAddress";
+    case HLoadString::LoadKind::kDexCacheAddress:
+      return os << "DexCacheAddress";
+    case HLoadString::LoadKind::kDexCachePcRelative:
+      return os << "DexCachePcRelative";
+    case HLoadString::LoadKind::kDexCacheViaMethod:
+      return os << "DexCacheViaMethod";
+    default:
+      LOG(FATAL) << "Unknown HLoadString::LoadKind: " << static_cast<int>(rhs);
+      UNREACHABLE();
+  }
+}
+
 void HInstruction::RemoveEnvironmentUsers() {
   for (HUseIterator<HEnvironment*> use_it(GetEnvUses()); !use_it.Done(); use_it.Advance()) {
     HUseListNode<HEnvironment*>* user_node = use_it.Current();
@@ -2373,7 +2458,7 @@ void HInstruction::RemoveEnvironmentUsers() {
   env_uses_.Clear();
 }
 
-// Returns an instruction with the opposite boolean value from 'cond'.
+// Returns an instruction with the opposite Boolean value from 'cond'.
 HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* cursor) {
   ArenaAllocator* allocator = GetArena();
 
@@ -2402,10 +2487,10 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
     return replacement;
   } else if (cond->IsIntConstant()) {
     HIntConstant* int_const = cond->AsIntConstant();
-    if (int_const->IsZero()) {
+    if (int_const->IsFalse()) {
       return GetIntConstant(1);
     } else {
-      DCHECK(int_const->IsOne());
+      DCHECK(int_const->IsTrue()) << int_const->GetValue();
       return GetIntConstant(0);
     }
   } else {

@@ -30,15 +30,11 @@ class ClassLoader;
 class DexCache;
 }  // namespace mirror
 class ClassLinker;
-struct CompilationUnit;
 class VerifiedMethod;
 
 class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
  public:
-  explicit DexCompilationUnit(CompilationUnit* cu);
-
-  DexCompilationUnit(CompilationUnit* cu,
-                     jobject class_loader,
+  DexCompilationUnit(jobject class_loader,
                      ClassLinker* class_linker,
                      const DexFile& dex_file,
                      const DexFile::CodeItem* code_item,
@@ -47,10 +43,6 @@ class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
                      uint32_t access_flags,
                      const VerifiedMethod* verified_method,
                      Handle<mirror::DexCache> dex_cache);
-
-  CompilationUnit* GetCompilationUnit() const {
-    return cu_;
-  }
 
   jobject GetClassLoader() const {
     return class_loader_;
@@ -121,8 +113,6 @@ class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
   }
 
  private:
-  CompilationUnit* const cu_;
-
   const jobject class_loader_;
 
   ClassLinker* const class_linker_;

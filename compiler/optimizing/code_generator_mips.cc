@@ -1455,9 +1455,8 @@ void InstructionCodeGeneratorMIPS::HandleShift(HBinaryOperation* instr) {
   bool use_imm = rhs_location.IsConstant();
   Register rhs_reg = use_imm ? ZERO : rhs_location.AsRegister<Register>();
   int64_t rhs_imm = use_imm ? CodeGenerator::GetInt64ValueOf(rhs_location.GetConstant()) : 0;
-  const uint32_t shift_mask = (type == Primitive::kPrimInt)
-      ? kMaxIntShiftValue
-      : kMaxLongShiftValue;
+  const uint32_t shift_mask =
+      (type == Primitive::kPrimInt) ? kMaxIntShiftDistance : kMaxLongShiftDistance;
   const uint32_t shift_value = rhs_imm & shift_mask;
   // Are the INS (Insert Bit Field) and ROTR instructions supported?
   bool has_ins_rotr = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
@@ -3272,13 +3271,13 @@ void InstructionCodeGeneratorMIPS::GenerateTestAndBranch(HInstruction* instructi
     // Nothing to do. The code always falls through.
     return;
   } else if (cond->IsIntConstant()) {
-    // Constant condition, statically compared against 1.
-    if (cond->AsIntConstant()->IsOne()) {
+    // Constant condition, statically compared against "true" (integer value 1).
+    if (cond->AsIntConstant()->IsTrue()) {
       if (true_target != nullptr) {
         __ B(true_target);
       }
     } else {
-      DCHECK(cond->AsIntConstant()->IsZero());
+      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
       if (false_target != nullptr) {
         __ B(false_target);
       }
@@ -3817,6 +3816,12 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS* codegen
   return false;
 }
 
+HLoadString::LoadKind CodeGeneratorMIPS::GetSupportedLoadStringKind(
+    HLoadString::LoadKind desired_string_load_kind ATTRIBUTE_UNUSED) {
+  // TODO: Implement other kinds.
+  return HLoadString::LoadKind::kDexCacheViaMethod;
+}
+
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method ATTRIBUTE_UNUSED) {
@@ -4067,9 +4072,9 @@ void InstructionCodeGeneratorMIPS::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNU
 }
 
 void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = load->IsInDexCache()
-      ? LocationSummary::kNoCall
-      : LocationSummary::kCallOnSlowPath;
+  LocationSummary::CallKind call_kind = load->NeedsEnvironment()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());

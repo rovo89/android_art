@@ -141,7 +141,7 @@ void HInductionVarAnalysis::VisitLoop(HLoopInformation* loop) {
   DCHECK(stack_.empty());
   map_.clear();
 
-  // Determine the loop's trip count.
+  // Determine the loop's trip-count.
   VisitControl(loop);
 }
 
@@ -917,6 +917,7 @@ bool HInductionVarAnalysis::InductionEqual(InductionInfo* info1,
         info1->induction_class == info2->induction_class &&
         info1->operation       == info2->operation       &&
         info1->fetch           == info2->fetch           &&
+        info1->type            == info2->type            &&
         InductionEqual(info1->op_a, info2->op_a)         &&
         InductionEqual(info1->op_b, info2->op_b);
   }

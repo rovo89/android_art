@@ -72,8 +72,10 @@ static const int kDefaultNumberOfExceptionalPredecessors = 0;
 static const int kDefaultNumberOfDominatedBlocks = 1;
 static const int kDefaultNumberOfBackEdges = 1;
 
-static constexpr uint32_t kMaxIntShiftValue = 0x1f;
-static constexpr uint64_t kMaxLongShiftValue = 0x3f;
+// The maximum (meaningful) distance (31) that can be used in an integer shift/rotate operation.
+static constexpr int32_t kMaxIntShiftDistance = 0x1f;
+// The maximum (meaningful) distance (63) that can be used in a long shift/rotate operation.
+static constexpr int32_t kMaxLongShiftDistance = 0x3f;
 
 static constexpr uint32_t kUnknownFieldIndex = static_cast<uint32_t>(-1);
 static constexpr uint16_t kUnknownClassDefIndex = static_cast<uint16_t>(-1);
@@ -1993,6 +1995,8 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     environment_ = environment;
   }
 
+  void RemoveEnvironment();
+
   // Set the environment of this instruction, copying it from `environment`. While
   // copying, the uses lists are being updated.
   void CopyEnvironmentFrom(HEnvironment* environment) {
@@ -2427,8 +2431,13 @@ class HConstant : public HExpression<0> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
+  // Is this constant -1 in the arithmetic sense?
   virtual bool IsMinusOne() const { return false; }
-  virtual bool IsZero() const { return false; }
+  // Is this constant 0 in the arithmetic sense?
+  virtual bool IsArithmeticZero() const { return false; }
+  // Is this constant a 0-bit pattern?
+  virtual bool IsZeroBitPattern() const { return false; }
+  // Is this constant 1 in the arithmetic sense?
   virtual bool IsOne() const { return false; }
 
   virtual uint64_t GetValueAsUint64() const = 0;
@@ -2448,6 +2457,9 @@ class HNullConstant : public HConstant {
   uint64_t GetValueAsUint64() const OVERRIDE { return 0; }
 
   size_t ComputeHashCode() const OVERRIDE { return 0; }
+
+  // The null constant representation is a 0-bit pattern.
+  virtual bool IsZeroBitPattern() const { return true; }
 
   DECLARE_INSTRUCTION(NullConstant);
 
@@ -2476,8 +2488,14 @@ class HIntConstant : public HConstant {
   size_t ComputeHashCode() const OVERRIDE { return GetValue(); }
 
   bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
-  bool IsZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsArithmeticZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsZeroBitPattern() const OVERRIDE { return GetValue() == 0; }
   bool IsOne() const OVERRIDE { return GetValue() == 1; }
+
+  // Integer constants are used to encode Boolean values as well,
+  // where 1 means true and 0 means false.
+  bool IsTrue() const { return GetValue() == 1; }
+  bool IsFalse() const { return GetValue() == 0; }
 
   DECLARE_INSTRUCTION(IntConstant);
 
@@ -2509,7 +2527,8 @@ class HLongConstant : public HConstant {
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
-  bool IsZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsArithmeticZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsZeroBitPattern() const OVERRIDE { return GetValue() == 0; }
   bool IsOne() const OVERRIDE { return GetValue() == 1; }
 
   DECLARE_INSTRUCTION(LongConstant);
@@ -2542,7 +2561,16 @@ class HFloatConstant : public HConstant {
   bool IsMinusOne() const OVERRIDE {
     return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>((-1.0f));
   }
-  bool IsZero() const OVERRIDE {
+  bool IsArithmeticZero() const OVERRIDE {
+    return std::fpclassify(value_) == FP_ZERO;
+  }
+  bool IsArithmeticPositiveZero() const {
+    return IsArithmeticZero() && !std::signbit(value_);
+  }
+  bool IsArithmeticNegativeZero() const {
+    return IsArithmeticZero() && std::signbit(value_);
+  }
+  bool IsZeroBitPattern() const OVERRIDE {
     return bit_cast<uint32_t, float>(value_) == bit_cast<uint32_t, float>(0.0f);
   }
   bool IsOne() const OVERRIDE {
@@ -2584,7 +2612,16 @@ class HDoubleConstant : public HConstant {
   bool IsMinusOne() const OVERRIDE {
     return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((-1.0));
   }
-  bool IsZero() const OVERRIDE {
+  bool IsArithmeticZero() const OVERRIDE {
+    return std::fpclassify(value_) == FP_ZERO;
+  }
+  bool IsArithmeticPositiveZero() const {
+    return IsArithmeticZero() && !std::signbit(value_);
+  }
+  bool IsArithmeticNegativeZero() const {
+    return IsArithmeticZero() && std::signbit(value_);
+  }
+  bool IsZeroBitPattern() const OVERRIDE {
     return bit_cast<uint64_t, double>(value_) == bit_cast<uint64_t, double>((0.0));
   }
   bool IsOne() const OVERRIDE {
@@ -3442,10 +3479,8 @@ class HCompare : public HBinaryOperation {
                          SideEffectsForArchRuntimeCalls(comparison_type),
                          dex_pc) {
     SetPackedField<ComparisonBiasField>(bias);
-    if (kIsDebugBuild) {
-      DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(first->GetType()));
-      DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(second->GetType()));
-    }
+    DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(first->GetType()));
+    DCHECK_EQ(comparison_type, Primitive::PrimitiveKind(second->GetType()));
   }
 
   template <typename T>
@@ -4447,37 +4482,39 @@ class HDivZeroCheck : public HExpression<1> {
 class HShl : public HBinaryOperation {
  public:
   HShl(Primitive::Type result_type,
-       HInstruction* left,
-       HInstruction* right,
+       HInstruction* value,
+       HInstruction* distance,
        uint32_t dex_pc = kNoDexPc)
-      : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc) {}
-
-  template <typename T, typename U, typename V>
-  T Compute(T x, U y, V max_shift_value) const {
-    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
-                  "V is not the unsigned integer type corresponding to T");
-    return x << (y & max_shift_value);
+      : HBinaryOperation(result_type, value, distance, SideEffects::None(), dex_pc) {
+    DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
+    DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
   }
 
-  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+  template <typename T>
+  T Compute(T value, int32_t distance, int32_t max_shift_distance) const {
+    return value << (distance & max_shift_distance);
+  }
+
+  HConstant* Evaluate(HIntConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxIntShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+  HConstant* Evaluate(HLongConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
+                      HLongConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
+    UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
+                      HFloatConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
+                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4491,37 +4528,39 @@ class HShl : public HBinaryOperation {
 class HShr : public HBinaryOperation {
  public:
   HShr(Primitive::Type result_type,
-       HInstruction* left,
-       HInstruction* right,
+       HInstruction* value,
+       HInstruction* distance,
        uint32_t dex_pc = kNoDexPc)
-      : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc) {}
-
-  template <typename T, typename U, typename V>
-  T Compute(T x, U y, V max_shift_value) const {
-    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
-                  "V is not the unsigned integer type corresponding to T");
-    return x >> (y & max_shift_value);
+      : HBinaryOperation(result_type, value, distance, SideEffects::None(), dex_pc) {
+    DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
+    DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
   }
 
-  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+  template <typename T>
+  T Compute(T value, int32_t distance, int32_t max_shift_distance) const {
+    return value >> (distance & max_shift_distance);
+  }
+
+  HConstant* Evaluate(HIntConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxIntShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+  HConstant* Evaluate(HLongConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
+                      HLongConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
+    UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
+                      HFloatConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
+                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4535,38 +4574,41 @@ class HShr : public HBinaryOperation {
 class HUShr : public HBinaryOperation {
  public:
   HUShr(Primitive::Type result_type,
-        HInstruction* left,
-        HInstruction* right,
+        HInstruction* value,
+        HInstruction* distance,
         uint32_t dex_pc = kNoDexPc)
-      : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc) {}
-
-  template <typename T, typename U, typename V>
-  T Compute(T x, U y, V max_shift_value) const {
-    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
-                  "V is not the unsigned integer type corresponding to T");
-    V ux = static_cast<V>(x);
-    return static_cast<T>(ux >> (y & max_shift_value));
+      : HBinaryOperation(result_type, value, distance, SideEffects::None(), dex_pc) {
+    DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
+    DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
   }
 
-  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+  template <typename T>
+  T Compute(T value, int32_t distance, int32_t max_shift_distance) const {
+    typedef typename std::make_unsigned<T>::type V;
+    V ux = static_cast<V>(value);
+    return static_cast<T>(ux >> (distance & max_shift_distance));
+  }
+
+  HConstant* Evaluate(HIntConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxIntShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+  HConstant* Evaluate(HLongConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
+                      HLongConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
+    UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
+                      HFloatConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
+                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4692,45 +4734,43 @@ class HRor : public HBinaryOperation {
  public:
   HRor(Primitive::Type result_type, HInstruction* value, HInstruction* distance)
     : HBinaryOperation(result_type, value, distance) {
-    if (kIsDebugBuild) {
-      DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
-      DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
-    }
+    DCHECK_EQ(result_type, Primitive::PrimitiveKind(value->GetType()));
+    DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(distance->GetType()));
   }
 
-  template <typename T, typename U, typename V>
-  T Compute(T x, U y, V max_shift_value) const {
-    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
-                  "V is not the unsigned integer type corresponding to T");
-    V ux = static_cast<V>(x);
-    if ((y & max_shift_value) == 0) {
+  template <typename T>
+  T Compute(T value, int32_t distance, int32_t max_shift_value) const {
+    typedef typename std::make_unsigned<T>::type V;
+    V ux = static_cast<V>(value);
+    if ((distance & max_shift_value) == 0) {
       return static_cast<T>(ux);
     } else {
       const V reg_bits = sizeof(T) * 8;
-      return static_cast<T>(ux >> (y & max_shift_value)) |
-                           (x << (reg_bits - (y & max_shift_value)));
+      return static_cast<T>(ux >> (distance & max_shift_value)) |
+                           (value << (reg_bits - (distance & max_shift_value)));
     }
   }
 
-  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+  HConstant* Evaluate(HIntConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxIntShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+  HConstant* Evaluate(HLongConstant* value, HIntConstant* distance) const OVERRIDE {
     return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+        Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
-    return GetBlock()->GetGraph()->GetLongConstant(
-        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue), GetDexPc());
+  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
+                      HLongConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
+    UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
+                      HFloatConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const OVERRIDE {
+  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
+                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const OVERRIDE {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5519,32 +5559,117 @@ class HLoadClass : public HExpression<1> {
 
 class HLoadString : public HExpression<1> {
  public:
+  // Determines how to load the String.
+  enum class LoadKind {
+    // Use boot image String* address that will be known at link time.
+    // Used for boot image strings referenced by boot image code in non-PIC mode.
+    kBootImageLinkTimeAddress,
+
+    // Use PC-relative boot image String* address that will be known at link time.
+    // Used for boot image strings referenced by boot image code in PIC mode.
+    kBootImageLinkTimePcRelative,
+
+    // Use a known boot image String* address, embedded in the code by the codegen.
+    // Used for boot image strings referenced by apps in AOT- and JIT-compiled code.
+    // Note: codegen needs to emit a linker patch if indicated by compiler options'
+    // GetIncludePatchInformation().
+    kBootImageAddress,
+
+    // Load from the resolved strings array at an absolute address.
+    // Used for strings outside the boot image referenced by JIT-compiled code.
+    kDexCacheAddress,
+
+    // Load from resolved strings array in the dex cache using a PC-relative load.
+    // Used for strings outside boot image when we know that we can access
+    // the dex cache arrays using a PC-relative load.
+    kDexCachePcRelative,
+
+    // Load from resolved strings array accessed through the class loaded from
+    // the compiled method's own ArtMethod*. This is the default access type when
+    // all other types are unavailable.
+    kDexCacheViaMethod,
+
+    kLast = kDexCacheViaMethod
+  };
+
   HLoadString(HCurrentMethod* current_method,
               uint32_t string_index,
-              uint32_t dex_pc,
-              bool is_in_dex_cache)
+              const DexFile& dex_file,
+              uint32_t dex_pc)
       : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls(), dex_pc),
         string_index_(string_index) {
-    SetPackedFlag<kFlagIsInDexCache>(is_in_dex_cache);
+    SetPackedFlag<kFlagIsInDexCache>(false);
+    SetPackedField<LoadKindField>(LoadKind::kDexCacheViaMethod);
+    load_data_.ref.dex_file = &dex_file;
     SetRawInputAt(0, current_method);
+  }
+
+  void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
+    DCHECK(HasAddress(load_kind));
+    load_data_.address = address;
+    SetLoadKindInternal(load_kind);
+  }
+
+  void SetLoadKindWithStringReference(LoadKind load_kind,
+                                      const DexFile& dex_file,
+                                      uint32_t string_index) {
+    DCHECK(HasStringReference(load_kind));
+    load_data_.ref.dex_file = &dex_file;
+    string_index_ = string_index;
+    SetLoadKindInternal(load_kind);
+  }
+
+  void SetLoadKindWithDexCacheReference(LoadKind load_kind,
+                                        const DexFile& dex_file,
+                                        uint32_t element_index) {
+    DCHECK(HasDexCacheReference(load_kind));
+    load_data_.ref.dex_file = &dex_file;
+    load_data_.ref.dex_cache_element_index = element_index;
+    SetLoadKindInternal(load_kind);
+  }
+
+  LoadKind GetLoadKind() const {
+    return GetPackedField<LoadKindField>();
+  }
+
+  const DexFile& GetDexFile() const;
+
+  uint32_t GetStringIndex() const {
+    DCHECK(HasStringReference(GetLoadKind()) || /* For slow paths. */ !IsInDexCache());
+    return string_index_;
+  }
+
+  uint32_t GetDexCacheElementOffset() const;
+
+  uint64_t GetAddress() const {
+    DCHECK(HasAddress(GetLoadKind()));
+    return load_data_.address;
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    return other->AsLoadString()->string_index_ == string_index_;
-  }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE;
 
   size_t ComputeHashCode() const OVERRIDE { return string_index_; }
 
-  uint32_t GetStringIndex() const { return string_index_; }
+  // Will call the runtime if we need to load the string through
+  // the dex cache and the string is not guaranteed to be there yet.
+  bool NeedsEnvironment() const OVERRIDE {
+    LoadKind load_kind = GetLoadKind();
+    if (load_kind == LoadKind::kBootImageLinkTimeAddress ||
+        load_kind == LoadKind::kBootImageLinkTimePcRelative ||
+        load_kind == LoadKind::kBootImageAddress) {
+      return false;
+    }
+    return !IsInDexCache();
+  }
 
-  // Will call the runtime if the string is not already in the dex cache.
-  bool NeedsEnvironment() const OVERRIDE { return !IsInDexCache(); }
+  bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
+    return GetLoadKind() == LoadKind::kDexCacheViaMethod;
+  }
 
-  bool NeedsDexCacheOfDeclaringClass() const OVERRIDE { return true; }
   bool CanBeNull() const OVERRIDE { return false; }
-  bool CanThrow() const OVERRIDE { return !IsInDexCache(); }
+  bool CanThrow() const OVERRIDE { return NeedsEnvironment(); }
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
     return SideEffects::CanTriggerGC();
@@ -5552,17 +5677,83 @@ class HLoadString : public HExpression<1> {
 
   bool IsInDexCache() const { return GetPackedFlag<kFlagIsInDexCache>(); }
 
+  void MarkInDexCache() {
+    SetPackedFlag<kFlagIsInDexCache>(true);
+    DCHECK(!NeedsEnvironment());
+    RemoveEnvironment();
+  }
+
+  size_t InputCount() const OVERRIDE {
+    return (InputAt(0) != nullptr) ? 1u : 0u;
+  }
+
+  void AddSpecialInput(HInstruction* special_input);
+
   DECLARE_INSTRUCTION(LoadString);
 
  private:
   static constexpr size_t kFlagIsInDexCache = kNumberOfExpressionPackedBits;
-  static constexpr size_t kNumberOfLoadStringPackedBits = kFlagIsInDexCache + 1;
+  static constexpr size_t kFieldLoadKind = kFlagIsInDexCache + 1;
+  static constexpr size_t kFieldLoadKindSize =
+      MinimumBitsToStore(static_cast<size_t>(LoadKind::kLast));
+  static constexpr size_t kNumberOfLoadStringPackedBits = kFieldLoadKind + kFieldLoadKindSize;
   static_assert(kNumberOfLoadStringPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
+  using LoadKindField = BitField<LoadKind, kFieldLoadKind, kFieldLoadKindSize>;
 
-  const uint32_t string_index_;
+  static bool HasStringReference(LoadKind load_kind) {
+    return load_kind == LoadKind::kBootImageLinkTimeAddress ||
+        load_kind == LoadKind::kBootImageLinkTimePcRelative ||
+        load_kind == LoadKind::kDexCacheViaMethod;
+  }
+
+  static bool HasAddress(LoadKind load_kind) {
+    return load_kind == LoadKind::kBootImageAddress || load_kind == LoadKind::kDexCacheAddress;
+  }
+
+  static bool HasDexCacheReference(LoadKind load_kind) {
+    return load_kind == LoadKind::kDexCachePcRelative;
+  }
+
+  void SetLoadKindInternal(LoadKind load_kind);
+
+  // String index serves also as the hash code and it's also needed for slow-paths,
+  // so it must not be overwritten with other load data.
+  uint32_t string_index_;
+
+  union {
+    struct {
+      const DexFile* dex_file;            // For string reference and dex cache reference.
+      uint32_t dex_cache_element_index;   // Only for dex cache reference.
+    } ref;
+    uint64_t address;  // Up to 64-bit, needed for kDexCacheAddress on 64-bit targets.
+  } load_data_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoadString);
 };
+std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs);
+
+// Note: defined outside class to see operator<<(., HLoadString::LoadKind).
+inline const DexFile& HLoadString::GetDexFile() const {
+  DCHECK(HasStringReference(GetLoadKind()) || HasDexCacheReference(GetLoadKind()))
+      << GetLoadKind();
+  return *load_data_.ref.dex_file;
+}
+
+// Note: defined outside class to see operator<<(., HLoadString::LoadKind).
+inline uint32_t HLoadString::GetDexCacheElementOffset() const {
+  DCHECK(HasDexCacheReference(GetLoadKind())) << GetLoadKind();
+  return load_data_.ref.dex_cache_element_index;
+}
+
+// Note: defined outside class to see operator<<(., HLoadString::LoadKind).
+inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
+  // The special input is used for PC-relative loads on some architectures.
+  DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
+         GetLoadKind() == LoadKind::kDexCachePcRelative) << GetLoadKind();
+  DCHECK(InputAt(0) == nullptr);
+  SetRawInputAt(0u, special_input);
+  special_input->AddUseAt(this, 0);
+}
 
 /**
  * Performs an initialization check on its Class object input.

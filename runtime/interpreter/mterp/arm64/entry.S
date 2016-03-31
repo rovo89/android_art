@@ -31,11 +31,12 @@
 
 ExecuteMterpImpl:
     .cfi_startproc
-    stp     xIBASE, xREFS, [sp, #-64]!
-    stp     xSELF, xINST, [sp, #16]
-    stp     xPC, xFP, [sp, #32]
-    stp     fp, lr, [sp, #48]
-    add     fp, sp, #48
+    stp     xPROFILE, x27, [sp, #-80]!
+    stp     xIBASE, xREFS, [sp, #16]
+    stp     xSELF, xINST, [sp, #32]
+    stp     xPC, xFP, [sp, #48]
+    stp     fp, lr, [sp, #64]
+    add     fp, sp, #64
 
     /* Remember the return register */
     str     x3, [x2, #SHADOWFRAME_RESULT_REGISTER_OFFSET]
@@ -55,6 +56,12 @@ ExecuteMterpImpl:
 
     /* Starting ibase */
     ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]
+
+    /* Set up for backwards branches & osr profiling */
+    ldr     x0, [xFP, #OFF_FP_METHOD]
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    bl      MterpSetUpHotnessCountdown
+    mov     wPROFILE, w0                // Starting hotness countdown to xPROFILE
 
     /* start executing the instruction at rPC */
     FETCH_INST                          // load wINST from rPC

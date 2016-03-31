@@ -247,6 +247,12 @@ class ClassLinker {
                                 Handle<mirror::DexCache> dex_cache)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Find a String with the given index from the DexFile, storing the
+  // result in the DexCache if found. Return null if not found.
+  mirror::String* LookupString(const DexFile& dex_file, uint32_t string_idx,
+                               Handle<mirror::DexCache> dex_cache)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
@@ -449,7 +455,9 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  void VerifyClass(Thread* self, Handle<mirror::Class> klass)
+  void VerifyClass(Thread* self,
+                   Handle<mirror::Class> klass,
+                   LogSeverity log_level = LogSeverity::NONE)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file,

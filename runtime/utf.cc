@@ -178,6 +178,23 @@ int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
   return static_cast<int32_t>(hash);
 }
 
+int32_t ComputeUtf16HashFromModifiedUtf8(const char* utf8, size_t utf16_length) {
+  uint32_t hash = 0;
+  while (utf16_length != 0u) {
+    const uint32_t pair = GetUtf16FromUtf8(&utf8);
+    const uint16_t first = GetLeadingUtf16Char(pair);
+    hash = hash * 31 + first;
+    --utf16_length;
+    const uint16_t second = GetTrailingUtf16Char(pair);
+    if (second != 0) {
+      hash = hash * 31 + second;
+      DCHECK_NE(utf16_length, 0u);
+      --utf16_length;
+    }
+  }
+  return static_cast<int32_t>(hash);
+}
+
 uint32_t ComputeModifiedUtf8Hash(const char* chars) {
   uint32_t hash = 0;
   while (*chars != '\0') {

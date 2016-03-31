@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM64_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM64_H_
 
+#include "arch/arm64/quick_method_frame_info_arm64.h"
 #include "code_generator.h"
 #include "common_arm64.h"
 #include "dex/compiler_enums.h"
@@ -24,9 +25,9 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm64/assembler_arm64.h"
+#include "utils/string_reference.h"
 #include "vixl/a64/disasm-a64.h"
 #include "vixl/a64/macro-assembler-a64.h"
-#include "arch/arm64/quick_method_frame_info_arm64.h"
 
 namespace art {
 namespace arm64 {
@@ -255,7 +256,11 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                vixl::Register obj,
-                               uint32_t offset);
+                               uint32_t offset,
+                               vixl::Label* fixup_label = nullptr);
+
+  // Generate a floating-point comparison.
+  void GenerateFcmp(HInstruction* instruction);
 
   void HandleShift(HBinaryOperation* instr);
   void GenerateTestAndBranch(HInstruction* instruction,
@@ -450,6 +455,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return false;
   }
 
+  // Check if the desired_string_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadString::LoadKind GetSupportedLoadStringKind(
+      HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -463,6 +473,27 @@ class CodeGeneratorARM64 : public CodeGenerator {
                               Primitive::Type type ATTRIBUTE_UNUSED) OVERRIDE {
     UNIMPLEMENTED(FATAL);
   }
+
+  // Add a new PC-relative string patch for an instruction and return the label
+  // to be bound before the instruction. The instruction will be either the
+  // ADRP (pass `adrp_label = null`) or the ADD (pass `adrp_label` pointing
+  // to the associated ADRP patch label).
+  vixl::Label* NewPcRelativeStringPatch(const DexFile& dex_file,
+                                        uint32_t string_index,
+                                        vixl::Label* adrp_label = nullptr);
+
+  // Add a new PC-relative dex cache array patch for an instruction and return
+  // the label to be bound before the instruction. The instruction will be
+  // either the ADRP (pass `adrp_label = null`) or the LDR (pass `adrp_label`
+  // pointing to the associated ADRP patch label).
+  vixl::Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
+                                               uint32_t element_offset,
+                                               vixl::Label* adrp_label = nullptr);
+
+  vixl::Literal<uint32_t>* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
+                                                             uint32_t string_index);
+  vixl::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
+  vixl::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
@@ -551,25 +582,38 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                                  bool use_load_acquire);
 
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, vixl::Literal<uint64_t>*>;
+  using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, vixl::Literal<uint32_t>*>;
   using MethodToLiteralMap = ArenaSafeMap<MethodReference,
                                           vixl::Literal<uint64_t>*,
                                           MethodReferenceComparator>;
+  using BootStringToLiteralMap = ArenaSafeMap<StringReference,
+                                              vixl::Literal<uint32_t>*,
+                                              StringReferenceValueComparator>;
 
+  vixl::Literal<uint32_t>* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   vixl::Literal<uint64_t>* DeduplicateUint64Literal(uint64_t value);
   vixl::Literal<uint64_t>* DeduplicateMethodLiteral(MethodReference target_method,
                                                     MethodToLiteralMap* map);
   vixl::Literal<uint64_t>* DeduplicateMethodAddressLiteral(MethodReference target_method);
   vixl::Literal<uint64_t>* DeduplicateMethodCodeLiteral(MethodReference target_method);
 
-  struct PcRelativeDexCacheAccessInfo {
-    PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
-        : target_dex_file(dex_file), element_offset(element_off), label(), pc_insn_label() { }
+  // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays
+  // and boot image strings. The only difference is the interpretation of the offset_or_index.
+  struct PcRelativePatchInfo {
+    PcRelativePatchInfo(const DexFile& dex_file, uint32_t off_or_idx)
+        : target_dex_file(dex_file), offset_or_index(off_or_idx), label(), pc_insn_label() { }
 
     const DexFile& target_dex_file;
-    uint32_t element_offset;
+    // Either the dex cache array element offset or the string index.
+    uint32_t offset_or_index;
     vixl::Label label;
     vixl::Label* pc_insn_label;
   };
+
+  vixl::Label* NewPcRelativePatch(const DexFile& dex_file,
+                                  uint32_t offset_or_index,
+                                  vixl::Label* adrp_label,
+                                  ArenaDeque<PcRelativePatchInfo>* patches);
 
   void EmitJumpTables();
 
@@ -584,7 +628,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
   Arm64Assembler assembler_;
   const Arm64InstructionSetFeatures& isa_features_;
 
-  // Deduplication map for 64-bit literals, used for non-patchable method address and method code.
+  // Deduplication map for 32-bit literals, used for non-patchable boot image addresses.
+  Uint32ToLiteralMap uint32_literals_;
+  // Deduplication map for 64-bit literals, used for non-patchable method address, method code
+  // or string dex cache address.
   Uint64ToLiteralMap uint64_literals_;
   // Method patch info, map MethodReference to a literal for method address and method code.
   MethodToLiteralMap method_patches_;
@@ -593,7 +640,13 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<MethodPatchInfo<vixl::Label>> relative_call_patches_;
   // PC-relative DexCache access info.
-  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
+  ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
+  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
+  BootStringToLiteralMap boot_image_string_patches_;
+  // PC-relative String patch info.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // Deduplication map for patchable boot image addresses.
+  Uint32ToLiteralMap boot_image_address_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM64);
 };

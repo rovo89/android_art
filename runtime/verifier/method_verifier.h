@@ -43,7 +43,6 @@ class VariableIndentationOutputStream;
 
 namespace verifier {
 
-class DexPcToReferenceMap;
 class MethodVerifier;
 class RegisterLine;
 using RegisterLineArenaUniquePtr = std::unique_ptr<RegisterLine, RegisterLineArenaDelete>;
@@ -143,12 +142,12 @@ class MethodVerifier {
     kHardFailure,
   };
 
-  /* Verify a class. Returns "kNoFailure" on success. */
+  // Verify a class. Returns "kNoFailure" on success.
   static FailureKind VerifyClass(Thread* self,
                                  mirror::Class* klass,
                                  CompilerCallbacks* callbacks,
                                  bool allow_soft_failures,
-                                 bool log_hard_failures,
+                                 LogSeverity log_level,
                                  std::string* error)
       SHARED_REQUIRES(Locks::mutator_lock_);
   static FailureKind VerifyClass(Thread* self,
@@ -158,7 +157,7 @@ class MethodVerifier {
                                  const DexFile::ClassDef* class_def,
                                  CompilerCallbacks* callbacks,
                                  bool allow_soft_failures,
-                                 bool log_hard_failures,
+                                 LogSeverity log_level,
                                  std::string* error)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -220,35 +219,6 @@ class MethodVerifier {
     return can_load_classes_;
   }
 
-  MethodVerifier(Thread* self,
-                 const DexFile* dex_file,
-                 Handle<mirror::DexCache> dex_cache,
-                 Handle<mirror::ClassLoader> class_loader,
-                 const DexFile::ClassDef* class_def,
-                 const DexFile::CodeItem* code_item,
-                 uint32_t method_idx,
-                 ArtMethod* method,
-                 uint32_t access_flags,
-                 bool can_load_classes,
-                 bool allow_soft_failures,
-                 bool need_precise_constants,
-                 bool allow_thread_suspension)
-          SHARED_REQUIRES(Locks::mutator_lock_)
-      : MethodVerifier(self,
-                       dex_file,
-                       dex_cache,
-                       class_loader,
-                       class_def,
-                       code_item,
-                       method_idx,
-                       method,
-                       access_flags,
-                       can_load_classes,
-                       allow_soft_failures,
-                       need_precise_constants,
-                       false,
-                       allow_thread_suspension) {}
-
   ~MethodVerifier();
 
   // Run verification on the method. Returns true if verification completes and false if the input
@@ -304,20 +274,6 @@ class MethodVerifier {
   }
 
  private:
-  void UninstantiableError(const char* descriptor);
-  static bool IsInstantiableOrPrimitive(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Is the method being verified a constructor? See the comment on the field.
-  bool IsConstructor() const {
-    return is_constructor_;
-  }
-
-  // Is the method verified static?
-  bool IsStatic() const {
-    return (method_access_flags_ & kAccStatic) != 0;
-  }
-
-  // Private constructor for dumping.
   MethodVerifier(Thread* self,
                  const DexFile* dex_file,
                  Handle<mirror::DexCache> dex_cache,
@@ -333,6 +289,19 @@ class MethodVerifier {
                  bool verify_to_dump,
                  bool allow_thread_suspension)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void UninstantiableError(const char* descriptor);
+  static bool IsInstantiableOrPrimitive(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Is the method being verified a constructor? See the comment on the field.
+  bool IsConstructor() const {
+    return is_constructor_;
+  }
+
+  // Is the method verified static?
+  bool IsStatic() const {
+    return (method_access_flags_ & kAccStatic) != 0;
+  }
 
   // Adds the given string to the beginning of the last failure message.
   void PrependToLastFailMessage(std::string);
@@ -362,7 +331,7 @@ class MethodVerifier {
                                    Handle<mirror::ClassLoader> class_loader,
                                    CompilerCallbacks* callbacks,
                                    bool allow_soft_failures,
-                                   bool log_hard_failures,
+                                   LogSeverity log_level,
                                    bool need_precise_constants,
                                    std::string* error_string)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -388,7 +357,7 @@ class MethodVerifier {
                                   uint32_t method_access_flags,
                                   CompilerCallbacks* callbacks,
                                   bool allow_soft_failures,
-                                  bool log_hard_failures,
+                                  LogSeverity log_level,
                                   bool need_precise_constants,
                                   std::string* hard_failure_msg)
       SHARED_REQUIRES(Locks::mutator_lock_);

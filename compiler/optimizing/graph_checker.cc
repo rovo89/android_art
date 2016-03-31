@@ -32,11 +32,9 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 
   // Check consistency with respect to predecessors of `block`.
   // Note: Counting duplicates with a sorted vector uses up to 6x less memory
-  // than ArenaSafeMap<HBasicBlock*, size_t>.
-  ArenaVector<HBasicBlock*> sorted_predecessors(
-      block->GetPredecessors().begin(),
-      block->GetPredecessors().end(),
-      GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
+  // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
+  ArenaVector<HBasicBlock*>& sorted_predecessors = blocks_storage_;
+  sorted_predecessors.assign(block->GetPredecessors().begin(), block->GetPredecessors().end());
   std::sort(sorted_predecessors.begin(), sorted_predecessors.end());
   for (auto it = sorted_predecessors.begin(), end = sorted_predecessors.end(); it != end; ) {
     HBasicBlock* p = *it++;
@@ -57,11 +55,9 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 
   // Check consistency with respect to successors of `block`.
   // Note: Counting duplicates with a sorted vector uses up to 6x less memory
-  // than ArenaSafeMap<HBasicBlock*, size_t>.
-  ArenaVector<HBasicBlock*> sorted_successors(
-      block->GetSuccessors().begin(),
-      block->GetSuccessors().end(),
-      GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
+  // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
+  ArenaVector<HBasicBlock*>& sorted_successors = blocks_storage_;
+  sorted_successors.assign(block->GetSuccessors().begin(), block->GetSuccessors().end());
   std::sort(sorted_successors.begin(), sorted_successors.end());
   for (auto it = sorted_successors.begin(), end = sorted_successors.end(); it != end; ) {
     HBasicBlock* s = *it++;
@@ -811,10 +807,11 @@ void GraphChecker::VisitPhi(HPhi* phi) {
               phi->GetRegNumber(),
               type_str.str().c_str()));
         } else {
-          ArenaBitVector visited(GetGraph()->GetArena(),
-                                 0,
-                                 /* expandable */ true,
-                                 kArenaAllocGraphChecker);
+          // If we get here, make sure we allocate all the necessary storage at once
+          // because the BitVector reallocation strategy has very bad worst-case behavior.
+          ArenaBitVector& visited = visited_storage_;
+          visited.SetBit(GetGraph()->GetCurrentInstructionId());
+          visited.ClearAllBits();
           if (!IsConstantEquivalent(phi, other_phi, &visited)) {
             AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
                                   "are not equivalents of constants.",
@@ -840,17 +837,11 @@ void GraphChecker::HandleBooleanInput(HInstruction* instruction, size_t input_in
           static_cast<int>(input_index),
           value));
     }
-  } else if (input->GetType() == Primitive::kPrimInt
-             && (input->IsPhi() ||
-                 input->IsAnd() ||
-                 input->IsOr() ||
-                 input->IsXor() ||
-                 input->IsSelect())) {
-    // TODO: We need a data-flow analysis to determine if the Phi or Select or
-    //       binary operation is actually Boolean. Allow for now.
-  } else if (input->GetType() != Primitive::kPrimBoolean) {
+  } else if (Primitive::PrimitiveKind(input->GetType()) != Primitive::kPrimInt) {
+    // TODO: We need a data-flow analysis to determine if an input like Phi,
+    //       Select or a binary operation is actually Boolean. Allow for now.
     AddError(StringPrintf(
-        "%s instruction %d has a non-Boolean input %d whose type is: %s.",
+        "%s instruction %d has a non-integer input %d whose type is: %s.",
         instruction->DebugName(),
         instruction->GetId(),
         static_cast<int>(input_index),
@@ -937,9 +928,12 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
   Primitive::Type lhs_type = op->InputAt(0)->GetType();
   Primitive::Type rhs_type = op->InputAt(1)->GetType();
   Primitive::Type result_type = op->GetType();
+
+  // Type consistency between inputs.
   if (op->IsUShr() || op->IsShr() || op->IsShl() || op->IsRor()) {
     if (Primitive::PrimitiveKind(rhs_type) != Primitive::kPrimInt) {
-      AddError(StringPrintf("Shift operation %s %d has a non-int kind second input: %s of type %s.",
+      AddError(StringPrintf("Shift/rotate operation %s %d has a non-int kind second input: "
+                            "%s of type %s.",
                             op->DebugName(), op->GetId(),
                             op->InputAt(1)->DebugName(),
                             Primitive::PrettyDescriptor(rhs_type)));
@@ -953,20 +947,37 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
     }
   }
 
+  // Type consistency between result and input(s).
   if (op->IsCompare()) {
     if (result_type != Primitive::kPrimInt) {
       AddError(StringPrintf("Compare operation %d has a non-int result type: %s.",
                             op->GetId(),
                             Primitive::PrettyDescriptor(result_type)));
     }
-  } else {
-    // Use the first input, so that we can also make this check for shift and rotate operations.
-    if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(lhs_type)) {
-      AddError(StringPrintf("Binary operation %s %d has a result kind different "
-                            "from its input kind: %s vs %s.",
+  } else if (op->IsUShr() || op->IsShr() || op->IsShl() || op->IsRor()) {
+    // Only check the first input (value), as the second one (distance)
+    // must invariably be of kind `int`.
+    if (result_type != Primitive::PrimitiveKind(lhs_type)) {
+      AddError(StringPrintf("Shift/rotate operation %s %d has a result type different "
+                            "from its left-hand side (value) input kind: %s vs %s.",
                             op->DebugName(), op->GetId(),
                             Primitive::PrettyDescriptor(result_type),
                             Primitive::PrettyDescriptor(lhs_type)));
+    }
+  } else {
+    if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(lhs_type)) {
+      AddError(StringPrintf("Binary operation %s %d has a result kind different "
+                            "from its left-hand side input kind: %s vs %s.",
+                            op->DebugName(), op->GetId(),
+                            Primitive::PrettyDescriptor(result_type),
+                            Primitive::PrettyDescriptor(lhs_type)));
+    }
+    if (Primitive::PrimitiveKind(result_type) != Primitive::PrimitiveKind(rhs_type)) {
+      AddError(StringPrintf("Binary operation %s %d has a result kind different "
+                            "from its right-hand side input kind: %s vs %s.",
+                            op->DebugName(), op->GetId(),
+                            Primitive::PrettyDescriptor(result_type),
+                            Primitive::PrettyDescriptor(rhs_type)));
     }
   }
 }

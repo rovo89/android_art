@@ -16,11 +16,20 @@
 
 #include "sharpening.h"
 
+#include "base/casts.h"
+#include "class_linker.h"
 #include "code_generator.h"
+#include "driver/dex_compilation_unit.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "driver/compiler_driver.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
+#include "handle_scope-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/string.h"
 #include "nodes.h"
 #include "runtime.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -31,12 +40,13 @@ void HSharpening::Run() {
       HInstruction* instruction = it.Current();
       if (instruction->IsInvokeStaticOrDirect()) {
         ProcessInvokeStaticOrDirect(instruction->AsInvokeStaticOrDirect());
+      } else if (instruction->IsLoadString()) {
+        ProcessLoadString(instruction->AsLoadString());
       }
       // TODO: Move the sharpening of invoke-virtual/-interface/-super from HGraphBuilder
       //       here. Rewrite it to avoid the CompilerDriver's reliance on verifier data
       //       because we know the type better when inlining.
-      // TODO: HLoadClass, HLoadString - select PC relative dex cache array access if
-      //       available.
+      // TODO: HLoadClass - select better load kind if available.
     }
   }
 }
@@ -141,6 +151,103 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
       codegen_->GetSupportedInvokeStaticOrDirectDispatch(desired_dispatch_info,
                                                          invoke->GetTargetMethod());
   invoke->SetDispatchInfo(dispatch_info);
+}
+
+void HSharpening::ProcessLoadString(HLoadString* load_string) {
+  DCHECK_EQ(load_string->GetLoadKind(), HLoadString::LoadKind::kDexCacheViaMethod);
+  DCHECK(!load_string->IsInDexCache());
+
+  const DexFile& dex_file = load_string->GetDexFile();
+  uint32_t string_index = load_string->GetStringIndex();
+
+  bool is_in_dex_cache = false;
+  HLoadString::LoadKind desired_load_kind;
+  uint64_t address = 0u;  // String or dex cache element address.
+  {
+    Runtime* runtime = Runtime::Current();
+    ClassLinker* class_linker = runtime->GetClassLinker();
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache = IsSameDexFile(dex_file, *compilation_unit_.GetDexFile())
+        ? compilation_unit_.GetDexCache()
+        : hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
+
+    if (compiler_driver_->IsBootImage()) {
+      // Compiling boot image. Resolve the string and allocate it if needed.
+      DCHECK(!runtime->UseJit());
+      mirror::String* string = class_linker->ResolveString(dex_file, string_index, dex_cache);
+      CHECK(string != nullptr);
+      if (!compiler_driver_->GetSupportBootImageFixup()) {
+        // MIPS/MIPS64 or compiler_driver_test. Do not sharpen.
+        desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
+      } else {
+        DCHECK(ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file));
+        is_in_dex_cache = true;
+        desired_load_kind = codegen_->GetCompilerOptions().GetCompilePic()
+            ? HLoadString::LoadKind::kBootImageLinkTimePcRelative
+            : HLoadString::LoadKind::kBootImageLinkTimeAddress;
+      }
+    } else if (runtime->UseJit()) {
+      // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
+      // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
+      mirror::String* string = dex_cache->GetResolvedString(string_index);
+      is_in_dex_cache = (string != nullptr);
+      if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
+        desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
+        address = reinterpret_cast64<uint64_t>(string);
+      } else {
+        // Note: If the string is not in the dex cache, the instruction needs environment
+        // and will not be inlined across dex files. Within a dex file, the slow-path helper
+        // loads the correct string and inlined frames are used correctly for OOM stack trace.
+        // TODO: Write a test for this.
+        desired_load_kind = HLoadString::LoadKind::kDexCacheAddress;
+        void* dex_cache_element_address = &dex_cache->GetStrings()[string_index];
+        address = reinterpret_cast64<uint64_t>(dex_cache_element_address);
+      }
+    } else {
+      // AOT app compilation. Try to lookup the string without allocating if not found.
+      mirror::String* string = class_linker->LookupString(dex_file, string_index, dex_cache);
+      if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
+        if (codegen_->GetCompilerOptions().GetCompilePic()) {
+          // Use PC-relative load from the dex cache if the dex file belongs
+          // to the oat file that we're currently compiling.
+          desired_load_kind = ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file)
+              ? HLoadString::LoadKind::kDexCachePcRelative
+              : HLoadString::LoadKind::kDexCacheViaMethod;
+        } else {
+          desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
+          address = reinterpret_cast64<uint64_t>(string);
+        }
+      } else {
+        // Not JIT and the string is not in boot image.
+        desired_load_kind = HLoadString::LoadKind::kDexCachePcRelative;
+      }
+    }
+  }
+  if (is_in_dex_cache) {
+    load_string->MarkInDexCache();
+  }
+
+  HLoadString::LoadKind load_kind = codegen_->GetSupportedLoadStringKind(desired_load_kind);
+  switch (load_kind) {
+    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+    case HLoadString::LoadKind::kDexCacheViaMethod:
+      load_string->SetLoadKindWithStringReference(load_kind, dex_file, string_index);
+      break;
+    case HLoadString::LoadKind::kBootImageAddress:
+    case HLoadString::LoadKind::kDexCacheAddress:
+      DCHECK_NE(address, 0u);
+      load_string->SetLoadKindWithAddress(load_kind, address);
+      break;
+    case HLoadString::LoadKind::kDexCachePcRelative: {
+      size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+      DexCacheArraysLayout layout(pointer_size, &dex_file);
+      size_t element_index = layout.StringOffset(string_index);
+      load_string->SetLoadKindWithDexCacheReference(load_kind, dex_file, element_index);
+      break;
+    }
+  }
 }
 
 }  // namespace art

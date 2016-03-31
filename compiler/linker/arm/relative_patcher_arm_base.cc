@@ -112,7 +112,7 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
     }
   }
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-    if (patch.Type() == kLinkerPatchCallRelative) {
+    if (patch.GetType() == LinkerPatch::Type::kCallRelative) {
       unprocessed_patches_.emplace_back(patch.TargetMethod(),
                                         quick_code_offset + patch.LiteralOffset());
     }
