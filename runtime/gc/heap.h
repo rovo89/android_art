@@ -1326,8 +1326,7 @@ class Heap {
 
   // Allocation tracking support
   Atomic<bool> alloc_tracking_enabled_;
-  std::unique_ptr<AllocRecordObjectMap> allocation_records_
-      GUARDED_BY(Locks::alloc_tracker_lock_);
+  std::unique_ptr<AllocRecordObjectMap> allocation_records_;
 
   // GC stress related data structures.
   Mutex* backtrace_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
