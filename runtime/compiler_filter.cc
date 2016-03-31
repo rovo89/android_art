@@ -83,6 +83,34 @@ bool CompilerFilter::DependsOnProfile(Filter filter) {
   UNREACHABLE();
 }
 
+CompilerFilter::Filter CompilerFilter::GetNonProfileDependentFilterFrom(Filter filter) {
+  switch (filter) {
+    case CompilerFilter::kVerifyNone:
+    case CompilerFilter::kVerifyAtRuntime:
+    case CompilerFilter::kInterpretOnly:
+    case CompilerFilter::kSpace:
+    case CompilerFilter::kBalanced:
+    case CompilerFilter::kTime:
+    case CompilerFilter::kSpeed:
+    case CompilerFilter::kEverything:
+      return filter;
+
+    case CompilerFilter::kVerifyProfile:
+      return CompilerFilter::kInterpretOnly;
+
+    case CompilerFilter::kSpaceProfile:
+      return CompilerFilter::kSpace;
+
+    case CompilerFilter::kSpeedProfile:
+      return CompilerFilter::kSpeed;
+
+    case CompilerFilter::kEverythingProfile:
+      return CompilerFilter::kEverything;
+  }
+  UNREACHABLE();
+}
+
+
 bool CompilerFilter::IsAsGoodAs(Filter current, Filter target) {
   return current >= target;
 }
