@@ -179,9 +179,10 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter:
   return HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
 }
 
-bool OatFileAssistant::MakeUpToDate(CompilerFilter::Filter target, std::string* error_msg) {
+OatFileAssistant::ResultOfAttemptToUpdate
+OatFileAssistant::MakeUpToDate(CompilerFilter::Filter target, std::string* error_msg) {
   switch (GetDexOptNeeded(target)) {
-    case kNoDexOptNeeded: return true;
+    case kNoDexOptNeeded: return kUpdateSucceeded;
     case kDex2OatNeeded: return GenerateOatFile(target, error_msg);
     case kPatchOatNeeded: return RelocateOatFile(OdexFileName(), error_msg);
     case kSelfPatchOatNeeded: return RelocateOatFile(OatFileName(), error_msg);
@@ -569,21 +570,21 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
   return true;
 }
 
-bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
-                                       std::string* error_msg) {
+OatFileAssistant::ResultOfAttemptToUpdate
+OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* error_msg) {
   CHECK(error_msg != nullptr);
 
   if (input_file == nullptr) {
     *error_msg = "Patching of oat file for dex location " + dex_location_
       + " not attempted because the input file name could not be determined.";
-    return false;
+    return kUpdateNotAttempted;
   }
   const std::string& input_file_name = *input_file;
 
   if (OatFileName() == nullptr) {
     *error_msg = "Patching of oat file for dex location " + dex_location_
       + " not attempted because the oat file name could not be determined.";
-    return false;
+    return kUpdateNotAttempted;
   }
   const std::string& oat_file_name = *OatFileName();
 
@@ -592,13 +593,13 @@ bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
   if (image_info == nullptr) {
     *error_msg = "Patching of oat file " + oat_file_name
       + " not attempted because no image location was found.";
-    return false;
+    return kUpdateNotAttempted;
   }
 
   if (!runtime->IsDex2OatEnabled()) {
     *error_msg = "Patching of oat file " + oat_file_name
       + " not attempted because dex2oat is disabled";
-    return false;
+    return kUpdateNotAttempted;
   }
 
   std::vector<std::string> argv;
@@ -613,28 +614,29 @@ bool OatFileAssistant::RelocateOatFile(const std::string* input_file,
     // Manually delete the file. This ensures there is no garbage left over if
     // the process unexpectedly died.
     TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
-    return false;
+    return kUpdateFailed;
   }
 
   // Mark that the oat file has changed and we should try to reload.
   ClearOatFileCache();
-  return true;
+  return kUpdateSucceeded;
 }
 
-bool OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::string* error_msg) {
+OatFileAssistant::ResultOfAttemptToUpdate
+OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::string* error_msg) {
   CHECK(error_msg != nullptr);
 
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsDex2OatEnabled()) {
     *error_msg = "Generation of oat file for dex location " + dex_location_
       + " not attempted because dex2oat is disabled.";
-    return false;
+    return kUpdateNotAttempted;
   }
 
   if (OatFileName() == nullptr) {
     *error_msg = "Generation of oat file for dex location " + dex_location_
       + " not attempted because the oat file name could not be determined.";
-    return false;
+    return kUpdateNotAttempted;
   }
   const std::string& oat_file_name = *OatFileName();
 
@@ -643,7 +645,7 @@ bool OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::strin
   // TODO: Why does dex2oat behave that way?
   if (!OS::FileExists(dex_location_.c_str())) {
     *error_msg = "Dex location " + dex_location_ + " does not exists.";
-    return false;
+    return kUpdateNotAttempted;
   }
 
   std::unique_ptr<File> oat_file;
@@ -651,14 +653,14 @@ bool OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::strin
   if (oat_file.get() == nullptr) {
     *error_msg = "Generation of oat file " + oat_file_name
       + " not attempted because the oat file could not be created.";
-    return false;
+    return kUpdateNotAttempted;
   }
 
   if (fchmod(oat_file->Fd(), 0644) != 0) {
     *error_msg = "Generation of oat file " + oat_file_name
       + " not attempted because the oat file could not be made world readable.";
     oat_file->Erase();
-    return false;
+    return kUpdateNotAttempted;
   }
 
   std::vector<std::string> args;
@@ -672,18 +674,18 @@ bool OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::strin
     // the process unexpectedly died.
     oat_file->Erase();
     TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
-    return false;
+    return kUpdateFailed;
   }
 
   if (oat_file->FlushCloseOrErase() != 0) {
     *error_msg = "Unable to close oat file " + oat_file_name;
     TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
-    return false;
+    return kUpdateFailed;
   }
 
   // Mark that the oat file has changed and we should try to reload.
   ClearOatFileCache();
-  return true;
+  return kUpdateSucceeded;
 }
 
 bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
