@@ -187,7 +187,7 @@ class AllocRecordStackVisitor : public StackVisitor {
  public:
   AllocRecordStackVisitor(Thread* thread, size_t max_depth, AllocRecordStackTrace* trace_out)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFramesNoResolve),
         max_depth_(max_depth),
         trace_(trace_out) {}
 
@@ -198,7 +198,8 @@ class AllocRecordStackVisitor : public StackVisitor {
       return false;
     }
     ArtMethod* m = GetMethod();
-    if (!m->IsRuntimeMethod()) {
+    // m may be null if we have inlined methods of unresolved classes. b/27858645
+    if (m != nullptr && !m->IsRuntimeMethod()) {
       m = m->GetInterfaceMethodIfProxy(sizeof(void*));
       trace_->AddStackElement(AllocRecordStackTraceElement(m, GetDexPc()));
     }
