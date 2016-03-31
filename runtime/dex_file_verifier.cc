@@ -2626,6 +2626,23 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
   // From here on out it is easier to mask out the bits we're supposed to ignore.
   method_access_flags &= kMethodAccessFlags;
 
+  // Interfaces are special.
+  if ((class_access_flags & kAccInterface) != 0) {
+    // Non-static interface methods must be public.
+    if ((method_access_flags & (kAccPublic | kAccStatic)) == 0) {
+      *error_msg = StringPrintf("Interface virtual method %" PRIu32 "(%s) is not public",
+          method_index,
+          GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
+      if (header_->GetVersion() >= 37) {
+        return false;
+      } else {
+        // Allow in older versions, but warn.
+        LOG(WARNING) << "This dex file is invalid and will be rejected in the future. Error is: "
+                      << *error_msg;
+      }
+    }
+  }
+
   // If there aren't any instructions, make sure that's expected.
   if (!has_code) {
     // Only native or abstract methods may not have code.
@@ -2664,7 +2681,7 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
     }
     // Interfaces are special.
     if ((class_access_flags & kAccInterface) != 0) {
-      // Interface methods must be public and abstract.
+      // Interface methods without code must be abstract.
       if ((method_access_flags & (kAccPublic | kAccAbstract)) != (kAccPublic | kAccAbstract)) {
         *error_msg = StringPrintf("Interface method %" PRIu32 "(%s) is not public and abstract",
             method_index,
