@@ -828,7 +828,7 @@ class Hprof : public SingleRootVisitor {
         continue;
       }
       ++count;
-      const gc::AllocRecordStackTrace* trace = it->second->GetStackTrace();
+      const gc::AllocRecordStackTrace* trace = it->second.GetStackTrace();
 
       // Copy the pair into a real hash map to speed up look up.
       auto records_result = allocation_records_.emplace(obj, trace);

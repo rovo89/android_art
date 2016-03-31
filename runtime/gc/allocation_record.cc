@@ -102,15 +102,15 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
   // Only visit the last recent_record_max_ number of allocation records in entries_ and mark the
   // klass_ fields as strong roots.
   for (auto it = entries_.rbegin(), end = entries_.rend(); it != end; ++it) {
-    AllocRecord* record = it->second;
+    AllocRecord& record = it->second;
     if (count > 0) {
-      buffered_visitor.VisitRootIfNonNull(record->GetClassGcRoot());
+      buffered_visitor.VisitRootIfNonNull(record.GetClassGcRoot());
       --count;
     }
     // Visit all of the stack frames to make sure no methods in the stack traces get unloaded by
     // class unloading.
-    for (size_t i = 0, depth = record->GetDepth(); i < depth; ++i) {
-      const AllocRecordStackTraceElement& element = record->StackElement(i);
+    for (size_t i = 0, depth = record.GetDepth(); i < depth; ++i) {
+      const AllocRecordStackTraceElement& element = record.StackElement(i);
       DCHECK(element.GetMethod() != nullptr);
       element.GetMethod()->VisitRoots(buffered_visitor, sizeof(void*));
     }
@@ -143,15 +143,14 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedVisitor* visitor) {
     ++count;
     // This does not need a read barrier because this is called by GC.
     mirror::Object* old_object = it->first.Read<kWithoutReadBarrier>();
-    AllocRecord* record = it->second;
+    AllocRecord& record = it->second;
     mirror::Object* new_object = old_object == nullptr ? nullptr : visitor->IsMarked(old_object);
     if (new_object == nullptr) {
       if (count > delete_bound) {
         it->first = GcRoot<mirror::Object>(nullptr);
-        SweepClassObject(record, visitor);
+        SweepClassObject(&record, visitor);
         ++it;
       } else {
-        delete record;
         it = entries_.erase(it);
         ++count_deleted;
       }
@@ -160,7 +159,7 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedVisitor* visitor) {
         it->first = GcRoot<mirror::Object>(new_object);
         ++count_moved;
       }
-      SweepClassObject(record, visitor);
+      SweepClassObject(&record, visitor);
       ++it;
     }
   }
@@ -184,34 +183,31 @@ void AllocRecordObjectMap::BroadcastForNewAllocationRecords() {
   new_record_condition_.Broadcast(Thread::Current());
 }
 
-struct AllocRecordStackVisitor : public StackVisitor {
-  AllocRecordStackVisitor(Thread* thread, AllocRecordStackTrace* trace_in, size_t max)
+class AllocRecordStackVisitor : public StackVisitor {
+ public:
+  AllocRecordStackVisitor(Thread* thread, size_t max_depth, AllocRecordStackTrace* trace_out)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        trace(trace_in),
-        max_depth(max) {}
+        max_depth_(max_depth),
+        trace_(trace_out) {}
 
   // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
   // annotalysis.
   bool VisitFrame() OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
-    if (depth >= max_depth) {
+    if (trace_->GetDepth() >= max_depth_) {
       return false;
     }
     ArtMethod* m = GetMethod();
     if (!m->IsRuntimeMethod()) {
-      trace->SetStackElementAt(depth, m, GetDexPc());
-      ++depth;
+      m = m->GetInterfaceMethodIfProxy(sizeof(void*));
+      trace_->AddStackElement(AllocRecordStackTraceElement(m, GetDexPc()));
     }
     return true;
   }
 
-  ~AllocRecordStackVisitor() {
-    trace->SetDepth(depth);
-  }
-
-  AllocRecordStackTrace* trace;
-  size_t depth = 0u;
-  const size_t max_depth;
+ private:
+  const size_t max_depth_;
+  AllocRecordStackTrace* const trace_;
 };
 
 void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
@@ -235,7 +231,6 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
       if (self_name == "JDWP") {
         records->alloc_ddm_thread_id_ = self->GetTid();
       }
-      records->scratch_trace_.SetDepth(records->max_stack_depth_);
       size_t sz = sizeof(AllocRecordStackTraceElement) * records->max_stack_depth_ +
                   sizeof(AllocRecord) + sizeof(AllocRecordStackTrace);
       LOG(INFO) << "Enabling alloc tracker (" << records->alloc_record_max_ << " entries of "
@@ -265,27 +260,35 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
   }
 }
 
-void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, mirror::Class* klass,
+void AllocRecordObjectMap::RecordAllocation(Thread* self,
+                                            mirror::Object** obj,
                                             size_t byte_count) {
+  // Get stack trace outside of lock in case there are allocations during the stack walk.
+  // b/27858645.
+  AllocRecordStackTrace trace;
+  AllocRecordStackVisitor visitor(self, max_stack_depth_, /*out*/ &trace);
+  {
+    StackHandleScope<1> hs(self);
+    auto obj_wrapper = hs.NewHandleWrapper(obj);
+    visitor.WalkStack();
+  }
+
   MutexLock mu(self, *Locks::alloc_tracker_lock_);
-  Heap* heap = Runtime::Current()->GetHeap();
+  Heap* const heap = Runtime::Current()->GetHeap();
   if (!heap->IsAllocTrackingEnabled()) {
     // In the process of shutting down recording, bail.
     return;
   }
 
-  AllocRecordObjectMap* records = heap->GetAllocationRecords();
-  DCHECK(records != nullptr);
-
-  // Do not record for DDM thread
-  if (records->alloc_ddm_thread_id_ == self->GetTid()) {
+  // Do not record for DDM thread.
+  if (alloc_ddm_thread_id_ == self->GetTid()) {
     return;
   }
 
   // Wait for GC's sweeping to complete and allow new records
-  while (UNLIKELY((!kUseReadBarrier && !records->allow_new_record_) ||
+  while (UNLIKELY((!kUseReadBarrier && !allow_new_record_) ||
                   (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
-    records->new_record_condition_.WaitHoldingLocks(self);
+    new_record_condition_.WaitHoldingLocks(self);
   }
 
   if (!heap->IsAllocTrackingEnabled()) {
@@ -294,28 +297,22 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, m
     return;
   }
 
-  DCHECK_LE(records->Size(), records->alloc_record_max_);
+  DCHECK_LE(Size(), alloc_record_max_);
 
-  // Get stack trace.
-  // add scope to make "visitor" destroyed promptly, in order to set the scratch_trace_->depth_
-  {
-    AllocRecordStackVisitor visitor(self, &records->scratch_trace_, records->max_stack_depth_);
-    visitor.WalkStack();
-  }
-  records->scratch_trace_.SetTid(self->GetTid());
-  AllocRecordStackTrace* trace = new AllocRecordStackTrace(records->scratch_trace_);
+  // Erase extra unfilled elements.
+  trace.SetTid(self->GetTid());
 
-  // Fill in the basics.
-  AllocRecord* record = new AllocRecord(byte_count, klass, trace);
-
-  records->Put(obj, record);
-  DCHECK_LE(records->Size(), records->alloc_record_max_);
+  // Add the record.
+  Put(*obj, AllocRecord(byte_count, (*obj)->GetClass(), std::move(trace)));
+  DCHECK_LE(Size(), alloc_record_max_);
 }
 
 void AllocRecordObjectMap::Clear() {
-  STLDeleteValues(&entries_);
   entries_.clear();
 }
+
+AllocRecordObjectMap::AllocRecordObjectMap()
+    : new_record_condition_("New allocation record condition", *Locks::alloc_tracker_lock_) {}
 
 }  // namespace gc
 }  // namespace art
