@@ -37,14 +37,10 @@ TEST_ART_RUN_TEST_DEPENDENCIES := \
   $(DX) \
   $(HOST_OUT_EXECUTABLES)/jasmin \
   $(HOST_OUT_EXECUTABLES)/smali \
-  $(HOST_OUT_EXECUTABLES)/dexmerger
-TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES :=
+  $(HOST_OUT_EXECUTABLES)/dexmerger \
+  $(JACK)
 
-ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
-  TEST_ART_RUN_TEST_DEPENDENCIES += \
-    $(JACK)
-  TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES += setup-jack-server
-endif
+TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES := setup-jack-server
 
 ifeq ($(ART_TEST_DEBUG_GC),true)
   ART_TEST_WITH_STRACE := true
@@ -55,11 +51,6 @@ endif
 define define-build-art-run-test
   dmart_target := $(art_run_tests_dir)/art-run-tests/$(1)/touch
   run_test_options = --build-only
-  ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
-    run_test_options += --build-with-jack
-  else
-    run_test_options += --build-with-javac-dx
-  endif
   ifeq ($(ART_TEST_QUIET),true)
     run_test_options += --quiet
   endif
@@ -670,11 +661,6 @@ define define-test-art-run-test
   test_groups :=
   uc_host_or_target :=
   jack_classpath :=
-  ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
-    run_test_options += --build-with-jack
-  else
-    run_test_options += --build-with-javac-dx
-  endif
   ifeq ($(ART_TEST_WITH_STRACE),true)
     run_test_options += --strace
   endif
