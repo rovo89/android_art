@@ -161,7 +161,14 @@ using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
 
 class LinkerPatch {
  public:
-  enum class Type {
+  // Note: We explicitly specify the underlying type of the enum because GCC
+  // would otherwise select a bigger underlying type and then complain that
+  //     'art::LinkerPatch::patch_type_' is too small to hold all
+  //     values of 'enum class art::LinkerPatch::Type'
+  // which is ridiculous given we have only a handful of values here. If we
+  // choose to squeeze the Type into fewer than 8 bits, we'll have to declare
+  // patch_type_ as an uintN_t and do explicit static_cast<>s.
+  enum class Type : uint8_t {
     kRecordPosition,   // Just record patch position for patchoat.
     kMethod,
     kCall,
