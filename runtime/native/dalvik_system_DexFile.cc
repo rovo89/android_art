@@ -456,6 +456,31 @@ static jboolean DexFile_isProfileGuidedCompilerFilter(JNIEnv* env,
   return CompilerFilter::DependsOnProfile(filter) ? JNI_TRUE : JNI_FALSE;
 }
 
+static jstring DexFile_getNonProfileGuidedCompilerFilter(JNIEnv* env,
+                                                         jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                         jstring javaCompilerFilter) {
+  ScopedUtfChars compiler_filter(env, javaCompilerFilter);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  CompilerFilter::Filter filter;
+  if (!CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter)) {
+    return javaCompilerFilter;
+  }
+
+  CompilerFilter::Filter new_filter = CompilerFilter::GetNonProfileDependentFilterFrom(filter);
+
+  // Filter stayed the same, return input.
+  if (filter == new_filter) {
+    return javaCompilerFilter;
+  }
+
+  // Create a new string object and return.
+  std::string new_filter_str = CompilerFilter::NameOfFilter(new_filter);
+  return env->NewStringUTF(new_filter_str.c_str());
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile,
@@ -478,6 +503,9 @@ static JNINativeMethod gMethods[] = {
                 ")Ljava/lang/Object;"),
   NATIVE_METHOD(DexFile, isValidCompilerFilter, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, isProfileGuidedCompilerFilter, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(DexFile,
+                getNonProfileGuidedCompilerFilter,
+                "(Ljava/lang/String;)Ljava/lang/String;"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
