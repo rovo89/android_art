@@ -320,11 +320,11 @@ bool PatchOat::Patch(const std::string& image_location,
 
     PatchOat& p = space_to_patchoat_map.find(space)->second;
 
-    if (!p.WriteImage(output_image_file.get())) {
-      LOG(ERROR) << "Failed to write image file " << output_image_file->GetPath();
+    bool success = p.WriteImage(output_image_file.get());
+    success = FinishFile(output_image_file.get(), success);
+    if (!success) {
       return false;
     }
-    FinishFile(output_image_file.get(), true);
 
     bool skip_patching_oat = space_to_skip_patching_map.find(space)->second;
     if (!skip_patching_oat) {
@@ -336,11 +336,11 @@ bool PatchOat::Patch(const std::string& image_location,
         LOG(ERROR) << "Failed to open output oat file at " << output_oat_filename;
         return false;
       }
-      if (!p.WriteElf(output_oat_file.get())) {
-        LOG(ERROR) << "Failed to write oat file " << output_oat_file->GetPath();
+      success = p.WriteElf(output_oat_file.get());
+      success = FinishFile(output_oat_file.get(), success);
+      if (!success) {
         return false;
       }
-      FinishFile(output_oat_file.get(), true);
     }
   }
   return true;
