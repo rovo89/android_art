@@ -120,16 +120,17 @@ void ProfileSaver::Run() {
       FetchAndCacheResolvedClasses();
     } else {
       bool profile_saved_to_disk = ProcessProfilingInfo();
-      if (!profile_saved_to_disk && save_period_ms < kMaxBackoffMs) {
-        // If we don't need to save now it is less likely that we will need to do
-        // so in the future. Increase the time between saves according to the
-        // kBackoffCoef, but make it no larger than kMaxBackoffMs.
-        save_period_ms = static_cast<uint64_t>(kBackoffCoef * save_period_ms);
-        VLOG(profiler) << "Profile saver: nothing to save, delaying period to: " << save_period_ms;
-      } else {
+      if (profile_saved_to_disk) {
         // Reset the period to the initial value as it's highly likely to JIT again.
         save_period_ms = kSavePeriodMs;
         VLOG(profiler) << "Profile saver: saved something, period reset to: " << save_period_ms;
+      } else {
+        // If we don't need to save now it is less likely that we will need to do
+        // so in the future. Increase the time between saves according to the
+        // kBackoffCoef, but make it no larger than kMaxBackoffMs.
+        save_period_ms = std::min(kMaxBackoffMs,
+                                  static_cast<uint64_t>(kBackoffCoef * save_period_ms));
+        VLOG(profiler) << "Profile saver: nothing to save, delaying period to: " << save_period_ms;
       }
     }
     cache_resolved_classes = false;
