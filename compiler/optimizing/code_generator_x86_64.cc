@@ -2834,7 +2834,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else if (in.IsConstant()) {
             int64_t v = in.GetConstant()->AsLongConstant()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
-            codegen_->Load64BitValue(dest, static_cast<double>(v));
+            codegen_->Load32BitValue(dest, static_cast<float>(v));
           } else {
             __ cvtsi2ss(out.AsFpuRegister<XmmRegister>(),
                         Address(CpuRegister(RSP), in.GetStackIndex()), true);
