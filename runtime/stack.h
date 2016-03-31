@@ -569,6 +569,7 @@ class StackVisitor {
   // when walking the stack.
   enum class StackWalkKind {
     kIncludeInlinedFrames,
+    kIncludeInlinedFramesNoResolve,
     kSkipInlinedFrames,
   };
 
