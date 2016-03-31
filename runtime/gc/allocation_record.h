@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_ALLOCATION_RECORD_H_
 
 #include <list>
+#include <memory>
 
 #include "base/mutex.h"
 #include "object_callbacks.h"
@@ -37,9 +38,12 @@ namespace gc {
 
 class AllocRecordStackTraceElement {
  public:
-  AllocRecordStackTraceElement() : method_(nullptr), dex_pc_(0) {}
-
   int32_t ComputeLineNumber() const SHARED_REQUIRES(Locks::mutator_lock_);
+
+  AllocRecordStackTraceElement() = default;
+  AllocRecordStackTraceElement(ArtMethod* method, uint32_t dex_pc)
+      : method_(method),
+        dex_pc_(dex_pc) {}
 
   ArtMethod* GetMethod() const {
     return method_;
@@ -58,32 +62,27 @@ class AllocRecordStackTraceElement {
   }
 
   bool operator==(const AllocRecordStackTraceElement& other) const {
-    if (this == &other) return true;
     return method_ == other.method_ && dex_pc_ == other.dex_pc_;
   }
 
  private:
-  ArtMethod* method_;
-  uint32_t dex_pc_;
+  ArtMethod* method_ = nullptr;
+  uint32_t dex_pc_ = 0;
 };
 
 class AllocRecordStackTrace {
  public:
   static constexpr size_t kHashMultiplier = 17;
 
-  explicit AllocRecordStackTrace(size_t max_depth)
-      : tid_(0), depth_(0), stack_(new AllocRecordStackTraceElement[max_depth]) {}
+  AllocRecordStackTrace() = default;
+
+  AllocRecordStackTrace(AllocRecordStackTrace&& r)
+      : tid_(r.tid_),
+        stack_(std::move(r.stack_)) {}
 
   AllocRecordStackTrace(const AllocRecordStackTrace& r)
-      : tid_(r.tid_), depth_(r.depth_), stack_(new AllocRecordStackTraceElement[r.depth_]) {
-    for (size_t i = 0; i < depth_; ++i) {
-      stack_[i] = r.stack_[i];
-    }
-  }
-
-  ~AllocRecordStackTrace() {
-    delete[] stack_;
-  }
+      : tid_(r.tid_),
+        stack_(r.stack_) {}
 
   pid_t GetTid() const {
     return tid_;
@@ -94,37 +93,32 @@ class AllocRecordStackTrace {
   }
 
   size_t GetDepth() const {
-    return depth_;
-  }
-
-  void SetDepth(size_t depth) {
-    depth_ = depth;
+    return stack_.size();
   }
 
   const AllocRecordStackTraceElement& GetStackElement(size_t index) const {
-    DCHECK_LT(index, depth_);
+    DCHECK_LT(index, GetDepth());
     return stack_[index];
   }
 
+  void AddStackElement(const AllocRecordStackTraceElement& element) {
+    stack_.push_back(element);
+  }
+
   void SetStackElementAt(size_t index, ArtMethod* m, uint32_t dex_pc) {
+    DCHECK_LT(index, stack_.size());
     stack_[index].SetMethod(m);
     stack_[index].SetDexPc(dex_pc);
   }
 
   bool operator==(const AllocRecordStackTrace& other) const {
     if (this == &other) return true;
-    if (tid_ != other.tid_) return false;
-    if (depth_ != other.depth_) return false;
-    for (size_t i = 0; i < depth_; ++i) {
-      if (!(stack_[i] == other.stack_[i])) return false;
-    }
-    return true;
+    return tid_ == other.tid_ && stack_ == other.stack_;
   }
 
  private:
-  pid_t tid_;
-  size_t depth_;
-  AllocRecordStackTraceElement* const stack_;
+  pid_t tid_ = 0;
+  std::vector<AllocRecordStackTraceElement> stack_;
 };
 
 struct HashAllocRecordTypes {
@@ -161,19 +155,15 @@ template <typename T> struct EqAllocRecordTypesPtr {
 class AllocRecord {
  public:
   // All instances of AllocRecord should be managed by an instance of AllocRecordObjectMap.
-  AllocRecord(size_t count, mirror::Class* klass, AllocRecordStackTrace* trace)
-      : byte_count_(count), klass_(klass), trace_(trace) {}
-
-  ~AllocRecord() {
-    delete trace_;
-  }
+  AllocRecord(size_t count, mirror::Class* klass, AllocRecordStackTrace&& trace)
+      : byte_count_(count), klass_(klass), trace_(std::move(trace)) {}
 
   size_t GetDepth() const {
-    return trace_->GetDepth();
+    return trace_.GetDepth();
   }
 
   const AllocRecordStackTrace* GetStackTrace() const {
-    return trace_;
+    return &trace_;
   }
 
   size_t ByteCount() const {
@@ -181,7 +171,7 @@ class AllocRecord {
   }
 
   pid_t GetTid() const {
-    return trace_->GetTid();
+    return trace_.GetTid();
   }
 
   mirror::Class* GetClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -196,16 +186,15 @@ class AllocRecord {
   }
 
   const AllocRecordStackTraceElement& StackElement(size_t index) const {
-    return trace_->GetStackElement(index);
+    return trace_.GetStackElement(index);
   }
 
  private:
   const size_t byte_count_;
   // The klass_ could be a strong or weak root for GC
   GcRoot<mirror::Class> klass_;
-  // TODO: Currently trace_ is like a std::unique_ptr,
-  // but in future with deduplication it could be a std::shared_ptr.
-  const AllocRecordStackTrace* const trace_;
+  // TODO: Share between alloc records with identical stack traces.
+  AllocRecordStackTrace trace_;
 };
 
 class AllocRecordObjectMap {
@@ -215,36 +204,29 @@ class AllocRecordObjectMap {
   // weak roots). The last recent_record_max_ number of pairs in the list are always kept for DDMS's
   // recent allocation tracking, but GcRoot<mirror::Object> pointers in these pairs can become null.
   // Both types of pointers need read barriers, do not directly access them.
-  typedef std::list<std::pair<GcRoot<mirror::Object>, AllocRecord*>> EntryList;
+  using EntryPair = std::pair<GcRoot<mirror::Object>, AllocRecord>;
+  typedef std::list<EntryPair> EntryList;
 
-  // "static" because it is part of double-checked locking. It needs to check a bool first,
-  // in order to make sure the AllocRecordObjectMap object is not null.
-  static void RecordAllocation(Thread* self, mirror::Object* obj, mirror::Class* klass,
-                               size_t byte_count)
+  // Caller needs to check that it is enabled before calling since we read the stack trace before
+  // checking the enabled boolean.
+  void RecordAllocation(Thread* self,
+                        mirror::Object** obj,
+                        size_t byte_count)
       REQUIRES(!Locks::alloc_tracker_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void SetAllocTrackingEnabled(bool enabled) REQUIRES(!Locks::alloc_tracker_lock_);
 
-  AllocRecordObjectMap() REQUIRES(Locks::alloc_tracker_lock_)
-      : alloc_record_max_(kDefaultNumAllocRecords),
-        recent_record_max_(kDefaultNumRecentRecords),
-        max_stack_depth_(kDefaultAllocStackDepth),
-        scratch_trace_(kMaxSupportedStackDepth),
-        alloc_ddm_thread_id_(0),
-        allow_new_record_(true),
-        new_record_condition_("New allocation record condition", *Locks::alloc_tracker_lock_) {}
-
+  AllocRecordObjectMap() REQUIRES(Locks::alloc_tracker_lock_);
   ~AllocRecordObjectMap();
 
-  void Put(mirror::Object* obj, AllocRecord* record)
+  void Put(mirror::Object* obj, AllocRecord&& record)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_) {
     if (entries_.size() == alloc_record_max_) {
-      delete entries_.front().second;
       entries_.pop_front();
     }
-    entries_.emplace_back(GcRoot<mirror::Object>(obj), record);
+    entries_.push_back(EntryPair(GcRoot<mirror::Object>(obj), std::move(record)));
   }
 
   size_t Size() const SHARED_REQUIRES(Locks::alloc_tracker_lock_) {
@@ -313,12 +295,11 @@ class AllocRecordObjectMap {
   static constexpr size_t kDefaultNumRecentRecords = 64 * 1024 - 1;
   static constexpr size_t kDefaultAllocStackDepth = 16;
   static constexpr size_t kMaxSupportedStackDepth = 128;
-  size_t alloc_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  size_t recent_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  size_t max_stack_depth_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  AllocRecordStackTrace scratch_trace_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  pid_t alloc_ddm_thread_id_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  bool allow_new_record_ GUARDED_BY(Locks::alloc_tracker_lock_);
+  size_t alloc_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_) = kDefaultNumAllocRecords;
+  size_t recent_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_) = kDefaultNumRecentRecords;
+  size_t max_stack_depth_ = kDefaultAllocStackDepth;
+  pid_t alloc_ddm_thread_id_  GUARDED_BY(Locks::alloc_tracker_lock_) = 0;
+  bool allow_new_record_ GUARDED_BY(Locks::alloc_tracker_lock_) = true;
   ConditionVariable new_record_condition_ GUARDED_BY(Locks::alloc_tracker_lock_);
   // see the comment in typedef of EntryList
   EntryList entries_ GUARDED_BY(Locks::alloc_tracker_lock_);

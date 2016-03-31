@@ -4818,7 +4818,7 @@ void Dbg::DumpRecentAllocations() {
   LOG(INFO) << "Tracked allocations, (count=" << count << ")";
   for (auto it = records->RBegin(), end = records->REnd();
       count > 0 && it != end; count--, it++) {
-    const gc::AllocRecord* record = it->second;
+    const gc::AllocRecord* record = &it->second;
 
     LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->GetTid(), record->ByteCount())
               << PrettyClass(record->GetClass());
@@ -4957,7 +4957,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     uint16_t count = capped_count;
     for (auto it = records->RBegin(), end = records->REnd();
          count > 0 && it != end; count--, it++) {
-      const gc::AllocRecord* record = it->second;
+      const gc::AllocRecord* record = &it->second;
       std::string temp;
       class_names.Add(record->GetClassDescriptor(&temp));
       for (size_t i = 0, depth = record->GetDepth(); i < depth; i++) {
@@ -5008,7 +5008,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       // (2b) thread id
       // (2b) allocated object's class name index
       // (1b) stack depth
-      const gc::AllocRecord* record = it->second;
+      const gc::AllocRecord* record = &it->second;
       size_t stack_depth = record->GetDepth();
       size_t allocated_object_class_name_index =
           class_names.IndexOf(record->GetClassDescriptor(&temp));
