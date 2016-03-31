@@ -96,7 +96,7 @@
 namespace art {
 
 static constexpr bool kSanityCheckObjects = kIsDebugBuild;
-static constexpr bool kVerifyArtMethodDeclaringClasses = true;
+static constexpr bool kVerifyArtMethodDeclaringClasses = kIsDebugBuild;
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
