@@ -148,14 +148,26 @@ class OatFileAssistant {
   // given compiler filter.
   DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter);
 
+  // Return code used when attempting to generate updated code.
+  enum ResultOfAttemptToUpdate {
+    kUpdateFailed,        // We tried making the code up to date, but
+                          // encountered an unexpected failure.
+    kUpdateNotAttempted,  // We wanted to update the code, but determined we
+                          // should not make the attempt.
+    kUpdateSucceeded      // We successfully made the code up to date
+                          // (possibly by doing nothing).
+  };
+
   // Attempts to generate or relocate the oat file as needed to make it up to
   // date with in a way that is at least as good as an oat file generated with
   // the given compiler filter.
-  // Returns true on success.
+  // Returns the result of attempting to update the code.
   //
-  // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be null.
-  bool MakeUpToDate(CompilerFilter::Filter target_compiler_filter, std::string* error_msg);
+  // If the result is not kUpdateSucceeded, the value of error_msg will be set
+  // to a string describing why there was a failure or the update was not
+  // attempted. error_msg must not be null.
+  ResultOfAttemptToUpdate MakeUpToDate(CompilerFilter::Filter target_compiler_filter,
+                                       std::string* error_msg);
 
   // Returns an oat file that can be used for loading dex files.
   // Returns null if no suitable oat file was found.
@@ -232,22 +244,20 @@ class OatFileAssistant {
   // Generates the oat file by relocation from the named input file.
   // This does not check the current status before attempting to relocate the
   // oat file.
-  // Returns true on success.
-  // This will fail if dex2oat is not enabled in the current runtime.
   //
-  // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be null.
-  bool RelocateOatFile(const std::string* input_file, std::string* error_msg);
+  // If the result is not kUpdateSucceeded, the value of error_msg will be set
+  // to a string describing why there was a failure or the update was not
+  // attempted. error_msg must not be null.
+  ResultOfAttemptToUpdate RelocateOatFile(const std::string* input_file, std::string* error_msg);
 
   // Generate the oat file from the dex file using the given compiler filter.
   // This does not check the current status before attempting to generate the
   // oat file.
-  // Returns true on success.
-  // This will fail if dex2oat is not enabled in the current runtime.
   //
-  // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be null.
-  bool GenerateOatFile(CompilerFilter::Filter filter, std::string* error_msg);
+  // If the result is not kUpdateSucceeded, the value of error_msg will be set
+  // to a string describing why there was a failure or the update was not
+  // attempted. error_msg must not be null.
+  ResultOfAttemptToUpdate GenerateOatFile(CompilerFilter::Filter filter, std::string* error_msg);
 
   // Executes dex2oat using the current runtime configuration overridden with
   // the given arguments. This does not check to see if dex2oat is enabled in
