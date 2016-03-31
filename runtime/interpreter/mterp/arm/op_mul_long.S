@@ -24,13 +24,13 @@
     VREG_INDEX_TO_ADDR r3, r3           @ r3<- &fp[CC]
     ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
     ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
-    mul     ip, r2, r1                  @ ip<- ZxW
-    umull   r1, lr, r2, r0              @ r1/lr <- ZxX
-    mla     r2, r0, r3, ip              @ r2<- YxX + (ZxW)
+    mul     ip, r2, r1                  @  ip<- ZxW
+    umull   r9, r10, r2, r0             @  r9/r10 <- ZxX
+    mla     r2, r0, r3, ip              @  r2<- YxX + (ZxW)
     mov     r0, rINST, lsr #8           @ r0<- AA
-    add     r2, r2, lr                  @ r2<- lr + low(ZxW + (YxX))
+    add     r10, r2, r10                @  r10<- r10 + low(ZxW + (YxX))
     VREG_INDEX_TO_ADDR r0, r0           @ r0<- &fp[AA]
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
     GET_INST_OPCODE ip                  @ extract opcode from rINST
-    stmia   r0, {r1-r2 }                @ vAA/vAA+1<- r1/r2
+    stmia   r0, {r9-r10}                @ vAA/vAA+1<- r9/r10
     GOTO_OPCODE ip                      @ jump to next instruction
