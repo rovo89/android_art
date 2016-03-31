@@ -90,8 +90,7 @@ bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
 ConditionVariable* Thread::resume_cond_ = nullptr;
 const size_t Thread::kStackOverflowImplicitCheckSize = GetStackOverflowReservedBytes(kRuntimeISA);
-// Enabled for b/27493510. TODO: disable when fixed.
-static constexpr bool kVerifyImageObjectsMarked = true;
+static constexpr bool kVerifyImageObjectsMarked = kIsDebugBuild;
 
 // For implicit overflow checks we reserve an extra piece of memory at the bottom
 // of the stack (lowest memory).  The higher portion of the memory
