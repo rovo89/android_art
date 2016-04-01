@@ -367,7 +367,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
     }
 
     CodeInfo code_info = osr_method->GetOptimizedCodeInfo();
-    StackMapEncoding encoding = code_info.ExtractEncoding();
+    CodeInfoEncoding encoding = code_info.ExtractEncoding();
 
     // Find stack map starting at the target dex_pc.
     StackMap stack_map = code_info.GetOsrStackMapForDexPc(dex_pc + dex_pc_offset, encoding);
@@ -426,7 +426,8 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
       }
     }
 
-    native_pc = stack_map.GetNativePcOffset(encoding) + osr_method->GetEntryPoint();
+    native_pc = stack_map.GetNativePcOffset(encoding.stack_map_encoding) +
+        osr_method->GetEntryPoint();
     VLOG(jit) << "Jumping to "
               << method_name
               << "@"
