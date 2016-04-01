@@ -343,6 +343,49 @@ inline void ArtField::UpdateObjects(const Visitor& visitor) {
   }
 }
 
+// If kExactOffset is true then we only find the matching offset, not the field containing the
+// offset.
+template <bool kExactOffset>
+static inline ArtField* FindFieldWithOffset(
+    const IterationRange<StrideIterator<ArtField>>& fields,
+    uint32_t field_offset) SHARED_REQUIRES(Locks::mutator_lock_) {
+  for (ArtField& field : fields) {
+    if (kExactOffset) {
+      if (field.GetOffset().Uint32Value() == field_offset) {
+        return &field;
+      }
+    } else {
+      const uint32_t offset = field.GetOffset().Uint32Value();
+      Primitive::Type type = field.GetTypeAsPrimitiveType();
+      const size_t field_size = Primitive::ComponentSize(type);
+      DCHECK_GT(field_size, 0u);
+      if (offset <= field_offset && field_offset < offset + field_size) {
+        return &field;
+      }
+    }
+  }
+  return nullptr;
+}
+
+template <bool kExactOffset>
+inline ArtField* ArtField::FindInstanceFieldWithOffset(mirror::Class* klass,
+                                                       uint32_t field_offset) {
+  DCHECK(klass != nullptr);
+  ArtField* field = FindFieldWithOffset<kExactOffset>(klass->GetIFields(), field_offset);
+  if (field != nullptr) {
+    return field;
+  }
+  // We did not find field in the class: look into superclass.
+  return (klass->GetSuperClass() != nullptr) ?
+      FindInstanceFieldWithOffset<kExactOffset>(klass->GetSuperClass(), field_offset) : nullptr;
+}
+
+template <bool kExactOffset>
+inline ArtField* ArtField::FindStaticFieldWithOffset(mirror::Class* klass, uint32_t field_offset) {
+  DCHECK(klass != nullptr);
+  return FindFieldWithOffset<kExactOffset>(klass->GetSFields(), field_offset);
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_ART_FIELD_INL_H_
