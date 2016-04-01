@@ -1,1 +1,1 @@
-%include "arm/zcmp.S" { "condition":"eq" }
+%include "arm/zcmp.S" { "revcmp":"ne" }
