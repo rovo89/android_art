@@ -66,13 +66,12 @@ class CheckReferenceMapVisitor : public StackVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     CodeInfo code_info = GetCurrentOatQuickMethodHeader()->GetOptimizedCodeInfo();
-    StackMapEncoding encoding = code_info.ExtractEncoding();
+    CodeInfoEncoding encoding = code_info.ExtractEncoding();
     StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
     uint16_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
     DexRegisterMap dex_register_map =
         code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
-    MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
-    uint32_t register_mask = stack_map.GetRegisterMask(encoding);
+    uint32_t register_mask = stack_map.GetRegisterMask(encoding.stack_map_encoding);
     for (int i = 0; i < number_of_references; ++i) {
       int reg = registers[i];
       CHECK(reg < m->GetCodeItem()->registers_size_);
@@ -85,7 +84,8 @@ class CheckReferenceMapVisitor : public StackVisitor {
           break;
         case DexRegisterLocation::Kind::kInStack:
           DCHECK_EQ(location.GetValue() % kFrameSlotSize, 0);
-          CHECK(stack_mask.LoadBit(location.GetValue() / kFrameSlotSize));
+          CHECK(stack_map.GetStackMaskBit(encoding.stack_map_encoding,
+                                          location.GetValue() / kFrameSlotSize));
           break;
         case DexRegisterLocation::Kind::kInRegister:
         case DexRegisterLocation::Kind::kInRegisterHigh:
