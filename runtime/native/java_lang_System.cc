@@ -149,7 +149,9 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     dstObjArray->AssignableMemcpy(dstPos, srcObjArray, srcPos, count);
     return;
   }
-  dstObjArray->AssignableCheckingMemcpy(dstPos, srcObjArray, srcPos, count, true);
+  // This code is never run under a transaction.
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+  dstObjArray->AssignableCheckingMemcpy<false>(dstPos, srcObjArray, srcPos, count, true);
 }
 
 // Template to convert general array to that of its specific primitive type.
