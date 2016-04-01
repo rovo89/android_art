@@ -69,6 +69,7 @@ class OatDumpTest : public CommonRuntimeTest {
       exec_argv.push_back("--output=" + core_oat_location_ + ".symbolize");
     } else if (mode == kModeArt) {
       exec_argv.push_back("--image=" + core_art_location_);
+      exec_argv.push_back("--instruction-set=" + std::string(GetInstructionSetString(kRuntimeISA)));
       exec_argv.push_back("--output=/dev/null");
     } else {
       CHECK_EQ(static_cast<size_t>(mode), static_cast<size_t>(kModeOat));
