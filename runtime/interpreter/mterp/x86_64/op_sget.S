@@ -11,8 +11,7 @@
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL($helper)
-    movq    rSELF, %rcx
-    cmpl    $$0, THREAD_EXCEPTION_OFFSET(%rcx)
+    cmpl    $$0, THREAD_EXCEPTION_OFFSET(rSELF)
     jnz     MterpException
     .if $is_object
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value

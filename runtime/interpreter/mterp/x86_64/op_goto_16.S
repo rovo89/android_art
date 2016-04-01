@@ -6,5 +6,9 @@
  */
     /* goto/16 +AAAA */
     movswq  2(rPC), rINSTq                  # rINSTq <- ssssAAAA
-    testq   rINSTq, rINSTq
-    jmp     MterpCommonTakenBranch
+    MTERP_PROFILE_BRANCH
+    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
+    leaq    (rPC, rINSTq), rPC
+    FETCH_INST
+    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
+    GOTO_NEXT
