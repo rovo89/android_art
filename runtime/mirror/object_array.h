@@ -78,6 +78,7 @@ class MANAGED ObjectArray: public Array {
                         int32_t count) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Copy src into this array with assignability checks.
+  template<bool kTransactionActive>
   void AssignableCheckingMemcpy(int32_t dst_pos, ObjectArray<T>* src, int32_t src_pos,
                                 int32_t count, bool throw_exception)
       SHARED_REQUIRES(Locks::mutator_lock_);

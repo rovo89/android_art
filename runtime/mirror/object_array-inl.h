@@ -197,6 +197,7 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos, ObjectArray<T>* sr
 }
 
 template<class T>
+template<bool kTransactionActive>
 inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos, ObjectArray<T>* src,
                                                      int32_t src_pos, int32_t count,
                                                      bool throw_exception) {
@@ -215,15 +216,15 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos, ObjectArra
     o = src->GetWithoutChecks(src_pos + i);
     if (o == nullptr) {
       // Null is always assignable.
-      SetWithoutChecks<false>(dst_pos + i, nullptr);
+      SetWithoutChecks<kTransactionActive>(dst_pos + i, nullptr);
     } else {
       // TODO: use the underlying class reference to avoid uncompression when not necessary.
       Class* o_class = o->GetClass();
       if (LIKELY(lastAssignableElementClass == o_class)) {
-        SetWithoutChecks<false>(dst_pos + i, o);
+        SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
       } else if (LIKELY(dst_class->IsAssignableFrom(o_class))) {
         lastAssignableElementClass = o_class;
-        SetWithoutChecks<false>(dst_pos + i, o);
+        SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
       } else {
         // Can't put this element into the array, break to perform write-barrier and throw
         // exception.
