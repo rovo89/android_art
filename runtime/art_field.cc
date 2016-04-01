@@ -47,28 +47,6 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
   offset_ = num_bytes.Uint32Value();
 }
 
-ArtField* ArtField::FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset) {
-  DCHECK(klass != nullptr);
-  for (ArtField& field : klass->GetIFields()) {
-    if (field.GetOffset().Uint32Value() == field_offset) {
-      return &field;
-    }
-  }
-  // We did not find field in the class: look into superclass.
-  return (klass->GetSuperClass() != nullptr) ?
-      FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset) : nullptr;
-}
-
-ArtField* ArtField::FindStaticFieldWithOffset(mirror::Class* klass, uint32_t field_offset) {
-  DCHECK(klass != nullptr);
-  for (ArtField& field : klass->GetSFields()) {
-    if (field.GetOffset().Uint32Value() == field_offset) {
-      return &field;
-    }
-  }
-  return nullptr;
-}
-
 mirror::Class* ArtField::ProxyFindSystemClass(const char* descriptor) {
   DCHECK(GetDeclaringClass()->IsProxyClass());
   return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(), descriptor);
