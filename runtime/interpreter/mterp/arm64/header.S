@@ -74,7 +74,6 @@ The following registers have fixed assignments:
   x23  xINST     first 16-bit code unit of current instruction
   x24  xIBASE    interpreted instruction base pointer, used for computed goto
   x25  xREFS     base of object references in shadow frame  (ideally, we'll get rid of this later).
-  x26  wPROFILE  jit profile hotness countdown
   x16  ip        scratch reg
   x17  ip2       scratch reg (used by macros)
 
@@ -93,17 +92,15 @@ codes.
 
 /* During bringup, we'll use the shadow frame model instead of xFP */
 /* single-purpose registers, given names for clarity */
-#define xPC      x20
-#define xFP      x21
-#define xSELF    x22
-#define xINST    x23
-#define wINST    w23
-#define xIBASE   x24
-#define xREFS    x25
-#define wPROFILE w26
-#define xPROFILE x26
-#define ip       x16
-#define ip2      x17
+#define xPC     x20
+#define xFP     x21
+#define xSELF   x22
+#define xINST   x23
+#define wINST   w23
+#define xIBASE  x24
+#define xREFS   x25
+#define ip      x16
+#define ip2     x17
 
 /*
  * Instead of holding a pointer to the shadow frame, we keep xFP at the base of the vregs.  So,
@@ -117,7 +114,7 @@ codes.
 #define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
 #define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME OFF_FP(0)
+#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must

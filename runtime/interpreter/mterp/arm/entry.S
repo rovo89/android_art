@@ -33,8 +33,10 @@
 
 ExecuteMterpImpl:
     .fnstart
-    .save {r3-r10,fp,lr}
-    stmfd   sp!, {r3-r10,fp,lr}         @ save 10 regs, (r3 just to align 64)
+    .save {r4-r10,fp,lr}
+    stmfd   sp!, {r4-r10,fp,lr}         @ save 9 regs
+    .pad    #4
+    sub     sp, sp, #4                  @ align 64
 
     /* Remember the return register */
     str     r3, [r2, #SHADOWFRAME_RESULT_REGISTER_OFFSET]
@@ -54,12 +56,6 @@ ExecuteMterpImpl:
 
     /* Starting ibase */
     ldr     rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]
-
-    /* Set up for backwards branches & osr profiling */
-    ldr     r0, [rFP, #OFF_FP_METHOD]
-    add     r1, rFP, #OFF_FP_SHADOWFRAME
-    bl      MterpSetUpHotnessCountdown
-    mov     rPROFILE, r0                @ Starting hotness countdown to rPROFILE
 
     /* start executing the instruction at rPC */
     FETCH_INST                          @ load rINST from rPC

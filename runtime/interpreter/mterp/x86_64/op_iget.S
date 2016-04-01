@@ -12,8 +12,7 @@
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL($helper)
-    movq    rSELF, %rcx
-    cmpq    $$0, THREAD_EXCEPTION_OFFSET(%rcx)
+    cmpq    $$0, THREAD_EXCEPTION_OFFSET(rSELF)
     jnz     MterpException                  # bail out
     andb    $$0xf, rINSTbl                  # rINST <- A
     .if $is_object
