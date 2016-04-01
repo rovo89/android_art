@@ -833,10 +833,12 @@ void CompilerDriver::PreCompile(jobject class_loader,
 
   const bool verification_enabled = compiler_options_->IsVerificationEnabled();
   const bool never_verify = compiler_options_->NeverVerify();
+  const bool verify_only_profile = compiler_options_->VerifyOnlyProfile();
 
   // We need to resolve for never_verify since it needs to run dex to dex to add the
   // RETURN_VOID_NO_BARRIER.
-  if (never_verify || verification_enabled) {
+  // Let the verifier resolve as needed for the verify_only_profile case.
+  if ((never_verify || verification_enabled) && !verify_only_profile) {
     Resolve(class_loader, dex_files, timings);
     VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
   }
