@@ -31,6 +31,7 @@
   V(SystemArraycopy, "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") \
   V(SystemArraycopyChar, "void java.lang.System.arraycopy(char[], int, char[], int, int)") \
   V(SystemArraycopyInt, "void java.lang.System.arraycopy(int[], int, int[], int, int)") \
+  V(SystemGetSecurityManager, "java.lang.SecurityManager java.lang.System.getSecurityManager()") \
   V(ThreadLocalGet, "java.lang.Object java.lang.ThreadLocal.get()") \
   V(MathCeil, "double java.lang.Math.ceil(double)") \
   V(ObjectHashCode, "int java.lang.Object.hashCode()") \
@@ -79,6 +80,7 @@
   V(SystemIdentityHashCode, "int java.lang.System.identityHashCode(java.lang.Object)") \
   V(ByteOrderIsLittleEndian, "boolean java.nio.ByteOrder.isLittleEndian()") \
   V(UnsafeCompareAndSwapInt, "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") \
+  V(UnsafeGetIntVolatile, "int sun.misc.Unsafe.getIntVolatile(java.lang.Object, long)") \
   V(UnsafePutObject, "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") \
   V(UnsafeGetArrayBaseOffsetForComponentType, "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") \
   V(UnsafeGetArrayIndexScaleForComponentType, "int sun.misc.Unsafe.getArrayIndexScaleForComponentType(java.lang.Class)")
