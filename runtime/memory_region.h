@@ -138,7 +138,7 @@ class MemoryRegion FINAL : public ValueObject {
   // bit of the stored `value`.  `value` must not be larger than `length`
   // bits.
   void StoreBits(uintptr_t bit_offset, uint32_t value, size_t length) {
-    CHECK_LT(value, 2u << length);
+    CHECK_LE(value, MaxInt<uint32_t>(length));
     for (size_t i = 0; i < length; ++i) {
       bool ith_bit = value & (1 << i);
       StoreBit(bit_offset + i, ith_bit);

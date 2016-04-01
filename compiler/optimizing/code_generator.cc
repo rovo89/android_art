@@ -640,7 +640,7 @@ static void CheckCovers(uint32_t dex_pc,
                         const CodeInfo& code_info,
                         const ArenaVector<HSuspendCheck*>& loop_headers,
                         ArenaVector<size_t>* covered) {
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
   for (size_t i = 0; i < loop_headers.size(); ++i) {
     if (loop_headers[i]->GetDexPc() == dex_pc) {
       if (graph.IsCompilingOsr()) {

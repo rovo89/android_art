@@ -74,13 +74,12 @@ class StackMapStream : public ValueObject {
                                            allocator->Adapter(kArenaAllocStackMapStream)),
         current_entry_(),
         current_inline_info_(),
-        stack_mask_size_(0),
+        code_info_encoding_(allocator->Adapter(kArenaAllocStackMapStream)),
         inline_info_size_(0),
         dex_register_maps_size_(0),
         stack_maps_size_(0),
         dex_register_location_catalog_size_(0),
         dex_register_location_catalog_start_(0),
-        stack_maps_start_(0),
         dex_register_maps_start_(0),
         inline_infos_start_(0),
         needed_size_(0),
@@ -90,6 +89,7 @@ class StackMapStream : public ValueObject {
     location_catalog_entries_.reserve(4);
     dex_register_locations_.reserve(10 * 4);
     inline_infos_.reserve(2);
+    code_info_encoding_.reserve(16);
   }
 
   // See runtime/stack_map.h to know what these fields contain.
@@ -200,13 +200,12 @@ class StackMapStream : public ValueObject {
   StackMapEntry current_entry_;
   InlineInfoEntry current_inline_info_;
   StackMapEncoding stack_map_encoding_;
-  size_t stack_mask_size_;
+  ArenaVector<uint8_t> code_info_encoding_;
   size_t inline_info_size_;
   size_t dex_register_maps_size_;
   size_t stack_maps_size_;
   size_t dex_register_location_catalog_size_;
   size_t dex_register_location_catalog_start_;
-  size_t stack_maps_start_;
   size_t dex_register_maps_start_;
   size_t inline_infos_start_;
   size_t needed_size_;
