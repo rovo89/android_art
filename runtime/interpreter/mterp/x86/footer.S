@@ -131,119 +131,19 @@ MterpException:
     /* NOTE: no fallthrough */
 
 /*
- * Common handling for branches with support for Jit profiling.
- * On entry:
- *    rINST          <= signed offset
- *    condition bits <= set to establish sign of offset (use "NoFlags" entry if not)
- *
- * We have quite a few different cases for branch profiling, OSR detection and
- * suspend check support here.
- *
- * Taken backward branches:
- *    If profiling active, do hotness countdown and report if we hit zero.
- *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
- *    Is there a pending suspend request?  If so, suspend.
- *
- * Taken forward branches and not-taken backward branches:
- *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
- *
- * Our most common case is expected to be a taken backward branch with active jit profiling,
- * but no full OSR check and no pending suspend request.
- * Next most common case is not-taken branch with no full OSR check.
- *
+ * Check for suspend check request.  Assumes rINST already loaded, rPC advanced and
+ * still needs to get the opcode and branch to it, and flags are in lr.
  */
-MterpCommonTakenBranch:
-    jg      .L_forward_branch               # don't add forward branches to hotness
-/*
- * We need to subtract 1 from positive values and we should not see 0 here,
- * so we may use the result of the comparison with -1.
- */
-#if JIT_CHECK_OSR != -1
-#  error "JIT_CHECK_OSR must be -1."
-#endif
-    cmpw    $$JIT_CHECK_OSR, rPROFILE
-    je      .L_osr_check
-    decw    rPROFILE
-    je      .L_add_batch                    # counted down to zero - report
-.L_resume_backward_branch:
+MterpCheckSuspendAndContinue:
     movl    rSELF, %eax
+    EXPORT_PC
     testl   $$(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%eax)
-    leal    (rPC, rINST, 2), rPC
-    FETCH_INST
-    jnz     .L_suspend_request_pending
+    jz      1f
+    movl    %eax, OUT_ARG0(%esp)
+    call    SYMBOL(MterpSuspendCheck)
     REFRESH_IBASE
+1:
     GOTO_NEXT
-
-.L_suspend_request_pending:
-    EXPORT_PC
-    movl    %eax, OUT_ARG0(%esp)            # rSELF in eax
-    call    SYMBOL(MterpSuspendCheck)       # (self)
-    testb   %al, %al
-    jnz     MterpFallback
-    REFRESH_IBASE                           # might have changed during suspend
-    GOTO_NEXT
-
-.L_no_count_backwards:
-    cmpw    $$JIT_CHECK_OSR, rPROFILE         # possible OSR re-entry?
-    jne     .L_resume_backward_branch
-.L_osr_check:
-    EXPORT_PC
-    movl    rSELF, %eax
-    movl    %eax, OUT_ARG0(%esp)
-    leal    OFF_FP_SHADOWFRAME(rFP), %ecx
-    movl    %ecx, OUT_ARG1(%esp)
-    movl    rINST, OUT_ARG2(%esp)
-    call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
-    testb   %al, %al
-    jz      .L_resume_backward_branch
-    jmp     MterpOnStackReplacement
-
-.L_forward_branch:
-    cmpw    $$JIT_CHECK_OSR, rPROFILE         # possible OSR re-entry?
-    je      .L_check_osr_forward
-.L_resume_forward_branch:
-    leal    (rPC, rINST, 2), rPC
-    FETCH_INST
-    GOTO_NEXT
-
-.L_check_osr_forward:
-    EXPORT_PC
-    movl    rSELF, %eax
-    movl    %eax, OUT_ARG0(%esp)
-    leal    OFF_FP_SHADOWFRAME(rFP), %ecx
-    movl    %ecx, OUT_ARG1(%esp)
-    movl    rINST, OUT_ARG2(%esp)
-    call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
-    testb   %al, %al
-    REFRESH_IBASE
-    jz      .L_resume_forward_branch
-    jmp     MterpOnStackReplacement
-
-.L_add_batch:
-    movl    OFF_FP_METHOD(rFP), %eax
-    movl    %eax, OUT_ARG0(%esp)
-    leal    OFF_FP_SHADOWFRAME(rFP), %ecx
-    movl    %ecx, OUT_ARG1(%esp)
-    movl    rSELF, %eax
-    movl    %eax, OUT_ARG2(%esp)
-    call    SYMBOL(MterpAddHotnessBatch)    # (method, shadow_frame, self)
-    jmp     .L_no_count_backwards
-
-/*
- * Entered from the conditional branch handlers when OSR check request active on
- * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
- */
-.L_check_not_taken_osr:
-    movl    rSELF, %eax
-    movl    %eax, OUT_ARG0(%esp)
-    leal    OFF_FP_SHADOWFRAME(rFP), %ecx
-    movl    %ecx, OUT_ARG1(%esp)
-    movl    rINST, OUT_ARG3(%esp)
-    call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
-    testb   %al, %al
-    REFRESH_IBASE
-    jnz     MterpOnStackReplacement
-    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /*
  * On-stack replacement has happened, and now we've returned from the compiled method.
@@ -289,29 +189,7 @@ MterpReturn:
     movl    %ecx, 4(%edx)
     mov     $$1, %eax
 MterpDone:
-/*
- * At this point, we expect rPROFILE to be non-zero.  If negative, hotness is disabled or we're
- * checking for OSR.  If greater than zero, we might have unreported hotness to register
- * (the difference between the ending rPROFILE and the cached hotness counter).  rPROFILE
- * should only reach zero immediately after a hotness decrement, and is then reset to either
- * a negative special state or the new non-zero countdown value.
- */
-    cmpw    $$0, rPROFILE
-    jle     MRestoreFrame                   # if > 0, we may have some counts to report.
-
-    movl    %eax, rINST                     # stash return value
-    /* Report cached hotness counts */
-    movl    OFF_FP_METHOD(rFP), %eax
-    movl    %eax, OUT_ARG0(%esp)
-    leal    OFF_FP_SHADOWFRAME(rFP), %ecx
-    movl    %ecx, OUT_ARG1(%esp)
-    movl    rSELF, %eax
-    movl    %eax, OUT_ARG2(%esp)
-    call    SYMBOL(MterpAddHotnessBatch)    # (method, shadow_frame, self)
-    movl    rINST, %eax                     # restore return value
-
     /* pop up frame */
-MRestoreFrame:
     addl    $$FRAME_SIZE, %esp
     .cfi_adjust_cfa_offset -FRAME_SIZE
 
