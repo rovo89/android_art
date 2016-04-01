@@ -2166,9 +2166,13 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
     uint32_t imt_index = interface_method->GetDexMethodIndex();
     ArtMethod* conflict_method = cls->GetEmbeddedImTableEntry(
         imt_index % mirror::Class::kImtSize, sizeof(void*));
-    DCHECK(conflict_method->IsRuntimeMethod()) << PrettyMethod(conflict_method);
-    ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
-    method = current_table->Lookup(interface_method);
+    if (LIKELY(conflict_method->IsRuntimeMethod())) {
+      ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+      method = current_table->Lookup(interface_method);
+    } else {
+      // It seems we aren't really a conflict method!
+      method = cls->FindVirtualMethodForInterface(interface_method, sizeof(void*));
+    }
     if (method != nullptr) {
       return GetTwoWordSuccessValue(
           reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode()),
@@ -2214,39 +2218,41 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
   uint32_t imt_index = interface_method->GetDexMethodIndex();
   ArtMethod* conflict_method = cls->GetEmbeddedImTableEntry(
       imt_index % mirror::Class::kImtSize, sizeof(void*));
-  ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
-  Runtime* runtime = Runtime::Current();
-  LinearAlloc* linear_alloc = (cls->GetClassLoader() == nullptr)
-      ? runtime->GetLinearAlloc()
-      : cls->GetClassLoader()->GetAllocator();
-  bool is_new_entry = (conflict_method == runtime->GetImtConflictMethod());
+  if (conflict_method->IsRuntimeMethod()) {
+    ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+    Runtime* runtime = Runtime::Current();
+    LinearAlloc* linear_alloc = (cls->GetClassLoader() == nullptr)
+        ? runtime->GetLinearAlloc()
+        : cls->GetClassLoader()->GetAllocator();
+    bool is_new_entry = (conflict_method == runtime->GetImtConflictMethod());
 
-  // Create a new entry if the existing one is the shared conflict method.
-  ArtMethod* new_conflict_method = is_new_entry
-      ? runtime->CreateImtConflictMethod(linear_alloc)
-      : conflict_method;
+    // Create a new entry if the existing one is the shared conflict method.
+    ArtMethod* new_conflict_method = is_new_entry
+        ? runtime->CreateImtConflictMethod(linear_alloc)
+        : conflict_method;
 
-  // Allocate a new table. Note that we will leak this table at the next conflict,
-  // but that's a tradeoff compared to making the table fixed size.
-  void* data = linear_alloc->Alloc(
-      self, ImtConflictTable::ComputeSizeWithOneMoreEntry(current_table));
-  CHECK(data != nullptr) << "Out of memory";
-  ImtConflictTable* new_table = new (data) ImtConflictTable(
-      current_table, interface_method, method);
+    // Allocate a new table. Note that we will leak this table at the next conflict,
+    // but that's a tradeoff compared to making the table fixed size.
+    void* data = linear_alloc->Alloc(
+        self, ImtConflictTable::ComputeSizeWithOneMoreEntry(current_table));
+    CHECK(data != nullptr) << "Out of memory";
+    ImtConflictTable* new_table = new (data) ImtConflictTable(
+        current_table, interface_method, method);
 
-  // Do a fence to ensure threads see the data in the table before it is assigned
-  // to the conlict method.
-  // Note that there is a race in the presence of multiple threads and we may leak
-  // memory from the LinearAlloc, but that's a tradeoff compared to using
-  // atomic operations.
-  QuasiAtomic::ThreadFenceRelease();
-  new_conflict_method->SetImtConflictTable(new_table);
-  if (is_new_entry) {
-    // Update the IMT if we create a new conflict method. No fence needed here, as the
-    // data is consistent.
-    cls->SetEmbeddedImTableEntry(imt_index % mirror::Class::kImtSize,
-                                 new_conflict_method,
-                                 sizeof(void*));
+    // Do a fence to ensure threads see the data in the table before it is assigned
+    // to the conlict method.
+    // Note that there is a race in the presence of multiple threads and we may leak
+    // memory from the LinearAlloc, but that's a tradeoff compared to using
+    // atomic operations.
+    QuasiAtomic::ThreadFenceRelease();
+    new_conflict_method->SetImtConflictTable(new_table);
+    if (is_new_entry) {
+      // Update the IMT if we create a new conflict method. No fence needed here, as the
+      // data is consistent.
+      cls->SetEmbeddedImTableEntry(imt_index % mirror::Class::kImtSize,
+                                  new_conflict_method,
+                                  sizeof(void*));
+    }
   }
 
   const void* code = method->GetEntryPointFromQuickCompiledCode();
