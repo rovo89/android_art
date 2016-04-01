@@ -353,28 +353,35 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
   jint src_pos = shadow_frame->GetVReg(arg_offset + 1);
   jint dst_pos = shadow_frame->GetVReg(arg_offset + 3);
   jint length = shadow_frame->GetVReg(arg_offset + 4);
-  mirror::Array* src_array = shadow_frame->GetVRegReference(arg_offset)->AsArray();
-  mirror::Array* dst_array = shadow_frame->GetVRegReference(arg_offset + 2)->AsArray();
 
-  // Null checking.
-  if (src_array == nullptr) {
+  mirror::Object* src_obj = shadow_frame->GetVRegReference(arg_offset);
+  mirror::Object* dst_obj = shadow_frame->GetVRegReference(arg_offset + 2);
+  // Null checking. For simplicity, abort transaction.
+  if (src_obj == nullptr) {
     AbortTransactionOrFail(self, "src is null in arraycopy.");
     return;
   }
-  if (dst_array == nullptr) {
+  if (dst_obj == nullptr) {
     AbortTransactionOrFail(self, "dst is null in arraycopy.");
     return;
   }
+  // Test for arrayness. Throw ArrayStoreException.
+  if (!src_obj->IsArrayInstance() || !dst_obj->IsArrayInstance()) {
+    self->ThrowNewException("Ljava/lang/ArrayStoreException;", "src or trg is not an array");
+    return;
+  }
 
-  // Bounds checking.
+  mirror::Array* src_array = src_obj->AsArray();
+  mirror::Array* dst_array = dst_obj->AsArray();
+
+  // Bounds checking. Throw IndexOutOfBoundsException.
   if (UNLIKELY(src_pos < 0) || UNLIKELY(dst_pos < 0) || UNLIKELY(length < 0) ||
       UNLIKELY(src_pos > src_array->GetLength() - length) ||
       UNLIKELY(dst_pos > dst_array->GetLength() - length)) {
-    self->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
+    self->ThrowNewExceptionF("Ljava/lang/IndexOutOfBoundsException;",
                              "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
                              src_array->GetLength(), src_pos, dst_array->GetLength(), dst_pos,
                              length);
-    AbortTransactionOrFail(self, "Index out of bounds.");
     return;
   }
 
@@ -393,19 +400,11 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
       return;
     }
 
-    // For simplicity only do this if the component types are the same. Otherwise we have to copy
-    // even more code from the object-array functions.
-    if (src_type != trg_type) {
-      AbortTransactionOrFail(self, "Types not the same in arraycopy: %s vs %s",
-                             PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
-                             PrettyDescriptor(dst_array->GetClass()->GetComponentType()).c_str());
-      return;
-    }
-
     mirror::ObjectArray<mirror::Object>* src = src_array->AsObjectArray<mirror::Object>();
     mirror::ObjectArray<mirror::Object>* dst = dst_array->AsObjectArray<mirror::Object>();
     if (src == dst) {
       // Can overlap, but not have type mismatches.
+      // We cannot use ObjectArray::MemMove here, as it doesn't support transactions.
       const bool copy_forward = (dst_pos < src_pos) || (dst_pos - src_pos >= length);
       if (copy_forward) {
         for (int32_t i = 0; i < length; ++i) {
@@ -417,9 +416,15 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
         }
       }
     } else {
-      // Can't overlap. Would need type checks, but we abort above.
-      for (int32_t i = 0; i < length; ++i) {
-        dst->Set(dst_pos + i, src->Get(src_pos + i));
+      // We're being lazy here. Optimally this could be a memcpy (if component types are
+      // assignable), but the ObjectArray implementation doesn't support transactions. The
+      // checking version, however, does.
+      if (Runtime::Current()->IsActiveTransaction()) {
+        dst->AssignableCheckingMemcpy<true>(
+            dst_pos, src, src_pos, length, true /* throw_exception */);
+      } else {
+        dst->AssignableCheckingMemcpy<false>(
+                    dst_pos, src, src_pos, length, true /* throw_exception */);
       }
     }
   } else if (src_type->IsPrimitiveChar()) {

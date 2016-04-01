@@ -66,6 +66,94 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
 #undef UNSTARTED_RUNTIME_DIRECT_LIST
 #undef UNSTARTED_RUNTIME_JNI_LIST
 #undef UNSTARTED_JNI
+
+  // Helpers for ArrayCopy.
+  //
+  // Note: as we have to use handles, we use StackHandleScope to transfer data. Hardcode a size
+  //       of three everywhere. That is enough to test all cases.
+
+  static mirror::ObjectArray<mirror::Object>* CreateObjectArray(
+      Thread* self,
+      mirror::Class* component_type,
+      const StackHandleScope<3>& data)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    Runtime* runtime = Runtime::Current();
+    mirror::Class* array_type = runtime->GetClassLinker()->FindArrayClass(self, &component_type);
+    CHECK(array_type != nullptr);
+    mirror::ObjectArray<mirror::Object>* result =
+        mirror::ObjectArray<mirror::Object>::Alloc(self, array_type, 3);
+    CHECK(result != nullptr);
+    for (size_t i = 0; i < 3; ++i) {
+      result->Set(static_cast<int32_t>(i), data.GetReference(i));
+      CHECK(!self->IsExceptionPending());
+    }
+    return result;
+  }
+
+  static void CheckObjectArray(mirror::ObjectArray<mirror::Object>* array,
+                               const StackHandleScope<3>& data)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    CHECK_EQ(array->GetLength(), 3);
+    CHECK_EQ(data.NumberOfReferences(), 3U);
+    for (size_t i = 0; i < 3; ++i) {
+      EXPECT_EQ(data.GetReference(i), array->Get(static_cast<int32_t>(i))) << i;
+    }
+  }
+
+  void RunArrayCopy(Thread* self,
+                    ShadowFrame* tmp,
+                    bool expect_exception,
+                    mirror::ObjectArray<mirror::Object>* src,
+                    int32_t src_pos,
+                    mirror::ObjectArray<mirror::Object>* dst,
+                    int32_t dst_pos,
+                    int32_t length)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    JValue result;
+    tmp->SetVRegReference(0, src);
+    tmp->SetVReg(1, src_pos);
+    tmp->SetVRegReference(2, dst);
+    tmp->SetVReg(3, dst_pos);
+    tmp->SetVReg(4, length);
+    UnstartedSystemArraycopy(self, tmp, &result, 0);
+    bool exception_pending = self->IsExceptionPending();
+    EXPECT_EQ(exception_pending, expect_exception);
+    if (exception_pending) {
+      self->ClearException();
+    }
+  }
+
+  void RunArrayCopy(Thread* self,
+                    ShadowFrame* tmp,
+                    bool expect_exception,
+                    mirror::Class* src_component_class,
+                    mirror::Class* dst_component_class,
+                    const StackHandleScope<3>& src_data,
+                    int32_t src_pos,
+                    const StackHandleScope<3>& dst_data,
+                    int32_t dst_pos,
+                    int32_t length,
+                    const StackHandleScope<3>& expected_result)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    StackHandleScope<3> hs_misc(self);
+    Handle<mirror::Class> dst_component_handle(hs_misc.NewHandle(dst_component_class));
+
+    Handle<mirror::ObjectArray<mirror::Object>> src_handle(
+        hs_misc.NewHandle(CreateObjectArray(self, src_component_class, src_data)));
+
+    Handle<mirror::ObjectArray<mirror::Object>> dst_handle(
+        hs_misc.NewHandle(CreateObjectArray(self, dst_component_handle.Get(), dst_data)));
+
+    RunArrayCopy(self,
+                 tmp,
+                 expect_exception,
+                 src_handle.Get(),
+                 src_pos,
+                 dst_handle.Get(),
+                 dst_pos,
+                 length);
+    CheckObjectArray(dst_handle.Get(), expected_result);
+  }
 };
 
 TEST_F(UnstartedRuntimeTest, MemoryPeekByte) {
@@ -275,6 +363,149 @@ TEST_F(UnstartedRuntimeTest, StringInit) {
                    string_arg->GetLength() * sizeof(uint16_t)), 0);
 
   ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
+// Tests the exceptions that should be checked before modifying the destination.
+// (Doesn't check the object vs primitive case ATM.)
+TEST_F(UnstartedRuntimeTest, SystemArrayCopyObjectArrayTestExceptions) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  JValue result;
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  // Note: all tests are not GC safe. Assume there's no GC running here with the few objects we
+  //       allocate.
+  StackHandleScope<2> hs_misc(self);
+  Handle<mirror::Class> object_class(
+      hs_misc.NewHandle(mirror::Class::GetJavaLangClass()->GetSuperClass()));
+
+  StackHandleScope<3> hs_data(self);
+  hs_data.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "1"));
+  hs_data.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "2"));
+  hs_data.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "3"));
+
+  Handle<mirror::ObjectArray<mirror::Object>> array(
+      hs_misc.NewHandle(CreateObjectArray(self, object_class.Get(), hs_data)));
+
+  RunArrayCopy(self, tmp, true, array.Get(), -1, array.Get(), 0, 0);
+  RunArrayCopy(self, tmp, true, array.Get(), 0, array.Get(), -1, 0);
+  RunArrayCopy(self, tmp, true, array.Get(), 0, array.Get(), 0, -1);
+  RunArrayCopy(self, tmp, true, array.Get(), 0, array.Get(), 0, 4);
+  RunArrayCopy(self, tmp, true, array.Get(), 0, array.Get(), 1, 3);
+  RunArrayCopy(self, tmp, true, array.Get(), 1, array.Get(), 0, 3);
+
+  mirror::ObjectArray<mirror::Object>* class_as_array =
+      reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(object_class.Get());
+  RunArrayCopy(self, tmp, true, class_as_array, 0, array.Get(), 0, 0);
+  RunArrayCopy(self, tmp, true, array.Get(), 0, class_as_array, 0, 0);
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, SystemArrayCopyObjectArrayTest) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  JValue result;
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  StackHandleScope<1> hs_object(self);
+  Handle<mirror::Class> object_class(
+      hs_object.NewHandle(mirror::Class::GetJavaLangClass()->GetSuperClass()));
+
+  // Simple test:
+  // [1,2,3]{1 @ 2} into [4,5,6] = [4,2,6]
+  {
+    StackHandleScope<3> hs_src(self);
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "1"));
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "2"));
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "3"));
+
+    StackHandleScope<3> hs_dst(self);
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "4"));
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "5"));
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "6"));
+
+    StackHandleScope<3> hs_expected(self);
+    hs_expected.NewHandle(hs_dst.GetReference(0));
+    hs_expected.NewHandle(hs_dst.GetReference(1));
+    hs_expected.NewHandle(hs_src.GetReference(1));
+
+    RunArrayCopy(self,
+                 tmp,
+                 false,
+                 object_class.Get(),
+                 object_class.Get(),
+                 hs_src,
+                 1,
+                 hs_dst,
+                 2,
+                 1,
+                 hs_expected);
+  }
+
+  // Simple test:
+  // [1,2,3]{1 @ 1} into [4,5,6] = [4,2,6]  (with dst String[])
+  {
+    StackHandleScope<3> hs_src(self);
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "1"));
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "2"));
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "3"));
+
+    StackHandleScope<3> hs_dst(self);
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "4"));
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "5"));
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "6"));
+
+    StackHandleScope<3> hs_expected(self);
+    hs_expected.NewHandle(hs_dst.GetReference(0));
+    hs_expected.NewHandle(hs_src.GetReference(1));
+    hs_expected.NewHandle(hs_dst.GetReference(2));
+
+    RunArrayCopy(self,
+                 tmp,
+                 false,
+                 object_class.Get(),
+                 mirror::String::GetJavaLangString(),
+                 hs_src,
+                 1,
+                 hs_dst,
+                 1,
+                 1,
+                 hs_expected);
+  }
+
+  // Simple test:
+  // [1,*,3] into [4,5,6] = [1,5,6] + exc
+  {
+    StackHandleScope<3> hs_src(self);
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "1"));
+    hs_src.NewHandle(mirror::String::GetJavaLangString());
+    hs_src.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "3"));
+
+    StackHandleScope<3> hs_dst(self);
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "4"));
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "5"));
+    hs_dst.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "6"));
+
+    StackHandleScope<3> hs_expected(self);
+    hs_expected.NewHandle(hs_src.GetReference(0));
+    hs_expected.NewHandle(hs_dst.GetReference(1));
+    hs_expected.NewHandle(hs_dst.GetReference(2));
+
+    RunArrayCopy(self,
+                 tmp,
+                 true,
+                 object_class.Get(),
+                 mirror::String::GetJavaLangString(),
+                 hs_src,
+                 0,
+                 hs_dst,
+                 0,
+                 3,
+                 hs_expected);
+  }
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
 }
 
 }  // namespace interpreter
