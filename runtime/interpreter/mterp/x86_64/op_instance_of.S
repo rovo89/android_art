@@ -14,8 +14,7 @@
     movq    rSELF, OUT_ARG3
     call    SYMBOL(MterpInstanceOf)         # (index, &obj, method, self)
     movsbl  %al, %eax
-    movq    rSELF, %rcx
-    cmpq    $$0, THREAD_EXCEPTION_OFFSET(%rcx)
+    cmpq    $$0, THREAD_EXCEPTION_OFFSET(rSELF)
     jnz     MterpException
     andb    $$0xf, rINSTbl                  # rINSTbl <- A
     SET_VREG %eax, rINSTq

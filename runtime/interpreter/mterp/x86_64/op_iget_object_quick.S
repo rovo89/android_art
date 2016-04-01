@@ -7,8 +7,7 @@
     movzwl  2(rPC), OUT_32_ARG1             # eax <- field byte offset
     EXPORT_PC
     callq   SYMBOL(artIGetObjectFromMterp)  # (obj, offset)
-    movq    rSELF, %rcx
-    cmpq    $$0, THREAD_EXCEPTION_OFFSET(%rcx)
+    cmpq    $$0, THREAD_EXCEPTION_OFFSET(rSELF)
     jnz     MterpException                  # bail out
     andb    $$0xf, rINSTbl                  # rINST <- A
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
