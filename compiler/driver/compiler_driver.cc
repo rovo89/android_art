@@ -2486,6 +2486,20 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
   context.ForAll(0, dex_file.NumClassDefs(), &visitor, init_thread_count);
 }
 
+class InitializeArrayClassVisitor : public ClassVisitor {
+ public:
+  virtual bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (klass->IsArrayClass()) {
+      StackHandleScope<1> hs(Thread::Current());
+      Runtime::Current()->GetClassLinker()->EnsureInitialized(hs.Self(),
+                                                              hs.NewHandle(klass),
+                                                              true,
+                                                              true);
+    }
+    return true;
+  }
+};
+
 void CompilerDriver::InitializeClasses(jobject class_loader,
                                        const std::vector<const DexFile*>& dex_files,
                                        TimingLogger* timings) {
@@ -2493,6 +2507,14 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != nullptr);
     InitializeClasses(class_loader, *dex_file, dex_files, timings);
+  }
+  {
+    // Make sure that we call EnsureIntiailized on all the array classes to call
+    // SetVerificationAttempted so that the access flags are set. If we do not do this they get
+    // changed at runtime resulting in more dirty image pages.
+    ScopedObjectAccess soa(Thread::Current());
+    InitializeArrayClassVisitor visitor;
+    Runtime::Current()->GetClassLinker()->VisitClasses(&visitor);
   }
   if (IsBootImage()) {
     // Prune garbage objects created during aborted transactions.
