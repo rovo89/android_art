@@ -299,7 +299,9 @@ class MANAGED Class FINAL : public Object {
   // Mutually exclusive from whether or not each method is allowed to skip access checks.
   void SetVerificationAttempted() SHARED_REQUIRES(Locks::mutator_lock_) {
     uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
-    SetAccessFlags(flags | kAccVerificationAttempted);
+    if ((flags & kAccVerificationAttempted) == 0) {
+      SetAccessFlags(flags | kAccVerificationAttempted);
+    }
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
