@@ -426,7 +426,9 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr,
     if (error_msg != nullptr) {
       auto saved_errno = errno;
 
-      PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+      if (kIsDebugBuild || VLOG_IS_ON(oat)) {
+        PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+      }
 
       *error_msg = StringPrintf("mmap(%p, %zd, 0x%x, 0x%x, %d, %" PRId64
                                 ") of file '%s' failed: %s. See process maps in the log.",
