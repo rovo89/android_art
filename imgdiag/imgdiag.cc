@@ -18,6 +18,7 @@
 #include <stdlib.h>
 
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -189,6 +190,28 @@ class ImgDiagDumper {
     }
     return oss.str();
   }
+
+  // Aggregate and detail class data from an image diff.
+  struct ClassData {
+    int dirty_object_count = 0;
+
+    // Track only the byte-per-byte dirtiness (in bytes)
+    int dirty_object_byte_count = 0;
+
+    // Track the object-by-object dirtiness (in bytes)
+    int dirty_object_size_in_bytes = 0;
+
+    int clean_object_count = 0;
+
+    std::string descriptor;
+
+    int false_dirty_byte_count = 0;
+    int false_dirty_object_count = 0;
+    std::vector<mirror::Object*> false_dirty_objects;
+
+    // Remote pointers to dirty objects
+    std::vector<mirror::Object*> dirty_objects;
+  };
 
   // Look at /proc/$pid/mem and only diff the things from there
   bool DumpImageDiffMap(pid_t image_diff_pid, const backtrace_map_t& boot_map)
@@ -374,16 +397,10 @@ class ImgDiagDumper {
       }
     }
 
+    std::map<mirror::Class*, ClassData> class_data;
+
     // Walk each object in the remote image space and compare it against ours
     size_t different_objects = 0;
-    std::map<mirror::Class*, int /*count*/> dirty_object_class_map;
-    // Track only the byte-per-byte dirtiness (in bytes)
-    std::map<mirror::Class*, int /*byte_count*/> dirty_object_byte_count;
-    // Track the object-by-object dirtiness (in bytes)
-    std::map<mirror::Class*, int /*byte_count*/> dirty_object_size_in_bytes;
-    std::map<mirror::Class*, int /*count*/> clean_object_class_map;
-
-    std::map<mirror::Class*, std::string> class_to_descriptor_map;
 
     std::map<off_t /* field offset */, int /* count */> art_method_field_dirty_count;
     std::vector<ArtMethod*> art_method_dirty_objects;
@@ -393,13 +410,8 @@ class ImgDiagDumper {
 
     // List of local objects that are clean, but located on dirty pages.
     std::vector<mirror::Object*> false_dirty_objects;
-    std::map<mirror::Class*, int /*byte_count*/> false_dirty_byte_count;
-    std::map<mirror::Class*, int /*object_count*/> false_dirty_object_count;
-    std::map<mirror::Class*, std::vector<mirror::Object*>> false_dirty_objects_map;
     size_t false_dirty_object_bytes = 0;
 
-    // Remote pointers to dirty objects
-    std::map<mirror::Class*, std::vector<mirror::Object*>> dirty_objects_by_class;
     // Look up remote classes by their descriptor
     std::map<std::string, mirror::Class*> remote_class_map;
     // Look up local classes by their descriptor
@@ -454,7 +466,7 @@ class ImgDiagDumper {
         dirty_object_bytes += obj->SizeOf();
         dirty_objects.insert(obj);
 
-        ++dirty_object_class_map[klass];
+        ++class_data[klass].dirty_object_count;
 
         // Go byte-by-byte and figure out what exactly got dirtied
         size_t dirty_byte_count_per_object = 0;
@@ -463,14 +475,14 @@ class ImgDiagDumper {
             dirty_byte_count_per_object++;
           }
         }
-        dirty_object_byte_count[klass] += dirty_byte_count_per_object;
-        dirty_object_size_in_bytes[klass] += obj->SizeOf();
+        class_data[klass].dirty_object_byte_count += dirty_byte_count_per_object;
+        class_data[klass].dirty_object_size_in_bytes += obj->SizeOf();
 
         different_object = true;
 
-        dirty_objects_by_class[klass].push_back(remote_obj);
+        class_data[klass].dirty_objects.push_back(remote_obj);
       } else {
-        ++clean_object_class_map[klass];
+        ++class_data[klass].clean_object_count;
       }
 
       std::string descriptor = GetClassDescriptor(klass);
@@ -504,10 +516,10 @@ class ImgDiagDumper {
         // This object was either never mutated or got mutated back to the same value.
         // TODO: Do I want to distinguish a "different" vs a "dirty" page here?
         false_dirty_objects.push_back(obj);
-        false_dirty_objects_map[klass].push_back(obj);
+        class_data[klass].false_dirty_objects.push_back(obj);
         false_dirty_object_bytes += obj->SizeOf();
-        false_dirty_byte_count[obj->GetClass()] += obj->SizeOf();
-        false_dirty_object_count[obj->GetClass()] += 1;
+        class_data[obj->GetClass()].false_dirty_byte_count += obj->SizeOf();
+        class_data[obj->GetClass()].false_dirty_object_count += 1;
       }
 
       if (strcmp(descriptor.c_str(), "Ljava/lang/Class;") == 0) {
@@ -516,7 +528,7 @@ class ImgDiagDumper {
       }
 
       // Unconditionally store the class descriptor in case we need it later
-      class_to_descriptor_map[klass] = descriptor;
+      class_data[klass].descriptor = descriptor;
       current += RoundUp(obj->SizeOf(), kObjectAlignment);
     }
 
@@ -541,8 +553,10 @@ class ImgDiagDumper {
        << "";
 
     // vector of pairs (int count, Class*)
-    auto dirty_object_class_values = SortByValueDesc(dirty_object_class_map);
-    auto clean_object_class_values = SortByValueDesc(clean_object_class_map);
+    auto dirty_object_class_values = SortByValueDesc<mirror::Class*, int, ClassData>(
+        class_data, [](const ClassData& d) { return d.dirty_object_count; });
+    auto clean_object_class_values = SortByValueDesc<mirror::Class*, int, ClassData>(
+        class_data, [](const ClassData& d) { return d.clean_object_count; });
 
     os << "\n" << "  Dirty objects: " << dirty_objects.size() << "\n";
     for (mirror::Object* obj : dirty_objects) {
@@ -613,10 +627,11 @@ class ImgDiagDumper {
     for (const auto& vk_pair : dirty_object_class_values) {
       int dirty_object_count = vk_pair.first;
       mirror::Class* klass = vk_pair.second;
-      int object_sizes = dirty_object_size_in_bytes[klass];
-      float avg_dirty_bytes_per_class = dirty_object_byte_count[klass] * 1.0f / object_sizes;
+      int object_sizes = class_data[klass].dirty_object_size_in_bytes;
+      float avg_dirty_bytes_per_class =
+          class_data[klass].dirty_object_byte_count * 1.0f / object_sizes;
       float avg_object_size = object_sizes * 1.0f / dirty_object_count;
-      const std::string& descriptor = class_to_descriptor_map[klass];
+      const std::string& descriptor = class_data[klass].descriptor;
       os << "    " << PrettyClass(klass) << " ("
          << "objects: " << dirty_object_count << ", "
          << "avg dirty bytes: " << avg_dirty_bytes_per_class << ", "
@@ -635,7 +650,8 @@ class ImgDiagDumper {
         os << "\n";
 
         os << "      dirty byte +offset:count list = ";
-        auto art_method_field_dirty_count_sorted = SortByValueDesc(art_method_field_dirty_count);
+        auto art_method_field_dirty_count_sorted =
+            SortByValueDesc<off_t, int, int>(art_method_field_dirty_count);
         for (auto pair : art_method_field_dirty_count_sorted) {
           off_t offset = pair.second;
           int count = pair.first;
@@ -646,7 +662,7 @@ class ImgDiagDumper {
         os << "\n";
 
         os << "      field contents:\n";
-        const auto& dirty_objects_list = dirty_objects_by_class[klass];
+        const auto& dirty_objects_list = class_data[klass].dirty_objects;
         for (mirror::Object* obj : dirty_objects_list) {
           // remote method
           auto art_method = reinterpret_cast<ArtMethod*>(obj);
@@ -685,7 +701,8 @@ class ImgDiagDumper {
         os << "\n";
 
         os << "       dirty byte +offset:count list = ";
-        auto class_field_dirty_count_sorted = SortByValueDesc(class_field_dirty_count);
+        auto class_field_dirty_count_sorted =
+            SortByValueDesc<off_t, int, int>(class_field_dirty_count);
         for (auto pair : class_field_dirty_count_sorted) {
           off_t offset = pair.second;
           int count = pair.first;
@@ -695,7 +712,7 @@ class ImgDiagDumper {
         os << "\n";
 
         os << "      field contents:\n";
-        const auto& dirty_objects_list = dirty_objects_by_class[klass];
+        const auto& dirty_objects_list = class_data[klass].dirty_objects;
         for (mirror::Object* obj : dirty_objects_list) {
           // remote class object
           auto remote_klass = reinterpret_cast<mirror::Class*>(obj);
@@ -713,15 +730,16 @@ class ImgDiagDumper {
       }
     }
 
-    auto false_dirty_object_class_values = SortByValueDesc(false_dirty_object_count);
+    auto false_dirty_object_class_values = SortByValueDesc<mirror::Class*, int, ClassData>(
+        class_data, [](const ClassData& d) { return d.false_dirty_object_count; });
 
     os << "\n" << "  False-dirty object count by class:\n";
     for (const auto& vk_pair : false_dirty_object_class_values) {
       int object_count = vk_pair.first;
       mirror::Class* klass = vk_pair.second;
-      int object_sizes = false_dirty_byte_count[klass];
+      int object_sizes = class_data[klass].false_dirty_byte_count;
       float avg_object_size = object_sizes * 1.0f / object_count;
-      const std::string& descriptor = class_to_descriptor_map[klass];
+      const std::string& descriptor = class_data[klass].descriptor;
       os << "    " << PrettyClass(klass) << " ("
          << "objects: " << object_count << ", "
          << "avg object size: " << avg_object_size << ", "
@@ -730,7 +748,7 @@ class ImgDiagDumper {
          << ")\n";
 
       if (strcmp(descriptor.c_str(), "Ljava/lang/reflect/ArtMethod;") == 0) {
-        auto& art_method_false_dirty_objects = false_dirty_objects_map[klass];
+        auto& art_method_false_dirty_objects = class_data[klass].false_dirty_objects;
 
         os << "      field contents:\n";
         for (mirror::Object* obj : art_method_false_dirty_objects) {
@@ -809,14 +827,16 @@ class ImgDiagDumper {
     return std::string(descriptor_str);
   }
 
-  template <typename K, typename V>
-  static std::vector<std::pair<V, K>> SortByValueDesc(const std::map<K, V> map) {
+  template <typename K, typename V, typename D>
+  static std::vector<std::pair<V, K>> SortByValueDesc(
+      const std::map<K, D> map,
+      std::function<V(const D&)> value_mapper = [](const D& d) { return static_cast<V>(d); }) {
     // Store value->key so that we can use the default sort from pair which
     // sorts by value first and then key
     std::vector<std::pair<V, K>> value_key_vector;
 
     for (const auto& kv_pair : map) {
-      value_key_vector.push_back(std::make_pair(kv_pair.second, kv_pair.first));
+      value_key_vector.push_back(std::make_pair(value_mapper(kv_pair.second), kv_pair.first));
     }
 
     // Sort in reverse (descending order)
