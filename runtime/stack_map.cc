@@ -101,6 +101,17 @@ void StackMapEncoding::Dump(VariableIndentationOutputStream* vios) const {
       << ")\n";
 }
 
+void InlineInfoEncoding::Dump(VariableIndentationOutputStream* vios) const {
+  vios->Stream()
+      << "InlineInfoEncoding"
+      << " (method_index_bit_offset=" << static_cast<uint32_t>(kMethodIndexBitOffset)
+      << ", dex_pc_bit_offset=" << static_cast<uint32_t>(dex_pc_bit_offset_)
+      << ", invoke_type_bit_offset=" << static_cast<uint32_t>(invoke_type_bit_offset_)
+      << ", dex_register_map_bit_offset=" << static_cast<uint32_t>(dex_register_map_bit_offset_)
+      << ", total_bit_size=" << static_cast<uint32_t>(total_bit_size_)
+      << ")\n";
+}
+
 void CodeInfo::Dump(VariableIndentationOutputStream* vios,
                     uint32_t code_offset,
                     uint16_t number_of_dex_registers,
@@ -113,6 +124,9 @@ void CodeInfo::Dump(VariableIndentationOutputStream* vios,
       << ")\n";
   ScopedIndentation indent1(vios);
   encoding.stack_map_encoding.Dump(vios);
+  if (HasInlineInfo(encoding)) {
+    encoding.inline_info_encoding.Dump(vios);
+  }
   // Display the Dex register location catalog.
   GetDexRegisterLocationCatalog(encoding).Dump(vios, *this);
   // Display stack maps along with (live) Dex register maps.
@@ -207,18 +221,22 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
 void InlineInfo::Dump(VariableIndentationOutputStream* vios,
                       const CodeInfo& code_info,
                       uint16_t number_of_dex_registers[]) const {
-  vios->Stream() << "InlineInfo with depth " << static_cast<uint32_t>(GetDepth()) << "\n";
+  InlineInfoEncoding inline_info_encoding = code_info.ExtractEncoding().inline_info_encoding;
+  vios->Stream() << "InlineInfo with depth "
+                 << static_cast<uint32_t>(GetDepth(inline_info_encoding))
+                 << "\n";
 
-  for (size_t i = 0; i < GetDepth(); ++i) {
+  for (size_t i = 0; i < GetDepth(inline_info_encoding); ++i) {
     vios->Stream()
         << " At depth " << i
         << std::hex
-        << " (dex_pc=0x" << GetDexPcAtDepth(i)
+        << " (dex_pc=0x" << GetDexPcAtDepth(inline_info_encoding, i)
         << std::dec
-        << ", method_index=" << GetMethodIndexAtDepth(i)
-        << ", invoke_type=" << static_cast<InvokeType>(GetInvokeTypeAtDepth(i))
+        << ", method_index=" << GetMethodIndexAtDepth(inline_info_encoding, i)
+        << ", invoke_type=" << static_cast<InvokeType>(GetInvokeTypeAtDepth(inline_info_encoding,
+                                                                            i))
         << ")\n";
-    if (HasDexRegisterMapAtDepth(i) && (number_of_dex_registers != nullptr)) {
+    if (HasDexRegisterMapAtDepth(inline_info_encoding, i) && (number_of_dex_registers != nullptr)) {
       CodeInfoEncoding encoding = code_info.ExtractEncoding();
       DexRegisterMap dex_register_map =
           code_info.GetDexRegisterMapAtDepth(i, *this, encoding, number_of_dex_registers[i]);

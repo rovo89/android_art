@@ -156,7 +156,7 @@ class StackMapStream : public ValueObject {
   size_t ComputeDexRegisterMapSize(uint32_t num_dex_registers,
                                    const BitVector* live_dex_registers_mask) const;
   size_t ComputeDexRegisterMapsSize() const;
-  size_t ComputeInlineInfoSize() const;
+  void ComputeInlineInfoEncoding();
 
   // Returns the index of an entry with the same dex register map as the current_entry,
   // or kNoSameDexMapFound if no such entry exists.
@@ -200,6 +200,7 @@ class StackMapStream : public ValueObject {
   StackMapEntry current_entry_;
   InlineInfoEntry current_inline_info_;
   StackMapEncoding stack_map_encoding_;
+  InlineInfoEncoding inline_info_encoding_;
   ArenaVector<uint8_t> code_info_encoding_;
   size_t inline_info_size_;
   size_t dex_register_maps_size_;
