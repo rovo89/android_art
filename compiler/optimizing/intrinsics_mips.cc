@@ -614,8 +614,6 @@ static void GenBitCount(LocationSummary* locations,
                         Primitive::Type type,
                         bool isR6,
                         MipsAssembler* assembler) {
-  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
-
   Register out = locations->Out().AsRegister<Register>();
 
   // https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
@@ -663,7 +661,8 @@ static void GenBitCount(LocationSummary* locations,
       __ MulR2(out, out, TMP);
     }
     __ Srl(out, out, 24);
-  } else if (type == Primitive::kPrimLong) {
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimLong);
     Register in_lo = locations->InAt(0).AsRegisterPairLow<Register>();
     Register in_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
     Register tmp_hi = locations->GetTemp(0).AsRegister<Register>();
