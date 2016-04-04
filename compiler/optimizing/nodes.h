@@ -26,7 +26,6 @@
 #include "base/arena_object.h"
 #include "base/stl_util.h"
 #include "dex/compiler_enums.h"
-#include "dex_instruction-inl.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_scope.h"
@@ -101,6 +100,7 @@ enum IfCondition {
 };
 
 enum GraphAnalysisResult {
+  kAnalysisSkipped,
   kAnalysisInvalidBytecode,
   kAnalysisFailThrowCatchLoop,
   kAnalysisFailAmbiguousArrayOp,
@@ -998,15 +998,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
 
   // Similar to `SplitBeforeForInlining` but does it after `cursor`.
   HBasicBlock* SplitAfterForInlining(HInstruction* cursor);
-
-  // Split catch block into two blocks after the original move-exception bytecode
-  // instruction, or at the beginning if not present. Returns the newly created,
-  // latter block, or nullptr if such block could not be created (must be dead
-  // in that case). Note that this method just updates raw block information,
-  // like predecessors, successors, dominators, and instruction list. It does not
-  // update the graph, reverse post order, loop information, nor make sure the
-  // blocks are consistent (for example ending with a control flow instruction).
-  HBasicBlock* SplitCatchBlockAfterMoveException();
 
   // Merge `other` at the end of `this`. Successors and dominated blocks of
   // `other` are changed to be successors and dominated blocks of `this`. Note
@@ -5415,7 +5406,7 @@ class HBoundsCheck : public HExpression<2> {
 
 class HSuspendCheck : public HTemplateInstruction<0> {
  public:
-  explicit HSuspendCheck(uint32_t dex_pc)
+  explicit HSuspendCheck(uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::CanTriggerGC(), dex_pc), slow_path_(nullptr) {}
 
   bool NeedsEnvironment() const OVERRIDE {
@@ -6706,74 +6697,6 @@ inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
 
   FOR_EACH_CONCRETE_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
 #undef INSTRUCTION_TYPE_CHECK
-
-class SwitchTable : public ValueObject {
- public:
-  SwitchTable(const Instruction& instruction, uint32_t dex_pc, bool sparse)
-      : instruction_(instruction), dex_pc_(dex_pc), sparse_(sparse) {
-    int32_t table_offset = instruction.VRegB_31t();
-    const uint16_t* table = reinterpret_cast<const uint16_t*>(&instruction) + table_offset;
-    if (sparse) {
-      CHECK_EQ(table[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
-    } else {
-      CHECK_EQ(table[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
-    }
-    num_entries_ = table[1];
-    values_ = reinterpret_cast<const int32_t*>(&table[2]);
-  }
-
-  uint16_t GetNumEntries() const {
-    return num_entries_;
-  }
-
-  void CheckIndex(size_t index) const {
-    if (sparse_) {
-      // In a sparse table, we have num_entries_ keys and num_entries_ values, in that order.
-      DCHECK_LT(index, 2 * static_cast<size_t>(num_entries_));
-    } else {
-      // In a packed table, we have the starting key and num_entries_ values.
-      DCHECK_LT(index, 1 + static_cast<size_t>(num_entries_));
-    }
-  }
-
-  int32_t GetEntryAt(size_t index) const {
-    CheckIndex(index);
-    return values_[index];
-  }
-
-  uint32_t GetDexPcForIndex(size_t index) const {
-    CheckIndex(index);
-    return dex_pc_ +
-        (reinterpret_cast<const int16_t*>(values_ + index) -
-         reinterpret_cast<const int16_t*>(&instruction_));
-  }
-
-  // Index of the first value in the table.
-  size_t GetFirstValueIndex() const {
-    if (sparse_) {
-      // In a sparse table, we have num_entries_ keys and num_entries_ values, in that order.
-      return num_entries_;
-    } else {
-      // In a packed table, we have the starting key and num_entries_ values.
-      return 1;
-    }
-  }
-
- private:
-  const Instruction& instruction_;
-  const uint32_t dex_pc_;
-
-  // Whether this is a sparse-switch table (or a packed-switch one).
-  const bool sparse_;
-
-  // This can't be const as it needs to be computed off of the given instruction, and complicated
-  // expressions in the initializer list seemed very ugly.
-  uint16_t num_entries_;
-
-  const int32_t* values_;
-
-  DISALLOW_COPY_AND_ASSIGN(SwitchTable);
-};
 
 // Create space in `blocks` for adding `number_of_new_blocks` entries
 // starting at location `at`. Blocks after `at` are moved accordingly.
