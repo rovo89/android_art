@@ -18,6 +18,7 @@
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
+#include "jit/jit_instrumentation.h"
 #include "safe_math.h"
 
 #include <memory>  // std::unique_ptr
@@ -73,7 +74,6 @@ namespace interpreter {
 
 #define BRANCH_INSTRUMENTATION(offset)                                                         \
   do {                                                                                         \
-    ArtMethod* method = shadow_frame.GetMethod();                                              \
     instrumentation->Branch(self, method, dex_pc, offset);                                     \
     JValue result;                                                                             \
     if (jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, &result)) {          \
@@ -82,6 +82,13 @@ namespace interpreter {
         shadow_frame.SetDexPC(DexFile::kDexNoIndex);                                           \
       }                                                                                        \
       return result;                                                                           \
+    }                                                                                          \
+  } while (false)
+
+#define HOTNESS_UPDATE()                                                                       \
+  do {                                                                                         \
+    if (jit_instrumentation_cache != nullptr) {                                                \
+      jit_instrumentation_cache->AddSamples(self, method, 1);                                  \
     }                                                                                          \
   } while (false)
 
@@ -106,6 +113,12 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   const uint16_t* const insns = code_item->insns_;
   const Instruction* inst = Instruction::At(insns + dex_pc);
   uint16_t inst_data;
+  ArtMethod* method = shadow_frame.GetMethod();
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  jit::JitInstrumentationCache* jit_instrumentation_cache = nullptr;
+  if (jit != nullptr) {
+    jit_instrumentation_cache = jit->GetInstrumentationCache();
+  }
 
   // TODO: collapse capture-variable+create-lambda into one opcode, then we won't need
   // to keep this live for the scope of the entire function call.
@@ -574,6 +587,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         int8_t offset = inst->VRegA_10t(inst_data);
         BRANCH_INSTRUMENTATION(offset);
         if (IsBackwardBranch(offset)) {
+          HOTNESS_UPDATE();
           self->AllowThreadSuspension();
         }
         inst = inst->RelativeAt(offset);
@@ -584,6 +598,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         int16_t offset = inst->VRegA_20t();
         BRANCH_INSTRUMENTATION(offset);
         if (IsBackwardBranch(offset)) {
+          HOTNESS_UPDATE();
           self->AllowThreadSuspension();
         }
         inst = inst->RelativeAt(offset);
@@ -594,6 +609,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         int32_t offset = inst->VRegA_30t();
         BRANCH_INSTRUMENTATION(offset);
         if (IsBackwardBranch(offset)) {
+          HOTNESS_UPDATE();
           self->AllowThreadSuspension();
         }
         inst = inst->RelativeAt(offset);
@@ -604,6 +620,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         int32_t offset = DoPackedSwitch(inst, shadow_frame, inst_data);
         BRANCH_INSTRUMENTATION(offset);
         if (IsBackwardBranch(offset)) {
+          HOTNESS_UPDATE();
           self->AllowThreadSuspension();
         }
         inst = inst->RelativeAt(offset);
@@ -614,6 +631,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         int32_t offset = DoSparseSwitch(inst, shadow_frame, inst_data);
         BRANCH_INSTRUMENTATION(offset);
         if (IsBackwardBranch(offset)) {
+          HOTNESS_UPDATE();
           self->AllowThreadSuspension();
         }
         inst = inst->RelativeAt(offset);
@@ -718,6 +736,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegC_22t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -734,6 +753,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegC_22t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -750,6 +770,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegC_22t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -766,6 +787,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegC_22t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -782,6 +804,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegC_22t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -798,6 +821,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegC_22t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -813,6 +837,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegB_21t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -828,6 +853,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegB_21t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -843,6 +869,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegB_21t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -858,6 +885,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegB_21t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -873,6 +901,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegB_21t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
@@ -888,6 +917,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           int16_t offset = inst->VRegB_21t();
           BRANCH_INSTRUMENTATION(offset);
           if (IsBackwardBranch(offset)) {
+            HOTNESS_UPDATE();
             self->AllowThreadSuspension();
           }
           inst = inst->RelativeAt(offset);
