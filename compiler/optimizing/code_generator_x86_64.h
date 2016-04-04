@@ -350,6 +350,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return GetLabelOf(block)->Position();
   }
 
+  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+
   void SetupBlockedRegisters() const OVERRIDE;
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
