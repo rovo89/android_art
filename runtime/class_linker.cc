@@ -3795,7 +3795,9 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass, LogSeve
     while (old_status == mirror::Class::kStatusVerifying ||
         old_status == mirror::Class::kStatusVerifyingAtRuntime) {
       lock.WaitIgnoringInterrupts();
-      CHECK_GT(klass->GetStatus(), old_status);
+      CHECK(klass->IsErroneous() || (klass->GetStatus() > old_status))
+          << "Class '" << PrettyClass(klass.Get()) << "' performed an illegal verification state "
+          << "transition from " << old_status << " to " << klass->GetStatus();
       old_status = klass->GetStatus();
     }
 
