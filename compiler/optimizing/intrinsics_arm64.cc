@@ -368,17 +368,16 @@ void IntrinsicCodeGeneratorARM64::VisitLongReverse(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
 }
 
-static void GenBitCount(HInvoke* instr, bool is_long, vixl::MacroAssembler* masm) {
-  DCHECK(instr->GetType() == Primitive::kPrimInt);
-  DCHECK((is_long && instr->InputAt(0)->GetType() == Primitive::kPrimLong) ||
-         (!is_long && instr->InputAt(0)->GetType() == Primitive::kPrimInt));
+static void GenBitCount(HInvoke* instr, Primitive::Type type, vixl::MacroAssembler* masm) {
+  DCHECK(Primitive::IsIntOrLongType(type)) << type;
+  DCHECK_EQ(instr->GetType(), Primitive::kPrimInt);
+  DCHECK_EQ(Primitive::PrimitiveKind(instr->InputAt(0)->GetType()), type);
 
-  Location out = instr->GetLocations()->Out();
   UseScratchRegisterScope temps(masm);
 
   Register src = InputRegisterAt(instr, 0);
-  Register dst = is_long ? XRegisterFrom(out) : WRegisterFrom(out);
-  FPRegister fpr = is_long ? temps.AcquireD() : temps.AcquireS();
+  Register dst = RegisterFrom(instr->GetLocations()->Out(), type);
+  FPRegister fpr = (type == Primitive::kPrimLong) ? temps.AcquireD() : temps.AcquireS();
 
   __ Fmov(fpr, src);
   __ Cnt(fpr.V8B(), fpr.V8B());
@@ -391,7 +390,7 @@ void IntrinsicLocationsBuilderARM64::VisitLongBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitLongBitCount(HInvoke* invoke) {
-  GenBitCount(invoke, /* is_long */ true, GetVIXLAssembler());
+  GenBitCount(invoke, Primitive::kPrimLong, GetVIXLAssembler());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitIntegerBitCount(HInvoke* invoke) {
@@ -399,7 +398,7 @@ void IntrinsicLocationsBuilderARM64::VisitIntegerBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitIntegerBitCount(HInvoke* invoke) {
-  GenBitCount(invoke, /* is_long */ false, GetVIXLAssembler());
+  GenBitCount(invoke, Primitive::kPrimInt, GetVIXLAssembler());
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
