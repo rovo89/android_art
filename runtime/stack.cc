@@ -130,11 +130,19 @@ ArtMethod* StackVisitor::GetMethod() const {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
       InlineInfo inline_info = GetCurrentInlineInfo();
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      CodeInfoEncoding encoding = method_header->GetOptimizedCodeInfo().ExtractEncoding();
       DCHECK(walk_kind_ != StackWalkKind::kSkipInlinedFrames);
       bool allow_resolve = walk_kind_ != StackWalkKind::kIncludeInlinedFramesNoResolve;
       return allow_resolve
-          ? GetResolvedMethod<true>(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map)
-          : GetResolvedMethod<false>(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map);
+          ? GetResolvedMethod<true>(*GetCurrentQuickFrame(),
+                                    inline_info,
+                                    encoding.inline_info_encoding,
+                                    depth_in_stack_map)
+          : GetResolvedMethod<false>(*GetCurrentQuickFrame(),
+                                     inline_info,
+                                     encoding.inline_info_encoding,
+                                     depth_in_stack_map);
     } else {
       return *cur_quick_frame_;
     }
@@ -148,7 +156,10 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   } else if (cur_quick_frame_ != nullptr) {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
-      return GetCurrentInlineInfo().GetDexPcAtDepth(depth_in_stack_map);
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      CodeInfoEncoding encoding = method_header->GetOptimizedCodeInfo().ExtractEncoding();
+      return GetCurrentInlineInfo().GetDexPcAtDepth(encoding.inline_info_encoding,
+                                                    depth_in_stack_map);
     } else if (cur_oat_quick_method_header_ == nullptr) {
       return DexFile::kDexNoIndex;
     } else {
@@ -875,7 +886,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           if (stack_map.IsValid() && stack_map.HasInlineInfo(encoding.stack_map_encoding)) {
             InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
             DCHECK_EQ(current_inlining_depth_, 0u);
-            for (current_inlining_depth_ = inline_info.GetDepth();
+            for (current_inlining_depth_ = inline_info.GetDepth(encoding.inline_info_encoding);
                  current_inlining_depth_ != 0;
                  --current_inlining_depth_) {
               bool should_continue = VisitFrame();
