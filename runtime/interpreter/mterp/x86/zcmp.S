@@ -7,13 +7,11 @@
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $$0, VREG_ADDRESS(rINST)        # compare (vA, 0)
-    movl    $$2, rINST
     j${revcmp}   1f
     movswl  2(rPC), rINST                   # fetch signed displacement
+    testl   rINST, rINST
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addl    rINST, rINST                    # eax <- AA * 2
-    leal    (rPC, rINST), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpw    $$JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
