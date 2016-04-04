@@ -49,8 +49,9 @@ static constexpr int kDefaultNumberOfLoops = 2;
  */
 class SsaBuilder : public HGraphVisitor {
  public:
-  SsaBuilder(HGraph* graph, StackHandleScopeCollection* handles)
+  SsaBuilder(HGraph* graph, const DexFile::CodeItem& code_item, StackHandleScopeCollection* handles)
       : HGraphVisitor(graph),
+        code_item_(code_item),
         handles_(handles),
         agets_fixed_(false),
         current_locals_(nullptr),
@@ -105,6 +106,11 @@ class SsaBuilder : public HGraphVisitor {
 
   void RemoveRedundantUninitializedStrings();
 
+  // Returns whether `instruction` is the first generated HInstruction for its
+  // dex_pc position.
+  bool IsFirstAtThrowingDexPc(HInstruction* instruction) const;
+
+  const DexFile::CodeItem& code_item_;
   StackHandleScopeCollection* const handles_;
 
   // True if types of ambiguous ArrayGets have been resolved.
