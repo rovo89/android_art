@@ -24,12 +24,6 @@
 
 namespace art {
 
-#define ELEMENT_BYTE_OFFSET_AFTER(PreviousElement) \
-  k ## PreviousElement ## Offset + sizeof(PreviousElement ## Type)
-
-#define ELEMENT_BIT_OFFSET_AFTER(PreviousElement) \
-  k ## PreviousElement ## BitOffset + PreviousElement ## BitSize
-
 class VariableIndentationOutputStream;
 
 // Size of a frame slot, in bytes.  This constant is a signed value,
@@ -888,102 +882,139 @@ class StackMap {
   friend class StackMapStream;
 };
 
+class InlineInfoEncoding {
+ public:
+  void SetFromSizes(size_t method_index_max,
+                    size_t dex_pc_max,
+                    size_t invoke_type_max,
+                    size_t dex_register_map_size) {
+    total_bit_size_ = kMethodIndexBitOffset;
+    total_bit_size_ += MinimumBitsToStore(method_index_max);
+
+    dex_pc_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
+    total_bit_size_ += MinimumBitsToStore(1 /* kNoDexPc */ + dex_pc_max);
+
+    invoke_type_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
+    total_bit_size_ += MinimumBitsToStore(invoke_type_max);
+
+    // We also need +1 for kNoDexRegisterMap, but since the size is strictly
+    // greater than any offset we might try to encode, we already implicitly have it.
+    dex_register_map_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
+    total_bit_size_ += MinimumBitsToStore(dex_register_map_size);
+  }
+
+  ALWAYS_INLINE FieldEncoding GetMethodIndexEncoding() const {
+    return FieldEncoding(kMethodIndexBitOffset, dex_pc_bit_offset_);
+  }
+  ALWAYS_INLINE FieldEncoding GetDexPcEncoding() const {
+    return FieldEncoding(dex_pc_bit_offset_, invoke_type_bit_offset_, -1 /* min_value */);
+  }
+  ALWAYS_INLINE FieldEncoding GetInvokeTypeEncoding() const {
+    return FieldEncoding(invoke_type_bit_offset_, dex_register_map_bit_offset_);
+  }
+  ALWAYS_INLINE FieldEncoding GetDexRegisterMapEncoding() const {
+    return FieldEncoding(dex_register_map_bit_offset_, total_bit_size_, -1 /* min_value */);
+  }
+  ALWAYS_INLINE size_t GetEntrySize() const {
+    return RoundUp(total_bit_size_, kBitsPerByte) / kBitsPerByte;
+  }
+
+  void Dump(VariableIndentationOutputStream* vios) const;
+
+ private:
+  static constexpr uint8_t kIsLastBitOffset = 0;
+  static constexpr uint8_t kMethodIndexBitOffset = 1;
+  uint8_t dex_pc_bit_offset_;
+  uint8_t invoke_type_bit_offset_;
+  uint8_t dex_register_map_bit_offset_;
+  uint8_t total_bit_size_;
+};
+
 /**
  * Inline information for a specific PC. The information is of the form:
  *
- *   [inlining_depth, entry+]
- *
- * where `entry` is of the form:
- *
- *   [dex_pc, method_index, dex_register_map_offset].
+ *   [is_last, method_index, dex_pc, invoke_type, dex_register_map_offset]+.
  */
 class InlineInfo {
  public:
-  // Memory layout: fixed contents.
-  typedef uint8_t DepthType;
-  // Memory layout: single entry contents.
-  typedef uint32_t MethodIndexType;
-  typedef uint32_t DexPcType;
-  typedef uint8_t InvokeTypeType;
-  typedef uint32_t DexRegisterMapType;
-
-  explicit InlineInfo(MemoryRegion region) : region_(region) {}
-
-  DepthType GetDepth() const {
-    return region_.LoadUnaligned<DepthType>(kDepthOffset);
+  explicit InlineInfo(MemoryRegion region) : region_(region) {
   }
 
-  void SetDepth(DepthType depth) {
-    region_.StoreUnaligned<DepthType>(kDepthOffset, depth);
+  ALWAYS_INLINE uint32_t GetDepth(const InlineInfoEncoding& encoding) const {
+    size_t depth = 0;
+    while (!GetRegionAtDepth(encoding, depth++).LoadBit(0)) { }  // Check is_last bit.
+    return depth;
   }
 
-  MethodIndexType GetMethodIndexAtDepth(DepthType depth) const {
-    return region_.LoadUnaligned<MethodIndexType>(
-        kFixedSize + depth * SingleEntrySize() + kMethodIndexOffset);
+  ALWAYS_INLINE void SetDepth(const InlineInfoEncoding& encoding, uint32_t depth) {
+    DCHECK_GT(depth, 0u);
+    for (size_t d = 0; d < depth; ++d) {
+      GetRegionAtDepth(encoding, d).StoreBit(0, d == depth - 1);  // Set is_last bit.
+    }
   }
 
-  void SetMethodIndexAtDepth(DepthType depth, MethodIndexType index) {
-    region_.StoreUnaligned<MethodIndexType>(
-        kFixedSize + depth * SingleEntrySize() + kMethodIndexOffset, index);
+  ALWAYS_INLINE uint32_t GetMethodIndexAtDepth(const InlineInfoEncoding& encoding,
+                                               uint32_t depth) const {
+    return encoding.GetMethodIndexEncoding().Load(GetRegionAtDepth(encoding, depth));
   }
 
-  DexPcType GetDexPcAtDepth(DepthType depth) const {
-    return region_.LoadUnaligned<DexPcType>(
-        kFixedSize + depth * SingleEntrySize() + kDexPcOffset);
+  ALWAYS_INLINE void SetMethodIndexAtDepth(const InlineInfoEncoding& encoding,
+                                           uint32_t depth,
+                                           uint32_t index) {
+    encoding.GetMethodIndexEncoding().Store(GetRegionAtDepth(encoding, depth), index);
   }
 
-  void SetDexPcAtDepth(DepthType depth, DexPcType dex_pc) {
-    region_.StoreUnaligned<DexPcType>(
-        kFixedSize + depth * SingleEntrySize() + kDexPcOffset, dex_pc);
+  ALWAYS_INLINE uint32_t GetDexPcAtDepth(const InlineInfoEncoding& encoding,
+                                         uint32_t depth) const {
+    return encoding.GetDexPcEncoding().Load(GetRegionAtDepth(encoding, depth));
   }
 
-  InvokeTypeType GetInvokeTypeAtDepth(DepthType depth) const {
-    return region_.LoadUnaligned<InvokeTypeType>(
-        kFixedSize + depth * SingleEntrySize() + kInvokeTypeOffset);
+  ALWAYS_INLINE void SetDexPcAtDepth(const InlineInfoEncoding& encoding,
+                                     uint32_t depth,
+                                     uint32_t dex_pc) {
+    encoding.GetDexPcEncoding().Store(GetRegionAtDepth(encoding, depth), dex_pc);
   }
 
-  void SetInvokeTypeAtDepth(DepthType depth, InvokeTypeType invoke_type) {
-    region_.StoreUnaligned<InvokeTypeType>(
-        kFixedSize + depth * SingleEntrySize() + kInvokeTypeOffset, invoke_type);
+  ALWAYS_INLINE uint32_t GetInvokeTypeAtDepth(const InlineInfoEncoding& encoding,
+                                              uint32_t depth) const {
+    return encoding.GetInvokeTypeEncoding().Load(GetRegionAtDepth(encoding, depth));
   }
 
-  DexRegisterMapType GetDexRegisterMapOffsetAtDepth(DepthType depth) const {
-    return region_.LoadUnaligned<DexRegisterMapType>(
-        kFixedSize + depth * SingleEntrySize() + kDexRegisterMapOffset);
+  ALWAYS_INLINE void SetInvokeTypeAtDepth(const InlineInfoEncoding& encoding,
+                                          uint32_t depth,
+                                          uint32_t invoke_type) {
+    encoding.GetInvokeTypeEncoding().Store(GetRegionAtDepth(encoding, depth), invoke_type);
   }
 
-  void SetDexRegisterMapOffsetAtDepth(DepthType depth, DexRegisterMapType offset) {
-    region_.StoreUnaligned<DexRegisterMapType>(
-        kFixedSize + depth * SingleEntrySize() + kDexRegisterMapOffset, offset);
+  ALWAYS_INLINE uint32_t GetDexRegisterMapOffsetAtDepth(const InlineInfoEncoding& encoding,
+                                                        uint32_t depth) const {
+    return encoding.GetDexRegisterMapEncoding().Load(GetRegionAtDepth(encoding, depth));
   }
 
-  bool HasDexRegisterMapAtDepth(DepthType depth) const {
-    return GetDexRegisterMapOffsetAtDepth(depth) != StackMap::kNoDexRegisterMap;
+  ALWAYS_INLINE void SetDexRegisterMapOffsetAtDepth(const InlineInfoEncoding& encoding,
+                                                    uint32_t depth,
+                                                    uint32_t offset) {
+    encoding.GetDexRegisterMapEncoding().Store(GetRegionAtDepth(encoding, depth), offset);
   }
 
-  static size_t SingleEntrySize() {
-    return kFixedEntrySize;
+  ALWAYS_INLINE bool HasDexRegisterMapAtDepth(const InlineInfoEncoding& encoding,
+                                              uint32_t depth) const {
+    return GetDexRegisterMapOffsetAtDepth(encoding, depth) != StackMap::kNoDexRegisterMap;
   }
 
   void Dump(VariableIndentationOutputStream* vios,
-            const CodeInfo& info, uint16_t* number_of_dex_registers) const;
-
+            const CodeInfo& info,
+            uint16_t* number_of_dex_registers) const;
 
  private:
-  static constexpr int kDepthOffset = 0;
-  static constexpr int kFixedSize = ELEMENT_BYTE_OFFSET_AFTER(Depth);
-
-  static constexpr int kMethodIndexOffset = 0;
-  static constexpr int kDexPcOffset = ELEMENT_BYTE_OFFSET_AFTER(MethodIndex);
-  static constexpr int kInvokeTypeOffset = ELEMENT_BYTE_OFFSET_AFTER(DexPc);
-  static constexpr int kDexRegisterMapOffset = ELEMENT_BYTE_OFFSET_AFTER(InvokeType);
-  static constexpr int kFixedEntrySize = ELEMENT_BYTE_OFFSET_AFTER(DexRegisterMap);
+  ALWAYS_INLINE MemoryRegion GetRegionAtDepth(const InlineInfoEncoding& encoding,
+                                              uint32_t depth) const {
+    size_t entry_size = encoding.GetEntrySize();
+    DCHECK_GT(entry_size, 0u);
+    return region_.Subregion(depth * entry_size, entry_size);
+  }
 
   MemoryRegion region_;
-
-  friend class CodeInfo;
-  friend class StackMap;
-  friend class StackMapStream;
 };
 
 // Most of the fields are encoded as ULEB128 to save space.
@@ -993,6 +1024,7 @@ struct CodeInfoEncoding {
   uint32_t stack_map_size_in_bytes;
   uint32_t number_of_location_catalog_entries;
   StackMapEncoding stack_map_encoding;
+  InlineInfoEncoding inline_info_encoding;
   uint8_t header_size;
 
   CodeInfoEncoding() { }
@@ -1003,9 +1035,18 @@ struct CodeInfoEncoding {
     number_of_stack_maps = DecodeUnsignedLeb128(&ptr);
     stack_map_size_in_bytes = DecodeUnsignedLeb128(&ptr);
     number_of_location_catalog_entries = DecodeUnsignedLeb128(&ptr);
-    static_assert(alignof(StackMapEncoding) == 1, "StackMapEncoding should not require alignment");
+    static_assert(alignof(StackMapEncoding) == 1,
+                  "StackMapEncoding should not require alignment");
     stack_map_encoding = *reinterpret_cast<const StackMapEncoding*>(ptr);
     ptr += sizeof(StackMapEncoding);
+    if (stack_map_encoding.GetInlineInfoEncoding().BitSize() > 0) {
+      static_assert(alignof(InlineInfoEncoding) == 1,
+                    "InlineInfoEncoding should not require alignment");
+      inline_info_encoding = *reinterpret_cast<const InlineInfoEncoding*>(ptr);
+      ptr += sizeof(InlineInfoEncoding);
+    } else {
+      inline_info_encoding = InlineInfoEncoding{}; // NOLINT.
+    }
     header_size = dchecked_integral_cast<uint8_t>(ptr - reinterpret_cast<const uint8_t*>(data));
   }
 
@@ -1015,8 +1056,12 @@ struct CodeInfoEncoding {
     EncodeUnsignedLeb128(dest, number_of_stack_maps);
     EncodeUnsignedLeb128(dest, stack_map_size_in_bytes);
     EncodeUnsignedLeb128(dest, number_of_location_catalog_entries);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&stack_map_encoding);
-    dest->insert(dest->end(), ptr, ptr + sizeof(stack_map_encoding));
+    const uint8_t* stack_map_ptr = reinterpret_cast<const uint8_t*>(&stack_map_encoding);
+    dest->insert(dest->end(), stack_map_ptr, stack_map_ptr + sizeof(StackMapEncoding));
+    if (stack_map_encoding.GetInlineInfoEncoding().BitSize() > 0) {
+      const uint8_t* inline_info_ptr = reinterpret_cast<const uint8_t*>(&inline_info_encoding);
+      dest->insert(dest->end(), inline_info_ptr, inline_info_ptr + sizeof(InlineInfoEncoding));
+    }
   }
 };
 
@@ -1110,11 +1155,11 @@ class CodeInfo {
                                           InlineInfo inline_info,
                                           const CodeInfoEncoding& encoding,
                                           uint32_t number_of_dex_registers) const {
-    if (!inline_info.HasDexRegisterMapAtDepth(depth)) {
+    if (!inline_info.HasDexRegisterMapAtDepth(encoding.inline_info_encoding, depth)) {
       return DexRegisterMap();
     } else {
-      uint32_t offset = GetDexRegisterMapsOffset(encoding)
-                        + inline_info.GetDexRegisterMapOffsetAtDepth(depth);
+      uint32_t offset = GetDexRegisterMapsOffset(encoding) +
+          inline_info.GetDexRegisterMapOffsetAtDepth(encoding.inline_info_encoding, depth);
       size_t size = ComputeDexRegisterMapSizeOf(encoding, offset, number_of_dex_registers);
       return DexRegisterMap(region_.Subregion(offset, size));
     }
@@ -1124,9 +1169,7 @@ class CodeInfo {
     DCHECK(stack_map.HasInlineInfo(encoding.stack_map_encoding));
     uint32_t offset = stack_map.GetInlineDescriptorOffset(encoding.stack_map_encoding)
                       + GetDexRegisterMapsOffset(encoding);
-    uint8_t depth = region_.LoadUnaligned<uint8_t>(offset);
-    return InlineInfo(region_.Subregion(offset,
-        InlineInfo::kFixedSize + depth * InlineInfo::SingleEntrySize()));
+    return InlineInfo(region_.Subregion(offset, region_.size() - offset));
   }
 
   StackMap GetStackMapForDexPc(uint32_t dex_pc, const CodeInfoEncoding& encoding) const {
