@@ -2387,10 +2387,10 @@ static void GenBitCount(X86Assembler* assembler,
   if (invoke->InputAt(0)->IsConstant()) {
     // Evaluate this at compile time.
     int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
-    value = is_long
+    int32_t result = is_long
         ? POPCOUNT(static_cast<uint64_t>(value))
         : POPCOUNT(static_cast<uint32_t>(value));
-    codegen->Load32BitValue(out, value);
+    codegen->Load32BitValue(out, result);
     return;
   }
 
