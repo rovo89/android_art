@@ -280,7 +280,10 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
         DCHECK(stack_map.IsValid());
         if (stack_map.HasInlineInfo(encoding.stack_map_encoding)) {
           InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-          caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
+          caller = GetResolvedMethod(outer_method,
+                                     inline_info,
+                                     encoding.inline_info_encoding,
+                                     inline_info.GetDepth(encoding.inline_info_encoding) - 1);
         }
       }
     }

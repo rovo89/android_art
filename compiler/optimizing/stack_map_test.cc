@@ -237,13 +237,13 @@ TEST(StackMapTest, Test2) {
 
     ASSERT_TRUE(stack_map.HasInlineInfo(encoding.stack_map_encoding));
     InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-    ASSERT_EQ(2u, inline_info.GetDepth());
-    ASSERT_EQ(82u, inline_info.GetMethodIndexAtDepth(0));
-    ASSERT_EQ(42u, inline_info.GetMethodIndexAtDepth(1));
-    ASSERT_EQ(3u, inline_info.GetDexPcAtDepth(0));
-    ASSERT_EQ(2u, inline_info.GetDexPcAtDepth(1));
-    ASSERT_EQ(kDirect, inline_info.GetInvokeTypeAtDepth(0));
-    ASSERT_EQ(kStatic, inline_info.GetInvokeTypeAtDepth(1));
+    ASSERT_EQ(2u, inline_info.GetDepth(encoding.inline_info_encoding));
+    ASSERT_EQ(82u, inline_info.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(42u, inline_info.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(3u, inline_info.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(2u, inline_info.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(kDirect, inline_info.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(kStatic, inline_info.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
   }
 
   // Second stack map.
@@ -741,13 +741,13 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(4, dex_registers0.GetConstant(1, 2, ci, encoding));
 
     InlineInfo if0 = ci.GetInlineInfoOf(sm0, encoding);
-    ASSERT_EQ(2u, if0.GetDepth());
-    ASSERT_EQ(2u, if0.GetDexPcAtDepth(0));
-    ASSERT_EQ(42u, if0.GetMethodIndexAtDepth(0));
-    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(0));
-    ASSERT_EQ(3u, if0.GetDexPcAtDepth(1));
-    ASSERT_EQ(82u, if0.GetMethodIndexAtDepth(1));
-    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(1));
+    ASSERT_EQ(2u, if0.GetDepth(encoding.inline_info_encoding));
+    ASSERT_EQ(2u, if0.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(42u, if0.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(3u, if0.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(82u, if0.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if0, encoding, 1);
     ASSERT_EQ(8, dex_registers1.GetStackOffsetInBytes(0, 1, ci, encoding));
@@ -767,16 +767,16 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(0, dex_registers0.GetConstant(1, 2, ci, encoding));
 
     InlineInfo if1 = ci.GetInlineInfoOf(sm1, encoding);
-    ASSERT_EQ(3u, if1.GetDepth());
-    ASSERT_EQ(2u, if1.GetDexPcAtDepth(0));
-    ASSERT_EQ(42u, if1.GetMethodIndexAtDepth(0));
-    ASSERT_EQ(kDirect, if1.GetInvokeTypeAtDepth(0));
-    ASSERT_EQ(3u, if1.GetDexPcAtDepth(1));
-    ASSERT_EQ(82u, if1.GetMethodIndexAtDepth(1));
-    ASSERT_EQ(kStatic, if1.GetInvokeTypeAtDepth(1));
-    ASSERT_EQ(5u, if1.GetDexPcAtDepth(2));
-    ASSERT_EQ(52u, if1.GetMethodIndexAtDepth(2));
-    ASSERT_EQ(kVirtual, if1.GetInvokeTypeAtDepth(2));
+    ASSERT_EQ(3u, if1.GetDepth(encoding.inline_info_encoding));
+    ASSERT_EQ(2u, if1.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(42u, if1.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(kDirect, if1.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(3u, if1.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(82u, if1.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(kStatic, if1.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(5u, if1.GetDexPcAtDepth(encoding.inline_info_encoding, 2));
+    ASSERT_EQ(52u, if1.GetMethodIndexAtDepth(encoding.inline_info_encoding, 2));
+    ASSERT_EQ(kVirtual, if1.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 2));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if1, encoding, 1);
     ASSERT_EQ(12, dex_registers1.GetStackOffsetInBytes(0, 1, ci, encoding));
@@ -786,7 +786,7 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(10, dex_registers2.GetConstant(1, 3, ci, encoding));
     ASSERT_EQ(5, dex_registers2.GetMachineRegister(2, 3, ci, encoding));
 
-    ASSERT_FALSE(if1.HasDexRegisterMapAtDepth(2));
+    ASSERT_FALSE(if1.HasDexRegisterMapAtDepth(encoding.inline_info_encoding, 2));
   }
 
   {
@@ -808,18 +808,18 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(0, dex_registers0.GetConstant(1, 2, ci, encoding));
 
     InlineInfo if2 = ci.GetInlineInfoOf(sm3, encoding);
-    ASSERT_EQ(3u, if2.GetDepth());
-    ASSERT_EQ(2u, if2.GetDexPcAtDepth(0));
-    ASSERT_EQ(42u, if2.GetMethodIndexAtDepth(0));
-    ASSERT_EQ(kVirtual, if2.GetInvokeTypeAtDepth(0));
-    ASSERT_EQ(5u, if2.GetDexPcAtDepth(1));
-    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(1));
-    ASSERT_EQ(kInterface, if2.GetInvokeTypeAtDepth(1));
-    ASSERT_EQ(10u, if2.GetDexPcAtDepth(2));
-    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(2));
-    ASSERT_EQ(kStatic, if2.GetInvokeTypeAtDepth(2));
+    ASSERT_EQ(3u, if2.GetDepth(encoding.inline_info_encoding));
+    ASSERT_EQ(2u, if2.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(42u, if2.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(kVirtual, if2.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_EQ(5u, if2.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(kInterface, if2.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_EQ(10u, if2.GetDexPcAtDepth(encoding.inline_info_encoding, 2));
+    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(encoding.inline_info_encoding, 2));
+    ASSERT_EQ(kStatic, if2.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 2));
 
-    ASSERT_FALSE(if2.HasDexRegisterMapAtDepth(0));
+    ASSERT_FALSE(if2.HasDexRegisterMapAtDepth(encoding.inline_info_encoding, 0));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(1, if2, encoding, 1);
     ASSERT_EQ(2, dex_registers1.GetMachineRegister(0, 1, ci, encoding));
