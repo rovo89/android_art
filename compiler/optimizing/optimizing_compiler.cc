@@ -727,14 +727,19 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                             &dex_compilation_unit,
                             &dex_compilation_unit,
                             &dex_file,
+                            *code_item,
                             compiler_driver,
                             compilation_stats_.get(),
                             interpreter_metadata,
                             dex_cache);
-      GraphAnalysisResult result = builder.BuildGraph(*code_item, &handles);
+      GraphAnalysisResult result = builder.BuildGraph(&handles);
       if (result != kAnalysisSuccess) {
         switch (result) {
+          case kAnalysisSkipped:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledSkipped);
+            break;
           case kAnalysisInvalidBytecode:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledInvalidBytecode);
             break;
           case kAnalysisFailThrowCatchLoop:
             MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);

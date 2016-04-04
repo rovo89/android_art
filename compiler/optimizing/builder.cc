@@ -20,6 +20,7 @@
 #include "base/arena_bit_vector.h"
 #include "base/bit_vector-inl.h"
 #include "base/logging.h"
+#include "bytecode_utils.h"
 #include "class_linker.h"
 #include "dex/verified_method.h"
 #include "dex_file-inl.h"
@@ -41,9 +42,10 @@ namespace art {
 void HGraphBuilder::InitializeLocals(uint16_t count) {
   graph_->SetNumberOfVRegs(count);
   locals_.resize(count);
+  HBasicBlock* entry_block = graph_->GetEntryBlock();
   for (int i = 0; i < count; i++) {
     HLocal* local = new (arena_) HLocal(i);
-    entry_block_->AddInstruction(local);
+    entry_block->AddInstruction(local);
     locals_[i] = local;
   }
 }
@@ -53,6 +55,8 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
   if (dex_compilation_unit_ == nullptr) {
     return;
   }
+
+  HBasicBlock* entry_block = graph_->GetEntryBlock();
 
   graph_->SetNumberOfInVRegs(number_of_parameters);
   const char* shorty = dex_compilation_unit_->GetShorty();
@@ -68,9 +72,9 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
                                                               parameter_index++,
                                                               Primitive::kPrimNot,
                                                               true);
-    entry_block_->AddInstruction(parameter);
+    entry_block->AddInstruction(parameter);
     HLocal* local = GetLocalAt(locals_index++);
-    entry_block_->AddInstruction(new (arena_) HStoreLocal(local, parameter, local->GetDexPc()));
+    entry_block->AddInstruction(new (arena_) HStoreLocal(local, parameter, local->GetDexPc()));
     number_of_parameters--;
   }
 
@@ -84,11 +88,11 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
         Primitive::GetType(shorty[shorty_pos]),
         false);
     ++shorty_pos;
-    entry_block_->AddInstruction(parameter);
+    entry_block->AddInstruction(parameter);
     HLocal* local = GetLocalAt(locals_index++);
     // Store the parameter value in the local that the dex code will use
     // to reference that parameter.
-    entry_block_->AddInstruction(new (arena_) HStoreLocal(local, parameter, local->GetDexPc()));
+    entry_block->AddInstruction(new (arena_) HStoreLocal(local, parameter, local->GetDexPc()));
     bool is_wide = (parameter->GetType() == Primitive::kPrimLong)
         || (parameter->GetType() == Primitive::kPrimDouble);
     if (is_wide) {
@@ -101,36 +105,22 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
 
 template<typename T>
 void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_pc) {
-  int32_t target_offset = instruction.GetTargetOffset();
-  HBasicBlock* branch_target = FindBlockStartingAt(dex_pc + target_offset);
-  HBasicBlock* fallthrough_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
-  DCHECK(branch_target != nullptr);
-  DCHECK(fallthrough_target != nullptr);
   HInstruction* first = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
   HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt, dex_pc);
   T* comparison = new (arena_) T(first, second, dex_pc);
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison, dex_pc);
   current_block_->AddInstruction(ifinst);
-  current_block_->AddSuccessor(branch_target);
-  current_block_->AddSuccessor(fallthrough_target);
   current_block_ = nullptr;
 }
 
 template<typename T>
 void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_pc) {
-  int32_t target_offset = instruction.GetTargetOffset();
-  HBasicBlock* branch_target = FindBlockStartingAt(dex_pc + target_offset);
-  HBasicBlock* fallthrough_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
-  DCHECK(branch_target != nullptr);
-  DCHECK(fallthrough_target != nullptr);
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
   T* comparison = new (arena_) T(value, graph_->GetIntConstant(0, dex_pc), dex_pc);
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison, dex_pc);
   current_block_->AddInstruction(ifinst);
-  current_block_->AddSuccessor(branch_target);
-  current_block_->AddSuccessor(fallthrough_target);
   current_block_ = nullptr;
 }
 
@@ -140,28 +130,32 @@ void HGraphBuilder::MaybeRecordStat(MethodCompilationStat compilation_stat) {
   }
 }
 
-bool HGraphBuilder::SkipCompilation(const DexFile::CodeItem& code_item,
-                                    size_t number_of_branches) {
+bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
+  if (compiler_driver_ == nullptr) {
+    // Note that the compiler driver is null when unit testing.
+    return false;
+  }
+
   const CompilerOptions& compiler_options = compiler_driver_->GetCompilerOptions();
   CompilerFilter::Filter compiler_filter = compiler_options.GetCompilerFilter();
   if (compiler_filter == CompilerFilter::kEverything) {
     return false;
   }
 
-  if (compiler_options.IsHugeMethod(code_item.insns_size_in_code_units_)) {
+  if (compiler_options.IsHugeMethod(code_item_.insns_size_in_code_units_)) {
     VLOG(compiler) << "Skip compilation of huge method "
                    << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
-                   << ": " << code_item.insns_size_in_code_units_ << " code units";
+                   << ": " << code_item_.insns_size_in_code_units_ << " code units";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledHugeMethod);
     return true;
   }
 
   // If it's large and contains no branches, it's likely to be machine generated initialization.
-  if (compiler_options.IsLargeMethod(code_item.insns_size_in_code_units_)
+  if (compiler_options.IsLargeMethod(code_item_.insns_size_in_code_units_)
       && (number_of_branches == 0)) {
     VLOG(compiler) << "Skip compilation of large method with no branch "
                    << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
-                   << ": " << code_item.insns_size_in_code_units_ << " code units";
+                   << ": " << code_item_.insns_size_in_code_units_ << " code units";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledLargeMethodNoBranches);
     return true;
   }
@@ -169,194 +163,19 @@ bool HGraphBuilder::SkipCompilation(const DexFile::CodeItem& code_item,
   return false;
 }
 
-void HGraphBuilder::CreateBlocksForTryCatch(const DexFile::CodeItem& code_item) {
-  if (code_item.tries_size_ == 0) {
-    return;
-  }
-
-  // Create branch targets at the start/end of the TryItem range. These are
-  // places where the program might fall through into/out of the a block and
-  // where TryBoundary instructions will be inserted later. Other edges which
-  // enter/exit the try blocks are a result of branches/switches.
-  for (size_t idx = 0; idx < code_item.tries_size_; ++idx) {
-    const DexFile::TryItem* try_item = DexFile::GetTryItems(code_item, idx);
-    uint32_t dex_pc_start = try_item->start_addr_;
-    uint32_t dex_pc_end = dex_pc_start + try_item->insn_count_;
-    FindOrCreateBlockStartingAt(dex_pc_start);
-    if (dex_pc_end < code_item.insns_size_in_code_units_) {
-      // TODO: Do not create block if the last instruction cannot fall through.
-      FindOrCreateBlockStartingAt(dex_pc_end);
-    } else {
-      // The TryItem spans until the very end of the CodeItem (or beyond if
-      // invalid) and therefore cannot have any code afterwards.
-    }
-  }
-
-  // Create branch targets for exception handlers.
-  const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(code_item, 0);
-  uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
-  for (uint32_t idx = 0; idx < handlers_size; ++idx) {
-    CatchHandlerIterator iterator(handlers_ptr);
-    for (; iterator.HasNext(); iterator.Next()) {
-      uint32_t address = iterator.GetHandlerAddress();
-      HBasicBlock* block = FindOrCreateBlockStartingAt(address);
-      block->SetTryCatchInformation(
-        new (arena_) TryCatchInformation(iterator.GetHandlerTypeIndex(), *dex_file_));
-    }
-    handlers_ptr = iterator.EndDataPointer();
+static bool BlockIsNotPopulated(HBasicBlock* block) {
+  if (!block->GetPhis().IsEmpty()) {
+    return false;
+  } else if (block->IsLoopHeader()) {
+    // Suspend checks were inserted into loop headers during building of dominator tree.
+    DCHECK(block->GetFirstInstruction()->IsSuspendCheck());
+    return block->GetFirstInstruction() == block->GetLastInstruction();
+  } else {
+    return block->GetInstructions().IsEmpty();
   }
 }
 
-// Returns the TryItem stored for `block` or nullptr if there is no info for it.
-static const DexFile::TryItem* GetTryItem(
-    HBasicBlock* block,
-    const ArenaSafeMap<uint32_t, const DexFile::TryItem*>& try_block_info) {
-  auto iterator = try_block_info.find(block->GetBlockId());
-  return (iterator == try_block_info.end()) ? nullptr : iterator->second;
-}
-
-void HGraphBuilder::LinkToCatchBlocks(HTryBoundary* try_boundary,
-                                      const DexFile::CodeItem& code_item,
-                                      const DexFile::TryItem* try_item) {
-  for (CatchHandlerIterator it(code_item, *try_item); it.HasNext(); it.Next()) {
-    try_boundary->AddExceptionHandler(FindBlockStartingAt(it.GetHandlerAddress()));
-  }
-}
-
-void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) {
-  if (code_item.tries_size_ == 0) {
-    return;
-  }
-
-  // Keep a map of all try blocks and their respective TryItems. We do not use
-  // the block's pointer but rather its id to ensure deterministic iteration.
-  ArenaSafeMap<uint32_t, const DexFile::TryItem*> try_block_info(
-      std::less<uint32_t>(), arena_->Adapter(kArenaAllocGraphBuilder));
-
-  // Obtain TryItem information for blocks with throwing instructions, and split
-  // blocks which are both try & catch to simplify the graph.
-  // NOTE: We are appending new blocks inside the loop, so we need to use index
-  // because iterators can be invalidated. We remember the initial size to avoid
-  // iterating over the new blocks which cannot throw.
-  for (size_t i = 0, e = graph_->GetBlocks().size(); i < e; ++i) {
-    HBasicBlock* block = graph_->GetBlocks()[i];
-
-    // Do not bother creating exceptional edges for try blocks which have no
-    // throwing instructions. In that case we simply assume that the block is
-    // not covered by a TryItem. This prevents us from creating a throw-catch
-    // loop for synchronized blocks.
-    if (block->HasThrowingInstructions()) {
-      // Try to find a TryItem covering the block.
-      DCHECK_NE(block->GetDexPc(), kNoDexPc) << "Block must have a dex_pc to find its TryItem.";
-      const int32_t try_item_idx = DexFile::FindTryItem(code_item, block->GetDexPc());
-      if (try_item_idx != -1) {
-        // Block throwing and in a TryItem. Store the try block information.
-        HBasicBlock* throwing_block = block;
-        if (block->IsCatchBlock()) {
-          // Simplify blocks which are both try and catch, otherwise we would
-          // need a strategy for splitting exceptional edges. We split the block
-          // after the move-exception (if present) and mark the first part not
-          // throwing. The normal-flow edge between them will be split later.
-          throwing_block = block->SplitCatchBlockAfterMoveException();
-          // Move-exception does not throw and the block has throwing insructions
-          // so it must have been possible to split it.
-          DCHECK(throwing_block != nullptr);
-        }
-
-        try_block_info.Put(throwing_block->GetBlockId(),
-                           DexFile::GetTryItems(code_item, try_item_idx));
-      }
-    }
-  }
-
-  // Do a pass over the try blocks and insert entering TryBoundaries where at
-  // least one predecessor is not covered by the same TryItem as the try block.
-  // We do not split each edge separately, but rather create one boundary block
-  // that all predecessors are relinked to. This preserves loop headers (b/23895756).
-  for (auto entry : try_block_info) {
-    HBasicBlock* try_block = graph_->GetBlocks()[entry.first];
-    for (HBasicBlock* predecessor : try_block->GetPredecessors()) {
-      if (GetTryItem(predecessor, try_block_info) != entry.second) {
-        // Found a predecessor not covered by the same TryItem. Insert entering
-        // boundary block.
-        HTryBoundary* try_entry =
-            new (arena_) HTryBoundary(HTryBoundary::BoundaryKind::kEntry, try_block->GetDexPc());
-        try_block->CreateImmediateDominator()->AddInstruction(try_entry);
-        LinkToCatchBlocks(try_entry, code_item, entry.second);
-        break;
-      }
-    }
-  }
-
-  // Do a second pass over the try blocks and insert exit TryBoundaries where
-  // the successor is not in the same TryItem.
-  for (auto entry : try_block_info) {
-    HBasicBlock* try_block = graph_->GetBlocks()[entry.first];
-    // NOTE: Do not use iterators because SplitEdge would invalidate them.
-    for (size_t i = 0, e = try_block->GetSuccessors().size(); i < e; ++i) {
-      HBasicBlock* successor = try_block->GetSuccessors()[i];
-
-      // If the successor is a try block, all of its predecessors must be
-      // covered by the same TryItem. Otherwise the previous pass would have
-      // created a non-throwing boundary block.
-      if (GetTryItem(successor, try_block_info) != nullptr) {
-        DCHECK_EQ(entry.second, GetTryItem(successor, try_block_info));
-        continue;
-      }
-
-      // Preserve the invariant that Return(Void) always jumps to Exit by moving
-      // it outside the try block if necessary.
-      HInstruction* last_instruction = try_block->GetLastInstruction();
-      if (last_instruction->IsReturn() || last_instruction->IsReturnVoid()) {
-        DCHECK_EQ(successor, exit_block_);
-        successor = try_block->SplitBefore(last_instruction);
-      }
-
-      // Insert TryBoundary and link to catch blocks.
-      HTryBoundary* try_exit =
-          new (arena_) HTryBoundary(HTryBoundary::BoundaryKind::kExit, successor->GetDexPc());
-      graph_->SplitEdge(try_block, successor)->AddInstruction(try_exit);
-      LinkToCatchBlocks(try_exit, code_item, entry.second);
-    }
-  }
-}
-
-GraphAnalysisResult HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item,
-                                              StackHandleScopeCollection* handles) {
-  DCHECK(graph_->GetBlocks().empty());
-
-  const uint16_t* code_ptr = code_item.insns_;
-  const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
-  code_start_ = code_ptr;
-
-  // Setup the graph with the entry block and exit block.
-  entry_block_ = new (arena_) HBasicBlock(graph_, 0);
-  graph_->AddBlock(entry_block_);
-  exit_block_ = new (arena_) HBasicBlock(graph_, kNoDexPc);
-  graph_->SetEntryBlock(entry_block_);
-  graph_->SetExitBlock(exit_block_);
-
-  graph_->SetHasTryCatch(code_item.tries_size_ != 0);
-
-  InitializeLocals(code_item.registers_size_);
-  graph_->SetMaximumNumberOfOutVRegs(code_item.outs_size_);
-
-  // Compute the number of dex instructions, blocks, and branches. We will
-  // check these values against limits given to the compiler.
-  size_t number_of_branches = 0;
-
-  // To avoid splitting blocks, we compute ahead of time the instructions that
-  // start a new block, and create these blocks.
-  if (!ComputeBranchTargets(code_ptr, code_end, &number_of_branches)) {
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledBranchOutsideMethodCode);
-    return kAnalysisInvalidBytecode;
-  }
-
-  // Note that the compiler driver is null when unit testing.
-  if ((compiler_driver_ != nullptr) && SkipCompilation(code_item, number_of_branches)) {
-    return kAnalysisInvalidBytecode;
-  }
-
+bool HGraphBuilder::GenerateInstructions() {
   // Find locations where we want to generate extra stackmaps for native debugging.
   // This allows us to generate the info only at interesting points (for example,
   // at start of java statement) rather than before every dex instruction.
@@ -364,74 +183,93 @@ GraphAnalysisResult HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item
                                  compiler_driver_->GetCompilerOptions().GetNativeDebuggable();
   ArenaBitVector* native_debug_info_locations;
   if (native_debuggable) {
-    const uint32_t num_instructions = code_item.insns_size_in_code_units_;
+    const uint32_t num_instructions = code_item_.insns_size_in_code_units_;
     native_debug_info_locations =
         ArenaBitVector::Create(arena_, num_instructions, false, kArenaAllocGraphBuilder);
-    FindNativeDebugInfoLocations(code_item, native_debug_info_locations);
+    FindNativeDebugInfoLocations(native_debug_info_locations);
   }
 
-  CreateBlocksForTryCatch(code_item);
+  InitializeLocals(code_item_.registers_size_);
+  InitializeParameters(code_item_.ins_size_);
 
-  InitializeParameters(code_item.ins_size_);
+  // Add the suspend check to the entry block.
+  current_block_ = graph_->GetEntryBlock();
+  current_block_->AddInstruction(new (arena_) HSuspendCheck(0));
 
-  size_t dex_pc = 0;
-  while (code_ptr < code_end) {
-    // Update the current block if dex_pc starts a new block.
-    MaybeUpdateCurrentBlock(dex_pc);
-    const Instruction& instruction = *Instruction::At(code_ptr);
-    if (native_debuggable && native_debug_info_locations->IsBitSet(dex_pc)) {
+  for (CodeItemIterator it(code_item_); !it.Done(); it.Advance()) {
+    uint32_t dex_pc = it.CurrentDexPc();
+
+    HBasicBlock* next_block = FindBlockStartingAt(dex_pc);
+    if (next_block != nullptr && next_block->GetGraph() != nullptr) {
       if (current_block_ != nullptr) {
-        current_block_->AddInstruction(new (arena_) HNativeDebugInfo(dex_pc));
+        // Branching instructions clear current_block, so we know
+        // the last instruction of the current block is not a branching
+        // instruction. We add an unconditional goto to the found block.
+        current_block_->AddInstruction(new (arena_) HGoto(dex_pc));
       }
+      DCHECK(BlockIsNotPopulated(next_block));
+      current_block_ = next_block;
     }
-    if (!AnalyzeDexInstruction(instruction, dex_pc)) {
-      return kAnalysisInvalidBytecode;
+
+    if (current_block_ == nullptr) {
+      // Unreachable code.
+      continue;
     }
-    dex_pc += instruction.SizeInCodeUnits();
-    code_ptr += instruction.SizeInCodeUnits();
+
+    if (native_debuggable && native_debug_info_locations->IsBitSet(dex_pc)) {
+      current_block_->AddInstruction(new (arena_) HNativeDebugInfo(dex_pc));
+    }
+
+    if (!AnalyzeDexInstruction(it.CurrentInstruction(), dex_pc)) {
+      return false;
+    }
   }
 
   // Add Exit to the exit block.
-  exit_block_->AddInstruction(new (arena_) HExit());
-  // Add the suspend check to the entry block.
-  entry_block_->AddInstruction(new (arena_) HSuspendCheck(0));
-  entry_block_->AddInstruction(new (arena_) HGoto());
-  // Add the exit block at the end.
-  graph_->AddBlock(exit_block_);
+  HBasicBlock* exit_block = graph_->GetExitBlock();
+  if (exit_block == nullptr) {
+    // Unreachable exit block was removed.
+  } else {
+    exit_block->AddInstruction(new (arena_) HExit());
+  }
 
-  // Iterate over blocks covered by TryItems and insert TryBoundaries at entry
-  // and exit points. This requires all control-flow instructions and
-  // non-exceptional edges to have been created.
-  InsertTryBoundaryBlocks(code_item);
+  return true;
+}
 
+GraphAnalysisResult HGraphBuilder::BuildGraph(StackHandleScopeCollection* handles) {
+  DCHECK(graph_->GetBlocks().empty());
+  graph_->SetMaximumNumberOfOutVRegs(code_item_.outs_size_);
+  graph_->SetHasTryCatch(code_item_.tries_size_ != 0);
+  graph_->InitializeInexactObjectRTI(handles);
+
+  // 1) Create basic blocks and link them together. Basic blocks are left
+  //    unpopulated with the exception of synthetic blocks, e.g. HTryBoundaries.
+  if (!block_builder_.Build()) {
+    return kAnalysisInvalidBytecode;
+  }
+
+  // 2) Decide whether to skip this method based on its code size and number
+  //    of branches.
+  if (SkipCompilation(block_builder_.GetNumberOfBranches())) {
+    return kAnalysisSkipped;
+  }
+
+  // 3) Build the dominator tree and fill in loop and try/catch metadata.
   GraphAnalysisResult result = graph_->BuildDominatorTree();
   if (result != kAnalysisSuccess) {
     return result;
   }
 
-  graph_->InitializeInexactObjectRTI(handles);
-  return SsaBuilder(graph_, handles).BuildSsa();
-}
-
-void HGraphBuilder::MaybeUpdateCurrentBlock(size_t dex_pc) {
-  HBasicBlock* block = FindBlockStartingAt(dex_pc);
-  if (block == nullptr) {
-    return;
+  // 4) Populate basic blocks with instructions.
+  if (!GenerateInstructions()) {
+    return kAnalysisInvalidBytecode;
   }
 
-  if (current_block_ != nullptr) {
-    // Branching instructions clear current_block, so we know
-    // the last instruction of the current block is not a branching
-    // instruction. We add an unconditional goto to the found block.
-    current_block_->AddInstruction(new (arena_) HGoto(dex_pc));
-    current_block_->AddSuccessor(block);
-  }
-  graph_->AddBlock(block);
-  current_block_ = block;
+  // 5) Type the graph and eliminate dead/redundant phis.
+  return SsaBuilder(graph_, code_item_, handles).BuildSsa();
 }
 
-void HGraphBuilder::FindNativeDebugInfoLocations(const DexFile::CodeItem& code_item,
-                                                 ArenaBitVector* locations) {
+void HGraphBuilder::FindNativeDebugInfoLocations(ArenaBitVector* locations) {
   // The callback gets called when the line number changes.
   // In other words, it marks the start of new java statement.
   struct Callback {
@@ -440,20 +278,20 @@ void HGraphBuilder::FindNativeDebugInfoLocations(const DexFile::CodeItem& code_i
       return false;
     }
   };
-  dex_file_->DecodeDebugPositionInfo(&code_item, Callback::Position, locations);
+  dex_file_->DecodeDebugPositionInfo(&code_item_, Callback::Position, locations);
   // Instruction-specific tweaks.
-  const Instruction* const begin = Instruction::At(code_item.insns_);
-  const Instruction* const end = begin->RelativeAt(code_item.insns_size_in_code_units_);
+  const Instruction* const begin = Instruction::At(code_item_.insns_);
+  const Instruction* const end = begin->RelativeAt(code_item_.insns_size_in_code_units_);
   for (const Instruction* inst = begin; inst < end; inst = inst->Next()) {
     switch (inst->Opcode()) {
       case Instruction::MOVE_EXCEPTION: {
         // Stop in native debugger after the exception has been moved.
         // The compiler also expects the move at the start of basic block so
         // we do not want to interfere by inserting native-debug-info before it.
-        locations->ClearBit(inst->GetDexPc(code_item.insns_));
+        locations->ClearBit(inst->GetDexPc(code_item_.insns_));
         const Instruction* next = inst->Next();
         if (next < end) {
-          locations->SetBit(next->GetDexPc(code_item.insns_));
+          locations->SetBit(next->GetDexPc(code_item_.insns_));
         }
         break;
       }
@@ -461,93 +299,6 @@ void HGraphBuilder::FindNativeDebugInfoLocations(const DexFile::CodeItem& code_i
         break;
     }
   }
-}
-
-bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
-                                         const uint16_t* code_end,
-                                         size_t* number_of_branches) {
-  branch_targets_.resize(code_end - code_ptr, nullptr);
-
-  // Create the first block for the dex instructions, single successor of the entry block.
-  HBasicBlock* block = new (arena_) HBasicBlock(graph_, 0);
-  branch_targets_[0] = block;
-  entry_block_->AddSuccessor(block);
-
-  // Iterate over all instructions and find branching instructions. Create blocks for
-  // the locations these instructions branch to.
-  uint32_t dex_pc = 0;
-  while (code_ptr < code_end) {
-    const Instruction& instruction = *Instruction::At(code_ptr);
-    if (instruction.IsBranch()) {
-      (*number_of_branches)++;
-      int32_t target = instruction.GetTargetOffset() + dex_pc;
-      // Create a block for the target instruction.
-      FindOrCreateBlockStartingAt(target);
-
-      dex_pc += instruction.SizeInCodeUnits();
-      code_ptr += instruction.SizeInCodeUnits();
-
-      if (instruction.CanFlowThrough()) {
-        if (code_ptr >= code_end) {
-          // In the normal case we should never hit this but someone can artificially forge a dex
-          // file to fall-through out the method code. In this case we bail out compilation.
-          return false;
-        } else {
-          FindOrCreateBlockStartingAt(dex_pc);
-        }
-      }
-    } else if (instruction.IsSwitch()) {
-      SwitchTable table(instruction, dex_pc, instruction.Opcode() == Instruction::SPARSE_SWITCH);
-
-      uint16_t num_entries = table.GetNumEntries();
-
-      // In a packed-switch, the entry at index 0 is the starting key. In a sparse-switch, the
-      // entry at index 0 is the first key, and values are after *all* keys.
-      size_t offset = table.GetFirstValueIndex();
-
-      // Use a larger loop counter type to avoid overflow issues.
-      for (size_t i = 0; i < num_entries; ++i) {
-        // The target of the case.
-        uint32_t target = dex_pc + table.GetEntryAt(i + offset);
-        FindOrCreateBlockStartingAt(target);
-
-        // Create a block for the switch-case logic. The block gets the dex_pc
-        // of the SWITCH instruction because it is part of its semantics.
-        block = new (arena_) HBasicBlock(graph_, dex_pc);
-        branch_targets_[table.GetDexPcForIndex(i)] = block;
-      }
-
-      // Fall-through. Add a block if there is more code afterwards.
-      dex_pc += instruction.SizeInCodeUnits();
-      code_ptr += instruction.SizeInCodeUnits();
-      if (code_ptr >= code_end) {
-        // In the normal case we should never hit this but someone can artificially forge a dex
-        // file to fall-through out the method code. In this case we bail out compilation.
-        // (A switch can fall-through so we don't need to check CanFlowThrough().)
-        return false;
-      } else {
-        FindOrCreateBlockStartingAt(dex_pc);
-      }
-    } else {
-      code_ptr += instruction.SizeInCodeUnits();
-      dex_pc += instruction.SizeInCodeUnits();
-    }
-  }
-  return true;
-}
-
-HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t dex_pc) const {
-  DCHECK_GE(dex_pc, 0);
-  return branch_targets_[dex_pc];
-}
-
-HBasicBlock* HGraphBuilder::FindOrCreateBlockStartingAt(int32_t dex_pc) {
-  HBasicBlock* block = FindBlockStartingAt(dex_pc);
-  if (block == nullptr) {
-    block = new (arena_) HBasicBlock(graph_, dex_pc);
-    branch_targets_[dex_pc] = block;
-  }
-  return block;
 }
 
 template<typename T>
@@ -645,6 +396,43 @@ static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, const Compi
       && driver.RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
 }
 
+// Returns true if `block` has only one successor which starts at the next
+// dex_pc after `instruction` at `dex_pc`.
+static bool IsFallthroughInstruction(const Instruction& instruction,
+                                     uint32_t dex_pc,
+                                     HBasicBlock* block) {
+  uint32_t next_dex_pc = dex_pc + instruction.SizeInCodeUnits();
+  return block->GetSingleSuccessor()->GetDexPc() == next_dex_pc;
+}
+
+void HGraphBuilder::BuildSwitch(const Instruction& instruction, uint32_t dex_pc) {
+  HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
+  DexSwitchTable table(instruction, dex_pc);
+
+  if (table.GetNumEntries() == 0) {
+    // Empty Switch. Code falls through to the next block.
+    DCHECK(IsFallthroughInstruction(instruction, dex_pc, current_block_));
+    current_block_->AddInstruction(new (arena_) HGoto(dex_pc));
+  } else if (table.ShouldBuildDecisionTree()) {
+    for (DexSwitchTableIterator it(table); !it.Done(); it.Advance()) {
+      HInstruction* case_value = graph_->GetIntConstant(it.CurrentKey(), dex_pc);
+      HEqual* comparison = new (arena_) HEqual(value, case_value, dex_pc);
+      current_block_->AddInstruction(comparison);
+      HInstruction* ifinst = new (arena_) HIf(comparison, dex_pc);
+      current_block_->AddInstruction(ifinst);
+
+      if (!it.IsLast()) {
+        current_block_ = FindBlockStartingAt(it.GetDexPcForCurrentIndex());
+      }
+    }
+  } else {
+    current_block_->AddInstruction(
+        new (arena_) HPackedSwitch(table.GetEntryAt(0), table.GetNumEntries(), value, dex_pc));
+  }
+
+  current_block_ = nullptr;
+}
+
 void HGraphBuilder::BuildReturn(const Instruction& instruction,
                                 Primitive::Type type,
                                 uint32_t dex_pc) {
@@ -662,7 +450,6 @@ void HGraphBuilder::BuildReturn(const Instruction& instruction,
     HInstruction* value = LoadLocal(instruction.VRegA(), type, dex_pc);
     current_block_->AddInstruction(new (arena_) HReturn(value, dex_pc));
   }
-  current_block_->AddSuccessor(exit_block_);
   current_block_ = nullptr;
 }
 
@@ -1697,130 +1484,6 @@ bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index, bool* finalizable) con
       dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index, finalizable);
 }
 
-void HGraphBuilder::BuildSwitchJumpTable(const SwitchTable& table,
-                                         const Instruction& instruction,
-                                         HInstruction* value,
-                                         uint32_t dex_pc) {
-  // Add the successor blocks to the current block.
-  uint16_t num_entries = table.GetNumEntries();
-  for (size_t i = 1; i <= num_entries; i++) {
-    int32_t target_offset = table.GetEntryAt(i);
-    HBasicBlock* case_target = FindBlockStartingAt(dex_pc + target_offset);
-    DCHECK(case_target != nullptr);
-
-    // Add the target block as a successor.
-    current_block_->AddSuccessor(case_target);
-  }
-
-  // Add the default target block as the last successor.
-  HBasicBlock* default_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
-  DCHECK(default_target != nullptr);
-  current_block_->AddSuccessor(default_target);
-
-  // Now add the Switch instruction.
-  int32_t starting_key = table.GetEntryAt(0);
-  current_block_->AddInstruction(
-      new (arena_) HPackedSwitch(starting_key, num_entries, value, dex_pc));
-  // This block ends with control flow.
-  current_block_ = nullptr;
-}
-
-void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
-  // Verifier guarantees that the payload for PackedSwitch contains:
-  //   (a) number of entries (may be zero)
-  //   (b) first and lowest switch case value (entry 0, always present)
-  //   (c) list of target pcs (entries 1 <= i <= N)
-  SwitchTable table(instruction, dex_pc, false);
-
-  // Value to test against.
-  HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
-
-  // Starting key value.
-  int32_t starting_key = table.GetEntryAt(0);
-
-  // Retrieve number of entries.
-  uint16_t num_entries = table.GetNumEntries();
-  if (num_entries == 0) {
-    return;
-  }
-
-  // Don't use a packed switch if there are very few entries.
-  if (num_entries > kSmallSwitchThreshold) {
-    BuildSwitchJumpTable(table, instruction, value, dex_pc);
-  } else {
-    // Chained cmp-and-branch, starting from starting_key.
-    for (size_t i = 1; i <= num_entries; i++) {
-      BuildSwitchCaseHelper(instruction,
-                            i,
-                            i == num_entries,
-                            table,
-                            value,
-                            starting_key + i - 1,
-                            table.GetEntryAt(i),
-                            dex_pc);
-    }
-  }
-}
-
-void HGraphBuilder::BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc) {
-  // Verifier guarantees that the payload for SparseSwitch contains:
-  //   (a) number of entries (may be zero)
-  //   (b) sorted key values (entries 0 <= i < N)
-  //   (c) target pcs corresponding to the switch values (entries N <= i < 2*N)
-  SwitchTable table(instruction, dex_pc, true);
-
-  // Value to test against.
-  HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
-
-  uint16_t num_entries = table.GetNumEntries();
-
-  for (size_t i = 0; i < num_entries; i++) {
-    BuildSwitchCaseHelper(instruction, i, i == static_cast<size_t>(num_entries) - 1, table, value,
-                          table.GetEntryAt(i), table.GetEntryAt(i + num_entries), dex_pc);
-  }
-}
-
-void HGraphBuilder::BuildSwitchCaseHelper(const Instruction& instruction, size_t index,
-                                          bool is_last_case, const SwitchTable& table,
-                                          HInstruction* value, int32_t case_value_int,
-                                          int32_t target_offset, uint32_t dex_pc) {
-  HBasicBlock* case_target = FindBlockStartingAt(dex_pc + target_offset);
-  DCHECK(case_target != nullptr);
-
-  // The current case's value.
-  HInstruction* this_case_value = graph_->GetIntConstant(case_value_int, dex_pc);
-
-  // Compare value and this_case_value.
-  HEqual* comparison = new (arena_) HEqual(value, this_case_value, dex_pc);
-  current_block_->AddInstruction(comparison);
-  HInstruction* ifinst = new (arena_) HIf(comparison, dex_pc);
-  current_block_->AddInstruction(ifinst);
-
-  // Case hit: use the target offset to determine where to go.
-  current_block_->AddSuccessor(case_target);
-
-  // Case miss: go to the next case (or default fall-through).
-  // When there is a next case, we use the block stored with the table offset representing this
-  // case (that is where we registered them in ComputeBranchTargets).
-  // When there is no next case, we use the following instruction.
-  // TODO: Find a good way to peel the last iteration to avoid conditional, but still have re-use.
-  if (!is_last_case) {
-    HBasicBlock* next_case_target = FindBlockStartingAt(table.GetDexPcForIndex(index));
-    DCHECK(next_case_target != nullptr);
-    current_block_->AddSuccessor(next_case_target);
-
-    // Need to manually add the block, as there is no dex-pc transition for the cases.
-    graph_->AddBlock(next_case_target);
-
-    current_block_ = next_case_target;
-  } else {
-    HBasicBlock* default_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
-    DCHECK(default_target != nullptr);
-    current_block_->AddSuccessor(default_target);
-    current_block_ = nullptr;
-  }
-}
-
 bool HGraphBuilder::CanDecodeQuickenedInfo() const {
   return interpreter_metadata_ != nullptr;
 }
@@ -1833,10 +1496,6 @@ uint16_t HGraphBuilder::LookupQuickenedInfo(uint32_t dex_pc) {
 }
 
 bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_pc) {
-  if (current_block_ == nullptr) {
-    return true;  // Dead code
-  }
-
   switch (instruction.Opcode()) {
     case Instruction::CONST_4: {
       int32_t register_index = instruction.VRegA();
@@ -1949,11 +1608,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32: {
-      int32_t offset = instruction.GetTargetOffset();
-      HBasicBlock* target = FindBlockStartingAt(offset + dex_pc);
-      DCHECK(target != nullptr);
       current_block_->AddInstruction(new (arena_) HGoto(dex_pc));
-      current_block_->AddSuccessor(target);
       current_block_ = nullptr;
       break;
     }
@@ -2793,8 +2448,6 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::THROW: {
       HInstruction* exception = LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot, dex_pc);
       current_block_->AddInstruction(new (arena_) HThrow(exception, dex_pc));
-      // A throw instruction must branch to the exit block.
-      current_block_->AddSuccessor(exit_block_);
       // We finished building this block. Set the current block to null to avoid
       // adding dead instructions to it.
       current_block_ = nullptr;
@@ -2832,13 +2485,9 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::SPARSE_SWITCH:
     case Instruction::PACKED_SWITCH: {
-      BuildPackedSwitch(instruction, dex_pc);
-      break;
-    }
-
-    case Instruction::SPARSE_SWITCH: {
-      BuildSparseSwitch(instruction, dex_pc);
+      BuildSwitch(instruction, dex_pc);
       break;
     }
 

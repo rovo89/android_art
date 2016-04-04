@@ -16,6 +16,7 @@
 
 #include "ssa_builder.h"
 
+#include "bytecode_utils.h"
 #include "nodes.h"
 #include "reference_type_propagation.h"
 #include "ssa_phi_elimination.h"
@@ -627,7 +628,6 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
       // Make sure there was at least one throwing instruction which initialized
       // locals (guaranteed by HGraphBuilder) and that all try blocks have been
       // visited already (from HTryBoundary scoping and reverse post order).
-      bool throwing_instruction_found = false;
       bool catch_block_visited = false;
       for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
         HBasicBlock* current = it.Current();
@@ -636,10 +636,10 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         } else if (current->IsTryBlock() &&
                    current->GetTryCatchInformation()->GetTryEntry().HasExceptionHandler(*block)) {
           DCHECK(!catch_block_visited) << "Catch block visited before its try block.";
-          throwing_instruction_found |= current->HasThrowingInstructions();
         }
       }
-      DCHECK(throwing_instruction_found) << "No instructions throwing into a live catch block.";
+      DCHECK_EQ(current_locals_->size(), GetGraph()->GetNumberOfVRegs())
+          << "No instructions throwing into a live catch block.";
     }
   } else if (block->IsLoopHeader()) {
     // If the block is a loop header, we know we only have visited the pre header
@@ -899,6 +899,27 @@ void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
   store->GetBlock()->RemoveInstruction(store);
 }
 
+bool SsaBuilder::IsFirstAtThrowingDexPc(HInstruction* instruction) const {
+  uint32_t dex_pc = instruction->GetDexPc();
+  if (dex_pc == kNoDexPc) {
+    return false;
+  }
+
+  // Needs to be the first HInstruction with this dex_pc.
+  HInstruction* previous = instruction->GetPrevious();
+  if (previous != nullptr && previous->GetDexPc() == dex_pc) {
+    return false;
+  }
+
+  if (instruction->IsControlFlow() && !instruction->IsThrow()) {
+    // Special-case non-throwing control-flow HInstruction because artifically
+    // created ones are given dex_pc of the nearest bytecode instructions.
+    return false;
+  }
+
+  return IsThrowingDexInstruction(GetDexInstructionAt(code_item_, dex_pc));
+}
+
 void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   if (instruction->NeedsEnvironment()) {
     HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
@@ -914,7 +935,7 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   }
 
   // If in a try block, propagate values of locals into catch blocks.
-  if (instruction->CanThrowIntoCatchBlock()) {
+  if (instruction->GetBlock()->IsTryBlock() && IsFirstAtThrowingDexPc(instruction)) {
     const HTryBoundary& try_entry =
         instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
     for (HBasicBlock* catch_block : try_entry.GetExceptionHandlers()) {

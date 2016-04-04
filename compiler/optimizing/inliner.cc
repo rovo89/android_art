@@ -1066,12 +1066,13 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                         &dex_compilation_unit,
                         &outer_compilation_unit_,
                         resolved_method->GetDexFile(),
+                        *code_item,
                         compiler_driver_,
                         &inline_stats,
                         resolved_method->GetQuickenedInfo(),
                         dex_cache);
 
-  if (builder.BuildGraph(*code_item, handles_) != kAnalysisSuccess) {
+  if (builder.BuildGraph(handles_) != kAnalysisSuccess) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                    << " could not be built, so cannot be inlined";
     return false;

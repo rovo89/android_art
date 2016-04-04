@@ -40,6 +40,7 @@ LIBART_COMPILER_SRC_FILES := \
 	jit/jit_compiler.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
+	optimizing/block_builder.cc \
 	optimizing/bounds_check_elimination.cc \
 	optimizing/builder.cc \
 	optimizing/code_generator.cc \

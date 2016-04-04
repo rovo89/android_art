@@ -25,23 +25,24 @@
 ## CHECK-NEXT: from_bci
 ## CHECK-NEXT: to_bci
 ## CHECK-NEXT: predecessors
-## CHECK-NEXT: successors       "<<BExtracted:B\d+>>"
+## CHECK-NEXT: successors       "<<BAdd:B\d+>>"
 
-## CHECK:      name             "<<BCatch:B\d+>>"
+## CHECK:      name             "<<BAdd>>"
+## CHECK-NEXT: from_bci
+## CHECK-NEXT: to_bci
+## CHECK-NEXT: predecessors     "B1" "<<BCatch:B\d+>>"
+## CHECK-NEXT: successors
+## CHECK-NEXT: xhandlers
+## CHECK-NOT:  end_block
+## CHECK:      Add
+
+## CHECK:      name             "<<BCatch>>"
 ## CHECK-NEXT: from_bci
 ## CHECK-NEXT: to_bci
 ## CHECK-NEXT: predecessors
-## CHECK-NEXT: successors       "<<BExtracted>>"
+## CHECK-NEXT: successors       "<<BAdd>>"
 ## CHECK-NEXT: xhandlers
 ## CHECK-NEXT: flags            "catch_block"
-## CHECK-NOT:  Add
-
-## CHECK:      name             "<<BExtracted>>"
-## CHECK-NEXT: from_bci
-## CHECK-NEXT: to_bci
-## CHECK-NEXT: predecessors     "B1" "<<BCatch>>"
-## CHECK-NOT:  flags            "catch_block"
-## CHECK:      Add
 
 .method public static testSimplifyCatchBlock(III)I
     .registers 4
