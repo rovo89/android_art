@@ -386,6 +386,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   void SetupBlockedRegisters() const OVERRIDE;
 
+  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
