@@ -1061,14 +1061,19 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       caller_instruction_counter);
   callee_graph->SetArtMethod(resolved_method);
 
-  OptimizingCompilerStats inline_stats;
+  // When they are needed, allocate `inline_stats` on the heap instead
+  // of on the stack, as Clang might produce a stack frame too large
+  // for this function, that would not fit the requirements of the
+  // `-Wframe-larger-than` option.
+  std::unique_ptr<OptimizingCompilerStats> inline_stats =
+      (stats_ == nullptr) ? nullptr : MakeUnique<OptimizingCompilerStats>();
   HGraphBuilder builder(callee_graph,
                         &dex_compilation_unit,
                         &outer_compilation_unit_,
                         resolved_method->GetDexFile(),
                         *code_item,
                         compiler_driver_,
-                        &inline_stats,
+                        inline_stats.get(),
                         resolved_method->GetQuickenedInfo(),
                         dex_cache,
                         handles_);
