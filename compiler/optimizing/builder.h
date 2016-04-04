@@ -19,6 +19,7 @@
 
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
+#include "block_builder.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
@@ -37,97 +38,66 @@ class HGraphBuilder : public ValueObject {
                 DexCompilationUnit* dex_compilation_unit,
                 const DexCompilationUnit* const outer_compilation_unit,
                 const DexFile* dex_file,
+                const DexFile::CodeItem& code_item,
                 CompilerDriver* driver,
                 OptimizingCompilerStats* compiler_stats,
                 const uint8_t* interpreter_metadata,
                 Handle<mirror::DexCache> dex_cache)
       : arena_(graph->GetArena()),
-        branch_targets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
         locals_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
-        entry_block_(nullptr),
-        exit_block_(nullptr),
         current_block_(nullptr),
         graph_(graph),
         dex_file_(dex_file),
+        code_item_(code_item),
         dex_compilation_unit_(dex_compilation_unit),
         compiler_driver_(driver),
         outer_compilation_unit_(outer_compilation_unit),
         return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])),
-        code_start_(nullptr),
+        code_start_(code_item.insns_),
+        block_builder_(graph, dex_file, code_item),
         latest_result_(nullptr),
         compilation_stats_(compiler_stats),
         interpreter_metadata_(interpreter_metadata),
         dex_cache_(dex_cache) {}
 
   // Only for unit testing.
-  HGraphBuilder(HGraph* graph, Primitive::Type return_type = Primitive::kPrimInt)
+  HGraphBuilder(HGraph* graph,
+                const DexFile::CodeItem& code_item,
+                Primitive::Type return_type = Primitive::kPrimInt)
       : arena_(graph->GetArena()),
-        branch_targets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
         locals_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
-        entry_block_(nullptr),
-        exit_block_(nullptr),
         current_block_(nullptr),
         graph_(graph),
         dex_file_(nullptr),
+        code_item_(code_item),
         dex_compilation_unit_(nullptr),
         compiler_driver_(nullptr),
         outer_compilation_unit_(nullptr),
         return_type_(return_type),
-        code_start_(nullptr),
+        code_start_(code_item.insns_),
+        block_builder_(graph, nullptr, code_item),
         latest_result_(nullptr),
         compilation_stats_(nullptr),
         interpreter_metadata_(nullptr),
         null_dex_cache_(),
         dex_cache_(null_dex_cache_) {}
 
-  GraphAnalysisResult BuildGraph(const DexFile::CodeItem& code,
-                                 StackHandleScopeCollection* handles);
+  GraphAnalysisResult BuildGraph(StackHandleScopeCollection* handles);
 
   static constexpr const char* kBuilderPassName = "builder";
 
-  // The number of entries in a packed switch before we use a jump table or specified
-  // compare/jump series.
-  static constexpr uint16_t kSmallSwitchThreshold = 3;
-
  private:
-  // Analyzes the dex instruction and adds HInstruction to the graph
-  // to execute that instruction. Returns whether the instruction can
-  // be handled.
+  bool GenerateInstructions();
   bool AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_pc);
 
-  // Finds all instructions that start a new block, and populates branch_targets_ with
-  // the newly created blocks.
-  // As a side effect, also compute the number of dex instructions, blocks, and
-  // branches.
-  // Returns true if all the branches fall inside the method code, false otherwise.
-  // (In normal cases this should always return true but someone can artificially
-  // create a code unit in which branches fall-through out of it).
-  bool ComputeBranchTargets(const uint16_t* start,
-                            const uint16_t* end,
-                            size_t* number_of_branches);
-  void MaybeUpdateCurrentBlock(size_t dex_pc);
-  void FindNativeDebugInfoLocations(const DexFile::CodeItem& code_item, ArenaBitVector* locations);
-  HBasicBlock* FindBlockStartingAt(int32_t dex_pc) const;
-  HBasicBlock* FindOrCreateBlockStartingAt(int32_t dex_pc);
-
-  // Adds new blocks to `branch_targets_` starting at the limits of TryItems and
-  // their exception handlers.
-  void CreateBlocksForTryCatch(const DexFile::CodeItem& code_item);
-
-  // Splits edges which cross the boundaries of TryItems, inserts TryBoundary
-  // instructions and links them to the corresponding catch blocks.
-  void InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item);
-
-  // Iterates over the exception handlers of `try_item`, finds the corresponding
-  // catch blocks and makes them successors of `try_boundary`. The order of
-  // successors matches the order in which runtime exception delivery searches
-  // for a handler.
-  void LinkToCatchBlocks(HTryBoundary* try_boundary,
-                         const DexFile::CodeItem& code_item,
-                         const DexFile::TryItem* try_item);
+  void FindNativeDebugInfoLocations(ArenaBitVector* locations);
 
   bool CanDecodeQuickenedInfo() const;
   uint16_t LookupQuickenedInfo(uint32_t dex_pc);
+
+  HBasicBlock* FindBlockStartingAt(uint32_t dex_pc) const {
+    return block_builder_.GetBlockAt(dex_pc);
+  }
 
   void InitializeLocals(uint16_t count);
   HLocal* GetLocalAt(uint32_t register_index) const;
@@ -241,24 +211,10 @@ class HGraphBuilder : public ValueObject {
                       uint16_t type_index,
                       uint32_t dex_pc);
 
-  // Builds an instruction sequence for a packed switch statement.
-  void BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc);
+  // Builds an instruction sequence for a switch statement.
+  void BuildSwitch(const Instruction& instruction, uint32_t dex_pc);
 
-  // Build a switch instruction from a packed switch statement.
-  void BuildSwitchJumpTable(const SwitchTable& table,
-                            const Instruction& instruction,
-                            HInstruction* value,
-                            uint32_t dex_pc);
-
-  // Builds an instruction sequence for a sparse switch statement.
-  void BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc);
-
-  void BuildSwitchCaseHelper(const Instruction& instruction, size_t index,
-                             bool is_last_case, const SwitchTable& table,
-                             HInstruction* value, int32_t case_value_int,
-                             int32_t target_offset, uint32_t dex_pc);
-
-  bool SkipCompilation(const DexFile::CodeItem& code_item, size_t number_of_branches);
+  bool SkipCompilation(size_t number_of_branches);
 
   void MaybeRecordStat(MethodCompilationStat compilation_stat);
 
@@ -319,20 +275,14 @@ class HGraphBuilder : public ValueObject {
 
   ArenaAllocator* const arena_;
 
-  // A list of the size of the dex code holding block information for
-  // the method. If an entry contains a block, then the dex instruction
-  // starting at that entry is the first instruction of a new block.
-  ArenaVector<HBasicBlock*> branch_targets_;
-
   ArenaVector<HLocal*> locals_;
 
-  HBasicBlock* entry_block_;
-  HBasicBlock* exit_block_;
   HBasicBlock* current_block_;
   HGraph* const graph_;
 
-  // The dex file where the method being compiled is.
+  // The dex file where the method being compiled is, and the bytecode data.
   const DexFile* const dex_file_;
+  const DexFile::CodeItem& code_item_;
 
   // The compilation unit of the current method being compiled. Note that
   // it can be an inlined method.
@@ -351,6 +301,8 @@ class HGraphBuilder : public ValueObject {
   // The pointer in the dex file where the instructions of the code item
   // being currently compiled start.
   const uint16_t* code_start_;
+
+  HBasicBlockBuilder block_builder_;
 
   // The last invoke or fill-new-array being built. Only to be
   // used by move-result instructions.

@@ -40,6 +40,7 @@
 #include "code_generator_mips64.h"
 #endif
 
+#include "bytecode_utils.h"
 #include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
@@ -680,7 +681,7 @@ static void CheckLoopEntriesCanBeUsedForOsr(const HGraph& graph,
       uint32_t target = dex_pc + instruction.GetTargetOffset();
       CheckCovers(target, graph, code_info, loop_headers, &covered);
     } else if (instruction.IsSwitch()) {
-      SwitchTable table(instruction, dex_pc, instruction.Opcode() == Instruction::SPARSE_SWITCH);
+      DexSwitchTable table(instruction, dex_pc);
       uint16_t num_entries = table.GetNumEntries();
       size_t offset = table.GetFirstValueIndex();
 

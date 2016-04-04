@@ -215,10 +215,10 @@
 ## CHECK-DAG:     <<Const0x10:i\d+>> IntConstant 16
 ## CHECK-DAG:     <<Const0x11:i\d+>> IntConstant 17
 ## CHECK-DAG:     <<Add:i\d+>>       Add [<<Arg0>>,<<Arg1>>]
-## CHECK-DAG:     <<Phi:i\d+>>       Phi [<<Add>>,<<Const0xf>>] reg:3 is_catch_phi:false
+## CHECK-DAG:     <<Select:i\d+>>    Select [<<Const0xf>>,<<Add>>,{{z\d+}}]
 ## CHECK-DAG:                        Phi [<<Const0xa>>,<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
 ## CHECK-DAG:                        Phi [<<Add>>,<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
-## CHECK-DAG:                        Phi [<<Phi>>,<<Const0x10>>,<<Const0x11>>] reg:3 is_catch_phi:true
+## CHECK-DAG:                        Phi [<<Select>>,<<Const0x10>>,<<Const0x11>>] reg:3 is_catch_phi:true
 
 ## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination_final (after)
 ## CHECK-DAG:     <<Const0xb:i\d+>>  IntConstant 11
@@ -246,7 +246,6 @@
     add-int v2, p0, p1             # dead catch phi input, defined in the dead block (HInstruction)
     move v3, v2
     if-eqz v3, :define_phi
-    sput v3, LTestCase;->sField:I  # beat HSelect simplification (has side-effects, does not throw)
     const v3, 0xf
     :define_phi
     # v3 = Phi [Add, 0xf]          # dead catch phi input, defined in the dead block (HPhi)
