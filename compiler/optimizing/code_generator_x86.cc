@@ -892,6 +892,30 @@ void CodeGeneratorX86::Bind(HBasicBlock* block) {
   __ Bind(GetLabelOf(block));
 }
 
+Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
+  switch (load->GetType()) {
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+    case Primitive::kPrimFloat:
+      return Location::StackSlot(GetStackSlot(load->GetLocal()));
+
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unexpected type " << load->GetType();
+      UNREACHABLE();
+  }
+
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+}
+
 Location InvokeDexCallingConventionVisitorX86::GetReturnLocation(Primitive::Type type) const {
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -1620,6 +1644,49 @@ void InstructionCodeGeneratorX86::VisitNativeDebugInfo(HNativeDebugInfo*) {
 
 void CodeGeneratorX86::GenerateNop() {
   __ nop();
+}
+
+void LocationsBuilderX86::VisitLocal(HLocal* local) {
+  local->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86::VisitLocal(HLocal* local) {
+  DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
+}
+
+void LocationsBuilderX86::VisitLoadLocal(HLoadLocal* local) {
+  local->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNUSED) {
+  // Nothing to do, this is driven by the code generator.
+}
+
+void LocationsBuilderX86::VisitStoreLocal(HStoreLocal* store) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(store, LocationSummary::kNoCall);
+  switch (store->InputAt(1)->GetType()) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+    case Primitive::kPrimFloat:
+      locations->SetInAt(1, Location::StackSlot(codegen_->GetStackSlot(store->GetLocal())));
+      break;
+
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      locations->SetInAt(1, Location::DoubleStackSlot(codegen_->GetStackSlot(store->GetLocal())));
+      break;
+
+    default:
+      LOG(FATAL) << "Unknown local type " << store->InputAt(1)->GetType();
+  }
+}
+
+void InstructionCodeGeneratorX86::VisitStoreLocal(HStoreLocal* store ATTRIBUTE_UNUSED) {
 }
 
 void LocationsBuilderX86::HandleCondition(HCondition* cond) {
