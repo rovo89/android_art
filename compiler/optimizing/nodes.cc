@@ -318,11 +318,21 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     }
   }
 
+  // Place the suspend check at the beginning of the header, so that live registers
+  // will be known when allocating registers. Note that code generation can still
+  // generate the suspend check at the back edge, but needs to be careful with
+  // loop phi spill slots (which are not written to at back edge).
   HInstruction* first_instruction = header->GetFirstInstruction();
-  if (first_instruction != nullptr && first_instruction->IsSuspendCheck()) {
-    // Called from DeadBlockElimination. Update SuspendCheck pointer.
-    info->SetSuspendCheck(first_instruction->AsSuspendCheck());
+  if (first_instruction == nullptr) {
+    HSuspendCheck* check = new (arena_) HSuspendCheck(header->GetDexPc());
+    header->AddInstruction(check);
+    first_instruction = check;
+  } else if (!first_instruction->IsSuspendCheck()) {
+    HSuspendCheck* check = new (arena_) HSuspendCheck(header->GetDexPc());
+    header->InsertInstructionBefore(check, first_instruction);
+    first_instruction = check;
   }
+  info->SetSuspendCheck(first_instruction->AsSuspendCheck());
 }
 
 void HGraph::ComputeTryBlockInformation() {
@@ -1872,7 +1882,6 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
            instr_it.Advance()) {
         HInstruction* current = instr_it.Current();
         if (current->NeedsEnvironment()) {
-          DCHECK(current->HasEnvironment());
           current->GetEnvironment()->SetAndCopyParentChain(
               outer_graph->GetArena(), invoke->GetEnvironment());
         }

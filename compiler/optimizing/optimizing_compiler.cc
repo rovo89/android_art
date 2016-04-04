@@ -731,9 +731,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                             compiler_driver,
                             compilation_stats_.get(),
                             interpreter_metadata,
-                            dex_cache,
-                            &handles);
-      GraphAnalysisResult result = builder.BuildGraph();
+                            dex_cache);
+      GraphAnalysisResult result = builder.BuildGraph(&handles);
       if (result != kAnalysisSuccess) {
         switch (result) {
           case kAnalysisSkipped:
