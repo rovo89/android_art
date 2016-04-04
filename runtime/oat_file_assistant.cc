@@ -492,10 +492,21 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     const ImageInfo* image_info = GetImageInfo();
     if (image_info == nullptr) {
       VLOG(oat) << "No image for oat image checksum to match against.";
-      return true;
-    }
 
-    if (file.GetOatHeader().GetImageFileLocationOatChecksum() != GetCombinedImageChecksum()) {
+      if (HasOriginalDexFiles()) {
+        return true;
+      }
+
+      // If there is no original dex file to fall back to, grudgingly accept
+      // the oat file. This could technically lead to crashes, but there's no
+      // way we could find a better oat file to use for this dex location,
+      // and it's better than being stuck in a boot loop with no way out.
+      // The problem will hopefully resolve itself the next time the runtime
+      // starts up.
+      LOG(WARNING) << "Dex location " << dex_location_ << " does not seem to include dex file. "
+        << "Allow oat file use. This is potentially dangerous.";
+    } else if (file.GetOatHeader().GetImageFileLocationOatChecksum()
+        != GetCombinedImageChecksum()) {
       VLOG(oat) << "Oat image checksum does not match image checksum.";
       return true;
     }

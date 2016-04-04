@@ -287,6 +287,7 @@ TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
 # 529 and 555: b/27784033
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat \
+  147-stripped-dex-fallback \
   554-jit-profile-file \
   529-checker-unresolved \
   555-checker-regression-x86const

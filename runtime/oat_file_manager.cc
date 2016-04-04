@@ -364,7 +364,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
 
       // However, if the app was part of /system and preopted, there is no original dex file
       // available. In that case grudgingly accept the oat file.
-      if (!DexFile::MaybeDex(dex_location)) {
+      if (!oat_file_assistant.HasOriginalDexFiles()) {
         accept_oat_file = true;
         LOG(WARNING) << "Dex location " << dex_location << " does not seem to include dex file. "
                      << "Allow oat file use. This is potentially dangerous.";

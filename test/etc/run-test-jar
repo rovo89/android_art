@@ -37,6 +37,7 @@ PATCHOAT=""
 PREBUILD="y"
 QUIET="n"
 RELOCATE="y"
+STRIP_DEX="n"
 SECONDARY_DEX=""
 TIME_OUT="gdb"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
 # Value in seconds
@@ -117,6 +118,9 @@ while true; do
         shift
     elif [ "x$1" = "x--prebuild" ]; then
         PREBUILD="y"
+        shift
+    elif [ "x$1" = "x--strip-dex" ]; then
+        STRIP_DEX="y"
         shift
     elif [ "x$1" = "x--host" ]; then
         HOST="y"
@@ -380,6 +384,7 @@ fi
 
 dex2oat_cmdline="true"
 mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
+strip_cmdline="true"
 
 # Pick a base that will force the app image to get relocated.
 app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
@@ -407,6 +412,10 @@ if [ "$PREBUILD" = "y" ]; then
     # Use -k 1m to SIGKILL it a minute later if it hasn't ended.
     dex2oat_cmdline="timeout -k 1m -s SIGRTMIN+2 1m ${dex2oat_cmdline}"
   fi
+fi
+
+if [ "$STRIP_DEX" = "y" ]; then
+  strip_cmdline="zip --quiet --delete $DEX_LOCATION/$TEST_NAME.jar classes.dex"
 fi
 
 DALVIKVM_ISA_FEATURES_ARGS=""
@@ -478,6 +487,7 @@ if [ "$HOST" = "n" ]; then
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              export PATH=$ANDROID_ROOT/bin:$PATH && \
              $dex2oat_cmdline && \
+             $strip_cmdline && \
              $dalvikvm_cmdline"
 
     cmdfile=$(tempfile -p "cmd-" -s "-$TEST_NAME")
@@ -548,13 +558,7 @@ else
     fi
 
     if [ "$DEV_MODE" = "y" ]; then
-      if [ "$PREBUILD" = "y" ]; then
-        echo "$mkdir_cmdline && $dex2oat_cmdline && $cmdline"
-      elif [ "$RELOCATE" = "y" ]; then
-        echo "$mkdir_cmdline && $cmdline"
-      else
-        echo $cmdline
-      fi
+      echo "$mkdir_cmdline && $dex2oat_cmdline && $strip_cmdline && $cmdline"
     fi
 
     cd $ANDROID_BUILD_TOP
@@ -562,6 +566,7 @@ else
     rm -rf ${DEX_LOCATION}/dalvik-cache/
     $mkdir_cmdline || exit 1
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
+    $strip_cmdline || { echo "Strip failed." >&2 ; exit 3; }
 
     # For running, we must turn off logging when dex2oat or patchoat are missing. Otherwise we use
     # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.

@@ -190,6 +190,9 @@ while true; do
         run_args="${run_args} --prebuild"
         prebuild_mode="yes"
         shift;
+    elif [ "x$1" = "x--strip-dex" ]; then
+        run_args="${run_args} --strip-dex"
+        shift;
     elif [ "x$1" = "x--debuggable" ]; then
         run_args="${run_args} -Xcompiler-option --debuggable"
         debuggable="yes"
@@ -449,7 +452,7 @@ if [ "$runtime" = "dalvik" ]; then
     if [ "$target_mode" = "no" ]; then
         framework="${ANDROID_PRODUCT_OUT}/system/framework"
         bpath="${framework}/core-libart.jar:${framework}/core-oj.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
-        run_args="${run_args} --boot -Xbootclasspath:${bpath}"
+        run_args="${run_args} --boot --runtime-option -Xbootclasspath:${bpath}"
     else
         true # defaults to using target BOOTCLASSPATH
     fi
@@ -571,6 +574,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --prebuild            Run dex2oat on the files before starting test. (default)"
         echo "    --no-prebuild         Do not run dex2oat on the files before starting"
         echo "                          the test."
+        echo "    --strip-dex           Strip the dex files before starting test."
         echo "    --relocate            Force the use of relocating in the test, making"
         echo "                          the image and oat files be relocated to a random"
         echo "                          address before running. (default)"
