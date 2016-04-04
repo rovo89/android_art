@@ -211,7 +211,6 @@ class CodeGenerator {
                                 size_t maximum_number_of_live_fpu_registers,
                                 size_t number_of_out_slots,
                                 const ArenaVector<HBasicBlock*>& block_order);
-  int32_t GetStackSlot(HLocal* local) const;
 
   uint32_t GetFrameSize() const { return frame_size_; }
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
@@ -524,8 +523,6 @@ class CodeGenerator {
         requires_current_method_(false) {
     slow_paths_.reserve(8);
   }
-
-  virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
   virtual HGraphVisitor* GetLocationBuilder() = 0;
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
