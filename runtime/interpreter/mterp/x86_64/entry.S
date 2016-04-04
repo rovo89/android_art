@@ -65,6 +65,12 @@ SYMBOL(ExecuteMterpImpl):
     movq    IN_ARG0, rSELF
     REFRESH_IBASE
 
+    /* Set up for backwards branches & osr profiling */
+    movq    OFF_FP_METHOD(rFP), OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    call    SYMBOL(MterpSetUpHotnessCountdown)
+    movswl  %ax, rPROFILE
+
     /* start executing the instruction at rPC */
     FETCH_INST
     GOTO_NEXT

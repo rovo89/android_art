@@ -60,7 +60,7 @@ Mterp and x86_64 notes:
 Some key interpreter variables will be assigned to registers.
 
   nick     reg   purpose
-  rSELF    rbp   pointer to ThreadSelf.
+  rPROFILE rbp   countdown register for jit profiling
   rPC      r12   interpreted program counter, used for fetching instructions
   rFP      r13   interpreted frame pointer, used for accessing locals and args
   rINSTw   bx    first 16-bit code of current instruction
@@ -113,6 +113,21 @@ unspecified registers or condition codes.
     .cfi_restore \_reg
 .endm
 
+/*
+ * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
+ * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
+ */
+#define OFF_FP(a) (a - SHADOWFRAME_VREGS_OFFSET)
+#define OFF_FP_NUMBER_OF_VREGS OFF_FP(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET)
+#define OFF_FP_DEX_PC OFF_FP(SHADOWFRAME_DEX_PC_OFFSET)
+#define OFF_FP_LINK OFF_FP(SHADOWFRAME_LINK_OFFSET)
+#define OFF_FP_METHOD OFF_FP(SHADOWFRAME_METHOD_OFFSET)
+#define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
+#define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
+#define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
+#define OFF_FP_COUNTDOWN_OFFSET OFF_FP(SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET)
+#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
+
 /* Frame size must be 16-byte aligned.
  * Remember about 8 bytes for return address + 6 * 8 for spills.
  */
@@ -123,6 +138,8 @@ unspecified registers or condition codes.
 #define IN_ARG2        %rdx
 #define IN_ARG1        %rsi
 #define IN_ARG0        %rdi
+/* Spill offsets relative to %esp */
+#define SELF_SPILL     (FRAME_SIZE -  8)
 /* Out Args  */
 #define OUT_ARG3       %rcx
 #define OUT_ARG2       %rdx
@@ -137,7 +154,7 @@ unspecified registers or condition codes.
 
 /* During bringup, we'll use the shadow frame model instead of rFP */
 /* single-purpose registers, given names for clarity */
-#define rSELF    %rbp
+#define rSELF    SELF_SPILL(%rsp)
 #define rPC      %r12
 #define rFP      %r13
 #define rINST    %ebx
@@ -147,38 +164,9 @@ unspecified registers or condition codes.
 #define rINSTbl  %bl
 #define rIBASE   %r14
 #define rREFS    %r15
+#define rPROFILE %ebp
 
-/*
- * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
- * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
- */
-#define OFF_FP(a) (a - SHADOWFRAME_VREGS_OFFSET)
-#define OFF_FP_NUMBER_OF_VREGS OFF_FP(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET)
-#define OFF_FP_DEX_PC OFF_FP(SHADOWFRAME_DEX_PC_OFFSET)
-#define OFF_FP_LINK OFF_FP(SHADOWFRAME_LINK_OFFSET)
-#define OFF_FP_METHOD OFF_FP(SHADOWFRAME_METHOD_OFFSET)
-#define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
-#define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
-#define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
-
-#define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
-
-/*
- * Profile branch. rINST should contain the offset. %eax is scratch.
- */
-.macro MTERP_PROFILE_BRANCH
-#ifdef MTERP_PROFILE_BRANCHES
-    EXPORT_PC
-    movq    rSELF, OUT_ARG0
-    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
-    movl    rINST, OUT_32_ARG2
-    call    SYMBOL(MterpProfileBranch)
-    testb   %al, %al
-    jnz     MterpOnStackReplacement
-#endif
-.endm
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must
@@ -204,7 +192,8 @@ unspecified registers or condition codes.
  *
  */
 .macro REFRESH_IBASE
-    movq    THREAD_CURRENT_IBASE_OFFSET(rSELF), rIBASE
+    movq    rSELF, rIBASE
+    movq    THREAD_CURRENT_IBASE_OFFSET(rIBASE), rIBASE
 .endm
 
 /*

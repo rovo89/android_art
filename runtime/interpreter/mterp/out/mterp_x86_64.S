@@ -67,7 +67,7 @@ Mterp and x86_64 notes:
 Some key interpreter variables will be assigned to registers.
 
   nick     reg   purpose
-  rSELF    rbp   pointer to ThreadSelf.
+  rPROFILE rbp   countdown register for jit profiling
   rPC      r12   interpreted program counter, used for fetching instructions
   rFP      r13   interpreted frame pointer, used for accessing locals and args
   rINSTw   bx    first 16-bit code of current instruction
@@ -120,6 +120,21 @@ unspecified registers or condition codes.
     .cfi_restore \_reg
 .endm
 
+/*
+ * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
+ * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
+ */
+#define OFF_FP(a) (a - SHADOWFRAME_VREGS_OFFSET)
+#define OFF_FP_NUMBER_OF_VREGS OFF_FP(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET)
+#define OFF_FP_DEX_PC OFF_FP(SHADOWFRAME_DEX_PC_OFFSET)
+#define OFF_FP_LINK OFF_FP(SHADOWFRAME_LINK_OFFSET)
+#define OFF_FP_METHOD OFF_FP(SHADOWFRAME_METHOD_OFFSET)
+#define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
+#define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
+#define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
+#define OFF_FP_COUNTDOWN_OFFSET OFF_FP(SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET)
+#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
+
 /* Frame size must be 16-byte aligned.
  * Remember about 8 bytes for return address + 6 * 8 for spills.
  */
@@ -130,6 +145,8 @@ unspecified registers or condition codes.
 #define IN_ARG2        %rdx
 #define IN_ARG1        %rsi
 #define IN_ARG0        %rdi
+/* Spill offsets relative to %esp */
+#define SELF_SPILL     (FRAME_SIZE -  8)
 /* Out Args  */
 #define OUT_ARG3       %rcx
 #define OUT_ARG2       %rdx
@@ -144,7 +161,7 @@ unspecified registers or condition codes.
 
 /* During bringup, we'll use the shadow frame model instead of rFP */
 /* single-purpose registers, given names for clarity */
-#define rSELF    %rbp
+#define rSELF    SELF_SPILL(%rsp)
 #define rPC      %r12
 #define rFP      %r13
 #define rINST    %ebx
@@ -154,38 +171,9 @@ unspecified registers or condition codes.
 #define rINSTbl  %bl
 #define rIBASE   %r14
 #define rREFS    %r15
+#define rPROFILE %ebp
 
-/*
- * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
- * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
- */
-#define OFF_FP(a) (a - SHADOWFRAME_VREGS_OFFSET)
-#define OFF_FP_NUMBER_OF_VREGS OFF_FP(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET)
-#define OFF_FP_DEX_PC OFF_FP(SHADOWFRAME_DEX_PC_OFFSET)
-#define OFF_FP_LINK OFF_FP(SHADOWFRAME_LINK_OFFSET)
-#define OFF_FP_METHOD OFF_FP(SHADOWFRAME_METHOD_OFFSET)
-#define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
-#define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
-#define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
-
-#define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
-
-/*
- * Profile branch. rINST should contain the offset. %eax is scratch.
- */
-.macro MTERP_PROFILE_BRANCH
-#ifdef MTERP_PROFILE_BRANCHES
-    EXPORT_PC
-    movq    rSELF, OUT_ARG0
-    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
-    movl    rINST, OUT_32_ARG2
-    call    SYMBOL(MterpProfileBranch)
-    testb   %al, %al
-    jnz     MterpOnStackReplacement
-#endif
-.endm
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must
@@ -211,7 +199,8 @@ unspecified registers or condition codes.
  *
  */
 .macro REFRESH_IBASE
-    movq    THREAD_CURRENT_IBASE_OFFSET(rSELF), rIBASE
+    movq    rSELF, rIBASE
+    movq    THREAD_CURRENT_IBASE_OFFSET(rIBASE), rIBASE
 .endm
 
 /*
@@ -376,6 +365,12 @@ SYMBOL(ExecuteMterpImpl):
     /* Starting ibase */
     movq    IN_ARG0, rSELF
     REFRESH_IBASE
+
+    /* Set up for backwards branches & osr profiling */
+    movq    OFF_FP_METHOD(rFP), OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    call    SYMBOL(MterpSetUpHotnessCountdown)
+    movswl  %ax, rPROFILE
 
     /* start executing the instruction at rPC */
     FETCH_INST
@@ -579,9 +574,10 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
 .L_op_move_exception: /* 0x0d */
 /* File: x86_64/op_move_exception.S */
     /* move-exception vAA */
-    movl    THREAD_EXCEPTION_OFFSET(rSELF), %eax
+    movq    rSELF, %rcx
+    movl    THREAD_EXCEPTION_OFFSET(%rcx), %eax
     SET_VREG_OBJECT %eax, rINSTq            # fp[AA] <- exception object
-    movl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
 
 /* ------------------------------ */
@@ -590,9 +586,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
 /* File: x86_64/op_return_void.S */
     .extern MterpThreadFenceForConstructor
     call    SYMBOL(MterpThreadFenceForConstructor)
-    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(rSELF)
-    jz      1f
     movq    rSELF, OUT_ARG0
+    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(OUT_ARG0)
+    jz      1f
     call    SYMBOL(MterpSuspendCheck)
 1:
     xorq    %rax, %rax
@@ -610,9 +606,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     /* op vAA */
     .extern MterpThreadFenceForConstructor
     call    SYMBOL(MterpThreadFenceForConstructor)
-    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(rSELF)
-    jz      1f
     movq    rSELF, OUT_ARG0
+    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(OUT_ARG0)
+    jz      1f
     call    SYMBOL(MterpSuspendCheck)
 1:
     GET_VREG %eax, rINSTq                   # eax <- vAA
@@ -628,9 +624,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     /* return-wide vAA */
     .extern MterpThreadFenceForConstructor
     call    SYMBOL(MterpThreadFenceForConstructor)
-    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(rSELF)
-    jz      1f
     movq    rSELF, OUT_ARG0
+    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(OUT_ARG0)
+    jz      1f
     call    SYMBOL(MterpSuspendCheck)
 1:
     GET_WIDE_VREG %rax, rINSTq              # eax <- v[AA]
@@ -649,9 +645,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     /* op vAA */
     .extern MterpThreadFenceForConstructor
     call    SYMBOL(MterpThreadFenceForConstructor)
-    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(rSELF)
-    jz      1f
     movq    rSELF, OUT_ARG0
+    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(OUT_ARG0)
+    jz      1f
     call    SYMBOL(MterpSuspendCheck)
 1:
     GET_VREG %eax, rINSTq                   # eax <- vAA
@@ -854,7 +850,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    rSELF, OUT_ARG3
     call    SYMBOL(MterpInstanceOf)         # (index, &obj, method, self)
     movsbl  %al, %eax
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     andb    $0xf, rINSTbl                  # rINSTbl <- A
     SET_VREG %eax, rINSTq
@@ -988,7 +985,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG %eax, rINSTq                   # eax<- vAA (exception object)
     testb   %al, %al
     jz      common_errNullObject
-    movq    %rax, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    movq    %rax, THREAD_EXCEPTION_OFFSET(%rcx)
     jmp     MterpException
 
 /* ------------------------------ */
@@ -1003,12 +1001,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* goto +AA */
     movsbq  rINSTbl, rINSTq                 # rINSTq <- ssssssAA
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 
 /* ------------------------------ */
     .balign 128
@@ -1022,12 +1016,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* goto/16 +AAAA */
     movswq  2(rPC), rINSTq                  # rINSTq <- ssssAAAA
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 
 /* ------------------------------ */
     .balign 128
@@ -1044,12 +1034,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* goto/32 +AAAAAAAA */
     movslq  2(rPC), rINSTq                  # rINSTq <- AAAAAAAA
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 
 /* ------------------------------ */
     .balign 128
@@ -1069,13 +1055,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + BBBBbbbb*2
     GET_VREG OUT_32_ARG1, rINSTq            # eax <- vAA
     call    SYMBOL(MterpDoPackedSwitch)
+    testl   %eax, %eax
     movslq  %eax, rINSTq
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue
-    GOTO_NEXT
+    jmp     MterpCommonTakenBranch
 
 /* ------------------------------ */
     .balign 128
@@ -1096,13 +1078,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + BBBBbbbb*2
     GET_VREG OUT_32_ARG1, rINSTq            # eax <- vAA
     call    SYMBOL(MterpDoSparseSwitch)
+    testl   %eax, %eax
     movslq  %eax, rINSTq
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue
-    GOTO_NEXT
+    jmp     MterpCommonTakenBranch
 
 
 /* ------------------------------ */
@@ -1309,16 +1287,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, %cl                      # rcx <- A
     GET_VREG %eax, %rcx                     # eax <- vA
     cmpl    VREG_ADDRESS(rINSTq), %eax      # compare (vA, vB)
-    movl    $2, rINST                      # assume not taken
     jne   1f
     movswq  2(rPC), rINSTq                  # Get signed branch offset
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rax <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1339,16 +1315,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, %cl                      # rcx <- A
     GET_VREG %eax, %rcx                     # eax <- vA
     cmpl    VREG_ADDRESS(rINSTq), %eax      # compare (vA, vB)
-    movl    $2, rINST                      # assume not taken
     je   1f
     movswq  2(rPC), rINSTq                  # Get signed branch offset
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rax <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1369,16 +1343,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, %cl                      # rcx <- A
     GET_VREG %eax, %rcx                     # eax <- vA
     cmpl    VREG_ADDRESS(rINSTq), %eax      # compare (vA, vB)
-    movl    $2, rINST                      # assume not taken
     jge   1f
     movswq  2(rPC), rINSTq                  # Get signed branch offset
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rax <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1399,16 +1371,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, %cl                      # rcx <- A
     GET_VREG %eax, %rcx                     # eax <- vA
     cmpl    VREG_ADDRESS(rINSTq), %eax      # compare (vA, vB)
-    movl    $2, rINST                      # assume not taken
     jl   1f
     movswq  2(rPC), rINSTq                  # Get signed branch offset
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rax <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1429,16 +1399,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, %cl                      # rcx <- A
     GET_VREG %eax, %rcx                     # eax <- vA
     cmpl    VREG_ADDRESS(rINSTq), %eax      # compare (vA, vB)
-    movl    $2, rINST                      # assume not taken
     jle   1f
     movswq  2(rPC), rINSTq                  # Get signed branch offset
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rax <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1459,16 +1427,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     andb    $0xf, %cl                      # rcx <- A
     GET_VREG %eax, %rcx                     # eax <- vA
     cmpl    VREG_ADDRESS(rINSTq), %eax      # compare (vA, vB)
-    movl    $2, rINST                      # assume not taken
     jg   1f
     movswq  2(rPC), rINSTq                  # Get signed branch offset
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rax <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1485,16 +1451,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINSTq)       # compare (vA, 0)
-    movl    $2, rINST                      # assume branch not taken
     jne   1f
     movswq  2(rPC), rINSTq                  # fetch signed displacement
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1511,16 +1475,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINSTq)       # compare (vA, 0)
-    movl    $2, rINST                      # assume branch not taken
     je   1f
     movswq  2(rPC), rINSTq                  # fetch signed displacement
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1537,16 +1499,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINSTq)       # compare (vA, 0)
-    movl    $2, rINST                      # assume branch not taken
     jge   1f
     movswq  2(rPC), rINSTq                  # fetch signed displacement
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1563,16 +1523,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINSTq)       # compare (vA, 0)
-    movl    $2, rINST                      # assume branch not taken
     jl   1f
     movswq  2(rPC), rINSTq                  # fetch signed displacement
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1589,16 +1547,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINSTq)       # compare (vA, 0)
-    movl    $2, rINST                      # assume branch not taken
     jle   1f
     movswq  2(rPC), rINSTq                  # fetch signed displacement
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1615,16 +1571,14 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  */
     /* if-cmp vAA, +BBBB */
     cmpl    $0, VREG_ADDRESS(rINSTq)       # compare (vA, 0)
-    movl    $2, rINST                      # assume branch not taken
     jg   1f
     movswq  2(rPC), rINSTq                  # fetch signed displacement
+    testq   rINSTq, rINSTq
+    jmp     MterpCommonTakenBranch
 1:
-    MTERP_PROFILE_BRANCH
-    addq    rINSTq, rINSTq                  # rINSTq <- AA * 2
-    leaq    (rPC, rINSTq), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_check_not_taken_osr
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 
 /* ------------------------------ */
@@ -1767,7 +1721,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     GET_VREG OUT_32_ARG1, %rcx              # ecx <- vCC (requested index)
     EXPORT_PC
     call    SYMBOL(artAGetObjectFromMterp)  # (array, index)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     SET_VREG_OBJECT %eax, rINSTq
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -2099,7 +2054,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGet32InstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
@@ -2131,7 +2087,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGet64InstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
@@ -2164,7 +2121,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGetObjInstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 1
@@ -2197,7 +2155,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGetBooleanInstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
@@ -2230,7 +2189,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGetByteInstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
@@ -2263,7 +2223,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGetCharInstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
@@ -2296,7 +2257,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG2    # referrer
     movq    rSELF, OUT_ARG3
     call    SYMBOL(artGetShortInstanceFromCode)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     .if 0
@@ -2489,7 +2451,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGet32StaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 0
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2519,7 +2482,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGet64StaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 0
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2550,7 +2514,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGetObjStaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 1
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2581,7 +2546,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGetBooleanStaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 0
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2612,7 +2578,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGetByteStaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 0
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2643,7 +2610,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGetCharStaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 0
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2674,7 +2642,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     movq    OFF_FP_METHOD(rFP), OUT_ARG1    # referrer
     movq    rSELF, OUT_ARG2                 # self
     call    SYMBOL(artGetShortStaticFromCode)
-    cmpl    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpl    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException
     .if 0
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -3002,9 +2971,9 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
     .balign 128
 .L_op_return_void_no_barrier: /* 0x73 */
 /* File: x86_64/op_return_void_no_barrier.S */
-    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(rSELF)
-    jz      1f
     movq    rSELF, OUT_ARG0
+    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(OUT_ARG0)
+    jz      1f
     call    SYMBOL(MterpSuspendCheck)
 1:
     xorq    %rax, %rax
@@ -5712,7 +5681,8 @@ movswl %ax, %eax
     movzwl  2(rPC), OUT_32_ARG1             # eax <- field byte offset
     EXPORT_PC
     callq   SYMBOL(artIGetObjectFromMterp)  # (obj, offset)
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jnz     MterpException                  # bail out
     andb    $0xf, rINSTbl                  # rINST <- A
     SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -11849,7 +11819,7 @@ MterpSuspendFallback:
 #if MTERP_LOGGING
     movq    rSELF, OUT_ARG0
     leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
-    movl    THREAD_FLAGS_OFFSET(rSELF), OUT_32_ARG2
+    movl    THREAD_FLAGS_OFFSET(OUT_ARG0), OUT_32_ARG2
     call    SYMBOL(MterpLogSuspendFallback)
 #endif
     jmp     MterpCommonFallback
@@ -11860,7 +11830,8 @@ MterpSuspendFallback:
  * interpreter.
  */
 MterpPossibleException:
-    cmpq    $0, THREAD_EXCEPTION_OFFSET(rSELF)
+    movq    rSELF, %rcx
+    cmpq    $0, THREAD_EXCEPTION_OFFSET(%rcx)
     jz      MterpFallback
     /* intentional fallthrough - handle pending exception. */
 
@@ -11891,18 +11862,112 @@ MterpException:
     /* NOTE: no fallthrough */
 
 /*
- * Check for suspend check request.  Assumes rINST already loaded, rPC advanced and
- * still needs to get the opcode and branch to it, and flags are in lr.
+ * Common handling for branches with support for Jit profiling.
+ * On entry:
+ *    rINST          <= signed offset
+ *    rPROFILE       <= signed hotness countdown (expanded to 32 bits)
+ *    condition bits <= set to establish sign of offset (use "NoFlags" entry if not)
+ *
+ * We have quite a few different cases for branch profiling, OSR detection and
+ * suspend check support here.
+ *
+ * Taken backward branches:
+ *    If profiling active, do hotness countdown and report if we hit zero.
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *    Is there a pending suspend request?  If so, suspend.
+ *
+ * Taken forward branches and not-taken backward branches:
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *
+ * Our most common case is expected to be a taken backward branch with active jit profiling,
+ * but no full OSR check and no pending suspend request.
+ * Next most common case is not-taken branch with no full OSR check.
+ *
  */
-MterpCheckSuspendAndContinue:
+MterpCommonTakenBranch:
+    jg      .L_forward_branch               # don't add forward branches to hotness
+/*
+ * We need to subtract 1 from positive values and we should not see 0 here,
+ * so we may use the result of the comparison with -1.
+ */
+#if JIT_CHECK_OSR != -1
+#  error "JIT_CHECK_OSR must be -1."
+#endif
+    cmpl    $JIT_CHECK_OSR, rPROFILE
+    je      .L_osr_check
+    decl    rPROFILE
+    je      .L_add_batch                    # counted down to zero - report
+.L_resume_backward_branch:
+    movq    rSELF, %rax
+    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%rax)
     REFRESH_IBASE
-    testl   $(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(rSELF)
-    jz      1f
+    leaq    (rPC, rINSTq, 2), rPC
+    FETCH_INST
+    jnz     .L_suspend_request_pending
+    GOTO_NEXT
+
+.L_suspend_request_pending:
     EXPORT_PC
     movq    rSELF, OUT_ARG0
-    call    SYMBOL(MterpSuspendCheck)
-1:
+    call    SYMBOL(MterpSuspendCheck)       # (self)
+    testb   %al, %al
+    jnz     MterpFallback
+    REFRESH_IBASE                           # might have changed during suspend
     GOTO_NEXT
+
+.L_no_count_backwards:
+    cmpl    $JIT_CHECK_OSR, rPROFILE         # possible OSR re-entry?
+    jne     .L_resume_backward_branch
+.L_osr_check:
+    EXPORT_PC
+    movq    rSELF, OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    movq    rINSTq, OUT_ARG2
+    call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
+    testb   %al, %al
+    jz      .L_resume_backward_branch
+    jmp     MterpOnStackReplacement
+
+.L_forward_branch:
+    cmpl    $JIT_CHECK_OSR, rPROFILE         # possible OSR re-entry?
+    je      .L_check_osr_forward
+.L_resume_forward_branch:
+    leaq    (rPC, rINSTq, 2), rPC
+    FETCH_INST
+    GOTO_NEXT
+
+.L_check_osr_forward:
+    EXPORT_PC
+    movq    rSELF, OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    movq    rINSTq, OUT_ARG2
+    call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
+    testb   %al, %al
+    jz      .L_resume_forward_branch
+    jmp     MterpOnStackReplacement
+
+.L_add_batch:
+    movl    rPROFILE, %eax
+    movq    OFF_FP_METHOD(rFP), OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    movw    %ax, OFF_FP_COUNTDOWN_OFFSET(rFP)
+    movq    rSELF, OUT_ARG2
+    call    SYMBOL(MterpAddHotnessBatch)    # (method, shadow_frame, self)
+    movswl  %ax, rPROFILE
+    jmp     .L_no_count_backwards
+
+/*
+ * Entered from the conditional branch handlers when OSR check request active on
+ * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
+ */
+.L_check_not_taken_osr:
+    movq    rSELF, OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    movl    $2, OUT_32_ARG2
+    call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
+    testb   %al, %al
+    jnz     MterpOnStackReplacement
+    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 /*
  * On-stack replacement has happened, and now we've returned from the compiled method.
@@ -11943,7 +12008,28 @@ MterpReturn:
     movq    %rax, (%rdx)
     movl    $1, %eax
 MterpDone:
+/*
+ * At this point, we expect rPROFILE to be non-zero.  If negative, hotness is disabled or we're
+ * checking for OSR.  If greater than zero, we might have unreported hotness to register
+ * (the difference between the ending rPROFILE and the cached hotness counter).  rPROFILE
+ * should only reach zero immediately after a hotness decrement, and is then reset to either
+ * a negative special state or the new non-zero countdown value.
+ */
+    testl   rPROFILE, rPROFILE
+    jle     MRestoreFrame                   # if > 0, we may have some counts to report.
+
+    movl    %eax, rINST                     # stash return value
+    /* Report cached hotness counts */
+    movl    rPROFILE, %eax
+    movq    OFF_FP_METHOD(rFP), OUT_ARG0
+    leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
+    movw    %ax, OFF_FP_COUNTDOWN_OFFSET(rFP)
+    movq    rSELF, OUT_ARG2
+    call    SYMBOL(MterpAddHotnessBatch)    # (method, shadow_frame, self)
+    movl    rINST, %eax                     # restore return value
+
     /* pop up frame */
+MRestoreFrame:
     addq    $FRAME_SIZE, %rsp
     .cfi_adjust_cfa_offset -FRAME_SIZE
 

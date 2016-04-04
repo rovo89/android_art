@@ -238,7 +238,7 @@ MterpCommonTakenBranch:
     movl    %eax, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %ecx
     movl    %ecx, OUT_ARG1(%esp)
-    movl    rINST, OUT_ARG3(%esp)
+    movl    $$2, OUT_ARG2(%esp)
     call    SYMBOL(MterpMaybeDoOnStackReplacement) # (self, shadow_frame, offset)
     testb   %al, %al
     REFRESH_IBASE
