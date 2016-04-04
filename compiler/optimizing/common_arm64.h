@@ -53,17 +53,17 @@ static inline int ARTRegCodeFromVIXL(int code) {
 }
 
 static inline vixl::Register XRegisterFrom(Location location) {
-  DCHECK(location.IsRegister());
+  DCHECK(location.IsRegister()) << location;
   return vixl::Register::XRegFromCode(VIXLRegCodeFromART(location.reg()));
 }
 
 static inline vixl::Register WRegisterFrom(Location location) {
-  DCHECK(location.IsRegister());
+  DCHECK(location.IsRegister()) << location;
   return vixl::Register::WRegFromCode(VIXLRegCodeFromART(location.reg()));
 }
 
 static inline vixl::Register RegisterFrom(Location location, Primitive::Type type) {
-  DCHECK(type != Primitive::kPrimVoid && !Primitive::IsFloatingPointType(type));
+  DCHECK(type != Primitive::kPrimVoid && !Primitive::IsFloatingPointType(type)) << type;
   return type == Primitive::kPrimLong ? XRegisterFrom(location) : WRegisterFrom(location);
 }
 
@@ -77,17 +77,17 @@ static inline vixl::Register InputRegisterAt(HInstruction* instr, int input_inde
 }
 
 static inline vixl::FPRegister DRegisterFrom(Location location) {
-  DCHECK(location.IsFpuRegister());
+  DCHECK(location.IsFpuRegister()) << location;
   return vixl::FPRegister::DRegFromCode(location.reg());
 }
 
 static inline vixl::FPRegister SRegisterFrom(Location location) {
-  DCHECK(location.IsFpuRegister());
+  DCHECK(location.IsFpuRegister()) << location;
   return vixl::FPRegister::SRegFromCode(location.reg());
 }
 
 static inline vixl::FPRegister FPRegisterFrom(Location location, Primitive::Type type) {
-  DCHECK(Primitive::IsFloatingPointType(type));
+  DCHECK(Primitive::IsFloatingPointType(type)) << type;
   return type == Primitive::kPrimDouble ? DRegisterFrom(location) : SRegisterFrom(location);
 }
 
@@ -124,7 +124,7 @@ static inline int64_t Int64ConstantFrom(Location location) {
   } else if (instr->IsNullConstant()) {
     return 0;
   } else {
-    DCHECK(instr->IsLongConstant());
+    DCHECK(instr->IsLongConstant()) << instr->DebugName();
     return instr->AsLongConstant()->GetValue();
   }
 }
