@@ -427,6 +427,8 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
                     dst_pos, src, src_pos, length, true /* throw_exception */);
       }
     }
+  } else if (src_type->IsPrimitiveByte()) {
+    PrimitiveArrayCopy<uint8_t>(self, src_array, src_pos, dst_array, dst_pos, length);
   } else if (src_type->IsPrimitiveChar()) {
     PrimitiveArrayCopy<uint16_t>(self, src_array, src_pos, dst_array, dst_pos, length);
   } else if (src_type->IsPrimitiveInt()) {
@@ -435,6 +437,12 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
     AbortTransactionOrFail(self, "Unimplemented System.arraycopy for type '%s'",
                            PrettyDescriptor(src_type).c_str());
   }
+}
+
+void UnstartedRuntime::UnstartedSystemArraycopyByte(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  // Just forward.
+  UnstartedRuntime::UnstartedSystemArraycopy(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedSystemArraycopyChar(
