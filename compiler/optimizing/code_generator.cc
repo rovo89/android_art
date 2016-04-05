@@ -44,18 +44,15 @@
 #include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
-#include "gc_map_builder.h"
 #include "graph_visualizer.h"
 #include "intrinsics.h"
 #include "leb128.h"
-#include "mapping_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_reference.h"
 #include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
-#include "vmap_table.h"
 
 namespace art {
 

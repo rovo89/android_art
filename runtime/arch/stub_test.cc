@@ -1934,7 +1934,12 @@ TEST_F(StubTest, Fields64) {
   TestFields(self, this, Primitive::Type::kPrimLong);
 }
 
-TEST_F(StubTest, IMT) {
+// Disabled, b/27991555 .
+// FIXME: Hacking the entry point to point to art_quick_to_interpreter_bridge is broken.
+// The bridge calls through to GetCalleeSaveMethodCaller() which looks up the pre-header
+// and gets a bogus OatQuickMethodHeader* pointing into our assembly code just before
+// the bridge and uses that to check for inlined frames, crashing in the process.
+TEST_F(StubTest, DISABLED_IMT) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();

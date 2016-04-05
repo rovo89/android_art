@@ -35,7 +35,6 @@
 #include "image.h"
 #include "scoped_thread_state_change.h"
 #include "os.h"
-#include "gc_map.h"
 
 #include "cmdline.h"
 #include "backtrace/BacktraceMap.h"

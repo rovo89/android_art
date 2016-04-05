@@ -59,36 +59,20 @@ void CommonCompilerTest::MakeExecutable(ArtMethod* method) {
     ArrayRef<const uint8_t> vmap_table = compiled_method->GetVmapTable();
     uint32_t vmap_table_offset = vmap_table.empty() ? 0u
         : sizeof(OatQuickMethodHeader) + vmap_table.size();
-    ArrayRef<const uint8_t> mapping_table = compiled_method->GetMappingTable();
-    bool mapping_table_used = !mapping_table.empty();
-    size_t mapping_table_size = mapping_table.size();
-    uint32_t mapping_table_offset = !mapping_table_used ? 0u
-        : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table_size;
-    ArrayRef<const uint8_t> gc_map = compiled_method->GetGcMap();
-    bool gc_map_used = !gc_map.empty();
-    size_t gc_map_size = gc_map.size();
-    uint32_t gc_map_offset = !gc_map_used ? 0u
-        : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table_size + gc_map_size;
-    OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset, gc_map_offset,
+    OatQuickMethodHeader method_header(vmap_table_offset,
                                        compiled_method->GetFrameSizeInBytes(),
                                        compiled_method->GetCoreSpillMask(),
-                                       compiled_method->GetFpSpillMask(), code_size);
+                                       compiled_method->GetFpSpillMask(),
+                                       code_size);
 
     header_code_and_maps_chunks_.push_back(std::vector<uint8_t>());
     std::vector<uint8_t>* chunk = &header_code_and_maps_chunks_.back();
     const size_t max_padding = GetInstructionSetAlignment(compiled_method->GetInstructionSet());
-    const size_t size =
-        gc_map_size + mapping_table_size + vmap_table.size() + sizeof(method_header) + code_size;
+    const size_t size = vmap_table.size() + sizeof(method_header) + code_size;
     chunk->reserve(size + max_padding);
     chunk->resize(sizeof(method_header));
     memcpy(&(*chunk)[0], &method_header, sizeof(method_header));
     chunk->insert(chunk->begin(), vmap_table.begin(), vmap_table.end());
-    if (mapping_table_used) {
-      chunk->insert(chunk->begin(), mapping_table.begin(), mapping_table.end());
-    }
-    if (gc_map_used) {
-      chunk->insert(chunk->begin(), gc_map.begin(), gc_map.end());
-    }
     chunk->insert(chunk->end(), code.begin(), code.end());
     CHECK_EQ(chunk->size(), size);
     const void* unaligned_code_ptr = chunk->data() + (size - code_size);

@@ -488,9 +488,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
                                                  main_jni_conv->CoreSpillMask(),
                                                  main_jni_conv->FpSpillMask(),
                                                  ArrayRef<const SrcMapElem>(),
-                                                 ArrayRef<const uint8_t>(),  // mapping_table.
                                                  ArrayRef<const uint8_t>(),  // vmap_table.
-                                                 ArrayRef<const uint8_t>(),  // native_gc_map.
                                                  ArrayRef<const uint8_t>(*jni_asm->cfi().data()),
                                                  ArrayRef<const LinkerPatch>());
 }
