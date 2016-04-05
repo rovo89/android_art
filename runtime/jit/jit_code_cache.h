@@ -91,9 +91,7 @@ class JitCodeCache {
   // Allocate and write code and its metadata to the code cache.
   uint8_t* CommitCode(Thread* self,
                       ArtMethod* method,
-                      const uint8_t* mapping_table,
                       const uint8_t* vmap_table,
-                      const uint8_t* gc_map,
                       size_t frame_size_in_bytes,
                       size_t core_spill_mask,
                       size_t fp_spill_mask,
@@ -201,9 +199,7 @@ class JitCodeCache {
   // allocation fails. Return null if the allocation fails.
   uint8_t* CommitCodeInternal(Thread* self,
                               ArtMethod* method,
-                              const uint8_t* mapping_table,
                               const uint8_t* vmap_table,
-                              const uint8_t* gc_map,
                               size_t frame_size_in_bytes,
                               size_t core_spill_mask,
                               size_t fp_spill_mask,

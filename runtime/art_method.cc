@@ -31,7 +31,6 @@
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"
 #include "jni_internal.h"
-#include "mapping_table.h"
 #include "mirror/abstract_method.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"

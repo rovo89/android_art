@@ -49,13 +49,7 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
     if (m_name.compare("f") == 0) {
       CHECK_REGS_CONTAIN_REFS(0x03U, true, 8);  // v8: this
       CHECK_REGS_CONTAIN_REFS(0x06U, true, 8, 1);  // v8: this, v1: x
-      if (!GetCurrentOatQuickMethodHeader()->IsOptimized()) {
-        CHECK_REGS_CONTAIN_REFS(0x08U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
-      }
       CHECK_REGS_CONTAIN_REFS(0x0cU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
-      if (!GetCurrentOatQuickMethodHeader()->IsOptimized()) {
-        CHECK_REGS_CONTAIN_REFS(0x0eU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
-      }
       CHECK_REGS_CONTAIN_REFS(0x10U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
       // v2 is added because of the instruction at DexPC 0024. Object merges with 0 is Object. See:
       //   0024: move-object v3, v2
@@ -68,15 +62,6 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       CHECK_REGS_CONTAIN_REFS(0x14U, false, 2);  // v2: y
       // Note that v0: ex can be eliminated because it's a dead merge of two different exceptions.
       CHECK_REGS_CONTAIN_REFS(0x18U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
-      if (!GetCurrentOatQuickMethodHeader()->IsOptimized()) {
-        // v8: this, v4: x[1], v2: y, v1: x (dead v0: ex)
-        CHECK_REGS_CONTAIN_REFS(0x1aU, true, 8, 4, 2, 1);
-        // v8: this, v4: x[1], v2: y, v1: x (dead v0: ex)
-        CHECK_REGS_CONTAIN_REFS(0x1eU, true, 8, 4, 2, 1);
-        // v4 is removed from the root set because there is a "merge" operation.
-        // See 0016: if-nez v2, 0020.
-        CHECK_REGS_CONTAIN_REFS(0x20U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
-      }
       CHECK_REGS_CONTAIN_REFS(0x22U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
 
       if (!GetCurrentOatQuickMethodHeader()->IsOptimized()) {
