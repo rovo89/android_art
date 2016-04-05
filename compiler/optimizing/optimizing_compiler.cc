@@ -597,9 +597,7 @@ CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* arena,
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
       ArrayRef<const SrcMapElem>(),
-      ArrayRef<const uint8_t>(),  // mapping_table.
       ArrayRef<const uint8_t>(stack_map),
-      ArrayRef<const uint8_t>(),  // native_gc_map.
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>(linker_patches));
 
@@ -915,9 +913,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   const void* code = code_cache->CommitCode(
       self,
       method,
-      nullptr,
       stack_map_data,
-      nullptr,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),

@@ -85,9 +85,15 @@ class RelativePatcherTest : public testing::Test {
                          const ArrayRef<const LinkerPatch>& patches) {
     compiled_method_refs_.push_back(method_ref);
     compiled_methods_.emplace_back(new CompiledMethod(
-        &driver_, instruction_set_, code,
-        0u, 0u, 0u, ArrayRef<const SrcMapElem>(), ArrayRef<const uint8_t>(),
-        ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
+        &driver_,
+        instruction_set_,
+        code,
+        /* frame_size_in_bytes */ 0u,
+        /* core_spill_mask */ 0u,
+        /* fp_spill_mask */ 0u,
+        /* src_mapping_table */ ArrayRef<const SrcMapElem>(),
+        /* vmap_table */ ArrayRef<const uint8_t>(),
+        /* cfi_info */ ArrayRef<const uint8_t>(),
         patches));
   }
 

@@ -195,7 +195,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/entrypoints/math_entrypoints_test.cc \
   runtime/entrypoints/quick/quick_trampoline_entrypoints_test.cc \
   runtime/entrypoints_order_test.cc \
-  runtime/exception_test.cc \
   runtime/gc/accounting/card_table_test.cc \
   runtime/gc/accounting/mod_union_table_test.cc \
   runtime/gc/accounting/space_bitmap_test.cc \
@@ -251,6 +250,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/driver/compiled_method_storage_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
+  compiler/exception_test.cc \
   compiler/image_test.cc \
   compiler/jni/jni_compiler_test.cc \
   compiler/linker/multi_oat_relative_patcher_test.cc \

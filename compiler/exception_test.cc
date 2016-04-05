@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "base/arena_allocator.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
@@ -27,11 +28,11 @@
 #include "mirror/object-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "oat_quick_method_header.h"
+#include "optimizing/stack_map_stream.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
-#include "vmap_table.h"
 
 namespace art {
 
@@ -57,40 +58,27 @@ class ExceptionTest : public CommonRuntimeTest {
       fake_code_.push_back(0x70 | i);
     }
 
-    fake_mapping_data_.PushBackUnsigned(4);  // first element is count
-    fake_mapping_data_.PushBackUnsigned(4);  // total (non-length) elements
-    fake_mapping_data_.PushBackUnsigned(2);  // count of pc to dex elements
-                                      // ---  pc to dex table
-    fake_mapping_data_.PushBackUnsigned(3 - 0);  // offset 3
-    fake_mapping_data_.PushBackSigned(3 - 0);    // maps to dex offset 3
-                                      // ---  dex to pc table
-    fake_mapping_data_.PushBackUnsigned(3 - 0);  // offset 3
-    fake_mapping_data_.PushBackSigned(3 - 0);    // maps to dex offset 3
+    ArenaPool pool;
+    ArenaAllocator allocator(&pool);
+    StackMapStream stack_maps(&allocator);
+    stack_maps.BeginStackMapEntry(/* dex_pc */ 3u,
+                                  /* native_pc_offset */ 3u,
+                                  /* register_mask */ 0u,
+                                  /* sp_mask */ nullptr,
+                                  /* num_dex_registers */ 0u,
+                                  /* inlining_depth */ 0u);
+    stack_maps.EndStackMapEntry();
+    size_t stack_maps_size = stack_maps.PrepareForFillIn();
+    size_t stack_maps_offset = stack_maps_size +  sizeof(OatQuickMethodHeader);
 
-    fake_vmap_table_data_.PushBackUnsigned(0 + VmapTable::kEntryAdjustment);
-
-    fake_gc_map_.push_back(0);  // 0 bytes to encode references and native pc offsets.
-    fake_gc_map_.push_back(0);
-    fake_gc_map_.push_back(0);  // 0 entries.
-    fake_gc_map_.push_back(0);
-
-    const std::vector<uint8_t>& fake_vmap_table_data = fake_vmap_table_data_.GetData();
-    const std::vector<uint8_t>& fake_mapping_data = fake_mapping_data_.GetData();
-    uint32_t vmap_table_offset = sizeof(OatQuickMethodHeader) + fake_vmap_table_data.size();
-    uint32_t mapping_table_offset = vmap_table_offset + fake_mapping_data.size();
-    uint32_t gc_map_offset = mapping_table_offset + fake_gc_map_.size();
-    OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset, gc_map_offset,
-                                       4 * sizeof(void*), 0u, 0u, code_size);
-    fake_header_code_and_maps_.resize(sizeof(method_header));
-    memcpy(&fake_header_code_and_maps_[0], &method_header, sizeof(method_header));
-    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
-                                      fake_vmap_table_data.begin(), fake_vmap_table_data.end());
-    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
-                                      fake_mapping_data.begin(), fake_mapping_data.end());
-    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
-                                      fake_gc_map_.begin(), fake_gc_map_.end());
-    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.end(),
-                                      fake_code_.begin(), fake_code_.end());
+    fake_header_code_and_maps_.resize(stack_maps_offset + fake_code_.size());
+    MemoryRegion stack_maps_region(&fake_header_code_and_maps_[0], stack_maps_size);
+    stack_maps.FillIn(stack_maps_region);
+    OatQuickMethodHeader method_header(stack_maps_offset, 4 * sizeof(void*), 0u, 0u, code_size);
+    memcpy(&fake_header_code_and_maps_[stack_maps_size], &method_header, sizeof(method_header));
+    std::copy(fake_code_.begin(),
+              fake_code_.end(),
+              fake_header_code_and_maps_.begin() + stack_maps_offset);
 
     // Align the code.
     const size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
@@ -109,7 +97,7 @@ class ExceptionTest : public CommonRuntimeTest {
 
     if (kRuntimeISA == kArm) {
       // Check that the Thumb2 adjustment will be a NOP, see EntryPointToCodePointer().
-      CHECK_ALIGNED(mapping_table_offset, 2);
+      CHECK_ALIGNED(stack_maps_offset, 2);
     }
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I", sizeof(void*));
@@ -124,9 +112,6 @@ class ExceptionTest : public CommonRuntimeTest {
   const DexFile* dex_;
 
   std::vector<uint8_t> fake_code_;
-  Leb128EncodingVector<> fake_mapping_data_;
-  Leb128EncodingVector<> fake_vmap_table_data_;
-  std::vector<uint8_t> fake_gc_map_;
   std::vector<uint8_t> fake_header_code_and_maps_;
 
   ArtMethod* method_f_;

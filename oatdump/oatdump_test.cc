@@ -97,16 +97,6 @@ TEST_F(OatDumpTest, TestOatImage) {
   ASSERT_TRUE(Exec(kModeOat, {}, &error_msg)) << error_msg;
 }
 
-TEST_F(OatDumpTest, TestDumpRawMappingTable) {
-  std::string error_msg;
-  ASSERT_TRUE(Exec(kModeArt, {"--dump:raw_mapping_table"}, &error_msg)) << error_msg;
-}
-
-TEST_F(OatDumpTest, TestDumpRawGcMap) {
-  std::string error_msg;
-  ASSERT_TRUE(Exec(kModeArt, {"--dump:raw_gc_map"}, &error_msg)) << error_msg;
-}
-
 TEST_F(OatDumpTest, TestNoDumpVmap) {
   std::string error_msg;
   ASSERT_TRUE(Exec(kModeArt, {"--no-dump:vmap"}, &error_msg)) << error_msg;

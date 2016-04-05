@@ -377,9 +377,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
                  const ArrayRef<const SrcMapElem>& src_mapping_table,
-                 const ArrayRef<const uint8_t>& mapping_table,
                  const ArrayRef<const uint8_t>& vmap_table,
-                 const ArrayRef<const uint8_t>& native_gc_map,
                  const ArrayRef<const uint8_t>& cfi_info,
                  const ArrayRef<const LinkerPatch>& patches);
 
@@ -393,9 +391,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const uint32_t core_spill_mask,
       const uint32_t fp_spill_mask,
       const ArrayRef<const SrcMapElem>& src_mapping_table,
-      const ArrayRef<const uint8_t>& mapping_table,
       const ArrayRef<const uint8_t>& vmap_table,
-      const ArrayRef<const uint8_t>& native_gc_map,
       const ArrayRef<const uint8_t>& cfi_info,
       const ArrayRef<const LinkerPatch>& patches);
 
@@ -417,16 +413,8 @@ class CompiledMethod FINAL : public CompiledCode {
     return GetArray(src_mapping_table_);
   }
 
-  ArrayRef<const uint8_t> GetMappingTable() const {
-    return GetArray(mapping_table_);
-  }
-
   ArrayRef<const uint8_t> GetVmapTable() const {
     return GetArray(vmap_table_);
-  }
-
-  ArrayRef<const uint8_t> GetGcMap() const {
-    return GetArray(gc_map_);
   }
 
   ArrayRef<const uint8_t> GetCFIInfo() const {
@@ -446,14 +434,8 @@ class CompiledMethod FINAL : public CompiledCode {
   const uint32_t fp_spill_mask_;
   // For quick code, a set of pairs (PC, DEX) mapping from native PC offset to DEX offset.
   const LengthPrefixedArray<SrcMapElem>* const src_mapping_table_;
-  // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
-  // native PC offset. Size prefixed.
-  const LengthPrefixedArray<uint8_t>* const mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
   const LengthPrefixedArray<uint8_t>* const vmap_table_;
-  // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
-  // are live.
-  const LengthPrefixedArray<uint8_t>* const gc_map_;
   // For quick code, a FDE entry for the debug_frame section.
   const LengthPrefixedArray<uint8_t>* const cfi_info_;
   // For quick code, linker patches needed by the method.
