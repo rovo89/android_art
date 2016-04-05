@@ -721,6 +721,11 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
       DCHECK(Runtime::Current()->IsAotCompiler());
       return nullptr;
     }
+    if (!methods_class->IsAssignableFrom(compiling_class.Get())) {
+      // We cannot statically determine the target method. The runtime will throw a
+      // NoSuchMethodError on this one.
+      return nullptr;
+    }
     ArtMethod* actual_method;
     if (methods_class->IsInterface()) {
       actual_method = methods_class->FindVirtualMethodForInterfaceSuper(

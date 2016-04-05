@@ -514,12 +514,18 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
         CHECK(self->IsExceptionPending());
         return nullptr;
       } else if (!method_reference_class->IsInterface()) {
-        // It is not an interface.
-        mirror::Class* super_class = referring_class->GetSuperClass();
+        // It is not an interface. If the referring class is in the class hierarchy of the
+        // referenced class in the bytecode, we use its super class. Otherwise, we throw
+        // a NoSuchMethodError.
+        mirror::Class* super_class = nullptr;
+        if (method_reference_class->IsAssignableFrom(referring_class)) {
+          super_class = referring_class->GetSuperClass();
+        }
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (access_check) {
           // Check existence of super class.
-          if (super_class == nullptr || !super_class->HasVTable() ||
+          if (super_class == nullptr ||
+              !super_class->HasVTable() ||
               vtable_index >= static_cast<uint32_t>(super_class->GetVTableLength())) {
             // Behavior to agree with that of the verifier.
             ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(),
@@ -693,8 +699,13 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
       // Need to do full type resolution...
       return nullptr;
     } else if (!method_reference_class->IsInterface()) {
-      // It is not an interface.
-      mirror::Class* super_class = referrer->GetDeclaringClass()->GetSuperClass();
+      // It is not an interface. If the referring class is in the class hierarchy of the
+      // referenced class in the bytecode, we use its super class. Otherwise, we cannot
+      // resolve the method.
+      if (!method_reference_class->IsAssignableFrom(referring_class)) {
+        return nullptr;
+      }
+      mirror::Class* super_class = referring_class->GetSuperClass();
       if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
         // The super class does not have the method.
         return nullptr;

@@ -4101,8 +4101,8 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
                                     << " to super " << PrettyMethod(res_method);
         return nullptr;
       }
-      mirror::Class* super_klass = super.GetClass();
-      if (res_method->GetMethodIndex() >= super_klass->GetVTableLength()) {
+      if (!reference_class->IsAssignableFrom(GetDeclaringClass().GetClass()) ||
+          (res_method->GetMethodIndex() >= super.GetClass()->GetVTableLength())) {
         Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
                                     << PrettyMethod(dex_method_idx_, *dex_file_)
                                     << " to super " << super
