@@ -535,11 +535,16 @@ void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
   }
 }
 
-void HLoopInformation::PopulateIrreducibleRecursive(HBasicBlock* block) {
-  if (blocks_.IsBitSet(block->GetBlockId())) {
+void HLoopInformation::PopulateIrreducibleRecursive(HBasicBlock* block, ArenaBitVector* finalized) {
+  size_t block_id = block->GetBlockId();
+
+  // If `block` is in `finalized`, we know its membership in the loop has been
+  // decided and it does not need to be revisited.
+  if (finalized->IsBitSet(block_id)) {
     return;
   }
 
+  bool is_finalized = false;
   if (block->IsLoopHeader()) {
     // If we hit a loop header in an irreducible loop, we first check if the
     // pre header of that loop belongs to the currently analyzed loop. If it does,
@@ -547,25 +552,35 @@ void HLoopInformation::PopulateIrreducibleRecursive(HBasicBlock* block) {
     // Note that we cannot use GetPreHeader, as the loop may have not been populated
     // yet.
     HBasicBlock* pre_header = block->GetPredecessors()[0];
-    PopulateIrreducibleRecursive(pre_header);
+    PopulateIrreducibleRecursive(pre_header, finalized);
     if (blocks_.IsBitSet(pre_header->GetBlockId())) {
-      blocks_.SetBit(block->GetBlockId());
       block->SetInLoop(this);
+      blocks_.SetBit(block_id);
+      finalized->SetBit(block_id);
+      is_finalized = true;
+
       HLoopInformation* info = block->GetLoopInformation();
       for (HBasicBlock* back_edge : info->GetBackEdges()) {
-        PopulateIrreducibleRecursive(back_edge);
+        PopulateIrreducibleRecursive(back_edge, finalized);
       }
     }
   } else {
     // Visit all predecessors. If one predecessor is part of the loop, this
     // block is also part of this loop.
     for (HBasicBlock* predecessor : block->GetPredecessors()) {
-      PopulateIrreducibleRecursive(predecessor);
-      if (blocks_.IsBitSet(predecessor->GetBlockId())) {
-        blocks_.SetBit(block->GetBlockId());
+      PopulateIrreducibleRecursive(predecessor, finalized);
+      if (!is_finalized && blocks_.IsBitSet(predecessor->GetBlockId())) {
         block->SetInLoop(this);
+        blocks_.SetBit(block_id);
+        finalized->SetBit(block_id);
+        is_finalized = true;
       }
     }
+  }
+
+  // All predecessors have been recursively visited. Mark finalized if not marked yet.
+  if (!is_finalized) {
+    finalized->SetBit(block_id);
   }
 }
 
@@ -576,21 +591,36 @@ void HLoopInformation::Populate() {
   // to end the recursion.
   // This is a recursive implementation of the algorithm described in
   // "Advanced Compiler Design & Implementation" (Muchnick) p192.
+  HGraph* graph = header_->GetGraph();
   blocks_.SetBit(header_->GetBlockId());
   header_->SetInLoop(this);
+
+  bool is_irreducible_loop = false;
   for (HBasicBlock* back_edge : GetBackEdges()) {
     DCHECK(back_edge->GetDominator() != nullptr);
     if (!header_->Dominates(back_edge)) {
-      irreducible_ = true;
-      header_->GetGraph()->SetHasIrreducibleLoops(true);
-      PopulateIrreducibleRecursive(back_edge);
-    } else {
-      if (header_->GetGraph()->IsCompilingOsr()) {
-        irreducible_ = true;
-        header_->GetGraph()->SetHasIrreducibleLoops(true);
-      }
+      is_irreducible_loop = true;
+      break;
+    }
+  }
+
+  if (is_irreducible_loop) {
+    ArenaBitVector visited(graph->GetArena(),
+                           graph->GetBlocks().size(),
+                           /* expandable */ false,
+                           kArenaAllocGraphBuilder);
+    for (HBasicBlock* back_edge : GetBackEdges()) {
+      PopulateIrreducibleRecursive(back_edge, &visited);
+    }
+  } else {
+    for (HBasicBlock* back_edge : GetBackEdges()) {
       PopulateRecursive(back_edge);
     }
+  }
+
+  if (is_irreducible_loop || graph->IsCompilingOsr()) {
+    irreducible_ = true;
+    graph->SetHasIrreducibleLoops(true);
   }
 }
 
