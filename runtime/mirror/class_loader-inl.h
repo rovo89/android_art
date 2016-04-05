@@ -34,7 +34,6 @@ inline void ClassLoader::VisitReferences(mirror::Class* klass, const Visitor& vi
   VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
   if (kVisitClasses) {
     // Visit classes loaded after.
-    ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
     ClassTable* const class_table = GetClassTable();
     if (class_table != nullptr) {
       class_table->VisitRoots(visitor);
