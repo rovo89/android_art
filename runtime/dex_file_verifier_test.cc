@@ -767,7 +767,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
       },
-      "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
+      "Interface virtual method 1(LInterfaceMethodFlags;.foo) is not public");
 
   VerifyModification(
       kMethodFlagsInterface,
@@ -817,7 +817,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
 
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
       },
-      "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
+      "Interface virtual method 1(LInterfaceMethodFlags;.foo) is not public");
 
   VerifyModification(
       kMethodFlagsInterface,
@@ -839,7 +839,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccPublic);
         OrMaskToMethodFlags(dex_file, "foo", kAccProtected);
       },
-      "Interface method 1(LInterfaceMethodFlags;.foo) is not public and abstract");
+      "Interface virtual method 1(LInterfaceMethodFlags;.foo) is not public");
 
   constexpr uint32_t kAllMethodFlags =
       kAccPublic |
