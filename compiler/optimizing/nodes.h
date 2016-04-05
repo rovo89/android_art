@@ -5549,6 +5549,7 @@ class HLoadString : public HExpression<1> {
     SetPackedFlag<kFlagIsInDexCache>(true);
     DCHECK(!NeedsEnvironment());
     RemoveEnvironment();
+    SetSideEffects(SideEffects::None());
   }
 
   size_t InputCount() const OVERRIDE {
