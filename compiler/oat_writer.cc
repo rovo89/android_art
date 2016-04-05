@@ -753,21 +753,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         writer_->method_info_.push_back(info);
       }
 
-      if (kIsDebugBuild) {
-        // We expect GC maps except when the class hasn't been verified or the method is native.
-        const CompilerDriver* compiler_driver = writer_->compiler_driver_;
-        ClassReference class_ref(dex_file_, class_def_index_);
-        CompiledClass* compiled_class = compiler_driver->GetCompiledClass(class_ref);
-        mirror::Class::Status status;
-        if (compiled_class != nullptr) {
-          status = compiled_class->GetStatus();
-        } else if (compiler_driver->GetVerificationResults()->IsClassRejected(class_ref)) {
-          status = mirror::Class::kStatusError;
-        } else {
-          status = mirror::Class::kStatusNotReady;
-        }
-      }
-
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
       OatMethodOffsets* offsets = &oat_class->method_offsets_[method_offsets_index_];
       offsets->code_offset_ = quick_code_offset;
