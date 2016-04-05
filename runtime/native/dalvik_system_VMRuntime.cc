@@ -145,6 +145,10 @@ static jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
   return Dbg::IsDebuggerActive();
 }
 
+static jboolean VMRuntime_isNativeDebuggable(JNIEnv*, jobject) {
+  return Runtime::Current()->IsNativeDebuggable();
+}
+
 static jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
   return toStringArray(env, Runtime::Current()->GetProperties());
 }
@@ -637,6 +641,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, disableJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, getTargetHeapUtilization, "()F"),
   NATIVE_METHOD(VMRuntime, isDebuggerActive, "!()Z"),
+  NATIVE_METHOD(VMRuntime, isNativeDebuggable, "!()Z"),
   NATIVE_METHOD(VMRuntime, nativeSetTargetHeapUtilization, "(F)V"),
   NATIVE_METHOD(VMRuntime, newNonMovableArray, "!(Ljava/lang/Class;I)Ljava/lang/Object;"),
   NATIVE_METHOD(VMRuntime, newUnpaddedArray, "!(Ljava/lang/Class;I)Ljava/lang/Object;"),
