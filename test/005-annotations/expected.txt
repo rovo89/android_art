@@ -93,6 +93,7 @@ annotations on TYPE class android.test.anno.FullyNoted(1):
     --> nombre is 'fubar'
 
 SimplyNoted.get(AnnoSimpleType) = @android.test.anno.AnnoSimpleType()
+SimplyNoted.get(AnnoSimpleTypeInvis) = null
 SubNoted.get(AnnoSimpleType) = @android.test.anno.AnnoSimpleType()
 
 Package annotations:

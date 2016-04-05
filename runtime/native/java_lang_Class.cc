@@ -545,6 +545,17 @@ static jstring Class_getInnerClassName(JNIEnv* env, jobject javaThis) {
   return soa.AddLocalReference<jstring>(class_name);
 }
 
+static jobjectArray Class_getSignatureAnnotation(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    return nullptr;
+  }
+  return soa.AddLocalReference<jobjectArray>(
+      klass->GetDexFile().GetSignatureAnnotationForClass(klass));
+}
+
 static jboolean Class_isAnonymousClass(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
@@ -692,6 +703,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getNameNative, "!()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "!()[Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getPublicDeclaredFields, "!()[Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, getSignatureAnnotation, "!()[Ljava/lang/String;"),
   NATIVE_METHOD(Class, isAnonymousClass, "!()Z"),
   NATIVE_METHOD(Class, isDeclaredAnnotationPresent, "!(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Class, newInstance, "!()Ljava/lang/Object;"),

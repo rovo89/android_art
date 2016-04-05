@@ -991,6 +991,8 @@ class DexFile {
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetParameterAnnotations(ArtMethod* method) const
       SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForMethod(ArtMethod* method) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsMethodAnnotationPresent(ArtMethod* method, Handle<mirror::Class> annotation_class) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1013,6 +1015,8 @@ class DexFile {
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) const
       SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForClass(Handle<mirror::Class> klass)
+      const SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class)
       const SHARED_REQUIRES(Locks::mutator_lock_);
 
