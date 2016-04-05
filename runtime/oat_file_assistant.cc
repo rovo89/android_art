@@ -77,7 +77,7 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
 OatFileAssistant::~OatFileAssistant() {
   // Clean up the lock file.
   if (flock_.HasFile()) {
-    TEMP_FAILURE_RETRY(unlink(flock_.GetFile()->GetPath().c_str()));
+    unlink(flock_.GetFile()->GetPath().c_str());
   }
 }
 
@@ -109,7 +109,7 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   std::string lock_file_name = *OatFileName() + ".flock";
 
   if (!flock_.Init(lock_file_name.c_str(), error_msg)) {
-    TEMP_FAILURE_RETRY(unlink(lock_file_name.c_str()));
+    unlink(lock_file_name.c_str());
     return false;
   }
   return true;
@@ -613,7 +613,7 @@ OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* er
   if (!Exec(argv, error_msg)) {
     // Manually delete the file. This ensures there is no garbage left over if
     // the process unexpectedly died.
-    TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
+    unlink(oat_file_name.c_str());
     return kUpdateFailed;
   }
 
@@ -673,13 +673,13 @@ OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::string* er
     // Manually delete the file. This ensures there is no garbage left over if
     // the process unexpectedly died.
     oat_file->Erase();
-    TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
+    unlink(oat_file_name.c_str());
     return kUpdateFailed;
   }
 
   if (oat_file->FlushCloseOrErase() != 0) {
     *error_msg = "Unable to close oat file " + oat_file_name;
-    TEMP_FAILURE_RETRY(unlink(oat_file_name.c_str()));
+    unlink(oat_file_name.c_str());
     return kUpdateFailed;
   }
 
