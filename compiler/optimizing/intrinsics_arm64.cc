@@ -1708,7 +1708,7 @@ void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
 
 // Mirrors ARRAYCOPY_SHORT_CHAR_ARRAY_THRESHOLD in libcore, so we can choose to use the native
 // implementation there for longer copy lengths.
-static constexpr int32_t kSystemArrayCopyThreshold = 32;
+static constexpr int32_t kSystemArrayCopyCharThreshold = 32;
 
 static void SetSystemArrayCopyLocationRequires(LocationSummary* locations,
                                                uint32_t at,
@@ -1739,7 +1739,7 @@ void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
   HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
   if (length != nullptr) {
     int32_t len = length->GetValue();
-    if (len < 0 || len > kSystemArrayCopyThreshold) {
+    if (len < 0 || len > kSystemArrayCopyCharThreshold) {
       // Just call as normal.
       return;
     }
@@ -1882,7 +1882,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
     // If the length is negative, bail out.
     __ Tbnz(WRegisterFrom(length), kWRegSize - 1, slow_path->GetEntryLabel());
     // If the length > 32 then (currently) prefer libcore's native implementation.
-    __ Cmp(WRegisterFrom(length), kSystemArrayCopyThreshold);
+    __ Cmp(WRegisterFrom(length), kSystemArrayCopyCharThreshold);
     __ B(slow_path->GetEntryLabel(), gt);
   } else {
     // We have already checked in the LocationsBuilder for the constant case.
@@ -1943,7 +1943,271 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
-UNIMPLEMENTED_INTRINSIC(ARM64, SystemArrayCopy)
+// We can choose to use the native implementation there for longer copy lengths.
+static constexpr int32_t kSystemArrayCopyThreshold = 128;
+
+// CodeGenerator::CreateSystemArrayCopyLocationSummary use three temporary registers.
+// We want to use two temporary registers in order to reduce the register pressure in arm64.
+// So we don't use the CodeGenerator::CreateSystemArrayCopyLocationSummary.
+void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // Check to see if we have known failures that will cause us to have to bail out
+  // to the runtime, and just generate the runtime call directly.
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
+
+  // The positions must be non-negative.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // The length must be >= 0.
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0 || len >= kSystemArrayCopyThreshold) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  SystemArrayCopyOptimizations optimizations(invoke);
+
+  if (optimizations.GetDestinationIsSource()) {
+    if (src_pos != nullptr && dest_pos != nullptr && src_pos->GetValue() < dest_pos->GetValue()) {
+      // We only support backward copying if source and destination are the same.
+      return;
+    }
+  }
+
+  if (optimizations.GetDestinationIsPrimitiveArray() || optimizations.GetSourceIsPrimitiveArray()) {
+    // We currently don't intrinsify primitive copying.
+    return;
+  }
+
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
+  LocationSummary* locations = new (allocator) LocationSummary(invoke,
+                                                               LocationSummary::kCallOnSlowPath,
+                                                               kIntrinsified);
+  // arraycopy(Object src, int src_pos, Object dest, int dest_pos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  SetSystemArrayCopyLocationRequires(locations, 1, invoke->InputAt(1));
+  locations->SetInAt(2, Location::RequiresRegister());
+  SetSystemArrayCopyLocationRequires(locations, 3, invoke->InputAt(3));
+  SetSystemArrayCopyLocationRequires(locations, 4, invoke->InputAt(4));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+
+  Register src = XRegisterFrom(locations->InAt(0));
+  Location src_pos = locations->InAt(1);
+  Register dest = XRegisterFrom(locations->InAt(2));
+  Location dest_pos = locations->InAt(3);
+  Location length = locations->InAt(4);
+  Register temp1 = WRegisterFrom(locations->GetTemp(0));
+  Register temp2 = WRegisterFrom(locations->GetTemp(1));
+
+  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  vixl::Label conditions_on_positions_validated;
+  SystemArrayCopyOptimizations optimizations(invoke);
+
+  if (!optimizations.GetDestinationIsSource() &&
+     (!src_pos.IsConstant() || !dest_pos.IsConstant())) {
+      __ Cmp(src, dest);
+  }
+  // If source and destination are the same, we go to slow path if we need to do
+  // forward copying.
+  if (src_pos.IsConstant()) {
+    int32_t src_pos_constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
+    if (dest_pos.IsConstant()) {
+      // Checked when building locations.
+      DCHECK(!optimizations.GetDestinationIsSource()
+             || (src_pos_constant >= dest_pos.GetConstant()->AsIntConstant()->GetValue()));
+    } else {
+      if (!optimizations.GetDestinationIsSource()) {
+        __ B(&conditions_on_positions_validated, ne);
+      }
+      __ Cmp(WRegisterFrom(dest_pos), src_pos_constant);
+      __ B(slow_path->GetEntryLabel(), gt);
+    }
+  } else {
+    if (!optimizations.GetDestinationIsSource()) {
+      __ B(&conditions_on_positions_validated, ne);
+    }
+    __ Cmp(RegisterFrom(src_pos, invoke->InputAt(1)->GetType()),
+           OperandFrom(dest_pos, invoke->InputAt(3)->GetType()));
+    __ B(slow_path->GetEntryLabel(), lt);
+  }
+
+  __ Bind(&conditions_on_positions_validated);
+
+  if (!optimizations.GetSourceIsNotNull()) {
+    // Bail out if the source is null.
+    __ Cbz(src, slow_path->GetEntryLabel());
+  }
+
+  if (!optimizations.GetDestinationIsNotNull() && !optimizations.GetDestinationIsSource()) {
+    // Bail out if the destination is null.
+    __ Cbz(dest, slow_path->GetEntryLabel());
+  }
+
+  // We have already checked in the LocationsBuilder for the constant case.
+  if (!length.IsConstant() &&
+      !optimizations.GetCountIsSourceLength() &&
+      !optimizations.GetCountIsDestinationLength()) {
+    // If the length is negative, bail out.
+    __ Tbnz(WRegisterFrom(length), kWRegSize - 1, slow_path->GetEntryLabel());
+    // If the length >= 128 then (currently) prefer native implementation.
+    __ Cmp(WRegisterFrom(length), kSystemArrayCopyThreshold);
+    __ B(slow_path->GetEntryLabel(), ge);
+  }
+  // Validity checks: source.
+  CheckSystemArrayCopyPosition(masm,
+                               src_pos,
+                               src,
+                               length,
+                               slow_path,
+                               temp1,
+                               temp2,
+                               optimizations.GetCountIsSourceLength());
+
+  // Validity checks: dest.
+  CheckSystemArrayCopyPosition(masm,
+                               dest_pos,
+                               dest,
+                               length,
+                               slow_path,
+                               temp1,
+                               temp2,
+                               optimizations.GetCountIsDestinationLength());
+  {
+    // We use a block to end the scratch scope before the write barrier, thus
+    // freeing the temporary registers so they can be used in `MarkGCCard`.
+    UseScratchRegisterScope temps(masm);
+    Register temp3 = temps.AcquireW();
+    if (!optimizations.GetDoesNotNeedTypeCheck()) {
+      // Check whether all elements of the source array are assignable to the component
+      // type of the destination array. We do two checks: the classes are the same,
+      // or the destination is Object[]. If none of these checks succeed, we go to the
+      // slow path.
+      __ Ldr(temp1, MemOperand(dest, class_offset));
+      __ Ldr(temp2, MemOperand(src, class_offset));
+      bool did_unpoison = false;
+      if (!optimizations.GetDestinationIsNonPrimitiveArray() ||
+          !optimizations.GetSourceIsNonPrimitiveArray()) {
+        // One or two of the references need to be unpoisoned. Unpoison them
+        // both to make the identity check valid.
+        codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp1);
+        codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp2);
+        did_unpoison = true;
+      }
+
+      if (!optimizations.GetDestinationIsNonPrimitiveArray()) {
+        // Bail out if the destination is not a non primitive array.
+        // /* HeapReference<Class> */ temp3 = temp1->component_type_
+        __ Ldr(temp3, HeapOperand(temp1, component_offset));
+        __ Cbz(temp3, slow_path->GetEntryLabel());
+        codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp3);
+        __ Ldrh(temp3, HeapOperand(temp3, primitive_offset));
+        static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+        __ Cbnz(temp3, slow_path->GetEntryLabel());
+      }
+
+      if (!optimizations.GetSourceIsNonPrimitiveArray()) {
+        // Bail out if the source is not a non primitive array.
+        // /* HeapReference<Class> */ temp3 = temp2->component_type_
+        __ Ldr(temp3, HeapOperand(temp2, component_offset));
+        __ Cbz(temp3, slow_path->GetEntryLabel());
+        codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp3);
+        __ Ldrh(temp3, HeapOperand(temp3, primitive_offset));
+        static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+        __ Cbnz(temp3, slow_path->GetEntryLabel());
+      }
+
+      __ Cmp(temp1, temp2);
+
+      if (optimizations.GetDestinationIsTypedObjectArray()) {
+        vixl::Label do_copy;
+        __ B(&do_copy, eq);
+        if (!did_unpoison) {
+          codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp1);
+        }
+        // /* HeapReference<Class> */ temp1 = temp1->component_type_
+        __ Ldr(temp1, HeapOperand(temp1, component_offset));
+        codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp1);
+        // /* HeapReference<Class> */ temp1 = temp1->super_class_
+        __ Ldr(temp1, HeapOperand(temp1, super_offset));
+        // No need to unpoison the result, we're comparing against null.
+        __ Cbnz(temp1, slow_path->GetEntryLabel());
+        __ Bind(&do_copy);
+      } else {
+        __ B(slow_path->GetEntryLabel(), ne);
+      }
+    } else if (!optimizations.GetSourceIsNonPrimitiveArray()) {
+      DCHECK(optimizations.GetDestinationIsNonPrimitiveArray());
+      // Bail out if the source is not a non primitive array.
+      // /* HeapReference<Class> */ temp1 = src->klass_
+      __ Ldr(temp1, HeapOperand(src.W(), class_offset));
+      codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp1);
+      // /* HeapReference<Class> */ temp3 = temp1->component_type_
+      __ Ldr(temp3, HeapOperand(temp1, component_offset));
+      __ Cbz(temp3, slow_path->GetEntryLabel());
+      codegen_->GetAssembler()->MaybeUnpoisonHeapReference(temp3);
+      __ Ldrh(temp3, HeapOperand(temp3, primitive_offset));
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ Cbnz(temp3, slow_path->GetEntryLabel());
+    }
+
+    Register src_curr_addr = temp1.X();
+    Register dst_curr_addr = temp2.X();
+    Register src_stop_addr = temp3.X();
+
+    GenSystemArrayCopyAddresses(masm,
+                                Primitive::kPrimNot,
+                                src,
+                                src_pos,
+                                dest,
+                                dest_pos,
+                                length,
+                                src_curr_addr,
+                                dst_curr_addr,
+                                src_stop_addr);
+
+    // Iterate over the arrays and do a raw copy of the objects. We don't need to
+    // poison/unpoison, nor do any read barrier as the next uses of the destination
+    // array will do it.
+    vixl::Label loop, done;
+    const int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
+    __ Bind(&loop);
+    __ Cmp(src_curr_addr, src_stop_addr);
+    __ B(&done, eq);
+    {
+      Register tmp = temps.AcquireW();
+      __ Ldr(tmp, MemOperand(src_curr_addr, element_size, vixl::PostIndex));
+      __ Str(tmp, MemOperand(dst_curr_addr, element_size, vixl::PostIndex));
+    }
+    __ B(&loop);
+    __ Bind(&done);
+  }
+  // We only need one card marking on the destination array.
+  codegen_->MarkGCCard(dest.W(), Register(), /* value_can_be_null */ false);
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
 UNIMPLEMENTED_INTRINSIC(ARM64, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(ARM64, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(ARM64, DoubleIsInfinite)
