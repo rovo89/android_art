@@ -18,7 +18,6 @@
 #define ART_RUNTIME_CHECK_REFERENCE_MAP_VISITOR_H_
 
 #include "art_method-inl.h"
-#include "gc_map.h"
 #include "oat_quick_method_header.h"
 #include "scoped_thread_state_change.h"
 #include "stack_map.h"
@@ -54,11 +53,8 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
   void CheckReferences(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (GetCurrentOatQuickMethodHeader()->IsOptimized()) {
-      CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
-    } else {
-      CheckQuickMethod(registers, number_of_references, native_pc_offset);
-    }
+    CHECK(GetCurrentOatQuickMethodHeader()->IsOptimized());
+    CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
   }
 
  private:
@@ -102,20 +98,6 @@ class CheckReferenceMapVisitor : public StackVisitor {
         default:
           LOG(FATAL) << "Unexpected location kind " << location.GetInternalKind();
       }
-    }
-  }
-
-  void CheckQuickMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    ArtMethod* m = GetMethod();
-    NativePcOffsetToReferenceMap map(GetCurrentOatQuickMethodHeader()->GetNativeGcMap());
-    const uint8_t* ref_bitmap = map.FindBitMap(native_pc_offset);
-    CHECK(ref_bitmap);
-    for (int i = 0; i < number_of_references; ++i) {
-      int reg = registers[i];
-      CHECK(reg < m->GetCodeItem()->registers_size_);
-      CHECK((*((ref_bitmap) + reg / 8) >> (reg % 8) ) & 0x01)
-          << "Error: Reg @" << i << " is not in GC map";
     }
   }
 };

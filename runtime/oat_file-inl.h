@@ -71,44 +71,6 @@ inline uint32_t OatFile::OatMethod::GetFpSpillMask() const {
   return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.FpSpillMask();
 }
 
-inline const uint8_t* OatFile::OatMethod::GetGcMap() const {
-  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
-  if (code == nullptr) {
-    return nullptr;
-  }
-  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].gc_map_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code) - offset;
-}
-
-inline uint32_t OatFile::OatMethod::GetGcMapOffset() const {
-  const uint8_t* gc_map = GetGcMap();
-  return static_cast<uint32_t>(gc_map != nullptr ? gc_map - begin_ : 0u);
-}
-
-inline uint32_t OatFile::OatMethod::GetGcMapOffsetOffset() const {
-  const OatQuickMethodHeader* method_header = GetOatQuickMethodHeader();
-  if (method_header == nullptr) {
-    return 0u;
-  }
-  return reinterpret_cast<const uint8_t*>(&method_header->gc_map_offset_) - begin_;
-}
-
-inline uint32_t OatFile::OatMethod::GetMappingTableOffset() const {
-  const uint8_t* mapping_table = GetMappingTable();
-  return static_cast<uint32_t>(mapping_table != nullptr ? mapping_table - begin_ : 0u);
-}
-
-inline uint32_t OatFile::OatMethod::GetMappingTableOffsetOffset() const {
-  const OatQuickMethodHeader* method_header = GetOatQuickMethodHeader();
-  if (method_header == nullptr) {
-    return 0u;
-  }
-  return reinterpret_cast<const uint8_t*>(&method_header->mapping_table_offset_) - begin_;
-}
-
 inline uint32_t OatFile::OatMethod::GetVmapTableOffset() const {
   const uint8_t* vmap_table = GetVmapTable();
   return static_cast<uint32_t>(vmap_table != nullptr ? vmap_table - begin_ : 0u);
@@ -120,18 +82,6 @@ inline uint32_t OatFile::OatMethod::GetVmapTableOffsetOffset() const {
     return 0u;
   }
   return reinterpret_cast<const uint8_t*>(&method_header->vmap_table_offset_) - begin_;
-}
-
-inline const uint8_t* OatFile::OatMethod::GetMappingTable() const {
-  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
-  if (code == nullptr) {
-    return nullptr;
-  }
-  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].mapping_table_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code) - offset;
 }
 
 inline const uint8_t* OatFile::OatMethod::GetVmapTable() const {

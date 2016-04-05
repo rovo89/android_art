@@ -634,9 +634,6 @@ class StackVisitor {
   bool GetNextMethodAndDexPc(ArtMethod** next_method, uint32_t* next_dex_pc)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool IsReferenceVReg(ArtMethod* m, uint16_t vreg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   bool GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -798,18 +795,12 @@ class StackVisitor {
 
   bool GetVRegFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind, uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  bool GetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
-                            uint32_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                 uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool GetVRegPairFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
                                           uint64_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool GetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
-                                VRegKind kind_hi, uint64_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetVRegPairFromOptimizedCode(ArtMethod* m, uint16_t vreg,
                                     VRegKind kind_lo, VRegKind kind_hi,
