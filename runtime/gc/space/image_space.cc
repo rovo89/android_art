@@ -407,7 +407,7 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
                                     &is_global_cache);
   }
 
-  if (Runtime::Current()->IsZygote() && !secondary_image) {
+  if (is_zygote && !secondary_image) {
     MarkZygoteStart(image_isa, Runtime::Current()->GetZygoteMaxFailedBoots());
   }
 
@@ -444,7 +444,7 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
             // Whether we can write to the cache.
             success = false;
           } else if (secondary_image) {
-            if (Runtime::Current()->IsZygote()) {
+            if (is_zygote) {
               // Secondary image is out of date. Clear cache and exit to let it retry from scratch.
               LOG(ERROR) << "Cannot patch secondary image '" << image_location
                          << "', clearing dalvik_cache and restarting zygote.";
@@ -503,7 +503,16 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
       // descriptor (and the associated exclusive lock) to be released when
       // we leave Create.
       ScopedFlock image_lock;
-      image_lock.Init(image_filename->c_str(), error_msg);
+      // Should this be a RDWR lock? This is only a defensive measure, as at
+      // this point the image should exist.
+      // However, only the zygote can write into the global dalvik-cache, so
+      // restrict to zygote processes, or any process that isn't using
+      // /data/dalvik-cache (which we assume to be allowed to write there).
+      const bool rw_lock = is_zygote || !is_global_cache;
+      image_lock.Init(image_filename->c_str(),
+                      rw_lock ? (O_CREAT | O_RDWR) : O_RDONLY /* flags */,
+                      true /* block */,
+                      error_msg);
       VLOG(startup) << "Using image file " << image_filename->c_str() << " for image location "
                     << image_location;
       // If we are in /system we can assume the image is good. We can also
