@@ -71,87 +71,96 @@ class ClassTable {
 
   // Used by image writer for checking.
   bool Contains(mirror::Class* klass)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Freeze the current class tables by allocating a new table and never updating or modifying the
   // existing table. This helps prevents dirty pages after caused by inserting after zygote fork.
   void FreezeSnapshot()
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of classes in previous snapshots.
-  size_t NumZygoteClasses() const SHARED_REQUIRES(Locks::classlinker_classes_lock_);
+  size_t NumZygoteClasses() const REQUIRES(!lock_);
 
   // Returns all off the classes in the lastest snapshot.
-  size_t NumNonZygoteClasses() const SHARED_REQUIRES(Locks::classlinker_classes_lock_);
+  size_t NumNonZygoteClasses() const REQUIRES(!lock_);
 
   // Update a class in the table with the new class. Returns the existing class which was replaced.
   mirror::Class* UpdateClass(const char* descriptor, mirror::Class* new_klass, size_t hash)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS for object marking requiring heap bitmap lock.
   template<class Visitor>
   void VisitRoots(Visitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   template<class Visitor>
   void VisitRoots(const Visitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Stops visit if the visitor returns false.
   template <typename Visitor>
   bool Visit(Visitor& visitor)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return the first class that matches the descriptor. Returns null if there are none.
   mirror::Class* Lookup(const char* descriptor, size_t hash)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return the first class that matches the descriptor of klass. Returns null if there are none.
   mirror::Class* LookupByDescriptor(mirror::Class* klass)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Insert(mirror::Class* klass)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
   void InsertWithHash(mirror::Class* klass, size_t hash)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns true if the class was found and removed, false otherwise.
   bool Remove(const char* descriptor)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return true if we inserted the dex file, false if it already exists.
   bool InsertDexFile(mirror::Object* dex_file)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Combines all of the tables into one class set.
   size_t WriteToMemory(uint8_t* ptr) const
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Read a table from ptr and put it at the front of the class set.
   size_t ReadFromMemory(uint8_t* ptr)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Add a class set to the front of classes.
   void AddClassSet(ClassSet&& set)
-      REQUIRES(Locks::classlinker_classes_lock_)
+      REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  // TODO: shard lock to have one per class loader.
+  // Lock to guard inserting and removing.
+  mutable ReaderWriterMutex lock_;
   // We have a vector to help prevent dirty pages after the zygote forks by calling FreezeSnapshot.
-  std::vector<ClassSet> classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  std::vector<ClassSet> classes_ GUARDED_BY(lock_);
   // Dex files used by the class loader which may not be owned by the class loader. We keep these
   // live so that we do not have issues closing any of the dex files.
-  std::vector<GcRoot<mirror::Object>> dex_files_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  std::vector<GcRoot<mirror::Object>> dex_files_ GUARDED_BY(lock_);
 };
 
 }  // namespace art
