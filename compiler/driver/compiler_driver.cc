@@ -357,7 +357,7 @@ CompilerDriver::CompilerDriver(
       compiler_kind_(compiler_kind),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
-      freezing_constructor_lock_("freezing constructor lock"),
+      no_barrier_constructor_classes_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_methods_(MethodTable::key_compare()),
@@ -2110,8 +2110,8 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
         DCHECK(!it.HasNext());
       }
     }
-    if (requires_constructor_barrier) {
-      manager_->GetCompiler()->AddRequiresConstructorBarrier(self, &dex_file, class_def_index);
+    if (!requires_constructor_barrier) {
+      manager_->GetCompiler()->AddRequiresNoConstructorBarrier(self, &dex_file, class_def_index);
     }
   }
 
@@ -2769,16 +2769,18 @@ size_t CompilerDriver::GetNonRelativeLinkerPatchCount() const {
   return non_relative_linker_patch_count_;
 }
 
-void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
-                                                   uint16_t class_def_index) {
-  WriterMutexLock mu(self, freezing_constructor_lock_);
-  freezing_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
+void CompilerDriver::AddRequiresNoConstructorBarrier(Thread* self,
+                                                     const DexFile* dex_file,
+                                                     uint16_t class_def_index) {
+  WriterMutexLock mu(self, no_barrier_constructor_classes_lock_);
+  no_barrier_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
 }
 
-bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+bool CompilerDriver::RequiresConstructorBarrier(Thread* self,
+                                                const DexFile* dex_file,
                                                 uint16_t class_def_index) const {
-  ReaderMutexLock mu(self, freezing_constructor_lock_);
-  return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
+  ReaderMutexLock mu(self, no_barrier_constructor_classes_lock_);
+  return no_barrier_constructor_classes_.count(ClassReference(dex_file, class_def_index)) == 0;
 }
 
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
