@@ -29,6 +29,7 @@
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
   V(SystemArraycopy, "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") \
+  V(SystemArraycopyByte, "void java.lang.System.arraycopy(byte[], int, byte[], int, int)") \
   V(SystemArraycopyChar, "void java.lang.System.arraycopy(char[], int, char[], int, int)") \
   V(SystemArraycopyInt, "void java.lang.System.arraycopy(int[], int, int[], int, int)") \
   V(SystemGetSecurityManager, "java.lang.SecurityManager java.lang.System.getSecurityManager()") \
