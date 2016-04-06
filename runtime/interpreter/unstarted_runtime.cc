@@ -1054,6 +1054,24 @@ void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
   result->SetL(value);
 }
 
+void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  // Argument 0 is the Unsafe instance, skip.
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
+    return;
+  }
+  int64_t offset = shadow_frame->GetVRegLong(arg_offset + 2);
+  mirror::Object* value = shadow_frame->GetVRegReference(arg_offset + 4);
+  if (Runtime::Current()->IsActiveTransaction()) {
+    obj->SetFieldObjectVolatile<true>(MemberOffset(offset), value);
+  } else {
+    obj->SetFieldObjectVolatile<false>(MemberOffset(offset), value);
+  }
+}
+
 void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
     Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
     SHARED_REQUIRES(Locks::mutator_lock_) {

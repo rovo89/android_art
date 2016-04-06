@@ -57,6 +57,7 @@
   V(UnsafeCompareAndSwapLong, "boolean sun.misc.Unsafe.compareAndSwapLong(java.lang.Object, long, long, long)") \
   V(UnsafeCompareAndSwapObject, "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") \
   V(UnsafeGetObjectVolatile, "java.lang.Object sun.misc.Unsafe.getObjectVolatile(java.lang.Object, long)") \
+  V(UnsafePutObjectVolatile, "void sun.misc.Unsafe.putObjectVolatile(java.lang.Object, long, java.lang.Object)") \
   V(UnsafePutOrderedObject, "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)") \
   V(IntegerParseInt, "int java.lang.Integer.parseInt(java.lang.String)") \
   V(LongParseLong, "long java.lang.Long.parseLong(java.lang.String)")
