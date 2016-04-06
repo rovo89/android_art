@@ -183,12 +183,12 @@ class CompilerDriver {
   // Remove and delete a compiled method.
   void RemoveCompiledMethod(const MethodReference& method_ref) REQUIRES(!compiled_methods_lock_);
 
-  void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+  void AddRequiresNoConstructorBarrier(Thread* self, const DexFile* dex_file,
                                      uint16_t class_def_index)
-      REQUIRES(!freezing_constructor_lock_);
+      REQUIRES(!no_barrier_constructor_classes_lock_);
   bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                   uint16_t class_def_index) const
-      REQUIRES(!freezing_constructor_lock_);
+      REQUIRES(!no_barrier_constructor_classes_lock_);
 
   // Callbacks from compiler to see what runtime checks must be generated.
 
@@ -629,9 +629,10 @@ class CompilerDriver {
   const InstructionSet instruction_set_;
   const InstructionSetFeatures* const instruction_set_features_;
 
-  // All class references that require
-  mutable ReaderWriterMutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::set<ClassReference> freezing_constructor_classes_ GUARDED_BY(freezing_constructor_lock_);
+  // All class references that do not require constructor barriers
+  mutable ReaderWriterMutex no_barrier_constructor_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::set<ClassReference> no_barrier_constructor_classes_
+      GUARDED_BY(no_barrier_constructor_classes_lock_);
 
   typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled.
