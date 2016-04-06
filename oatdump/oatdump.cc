@@ -247,6 +247,10 @@ class OatSymbolizer FINAL {
       return;
     }
 
+    uint32_t entry_point = oat_method.GetCodeOffset() - oat_header.GetExecutableOffset();
+    // Clear Thumb2 bit.
+    const void* code_address = EntryPointToCodePointer(reinterpret_cast<void*>(entry_point));
+
     debug::MethodDebugInfo info = debug::MethodDebugInfo();
     info.trampoline_name = nullptr;
     info.dex_file = &dex_file;
@@ -259,7 +263,7 @@ class OatSymbolizer FINAL {
     info.is_native_debuggable = oat_header.IsNativeDebuggable();
     info.is_optimized = method_header->IsOptimized();
     info.is_code_address_text_relative = true;
-    info.code_address = oat_method.GetCodeOffset() - oat_header.GetExecutableOffset();
+    info.code_address = reinterpret_cast<uintptr_t>(code_address);
     info.code_size = method_header->GetCodeSize();
     info.frame_size_in_bytes = method_header->GetFrameSizeInBytes();
     info.code_info = info.is_optimized ? method_header->GetOptimizedCodeInfoPtr() : nullptr;
