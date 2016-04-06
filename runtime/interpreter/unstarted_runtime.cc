@@ -16,7 +16,11 @@
 
 #include "unstarted_runtime.h"
 
+#include <errno.h>
+#include <stdlib.h>
+
 #include <cmath>
+#include <limits>
 #include <unordered_map>
 
 #include "ScopedLocalRef.h"
@@ -1067,6 +1071,93 @@ void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
   } else {
     obj->SetFieldObject<false>(MemberOffset(offset), newValue);
   }
+}
+
+// A cutout for Integer.parseInt(String). Note: this code is conservative and will bail instead
+// of correctly handling the corner cases.
+void UnstartedRuntime::UnstartedIntegerParseInt(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot parse null string, retry at runtime.");
+    return;
+  }
+
+  std::string string_value = obj->AsString()->ToModifiedUtf8();
+  if (string_value.empty()) {
+    AbortTransactionOrFail(self, "Cannot parse empty string, retry at runtime.");
+    return;
+  }
+
+  const char* c_str = string_value.c_str();
+  char *end;
+  // Can we set errno to 0? Is this always a variable, and not a macro?
+  // Worst case, we'll incorrectly fail a transaction. Seems OK.
+  int64_t l = strtol(c_str, &end, 10);
+
+  if ((errno == ERANGE && l == LONG_MAX) || l > std::numeric_limits<int32_t>::max() ||
+      (errno == ERANGE && l == LONG_MIN) || l < std::numeric_limits<int32_t>::min()) {
+    AbortTransactionOrFail(self, "Cannot parse string %s, retry at runtime.", c_str);
+    return;
+  }
+  if (l == 0) {
+    // Check whether the string wasn't exactly zero.
+    if (string_value != "0") {
+      AbortTransactionOrFail(self, "Cannot parse string %s, retry at runtime.", c_str);
+      return;
+    }
+  } else if (*end != '\0') {
+    AbortTransactionOrFail(self, "Cannot parse string %s, retry at runtime.", c_str);
+    return;
+  }
+
+  result->SetI(static_cast<int32_t>(l));
+}
+
+// A cutout for Long.parseLong.
+//
+// Note: for now use code equivalent to Integer.parseInt, as the full range may not be supported
+//       well.
+void UnstartedRuntime::UnstartedLongParseLong(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
+  if (obj == nullptr) {
+    AbortTransactionOrFail(self, "Cannot parse null string, retry at runtime.");
+    return;
+  }
+
+  std::string string_value = obj->AsString()->ToModifiedUtf8();
+  if (string_value.empty()) {
+    AbortTransactionOrFail(self, "Cannot parse empty string, retry at runtime.");
+    return;
+  }
+
+  const char* c_str = string_value.c_str();
+  char *end;
+  // Can we set errno to 0? Is this always a variable, and not a macro?
+  // Worst case, we'll incorrectly fail a transaction. Seems OK.
+  int64_t l = strtol(c_str, &end, 10);
+
+  // Note: comparing against int32_t min/max is intentional here.
+  if ((errno == ERANGE && l == LONG_MAX) || l > std::numeric_limits<int32_t>::max() ||
+      (errno == ERANGE && l == LONG_MIN) || l < std::numeric_limits<int32_t>::min()) {
+    AbortTransactionOrFail(self, "Cannot parse string %s, retry at runtime.", c_str);
+    return;
+  }
+  if (l == 0) {
+    // Check whether the string wasn't exactly zero.
+    if (string_value != "0") {
+      AbortTransactionOrFail(self, "Cannot parse string %s, retry at runtime.", c_str);
+      return;
+    }
+  } else if (*end != '\0') {
+    AbortTransactionOrFail(self, "Cannot parse string %s, retry at runtime.", c_str);
+    return;
+  }
+
+  result->SetJ(l);
 }
 
 
