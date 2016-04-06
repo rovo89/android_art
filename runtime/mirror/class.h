@@ -768,6 +768,11 @@ class MANAGED Class FINAL : public Object {
                                            mirror::String* name,
                                            mirror::ObjectArray<mirror::Class>* args)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  template <bool kTransactionActive = false>
+  static Constructor* GetDeclaredConstructorInternal(Thread* self,
+                                                     mirror::Class* klass,
+                                                     mirror::ObjectArray<mirror::Class>* args)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(size_t pointer_size)
@@ -1215,7 +1220,7 @@ class MANAGED Class FINAL : public Object {
 
   // May cause thread suspension due to EqualParameters.
   ArtMethod* GetDeclaredConstructor(
-      Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args)
+      Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Used to initialize a class in the allocation code path to ensure it is guarded by a StoreStore
