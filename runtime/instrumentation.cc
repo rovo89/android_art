@@ -80,7 +80,7 @@ Instrumentation::Instrumentation()
       have_exception_caught_listeners_(false),
       have_branch_listeners_(false),
       have_invoke_virtual_or_interface_listeners_(false),
-      deoptimized_methods_lock_("deoptimized methods lock"),
+      deoptimized_methods_lock_("deoptimized methods lock", kDeoptimizedMethodsLock),
       deoptimization_enabled_(false),
       interpreter_handler_table_(kMainHandlerTable),
       quick_alloc_entry_points_instrumentation_counter_(0),

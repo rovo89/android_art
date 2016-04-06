@@ -20,17 +20,19 @@
 
 namespace art {
 
-ClassTable::ClassTable() {
+ClassTable::ClassTable() : lock_("Class loader classes", kClassLoaderClassesLock) {
   Runtime* const runtime = Runtime::Current();
   classes_.push_back(ClassSet(runtime->GetHashTableMinLoadFactor(),
                               runtime->GetHashTableMaxLoadFactor()));
 }
 
 void ClassTable::FreezeSnapshot() {
+  WriterMutexLock mu(Thread::Current(), lock_);
   classes_.push_back(ClassSet());
 }
 
 bool ClassTable::Contains(mirror::Class* klass) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     auto it = class_set.Find(GcRoot<mirror::Class>(klass));
     if (it != class_set.end()) {
@@ -41,6 +43,7 @@ bool ClassTable::Contains(mirror::Class* klass) {
 }
 
 mirror::Class* ClassTable::LookupByDescriptor(mirror::Class* klass) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     auto it = class_set.Find(GcRoot<mirror::Class>(klass));
     if (it != class_set.end()) {
@@ -51,6 +54,7 @@ mirror::Class* ClassTable::LookupByDescriptor(mirror::Class* klass) {
 }
 
 mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash) {
+  WriterMutexLock mu(Thread::Current(), lock_);
   // Should only be updating latest table.
   auto existing_it = classes_.back().FindWithHash(descriptor, hash);
   if (kIsDebugBuild && existing_it == classes_.back().end()) {
@@ -74,6 +78,7 @@ mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* kl
 }
 
 size_t ClassTable::NumZygoteClasses() const {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   size_t sum = 0;
   for (size_t i = 0; i < classes_.size() - 1; ++i) {
     sum += classes_[i].Size();
@@ -82,10 +87,12 @@ size_t ClassTable::NumZygoteClasses() const {
 }
 
 size_t ClassTable::NumNonZygoteClasses() const {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   return classes_.back().Size();
 }
 
 mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     auto it = class_set.FindWithHash(descriptor, hash);
     if (it != class_set.end()) {
@@ -96,14 +103,17 @@ mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
 }
 
 void ClassTable::Insert(mirror::Class* klass) {
+  WriterMutexLock mu(Thread::Current(), lock_);
   classes_.back().Insert(GcRoot<mirror::Class>(klass));
 }
 
 void ClassTable::InsertWithHash(mirror::Class* klass, size_t hash) {
+  WriterMutexLock mu(Thread::Current(), lock_);
   classes_.back().InsertWithHash(GcRoot<mirror::Class>(klass), hash);
 }
 
 bool ClassTable::Remove(const char* descriptor) {
+  WriterMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     auto it = class_set.Find(descriptor);
     if (it != class_set.end()) {
@@ -137,6 +147,7 @@ uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const char* descripto
 }
 
 bool ClassTable::InsertDexFile(mirror::Object* dex_file) {
+  WriterMutexLock mu(Thread::Current(), lock_);
   DCHECK(dex_file != nullptr);
   for (GcRoot<mirror::Object>& root : dex_files_) {
     if (root.Read() == dex_file) {
@@ -148,6 +159,7 @@ bool ClassTable::InsertDexFile(mirror::Object* dex_file) {
 }
 
 size_t ClassTable::WriteToMemory(uint8_t* ptr) const {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   ClassSet combined;
   // Combine all the class sets in case there are multiple, also adjusts load factor back to
   // default in case classes were pruned.
@@ -173,6 +185,7 @@ size_t ClassTable::ReadFromMemory(uint8_t* ptr) {
 }
 
 void ClassTable::AddClassSet(ClassSet&& set) {
+  WriterMutexLock mu(Thread::Current(), lock_);
   classes_.insert(classes_.begin(), std::move(set));
 }
 
