@@ -140,7 +140,7 @@ class HashSet {
 
   HashSet() : HashSet(kDefaultMinLoadFactor, kDefaultMaxLoadFactor) {}
 
-  HashSet(double min_load_factor, double max_load_factor)
+  HashSet(double min_load_factor, double max_load_factor) noexcept
       : num_elements_(0u),
         num_buckets_(0u),
         elements_until_expand_(0u),
@@ -152,7 +152,7 @@ class HashSet {
     DCHECK_LT(max_load_factor, 1.0);
   }
 
-  explicit HashSet(const allocator_type& alloc)
+  explicit HashSet(const allocator_type& alloc) noexcept
       : allocfn_(alloc),
         hashfn_(),
         emptyfn_(),
@@ -166,7 +166,7 @@ class HashSet {
         max_load_factor_(kDefaultMaxLoadFactor) {
   }
 
-  HashSet(const HashSet& other)
+  HashSet(const HashSet& other) noexcept
       : allocfn_(other.allocfn_),
         hashfn_(other.hashfn_),
         emptyfn_(other.emptyfn_),
@@ -184,7 +184,9 @@ class HashSet {
     }
   }
 
-  HashSet(HashSet&& other)
+  // noexcept required so that the move constructor is used instead of copy constructor.
+  // b/27860101
+  HashSet(HashSet&& other) noexcept
       : allocfn_(std::move(other.allocfn_)),
         hashfn_(std::move(other.hashfn_)),
         emptyfn_(std::move(other.emptyfn_)),
@@ -206,7 +208,7 @@ class HashSet {
   // Construct from existing data.
   // Read from a block of memory, if make_copy_of_data is false, then data_ points to within the
   // passed in ptr_.
-  HashSet(const uint8_t* ptr, bool make_copy_of_data, size_t* read_count) {
+  HashSet(const uint8_t* ptr, bool make_copy_of_data, size_t* read_count) noexcept {
     uint64_t temp;
     size_t offset = 0;
     offset = ReadFromBytes(ptr, offset, &temp);
@@ -256,12 +258,12 @@ class HashSet {
     DeallocateStorage();
   }
 
-  HashSet& operator=(HashSet&& other) {
+  HashSet& operator=(HashSet&& other) noexcept {
     HashSet(std::move(other)).swap(*this);
     return *this;
   }
 
-  HashSet& operator=(const HashSet& other) {
+  HashSet& operator=(const HashSet& other) noexcept {
     HashSet(other).swap(*this);  // NOLINT(runtime/explicit) - a case of lint gone mad.
     return *this;
   }
@@ -296,6 +298,11 @@ class HashSet {
 
   bool Empty() {
     return Size() == 0;
+  }
+
+  // Return true if the hash set has ownership of the underlying data.
+  bool OwnsData() const {
+    return owns_data_;
   }
 
   // Erase algorithm:
