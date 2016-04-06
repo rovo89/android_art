@@ -23,6 +23,7 @@ namespace art {
 
 template<class Visitor>
 void ClassTable::VisitRoots(Visitor& visitor) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     for (GcRoot<mirror::Class>& root : class_set) {
       visitor.VisitRoot(root.AddressWithoutBarrier());
@@ -35,6 +36,7 @@ void ClassTable::VisitRoots(Visitor& visitor) {
 
 template<class Visitor>
 void ClassTable::VisitRoots(const Visitor& visitor) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     for (GcRoot<mirror::Class>& root : class_set) {
       visitor.VisitRoot(root.AddressWithoutBarrier());
@@ -47,6 +49,7 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
 
 template <typename Visitor>
 bool ClassTable::Visit(Visitor& visitor) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     for (GcRoot<mirror::Class>& root : class_set) {
       if (!visitor(root.Read())) {
