@@ -1304,6 +1304,13 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
 }
 
 void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type) {
+  // If we're in a stack overflow, do not create a new exception. It would require running the
+  // constructor, which will of course still be in a stack overflow.
+  if (self->IsHandlingStackOverflow()) {
+    self->SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    return;
+  }
+
   std::ostringstream oss;
   size_t total_bytes_free = GetFreeMemory();
   oss << "Failed to allocate a " << byte_count << " byte allocation with " << total_bytes_free
