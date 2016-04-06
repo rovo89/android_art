@@ -1023,8 +1023,8 @@ bool Class::ProxyDescriptorEquals(const char* match) {
 
 // TODO: Move this to java_lang_Class.cc?
 ArtMethod* Class::GetDeclaredConstructor(
-    Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args) {
-  for (auto& m : GetDirectMethods(sizeof(void*))) {
+    Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, size_t pointer_size) {
+  for (auto& m : GetDirectMethods(pointer_size)) {
     // Skip <clinit> which is a static constructor, as well as non constructors.
     if (m.IsStatic() || !m.IsConstructor()) {
       continue;
@@ -1137,6 +1137,32 @@ mirror::Method* Class::GetDeclaredMethodInternal<true>(Thread* self,
                                                        mirror::Class* klass,
                                                        mirror::String* name,
                                                        mirror::ObjectArray<mirror::Class>* args);
+
+template <bool kTransactionActive>
+mirror::Constructor* Class::GetDeclaredConstructorInternal(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::ObjectArray<mirror::Class>* args) {
+  StackHandleScope<1> hs(self);
+  const size_t pointer_size = kTransactionActive
+                                  ? Runtime::Current()->GetClassLinker()->GetImagePointerSize()
+                                  : sizeof(void*);
+  ArtMethod* result = klass->GetDeclaredConstructor(self, hs.NewHandle(args), pointer_size);
+  return result != nullptr
+      ? mirror::Constructor::CreateFromArtMethod<kTransactionActive>(self, result)
+      : nullptr;
+}
+
+// mirror::Constructor::CreateFromArtMethod<kTransactionActive>(self, result)
+
+template mirror::Constructor* Class::GetDeclaredConstructorInternal<false>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::ObjectArray<mirror::Class>* args);
+template mirror::Constructor* Class::GetDeclaredConstructorInternal<true>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::ObjectArray<mirror::Class>* args);
 
 }  // namespace mirror
 }  // namespace art
