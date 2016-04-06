@@ -210,7 +210,11 @@ class AddToReferenceArrayVisitor {
     if (mod_union_table_->ShouldAddReference(root->AsMirrorPtr())) {
       *has_target_reference_ = true;
       // TODO: Add MarkCompressedReference callback here.
-      root->Assign(visitor_->MarkObject(root->AsMirrorPtr()));
+      mirror::Object* old_ref = root->AsMirrorPtr();
+      mirror::Object* new_ref = visitor_->MarkObject(old_ref);
+      if (old_ref != new_ref) {
+        root->Assign(new_ref);
+      }
     }
   }
 
