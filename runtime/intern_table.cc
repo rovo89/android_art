@@ -393,6 +393,10 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
 size_t InternTable::Table::AddTableFromMemory(const uint8_t* ptr) {
   size_t read_count = 0;
   UnorderedSet set(ptr, /*make copy*/false, &read_count);
+  if (set.Empty()) {
+    // Avoid inserting empty sets.
+    return read_count;
+  }
   // TODO: Disable this for app images if app images have intern tables.
   static constexpr bool kCheckDuplicates = true;
   if (kCheckDuplicates) {
@@ -400,7 +404,7 @@ size_t InternTable::Table::AddTableFromMemory(const uint8_t* ptr) {
       CHECK(Find(string.Read()) == nullptr) << "Already found " << string.Read()->ToModifiedUtf8();
     }
   }
-  // Insert at the front since we insert into the back.
+  // Insert at the front since we add new interns into the back.
   tables_.insert(tables_.begin(), std::move(set));
   return read_count;
 }
