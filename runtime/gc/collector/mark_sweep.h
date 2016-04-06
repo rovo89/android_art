@@ -231,7 +231,7 @@ class MarkSweep : public GarbageCollector {
  protected:
   // Returns object if the object is marked in the heap bitmap, otherwise null.
   virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void MarkObjectNonNull(mirror::Object* obj,
                          mirror::Object* holder = nullptr,
