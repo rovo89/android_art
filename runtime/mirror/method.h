@@ -60,6 +60,7 @@ class MANAGED Method : public AbstractMethod {
 // C++ mirror of java.lang.reflect.Constructor.
 class MANAGED Constructor: public AbstractMethod {
  public:
+  template <bool kTransactionActive = false>
   static Constructor* CreateFromArtMethod(Thread* self, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 

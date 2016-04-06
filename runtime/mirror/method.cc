@@ -96,14 +96,18 @@ void Constructor::VisitRoots(RootVisitor* visitor) {
   array_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
+template <bool kTransactionActive>
 Constructor* Constructor::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(method->IsConstructor()) << PrettyMethod(method);
   auto* ret = down_cast<Constructor*>(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {
-    static_cast<AbstractMethod*>(ret)->CreateFromArtMethod(method);
+    static_cast<AbstractMethod*>(ret)->CreateFromArtMethod<kTransactionActive>(method);
   }
   return ret;
 }
+
+template Constructor* Constructor::CreateFromArtMethod<false>(Thread* self, ArtMethod* method);
+template Constructor* Constructor::CreateFromArtMethod<true>(Thread* self, ArtMethod* method);
 
 }  // namespace mirror
 }  // namespace art
