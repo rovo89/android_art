@@ -282,6 +282,23 @@ void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
   }
 }
 
+// Special managed code cut-out to allow constructor lookup in a un-started runtime.
+void UnstartedRuntime::UnstartedClassGetDeclaredConstructor(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
+  if (klass == nullptr) {
+    ThrowNullPointerExceptionForMethodAccess(shadow_frame->GetMethod(), InvokeType::kVirtual);
+    return;
+  }
+  mirror::ObjectArray<mirror::Class>* args =
+      shadow_frame->GetVRegReference(arg_offset + 1)->AsObjectArray<mirror::Class>();
+  if (Runtime::Current()->IsActiveTransaction()) {
+    result->SetL(mirror::Class::GetDeclaredConstructorInternal<true>(self, klass, args));
+  } else {
+    result->SetL(mirror::Class::GetDeclaredConstructorInternal<false>(self, klass, args));
+  }
+}
+
 void UnstartedRuntime::UnstartedClassGetEnclosingClass(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   StackHandleScope<1> hs(self);
