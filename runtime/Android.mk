@@ -149,6 +149,7 @@ LIBART_COMMON_SRC_FILES := \
   native/java_lang_VMClassLoader.cc \
   native/java_lang_ref_FinalizerReference.cc \
   native/java_lang_ref_Reference.cc \
+  native/java_lang_reflect_AbstractMethod.cc \
   native/java_lang_reflect_Array.cc \
   native/java_lang_reflect_Constructor.cc \
   native/java_lang_reflect_Field.cc \

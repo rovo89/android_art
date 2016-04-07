@@ -1351,6 +1351,17 @@ mirror::ObjectArray<mirror::Object>* DexFile::GetParameterAnnotations(ArtMethod*
   return ProcessAnnotationSetRefList(method_class, set_ref_list, size);
 }
 
+mirror::ObjectArray<mirror::String>* DexFile::GetSignatureAnnotationForMethod(ArtMethod* method)
+    const {
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForMethod(method);
+  if (annotation_set == nullptr) {
+    return nullptr;
+  }
+  StackHandleScope<1> hs(Thread::Current());
+  Handle<mirror::Class> method_class(hs.NewHandle(method->GetDeclaringClass()));
+  return GetSignatureValue(method_class, annotation_set);
+}
+
 bool DexFile::IsMethodAnnotationPresent(ArtMethod* method, Handle<mirror::Class> annotation_class)
     const {
   const AnnotationSetItem* annotation_set = FindAnnotationSetForMethod(method);
@@ -1546,6 +1557,15 @@ bool DexFile::GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) c
   }
   *flags = annotation_value.value_.GetI();
   return true;
+}
+
+mirror::ObjectArray<mirror::String>* DexFile::GetSignatureAnnotationForClass(
+    Handle<mirror::Class> klass) const {
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(klass);
+  if (annotation_set == nullptr) {
+    return nullptr;
+  }
+  return GetSignatureValue(klass, annotation_set);
 }
 
 bool DexFile::IsClassAnnotationPresent(Handle<mirror::Class> klass,
