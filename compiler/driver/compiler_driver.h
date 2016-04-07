@@ -619,8 +619,6 @@ class CompilerDriver {
   void FreeThreadPools();
   void CheckThreadPools();
 
-  bool RequiresConstructorBarrier(const DexFile& dex_file, uint16_t class_def_idx) const;
-
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -631,14 +629,10 @@ class CompilerDriver {
   const InstructionSet instruction_set_;
   const InstructionSetFeatures* const instruction_set_features_;
 
-  // All class references that do not require constructor barriers. Only filled in if
-  // resolved_classes_ is true.
+  // All class references that do not require constructor barriers
   mutable ReaderWriterMutex no_barrier_constructor_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::set<ClassReference> no_barrier_constructor_classes_
       GUARDED_BY(no_barrier_constructor_classes_lock_);
-  // resolved_classes_ is true if we performed the resolve phase and filled in
-  // no_barrier_constructor_classes_.
-  bool resolved_classes_;
 
   typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled.
