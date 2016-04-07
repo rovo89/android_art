@@ -808,8 +808,9 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ movq(reg,
               Address(CpuRegister(method_reg),
                       ArtMethod::DexCacheResolvedMethodsOffset(kX86_64PointerSize).SizeValue()));
-      // temp = temp[index_in_cache]
-      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
+      // temp = temp[index_in_cache];
+      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
+      uint32_t index_in_cache = invoke->GetDexMethodIndex();
       __ movq(reg, Address(reg, CodeGenerator::GetCachePointerOffset(index_in_cache)));
       break;
     }

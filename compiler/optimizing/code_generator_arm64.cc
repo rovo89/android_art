@@ -3705,7 +3705,8 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
              MemOperand(method_reg.X(),
                         ArtMethod::DexCacheResolvedMethodsOffset(kArm64WordSize).Int32Value()));
       // temp = temp[index_in_cache];
-      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
+      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
+      uint32_t index_in_cache = invoke->GetDexMethodIndex();
     __ Ldr(reg.X(), MemOperand(reg.X(), GetCachePointerOffset(index_in_cache)));
       break;
     }
