@@ -296,23 +296,6 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
   }
 }
 
-int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
-  uint16_t reg_number = local->GetRegNumber();
-  uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
-  if (reg_number >= number_of_locals) {
-    // Local is a parameter of the method. It is stored in the caller's frame.
-    // TODO: Share this logic with StackVisitor::GetVRegOffsetFromQuickCode.
-    return GetFrameSize() + InstructionSetPointerSize(GetInstructionSet())  // ART method
-                          + (reg_number - number_of_locals) * kVRegSize;
-  } else {
-    // Local is a temporary in this method. It is stored in this method's frame.
-    return GetFrameSize() - FrameEntrySpillSize()
-                          - kVRegSize  // filler.
-                          - (number_of_locals * kVRegSize)
-                          + (reg_number * kVRegSize);
-  }
-}
-
 void CodeGenerator::CreateCommonInvokeLocationSummary(
     HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor) {
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();

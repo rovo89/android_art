@@ -54,6 +54,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/induction_var_analysis.cc \
 	optimizing/induction_var_range.cc \
 	optimizing/inliner.cc \
+	optimizing/instruction_builder.cc \
 	optimizing/instruction_simplifier.cc \
 	optimizing/intrinsics.cc \
 	optimizing/licm.cc \
