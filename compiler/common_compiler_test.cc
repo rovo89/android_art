@@ -285,7 +285,7 @@ void CommonCompilerTest::ReserveImageSpace() {
   MemMap::Init();
   image_reservation_.reset(MemMap::MapAnonymous("image reservation",
                                                 reinterpret_cast<uint8_t*>(ART_BASE_ADDRESS),
-                                                (size_t)100 * 1024 * 1024,  // 100MB
+                                                (size_t)120 * 1024 * 1024,  // 120MB
                                                 PROT_NONE,
                                                 false /* no need for 4gb flag with fixed mmap*/,
                                                 false /* not reusing existing reservation */,
