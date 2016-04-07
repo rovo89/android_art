@@ -76,6 +76,12 @@ class HInliner : public HOptimization {
                                bool same_dex_file,
                                HInstruction** return_replacement);
 
+  // Run simple optimizations on `callee_graph`.
+  // Returns the number of inlined instructions.
+  size_t RunOptimizations(HGraph* callee_graph,
+                          const DexFile::CodeItem* code_item,
+                          const DexCompilationUnit& dex_compilation_unit);
+
   // Try to recognize known simple patterns and replace invoke call with appropriate instructions.
   bool TryPatternSubstitution(HInvoke* invoke_instruction,
                               ArtMethod* resolved_method,
