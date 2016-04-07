@@ -4433,8 +4433,9 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
       __ movl(reg, Address(method_reg,
                            ArtMethod::DexCacheResolvedMethodsOffset(kX86PointerSize).Int32Value()));
-      // temp = temp[index_in_cache]
-      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
+      // temp = temp[index_in_cache];
+      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
+      uint32_t index_in_cache = invoke->GetDexMethodIndex();
       __ movl(reg, Address(reg, CodeGenerator::GetCachePointerOffset(index_in_cache)));
       break;
     }
