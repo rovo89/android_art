@@ -25,6 +25,7 @@
   V(ClassNewInstance, "java.lang.Object java.lang.Class.newInstance()") \
   V(ClassGetDeclaredField, "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") \
   V(ClassGetDeclaredMethod, "java.lang.reflect.Method java.lang.Class.getDeclaredMethodInternal(java.lang.String, java.lang.Class[])") \
+  V(ClassGetDeclaredConstructor, "java.lang.reflect.Constructor java.lang.Class.getDeclaredConstructorInternal(java.lang.Class[])") \
   V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
@@ -56,7 +57,10 @@
   V(UnsafeCompareAndSwapLong, "boolean sun.misc.Unsafe.compareAndSwapLong(java.lang.Object, long, long, long)") \
   V(UnsafeCompareAndSwapObject, "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") \
   V(UnsafeGetObjectVolatile, "java.lang.Object sun.misc.Unsafe.getObjectVolatile(java.lang.Object, long)") \
-  V(UnsafePutOrderedObject, "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)")
+  V(UnsafePutObjectVolatile, "void sun.misc.Unsafe.putObjectVolatile(java.lang.Object, long, java.lang.Object)") \
+  V(UnsafePutOrderedObject, "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)") \
+  V(IntegerParseInt, "int java.lang.Integer.parseInt(java.lang.String)") \
+  V(LongParseLong, "long java.lang.Long.parseLong(java.lang.String)")
 
 // Methods that are native.
 #define UNSTARTED_RUNTIME_JNI_LIST(V)           \

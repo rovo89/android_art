@@ -322,15 +322,11 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
 static jobject Class_getDeclaredConstructorInternal(
     JNIEnv* env, jobject javaThis, jobjectArray args) {
   ScopedFastNativeObjectAccess soa(env);
-  auto* klass = DecodeClass(soa, javaThis);
-  auto* params = soa.Decode<mirror::ObjectArray<mirror::Class>*>(args);
-  StackHandleScope<1> hs(soa.Self());
-  auto* declared_constructor = klass->GetDeclaredConstructor(soa.Self(), hs.NewHandle(params));
-  if (declared_constructor != nullptr) {
-    return soa.AddLocalReference<jobject>(
-        mirror::Constructor::CreateFromArtMethod(soa.Self(), declared_constructor));
-  }
-  return nullptr;
+  mirror::Constructor* result = mirror::Class::GetDeclaredConstructorInternal(
+      soa.Self(),
+      DecodeClass(soa, javaThis),
+      soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
+  return soa.AddLocalReference<jobject>(result);
 }
 
 static ALWAYS_INLINE inline bool MethodMatchesConstructor(ArtMethod* m, bool public_only)
@@ -608,7 +604,8 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   }
   auto* constructor = klass->GetDeclaredConstructor(
       soa.Self(),
-      ScopedNullHandle<mirror::ObjectArray<mirror::Class>>());
+      ScopedNullHandle<mirror::ObjectArray<mirror::Class>>(),
+      sizeof(void*));
   if (UNLIKELY(constructor == nullptr)) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
                                    "%s has no zero argument constructor",

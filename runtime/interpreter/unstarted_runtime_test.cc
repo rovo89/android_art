@@ -508,5 +508,100 @@ TEST_F(UnstartedRuntimeTest, SystemArrayCopyObjectArrayTest) {
   ShadowFrame::DeleteDeoptimizedFrame(tmp);
 }
 
+TEST_F(UnstartedRuntimeTest, IntegerParseIntTest) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  // Test string. Should be valid, and between minimal values of LONG_MIN and LONG_MAX (for all
+  // suffixes).
+  constexpr const char* test_string = "-2147483646";
+  constexpr int32_t test_values[] = {
+                6,
+               46,
+              646,
+             3646,
+            83646,
+           483646,
+          7483646,
+         47483646,
+        147483646,
+       2147483646,
+      -2147483646
+  };
+
+  static_assert(arraysize(test_values) == 11U, "test_values");
+  CHECK_EQ(strlen(test_string), 11U);
+
+  for (size_t i = 0; i <= 10; ++i) {
+    const char* test_value = &test_string[10 - i];
+
+    StackHandleScope<1> hs_str(self);
+    Handle<mirror::String> h_str(
+        hs_str.NewHandle(mirror::String::AllocFromModifiedUtf8(self, test_value)));
+    ASSERT_NE(h_str.Get(), nullptr);
+    ASSERT_FALSE(self->IsExceptionPending());
+
+    tmp->SetVRegReference(0, h_str.Get());
+
+    JValue result;
+    UnstartedIntegerParseInt(self, tmp, &result, 0);
+
+    ASSERT_FALSE(self->IsExceptionPending());
+    EXPECT_EQ(result.GetI(), test_values[i]);
+  }
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+// Right now the same as Integer.Parse
+TEST_F(UnstartedRuntimeTest, LongParseLongTest) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  // Test string. Should be valid, and between minimal values of LONG_MIN and LONG_MAX (for all
+  // suffixes).
+  constexpr const char* test_string = "-2147483646";
+  constexpr int64_t test_values[] = {
+                6,
+               46,
+              646,
+             3646,
+            83646,
+           483646,
+          7483646,
+         47483646,
+        147483646,
+       2147483646,
+      -2147483646
+  };
+
+  static_assert(arraysize(test_values) == 11U, "test_values");
+  CHECK_EQ(strlen(test_string), 11U);
+
+  for (size_t i = 0; i <= 10; ++i) {
+    const char* test_value = &test_string[10 - i];
+
+    StackHandleScope<1> hs_str(self);
+    Handle<mirror::String> h_str(
+        hs_str.NewHandle(mirror::String::AllocFromModifiedUtf8(self, test_value)));
+    ASSERT_NE(h_str.Get(), nullptr);
+    ASSERT_FALSE(self->IsExceptionPending());
+
+    tmp->SetVRegReference(0, h_str.Get());
+
+    JValue result;
+    UnstartedLongParseLong(self, tmp, &result, 0);
+
+    ASSERT_FALSE(self->IsExceptionPending());
+    EXPECT_EQ(result.GetJ(), test_values[i]);
+  }
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
 }  // namespace interpreter
 }  // namespace art
