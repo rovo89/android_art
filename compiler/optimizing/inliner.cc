@@ -1116,41 +1116,10 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     }
   }
 
-  // Run simple optimizations on the graph.
-  HDeadCodeElimination dce(callee_graph, stats_);
-  HConstantFolding fold(callee_graph);
-  HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
-  InstructionSimplifier simplify(callee_graph, stats_);
-  IntrinsicsRecognizer intrinsics(callee_graph, compiler_driver_, stats_);
-
-  HOptimization* optimizations[] = {
-    &intrinsics,
-    &sharpening,
-    &simplify,
-    &fold,
-    &dce,
-  };
-
-  for (size_t i = 0; i < arraysize(optimizations); ++i) {
-    HOptimization* optimization = optimizations[i];
-    optimization->Run();
-  }
-
   size_t number_of_instructions_budget = kMaximumNumberOfHInstructions;
-  if (depth_ + 1 < compiler_driver_->GetCompilerOptions().GetInlineDepthLimit()) {
-    HInliner inliner(callee_graph,
-                     outermost_graph_,
-                     codegen_,
-                     outer_compilation_unit_,
-                     dex_compilation_unit,
-                     compiler_driver_,
-                     handles_,
-                     stats_,
-                     total_number_of_dex_registers_ + code_item->registers_size_,
-                     depth_ + 1);
-    inliner.Run();
-    number_of_instructions_budget += inliner.number_of_inlined_instructions_;
-  }
+  size_t number_of_inlined_instructions =
+      RunOptimizations(callee_graph, code_item, dex_compilation_unit);
+  number_of_instructions_budget += number_of_inlined_instructions;
 
   // TODO: We should abort only if all predecessors throw. However,
   // HGraph::InlineInto currently does not handle an exit block with
@@ -1196,7 +1165,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     for (HInstructionIterator instr_it(block->GetInstructions());
          !instr_it.Done();
          instr_it.Advance()) {
-      if (number_of_instructions++ ==  number_of_instructions_budget) {
+      if (number_of_instructions++ == number_of_instructions_budget) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                        << " is not inlined because its caller has reached"
                        << " its instruction budget limit.";
@@ -1275,6 +1244,47 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       << "No instructions can be added to the inner graph during inlining into the outer graph";
 
   return true;
+}
+
+size_t HInliner::RunOptimizations(HGraph* callee_graph,
+                                  const DexFile::CodeItem* code_item,
+                                  const DexCompilationUnit& dex_compilation_unit) {
+  HDeadCodeElimination dce(callee_graph, stats_);
+  HConstantFolding fold(callee_graph);
+  HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
+  InstructionSimplifier simplify(callee_graph, stats_);
+  IntrinsicsRecognizer intrinsics(callee_graph, compiler_driver_, stats_);
+
+  HOptimization* optimizations[] = {
+    &intrinsics,
+    &sharpening,
+    &simplify,
+    &fold,
+    &dce,
+  };
+
+  for (size_t i = 0; i < arraysize(optimizations); ++i) {
+    HOptimization* optimization = optimizations[i];
+    optimization->Run();
+  }
+
+  size_t number_of_inlined_instructions = 0u;
+  if (depth_ + 1 < compiler_driver_->GetCompilerOptions().GetInlineDepthLimit()) {
+    HInliner inliner(callee_graph,
+                     outermost_graph_,
+                     codegen_,
+                     outer_compilation_unit_,
+                     dex_compilation_unit,
+                     compiler_driver_,
+                     handles_,
+                     stats_,
+                     total_number_of_dex_registers_ + code_item->registers_size_,
+                     depth_ + 1);
+    inliner.Run();
+    number_of_inlined_instructions += inliner.number_of_inlined_instructions_;
+  }
+
+  return number_of_inlined_instructions;
 }
 
 void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
