@@ -55,8 +55,7 @@ class Monitor {
 
   ~Monitor();
 
-  static bool IsSensitiveThread();
-  static void Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)());
+  static void Init(uint32_t lock_profiling_threshold);
 
   // Return the thread id of the lock owner or 0 when there is no owner.
   static uint32_t GetLockOwnerThreadId(mirror::Object* obj)
@@ -240,7 +239,6 @@ class Monitor {
 
   uint32_t GetOwnerThreadId() REQUIRES(!monitor_lock_);
 
-  static bool (*is_sensitive_thread_hook_)();
   static uint32_t lock_profiling_threshold_;
 
   Mutex monitor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
