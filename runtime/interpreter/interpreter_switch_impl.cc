@@ -37,6 +37,7 @@ namespace interpreter {
       shadow_frame.GetLockCountData().                                                          \
           CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self);                        \
       if (interpret_one_instruction) {                                                          \
+        /* Signal mterp to return to caller */                                                  \
         shadow_frame.SetDexPC(DexFile::kDexNoIndex);                                            \
       }                                                                                         \
       return JValue(); /* Handled in caller. */                                                 \
@@ -76,6 +77,10 @@ namespace interpreter {
     instrumentation->Branch(self, method, dex_pc, offset);                                     \
     JValue result;                                                                             \
     if (jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, &result)) {          \
+      if (interpret_one_instruction) {                                                         \
+        /* OSR has completed execution of the method.  Signal mterp to return to caller */     \
+        shadow_frame.SetDexPC(DexFile::kDexNoIndex);                                           \
+      }                                                                                        \
       return result;                                                                           \
     }                                                                                          \
   } while (false)
@@ -205,6 +210,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            result);
         }
         if (interpret_one_instruction) {
+          /* Signal mterp to return to caller */
           shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
@@ -221,6 +227,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            result);
         }
         if (interpret_one_instruction) {
+          /* Signal mterp to return to caller */
           shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
@@ -238,6 +245,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            result);
         }
         if (interpret_one_instruction) {
+          /* Signal mterp to return to caller */
           shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
@@ -254,6 +262,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            result);
         }
         if (interpret_one_instruction) {
+          /* Signal mterp to return to caller */
           shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
@@ -292,6 +301,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                            result);
         }
         if (interpret_one_instruction) {
+          /* Signal mterp to return to caller */
           shadow_frame.SetDexPC(DexFile::kDexNoIndex);
         }
         return result;
