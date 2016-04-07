@@ -91,8 +91,8 @@ inline HGraph* CreateCFG(ArenaAllocator* allocator,
   {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScopeCollection handles(soa.Self());
-    HGraphBuilder builder(graph, *item, return_type);
-    bool graph_built = (builder.BuildGraph(&handles) == kAnalysisSuccess);
+    HGraphBuilder builder(graph, *item, &handles, return_type);
+    bool graph_built = (builder.BuildGraph() == kAnalysisSuccess);
     return graph_built ? graph : nullptr;
   }
 }

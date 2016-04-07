@@ -345,8 +345,6 @@ class CodeGeneratorARM : public CodeGenerator {
 
   void SetupBlockedRegisters() const OVERRIDE;
 
-  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
