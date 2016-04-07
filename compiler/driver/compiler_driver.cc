@@ -357,8 +357,7 @@ CompilerDriver::CompilerDriver(
       compiler_kind_(compiler_kind),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
-      no_barrier_constructor_classes_lock_("freezing constructor lock"),
-      resolved_classes_(false),
+      requires_constructor_barrier_lock_("constructor barrier lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_methods_(MethodTable::key_compare()),
@@ -713,8 +712,6 @@ void CompilerDriver::Resolve(jobject class_loader,
                    resolve_thread_count,
                    timings);
   }
-
-  resolved_classes_ = true;
 }
 
 // Resolve const-strings in the code. Done to have deterministic allocation behavior. Right now
@@ -2135,9 +2132,10 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
         DCHECK(!it.HasNext());
       }
     }
-    if (!requires_constructor_barrier) {
-      manager_->GetCompiler()->AddRequiresNoConstructorBarrier(self, &dex_file, class_def_index);
-    }
+    manager_->GetCompiler()->SetRequiresConstructorBarrier(self,
+                                                           &dex_file,
+                                                           class_def_index,
+                                                           requires_constructor_barrier);
   }
 
  private:
@@ -2794,21 +2792,29 @@ size_t CompilerDriver::GetNonRelativeLinkerPatchCount() const {
   return non_relative_linker_patch_count_;
 }
 
-void CompilerDriver::AddRequiresNoConstructorBarrier(Thread* self,
-                                                     const DexFile* dex_file,
-                                                     uint16_t class_def_index) {
-  WriterMutexLock mu(self, no_barrier_constructor_classes_lock_);
-  no_barrier_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
+void CompilerDriver::SetRequiresConstructorBarrier(Thread* self,
+                                                   const DexFile* dex_file,
+                                                   uint16_t class_def_index,
+                                                   bool requires) {
+  WriterMutexLock mu(self, requires_constructor_barrier_lock_);
+  requires_constructor_barrier_.emplace(ClassReference(dex_file, class_def_index), requires);
 }
 
 bool CompilerDriver::RequiresConstructorBarrier(Thread* self,
                                                 const DexFile* dex_file,
-                                                uint16_t class_def_index) const {
-  if (resolved_classes_) {
-    ReaderMutexLock mu(self, no_barrier_constructor_classes_lock_);
-    return no_barrier_constructor_classes_.count(ClassReference(dex_file, class_def_index)) == 0;
+                                                uint16_t class_def_index) {
+  ClassReference class_ref(dex_file, class_def_index);
+  {
+    ReaderMutexLock mu(self, requires_constructor_barrier_lock_);
+    auto it = requires_constructor_barrier_.find(class_ref);
+    if (it != requires_constructor_barrier_.end()) {
+      return it->second;
+    }
   }
-  return RequiresConstructorBarrier(*dex_file, class_def_index);
+  WriterMutexLock mu(self, requires_constructor_barrier_lock_);
+  const bool requires = RequiresConstructorBarrier(*dex_file, class_def_index);
+  requires_constructor_barrier_.emplace(class_ref, requires);
+  return requires;
 }
 
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
