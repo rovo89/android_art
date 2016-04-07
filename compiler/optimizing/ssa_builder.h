@@ -23,8 +23,6 @@
 
 namespace art {
 
-static constexpr int kDefaultNumberOfLoops = 2;
-
 /**
  * Transforms a graph into SSA form. The liveness guarantees of
  * this transformation are listed below. A DEX register
@@ -47,38 +45,48 @@ static constexpr int kDefaultNumberOfLoops = 2;
  *     is not set, values of Dex registers only used by environments
  *     are killed.
  */
-class SsaBuilder : public HGraphVisitor {
+class SsaBuilder : public ValueObject {
  public:
-  SsaBuilder(HGraph* graph, const DexFile::CodeItem& code_item, StackHandleScopeCollection* handles)
-      : HGraphVisitor(graph),
-        code_item_(code_item),
+  SsaBuilder(HGraph* graph, StackHandleScopeCollection* handles)
+      : graph_(graph),
         handles_(handles),
         agets_fixed_(false),
-        current_locals_(nullptr),
-        loop_headers_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
-        ambiguous_agets_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
-        ambiguous_asets_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
-        uninitialized_strings_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
-        locals_for_(graph->GetBlocks().size(),
-                    ArenaVector<HInstruction*>(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
-                    graph->GetArena()->Adapter(kArenaAllocSsaBuilder)) {
-    loop_headers_.reserve(kDefaultNumberOfLoops);
+        ambiguous_agets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
+        ambiguous_asets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
+        uninitialized_strings_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)) {
+    graph_->InitializeInexactObjectRTI(handles);
   }
 
   GraphAnalysisResult BuildSsa();
 
-  // Returns locals vector for `block`. If it is a catch block, the vector will be
-  // prepopulated with catch phis for vregs which are defined in `current_locals_`.
-  ArenaVector<HInstruction*>* GetLocalsFor(HBasicBlock* block);
-  HInstruction* ValueOfLocal(HBasicBlock* block, size_t local);
+  HInstruction* GetFloatOrDoubleEquivalent(HInstruction* instruction, Primitive::Type type);
+  HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
 
-  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
-  void VisitLoadLocal(HLoadLocal* load) OVERRIDE;
-  void VisitStoreLocal(HStoreLocal* store) OVERRIDE;
-  void VisitInstruction(HInstruction* instruction) OVERRIDE;
-  void VisitArrayGet(HArrayGet* aget) OVERRIDE;
-  void VisitArraySet(HArraySet* aset) OVERRIDE;
-  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
+  void MaybeAddAmbiguousArrayGet(HArrayGet* aget) {
+    Primitive::Type type = aget->GetType();
+    DCHECK(!Primitive::IsFloatingPointType(type));
+    if (Primitive::IsIntOrLongType(type)) {
+      ambiguous_agets_.push_back(aget);
+    }
+  }
+
+  void MaybeAddAmbiguousArraySet(HArraySet* aset) {
+    Primitive::Type type = aset->GetValue()->GetType();
+    if (Primitive::IsIntOrLongType(type)) {
+      ambiguous_asets_.push_back(aset);
+    }
+  }
+
+  void AddUninitializedString(HNewInstance* string) {
+    // In some rare cases (b/27847265), the same NewInstance may be seen
+    // multiple times. We should only consider it once for removal, so we
+    // ensure it is not added more than once.
+    // Note that we cannot check whether this really is a NewInstance of String
+    // before RTP. We DCHECK that in RemoveRedundantUninitializedStrings.
+    if (!ContainsElement(uninitialized_strings_, string)) {
+      uninitialized_strings_.push_back(string);
+    }
+  }
 
  private:
   void SetLoopHeaderPhiInputs();
@@ -96,9 +104,6 @@ class SsaBuilder : public HGraphVisitor {
   bool UpdatePrimitiveType(HPhi* phi, ArenaVector<HPhi*>* worklist);
   void ProcessPrimitiveTypePropagationWorklist(ArenaVector<HPhi*>* worklist);
 
-  HInstruction* GetFloatOrDoubleEquivalent(HInstruction* instruction, Primitive::Type type);
-  HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
-
   HFloatConstant* GetFloatEquivalent(HIntConstant* constant);
   HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant);
   HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
@@ -106,29 +111,15 @@ class SsaBuilder : public HGraphVisitor {
 
   void RemoveRedundantUninitializedStrings();
 
-  // Returns whether `instruction` is the first generated HInstruction for its
-  // dex_pc position.
-  bool IsFirstAtThrowingDexPc(HInstruction* instruction) const;
-
-  const DexFile::CodeItem& code_item_;
+  HGraph* graph_;
   StackHandleScopeCollection* const handles_;
 
   // True if types of ambiguous ArrayGets have been resolved.
   bool agets_fixed_;
 
-  // Locals for the current block being visited.
-  ArenaVector<HInstruction*>* current_locals_;
-
-  // Keep track of loop headers found. The last phase of the analysis iterates
-  // over these blocks to set the inputs of their phis.
-  ArenaVector<HBasicBlock*> loop_headers_;
-
   ArenaVector<HArrayGet*> ambiguous_agets_;
   ArenaVector<HArraySet*> ambiguous_asets_;
   ArenaVector<HNewInstance*> uninitialized_strings_;
-
-  // HEnvironment for each block.
-  ArenaVector<ArenaVector<HInstruction*>> locals_for_;
 
   DISALLOW_COPY_AND_ASSIGN(SsaBuilder);
 };

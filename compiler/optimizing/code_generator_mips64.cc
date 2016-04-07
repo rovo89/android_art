@@ -869,31 +869,6 @@ void CodeGeneratorMIPS64::AddLocationAsTemp(Location location, LocationSummary* 
   }
 }
 
-Location CodeGeneratorMIPS64::GetStackLocation(HLoadLocal* load) const {
-  Primitive::Type type = load->GetType();
-
-  switch (type) {
-    case Primitive::kPrimNot:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
-      return Location::StackSlot(GetStackSlot(load->GetLocal()));
-
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
-      return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
-
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unexpected type " << type;
-  }
-
-  LOG(FATAL) << "Unreachable";
-  return Location::NoLocation();
-}
-
 void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object,
                                      GpuRegister value,
                                      bool value_can_be_null) {
@@ -3282,14 +3257,6 @@ void InstructionCodeGeneratorMIPS64::VisitClearException(HClearException* clear 
   __ StoreToOffset(kStoreWord, ZERO, TR, GetExceptionTlsOffset());
 }
 
-void LocationsBuilderMIPS64::VisitLoadLocal(HLoadLocal* load) {
-  load->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorMIPS64::VisitLoadLocal(HLoadLocal* load ATTRIBUTE_UNUSED) {
-  // Nothing to do, this is driven by the code generator.
-}
-
 void LocationsBuilderMIPS64::VisitLoadString(HLoadString* load) {
   LocationSummary::CallKind call_kind = load->NeedsEnvironment()
       ? LocationSummary::kCallOnSlowPath
@@ -3316,14 +3283,6 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) {
     __ Beqzc(out, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetExitLabel());
   }
-}
-
-void LocationsBuilderMIPS64::VisitLocal(HLocal* local) {
-  local->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorMIPS64::VisitLocal(HLocal* local) {
-  DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
 }
 
 void LocationsBuilderMIPS64::VisitLongConstant(HLongConstant* constant) {
@@ -3744,33 +3703,6 @@ void LocationsBuilderMIPS64::VisitShr(HShr* shr) {
 
 void InstructionCodeGeneratorMIPS64::VisitShr(HShr* shr) {
   HandleShift(shr);
-}
-
-void LocationsBuilderMIPS64::VisitStoreLocal(HStoreLocal* store) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(store);
-  Primitive::Type field_type = store->InputAt(1)->GetType();
-  switch (field_type) {
-    case Primitive::kPrimNot:
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
-      locations->SetInAt(1, Location::StackSlot(codegen_->GetStackSlot(store->GetLocal())));
-      break;
-
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
-      locations->SetInAt(1, Location::DoubleStackSlot(codegen_->GetStackSlot(store->GetLocal())));
-      break;
-
-    default:
-      LOG(FATAL) << "Unimplemented local type " << field_type;
-  }
-}
-
-void InstructionCodeGeneratorMIPS64::VisitStoreLocal(HStoreLocal* store ATTRIBUTE_UNUSED) {
 }
 
 void LocationsBuilderMIPS64::VisitSub(HSub* instruction) {

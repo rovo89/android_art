@@ -357,8 +357,10 @@ TEST_F(GVNTest, LoopSideEffects) {
                                                              Primitive::kPrimBoolean);
   entry->AddInstruction(parameter);
   entry->AddInstruction(new (&allocator) HGoto());
+  outer_loop_header->AddInstruction(new (&allocator) HSuspendCheck());
   outer_loop_header->AddInstruction(new (&allocator) HIf(parameter));
   outer_loop_body->AddInstruction(new (&allocator) HGoto());
+  inner_loop_header->AddInstruction(new (&allocator) HSuspendCheck());
   inner_loop_header->AddInstruction(new (&allocator) HIf(parameter));
   inner_loop_body->AddInstruction(new (&allocator) HGoto());
   inner_loop_exit->AddInstruction(new (&allocator) HGoto());
