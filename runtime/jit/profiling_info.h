@@ -119,12 +119,18 @@ class ProfilingInfo {
 
   InlineCache* GetInlineCache(uint32_t dex_pc);
 
-  bool IsMethodBeingCompiled() const {
-    return is_method_being_compiled_;
+  bool IsMethodBeingCompiled(bool osr) const {
+    return osr
+        ? is_osr_method_being_compiled_
+        : is_method_being_compiled_;
   }
 
-  void SetIsMethodBeingCompiled(bool value) {
-    is_method_being_compiled_ = value;
+  void SetIsMethodBeingCompiled(bool value, bool osr) {
+    if (osr) {
+      is_osr_method_being_compiled_ = value;
+    } else {
+      is_method_being_compiled_ = value;
+    }
   }
 
   void SetSavedEntryPoint(const void* entry_point) {
@@ -155,7 +161,8 @@ class ProfilingInfo {
   }
 
   bool IsInUseByCompiler() const {
-    return IsMethodBeingCompiled() || (current_inline_uses_ > 0);
+    return IsMethodBeingCompiled(/*osr*/ true) || IsMethodBeingCompiled(/*osr*/ false) ||
+        (current_inline_uses_ > 0);
   }
 
  private:
@@ -181,6 +188,7 @@ class ProfilingInfo {
   // is implicitly guarded by the JIT code cache lock.
   // TODO: Make the JIT code cache lock global.
   bool is_method_being_compiled_;
+  bool is_osr_method_being_compiled_;
 
   // When the compiler inlines the method associated to this ProfilingInfo,
   // it updates this counter so that the GC does not try to clear the inline caches.

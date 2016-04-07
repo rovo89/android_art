@@ -927,12 +927,12 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
     return false;
   }
 
-  if (info->IsMethodBeingCompiled()) {
+  if (info->IsMethodBeingCompiled(osr)) {
     VLOG(jit) << PrettyMethod(method) << " is already being compiled";
     return false;
   }
 
-  info->SetIsMethodBeingCompiled(true);
+  info->SetIsMethodBeingCompiled(true, osr);
   return true;
 }
 
@@ -952,10 +952,10 @@ void JitCodeCache::DoneCompilerUse(ArtMethod* method, Thread* self) {
   info->DecrementInlineUse();
 }
 
-void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED) {
+void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED, bool osr) {
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
-  DCHECK(info->IsMethodBeingCompiled());
-  info->SetIsMethodBeingCompiled(false);
+  DCHECK(info->IsMethodBeingCompiled(osr));
+  info->SetIsMethodBeingCompiled(false, osr);
 }
 
 size_t JitCodeCache::GetMemorySizeOfCodePointer(const void* ptr) {
