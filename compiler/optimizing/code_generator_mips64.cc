@@ -3110,8 +3110,9 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                         reg,
                         method_reg,
                         ArtMethod::DexCacheResolvedMethodsOffset(kMips64PointerSize).Int32Value());
-      // temp = temp[index_in_cache]
-      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
+      // temp = temp[index_in_cache];
+      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
+      uint32_t index_in_cache = invoke->GetDexMethodIndex();
       __ LoadFromOffset(kLoadDoubleword,
                         reg,
                         reg,
