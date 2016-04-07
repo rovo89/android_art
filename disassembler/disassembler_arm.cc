@@ -776,7 +776,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               if (imm5 == 0) {
                 args << "rrx";
               } else {
-                args << "ror";
+                args << "ror #" << imm5;
               }
               break;
           }
