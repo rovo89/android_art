@@ -185,6 +185,9 @@ public class TestAnnotations {
         // this is expected to be non-null
         Annotation anno = SimplyNoted.class.getAnnotation(AnnoSimpleType.class);
         System.out.println("SimplyNoted.get(AnnoSimpleType) = " + anno);
+        // this is expected to be null
+        anno = SimplyNoted.class.getAnnotation(AnnoSimpleTypeInvis.class);
+        System.out.println("SimplyNoted.get(AnnoSimpleTypeInvis) = " + anno);
         // this is non-null if the @Inherited tag is present
         anno = SubNoted.class.getAnnotation(AnnoSimpleType.class);
         System.out.println("SubNoted.get(AnnoSimpleType) = " + anno);

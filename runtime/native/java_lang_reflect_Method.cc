@@ -41,20 +41,6 @@ static jobject Method_getAnnotationNative(JNIEnv* env, jobject javaMethod, jclas
       method->GetDexFile()->GetAnnotationForMethod(method, klass));
 }
 
-static jobjectArray Method_getDeclaredAnnotations(JNIEnv* env, jobject javaMethod) {
-  ScopedFastNativeObjectAccess soa(env);
-  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsProxyClass()) {
-    // Return an empty array instead of a null pointer.
-    mirror::Class* annotation_array_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
-    mirror::ObjectArray<mirror::Object>* empty_array =
-        mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
-    return soa.AddLocalReference<jobjectArray>(empty_array);
-  }
-  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetAnnotationsForMethod(method));
-}
-
 static jobject Method_getDefaultValue(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
@@ -116,27 +102,13 @@ static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiv
   return InvokeMethod(soa, javaMethod, javaReceiver, javaArgs);
 }
 
-static jboolean Method_isAnnotationPresentNative(JNIEnv* env, jobject javaMethod,
-                                                 jclass annotationType) {
-  ScopedFastNativeObjectAccess soa(env);
-  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsProxyClass()) {
-    return false;
-  }
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return method->GetDexFile()->IsMethodAnnotationPresent(method, klass);
-}
-
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Method, getAnnotationNative,
                 "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Method, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Method, getDefaultValue, "!()Ljava/lang/Object;"),
   NATIVE_METHOD(Method, getExceptionTypes, "!()[Ljava/lang/Class;"),
   NATIVE_METHOD(Method, getParameterAnnotationsNative, "!()[[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Method, invoke, "!(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;"),
-  NATIVE_METHOD(Method, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
 };
 
 void register_java_lang_reflect_Method(JNIEnv* env) {
