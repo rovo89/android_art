@@ -639,10 +639,10 @@ void HGraphBuilder::Binop_22b(const Instruction& instruction, bool reverse, uint
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction(), dex_pc);
 }
 
-static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, const CompilerDriver& driver) {
+static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, CompilerDriver* driver) {
   Thread* self = Thread::Current();
   return cu->IsConstructor()
-      && driver.RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
+      && driver->RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
 }
 
 void HGraphBuilder::BuildReturn(const Instruction& instruction,
@@ -652,7 +652,7 @@ void HGraphBuilder::BuildReturn(const Instruction& instruction,
     if (graph_->ShouldGenerateConstructorBarrier()) {
       // The compilation unit is null during testing.
       if (dex_compilation_unit_ != nullptr) {
-        DCHECK(RequiresConstructorBarrier(dex_compilation_unit_, *compiler_driver_))
+        DCHECK(RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_))
           << "Inconsistent use of ShouldGenerateConstructorBarrier. Should not generate a barrier.";
       }
       current_block_->AddInstruction(new (arena_) HMemoryBarrier(kStoreStore, dex_pc));
