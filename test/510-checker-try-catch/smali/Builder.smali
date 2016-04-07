@@ -21,11 +21,11 @@
 
 ## CHECK-START: int Builder.testMultipleTryCatch(int, int, int) builder (after)
 
-## CHECK:  name             "B0"
-## CHECK:  successors       "<<BEnterTry1:B\d+>>"
-## CHECK:  <<Minus1:i\d+>>  IntConstant -1
-## CHECK:  <<Minus2:i\d+>>  IntConstant -2
-## CHECK:  <<Minus3:i\d+>>  IntConstant -3
+## CHECK:      name             "B0"
+## CHECK:      successors       "<<BEnterTry1:B\d+>>"
+## CHECK-DAG:  <<Minus1:i\d+>>  IntConstant -1
+## CHECK-DAG:  <<Minus2:i\d+>>  IntConstant -2
+## CHECK-DAG:  <<Minus3:i\d+>>  IntConstant -3
 
 ## CHECK:  name             "<<BTry1:B\d+>>"
 ## CHECK:  predecessors     "<<BEnterTry1>>"
@@ -236,10 +236,10 @@
 
 ## CHECK-START: int Builder.testMultipleExits(int, int) builder (after)
 
-## CHECK:  name             "B0"
-## CHECK:  successors       "<<BEnterTry:B\d+>>"
-## CHECK:  <<Minus1:i\d+>>  IntConstant -1
-## CHECK:  <<Minus2:i\d+>>  IntConstant -2
+## CHECK:      name             "B0"
+## CHECK:      successors       "<<BEnterTry:B\d+>>"
+## CHECK-DAG:  <<Minus1:i\d+>>  IntConstant -1
+## CHECK-DAG:  <<Minus2:i\d+>>  IntConstant -2
 
 ## CHECK:  name             "<<BTry:B\d+>>"
 ## CHECK:  predecessors     "<<BEnterTry>>"
@@ -312,10 +312,10 @@
 
 ## CHECK-START: int Builder.testSharedBoundary(int, int, int) builder (after)
 
-## CHECK:  name             "B0"
-## CHECK:  successors       "<<BEnter1:B\d+>>"
-## CHECK:  <<Minus1:i\d+>>  IntConstant -1
-## CHECK:  <<Minus2:i\d+>>  IntConstant -2
+## CHECK:      name             "B0"
+## CHECK:      successors       "<<BEnter1:B\d+>>"
+## CHECK-DAG:  <<Minus1:i\d+>>  IntConstant -1
+## CHECK-DAG:  <<Minus2:i\d+>>  IntConstant -2
 
 ## CHECK:  name             "<<BTry1:B\d+>>"
 ## CHECK:  predecessors     "<<BEnter1>>"
@@ -403,10 +403,10 @@
 
 ## CHECK-START: int Builder.testSharedBoundary_Reverse(int, int, int) builder (after)
 
-## CHECK:  name             "B0"
-## CHECK:  successors       "<<BGoto:B\d+>>"
-## CHECK:  <<Minus1:i\d+>>  IntConstant -1
-## CHECK:  <<Minus2:i\d+>>  IntConstant -2
+## CHECK:      name             "B0"
+## CHECK:      successors       "<<BGoto:B\d+>>"
+## CHECK-DAG:  <<Minus1:i\d+>>  IntConstant -1
+## CHECK-DAG:  <<Minus2:i\d+>>  IntConstant -2
 
 ## CHECK:  name             "<<BGoto>>"
 ## CHECK:  successors       "<<BEnter2:B\d+>>"
@@ -504,9 +504,9 @@
 
 ## CHECK-START: int Builder.testNestedTry(int, int, int, int) builder (after)
 
-## CHECK:  name             "B0"
-## CHECK:  <<Minus1:i\d+>>  IntConstant -1
-## CHECK:  <<Minus2:i\d+>>  IntConstant -2
+## CHECK:      name             "B0"
+## CHECK-DAG:  <<Minus1:i\d+>>  IntConstant -1
+## CHECK-DAG:  <<Minus2:i\d+>>  IntConstant -2
 
 ## CHECK:  name             "<<BTry1:B\d+>>"
 ## CHECK:  predecessors     "<<BEnter1:B\d+>>"
