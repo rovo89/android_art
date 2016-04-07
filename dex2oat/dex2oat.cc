@@ -68,6 +68,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "oat_file_assistant.h"
 #include "oat_writer.h"
 #include "os.h"
 #include "runtime.h"
@@ -1325,7 +1326,7 @@ class Dex2Oat FINAL {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
         std::vector<gc::space::ImageSpace*> image_spaces =
             Runtime::Current()->GetHeap()->GetBootImageSpaces();
-        image_file_location_oat_checksum_ = image_spaces[0]->GetImageHeader().GetOatChecksum();
+        image_file_location_oat_checksum_ = OatFileAssistant::CalculateCombinedImageChecksum();
         image_file_location_oat_data_begin_ =
             reinterpret_cast<uintptr_t>(image_spaces[0]->GetImageHeader().GetOatDataBegin());
         image_patch_delta_ = image_spaces[0]->GetImageHeader().GetPatchDelta();

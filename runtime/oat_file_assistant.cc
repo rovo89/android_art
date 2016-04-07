@@ -495,7 +495,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
       return true;
     }
 
-    if (file.GetOatHeader().GetImageFileLocationOatChecksum() != image_info->oat_checksum) {
+    if (file.GetOatHeader().GetImageFileLocationOatChecksum() != GetCombinedImageChecksum()) {
       VLOG(oat) << "Oat image checksum does not match image checksum.";
       return true;
     }
@@ -931,8 +931,7 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
         cached_image_info_.patch_delta = image_header.GetPatchDelta();
       } else {
         std::unique_ptr<ImageHeader> image_header(
-            gc::space::ImageSpace::ReadImageHeaderOrDie(
-                cached_image_info_.location.c_str(), isa_));
+            gc::space::ImageSpace::ReadImageHeaderOrDie(cached_image_info_.location.c_str(), isa_));
         cached_image_info_.oat_checksum = image_header->GetOatChecksum();
         cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
             image_header->GetOatDataBegin());
@@ -940,8 +939,28 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
       }
     }
     image_info_load_succeeded_ = (!image_spaces.empty());
+
+    combined_image_checksum_ = CalculateCombinedImageChecksum();
   }
   return image_info_load_succeeded_ ? &cached_image_info_ : nullptr;
+}
+
+// TODO: Use something better than xor.
+uint32_t OatFileAssistant::CalculateCombinedImageChecksum() {
+  uint32_t checksum = 0;
+  std::vector<gc::space::ImageSpace*> image_spaces =
+      Runtime::Current()->GetHeap()->GetBootImageSpaces();
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    checksum ^= image_space->GetImageHeader().GetOatChecksum();
+  }
+  return checksum;
+}
+
+uint32_t OatFileAssistant::GetCombinedImageChecksum() {
+  if (!image_info_load_attempted_) {
+    GetImageInfo();
+  }
+  return combined_image_checksum_;
 }
 
 gc::space::ImageSpace* OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
