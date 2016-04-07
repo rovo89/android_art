@@ -16,8 +16,28 @@
 
 public class Main {
   public static void main(String[] args) {
-    new SubMain();
     System.loadLibrary(args[0]);
+    Thread testThread = new Thread() {
+      public void run() {
+        performTest();
+      }
+    };
+    testThread.start();
+    try {
+      testThread.join(20 * 1000);  // 20s timeout.
+    } catch (InterruptedException ie) {
+      System.out.println("Interrupted.");
+      System.exit(1);
+    }
+    Thread.State state = testThread.getState();
+    if (state != Thread.State.TERMINATED) {
+      System.out.println("Test timed out, current state: " + state);
+      System.exit(1);
+    }
+  }
+
+  public static void performTest() {
+    new SubMain();
     if ($noinline$returnInt() != 53) {
       throw new Error("Unexpected return value");
     }
