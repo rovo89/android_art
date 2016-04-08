@@ -36,6 +36,8 @@ static const char* kImgDiagDiffPid = "--image-diff-pid";
 static const char* kImgDiagBootImage = "--boot-image";
 static const char* kImgDiagBinaryName = "imgdiag";
 
+static const char* kImgDiagZygoteDiffPid = "--zygote-diff-pid";
+
 // from kernel <include/linux/threads.h>
 #define PID_MAX_LIMIT (4*1024*1024)  // Upper bound. Most kernel configs will have smaller max pid.
 
@@ -90,17 +92,25 @@ class ImgDiagTest : public CommonRuntimeTest {
 
     // Run imgdiag --image-diff-pid=$image_diff_pid and wait until it's done with a 0 exit code.
     std::string diff_pid_args;
+    std::string zygote_diff_pid_args;
     {
       std::stringstream diff_pid_args_ss;
       diff_pid_args_ss << kImgDiagDiffPid << "=" << image_diff_pid;
       diff_pid_args = diff_pid_args_ss.str();
     }
-    std::string boot_image_args;
     {
-      boot_image_args = boot_image_args + kImgDiagBootImage + "=" + boot_image;
+      std::stringstream zygote_pid_args_ss;
+      zygote_pid_args_ss << kImgDiagZygoteDiffPid << "=" << image_diff_pid;
+      zygote_diff_pid_args = zygote_pid_args_ss.str();
     }
+    std::string boot_image_args = std::string(kImgDiagBootImage) + "=" + boot_image;
 
-    std::vector<std::string> exec_argv = { file_path, diff_pid_args, boot_image_args };
+    std::vector<std::string> exec_argv = {
+        file_path,
+        diff_pid_args,
+        zygote_diff_pid_args,
+        boot_image_args
+    };
 
     return ::art::Exec(exec_argv, error_msg);
   }

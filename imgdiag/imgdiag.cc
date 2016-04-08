@@ -51,11 +51,13 @@ class ImgDiagDumper {
   explicit ImgDiagDumper(std::ostream* os,
                          const ImageHeader& image_header,
                          const std::string& image_location,
-                         pid_t image_diff_pid)
+                         pid_t image_diff_pid,
+                         pid_t zygote_diff_pid)
       : os_(os),
         image_header_(image_header),
         image_location_(image_location),
-        image_diff_pid_(image_diff_pid) {}
+        image_diff_pid_(image_diff_pid),
+        zygote_diff_pid_(zygote_diff_pid) {}
 
   bool Dump() SHARED_REQUIRES(Locks::mutator_lock_) {
     std::ostream& os = *os_;
@@ -68,7 +70,7 @@ class ImgDiagDumper {
     bool ret = true;
     if (image_diff_pid_ >= 0) {
       os << "IMAGE DIFF PID (" << image_diff_pid_ << "): ";
-      ret = DumpImageDiff(image_diff_pid_);
+      ret = DumpImageDiff(image_diff_pid_, zygote_diff_pid_);
       os << "\n\n";
     } else {
       os << "IMAGE DIFF PID: disabled\n\n";
@@ -95,7 +97,8 @@ class ImgDiagDumper {
     return str.substr(idx + 1);
   }
 
-  bool DumpImageDiff(pid_t image_diff_pid) SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool DumpImageDiff(pid_t image_diff_pid, pid_t zygote_diff_pid)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     std::ostream& os = *os_;
 
     {
@@ -138,7 +141,7 @@ class ImgDiagDumper {
     }
 
     // Future idea: diff against zygote so we can ignore the shared dirty pages.
-    return DumpImageDiffMap(image_diff_pid, boot_map);
+    return DumpImageDiffMap(image_diff_pid, zygote_diff_pid, boot_map);
   }
 
   static std::string PrettyFieldValue(ArtField* field, mirror::Object* obj)
@@ -212,8 +215,74 @@ class ImgDiagDumper {
     std::vector<mirror::Object*> dirty_objects;
   };
 
+  void DiffObjectContents(mirror::Object* obj,
+                          uint8_t* remote_bytes,
+                          std::ostream& os) SHARED_REQUIRES(Locks::mutator_lock_) {
+    const char* tabs = "    ";
+    // Attempt to find fields for all dirty bytes.
+    mirror::Class* klass = obj->GetClass();
+    if (obj->IsClass()) {
+      os << tabs << "Class " << PrettyClass(obj->AsClass()) << " " << obj << "\n";
+    } else {
+      os << tabs << "Instance of " << PrettyClass(klass) << " " << obj << "\n";
+    }
+
+    std::unordered_set<ArtField*> dirty_instance_fields;
+    std::unordered_set<ArtField*> dirty_static_fields;
+    const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
+    mirror::Object* remote_obj = reinterpret_cast<mirror::Object*>(remote_bytes);
+    for (size_t i = 0, count = obj->SizeOf(); i < count; ++i) {
+      if (obj_bytes[i] != remote_bytes[i]) {
+        ArtField* field = ArtField::FindInstanceFieldWithOffset</*exact*/false>(klass, i);
+        if (field != nullptr) {
+          dirty_instance_fields.insert(field);
+        } else if (obj->IsClass()) {
+          field = ArtField::FindStaticFieldWithOffset</*exact*/false>(obj->AsClass(), i);
+          if (field != nullptr) {
+            dirty_static_fields.insert(field);
+          }
+        }
+        if (field == nullptr) {
+          if (klass->IsArrayClass()) {
+            mirror::Class* component_type = klass->GetComponentType();
+            Primitive::Type primitive_type = component_type->GetPrimitiveType();
+            size_t component_size = Primitive::ComponentSize(primitive_type);
+            size_t data_offset = mirror::Array::DataOffset(component_size).Uint32Value();
+            if (i >= data_offset) {
+              os << tabs << "Dirty array element " << (i - data_offset) / component_size << "\n";
+              // Skip to next element to prevent spam.
+              i += component_size - 1;
+              continue;
+            }
+          }
+          os << tabs << "No field for byte offset " << i << "\n";
+        }
+      }
+    }
+    // Dump different fields. TODO: Dump field contents.
+    if (!dirty_instance_fields.empty()) {
+      os << tabs << "Dirty instance fields " << dirty_instance_fields.size() << "\n";
+      for (ArtField* field : dirty_instance_fields) {
+        os << tabs << PrettyField(field)
+           << " original=" << PrettyFieldValue(field, obj)
+           << " remote=" << PrettyFieldValue(field, remote_obj) << "\n";
+      }
+    }
+    if (!dirty_static_fields.empty()) {
+      os << tabs << "Dirty static fields " << dirty_static_fields.size() << "\n";
+      for (ArtField* field : dirty_static_fields) {
+        os << tabs << PrettyField(field)
+           << " original=" << PrettyFieldValue(field, obj)
+           << " remote=" << PrettyFieldValue(field, remote_obj) << "\n";
+      }
+    }
+    os << "\n";
+  }
+
   // Look at /proc/$pid/mem and only diff the things from there
-  bool DumpImageDiffMap(pid_t image_diff_pid, const backtrace_map_t& boot_map)
+  bool DumpImageDiffMap(pid_t image_diff_pid,
+                        pid_t zygote_diff_pid,
+                        const backtrace_map_t& boot_map)
     SHARED_REQUIRES(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     const size_t pointer_size = InstructionSetPointerSize(
@@ -270,6 +339,20 @@ class ImgDiagDumper {
     if (!map_file->PreadFully(&remote_contents[0], boot_map_size, boot_map.start)) {
       os << "Could not fully read file " << file_name;
       return false;
+    }
+
+    std::vector<uint8_t> zygote_contents;
+    std::unique_ptr<File> zygote_map_file;
+    if (zygote_diff_pid != -1) {
+      std::string zygote_file_name =
+          StringPrintf("/proc/%ld/mem", static_cast<long>(zygote_diff_pid));  // NOLINT [runtime/int]
+      zygote_map_file.reset(OS::OpenFileForReading(zygote_file_name.c_str()));
+      // The boot map should be at the same address.
+      zygote_contents.resize(boot_map_size);
+      if (!zygote_map_file->PreadFully(&zygote_contents[0], boot_map_size, boot_map.start)) {
+        LOG(WARNING) << "Could not fully read zygote file " << zygote_file_name;
+        zygote_contents.clear();
+      }
     }
 
     std::string page_map_file_name = StringPrintf(
@@ -416,8 +499,11 @@ class ImgDiagDumper {
     // Look up local classes by their descriptor
     std::map<std::string, mirror::Class*> local_class_map;
 
-    // Use set to have sorted output.
-    std::set<mirror::Object*> dirty_objects;
+    // Objects that are dirty against the image (possibly shared or private dirty).
+    std::set<mirror::Object*> image_dirty_objects;
+
+    // Objects that are dirty against the zygote (probably private dirty).
+    std::set<mirror::Object*> zygote_dirty_objects;
 
     size_t dirty_object_bytes = 0;
     const uint8_t* begin_image_ptr = image_begin_unaligned;
@@ -454,17 +540,29 @@ class ImgDiagDumper {
 
       mirror::Class* klass = obj->GetClass();
 
-      bool different_object = false;
-
       // Check against the other object and see if they are different
       ptrdiff_t offset = current - begin_image_ptr;
       const uint8_t* current_remote = &remote_contents[offset];
       mirror::Object* remote_obj = reinterpret_cast<mirror::Object*>(
           const_cast<uint8_t*>(current_remote));
-      if (memcmp(current, current_remote, obj->SizeOf()) != 0) {
+
+      bool different_image_object = memcmp(current, current_remote, obj->SizeOf()) != 0;
+      if (different_image_object) {
+        bool different_zygote_object = false;
+        if (!zygote_contents.empty()) {
+          const uint8_t* zygote_ptr = &zygote_contents[offset];
+          different_zygote_object = memcmp(current, zygote_ptr, obj->SizeOf()) != 0;
+        }
+        if (different_zygote_object) {
+          // Different from zygote.
+          zygote_dirty_objects.insert(obj);
+        } else {
+          // Just different from iamge.
+          image_dirty_objects.insert(obj);
+        }
+
         different_objects++;
         dirty_object_bytes += obj->SizeOf();
-        dirty_objects.insert(obj);
 
         ++class_data[klass].dirty_object_count;
 
@@ -477,16 +575,13 @@ class ImgDiagDumper {
         }
         class_data[klass].dirty_object_byte_count += dirty_byte_count_per_object;
         class_data[klass].dirty_object_size_in_bytes += obj->SizeOf();
-
-        different_object = true;
-
         class_data[klass].dirty_objects.push_back(remote_obj);
       } else {
         ++class_data[klass].clean_object_count;
       }
 
       std::string descriptor = GetClassDescriptor(klass);
-      if (different_object) {
+      if (different_image_object) {
         if (klass->IsClassClass()) {
           // this is a "Class"
           mirror::Class* obj_as_class  = reinterpret_cast<mirror::Class*>(remote_obj);
@@ -558,69 +653,23 @@ class ImgDiagDumper {
     auto clean_object_class_values = SortByValueDesc<mirror::Class*, int, ClassData>(
         class_data, [](const ClassData& d) { return d.clean_object_count; });
 
-    os << "\n" << "  Dirty objects: " << dirty_objects.size() << "\n";
-    for (mirror::Object* obj : dirty_objects) {
-      const char* tabs = "    ";
-      // Attempt to find fields for all dirty bytes.
-      mirror::Class* klass = obj->GetClass();
-      if (obj->IsClass()) {
-        os << tabs << "Class " << PrettyClass(obj->AsClass()) << " " << obj << "\n";
-      } else {
-        os << tabs << "Instance of " << PrettyClass(klass) << " " << obj << "\n";
+    if (!zygote_dirty_objects.empty()) {
+      os << "\n" << "  Dirty objects compared to zygote (probably private dirty): "
+         << zygote_dirty_objects.size() << "\n";
+      for (mirror::Object* obj : zygote_dirty_objects) {
+        const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
+        ptrdiff_t offset = obj_bytes - begin_image_ptr;
+        uint8_t* remote_bytes = &zygote_contents[offset];
+        DiffObjectContents(obj, remote_bytes, os);
       }
-
-      std::unordered_set<ArtField*> dirty_instance_fields;
-      std::unordered_set<ArtField*> dirty_static_fields;
+    }
+    os << "\n" << "  Dirty objects compared to image (private or shared dirty): "
+       << image_dirty_objects.size() << "\n";
+    for (mirror::Object* obj : image_dirty_objects) {
       const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
       ptrdiff_t offset = obj_bytes - begin_image_ptr;
       uint8_t* remote_bytes = &remote_contents[offset];
-      mirror::Object* remote_obj = reinterpret_cast<mirror::Object*>(remote_bytes);
-      for (size_t i = 0, count = obj->SizeOf(); i < count; ++i) {
-        if (obj_bytes[i] != remote_bytes[i]) {
-          ArtField* field = ArtField::FindInstanceFieldWithOffset</*exact*/false>(klass, i);
-          if (field != nullptr) {
-            dirty_instance_fields.insert(field);
-          } else if (obj->IsClass()) {
-            field = ArtField::FindStaticFieldWithOffset</*exact*/false>(obj->AsClass(), i);
-            if (field != nullptr) {
-              dirty_static_fields.insert(field);
-            }
-          }
-          if (field == nullptr) {
-            if (klass->IsArrayClass()) {
-              mirror::Class* component_type = klass->GetComponentType();
-              Primitive::Type primitive_type = component_type->GetPrimitiveType();
-              size_t component_size = Primitive::ComponentSize(primitive_type);
-              size_t data_offset = mirror::Array::DataOffset(component_size).Uint32Value();
-              if (i >= data_offset) {
-                os << tabs << "Dirty array element " << (i - data_offset) / component_size << "\n";
-                // Skip to next element to prevent spam.
-                i += component_size - 1;
-                continue;
-              }
-            }
-            os << tabs << "No field for byte offset " << i << "\n";
-          }
-        }
-      }
-      // Dump different fields. TODO: Dump field contents.
-      if (!dirty_instance_fields.empty()) {
-        os << tabs << "Dirty instance fields " << dirty_instance_fields.size() << "\n";
-        for (ArtField* field : dirty_instance_fields) {
-          os << tabs << PrettyField(field)
-             << " original=" << PrettyFieldValue(field, obj)
-             << " remote=" << PrettyFieldValue(field, remote_obj) << "\n";
-        }
-      }
-      if (!dirty_static_fields.empty()) {
-        os << tabs << "Dirty static fields " << dirty_static_fields.size() << "\n";
-        for (ArtField* field : dirty_static_fields) {
-          os << tabs << PrettyField(field)
-             << " original=" << PrettyFieldValue(field, obj)
-             << " remote=" << PrettyFieldValue(field, remote_obj) << "\n";
-        }
-      }
-      os << "\n";
+      DiffObjectContents(obj, remote_bytes, os);
     }
 
     os << "\n" << "  Dirty object count by class:\n";
@@ -959,11 +1008,15 @@ class ImgDiagDumper {
   const ImageHeader& image_header_;
   const std::string image_location_;
   pid_t image_diff_pid_;  // Dump image diff against boot.art if pid is non-negative
+  pid_t zygote_diff_pid_;  // Dump image diff against zygote boot.art if pid is non-negative
 
   DISALLOW_COPY_AND_ASSIGN(ImgDiagDumper);
 };
 
-static int DumpImage(Runtime* runtime, std::ostream* os, pid_t image_diff_pid) {
+static int DumpImage(Runtime* runtime,
+                     std::ostream* os,
+                     pid_t image_diff_pid,
+                     pid_t zygote_diff_pid) {
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = runtime->GetHeap();
   std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
@@ -975,8 +1028,11 @@ static int DumpImage(Runtime* runtime, std::ostream* os, pid_t image_diff_pid) {
       return EXIT_FAILURE;
     }
 
-    ImgDiagDumper img_diag_dumper(
-        os, image_header, image_space->GetImageLocation(), image_diff_pid);
+    ImgDiagDumper img_diag_dumper(os,
+                                  image_header,
+                                  image_space->GetImageLocation(),
+                                  image_diff_pid,
+                                  zygote_diff_pid);
     if (!img_diag_dumper.Dump()) {
       return EXIT_FAILURE;
     }
@@ -1002,6 +1058,13 @@ struct ImgDiagArgs : public CmdlineArgs {
 
       if (!ParseInt(image_diff_pid, &image_diff_pid_)) {
         *error_msg = "Image diff pid out of range";
+        return kParseError;
+      }
+    } else if (option.starts_with("--zygote-diff-pid=")) {
+      const char* zygote_diff_pid = option.substr(strlen("--zygote-diff-pid=")).data();
+
+      if (!ParseInt(zygote_diff_pid, &zygote_diff_pid_)) {
+        *error_msg = "Zygote diff pid out of range";
         return kParseError;
       }
     } else {
@@ -1053,6 +1116,9 @@ struct ImgDiagArgs : public CmdlineArgs {
     usage +=  // Optional.
         "  --image-diff-pid=<pid>: provide the PID of a process whose boot.art you want to diff.\n"
         "      Example: --image-diff-pid=$(pid zygote)\n"
+        "  --zygote-diff-pid=<pid>: provide the PID of the zygote whose boot.art you want to diff "
+        "against.\n"
+        "      Example: --zygote-diff-pid=$(pid zygote)\n"
         "\n";
 
     return usage;
@@ -1060,6 +1126,7 @@ struct ImgDiagArgs : public CmdlineArgs {
 
  public:
   pid_t image_diff_pid_ = -1;
+  pid_t zygote_diff_pid_ = -1;
 };
 
 struct ImgDiagMain : public CmdlineMain<ImgDiagArgs> {
@@ -1068,7 +1135,8 @@ struct ImgDiagMain : public CmdlineMain<ImgDiagArgs> {
 
     return DumpImage(runtime,
                      args_->os_,
-                     args_->image_diff_pid_) == EXIT_SUCCESS;
+                     args_->image_diff_pid_,
+                     args_->zygote_diff_pid_) == EXIT_SUCCESS;
   }
 };
 
