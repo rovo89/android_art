@@ -567,10 +567,10 @@ void HInstructionBuilder::Binop_22b(const Instruction& instruction, bool reverse
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
 
-static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, const CompilerDriver& driver) {
+static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, CompilerDriver* driver) {
   Thread* self = Thread::Current();
   return cu->IsConstructor()
-      && driver.RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
+      && driver->RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
 }
 
 // Returns true if `block` has only one successor which starts at the next
@@ -616,7 +616,7 @@ void HInstructionBuilder::BuildReturn(const Instruction& instruction,
     if (graph_->ShouldGenerateConstructorBarrier()) {
       // The compilation unit is null during testing.
       if (dex_compilation_unit_ != nullptr) {
-        DCHECK(RequiresConstructorBarrier(dex_compilation_unit_, *compiler_driver_))
+        DCHECK(RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_))
           << "Inconsistent use of ShouldGenerateConstructorBarrier. Should not generate a barrier.";
       }
       AppendInstruction(new (arena_) HMemoryBarrier(kStoreStore, dex_pc));
