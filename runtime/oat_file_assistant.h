@@ -279,7 +279,7 @@ class OatFileAssistant {
   static bool DexFilenameToOdexFilename(const std::string& location,
       InstructionSet isa, std::string* odex_filename, std::string* error_msg);
 
-  static uint32_t CalculateCombinedImageChecksum();
+  static uint32_t CalculateCombinedImageChecksum(InstructionSet isa = kRuntimeISA);
 
  private:
   struct ImageInfo {
