@@ -279,6 +279,8 @@ class OatFileAssistant {
   static bool DexFilenameToOdexFilename(const std::string& location,
       InstructionSet isa, std::string* odex_filename, std::string* error_msg);
 
+  static uint32_t CalculateCombinedImageChecksum();
+
  private:
   struct ImageInfo {
     uint32_t oat_checksum = 0;
@@ -352,6 +354,8 @@ class OatFileAssistant {
   // The caller shouldn't clean up or free the returned pointer.
   const ImageInfo* GetImageInfo();
 
+  uint32_t GetCombinedImageChecksum();
+
   // To implement Lock(), we lock a dummy file where the oat file would go
   // (adding ".flock" to the target file name) and retain the lock for the
   // remaining lifetime of the OatFileAssistant object.
@@ -423,6 +427,7 @@ class OatFileAssistant {
   bool image_info_load_attempted_ = false;
   bool image_info_load_succeeded_ = false;
   ImageInfo cached_image_info_;
+  uint32_t combined_image_checksum_ = 0;
 
   // For debugging only.
   // If this flag is set, the oat or odex file has been released to the user
