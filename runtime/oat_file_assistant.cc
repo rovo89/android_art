@@ -940,18 +940,27 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
     }
     image_info_load_succeeded_ = (!image_spaces.empty());
 
-    combined_image_checksum_ = CalculateCombinedImageChecksum();
+    combined_image_checksum_ = CalculateCombinedImageChecksum(isa_);
   }
   return image_info_load_succeeded_ ? &cached_image_info_ : nullptr;
 }
 
 // TODO: Use something better than xor.
-uint32_t OatFileAssistant::CalculateCombinedImageChecksum() {
+uint32_t OatFileAssistant::CalculateCombinedImageChecksum(InstructionSet isa) {
   uint32_t checksum = 0;
   std::vector<gc::space::ImageSpace*> image_spaces =
       Runtime::Current()->GetHeap()->GetBootImageSpaces();
-  for (gc::space::ImageSpace* image_space : image_spaces) {
-    checksum ^= image_space->GetImageHeader().GetOatChecksum();
+  if (isa == kRuntimeISA) {
+    for (gc::space::ImageSpace* image_space : image_spaces) {
+      checksum ^= image_space->GetImageHeader().GetOatChecksum();
+    }
+  } else {
+    for (gc::space::ImageSpace* image_space : image_spaces) {
+      std::string location = image_space->GetImageLocation();
+      std::unique_ptr<ImageHeader> image_header(
+          gc::space::ImageSpace::ReadImageHeaderOrDie(location.c_str(), isa));
+      checksum ^= image_header->GetOatChecksum();
+    }
   }
   return checksum;
 }
