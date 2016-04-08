@@ -267,6 +267,24 @@
           "libcore.util.NativeAllocationRegistryTest#testNullArguments"]
 },
 {
+  description: "libnativehelper_compat_libc++.so not found by dlopen on ARM64",
+  result: EXEC_FAILED,
+  modes: [device],
+  bug: 28082914,
+  names: ["libcore.java.lang.ThreadTest#testContextClassLoaderIsInherited",
+          "libcore.java.lang.ThreadTest#testContextClassLoaderIsNotNull",
+          "libcore.java.lang.ThreadTest#testGetAllStackTracesIncludesAllGroups",
+          "libcore.java.lang.ThreadTest#testGetStackTrace",
+          "libcore.java.lang.ThreadTest#testJavaContextClassLoader",
+          "libcore.java.lang.ThreadTest#testLeakingStartedThreads",
+          "libcore.java.lang.ThreadTest#testLeakingUnstartedThreads",
+          "libcore.java.lang.ThreadTest#testNativeThreadNames",
+          "libcore.java.lang.ThreadTest#testThreadInterrupted",
+          "libcore.java.lang.ThreadTest#testThreadSleep",
+          "libcore.java.lang.ThreadTest#testThreadSleepIllegalArguments",
+          "libcore.java.lang.ThreadTest#testThreadWakeup"]
+},
+{
   description: "Only work with --mode=activity",
   result: EXEC_FAILED,
   names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
