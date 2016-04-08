@@ -80,7 +80,7 @@ class JitCodeCache {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
-  void DoneCompiling(ArtMethod* method, Thread* self)
+  void DoneCompiling(ArtMethod* method, Thread* self, bool osr)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
