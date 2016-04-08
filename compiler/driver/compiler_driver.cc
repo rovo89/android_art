@@ -357,7 +357,7 @@ CompilerDriver::CompilerDriver(
       compiler_kind_(compiler_kind),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
-      freezing_constructor_lock_("freezing constructor lock"),
+      requires_constructor_barrier_lock_("constructor barrier lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_methods_(MethodTable::key_compare()),
@@ -2006,6 +2006,28 @@ static void CheckAndClearResolveException(Thread* self)
   self->ClearException();
 }
 
+bool CompilerDriver::RequiresConstructorBarrier(const DexFile& dex_file,
+                                                uint16_t class_def_idx) const {
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_idx);
+  const uint8_t* class_data = dex_file.GetClassData(class_def);
+  if (class_data == nullptr) {
+    // Empty class such as a marker interface.
+    return false;
+  }
+  ClassDataItemIterator it(dex_file, class_data);
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  // We require a constructor barrier if there are final instance fields.
+  while (it.HasNextInstanceField()) {
+    if (it.MemberIsFinal()) {
+      return true;
+    }
+    it.Next();
+  }
+  return false;
+}
+
 class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
  public:
   explicit ResolveClassFieldsAndMethodsVisitor(const ParallelCompilationManager* manager)
@@ -2110,9 +2132,10 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
         DCHECK(!it.HasNext());
       }
     }
-    if (requires_constructor_barrier) {
-      manager_->GetCompiler()->AddRequiresConstructorBarrier(self, &dex_file, class_def_index);
-    }
+    manager_->GetCompiler()->SetRequiresConstructorBarrier(self,
+                                                           &dex_file,
+                                                           class_def_index,
+                                                           requires_constructor_barrier);
   }
 
  private:
@@ -2769,16 +2792,29 @@ size_t CompilerDriver::GetNonRelativeLinkerPatchCount() const {
   return non_relative_linker_patch_count_;
 }
 
-void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
-                                                   uint16_t class_def_index) {
-  WriterMutexLock mu(self, freezing_constructor_lock_);
-  freezing_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
+void CompilerDriver::SetRequiresConstructorBarrier(Thread* self,
+                                                   const DexFile* dex_file,
+                                                   uint16_t class_def_index,
+                                                   bool requires) {
+  WriterMutexLock mu(self, requires_constructor_barrier_lock_);
+  requires_constructor_barrier_.emplace(ClassReference(dex_file, class_def_index), requires);
 }
 
-bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
-                                                uint16_t class_def_index) const {
-  ReaderMutexLock mu(self, freezing_constructor_lock_);
-  return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
+bool CompilerDriver::RequiresConstructorBarrier(Thread* self,
+                                                const DexFile* dex_file,
+                                                uint16_t class_def_index) {
+  ClassReference class_ref(dex_file, class_def_index);
+  {
+    ReaderMutexLock mu(self, requires_constructor_barrier_lock_);
+    auto it = requires_constructor_barrier_.find(class_ref);
+    if (it != requires_constructor_barrier_.end()) {
+      return it->second;
+    }
+  }
+  WriterMutexLock mu(self, requires_constructor_barrier_lock_);
+  const bool requires = RequiresConstructorBarrier(*dex_file, class_def_index);
+  requires_constructor_barrier_.emplace(class_ref, requires);
+  return requires;
 }
 
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
