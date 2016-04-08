@@ -358,7 +358,7 @@ if [ "$RELOCATE" = "y" ]; then
         # in 512 byte blocks and set it as the ulimit. This should be more than enough
         # room.
         if [ ! `uname` = "Darwin" ]; then  # TODO: Darwin doesn't support "du -B..."
-          ulimit -S $(du -c -B512 ${ANDROID_HOST_OUT}/framework | tail -1 | cut -f1) || exit 1
+          ulimit -S $(du -c -B512 ${ANDROID_HOST_OUT}/framework 2>/dev/null | tail -1 | cut -f1) || exit 1
         fi
     fi
 else
