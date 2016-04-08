@@ -213,7 +213,7 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
     return false;
   }
   bool success = jit_compile_method_(jit_compiler_handle_, method_to_compile, self, osr);
-  code_cache_->DoneCompiling(method_to_compile, self);
+  code_cache_->DoneCompiling(method_to_compile, self, osr);
   return success;
 }
 
