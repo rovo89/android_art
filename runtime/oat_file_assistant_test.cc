@@ -239,7 +239,8 @@ class OatFileAssistantTest : public CommonRuntimeTest {
       ASSERT_TRUE(!image_spaces.empty() && image_spaces[0] != nullptr);
       const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
       const OatHeader& oat_header = odex_file->GetOatHeader();
-      EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
+      uint32_t combined_checksum = OatFileAssistant::CalculateCombinedImageChecksum();
+      EXPECT_EQ(combined_checksum, oat_header.GetImageFileLocationOatChecksum());
       EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
           oat_header.GetImageFileLocationOatDataBegin());
       EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
