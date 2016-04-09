@@ -149,17 +149,16 @@ class ImageWriter FINAL {
   void RecordImageAllocations() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Classify different kinds of bins that objects end up getting packed into during image writing.
-  // Ordered from dirtiest to cleanest (until ArtMethods).
   enum Bin {
-    kBinMiscDirty,                // Dex caches, object locks, etc...
-    kBinClassVerified,            // Class verified, but initializers haven't been run
-    // Unknown mix of clean/dirty:
-    kBinRegular,
-    kBinClassInitialized,         // Class initializers have been run
-    // All classes get their own bins since their fields often dirty
-    kBinClassInitializedFinalStatics,  // Class initializers have been run, no non-final statics
     // Likely-clean:
     kBinString,                        // [String] Almost always immutable (except for obj header).
+    // Unknown mix of clean/dirty:
+    kBinRegular,
+    // Likely-dirty:
+    // All classes get their own bins since their fields often dirty
+    kBinClassInitializedFinalStatics,  // Class initializers have been run, no non-final statics
+    kBinClassInitialized,         // Class initializers have been run
+    kBinClassVerified,            // Class verified, but initializers haven't been run
     // Add more bins here if we add more segregation code.
     // Non mirror fields must be below.
     // ArtFields should be always clean.
