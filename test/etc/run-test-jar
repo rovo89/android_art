@@ -381,14 +381,15 @@ fi
 dex2oat_cmdline="true"
 mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
 
-app_image="--app-image-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.art | cut -d/ -f 2- | sed "s:/:@:g")"
+app_image="--app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
 
 if [ "$PREBUILD" = "y" ]; then
+  mkdir_cmdline="${mkdir_cmdline} && mkdir -p ${DEX_LOCATION}/oat/$ISA"
   dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
                       $COMPILE_FLAGS \
                       --boot-image=${BOOT_IMAGE} \
                       --dex-file=$DEX_LOCATION/$TEST_NAME.jar \
-                      --oat-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g") \
+                      --oat-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.odex \
                       ${app_image} \
                       --instruction-set=$ISA"
   if [ "x$INSTRUCTION_SET_FEATURES" != "x" ] ; then
