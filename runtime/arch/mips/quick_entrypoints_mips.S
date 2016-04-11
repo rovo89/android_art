@@ -319,6 +319,111 @@
 .endm
 
     /*
+     * On stack replacement stub.
+     * On entry:
+     *   a0 = stack to copy
+     *   a1 = size of stack
+     *   a2 = pc to call
+     *   a3 = JValue* result
+     *   [sp + 16] = shorty
+     *   [sp + 20] = thread
+     */
+ENTRY art_quick_osr_stub
+    // Save callee general purpose registers, RA and GP.
+    addiu  $sp, $sp, -48
+    .cfi_adjust_cfa_offset 48
+    sw     $ra, 44($sp)
+    .cfi_rel_offset 31, 44
+    sw     $s8, 40($sp)
+    .cfi_rel_offset 30, 40
+    sw     $gp, 36($sp)
+    .cfi_rel_offset 28, 36
+    sw     $s7, 32($sp)
+    .cfi_rel_offset 23, 32
+    sw     $s6, 28($sp)
+    .cfi_rel_offset 22, 28
+    sw     $s5, 24($sp)
+    .cfi_rel_offset 21, 24
+    sw     $s4, 20($sp)
+    .cfi_rel_offset 20, 20
+    sw     $s3, 16($sp)
+    .cfi_rel_offset 19, 16
+    sw     $s2, 12($sp)
+    .cfi_rel_offset 18, 12
+    sw     $s1, 8($sp)
+    .cfi_rel_offset 17, 8
+    sw     $s0, 4($sp)
+    .cfi_rel_offset 16, 4
+
+    move   $s8, $sp                        # Save the stack pointer
+    move   $s7, $a1                        # Save size of stack
+    move   $s6, $a2                        # Save the pc to call
+    lw     rSELF, 48+20($sp)               # Save managed thread pointer into rSELF
+    addiu  $t0, $sp, -12                   # Reserve space for stack pointer,
+                                           #    JValue* result, and ArtMethod* slot.
+    srl    $t0, $t0, 4                     # Align stack pointer to 16 bytes
+    sll    $sp, $t0, 4                     # Update stack pointer
+    sw     $s8, 4($sp)                     # Save old stack pointer
+    sw     $a3, 8($sp)                     # Save JValue* result
+    sw     $zero, 0($sp)                   # Store null for ArtMethod* at bottom of frame
+    subu   $sp, $a1                        # Reserve space for callee stack
+    move   $a2, $a1
+    move   $a1, $a0
+    move   $a0, $sp
+    la     $t9, memcpy
+    jalr   $t9                             # memcpy (dest a0, src a1, bytes a2)
+    addiu  $sp, $sp, -16                   # make space for argument slots for memcpy
+    bal    .Losr_entry                     # Call the method
+    addiu  $sp, $sp, 16                    # restore stack after memcpy
+    lw     $a2, 8($sp)                     # Restore JValue* result
+    lw     $sp, 4($sp)                     # Restore saved stack pointer
+    lw     $a0, 48+16($sp)                 # load shorty
+    lbu    $a0, 0($a0)                     # load return type
+    li     $a1, 'D'                        # put char 'D' into a1
+    beq    $a0, $a1, .Losr_fp_result       # Test if result type char == 'D'
+    li     $a1, 'F'                        # put char 'F' into a1
+    beq    $a0, $a1, .Losr_fp_result       # Test if result type char == 'F'
+    nop
+    sw     $v0, 0($a2)
+    b      .Losr_exit
+    sw     $v1, 4($a2)                     # store v0/v1 into result
+.Losr_fp_result:
+    SDu    $f0, $f1, 0, $a2, $t0           # store f0/f1 into result
+.Losr_exit:
+    lw     $ra, 44($sp)
+    .cfi_restore 31
+    lw     $s8, 40($sp)
+    .cfi_restore 30
+    lw     $gp, 36($sp)
+    .cfi_restore 28
+    lw     $s7, 32($sp)
+    .cfi_restore 23
+    lw     $s6, 28($sp)
+    .cfi_restore 22
+    lw     $s5, 24($sp)
+    .cfi_restore 21
+    lw     $s4, 20($sp)
+    .cfi_restore 20
+    lw     $s3, 16($sp)
+    .cfi_restore 19
+    lw     $s2, 12($sp)
+    .cfi_restore 18
+    lw     $s1, 8($sp)
+    .cfi_restore 17
+    lw     $s0, 4($sp)
+    .cfi_restore 16
+    jalr   $zero, $ra
+    addiu  $sp, $sp, 48
+    .cfi_adjust_cfa_offset -48
+.Losr_entry:
+    addiu  $s7, $s7, -4
+    addu   $t0, $s7, $sp
+    move   $t9, $s6
+    jalr   $zero, $t9
+    sw     $ra, 0($t0)                     # Store RA per the compiler ABI
+END art_quick_osr_stub
+
+    /*
      * On entry $a0 is uint32_t* gprs_ and $a1 is uint32_t* fprs_
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
