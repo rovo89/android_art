@@ -1247,7 +1247,7 @@ ENTRY art_quick_imt_conflict_trampoline
     ldr r4, [r0, #(2 * __SIZEOF_POINTER__)]!
     b .Limt_table_iterate
 .Limt_table_found:
-    // We successuflly hit an entry in the table. Load the target method
+    // We successfully hit an entry in the table. Load the target method
     // and jump to it.
     ldr r0, [r0, #__SIZEOF_POINTER__]
     ldr pc, [r0, #ART_METHOD_QUICK_CODE_OFFSET_32]

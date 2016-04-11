@@ -1422,7 +1422,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
 .Limt_table_iterate:
     cmpl %edi, 0(%eax)
     jne .Limt_table_next_entry
-    // We successuflly hit an entry in the table. Load the target method
+    // We successfully hit an entry in the table. Load the target method
     // and jump to it.
     POP EDI
     movl __SIZEOF_POINTER__(%eax), %eax
