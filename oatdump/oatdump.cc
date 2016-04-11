@@ -1052,22 +1052,6 @@ class OatDumper {
     }
   }
 
-  void DumpInformationAtOffset(VariableIndentationOutputStream* vios,
-                               const OatFile::OatMethod& oat_method,
-                               const DexFile::CodeItem* code_item,
-                               size_t offset,
-                               bool suspend_point_mapping) {
-    if (!IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
-      // Native method.
-      return;
-    }
-    if (suspend_point_mapping) {
-      ScopedIndentation indent1(vios);
-      DumpDexRegisterMapAtOffset(vios, oat_method, code_item, offset);
-    }
-  }
-
-
   void DumpDexCode(std::ostream& os, const DexFile& dex_file, const DexFile::CodeItem* code_item) {
     if (code_item != nullptr) {
       size_t i = 0;
@@ -1104,27 +1088,6 @@ class OatDumper {
            code_item != nullptr;
   }
 
-  void DumpDexRegisterMapAtOffset(VariableIndentationOutputStream* vios,
-                                  const OatFile::OatMethod& oat_method,
-                                  const DexFile::CodeItem* code_item,
-                                  size_t offset) {
-    // This method is only relevant for oat methods compiled with the
-    // optimizing compiler.
-    DCHECK(IsMethodGeneratedByOptimizingCompiler(oat_method, code_item));
-
-    // The optimizing compiler outputs its CodeInfo data in the vmap table.
-    const void* raw_code_info = oat_method.GetVmapTable();
-    if (raw_code_info != nullptr) {
-      CodeInfo code_info(raw_code_info);
-      CodeInfoEncoding encoding = code_info.ExtractEncoding();
-      StackMap stack_map = code_info.GetStackMapForNativePcOffset(offset, encoding);
-      if (stack_map.IsValid()) {
-        stack_map.Dump(vios, code_info, encoding, oat_method.GetCodeOffset(),
-                       code_item->registers_size_);
-      }
-    }
-  }
-
   verifier::MethodVerifier* DumpVerifier(VariableIndentationOutputStream* vios,
                                          StackHandleScope<1>* hs,
                                          uint32_t dex_method_idx,
@@ -1147,6 +1110,91 @@ class OatDumper {
     return nullptr;
   }
 
+  // The StackMapsHelper provides the stack maps in the native PC order.
+  // For identical native PCs, the order from the CodeInfo is preserved.
+  class StackMapsHelper {
+   public:
+    explicit StackMapsHelper(const uint8_t* raw_code_info)
+        : code_info_(raw_code_info),
+          encoding_(code_info_.ExtractEncoding()),
+          number_of_stack_maps_(code_info_.GetNumberOfStackMaps(encoding_)),
+          indexes_(),
+          offset_(static_cast<size_t>(-1)),
+          stack_map_index_(0u) {
+      if (number_of_stack_maps_ != 0u) {
+        // Check if native PCs are ordered.
+        bool ordered = true;
+        StackMap last = code_info_.GetStackMapAt(0u, encoding_);
+        for (size_t i = 1; i != number_of_stack_maps_; ++i) {
+          StackMap current = code_info_.GetStackMapAt(i, encoding_);
+          if (last.GetNativePcOffset(encoding_.stack_map_encoding) >
+              current.GetNativePcOffset(encoding_.stack_map_encoding)) {
+            ordered = false;
+            break;
+          }
+          last = current;
+        }
+        if (!ordered) {
+          // Create indirection indexes for access in native PC order. We do not optimize
+          // for the fact that there can currently be only two separately ordered ranges,
+          // namely normal stack maps and catch-point stack maps.
+          indexes_.resize(number_of_stack_maps_);
+          std::iota(indexes_.begin(), indexes_.end(), 0u);
+          std::sort(indexes_.begin(),
+                    indexes_.end(),
+                    [this](size_t lhs, size_t rhs) {
+                      StackMap left = code_info_.GetStackMapAt(lhs, encoding_);
+                      uint32_t left_pc = left.GetNativePcOffset(encoding_.stack_map_encoding);
+                      StackMap right = code_info_.GetStackMapAt(rhs, encoding_);
+                      uint32_t right_pc = right.GetNativePcOffset(encoding_.stack_map_encoding);
+                      // If the PCs are the same, compare indexes to preserve the original order.
+                      return (left_pc < right_pc) || (left_pc == right_pc && lhs < rhs);
+                    });
+        }
+        offset_ = GetStackMapAt(0).GetNativePcOffset(encoding_.stack_map_encoding);
+      }
+    }
+
+    const CodeInfo& GetCodeInfo() const {
+      return code_info_;
+    }
+
+    const CodeInfoEncoding& GetEncoding() const {
+      return encoding_;
+    }
+
+    size_t GetOffset() const {
+      return offset_;
+    }
+
+    StackMap GetStackMap() const {
+      return GetStackMapAt(stack_map_index_);
+    }
+
+    void Next() {
+      ++stack_map_index_;
+      offset_ = (stack_map_index_ == number_of_stack_maps_)
+          ? static_cast<size_t>(-1)
+          : GetStackMapAt(stack_map_index_).GetNativePcOffset(encoding_.stack_map_encoding);
+    }
+
+   private:
+    StackMap GetStackMapAt(size_t i) const {
+      if (!indexes_.empty()) {
+        i = indexes_[i];
+      }
+      DCHECK_LT(i, number_of_stack_maps_);
+      return code_info_.GetStackMapAt(i, encoding_);
+    }
+
+    const CodeInfo code_info_;
+    const CodeInfoEncoding encoding_;
+    const size_t number_of_stack_maps_;
+    dchecked_vector<size_t> indexes_;  // Used if stack map native PCs are not ordered.
+    size_t offset_;
+    size_t stack_map_index_;
+  };
+
   void DumpCode(VariableIndentationOutputStream* vios,
                 const OatFile::OatMethod& oat_method, const DexFile::CodeItem* code_item,
                 bool bad_input, size_t code_size) {
@@ -1158,17 +1206,34 @@ class OatDumper {
     if (code_size == 0 || quick_code == nullptr) {
       vios->Stream() << "NO CODE!\n";
       return;
+    } else if (!bad_input && IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
+      // The optimizing compiler outputs its CodeInfo data in the vmap table.
+      StackMapsHelper helper(oat_method.GetVmapTable());
+      const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
+      size_t offset = 0;
+      while (offset < code_size) {
+        offset += disassembler_->Dump(vios->Stream(), quick_native_pc + offset);
+        if (offset == helper.GetOffset()) {
+          ScopedIndentation indent1(vios);
+          StackMap stack_map = helper.GetStackMap();
+          DCHECK(stack_map.IsValid());
+          stack_map.Dump(vios,
+                         helper.GetCodeInfo(),
+                         helper.GetEncoding(),
+                         oat_method.GetCodeOffset(),
+                         code_item->registers_size_);
+          do {
+            helper.Next();
+            // There may be multiple stack maps at a given PC. We display only the first one.
+          } while (offset == helper.GetOffset());
+        }
+        DCHECK_LT(offset, helper.GetOffset());
+      }
     } else {
       const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
       size_t offset = 0;
       while (offset < code_size) {
-        if (!bad_input) {
-          DumpInformationAtOffset(vios, oat_method, code_item, offset, false);
-        }
         offset += disassembler_->Dump(vios->Stream(), quick_native_pc + offset);
-        if (!bad_input) {
-          DumpInformationAtOffset(vios, oat_method, code_item, offset, true);
-        }
       }
     }
   }
