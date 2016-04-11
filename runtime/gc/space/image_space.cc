@@ -703,6 +703,11 @@ class FixupVisitor : public ValueObject {
     return src;
   }
 
+  // Must be called on pointers that already have been relocated to the destination relocation.
+  ALWAYS_INLINE bool IsInAppImage(mirror::Object* object) const {
+    return app_image_.InDest(reinterpret_cast<uintptr_t>(object));
+  }
+
  protected:
   // Source section.
   const RelocationRange boot_image_;
@@ -717,33 +722,9 @@ class FixupObjectAdapter : public FixupVisitor {
   template<typename... Args>
   explicit FixupObjectAdapter(Args... args) : FixupVisitor(args...) {}
 
-  // Must be called on pointers that already have been relocated to the destination relocation.
-  ALWAYS_INLINE bool IsInAppImage(mirror::Object* object) const {
-    return app_image_.InDest(reinterpret_cast<uintptr_t>(object));
-  }
-
   template <typename T>
   T* operator()(T* obj) const {
     return ForwardObject(obj);
-  }
-};
-
-class FixupClassVisitor : public FixupVisitor {
- public:
-  template<typename... Args>
-  explicit FixupClassVisitor(Args... args) : FixupVisitor(args...) {}
-
-  // The image space is contained so the GC doesn't need to know about it. Avoid requiring mutator
-  // lock to prevent possible pauses.
-  ALWAYS_INLINE void operator()(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
-    mirror::Class* klass = obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
-    DCHECK(klass != nullptr) << "Null class in image";
-    // No AsClass since our fields aren't quite fixed up yet.
-    mirror::Class* new_klass = down_cast<mirror::Class*>(ForwardObject(klass));
-    // Keep clean if possible.
-    if (klass != new_klass) {
-      obj->SetClass<kVerifyNone>(new_klass);
-    }
   }
 };
 
@@ -772,12 +753,12 @@ class FixupRootVisitor : public FixupVisitor {
 class FixupObjectVisitor : public FixupVisitor {
  public:
   template<typename... Args>
-  explicit FixupObjectVisitor(gc::accounting::ContinuousSpaceBitmap* pointer_array_visited,
+  explicit FixupObjectVisitor(gc::accounting::ContinuousSpaceBitmap* visited,
                               const size_t pointer_size,
                               Args... args)
       : FixupVisitor(args...),
         pointer_size_(pointer_size),
-        pointer_array_visited_(pointer_array_visited) {}
+        visited_(visited) {}
 
   // Fix up separately since we also need to fix up method entrypoints.
   ALWAYS_INLINE void VisitRootIfNonNull(
@@ -805,13 +786,20 @@ class FixupObjectVisitor : public FixupVisitor {
   // Visit a pointer array and forward corresponding native data. Ignores pointer arrays in the
   // boot image. Uses the bitmap to ensure the same array is not visited multiple times.
   template <typename Visitor>
-  void VisitPointerArray(mirror::PointerArray* array, const Visitor& visitor) const
+  void UpdatePointerArrayContents(mirror::PointerArray* array, const Visitor& visitor) const
       NO_THREAD_SAFETY_ANALYSIS {
-    if (array != nullptr &&
-        visitor.IsInAppImage(array) &&
-        !pointer_array_visited_->Test(array)) {
+    DCHECK(array != nullptr);
+    DCHECK(visitor.IsInAppImage(array));
+    // The bit for the array contents is different than the bit for the array. Since we may have
+    // already visited the array as a long / int array from walking the bitmap without knowing it
+    // was a pointer array.
+    static_assert(kObjectAlignment == 8u, "array bit may be in another object");
+    mirror::Object* const contents_bit = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<uintptr_t>(array) + kObjectAlignment);
+    // If the bit is not set then the contents have not yet been updated.
+    if (!visited_->Test(contents_bit)) {
       array->Fixup<kVerifyNone, kWithoutReadBarrier>(array, pointer_size_, visitor);
-      pointer_array_visited_->Set(array);
+      visited_->Set(contents_bit);
     }
   }
 
@@ -825,25 +813,60 @@ class FixupObjectVisitor : public FixupVisitor {
   }
 
   ALWAYS_INLINE void operator()(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+    if (visited_->Test(obj)) {
+      // Already visited.
+      return;
+    }
+    visited_->Set(obj);
+
+    // Handle class specially first since we need it to be updated to properly visit the rest of
+    // the instance fields.
+    {
+      mirror::Class* klass = obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
+      DCHECK(klass != nullptr) << "Null class in image";
+      // No AsClass since our fields aren't quite fixed up yet.
+      mirror::Class* new_klass = down_cast<mirror::Class*>(ForwardObject(klass));
+      if (klass != new_klass) {
+        obj->SetClass<kVerifyNone>(new_klass);
+      }
+      if (new_klass != klass && IsInAppImage(new_klass)) {
+        // Make sure the klass contents are fixed up since we depend on it to walk the fields.
+        operator()(new_klass);
+      }
+    }
+
     obj->VisitReferences</*visit native roots*/false, kVerifyNone, kWithoutReadBarrier>(
         *this,
         *this);
+    // Note that this code relies on no circular dependencies.
     // We want to use our own class loader and not the one in the image.
     if (obj->IsClass<kVerifyNone, kWithoutReadBarrier>()) {
-      mirror::Class* klass = obj->AsClass<kVerifyNone, kWithoutReadBarrier>();
+      mirror::Class* as_klass = obj->AsClass<kVerifyNone, kWithoutReadBarrier>();
       FixupObjectAdapter visitor(boot_image_, boot_oat_, app_image_, app_oat_);
-      klass->FixupNativePointers<kVerifyNone, kWithoutReadBarrier>(klass, pointer_size_, visitor);
+      as_klass->FixupNativePointers<kVerifyNone, kWithoutReadBarrier>(as_klass,
+                                                                      pointer_size_,
+                                                                      visitor);
       // Deal with the pointer arrays. Use the helper function since multiple classes can reference
       // the same arrays.
-      VisitPointerArray(klass->GetVTable<kVerifyNone, kWithoutReadBarrier>(), visitor);
-      mirror::IfTable* iftable = klass->GetIfTable<kVerifyNone, kWithoutReadBarrier>();
-      if (iftable != nullptr) {
+      mirror::PointerArray* const vtable = as_klass->GetVTable<kVerifyNone, kWithoutReadBarrier>();
+      if (vtable != nullptr && IsInAppImage(vtable)) {
+        operator()(vtable);
+        UpdatePointerArrayContents(vtable, visitor);
+      }
+      mirror::IfTable* iftable = as_klass->GetIfTable<kVerifyNone, kWithoutReadBarrier>();
+      // Ensure iftable arrays are fixed up since we need GetMethodArray to return the valid
+      // contents.
+      if (iftable != nullptr && IsInAppImage(iftable)) {
+        operator()(iftable);
         for (int32_t i = 0, count = iftable->Count(); i < count; ++i) {
           if (iftable->GetMethodArrayCount<kVerifyNone, kWithoutReadBarrier>(i) > 0) {
             mirror::PointerArray* methods =
                 iftable->GetMethodArray<kVerifyNone, kWithoutReadBarrier>(i);
-            DCHECK(methods != nullptr);
-            VisitPointerArray(methods, visitor);
+            if (visitor.IsInAppImage(methods)) {
+              operator()(methods);
+              DCHECK(methods != nullptr);
+              UpdatePointerArrayContents(methods, visitor);
+            }
           }
         }
       }
@@ -852,7 +875,7 @@ class FixupObjectVisitor : public FixupVisitor {
 
  private:
   const size_t pointer_size_;
-  gc::accounting::ContinuousSpaceBitmap* const pointer_array_visited_;
+  gc::accounting::ContinuousSpaceBitmap* const visited_;
 };
 
 class ForwardObjectAdapter {
@@ -994,7 +1017,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
     // Two pass approach, fix up all classes first, then fix up non class-objects.
     // The visited bitmap is used to ensure that pointer arrays are not forwarded twice.
     std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> visited_bitmap(
-        gc::accounting::ContinuousSpaceBitmap::Create("Pointer array bitmap",
+        gc::accounting::ContinuousSpaceBitmap::Create("Relocate bitmap",
                                                       target_base,
                                                       image_header.GetImageSize()));
     FixupObjectVisitor fixup_object_visitor(visited_bitmap.get(),
@@ -1004,10 +1027,6 @@ static bool RelocateInPlace(ImageHeader& image_header,
                                             app_image,
                                             app_oat);
     TimingLogger::ScopedTiming timing("Fixup classes", &logger);
-    // Fixup class only touches app image classes, don't need the mutator lock since the space is
-    // not yet visible to the GC.
-    FixupClassVisitor fixup_class_visitor(boot_image, boot_oat, app_image, app_oat);
-    bitmap->VisitMarkedRange(objects_begin, objects_end, fixup_class_visitor);
     // Fixup objects may read fields in the boot image, use the mutator lock here for sanity. Though
     // its probably not required.
     ScopedObjectAccess soa(Thread::Current());

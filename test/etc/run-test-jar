@@ -381,7 +381,8 @@ fi
 dex2oat_cmdline="true"
 mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
 
-app_image="--app-image-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.art | cut -d/ -f 2- | sed "s:/:@:g")"
+# Pick a base that will force the app image to get relocated.
+app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.art | cut -d/ -f 2- | sed "s:/:@:g")"
 
 if [ "$PREBUILD" = "y" ]; then
   dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
