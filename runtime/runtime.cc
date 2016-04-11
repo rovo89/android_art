@@ -204,6 +204,7 @@ Runtime::Runtime()
       implicit_so_checks_(false),
       implicit_suspend_checks_(false),
       no_sig_chain_(false),
+      force_native_bridge_(false),
       is_native_bridge_loaded_(false),
       is_native_debuggable_(false),
       zygote_max_failed_boots_(0),
@@ -211,9 +212,11 @@ Runtime::Runtime()
       oat_file_manager_(nullptr),
       is_low_memory_mode_(false),
       safe_mode_(false),
+      dump_native_stack_on_sig_quit_(true),
       pruned_dalvik_cache_(false),
       // Initially assume we perceive jank in case the process state is never updated.
-      process_state_(kProcessStateJankPerceptible) {
+      process_state_(kProcessStateJankPerceptible),
+      zygote_no_threads_(false) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
   interpreter::CheckInterpreterAsmConstants();
