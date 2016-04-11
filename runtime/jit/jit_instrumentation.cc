@@ -183,9 +183,8 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, uint16
       thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
     }
   }
-  // Update hotness counter, but avoid wrap around.
-  method->SetCounter(
-      std::min(new_count, static_cast<int32_t>(std::numeric_limits<uint16_t>::max())));
+  // Update hotness counter
+  method->SetCounter(new_count);
 }
 
 JitInstrumentationListener::JitInstrumentationListener(JitInstrumentationCache* cache)

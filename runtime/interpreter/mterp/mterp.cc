@@ -718,6 +718,11 @@ extern "C" bool MterpMaybeDoOnStackReplacement(Thread* self,
   ArtMethod* method = shadow_frame->GetMethod();
   JValue* result = shadow_frame->GetResultRegister();
   uint32_t dex_pc = shadow_frame->GetDexPC();
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (offset <= 0) {
+    // Keep updating hotness in case a compilation request was dropped.  Eventually it will retry.
+    jit->GetInstrumentationCache()->AddSamples(self, method, 1);
+  }
   // Assumes caller has already determined that an OSR check is appropriate.
   return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);
 }
