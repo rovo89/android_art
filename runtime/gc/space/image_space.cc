@@ -961,9 +961,14 @@ static bool RelocateInPlace(ImageHeader& image_header,
   const size_t pointer_size = image_header.GetPointerSize();
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   heap->GetBootImagesSize(&boot_image_begin, &boot_image_end, &boot_oat_begin, &boot_oat_end);
-  CHECK_NE(boot_image_begin, boot_image_end)
-      << "Can not relocate app image without boot image space";
-  CHECK_NE(boot_oat_begin, boot_oat_end) << "Can not relocate app image without boot oat file";
+  if (boot_image_begin == boot_image_end) {
+    *error_msg = "Can not relocate app image without boot image space";
+    return false;
+  }
+  if (boot_oat_begin == boot_oat_end) {
+    *error_msg = "Can not relocate app image without boot oat file";
+    return false;
+  }
   const uint32_t boot_image_size = boot_image_end - boot_image_begin;
   const uint32_t boot_oat_size = boot_oat_end - boot_oat_begin;
   const uint32_t image_header_boot_image_size = image_header.GetBootImageSize();
