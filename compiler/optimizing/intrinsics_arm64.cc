@@ -1819,39 +1819,32 @@ static void GenSystemArrayCopyAddresses(vixl::MacroAssembler* masm,
                                         const Register& dst_base,
                                         const Register& src_end) {
   DCHECK(type == Primitive::kPrimNot || type == Primitive::kPrimChar)
-         << "Unexpected element type: "
-         << type;
-  const int32_t char_size = Primitive::ComponentSize(type);
-  const int32_t char_size_shift = Primitive::ComponentSizeShift(type);
+      << "Unexpected element type: " << type;
+  const int32_t element_size = Primitive::ComponentSize(type);
+  const int32_t element_size_shift = Primitive::ComponentSizeShift(type);
 
-  uint32_t offset = mirror::Array::DataOffset(char_size).Uint32Value();
+  uint32_t data_offset = mirror::Array::DataOffset(element_size).Uint32Value();
   if (src_pos.IsConstant()) {
     int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
-    __ Add(src_base, src, char_size * constant + offset);
+    __ Add(src_base, src, element_size * constant + data_offset);
   } else {
-    __ Add(src_base, src, offset);
-    __ Add(src_base,
-           src_base,
-           Operand(XRegisterFrom(src_pos), LSL, char_size_shift));
+    __ Add(src_base, src, data_offset);
+    __ Add(src_base, src_base, Operand(XRegisterFrom(src_pos), LSL, element_size_shift));
   }
 
   if (dst_pos.IsConstant()) {
     int32_t constant = dst_pos.GetConstant()->AsIntConstant()->GetValue();
-    __ Add(dst_base, dst, char_size * constant + offset);
+    __ Add(dst_base, dst, element_size * constant + data_offset);
   } else {
-    __ Add(dst_base, dst, offset);
-    __ Add(dst_base,
-           dst_base,
-           Operand(XRegisterFrom(dst_pos), LSL, char_size_shift));
+    __ Add(dst_base, dst, data_offset);
+    __ Add(dst_base, dst_base, Operand(XRegisterFrom(dst_pos), LSL, element_size_shift));
   }
 
   if (copy_length.IsConstant()) {
     int32_t constant = copy_length.GetConstant()->AsIntConstant()->GetValue();
-    __ Add(src_end, src_base, char_size * constant);
+    __ Add(src_end, src_base, element_size * constant);
   } else {
-    __ Add(src_end,
-           src_base,
-           Operand(XRegisterFrom(copy_length), LSL, char_size_shift));
+    __ Add(src_end, src_base, Operand(XRegisterFrom(copy_length), LSL, element_size_shift));
   }
 }
 
