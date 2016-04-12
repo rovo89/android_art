@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+
 /**
  * Class loader test.
  */
@@ -62,6 +65,28 @@ public class Main {
         testSeparation();
 
         testClassForName();
+
+        testNullClassLoader();
+    }
+
+    static void testNullClassLoader() {
+        try {
+            /* this is the "alternate" DEX/Jar file */
+            String DEX_FILE = System.getenv("DEX_LOCATION") + "/068-classloader-ex.jar";
+            /* on Dalvik, this is a DexFile; otherwise, it's null */
+            Class mDexClass = Class.forName("dalvik.system.DexFile");
+            Constructor ctor = mDexClass.getConstructor(new Class[] {String.class});
+            Object mDexFile = ctor.newInstance(DEX_FILE);
+            Method meth = mDexClass.getMethod("loadClass",
+                    new Class[] { String.class, ClassLoader.class });
+            Object klass = meth.invoke(mDexFile, "Mutator", null);
+            if (klass == null) {
+                throw new AssertionError("loadClass with nullclass loader failed");
+            }
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+        System.out.println("Loaded class into null class loader");
     }
 
     static void testSeparation() {
