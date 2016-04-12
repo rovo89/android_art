@@ -416,7 +416,8 @@ class ImgDiagDumper {
     // Look up local classes by their descriptor
     std::map<std::string, mirror::Class*> local_class_map;
 
-    std::unordered_set<mirror::Object*> dirty_objects;
+    // Use set to have sorted output.
+    std::set<mirror::Object*> dirty_objects;
 
     size_t dirty_object_bytes = 0;
     const uint8_t* begin_image_ptr = image_begin_unaligned;
