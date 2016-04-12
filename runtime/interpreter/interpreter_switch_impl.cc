@@ -18,7 +18,6 @@
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
-#include "jit/jit_instrumentation.h"
 #include "safe_math.h"
 
 #include <memory>  // std::unique_ptr
@@ -74,7 +73,9 @@ namespace interpreter {
 
 #define BRANCH_INSTRUMENTATION(offset)                                                         \
   do {                                                                                         \
-    instrumentation->Branch(self, method, dex_pc, offset);                                     \
+    if (UNLIKELY(instrumentation->HasBranchListeners())) {                                     \
+      instrumentation->Branch(self, method, dex_pc, offset);                                   \
+    }                                                                                          \
     JValue result;                                                                             \
     if (jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, &result)) {          \
       if (interpret_one_instruction) {                                                         \
@@ -87,8 +88,8 @@ namespace interpreter {
 
 #define HOTNESS_UPDATE()                                                                       \
   do {                                                                                         \
-    if (jit_instrumentation_cache != nullptr) {                                                \
-      jit_instrumentation_cache->AddSamples(self, method, 1);                                  \
+    if (jit != nullptr) {                                                                      \
+      jit->AddSamples(self, method, 1);                                                        \
     }                                                                                          \
   } while (false)
 
@@ -115,10 +116,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   uint16_t inst_data;
   ArtMethod* method = shadow_frame.GetMethod();
   jit::Jit* jit = Runtime::Current()->GetJit();
-  jit::JitInstrumentationCache* jit_instrumentation_cache = nullptr;
-  if (jit != nullptr) {
-    jit_instrumentation_cache = jit->GetInstrumentationCache();
-  }
 
   // TODO: collapse capture-variable+create-lambda into one opcode, then we won't need
   // to keep this live for the scope of the entire function call.

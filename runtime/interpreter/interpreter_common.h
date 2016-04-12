@@ -34,6 +34,7 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
+#include "jit/jit.h"
 #include "lambda/art_lambda_method.h"
 #include "lambda/box_table.h"
 #include "lambda/closure.h"
@@ -628,6 +629,15 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
     result->SetJ(0);
     return false;
   } else {
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    if (jit != nullptr) {
+      if (type == kVirtual || type == kInterface) {
+        jit->InvokeVirtualOrInterface(
+            self, receiver, sf_method, shadow_frame.GetDexPC(), called_method);
+      }
+      jit->AddSamples(self, sf_method, 1);
+    }
+    // TODO: Remove the InvokeVirtualOrInterface instrumentation, as it was only used by the JIT.
     if (type == kVirtual || type == kInterface) {
       instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
       if (UNLIKELY(instrumentation->HasInvokeVirtualOrInterfaceListeners())) {
@@ -667,7 +677,14 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     result->SetJ(0);
     return false;
   } else {
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    if (jit != nullptr) {
+      jit->InvokeVirtualOrInterface(
+          self, receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
+      jit->AddSamples(self, shadow_frame.GetMethod(), 1);
+    }
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    // TODO: Remove the InvokeVirtualOrInterface instrumentation, as it was only used by the JIT.
     if (UNLIKELY(instrumentation->HasInvokeVirtualOrInterfaceListeners())) {
       instrumentation->InvokeVirtualOrInterface(
           self, receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);

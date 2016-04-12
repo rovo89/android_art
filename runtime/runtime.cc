@@ -1921,16 +1921,7 @@ void Runtime::CreateJit() {
   }
   std::string error_msg;
   jit_.reset(jit::Jit::Create(jit_options_.get(), &error_msg));
-  if (jit_.get() != nullptr) {
-    jit_->CreateInstrumentationCache(jit_options_->GetCompileThreshold(),
-                                     jit_options_->GetWarmupThreshold(),
-                                     jit_options_->GetOsrThreshold(),
-                                     jit_options_->GetPriorityThreadWeight());
-    jit_->CreateThreadPool();
-
-    // Notify native debugger about the classes already loaded before the creation of the jit.
-    jit_->DumpTypeInfoForLoadedTypes(GetClassLinker());
-  } else {
+  if (jit_.get() == nullptr) {
     LOG(WARNING) << "Failed to create JIT " << error_msg;
   }
 }

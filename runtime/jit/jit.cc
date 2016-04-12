@@ -23,7 +23,6 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
 #include "jit_code_cache.h"
-#include "jit_instrumentation.h"
 #include "oat_file_manager.h"
 #include "oat_quick_method_header.h"
 #include "offline_profiling_info.h"
@@ -31,12 +30,15 @@
 #include "runtime.h"
 #include "runtime_options.h"
 #include "stack_map.h"
+#include "thread_list.h"
 #include "utils.h"
 
 namespace art {
 namespace jit {
 
 static constexpr bool kEnableOnStackReplacement = true;
+// At what priority to schedule jit threads. 9 is the lowest foreground priority on device.
+static constexpr int kJitPoolThreadPthreadPriority = 9;
 
 // JIT compiler
 void* Jit::jit_library_handle_= nullptr;
@@ -151,6 +153,16 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
       << ", max_capacity=" << PrettySize(options->GetCodeCacheMaxCapacity())
       << ", compile_threshold=" << options->GetCompileThreshold()
       << ", save_profiling_info=" << options->GetSaveProfilingInfo();
+
+
+  jit->hot_method_threshold_ = options->GetCompileThreshold();
+  jit->warm_method_threshold_ = options->GetWarmupThreshold();
+  jit->osr_method_threshold_ = options->GetOsrThreshold();
+
+  jit->CreateThreadPool();
+
+  // Notify native debugger about the classes already loaded before the creation of the jit.
+  jit->DumpTypeInfoForLoadedTypes(Runtime::Current()->GetClassLinker());
   return jit.release();
 }
 
@@ -238,13 +250,31 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
 }
 
 void Jit::CreateThreadPool() {
-  CHECK(instrumentation_cache_.get() != nullptr);
-  instrumentation_cache_->CreateThreadPool();
+  // There is a DCHECK in the 'AddSamples' method to ensure the tread pool
+  // is not null when we instrument.
+  thread_pool_.reset(new ThreadPool("Jit thread pool", 1));
+  thread_pool_->SetPthreadPriority(kJitPoolThreadPthreadPriority);
+  thread_pool_->StartWorkers(Thread::Current());
 }
 
 void Jit::DeleteThreadPool() {
-  if (instrumentation_cache_.get() != nullptr) {
-    instrumentation_cache_->DeleteThreadPool(Thread::Current());
+  Thread* self = Thread::Current();
+  DCHECK(Runtime::Current()->IsShuttingDown(self));
+  if (thread_pool_ != nullptr) {
+    ThreadPool* cache = nullptr;
+    {
+      ScopedSuspendAll ssa(__FUNCTION__);
+      // Clear thread_pool_ field while the threads are suspended.
+      // A mutator in the 'AddSamples' method will check against it.
+      cache = thread_pool_.release();
+    }
+    cache->StopWorkers(self);
+    cache->RemoveAllTasks(self);
+    // We could just suspend all threads, but we know those threads
+    // will finish in a short period, so it's not worth adding a suspend logic
+    // here. Besides, this is only done for shutdown.
+    cache->Wait(self, false, false);
+    delete cache;
   }
 }
 
@@ -264,10 +294,7 @@ void Jit::StopProfileSaver() {
 }
 
 bool Jit::JitAtFirstUse() {
-  if (instrumentation_cache_ != nullptr) {
-    return instrumentation_cache_->HotMethodThreshold() == 0;
-  }
-  return false;
+  return HotMethodThreshold() == 0;
 }
 
 bool Jit::CanInvokeCompiledCode(ArtMethod* method) {
@@ -288,17 +315,6 @@ Jit::~Jit() {
     dlclose(jit_library_handle_);
     jit_library_handle_ = nullptr;
   }
-}
-
-void Jit::CreateInstrumentationCache(size_t compile_threshold,
-                                     size_t warmup_threshold,
-                                     size_t osr_threshold,
-                                     uint16_t priority_thread_weight) {
-  instrumentation_cache_.reset(
-      new jit::JitInstrumentationCache(compile_threshold,
-                                       warmup_threshold,
-                                       osr_threshold,
-                                       priority_thread_weight));
 }
 
 void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
@@ -483,6 +499,165 @@ void Jit::AddMemoryUsage(ArtMethod* method, size_t bytes) {
   }
   MutexLock mu(Thread::Current(), lock_);
   memory_use_.AddValue(bytes);
+}
+
+class JitCompileTask FINAL : public Task {
+ public:
+  enum TaskKind {
+    kAllocateProfile,
+    kCompile,
+    kCompileOsr
+  };
+
+  JitCompileTask(ArtMethod* method, TaskKind kind) : method_(method), kind_(kind) {
+    ScopedObjectAccess soa(Thread::Current());
+    // Add a global ref to the class to prevent class unloading until compilation is done.
+    klass_ = soa.Vm()->AddGlobalRef(soa.Self(), method_->GetDeclaringClass());
+    CHECK(klass_ != nullptr);
+  }
+
+  ~JitCompileTask() {
+    ScopedObjectAccess soa(Thread::Current());
+    soa.Vm()->DeleteGlobalRef(soa.Self(), klass_);
+  }
+
+  void Run(Thread* self) OVERRIDE {
+    ScopedObjectAccess soa(self);
+    if (kind_ == kCompile) {
+      VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
+      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ false)) {
+        VLOG(jit) << "Failed to compile method " << PrettyMethod(method_);
+      }
+    } else if (kind_ == kCompileOsr) {
+      VLOG(jit) << "JitCompileTask compiling method osr " << PrettyMethod(method_);
+      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ true)) {
+        VLOG(jit) << "Failed to compile method osr " << PrettyMethod(method_);
+      }
+    } else {
+      DCHECK(kind_ == kAllocateProfile);
+      if (ProfilingInfo::Create(self, method_, /* retry_allocation */ true)) {
+        VLOG(jit) << "Start profiling " << PrettyMethod(method_);
+      }
+    }
+  }
+
+  void Finalize() OVERRIDE {
+    delete this;
+  }
+
+ private:
+  ArtMethod* const method_;
+  const TaskKind kind_;
+  jobject klass_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
+};
+
+void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count) {
+  if (thread_pool_ == nullptr) {
+    // Should only see this when shutting down.
+    DCHECK(Runtime::Current()->IsShuttingDown(self));
+    return;
+  }
+
+  if (method->IsClassInitializer() || method->IsNative()) {
+    // We do not want to compile such methods.
+    return;
+  }
+  DCHECK(thread_pool_ != nullptr);
+  DCHECK_GT(warm_method_threshold_, 0);
+  DCHECK_GT(hot_method_threshold_, warm_method_threshold_);
+  DCHECK_GT(osr_method_threshold_, hot_method_threshold_);
+  DCHECK_GE(priority_thread_weight_, 1);
+  DCHECK_LE(priority_thread_weight_, hot_method_threshold_);
+
+  int32_t starting_count = method->GetCounter();
+  if (Jit::ShouldUsePriorityThreadWeight()) {
+    count *= priority_thread_weight_;
+  }
+  int32_t new_count = starting_count + count;   // int32 here to avoid wrap-around;
+  if (starting_count < warm_method_threshold_) {
+    if (new_count >= warm_method_threshold_) {
+      bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
+      if (success) {
+        VLOG(jit) << "Start profiling " << PrettyMethod(method);
+      }
+
+      if (thread_pool_ == nullptr) {
+        // Calling ProfilingInfo::Create might put us in a suspended state, which could
+        // lead to the thread pool being deleted when we are shutting down.
+        DCHECK(Runtime::Current()->IsShuttingDown(self));
+        return;
+      }
+
+      if (!success) {
+        // We failed allocating. Instead of doing the collection on the Java thread, we push
+        // an allocation to a compiler thread, that will do the collection.
+        thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
+      }
+    }
+    // Avoid jumping more than one state at a time.
+    new_count = std::min(new_count, hot_method_threshold_ - 1);
+  } else if (starting_count < hot_method_threshold_) {
+    if (new_count >= hot_method_threshold_) {
+      DCHECK(thread_pool_ != nullptr);
+      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
+    }
+    // Avoid jumping more than one state at a time.
+    new_count = std::min(new_count, osr_method_threshold_ - 1);
+  } else if (starting_count < osr_method_threshold_) {
+    if (new_count >= osr_method_threshold_) {
+      DCHECK(thread_pool_ != nullptr);
+      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
+    }
+  }
+  // Update hotness counter
+  method->SetCounter(new_count);
+}
+
+void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
+  if (UNLIKELY(Runtime::Current()->GetJit()->JitAtFirstUse())) {
+    // The compiler requires a ProfilingInfo object.
+    ProfilingInfo::Create(thread, method, /* retry_allocation */ true);
+    JitCompileTask compile_task(method, JitCompileTask::kCompile);
+    compile_task.Run(thread);
+    return;
+  }
+
+  ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
+  // Update the entrypoint if the ProfilingInfo has one. The interpreter will call it
+  // instead of interpreting the method.
+  // We avoid doing this if exit stubs are installed to not mess with the instrumentation.
+  // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
+  if ((profiling_info != nullptr) &&
+      (profiling_info->GetSavedEntryPoint() != nullptr) &&
+      !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
+    method->SetEntryPointFromQuickCompiledCode(profiling_info->GetSavedEntryPoint());
+  } else {
+    AddSamples(thread, method, 1);
+  }
+}
+
+void Jit::InvokeVirtualOrInterface(Thread* thread,
+                                   mirror::Object* this_object,
+                                   ArtMethod* caller,
+                                   uint32_t dex_pc,
+                                   ArtMethod* callee ATTRIBUTE_UNUSED) {
+  ScopedAssertNoThreadSuspension ants(thread, __FUNCTION__);
+  DCHECK(this_object != nullptr);
+  ProfilingInfo* info = caller->GetProfilingInfo(sizeof(void*));
+  if (info != nullptr) {
+    // Since the instrumentation is marked from the declaring class we need to mark the card so
+    // that mod-union tables and card rescanning know about the update.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(caller->GetDeclaringClass());
+    info->AddInvokeInfo(dex_pc, this_object->GetClass());
+  }
+}
+
+void Jit::WaitForCompilationToFinish(Thread* self) {
+  if (thread_pool_ != nullptr) {
+    thread_pool_->Wait(self, false, false);
+  }
 }
 
 }  // namespace jit

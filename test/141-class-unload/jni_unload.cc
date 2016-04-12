@@ -19,7 +19,6 @@
 #include <iostream>
 
 #include "jit/jit.h"
-#include "jit/jit_instrumentation.h"
 #include "runtime.h"
 #include "thread-inl.h"
 
@@ -29,7 +28,7 @@ namespace {
 extern "C" JNIEXPORT void JNICALL Java_IntHolder_waitForCompilation(JNIEnv*, jclass) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr) {
-    jit->GetInstrumentationCache()->WaitForCompilationToFinish(Thread::Current());
+    jit->WaitForCompilationToFinish(Thread::Current());
   }
 }
 

@@ -106,7 +106,6 @@ LIBART_COMMON_SRC_FILES := \
   jit/debugger_interface.cc \
   jit/jit.cc \
   jit/jit_code_cache.cc \
-  jit/jit_instrumentation.cc \
   jit/offline_profiling_info.cc \
   jit/profiling_info.cc \
   jit/profile_saver.cc  \
