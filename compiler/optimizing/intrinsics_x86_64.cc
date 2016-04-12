@@ -1150,15 +1150,13 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
 
-  NearLabel ok;
+  NearLabel conditions_on_positions_validated;
   SystemArrayCopyOptimizations optimizations(invoke);
 
-  if (!optimizations.GetDestinationIsSource()) {
-    if (!src_pos.IsConstant() || !dest_pos.IsConstant()) {
-      __ cmpl(src, dest);
-    }
+  if (!optimizations.GetDestinationIsSource() &&
+      (!src_pos.IsConstant() || !dest_pos.IsConstant())) {
+    __ cmpl(src, dest);
   }
-
   // If source and destination are the same, we go to slow path if we need to do
   // forward copying.
   if (src_pos.IsConstant()) {
@@ -1169,14 +1167,14 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
              || (src_pos_constant >= dest_pos.GetConstant()->AsIntConstant()->GetValue()));
     } else {
       if (!optimizations.GetDestinationIsSource()) {
-        __ j(kNotEqual, &ok);
+        __ j(kNotEqual, &conditions_on_positions_validated);
       }
       __ cmpl(dest_pos.AsRegister<CpuRegister>(), Immediate(src_pos_constant));
       __ j(kGreater, slow_path->GetEntryLabel());
     }
   } else {
     if (!optimizations.GetDestinationIsSource()) {
-      __ j(kNotEqual, &ok);
+      __ j(kNotEqual, &conditions_on_positions_validated);
     }
     if (dest_pos.IsConstant()) {
       int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
@@ -1188,7 +1186,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
     }
   }
 
-  __ Bind(&ok);
+  __ Bind(&conditions_on_positions_validated);
 
   if (!optimizations.GetSourceIsNotNull()) {
     // Bail out if the source is null.
@@ -1241,7 +1239,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
     bool did_unpoison = false;
     if (!optimizations.GetDestinationIsNonPrimitiveArray() ||
         !optimizations.GetSourceIsNonPrimitiveArray()) {
-      // One or two of the references need to be unpoisoned. Unpoisoned them
+      // One or two of the references need to be unpoisoned. Unpoison them
       // both to make the identity check valid.
       __ MaybeUnpoisonHeapReference(temp1);
       __ MaybeUnpoisonHeapReference(temp2);
@@ -1250,6 +1248,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
 
     if (!optimizations.GetDestinationIsNonPrimitiveArray()) {
       // Bail out if the destination is not a non primitive array.
+      // /* HeapReference<Class> */ TMP = temp1->component_type_
       __ movl(CpuRegister(TMP), Address(temp1, component_offset));
       __ testl(CpuRegister(TMP), CpuRegister(TMP));
       __ j(kEqual, slow_path->GetEntryLabel());
@@ -1260,6 +1259,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
 
     if (!optimizations.GetSourceIsNonPrimitiveArray()) {
       // Bail out if the source is not a non primitive array.
+      // /* HeapReference<Class> */ TMP = temp2->component_type_
       __ movl(CpuRegister(TMP), Address(temp2, component_offset));
       __ testl(CpuRegister(TMP), CpuRegister(TMP));
       __ j(kEqual, slow_path->GetEntryLabel());
@@ -1276,8 +1276,10 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
       if (!did_unpoison) {
         __ MaybeUnpoisonHeapReference(temp1);
       }
+      // /* HeapReference<Class> */ temp1 = temp1->component_type_
       __ movl(temp1, Address(temp1, component_offset));
       __ MaybeUnpoisonHeapReference(temp1);
+      // /* HeapReference<Class> */ temp1 = temp1->super_class_
       __ movl(temp1, Address(temp1, super_offset));
       // No need to unpoison the result, we're comparing against null.
       __ testl(temp1, temp1);
@@ -1289,8 +1291,10 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   } else if (!optimizations.GetSourceIsNonPrimitiveArray()) {
     DCHECK(optimizations.GetDestinationIsNonPrimitiveArray());
     // Bail out if the source is not a non primitive array.
+    // /* HeapReference<Class> */ temp1 = src->klass_
     __ movl(temp1, Address(src, class_offset));
     __ MaybeUnpoisonHeapReference(temp1);
+    // /* HeapReference<Class> */ TMP = temp1->component_type_
     __ movl(CpuRegister(TMP), Address(temp1, component_offset));
     __ testl(CpuRegister(TMP), CpuRegister(TMP));
     __ j(kEqual, slow_path->GetEntryLabel());
