@@ -47,6 +47,15 @@ static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
 
 static void Thread_nativeCreate(JNIEnv* env, jclass, jobject java_thread, jlong stack_size,
                                 jboolean daemon) {
+  // There are sections in the zygote that forbid thread creation.
+  Runtime* runtime = Runtime::Current();
+  if (runtime->IsZygote() && runtime->IsZygoteNoThreadSection()) {
+    jclass internal_error = env->FindClass("java/lang/InternalError");
+    CHECK(internal_error != nullptr);
+    env->ThrowNew(internal_error, "Cannot create threads in zygote");
+    return;
+  }
+
   Thread::CreateNativeThread(env, java_thread, stack_size, daemon == JNI_TRUE);
 }
 
