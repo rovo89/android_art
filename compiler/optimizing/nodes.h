@@ -727,7 +727,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);
-  void PopulateIrreducibleRecursive(HBasicBlock* block);
+  void PopulateIrreducibleRecursive(HBasicBlock* block, ArenaBitVector* finalized);
 
   HBasicBlock* header_;
   HSuspendCheck* suspend_check_;
