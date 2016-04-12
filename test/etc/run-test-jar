@@ -381,7 +381,8 @@ fi
 dex2oat_cmdline="true"
 mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
 
-app_image="--app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
+# Pick a base that will force the app image to get relocated.
+app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
 
 if [ "$PREBUILD" = "y" ]; then
   mkdir_cmdline="${mkdir_cmdline} && mkdir -p ${DEX_LOCATION}/oat/$ISA"
