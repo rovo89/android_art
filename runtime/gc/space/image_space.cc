@@ -812,7 +812,7 @@ class FixupObjectVisitor : public FixupVisitor {
         ForwardObject(obj));
   }
 
-  ALWAYS_INLINE void operator()(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     if (visited_->Test(obj)) {
       // Already visited.
       return;
