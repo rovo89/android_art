@@ -124,11 +124,12 @@ public:                                                \
 void Set##name() { SetBit(k##name); }                  \
 bool Get##name() const { return IsBitSet(k##name); }   \
 private:                                               \
-static constexpr int k##name = bit
+static constexpr size_t k##name = bit
 
 class IntrinsicOptimizations : public ValueObject {
  public:
-  explicit IntrinsicOptimizations(HInvoke* invoke) : value_(invoke->GetIntrinsicOptimizations()) {}
+  explicit IntrinsicOptimizations(HInvoke* invoke)
+      : value_(invoke->GetIntrinsicOptimizations()) {}
   explicit IntrinsicOptimizations(const HInvoke& invoke)
       : value_(invoke.GetIntrinsicOptimizations()) {}
 
@@ -138,15 +139,17 @@ class IntrinsicOptimizations : public ValueObject {
 
  protected:
   bool IsBitSet(uint32_t bit) const {
+    DCHECK_LT(bit, sizeof(uint32_t) * kBitsPerByte);
     return (*value_ & (1 << bit)) != 0u;
   }
 
   void SetBit(uint32_t bit) {
-    *(const_cast<uint32_t*>(value_)) |= (1 << bit);
+    DCHECK_LT(bit, sizeof(uint32_t) * kBitsPerByte);
+    *(const_cast<uint32_t* const>(value_)) |= (1 << bit);
   }
 
  private:
-  const uint32_t *value_;
+  const uint32_t* const value_;
 
   DISALLOW_COPY_AND_ASSIGN(IntrinsicOptimizations);
 };
@@ -158,7 +161,7 @@ public:                                                               \
 void Set##name() { SetBit(k##name); }                                 \
 bool Get##name() const { return IsBitSet(k##name); }                  \
 private:                                                              \
-static constexpr int k##name = bit + kNumberOfGenericOptimizations
+static constexpr size_t k##name = bit + kNumberOfGenericOptimizations
 
 class StringEqualsOptimizations : public IntrinsicOptimizations {
  public:
