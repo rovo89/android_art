@@ -57,6 +57,7 @@ class ZipArchive;
 // TODO: move all of the macro functionality into the DexCache class.
 class DexFile {
  public:
+  static const uint32_t kDefaultMethodsVersion = 37;
   static const uint8_t kDexMagic[];
   static constexpr size_t kNumDexVersions = 2;
   static constexpr size_t kDexVersionLen = 4;

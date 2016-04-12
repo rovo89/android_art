@@ -69,10 +69,13 @@ declare -A JACK_EXPERIMENTAL_ARGS
 JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 
+declare -A SMALI_EXPERIMENTAL_ARGS
+SMALI_EXPERIMENTAL_ARGS["default-methods"]="--api-level 24"
+
 while true; do
   if [ "x$1" = "x--dx-option" ]; then
     shift
-    option="$1"
+    on="$1"
     DX_FLAGS="${DX_FLAGS} $option"
     shift
   elif [ "x$1" = "x--jvm" ]; then
@@ -110,6 +113,7 @@ done
 # Add args from the experimental mappings.
 for experiment in ${EXPERIMENTAL}; do
   JACK_ARGS="${JACK_ARGS} ${JACK_EXPERIMENTAL_ARGS[${experiment}]}"
+  SMALI_ARGS="${SMALI_ARGS} ${SMALI_EXPERIMENTAL_ARGS[${experiment}]}"
 done
 
 if [ -e classes.dex ]; then

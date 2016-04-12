@@ -2465,7 +2465,7 @@ bool DexFileVerifier::CheckFieldAccessFlags(uint32_t idx,
                                 GetFieldDescriptionOrError(begin_, header_, idx).c_str(),
                                 field_access_flags,
                                 PrettyJavaAccessFlags(field_access_flags).c_str());
-      if (header_->GetVersion() >= 37) {
+      if (header_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
         return false;
       } else {
         // Allow in older versions, but warn.
@@ -2480,7 +2480,7 @@ bool DexFileVerifier::CheckFieldAccessFlags(uint32_t idx,
                                 GetFieldDescriptionOrError(begin_, header_, idx).c_str(),
                                 field_access_flags,
                                 PrettyJavaAccessFlags(field_access_flags).c_str());
-      if (header_->GetVersion() >= 37) {
+      if (header_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
         return false;
       } else {
         // Allow in older versions, but warn.
@@ -2628,12 +2628,16 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
 
   // Interfaces are special.
   if ((class_access_flags & kAccInterface) != 0) {
-    // Non-static interface methods must be public.
-    if ((method_access_flags & (kAccPublic | kAccStatic)) == 0) {
+    // Non-static interface methods must be public or private.
+    uint32_t desired_flags = (kAccPublic | kAccStatic);
+    if (dex_file_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
+      desired_flags |= kAccPrivate;
+    }
+    if ((method_access_flags & desired_flags) == 0) {
       *error_msg = StringPrintf("Interface virtual method %" PRIu32 "(%s) is not public",
           method_index,
           GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
-      if (header_->GetVersion() >= 37) {
+      if (header_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
         return false;
       } else {
         // Allow in older versions, but warn.
@@ -2686,7 +2690,7 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
         *error_msg = StringPrintf("Interface method %" PRIu32 "(%s) is not public and abstract",
             method_index,
             GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
-        if (header_->GetVersion() >= 37) {
+        if (header_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
           return false;
         } else {
           // Allow in older versions, but warn.

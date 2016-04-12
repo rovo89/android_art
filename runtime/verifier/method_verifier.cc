@@ -790,9 +790,16 @@ bool MethodVerifier::Verify() {
         } else if (method_access_flags_ & kAccFinal) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have final methods";
           return false;
-        } else if (!(method_access_flags_ & kAccPublic)) {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-public members";
-          return false;
+        } else {
+          uint32_t access_flag_options = kAccPublic;
+          if (dex_file_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
+            access_flag_options |= kAccPrivate;
+          }
+          if (!(method_access_flags_ & access_flag_options)) {
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+                << "interfaces may not have protected or package-private members";
+            return false;
+          }
         }
       }
     }
@@ -3794,9 +3801,12 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   // Note: this check must be after the initializer check, as those are required to fail a class,
   //       while this check implies an IncompatibleClassChangeError.
   if (klass->IsInterface()) {
-    // methods called on interfaces should be invoke-interface, invoke-super, or invoke-static.
+    // methods called on interfaces should be invoke-interface, invoke-super, invoke-direct (if
+    // dex file version is 37 or greater), or invoke-static.
     if (method_type != METHOD_INTERFACE &&
         method_type != METHOD_STATIC &&
+        ((dex_file_->GetVersion() < DexFile::kDefaultMethodsVersion) ||
+         method_type != METHOD_DIRECT) &&
         method_type != METHOD_SUPER) {
       Fail(VERIFY_ERROR_CLASS_CHANGE)
           << "non-interface method " << PrettyMethod(dex_method_idx, *dex_file_)

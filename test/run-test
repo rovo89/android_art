@@ -46,7 +46,7 @@ export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
 export USE_JACK="true"
-export SMALI_ARGS="--experimental --api-level 23"
+export SMALI_ARGS="--experimental"
 
 # If dx was not set by the environment variable, assume it is in the path.
 if [ -z "$DX" ]; then
