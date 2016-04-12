@@ -576,7 +576,16 @@ void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
       }
     } else if (object->GetClass<kVerifyNone>()->IsStringClass()) {
       bin = kBinString;  // Strings are almost always immutable (except for object header).
-    }  // else bin = kBinRegular
+    } else if (object->GetClass<kVerifyNone>() ==
+        Runtime::Current()->GetClassLinker()->GetClassRoot(ClassLinker::kJavaLangObject)) {
+      // Instance of java lang object, probably a lock object. This means it will be dirty when we
+      // synchronize on it.
+      bin = kBinMiscDirty;
+    } else if (object->IsDexCache()) {
+      // Dex file field becomes dirty when the image is loaded.
+      bin = kBinMiscDirty;
+    }
+    // else bin = kBinRegular
   }
 
   size_t oat_index = GetOatIndex(object);
