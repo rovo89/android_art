@@ -635,6 +635,14 @@ class Runtime {
     return process_state_ == kProcessStateJankPerceptible;
   }
 
+  void SetZygoteNoThreadSection(bool val) {
+    zygote_no_threads_ = val;
+  }
+
+  bool IsZygoteNoThreadSection() const {
+    return zygote_no_threads_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -855,6 +863,9 @@ class Runtime {
 
   // Whether or not we currently care about pause times.
   ProcessState process_state_;
+
+  // Whether zygote code is in a section that should not start threads.
+  bool zygote_no_threads_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
