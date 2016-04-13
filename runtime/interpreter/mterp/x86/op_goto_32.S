@@ -11,9 +11,5 @@
  */
     /* goto/32 +AAAAAAAA */
     movl    2(rPC), rINST                   # rINST <- AAAAAAAA
-    MTERP_PROFILE_BRANCH
-    addl    rINST, rINST                    # rINST <- AA * 2
-    leal    (rPC, rINST), rPC
-    FETCH_INST
-    jle     MterpCheckSuspendAndContinue    # AA * 2 <= 0 => suspend check
-    GOTO_NEXT
+    testl   rINST, rINST
+    jmp     MterpCommonTakenBranch
