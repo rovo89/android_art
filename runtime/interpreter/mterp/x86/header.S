@@ -117,6 +117,21 @@ unspecified registers or condition codes.
     .cfi_restore \_reg
 .endm
 
+/*
+ * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
+ * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
+ */
+#define OFF_FP(a) (a - SHADOWFRAME_VREGS_OFFSET)
+#define OFF_FP_NUMBER_OF_VREGS OFF_FP(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET)
+#define OFF_FP_DEX_PC OFF_FP(SHADOWFRAME_DEX_PC_OFFSET)
+#define OFF_FP_LINK OFF_FP(SHADOWFRAME_LINK_OFFSET)
+#define OFF_FP_METHOD OFF_FP(SHADOWFRAME_METHOD_OFFSET)
+#define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
+#define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
+#define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
+#define OFF_FP_COUNTDOWN_OFFSET OFF_FP(SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET)
+#define OFF_FP_SHADOWFRAME OFF_FP(0)
+
 /* Frame size must be 16-byte aligned.
  * Remember about 4 bytes for return address + 4 * 4 for spills
  */
@@ -148,41 +163,9 @@ unspecified registers or condition codes.
 #define rINSTbl  %bl
 #define rIBASE   %edx
 #define rREFS    %ebp
+#define rPROFILE OFF_FP_COUNTDOWN_OFFSET(rFP)
 
-/*
- * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
- * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
- */
-#define OFF_FP(a) (a - SHADOWFRAME_VREGS_OFFSET)
-#define OFF_FP_NUMBER_OF_VREGS OFF_FP(SHADOWFRAME_NUMBER_OF_VREGS_OFFSET)
-#define OFF_FP_DEX_PC OFF_FP(SHADOWFRAME_DEX_PC_OFFSET)
-#define OFF_FP_LINK OFF_FP(SHADOWFRAME_LINK_OFFSET)
-#define OFF_FP_METHOD OFF_FP(SHADOWFRAME_METHOD_OFFSET)
-#define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
-#define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
-#define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
-
-#define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
-
-/*
- * Profile branch. rINST should contain the offset. %eax is scratch.
- */
-.macro MTERP_PROFILE_BRANCH
-#ifdef MTERP_PROFILE_BRANCHES
-    EXPORT_PC
-    movl    rSELF, %eax
-    movl    %eax, OUT_ARG0(%esp)
-    leal    OFF_FP_SHADOWFRAME(rFP), %eax
-    movl    %eax, OUT_ARG1(%esp)
-    movl    rINST, OUT_ARG2(%esp)
-    call    SYMBOL(MterpProfileBranch)
-    testb   %al, %al
-    jnz     MterpOnStackReplacement
-    RESTORE_IBASE
-#endif
-.endm
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must
