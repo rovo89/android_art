@@ -16,6 +16,9 @@
 
 #include "unstarted_runtime.h"
 
+#include <limits>
+
+#include "base/casts.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_instruction.h"
@@ -153,6 +156,31 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                  dst_pos,
                  length);
     CheckObjectArray(dst_handle.Get(), expected_result);
+  }
+
+  void TestCeilFloor(bool ceil,
+                     Thread* self,
+                     ShadowFrame* tmp,
+                     double const test_pairs[][2],
+                     size_t num_pairs)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    for (size_t i = 0; i < num_pairs; ++i) {
+      tmp->SetVRegDouble(0, test_pairs[i][0]);
+
+      JValue result;
+      if (ceil) {
+        UnstartedMathCeil(self, tmp, &result, 0);
+      } else {
+        UnstartedMathFloor(self, tmp, &result, 0);
+      }
+
+      ASSERT_FALSE(self->IsExceptionPending());
+
+      // We want precise results.
+      int64_t result_int64t = bit_cast<int64_t, double>(result.GetD());
+      int64_t expect_int64t = bit_cast<int64_t, double>(test_pairs[i][1]);
+      EXPECT_EQ(expect_int64t, result_int64t) << result.GetD() << " vs " << test_pairs[i][1];
+    }
   }
 };
 
@@ -599,6 +627,64 @@ TEST_F(UnstartedRuntimeTest, LongParseLongTest) {
     ASSERT_FALSE(self->IsExceptionPending());
     EXPECT_EQ(result.GetJ(), test_values[i]);
   }
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, Ceil) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+  constexpr double inf = std::numeric_limits<double>::infinity();
+  constexpr double ld1 = static_cast<double>((UINT64_C(1) << 53) - 1);
+  constexpr double ld2 = static_cast<double>(UINT64_C(1) << 55);
+  constexpr double test_pairs[][2] = {
+      { -0.0, -0.0 },
+      {  0.0,  0.0 },
+      { -0.5, -0.0 },
+      { -1.0, -1.0 },
+      {  0.5,  1.0 },
+      {  1.0,  1.0 },
+      {  nan,  nan },
+      {  inf,  inf },
+      { -inf, -inf },
+      {  ld1,  ld1 },
+      {  ld2,  ld2 }
+  };
+
+  TestCeilFloor(true /* ceil */, self, tmp, test_pairs, arraysize(test_pairs));
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, Floor) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+  constexpr double inf = std::numeric_limits<double>::infinity();
+  constexpr double ld1 = static_cast<double>((UINT64_C(1) << 53) - 1);
+  constexpr double ld2 = static_cast<double>(UINT64_C(1) << 55);
+  constexpr double test_pairs[][2] = {
+      { -0.0, -0.0 },
+      {  0.0,  0.0 },
+      { -0.5, -1.0 },
+      { -1.0, -1.0 },
+      {  0.5,  0.0 },
+      {  1.0,  1.0 },
+      {  nan,  nan },
+      {  inf,  inf },
+      { -inf, -inf },
+      {  ld1,  ld1 },
+      {  ld2,  ld2 }
+  };
+
+  TestCeilFloor(false /* floor */, self, tmp, test_pairs, arraysize(test_pairs));
 
   ShadowFrame::DeleteDeoptimizedFrame(tmp);
 }
