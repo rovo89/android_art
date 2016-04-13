@@ -32,10 +32,8 @@ namespace arm64 {
 #endif
 
 void Arm64Assembler::FinalizeCode() {
-  if (!exception_blocks_.empty()) {
-    for (size_t i = 0; i < exception_blocks_.size(); i++) {
-      EmitExceptionPoll(exception_blocks_.at(i));
-    }
+  for (Arm64Exception* exception : exception_blocks_) {
+    EmitExceptionPoll(exception);
   }
   ___ FinalizeCode();
 }

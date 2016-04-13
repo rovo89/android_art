@@ -16,6 +16,7 @@
 
 #include "trampoline_compiler.h"
 
+#include "base/arena_allocator.h"
 #include "jni_env_ext.h"
 
 #ifdef ART_ENABLE_CODEGEN_arm
@@ -48,9 +49,9 @@ namespace art {
 
 #ifdef ART_ENABLE_CODEGEN_arm
 namespace arm {
-static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset<4> offset) {
-  Thumb2Assembler assembler;
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<4> offset) {
+  Thumb2Assembler assembler(arena);
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (R0) in interpreter ABI.
@@ -68,19 +69,19 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
-  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
   __ FinalizeInstructions(code);
 
-  return entry_stub.release();
+  return std::move(entry_stub);
 }
 }  // namespace arm
 #endif  // ART_ENABLE_CODEGEN_arm
 
 #ifdef ART_ENABLE_CODEGEN_arm64
 namespace arm64 {
-static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset<8> offset) {
-  Arm64Assembler assembler;
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<8> offset) {
+  Arm64Assembler assembler(arena);
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (X0) in interpreter ABI.
@@ -107,19 +108,19 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
-  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
   __ FinalizeInstructions(code);
 
-  return entry_stub.release();
+  return std::move(entry_stub);
 }
 }  // namespace arm64
 #endif  // ART_ENABLE_CODEGEN_arm64
 
 #ifdef ART_ENABLE_CODEGEN_mips
 namespace mips {
-static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset<4> offset) {
-  MipsAssembler assembler;
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<4> offset) {
+  MipsAssembler assembler(arena);
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (A0) in interpreter ABI.
@@ -139,19 +140,19 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
-  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
   __ FinalizeInstructions(code);
 
-  return entry_stub.release();
+  return std::move(entry_stub);
 }
 }  // namespace mips
 #endif  // ART_ENABLE_CODEGEN_mips
 
 #ifdef ART_ENABLE_CODEGEN_mips64
 namespace mips64 {
-static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset<8> offset) {
-  Mips64Assembler assembler;
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<8> offset) {
+  Mips64Assembler assembler(arena);
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (A0) in interpreter ABI.
@@ -171,18 +172,19 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
-  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
   __ FinalizeInstructions(code);
 
-  return entry_stub.release();
+  return std::move(entry_stub);
 }
 }  // namespace mips64
 #endif  // ART_ENABLE_CODEGEN_mips
 
 #ifdef ART_ENABLE_CODEGEN_x86
 namespace x86 {
-static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<4> offset) {
-  X86Assembler assembler;
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocator* arena,
+                                                                    ThreadOffset<4> offset) {
+  X86Assembler assembler(arena);
 
   // All x86 trampolines call via the Thread* held in fs.
   __ fs()->jmp(Address::Absolute(offset));
@@ -191,18 +193,19 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<4> offset) {
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
-  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
   __ FinalizeInstructions(code);
 
-  return entry_stub.release();
+  return std::move(entry_stub);
 }
 }  // namespace x86
 #endif  // ART_ENABLE_CODEGEN_x86
 
 #ifdef ART_ENABLE_CODEGEN_x86_64
 namespace x86_64 {
-static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<8> offset) {
-  x86_64::X86_64Assembler assembler;
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocator* arena,
+                                                                    ThreadOffset<8> offset) {
+  x86_64::X86_64Assembler assembler(arena);
 
   // All x86 trampolines call via the Thread* held in gs.
   __ gs()->jmp(x86_64::Address::Absolute(offset, true));
@@ -211,28 +214,31 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<8> offset) {
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
-  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
   __ FinalizeInstructions(code);
 
-  return entry_stub.release();
+  return std::move(entry_stub);
 }
 }  // namespace x86_64
 #endif  // ART_ENABLE_CODEGEN_x86_64
 
-const std::vector<uint8_t>* CreateTrampoline64(InstructionSet isa, EntryPointCallingConvention abi,
-                                               ThreadOffset<8> offset) {
+std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet isa,
+                                                               EntryPointCallingConvention abi,
+                                                               ThreadOffset<8> offset) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
   switch (isa) {
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
-      return arm64::CreateTrampoline(abi, offset);
+      return arm64::CreateTrampoline(&arena, abi, offset);
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
-      return mips64::CreateTrampoline(abi, offset);
+      return mips64::CreateTrampoline(&arena, abi, offset);
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
-      return x86_64::CreateTrampoline(offset);
+      return x86_64::CreateTrampoline(&arena, offset);
 #endif
     default:
       UNUSED(abi);
@@ -242,22 +248,25 @@ const std::vector<uint8_t>* CreateTrampoline64(InstructionSet isa, EntryPointCal
   }
 }
 
-const std::vector<uint8_t>* CreateTrampoline32(InstructionSet isa, EntryPointCallingConvention abi,
-                                               ThreadOffset<4> offset) {
+std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline32(InstructionSet isa,
+                                                               EntryPointCallingConvention abi,
+                                                               ThreadOffset<4> offset) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
   switch (isa) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2:
-      return arm::CreateTrampoline(abi, offset);
+      return arm::CreateTrampoline(&arena, abi, offset);
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
-      return mips::CreateTrampoline(abi, offset);
+      return mips::CreateTrampoline(&arena, abi, offset);
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
       UNUSED(abi);
-      return x86::CreateTrampoline(offset);
+      return x86::CreateTrampoline(&arena, offset);
 #endif
     default:
       LOG(FATAL) << "Unexpected InstructionSet: " << isa;

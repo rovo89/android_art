@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/arena_containers.h"
 #include "base/logging.h"
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
@@ -33,14 +34,16 @@ namespace arm {
 
 class Thumb2Assembler FINAL : public ArmAssembler {
  public:
-  explicit Thumb2Assembler(bool can_relocate_branches = true)
-      : can_relocate_branches_(can_relocate_branches),
+  explicit Thumb2Assembler(ArenaAllocator* arena, bool can_relocate_branches = true)
+      : ArmAssembler(arena),
+        can_relocate_branches_(can_relocate_branches),
         force_32bit_(false),
         it_cond_index_(kNoItCondition),
         next_condition_(AL),
-        fixups_(),
-        fixup_dependents_(),
-        literals_(),
+        fixups_(arena->Adapter(kArenaAllocAssembler)),
+        fixup_dependents_(arena->Adapter(kArenaAllocAssembler)),
+        literals_(arena->Adapter(kArenaAllocAssembler)),
+        jump_tables_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0u),
         last_old_position_(0u),
         last_fixup_id_(0u) {
@@ -558,9 +561,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // Prepare the assembler->fixup_dependents_ and each Fixup's dependents_start_/count_.
     static void PrepareDependents(Thumb2Assembler* assembler);
 
-    ArrayRef<FixupId> Dependents(const Thumb2Assembler& assembler) const {
-      return ArrayRef<FixupId>(assembler.fixup_dependents_.get() + dependents_start_,
-                               dependents_count_);
+    ArrayRef<const FixupId> Dependents(const Thumb2Assembler& assembler) const {
+      return ArrayRef<const FixupId>(assembler.fixup_dependents_).SubArray(dependents_start_,
+                                                                           dependents_count_);
     }
 
     // Resolve a branch when the target is known.
@@ -839,15 +842,15 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   static int16_t AdrEncoding16(Register rd, int32_t offset);
   static int32_t AdrEncoding32(Register rd, int32_t offset);
 
-  std::vector<Fixup> fixups_;
-  std::unique_ptr<FixupId[]> fixup_dependents_;
+  ArenaVector<Fixup> fixups_;
+  ArenaVector<FixupId> fixup_dependents_;
 
   // Use std::deque<> for literal labels to allow insertions at the end
   // without invalidating pointers and references to existing elements.
-  std::deque<Literal> literals_;
+  ArenaDeque<Literal> literals_;
 
   // Jump table list.
-  std::deque<JumpTable> jump_tables_;
+  ArenaDeque<JumpTable> jump_tables_;
 
   // Data for AdjustedPosition(), see the description there.
   uint32_t last_position_adjustment_;

@@ -22,6 +22,8 @@
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
 #include "arm/constants_arm.h"
+#include "base/arena_allocator.h"
+#include "base/arena_object.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "debug/dwarf/debug_frame_opcode_writer.h"
@@ -60,7 +62,7 @@ class AssemblerFixup {
 };
 
 // Parent of all queued slow paths, emitted during finalization
-class SlowPath {
+class SlowPath : public DeletableArenaObject<kArenaAllocAssembler> {
  public:
   SlowPath() : next_(nullptr) {}
   virtual ~SlowPath() {}
@@ -85,8 +87,12 @@ class SlowPath {
 
 class AssemblerBuffer {
  public:
-  AssemblerBuffer();
+  explicit AssemblerBuffer(ArenaAllocator* arena);
   ~AssemblerBuffer();
+
+  ArenaAllocator* GetArena() {
+    return arena_;
+  }
 
   // Basic support for emitting, loading, and storing.
   template<typename T> void Emit(T value) {
@@ -235,6 +241,7 @@ class AssemblerBuffer {
   // for a single, fast space check per instruction.
   static const int kMinimumGap = 32;
 
+  ArenaAllocator* arena_;
   uint8_t* contents_;
   uint8_t* cursor_;
   uint8_t* limit_;
@@ -338,10 +345,12 @@ class DebugFrameOpCodeWriterForAssembler FINAL
   std::vector<DelayedAdvancePC> delayed_advance_pcs_;
 };
 
-class Assembler {
+class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
  public:
-  static Assembler* Create(InstructionSet instruction_set,
-                           const InstructionSetFeatures* instruction_set_features = nullptr);
+  static std::unique_ptr<Assembler> Create(
+      ArenaAllocator* arena,
+      InstructionSet instruction_set,
+      const InstructionSetFeatures* instruction_set_features = nullptr);
 
   // Finalize the code; emit slow paths, fixup branches, add literal pool, etc.
   virtual void FinalizeCode() { buffer_.EmitSlowPaths(this); }
@@ -504,7 +513,11 @@ class Assembler {
   DebugFrameOpCodeWriterForAssembler& cfi() { return cfi_; }
 
  protected:
-  Assembler() : buffer_(), cfi_(this) {}
+  explicit Assembler(ArenaAllocator* arena) : buffer_(arena), cfi_(this) {}
+
+  ArenaAllocator* GetArena() {
+    return buffer_.GetArena();
+  }
 
   AssemblerBuffer buffer_;
 

@@ -59,8 +59,8 @@ void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
     return;
   }
   // Create and fill in the fixup_dependents_.
-  assembler->fixup_dependents_.reset(new FixupId[number_of_dependents]);
-  FixupId* dependents = assembler->fixup_dependents_.get();
+  assembler->fixup_dependents_.resize(number_of_dependents);
+  FixupId* dependents = assembler->fixup_dependents_.data();
   for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
     uint32_t target = fixups[fixup_id].target_;
     if (target > fixups[fixup_id].location_) {

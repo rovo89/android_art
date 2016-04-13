@@ -20,6 +20,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "base/arena_allocator.h"
+#include "base/arena_containers.h"
 #include "base/bit_utils.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
@@ -1078,6 +1080,9 @@ class ArmAssembler : public Assembler {
   }
 
  protected:
+  explicit ArmAssembler(ArenaAllocator* arena)
+      : Assembler(arena), tracked_labels_(arena->Adapter(kArenaAllocAssembler)) {}
+
   // Returns whether or not the given register is used for passing parameters.
   static int RegisterCompare(const Register* reg1, const Register* reg2) {
     return *reg1 - *reg2;
@@ -1086,7 +1091,7 @@ class ArmAssembler : public Assembler {
   void FinalizeTrackedLabels();
 
   // Tracked labels. Use a vector, as we need to sort before adjusting.
-  std::vector<Label*> tracked_labels_;
+  ArenaVector<Label*> tracked_labels_;
 };
 
 // Slowpath entered when Thread::Current()->_exception is non-null

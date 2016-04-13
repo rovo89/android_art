@@ -195,11 +195,18 @@ void EmitAndCheck(arm::Thumb2Assembler* assembler, const char* testname) {
 
 #undef __
 
+class Thumb2AssemblerTest : public ::testing::Test {
+ public:
+  Thumb2AssemblerTest() : pool(), arena(&pool), assembler(&arena) { }
+
+  ArenaPool pool;
+  ArenaAllocator arena;
+  arm::Thumb2Assembler assembler;
+};
+
 #define __ assembler.
 
-TEST(Thumb2AssemblerTest, SimpleMov) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, SimpleMov) {
   __ movs(R0, ShifterOperand(R1));
   __ mov(R0, ShifterOperand(R1));
   __ mov(R8, ShifterOperand(R9));
@@ -210,8 +217,7 @@ TEST(Thumb2AssemblerTest, SimpleMov) {
   EmitAndCheck(&assembler, "SimpleMov");
 }
 
-TEST(Thumb2AssemblerTest, SimpleMov32) {
-  arm::Thumb2Assembler assembler;
+TEST_F(Thumb2AssemblerTest, SimpleMov32) {
   __ Force32Bit();
 
   __ mov(R0, ShifterOperand(R1));
@@ -220,9 +226,7 @@ TEST(Thumb2AssemblerTest, SimpleMov32) {
   EmitAndCheck(&assembler, "SimpleMov32");
 }
 
-TEST(Thumb2AssemblerTest, SimpleMovAdd) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, SimpleMovAdd) {
   __ mov(R0, ShifterOperand(R1));
   __ adds(R0, R1, ShifterOperand(R2));
   __ add(R0, R1, ShifterOperand(0));
@@ -230,9 +234,7 @@ TEST(Thumb2AssemblerTest, SimpleMovAdd) {
   EmitAndCheck(&assembler, "SimpleMovAdd");
 }
 
-TEST(Thumb2AssemblerTest, DataProcessingRegister) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, DataProcessingRegister) {
   // 32 bit variants using low registers.
   __ mvn(R0, ShifterOperand(R1), AL, kCcKeep);
   __ add(R0, R1, ShifterOperand(R2), AL, kCcKeep);
@@ -364,9 +366,7 @@ TEST(Thumb2AssemblerTest, DataProcessingRegister) {
   EmitAndCheck(&assembler, "DataProcessingRegister");
 }
 
-TEST(Thumb2AssemblerTest, DataProcessingImmediate) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, DataProcessingImmediate) {
   __ mov(R0, ShifterOperand(0x55));
   __ mvn(R0, ShifterOperand(0x55));
   __ add(R0, R1, ShifterOperand(0x55));
@@ -397,9 +397,7 @@ TEST(Thumb2AssemblerTest, DataProcessingImmediate) {
   EmitAndCheck(&assembler, "DataProcessingImmediate");
 }
 
-TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediate) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, DataProcessingModifiedImmediate) {
   __ mov(R0, ShifterOperand(0x550055));
   __ mvn(R0, ShifterOperand(0x550055));
   __ add(R0, R1, ShifterOperand(0x550055));
@@ -422,9 +420,7 @@ TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediate) {
 }
 
 
-TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediates) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, DataProcessingModifiedImmediates) {
   __ mov(R0, ShifterOperand(0x550055));
   __ mov(R0, ShifterOperand(0x55005500));
   __ mov(R0, ShifterOperand(0x55555555));
@@ -436,9 +432,7 @@ TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediates) {
   EmitAndCheck(&assembler, "DataProcessingModifiedImmediates");
 }
 
-TEST(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
   // 16-bit variants.
   __ movs(R3, ShifterOperand(R4, LSL, 4));
   __ movs(R3, ShifterOperand(R4, LSR, 5));
@@ -467,10 +461,9 @@ TEST(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
   EmitAndCheck(&assembler, "DataProcessingShiftedRegister");
 }
 
-TEST(Thumb2AssemblerTest, ShiftImmediate) {
+TEST_F(Thumb2AssemblerTest, ShiftImmediate) {
   // Note: This test produces the same results as DataProcessingShiftedRegister
   // but it does so using shift functions instead of mov().
-  arm::Thumb2Assembler assembler;
 
   // 16-bit variants.
   __ Lsl(R3, R4, 4);
@@ -500,9 +493,7 @@ TEST(Thumb2AssemblerTest, ShiftImmediate) {
   EmitAndCheck(&assembler, "ShiftImmediate");
 }
 
-TEST(Thumb2AssemblerTest, BasicLoad) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, BasicLoad) {
   __ ldr(R3, Address(R4, 24));
   __ ldrb(R3, Address(R4, 24));
   __ ldrh(R3, Address(R4, 24));
@@ -522,9 +513,7 @@ TEST(Thumb2AssemblerTest, BasicLoad) {
 }
 
 
-TEST(Thumb2AssemblerTest, BasicStore) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, BasicStore) {
   __ str(R3, Address(R4, 24));
   __ strb(R3, Address(R4, 24));
   __ strh(R3, Address(R4, 24));
@@ -539,9 +528,7 @@ TEST(Thumb2AssemblerTest, BasicStore) {
   EmitAndCheck(&assembler, "BasicStore");
 }
 
-TEST(Thumb2AssemblerTest, ComplexLoad) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, ComplexLoad) {
   __ ldr(R3, Address(R4, 24, Address::Mode::Offset));
   __ ldr(R3, Address(R4, 24, Address::Mode::PreIndex));
   __ ldr(R3, Address(R4, 24, Address::Mode::PostIndex));
@@ -581,9 +568,7 @@ TEST(Thumb2AssemblerTest, ComplexLoad) {
 }
 
 
-TEST(Thumb2AssemblerTest, ComplexStore) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, ComplexStore) {
   __ str(R3, Address(R4, 24, Address::Mode::Offset));
   __ str(R3, Address(R4, 24, Address::Mode::PreIndex));
   __ str(R3, Address(R4, 24, Address::Mode::PostIndex));
@@ -608,9 +593,7 @@ TEST(Thumb2AssemblerTest, ComplexStore) {
   EmitAndCheck(&assembler, "ComplexStore");
 }
 
-TEST(Thumb2AssemblerTest, NegativeLoadStore) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, NegativeLoadStore) {
   __ ldr(R3, Address(R4, -24, Address::Mode::Offset));
   __ ldr(R3, Address(R4, -24, Address::Mode::PreIndex));
   __ ldr(R3, Address(R4, -24, Address::Mode::PostIndex));
@@ -670,18 +653,14 @@ TEST(Thumb2AssemblerTest, NegativeLoadStore) {
   EmitAndCheck(&assembler, "NegativeLoadStore");
 }
 
-TEST(Thumb2AssemblerTest, SimpleLoadStoreDual) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, SimpleLoadStoreDual) {
   __ strd(R2, Address(R0, 24, Address::Mode::Offset));
   __ ldrd(R2, Address(R0, 24, Address::Mode::Offset));
 
   EmitAndCheck(&assembler, "SimpleLoadStoreDual");
 }
 
-TEST(Thumb2AssemblerTest, ComplexLoadStoreDual) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, ComplexLoadStoreDual) {
   __ strd(R2, Address(R0, 24, Address::Mode::Offset));
   __ strd(R2, Address(R0, 24, Address::Mode::PreIndex));
   __ strd(R2, Address(R0, 24, Address::Mode::PostIndex));
@@ -699,9 +678,7 @@ TEST(Thumb2AssemblerTest, ComplexLoadStoreDual) {
   EmitAndCheck(&assembler, "ComplexLoadStoreDual");
 }
 
-TEST(Thumb2AssemblerTest, NegativeLoadStoreDual) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, NegativeLoadStoreDual) {
   __ strd(R2, Address(R0, -24, Address::Mode::Offset));
   __ strd(R2, Address(R0, -24, Address::Mode::PreIndex));
   __ strd(R2, Address(R0, -24, Address::Mode::PostIndex));
@@ -719,9 +696,7 @@ TEST(Thumb2AssemblerTest, NegativeLoadStoreDual) {
   EmitAndCheck(&assembler, "NegativeLoadStoreDual");
 }
 
-TEST(Thumb2AssemblerTest, SimpleBranch) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, SimpleBranch) {
   Label l1;
   __ mov(R0, ShifterOperand(2));
   __ Bind(&l1);
@@ -757,8 +732,7 @@ TEST(Thumb2AssemblerTest, SimpleBranch) {
   EmitAndCheck(&assembler, "SimpleBranch");
 }
 
-TEST(Thumb2AssemblerTest, LongBranch) {
-  arm::Thumb2Assembler assembler;
+TEST_F(Thumb2AssemblerTest, LongBranch) {
   __ Force32Bit();
   // 32 bit branches.
   Label l1;
@@ -797,9 +771,7 @@ TEST(Thumb2AssemblerTest, LongBranch) {
   EmitAndCheck(&assembler, "LongBranch");
 }
 
-TEST(Thumb2AssemblerTest, LoadMultiple) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, LoadMultiple) {
   // 16 bit.
   __ ldm(DB_W, R4, (1 << R0 | 1 << R3));
 
@@ -813,9 +785,7 @@ TEST(Thumb2AssemblerTest, LoadMultiple) {
   EmitAndCheck(&assembler, "LoadMultiple");
 }
 
-TEST(Thumb2AssemblerTest, StoreMultiple) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, StoreMultiple) {
   // 16 bit.
   __ stm(IA_W, R4, (1 << R0 | 1 << R3));
 
@@ -830,9 +800,7 @@ TEST(Thumb2AssemblerTest, StoreMultiple) {
   EmitAndCheck(&assembler, "StoreMultiple");
 }
 
-TEST(Thumb2AssemblerTest, MovWMovT) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, MovWMovT) {
   // Always 32 bit.
   __ movw(R4, 0);
   __ movw(R4, 0x34);
@@ -848,9 +816,7 @@ TEST(Thumb2AssemblerTest, MovWMovT) {
   EmitAndCheck(&assembler, "MovWMovT");
 }
 
-TEST(Thumb2AssemblerTest, SpecialAddSub) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, SpecialAddSub) {
   __ add(R2, SP, ShifterOperand(0x50));   // 16 bit.
   __ add(SP, SP, ShifterOperand(0x50));   // 16 bit.
   __ add(R8, SP, ShifterOperand(0x50));   // 32 bit.
@@ -869,9 +835,7 @@ TEST(Thumb2AssemblerTest, SpecialAddSub) {
   EmitAndCheck(&assembler, "SpecialAddSub");
 }
 
-TEST(Thumb2AssemblerTest, LoadFromOffset) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, LoadFromOffset) {
   __ LoadFromOffset(kLoadWord, R2, R4, 12);
   __ LoadFromOffset(kLoadWord, R2, R4, 0xfff);
   __ LoadFromOffset(kLoadWord, R2, R4, 0x1000);
@@ -901,9 +865,7 @@ TEST(Thumb2AssemblerTest, LoadFromOffset) {
   EmitAndCheck(&assembler, "LoadFromOffset");
 }
 
-TEST(Thumb2AssemblerTest, StoreToOffset) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, StoreToOffset) {
   __ StoreToOffset(kStoreWord, R2, R4, 12);
   __ StoreToOffset(kStoreWord, R2, R4, 0xfff);
   __ StoreToOffset(kStoreWord, R2, R4, 0x1000);
@@ -931,9 +893,7 @@ TEST(Thumb2AssemblerTest, StoreToOffset) {
   EmitAndCheck(&assembler, "StoreToOffset");
 }
 
-TEST(Thumb2AssemblerTest, IfThen) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, IfThen) {
   __ it(EQ);
   __ mov(R1, ShifterOperand(1), EQ);
 
@@ -964,9 +924,7 @@ TEST(Thumb2AssemblerTest, IfThen) {
   EmitAndCheck(&assembler, "IfThen");
 }
 
-TEST(Thumb2AssemblerTest, CbzCbnz) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, CbzCbnz) {
   Label l1;
   __ cbz(R2, &l1);
   __ mov(R1, ShifterOperand(3));
@@ -984,9 +942,7 @@ TEST(Thumb2AssemblerTest, CbzCbnz) {
   EmitAndCheck(&assembler, "CbzCbnz");
 }
 
-TEST(Thumb2AssemblerTest, Multiply) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Multiply) {
   __ mul(R0, R1, R0);
   __ mul(R0, R1, R2);
   __ mul(R8, R9, R8);
@@ -1004,9 +960,7 @@ TEST(Thumb2AssemblerTest, Multiply) {
   EmitAndCheck(&assembler, "Multiply");
 }
 
-TEST(Thumb2AssemblerTest, Divide) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Divide) {
   __ sdiv(R0, R1, R2);
   __ sdiv(R8, R9, R10);
 
@@ -1016,9 +970,7 @@ TEST(Thumb2AssemblerTest, Divide) {
   EmitAndCheck(&assembler, "Divide");
 }
 
-TEST(Thumb2AssemblerTest, VMov) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, VMov) {
   __ vmovs(S1, 1.0);
   __ vmovd(D1, 1.0);
 
@@ -1029,9 +981,7 @@ TEST(Thumb2AssemblerTest, VMov) {
 }
 
 
-TEST(Thumb2AssemblerTest, BasicFloatingPoint) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, BasicFloatingPoint) {
   __ vadds(S0, S1, S2);
   __ vsubs(S0, S1, S2);
   __ vmuls(S0, S1, S2);
@@ -1055,9 +1005,7 @@ TEST(Thumb2AssemblerTest, BasicFloatingPoint) {
   EmitAndCheck(&assembler, "BasicFloatingPoint");
 }
 
-TEST(Thumb2AssemblerTest, FloatingPointConversions) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, FloatingPointConversions) {
   __ vcvtsd(S2, D2);
   __ vcvtds(D2, S2);
 
@@ -1076,9 +1024,7 @@ TEST(Thumb2AssemblerTest, FloatingPointConversions) {
   EmitAndCheck(&assembler, "FloatingPointConversions");
 }
 
-TEST(Thumb2AssemblerTest, FloatingPointComparisons) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, FloatingPointComparisons) {
   __ vcmps(S0, S1);
   __ vcmpd(D0, D1);
 
@@ -1088,35 +1034,27 @@ TEST(Thumb2AssemblerTest, FloatingPointComparisons) {
   EmitAndCheck(&assembler, "FloatingPointComparisons");
 }
 
-TEST(Thumb2AssemblerTest, Calls) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Calls) {
   __ blx(LR);
   __ bx(LR);
 
   EmitAndCheck(&assembler, "Calls");
 }
 
-TEST(Thumb2AssemblerTest, Breakpoint) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Breakpoint) {
   __ bkpt(0);
 
   EmitAndCheck(&assembler, "Breakpoint");
 }
 
-TEST(Thumb2AssemblerTest, StrR1) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, StrR1) {
   __ str(R1, Address(SP, 68));
   __ str(R1, Address(SP, 1068));
 
   EmitAndCheck(&assembler, "StrR1");
 }
 
-TEST(Thumb2AssemblerTest, VPushPop) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, VPushPop) {
   __ vpushs(S2, 4);
   __ vpushd(D2, 4);
 
@@ -1126,9 +1064,7 @@ TEST(Thumb2AssemblerTest, VPushPop) {
   EmitAndCheck(&assembler, "VPushPop");
 }
 
-TEST(Thumb2AssemblerTest, Max16BitBranch) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Max16BitBranch) {
   Label l1;
   __ b(&l1);
   for (int i = 0 ; i < (1 << 11) ; i += 2) {
@@ -1140,9 +1076,7 @@ TEST(Thumb2AssemblerTest, Max16BitBranch) {
   EmitAndCheck(&assembler, "Max16BitBranch");
 }
 
-TEST(Thumb2AssemblerTest, Branch32) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Branch32) {
   Label l1;
   __ b(&l1);
   for (int i = 0 ; i < (1 << 11) + 2 ; i += 2) {
@@ -1154,9 +1088,7 @@ TEST(Thumb2AssemblerTest, Branch32) {
   EmitAndCheck(&assembler, "Branch32");
 }
 
-TEST(Thumb2AssemblerTest, CompareAndBranchMax) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, CompareAndBranchMax) {
   Label l1;
   __ cbz(R4, &l1);
   for (int i = 0 ; i < (1 << 7) ; i += 2) {
@@ -1168,9 +1100,7 @@ TEST(Thumb2AssemblerTest, CompareAndBranchMax) {
   EmitAndCheck(&assembler, "CompareAndBranchMax");
 }
 
-TEST(Thumb2AssemblerTest, CompareAndBranchRelocation16) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, CompareAndBranchRelocation16) {
   Label l1;
   __ cbz(R4, &l1);
   for (int i = 0 ; i < (1 << 7) + 2 ; i += 2) {
@@ -1182,9 +1112,7 @@ TEST(Thumb2AssemblerTest, CompareAndBranchRelocation16) {
   EmitAndCheck(&assembler, "CompareAndBranchRelocation16");
 }
 
-TEST(Thumb2AssemblerTest, CompareAndBranchRelocation32) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, CompareAndBranchRelocation32) {
   Label l1;
   __ cbz(R4, &l1);
   for (int i = 0 ; i < (1 << 11) + 2 ; i += 2) {
@@ -1196,9 +1124,7 @@ TEST(Thumb2AssemblerTest, CompareAndBranchRelocation32) {
   EmitAndCheck(&assembler, "CompareAndBranchRelocation32");
 }
 
-TEST(Thumb2AssemblerTest, MixedBranch32) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, MixedBranch32) {
   Label l1;
   Label l2;
   __ b(&l1);      // Forwards.
@@ -1215,9 +1141,7 @@ TEST(Thumb2AssemblerTest, MixedBranch32) {
   EmitAndCheck(&assembler, "MixedBranch32");
 }
 
-TEST(Thumb2AssemblerTest, Shifts) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, Shifts) {
   // 16 bit selected for CcDontCare.
   __ Lsl(R0, R1, 5);
   __ Lsr(R0, R1, 5);
@@ -1292,9 +1216,7 @@ TEST(Thumb2AssemblerTest, Shifts) {
   EmitAndCheck(&assembler, "Shifts");
 }
 
-TEST(Thumb2AssemblerTest, LoadStoreRegOffset) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, LoadStoreRegOffset) {
   // 16 bit.
   __ ldr(R0, Address(R1, R2));
   __ str(R0, Address(R1, R2));
@@ -1319,9 +1241,7 @@ TEST(Thumb2AssemblerTest, LoadStoreRegOffset) {
   EmitAndCheck(&assembler, "LoadStoreRegOffset");
 }
 
-TEST(Thumb2AssemblerTest, LoadStoreLiteral) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, LoadStoreLiteral) {
   __ ldr(R0, Address(4));
   __ str(R0, Address(4));
 
@@ -1337,9 +1257,7 @@ TEST(Thumb2AssemblerTest, LoadStoreLiteral) {
   EmitAndCheck(&assembler, "LoadStoreLiteral");
 }
 
-TEST(Thumb2AssemblerTest, LoadStoreLimits) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, LoadStoreLimits) {
   __ ldr(R0, Address(R4, 124));     // 16 bit.
   __ ldr(R0, Address(R4, 128));     // 32 bit.
 
@@ -1367,9 +1285,7 @@ TEST(Thumb2AssemblerTest, LoadStoreLimits) {
   EmitAndCheck(&assembler, "LoadStoreLimits");
 }
 
-TEST(Thumb2AssemblerTest, CompareAndBranch) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, CompareAndBranch) {
   Label label;
   __ CompareAndBranchIfZero(arm::R0, &label);
   __ CompareAndBranchIfZero(arm::R11, &label);
@@ -1380,9 +1296,7 @@ TEST(Thumb2AssemblerTest, CompareAndBranch) {
   EmitAndCheck(&assembler, "CompareAndBranch");
 }
 
-TEST(Thumb2AssemblerTest, AddConstant) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, AddConstant) {
   // Low registers, Rd != Rn.
   __ AddConstant(R0, R1, 0);                          // MOV.
   __ AddConstant(R0, R1, 1);                          // 16-bit ADDS, encoding T1.
@@ -1626,9 +1540,7 @@ TEST(Thumb2AssemblerTest, AddConstant) {
   EmitAndCheck(&assembler, "AddConstant");
 }
 
-TEST(Thumb2AssemblerTest, CmpConstant) {
-  arm::Thumb2Assembler assembler;
-
+TEST_F(Thumb2AssemblerTest, CmpConstant) {
   __ CmpConstant(R0, 0);                              // 16-bit CMP.
   __ CmpConstant(R1, 1);                              // 16-bit CMP.
   __ CmpConstant(R0, 7);                              // 16-bit CMP.

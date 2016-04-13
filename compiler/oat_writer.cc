@@ -1407,7 +1407,7 @@ size_t OatWriter::InitOatCode(size_t offset) {
       offset = CompiledCode::AlignCode(offset, instruction_set); \
       adjusted_offset = offset + CompiledCode::CodeDelta(instruction_set); \
       oat_header_->Set ## fn_name ## Offset(adjusted_offset); \
-      field.reset(compiler_driver_->Create ## fn_name()); \
+      field = compiler_driver_->Create ## fn_name(); \
       offset += field->size();
 
     DO_TRAMPOLINE(jni_dlsym_lookup_, JniDlsymLookup);
