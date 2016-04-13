@@ -48,7 +48,8 @@ class Jit {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateInstrumentationCache(size_t compile_threshold,
                                   size_t warmup_threshold,
-                                  size_t osr_threshold);
+                                  size_t osr_threshold,
+                                  uint16_t priority_thread_weight);
   void CreateThreadPool();
   const JitCodeCache* GetCodeCache() const {
     return code_cache_.get();
@@ -98,6 +99,9 @@ class Jit {
 
   // Return whether we can invoke JIT code for `method`.
   bool CanInvokeCompiledCode(ArtMethod* method);
+
+  // Return whether the runtime should use a priority thread weight when sampling.
+  static bool ShouldUsePriorityThreadWeight();
 
   // If an OSR compiled version is available for `method`,
   // and `dex_pc + dex_pc_offset` is an entry point of that compiled
@@ -152,6 +156,9 @@ class JitOptions {
   size_t GetOsrThreshold() const {
     return osr_threshold_;
   }
+  uint16_t GetPriorityThreadWeight() const {
+    return priority_thread_weight_;
+  }
   size_t GetCodeCacheInitialCapacity() const {
     return code_cache_initial_capacity_;
   }
@@ -185,6 +192,7 @@ class JitOptions {
   size_t compile_threshold_;
   size_t warmup_threshold_;
   size_t osr_threshold_;
+  uint16_t priority_thread_weight_;
   bool dump_info_on_shutdown_;
   bool save_profiling_info_;
 

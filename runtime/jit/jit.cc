@@ -86,7 +86,27 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
     }
   }
 
+  if (options.Exists(RuntimeArgumentMap::JITPriorityThreadWeight)) {
+    jit_options->priority_thread_weight_ =
+        *options.Get(RuntimeArgumentMap::JITPriorityThreadWeight);
+    if (jit_options->priority_thread_weight_ > jit_options->warmup_threshold_) {
+      LOG(FATAL) << "Priority thread weight is above the warmup threshold.";
+    } else if (jit_options->priority_thread_weight_ == 0) {
+      LOG(FATAL) << "Priority thread weight cannot be 0.";
+    }
+  } else {
+    jit_options->priority_thread_weight_ =
+        std::max(jit_options->compile_threshold_ / 2000, static_cast<size_t>(1));
+  }
+
   return jit_options;
+}
+
+bool Jit::ShouldUsePriorityThreadWeight() {
+  // TODO(calin): verify that IsSensitiveThread covers only the cases we are interested on.
+  // In particular if apps can set StrictMode policies for any of their threads, case in which
+  // we need to find another way to track sensitive threads.
+  return Runtime::Current()->InJankPerceptibleProcessState() && Thread::IsSensitiveThread();
 }
 
 void Jit::DumpInfo(std::ostream& os) {
@@ -272,9 +292,13 @@ Jit::~Jit() {
 
 void Jit::CreateInstrumentationCache(size_t compile_threshold,
                                      size_t warmup_threshold,
-                                     size_t osr_threshold) {
+                                     size_t osr_threshold,
+                                     uint16_t priority_thread_weight) {
   instrumentation_cache_.reset(
-      new jit::JitInstrumentationCache(compile_threshold, warmup_threshold, osr_threshold));
+      new jit::JitInstrumentationCache(compile_threshold,
+                                       warmup_threshold,
+                                       osr_threshold,
+                                       priority_thread_weight));
 }
 
 void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {

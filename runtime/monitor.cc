@@ -67,19 +67,10 @@ static constexpr uint64_t kLongWaitMs = 100;
  * at any given time.
  */
 
-bool (*Monitor::is_sensitive_thread_hook_)() = nullptr;
 uint32_t Monitor::lock_profiling_threshold_ = 0;
 
-bool Monitor::IsSensitiveThread() {
-  if (is_sensitive_thread_hook_ != nullptr) {
-    return (*is_sensitive_thread_hook_)();
-  }
-  return false;
-}
-
-void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)()) {
+void Monitor::Init(uint32_t lock_profiling_threshold) {
   lock_profiling_threshold_ = lock_profiling_threshold;
-  is_sensitive_thread_hook_ = is_sensitive_thread_hook;
 }
 
 Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
