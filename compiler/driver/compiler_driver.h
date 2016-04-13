@@ -195,25 +195,26 @@ class CompilerDriver {
 
   // Callbacks from compiler to see what runtime checks must be generated.
 
-  bool CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx);
+  bool CanAssumeTypeIsPresentInDexCache(Handle<mirror::DexCache> dex_cache,
+                                        uint32_t type_idx)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool CanAssumeStringIsPresentInDexCache(const DexFile& dex_file, uint32_t string_idx)
       REQUIRES(!Locks::mutator_lock_);
 
   // Are runtime access checks necessary in the compiled code?
-  bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                  uint32_t type_idx, bool* type_known_final = nullptr,
-                                  bool* type_known_abstract = nullptr,
-                                  bool* equals_referrers_class = nullptr)
-      REQUIRES(!Locks::mutator_lock_);
+  bool CanAccessTypeWithoutChecks(uint32_t referrer_idx,
+                                  Handle<mirror::DexCache> dex_cache,
+                                  uint32_t type_idx)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
   // out_is_finalizable is set to whether the type is finalizable.
   bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
-                                              const DexFile& dex_file,
+                                              Handle<mirror::DexCache> dex_cache,
                                               uint32_t type_idx,
                                               bool* out_is_finalizable)
-      REQUIRES(!Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
                           bool* is_type_initialized, bool* use_direct_type_ptr,
@@ -367,14 +368,6 @@ class CompilerDriver {
                                              const ScopedObjectAccess& soa)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-
-  // Can we fastpath static field access? Computes field's offset, volatility and whether the
-  // field is within the referrer (which can avoid checking class initialization).
-  bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
-                              MemberOffset* field_offset, uint32_t* storage_index,
-                              bool* is_referrers_class, bool* is_volatile, bool* is_initialized,
-                              Primitive::Type* type)
-      REQUIRES(!Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.

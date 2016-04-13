@@ -1283,14 +1283,13 @@ bool CompilerDriver::CanAssumeClassIsLoaded(mirror::Class* klass) {
   return IsImageClass(descriptor);
 }
 
-bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx) {
+bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(Handle<mirror::DexCache> dex_cache,
+                                                      uint32_t type_idx) {
   bool result = false;
   if ((IsBootImage() &&
-       IsImageClass(dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) ||
+       IsImageClass(dex_cache->GetDexFile()->StringDataByIdx(
+           dex_cache->GetDexFile()->GetTypeId(type_idx).descriptor_idx_))) ||
       Runtime::Current()->UseJit()) {
-    ScopedObjectAccess soa(Thread::Current());
-    mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
-        soa.Self(), dex_file, false);
     mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
     result = (resolved_class != nullptr);
   }
@@ -1332,32 +1331,16 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   return result;
 }
 
-bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                                uint32_t type_idx,
-                                                bool* type_known_final, bool* type_known_abstract,
-                                                bool* equals_referrers_class) {
-  if (type_known_final != nullptr) {
-    *type_known_final = false;
-  }
-  if (type_known_abstract != nullptr) {
-    *type_known_abstract = false;
-  }
-  if (equals_referrers_class != nullptr) {
-    *equals_referrers_class = false;
-  }
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
-      soa.Self(), dex_file, false);
+bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx,
+                                                Handle<mirror::DexCache> dex_cache,
+                                                uint32_t type_idx) {
   // Get type from dex cache assuming it was populated by the verifier
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
     stats_->TypeNeedsAccessCheck();
     return false;  // Unknown class needs access checks.
   }
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
-  if (equals_referrers_class != nullptr) {
-    *equals_referrers_class = (method_id.class_idx_ == type_idx);
-  }
+  const DexFile::MethodId& method_id = dex_cache->GetDexFile()->GetMethodId(referrer_idx);
   bool is_accessible = resolved_class->IsPublic();  // Public classes are always accessible.
   if (!is_accessible) {
     mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
@@ -1371,12 +1354,6 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
   }
   if (is_accessible) {
     stats_->TypeDoesntNeedAccessCheck();
-    if (type_known_final != nullptr) {
-      *type_known_final = resolved_class->IsFinal() && !resolved_class->IsArrayClass();
-    }
-    if (type_known_abstract != nullptr) {
-      *type_known_abstract = resolved_class->IsAbstract() && !resolved_class->IsArrayClass();
-    }
   } else {
     stats_->TypeNeedsAccessCheck();
   }
@@ -1384,12 +1361,9 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
 }
 
 bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
-                                                            const DexFile& dex_file,
+                                                            Handle<mirror::DexCache> dex_cache,
                                                             uint32_t type_idx,
                                                             bool* finalizable) {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
-      soa.Self(), dex_file, false);
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
@@ -1399,7 +1373,7 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
     return false;  // Unknown class needs access checks.
   }
   *finalizable = resolved_class->IsFinalizable();
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+  const DexFile::MethodId& method_id = dex_cache->GetDexFile()->GetMethodId(referrer_idx);
   bool is_accessible = resolved_class->IsPublic();  // Public classes are always accessible.
   if (!is_accessible) {
     mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
@@ -1585,53 +1559,6 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
     *field_offset = resolved_field->GetOffset();
     return true;
   }
-}
-
-bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                            bool is_put, MemberOffset* field_offset,
-                                            uint32_t* storage_index, bool* is_referrers_class,
-                                            bool* is_volatile, bool* is_initialized,
-                                            Primitive::Type* type) {
-  ScopedObjectAccess soa(Thread::Current());
-  // Try to resolve the field and compiling method's class.
-  ArtField* resolved_field;
-  mirror::Class* referrer_class;
-  Handle<mirror::DexCache> dex_cache(mUnit->GetDexCache());
-  {
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::ClassLoader> class_loader_handle(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
-    resolved_field =
-        ResolveField(soa, dex_cache, class_loader_handle, mUnit, field_idx, true);
-    referrer_class = resolved_field != nullptr
-        ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader_handle, mUnit) : nullptr;
-  }
-  bool result = false;
-  if (resolved_field != nullptr && referrer_class != nullptr) {
-    *is_volatile = IsFieldVolatile(resolved_field);
-    std::pair<bool, bool> fast_path = IsFastStaticField(
-        dex_cache.Get(), referrer_class, resolved_field, field_idx, storage_index);
-    result = is_put ? fast_path.second : fast_path.first;
-  }
-  if (result) {
-    *field_offset = GetFieldOffset(resolved_field);
-    *is_referrers_class = IsStaticFieldInReferrerClass(referrer_class, resolved_field);
-    // *is_referrers_class == true implies no worrying about class initialization.
-    *is_initialized = (*is_referrers_class) ||
-        (IsStaticFieldsClassInitialized(referrer_class, resolved_field) &&
-         CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index));
-    *type = resolved_field->GetTypeAsPrimitiveType();
-  } else {
-    // Conservative defaults.
-    *is_volatile = true;
-    *field_offset = MemberOffset(static_cast<size_t>(-1));
-    *storage_index = -1;
-    *is_referrers_class = false;
-    *is_initialized = false;
-    *type = Primitive::kPrimVoid;
-  }
-  ProcessedStaticField(result, *is_referrers_class);
-  return result;
 }
 
 void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
