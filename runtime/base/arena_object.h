@@ -48,7 +48,6 @@ class ArenaObject {
 
 
 // Parent for arena allocated objects that get deleted, gives appropriate new and delete operators.
-// Currently this is used by the quick compiler for debug reference counting arena allocations.
 template<enum ArenaAllocKind kAllocKind>
 class DeletableArenaObject {
  public:

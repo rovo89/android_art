@@ -54,7 +54,7 @@ class OptimizingCFITest : public CFITest {
     isa_features_.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
     graph_ = CreateGraph(&allocator_);
     // Generate simple frame with some spills.
-    code_gen_.reset(CodeGenerator::Create(graph_, isa, *isa_features_, opts_));
+    code_gen_ = CodeGenerator::Create(graph_, isa, *isa_features_, opts_);
     code_gen_->GetAssembler()->cfi().SetEnabled(true);
     const int frame_size = 64;
     int core_reg = 0;
