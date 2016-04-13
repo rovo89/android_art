@@ -64,6 +64,13 @@ SYMBOL(ExecuteMterpImpl):
     lea     (rPC, %eax, 2), rPC
     EXPORT_PC
 
+    /* Set up for backwards branches & osr profiling */
+    movl    OFF_FP_METHOD(rFP), %eax
+    movl    %eax, OUT_ARG0(%esp)
+    leal    OFF_FP_SHADOWFRAME(rFP), %ecx
+    movl    %ecx, OUT_ARG1(%esp)
+    call    SYMBOL(MterpSetUpHotnessCountdown)
+
     /* Starting ibase */
     REFRESH_IBASE
 

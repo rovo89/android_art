@@ -15,11 +15,7 @@
     movl    %eax, OUT_ARG1(%esp)            # ARG1 <- vAA
     movl    %ecx, OUT_ARG0(%esp)            # ARG0 <- switchData
     call    SYMBOL($func)
-    movl    %eax, rINST
-    MTERP_PROFILE_BRANCH
-    addl    rINST, rINST
-    leal    (rPC, rINST), rPC
-    FETCH_INST
     REFRESH_IBASE
-    jle     MterpCheckSuspendAndContinue
-    GOTO_NEXT
+    testl   %eax, %eax
+    movl    %eax, rINST
+    jmp     MterpCommonTakenBranch
