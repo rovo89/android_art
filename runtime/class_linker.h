@@ -595,6 +595,7 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // May be called with null class_loader due to legacy code. b/27954959
   void InsertDexFileInToClassLoader(mirror::Object* dex_file, mirror::ClassLoader* class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
