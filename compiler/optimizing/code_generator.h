@@ -166,15 +166,15 @@ class FieldAccessCallingConvention {
   DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConvention);
 };
 
-class CodeGenerator {
+class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
  public:
   // Compiles the graph to executable instructions.
   void Compile(CodeAllocator* allocator);
-  static CodeGenerator* Create(HGraph* graph,
-                               InstructionSet instruction_set,
-                               const InstructionSetFeatures& isa_features,
-                               const CompilerOptions& compiler_options,
-                               OptimizingCompilerStats* stats = nullptr);
+  static std::unique_ptr<CodeGenerator> Create(HGraph* graph,
+                                               InstructionSet instruction_set,
+                                               const InstructionSetFeatures& isa_features,
+                                               const CompilerOptions& compiler_options,
+                                               OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGenerator() {}
 
   // Get the graph. This is the outermost graph, never the graph of a method being inlined.

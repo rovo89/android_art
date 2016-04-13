@@ -552,59 +552,66 @@ void CodeGenerator::MaybeRecordStat(MethodCompilationStat compilation_stat, size
   }
 }
 
-CodeGenerator* CodeGenerator::Create(HGraph* graph,
-                                     InstructionSet instruction_set,
-                                     const InstructionSetFeatures& isa_features,
-                                     const CompilerOptions& compiler_options,
-                                     OptimizingCompilerStats* stats) {
+std::unique_ptr<CodeGenerator> CodeGenerator::Create(HGraph* graph,
+                                                     InstructionSet instruction_set,
+                                                     const InstructionSetFeatures& isa_features,
+                                                     const CompilerOptions& compiler_options,
+                                                     OptimizingCompilerStats* stats) {
+  ArenaAllocator* arena = graph->GetArena();
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2: {
-      return new arm::CodeGeneratorARM(graph,
-                                      *isa_features.AsArmInstructionSetFeatures(),
-                                      compiler_options,
-                                      stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) arm::CodeGeneratorARM(graph,
+                                            *isa_features.AsArmInstructionSetFeatures(),
+                                            compiler_options,
+                                            stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64: {
-      return new arm64::CodeGeneratorARM64(graph,
-                                          *isa_features.AsArm64InstructionSetFeatures(),
-                                          compiler_options,
-                                          stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) arm64::CodeGeneratorARM64(graph,
+                                                *isa_features.AsArm64InstructionSetFeatures(),
+                                                compiler_options,
+                                                stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips: {
-      return new mips::CodeGeneratorMIPS(graph,
-                                         *isa_features.AsMipsInstructionSetFeatures(),
-                                         compiler_options,
-                                         stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) mips::CodeGeneratorMIPS(graph,
+                                              *isa_features.AsMipsInstructionSetFeatures(),
+                                              compiler_options,
+                                              stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64: {
-      return new mips64::CodeGeneratorMIPS64(graph,
-                                            *isa_features.AsMips64InstructionSetFeatures(),
-                                            compiler_options,
-                                            stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) mips64::CodeGeneratorMIPS64(graph,
+                                                  *isa_features.AsMips64InstructionSetFeatures(),
+                                                  compiler_options,
+                                                  stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86: {
-      return new x86::CodeGeneratorX86(graph,
-                                      *isa_features.AsX86InstructionSetFeatures(),
-                                      compiler_options,
-                                      stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) x86::CodeGeneratorX86(graph,
+                                            *isa_features.AsX86InstructionSetFeatures(),
+                                            compiler_options,
+                                            stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64: {
-      return new x86_64::CodeGeneratorX86_64(graph,
-                                            *isa_features.AsX86_64InstructionSetFeatures(),
-                                            compiler_options,
-                                            stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) x86_64::CodeGeneratorX86_64(graph,
+                                                  *isa_features.AsX86_64InstructionSetFeatures(),
+                                                  compiler_options,
+                                                  stats));
     }
 #endif
     default:
