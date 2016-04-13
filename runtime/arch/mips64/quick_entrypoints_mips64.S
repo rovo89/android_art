@@ -358,6 +358,138 @@
 .endm
 
     /*
+     * On stack replacement stub.
+     * On entry:
+     *   a0 = stack to copy
+     *   a1 = size of stack
+     *   a2 = pc to call
+     *   a3 = JValue* result
+     *   a4 = shorty
+     *   a5 = thread
+     */
+ENTRY art_quick_osr_stub
+    move   $t0, $sp               # save stack pointer
+    daddiu $t1, $sp, -112         # reserve stack space
+    dsrl   $t1, $t1, 4            # enforce 16 byte stack alignment
+    dsll   $sp, $t1, 4            # update stack pointer
+
+    // Save callee general purpose registers, SP, T8(GP), RA, A3, and A4 (8x14 bytes)
+    sd     $ra, 104($sp)
+    .cfi_rel_offset 31, 104
+    sd     $s8, 96($sp)
+    .cfi_rel_offset 30, 96
+    sd     $t0, 88($sp)           # save original stack pointer stored in t0
+    .cfi_rel_offset 29, 88
+    sd     $t8, 80($sp)           # t8 holds caller's gp, now save it to the stack.
+    .cfi_rel_offset 28, 80        # Value from gp is pushed, so set the cfi offset accordingly.
+    sd     $s7, 72($sp)
+    .cfi_rel_offset 23, 72
+    sd     $s6, 64($sp)
+    .cfi_rel_offset 22, 64
+    sd     $s5, 56($sp)
+    .cfi_rel_offset 21, 56
+    sd     $s4, 48($sp)
+    .cfi_rel_offset 20, 48
+    sd     $s3, 40($sp)
+    .cfi_rel_offset 19, 40
+    sd     $s2, 32($sp)
+    .cfi_rel_offset 18, 32
+    sd     $s1, 24($sp)
+    .cfi_rel_offset 17, 24
+    sd     $s0, 16($sp)
+    .cfi_rel_offset 16, 16
+    sd     $a4, 8($sp)
+    .cfi_rel_offset 8, 8
+    sd     $a3, 0($sp)
+    .cfi_rel_offset 7, 0
+    move   rSELF, $a5                      # Save managed thread pointer into rSELF
+
+    daddiu $sp, $sp, -16
+    jal    .Losr_entry
+    sd     $zero, 0($sp)                   # Store null for ArtMethod* at bottom of frame
+    daddiu $sp, $sp, 16
+
+    // Restore return value address and shorty address
+    ld     $a4, 8($sp)                     # shorty address
+    .cfi_restore 8
+    ld     $a3, 0($sp)                     # result value address
+    .cfi_restore 7
+
+    lbu    $t1, 0($a4)                     # load return type
+    li     $t2, 'D'                        # put char 'D' into t2
+    beq    $t1, $t2, .Losr_fp_result       # branch if result type char == 'D'
+    li     $t2, 'F'                        # put char 'F' into t2
+    beq    $t1, $t2, .Losr_fp_result       # branch if result type char == 'F'
+    nop
+    b      .Losr_exit
+    dsrl   $v1, $v0, 32                    # put high half of result in v1
+.Losr_fp_result:
+    mfc1   $v0, $f0
+    mfhc1  $v1, $f0                        # put high half of FP result in v1
+.Losr_exit:
+    sw     $v0, 0($a3)                     # store low half of result
+    sw     $v1, 4($a3)                     # store high half of result
+
+    // Restore callee registers
+    ld     $ra, 104($sp)
+    .cfi_restore 31
+    ld     $s8, 96($sp)
+    .cfi_restore 30
+    ld     $t0, 88($sp)                    # save SP into t0 for now
+    .cfi_restore 29
+    ld     $t8, 80($sp)                    # Restore gp back to it's temp storage.
+    .cfi_restore 28
+    ld     $s7, 72($sp)
+    .cfi_restore 23
+    ld     $s6, 64($sp)
+    .cfi_restore 22
+    ld     $s5, 56($sp)
+    .cfi_restore 21
+    ld     $s4, 48($sp)
+    .cfi_restore 20
+    ld     $s3, 40($sp)
+    .cfi_restore 19
+    ld     $s2, 32($sp)
+    .cfi_restore 18
+    ld     $s1, 24($sp)
+    .cfi_restore 17
+    ld     $s0, 16($sp)
+    .cfi_restore 16
+    jalr   $zero, $ra
+    move   $sp, $t0
+
+.Losr_entry:
+    dsubu  $sp, $sp, $a1                   # Reserve space for callee stack
+    daddiu $a1, $a1, -8
+    daddu  $t0, $a1, $sp
+    sw     $ra, 0($t0)                     # Store low half of RA per compiler ABI
+    dsrl   $t1, $ra, 32
+    sw     $t1, 4($t0)                     # Store high half of RA per compiler ABI
+
+    // Copy arguments into callee stack
+    // Use simple copy routine for now.
+    // 4 bytes per slot.
+    // a0 = source address
+    // a1 = args length in bytes (does not include 8 bytes for RA)
+    // sp = destination address
+    beqz   $a1, .Losr_loop_exit
+    daddiu $a1, $a1, -4
+    daddu  $t1, $a0, $a1
+    daddu  $t2, $sp, $a1
+.Losr_loop_entry:
+    lw     $t0, 0($t1)
+    daddiu $t1, $t1, -4
+    sw     $t0, 0($t2)
+    bne    $sp, $t2, .Losr_loop_entry
+    daddiu $t2, $t2, -4
+
+.Losr_loop_exit:
+    move   $t9, $a2
+    jalr   $zero, $t9                      # Jump to the OSR entry point.
+    nop
+END art_quick_osr_stub
+
+    /*
      * On entry $a0 is uint32_t* gprs_ and $a1 is uint32_t* fprs_
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
@@ -1534,11 +1666,40 @@ ENTRY art_quick_proxy_invoke_handler
 END art_quick_proxy_invoke_handler
 
     /*
-     * Called to resolve an imt conflict. t0 is a hidden argument that holds the target method's
-     * dex method index.
+     * Called to resolve an imt conflict.
+     * a0 is the conflict ArtMethod.
+     * t0 is a hidden argument that holds the target interface method's dex method index.
+     *
+     * Mote that this stub writes to a0, t0 and t1.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    move    $a0, $t0
+    ld      $t1, 0($sp)                                      # Load referrer.
+    ld      $t1, ART_METHOD_DEX_CACHE_METHODS_OFFSET_64($t1) # Load dex cache methods array.
+    dsll    $t0, $t0, POINTER_SIZE_SHIFT                     # Calculate offset.
+    daddu   $t0, $t1, $t0                                    # Add offset to base.
+    ld      $t0, 0($t0)                                      # Load interface method.
+    ld      $a0, ART_METHOD_JNI_OFFSET_64($a0)               # Load ImtConflictTable.
+
+.Limt_table_iterate:
+    ld      $t1, 0($a0)                                      # Load next entry in ImtConflictTable.
+    # Branch if found.
+    beq     $t1, $t0, .Limt_table_found
+    nop
+    # If the entry is null, the interface method is not in the ImtConflictTable.
+    beqzc   $t1, .Lconflict_trampoline
+    # Iterate over the entries of the ImtConflictTable.
+    daddiu  $a0, $a0, 2 * __SIZEOF_POINTER__                 # Iterate to the next entry.
+    bc       .Limt_table_iterate
+
+.Limt_table_found:
+    # We successfully hit an entry in the table. Load the target method and jump to it.
+    ld      $a0, __SIZEOF_POINTER__($a0)
+    ld      $t9, ART_METHOD_QUICK_CODE_OFFSET_64($a0)
+    jr      $t9
+    .cpreturn                      # Restore gp from t8 in branch delay slot.
+
+.Lconflict_trampoline:
+    # Call the runtime stub to populate the ImtConflictTable and jump to the resolved method.
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END art_quick_imt_conflict_trampoline
 

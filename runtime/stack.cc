@@ -21,7 +21,6 @@
 #include "base/hex_dump.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
-#include "gc_map.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "jit/jit.h"
@@ -36,7 +35,6 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "verify_object-inl.h"
-#include "vmap_table.h"
 
 namespace art {
 
@@ -117,7 +115,7 @@ InlineInfo StackVisitor::GetCurrentInlineInfo() const {
   const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
   uint32_t native_pc_offset = method_header->NativeQuickPcOffset(cur_quick_frame_pc_);
   CodeInfo code_info = method_header->GetOptimizedCodeInfo();
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
   DCHECK(stack_map.IsValid());
   return code_info.GetInlineInfoOf(stack_map, encoding);
@@ -130,11 +128,19 @@ ArtMethod* StackVisitor::GetMethod() const {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
       InlineInfo inline_info = GetCurrentInlineInfo();
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      CodeInfoEncoding encoding = method_header->GetOptimizedCodeInfo().ExtractEncoding();
       DCHECK(walk_kind_ != StackWalkKind::kSkipInlinedFrames);
       bool allow_resolve = walk_kind_ != StackWalkKind::kIncludeInlinedFramesNoResolve;
       return allow_resolve
-          ? GetResolvedMethod<true>(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map)
-          : GetResolvedMethod<false>(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map);
+          ? GetResolvedMethod<true>(*GetCurrentQuickFrame(),
+                                    inline_info,
+                                    encoding.inline_info_encoding,
+                                    depth_in_stack_map)
+          : GetResolvedMethod<false>(*GetCurrentQuickFrame(),
+                                     inline_info,
+                                     encoding.inline_info_encoding,
+                                     depth_in_stack_map);
     } else {
       return *cur_quick_frame_;
     }
@@ -148,7 +154,10 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   } else if (cur_quick_frame_ != nullptr) {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
-      return GetCurrentInlineInfo().GetDexPcAtDepth(depth_in_stack_map);
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      CodeInfoEncoding encoding = method_header->GetOptimizedCodeInfo().ExtractEncoding();
+      return GetCurrentInlineInfo().GetDexPcAtDepth(encoding.inline_info_encoding,
+                                                    depth_in_stack_map);
     } else if (cur_oat_quick_method_header_ == nullptr) {
       return DexFile::kDexNoIndex;
     } else {
@@ -204,33 +213,6 @@ size_t StackVisitor::GetNativePcOffset() const {
   return GetCurrentOatQuickMethodHeader()->NativeQuickPcOffset(cur_quick_frame_pc_);
 }
 
-bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
-  DCHECK_EQ(m, GetMethod());
-  // Process register map (which native and runtime methods don't have)
-  if (m->IsNative() || m->IsRuntimeMethod() || m->IsProxyMethod()) {
-    return false;
-  }
-  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-  if (method_header->IsOptimized()) {
-    return true;  // TODO: Implement.
-  }
-  const uint8_t* native_gc_map = method_header->GetNativeGcMap();
-  CHECK(native_gc_map != nullptr) << PrettyMethod(m);
-  const DexFile::CodeItem* code_item = m->GetCodeItem();
-  // Can't be null or how would we compile its instructions?
-  DCHECK(code_item != nullptr) << PrettyMethod(m);
-  NativePcOffsetToReferenceMap map(native_gc_map);
-  size_t num_regs = std::min(map.RegWidth() * 8, static_cast<size_t>(code_item->registers_size_));
-  const uint8_t* reg_bitmap = nullptr;
-  if (num_regs > 0) {
-    uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
-    reg_bitmap = map.FindBitMap(native_pc_offset);
-    DCHECK(reg_bitmap != nullptr);
-  }
-  // Does this register hold a reference?
-  return vreg < num_regs && TestBitmap(vreg, reg_bitmap);
-}
-
 bool StackVisitor::GetVRegFromDebuggerShadowFrame(uint16_t vreg,
                                                   VRegKind kind,
                                                   uint32_t* val) const {
@@ -262,11 +244,8 @@ bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t*
     if (GetVRegFromDebuggerShadowFrame(vreg, kind, val)) {
       return true;
     }
-    if (cur_oat_quick_method_header_->IsOptimized()) {
-      return GetVRegFromOptimizedCode(m, vreg, kind, val);
-    } else {
-      return GetVRegFromQuickCode(m, vreg, kind, val);
-    }
+    DCHECK(cur_oat_quick_method_header_->IsOptimized());
+    return GetVRegFromOptimizedCode(m, vreg, kind, val);
   } else {
     DCHECK(cur_shadow_frame_ != nullptr);
     if (kind == kReferenceVReg) {
@@ -275,29 +254,6 @@ bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t*
     } else {
       *val = cur_shadow_frame_->GetVReg(vreg);
     }
-    return true;
-  }
-}
-
-bool StackVisitor::GetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
-                                        uint32_t* val) const {
-  DCHECK_EQ(m, GetMethod());
-  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
-  const VmapTable vmap_table(method_header->GetVmapTable());
-  uint32_t vmap_offset;
-  // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
-    bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
-    uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
-    uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
-    return GetRegisterIfAccessible(reg, kind, val);
-  } else {
-    const DexFile::CodeItem* code_item = m->GetCodeItem();
-    DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
-                                                      // its instructions?
-    *val = *GetVRegAddrFromQuickCode(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
-                                     frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
     return true;
   }
 }
@@ -312,7 +268,7 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
   DCHECK_LT(vreg, code_item->registers_size_);
   const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
   CodeInfo code_info = method_header->GetOptimizedCodeInfo();
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
 
   uint32_t native_pc_offset = method_header->NativeQuickPcOffset(cur_quick_frame_pc_);
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
@@ -421,41 +377,11 @@ bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    if (cur_oat_quick_method_header_->IsOptimized()) {
-      return GetVRegPairFromOptimizedCode(m, vreg, kind_lo, kind_hi, val);
-    } else {
-      return GetVRegPairFromQuickCode(m, vreg, kind_lo, kind_hi, val);
-    }
+    DCHECK(cur_oat_quick_method_header_->IsOptimized());
+    return GetVRegPairFromOptimizedCode(m, vreg, kind_lo, kind_hi, val);
   } else {
     DCHECK(cur_shadow_frame_ != nullptr);
     *val = cur_shadow_frame_->GetVRegLong(vreg);
-    return true;
-  }
-}
-
-bool StackVisitor::GetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
-                                            VRegKind kind_hi, uint64_t* val) const {
-  DCHECK_EQ(m, GetMethod());
-  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
-  const VmapTable vmap_table(method_header->GetVmapTable());
-  uint32_t vmap_offset_lo, vmap_offset_hi;
-  // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind_lo, &vmap_offset_lo) &&
-      vmap_table.IsInContext(vreg + 1, kind_hi, &vmap_offset_hi)) {
-    bool is_float = (kind_lo == kDoubleLoVReg);
-    uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
-    uint32_t reg_lo = vmap_table.ComputeRegister(spill_mask, vmap_offset_lo, kind_lo);
-    uint32_t reg_hi = vmap_table.ComputeRegister(spill_mask, vmap_offset_hi, kind_hi);
-    return GetRegisterPairIfAccessible(reg_lo, reg_hi, kind_lo, val);
-  } else {
-    const DexFile::CodeItem* code_item = m->GetCodeItem();
-    DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
-                                                      // its instructions?
-    uint32_t* addr = GetVRegAddrFromQuickCode(
-        cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
-        frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
-    *val = *reinterpret_cast<uint64_t*>(addr);
     return true;
   }
 }
@@ -868,14 +794,14 @@ void StackVisitor::WalkStack(bool include_transitions) {
             && (cur_oat_quick_method_header_ != nullptr)
             && cur_oat_quick_method_header_->IsOptimized()) {
           CodeInfo code_info = cur_oat_quick_method_header_->GetOptimizedCodeInfo();
-          StackMapEncoding encoding = code_info.ExtractEncoding();
+          CodeInfoEncoding encoding = code_info.ExtractEncoding();
           uint32_t native_pc_offset =
               cur_oat_quick_method_header_->NativeQuickPcOffset(cur_quick_frame_pc_);
           StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-          if (stack_map.IsValid() && stack_map.HasInlineInfo(encoding)) {
+          if (stack_map.IsValid() && stack_map.HasInlineInfo(encoding.stack_map_encoding)) {
             InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
             DCHECK_EQ(current_inlining_depth_, 0u);
-            for (current_inlining_depth_ = inline_info.GetDepth();
+            for (current_inlining_depth_ = inline_info.GetDepth(encoding.inline_info_encoding);
                  current_inlining_depth_ != 0;
                  --current_inlining_depth_) {
               bool should_continue = VisitFrame();

@@ -161,7 +161,14 @@ using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
 
 class LinkerPatch {
  public:
-  enum class Type {
+  // Note: We explicitly specify the underlying type of the enum because GCC
+  // would otherwise select a bigger underlying type and then complain that
+  //     'art::LinkerPatch::patch_type_' is too small to hold all
+  //     values of 'enum class art::LinkerPatch::Type'
+  // which is ridiculous given we have only a handful of values here. If we
+  // choose to squeeze the Type into fewer than 8 bits, we'll have to declare
+  // patch_type_ as an uintN_t and do explicit static_cast<>s.
+  enum class Type : uint8_t {
     kRecordPosition,   // Just record patch position for patchoat.
     kMethod,
     kCall,
@@ -370,9 +377,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
                  const ArrayRef<const SrcMapElem>& src_mapping_table,
-                 const ArrayRef<const uint8_t>& mapping_table,
                  const ArrayRef<const uint8_t>& vmap_table,
-                 const ArrayRef<const uint8_t>& native_gc_map,
                  const ArrayRef<const uint8_t>& cfi_info,
                  const ArrayRef<const LinkerPatch>& patches);
 
@@ -386,9 +391,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const uint32_t core_spill_mask,
       const uint32_t fp_spill_mask,
       const ArrayRef<const SrcMapElem>& src_mapping_table,
-      const ArrayRef<const uint8_t>& mapping_table,
       const ArrayRef<const uint8_t>& vmap_table,
-      const ArrayRef<const uint8_t>& native_gc_map,
       const ArrayRef<const uint8_t>& cfi_info,
       const ArrayRef<const LinkerPatch>& patches);
 
@@ -410,16 +413,8 @@ class CompiledMethod FINAL : public CompiledCode {
     return GetArray(src_mapping_table_);
   }
 
-  ArrayRef<const uint8_t> GetMappingTable() const {
-    return GetArray(mapping_table_);
-  }
-
   ArrayRef<const uint8_t> GetVmapTable() const {
     return GetArray(vmap_table_);
-  }
-
-  ArrayRef<const uint8_t> GetGcMap() const {
-    return GetArray(gc_map_);
   }
 
   ArrayRef<const uint8_t> GetCFIInfo() const {
@@ -439,14 +434,8 @@ class CompiledMethod FINAL : public CompiledCode {
   const uint32_t fp_spill_mask_;
   // For quick code, a set of pairs (PC, DEX) mapping from native PC offset to DEX offset.
   const LengthPrefixedArray<SrcMapElem>* const src_mapping_table_;
-  // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
-  // native PC offset. Size prefixed.
-  const LengthPrefixedArray<uint8_t>* const mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
   const LengthPrefixedArray<uint8_t>* const vmap_table_;
-  // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
-  // are live.
-  const LengthPrefixedArray<uint8_t>* const gc_map_;
   // For quick code, a FDE entry for the debug_frame section.
   const LengthPrefixedArray<uint8_t>* const cfi_info_;
   // For quick code, linker patches needed by the method.

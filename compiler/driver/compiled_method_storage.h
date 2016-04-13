@@ -56,14 +56,8 @@ class CompiledMethodStorage {
       const ArrayRef<const SrcMapElem>& src_map);
   void ReleaseSrcMappingTable(const LengthPrefixedArray<SrcMapElem>* src_map);
 
-  const LengthPrefixedArray<uint8_t>* DeduplicateMappingTable(const ArrayRef<const uint8_t>& table);
-  void ReleaseMappingTable(const LengthPrefixedArray<uint8_t>* table);
-
   const LengthPrefixedArray<uint8_t>* DeduplicateVMapTable(const ArrayRef<const uint8_t>& table);
   void ReleaseVMapTable(const LengthPrefixedArray<uint8_t>* table);
-
-  const LengthPrefixedArray<uint8_t>* DeduplicateGCMap(const ArrayRef<const uint8_t>& gc_map);
-  void ReleaseGCMap(const LengthPrefixedArray<uint8_t>* gc_map);
 
   const LengthPrefixedArray<uint8_t>* DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info);
   void ReleaseCFIInfo(const LengthPrefixedArray<uint8_t>* cfi_info);
@@ -103,9 +97,7 @@ class CompiledMethodStorage {
 
   ArrayDedupeSet<uint8_t> dedupe_code_;
   ArrayDedupeSet<SrcMapElem> dedupe_src_mapping_table_;
-  ArrayDedupeSet<uint8_t> dedupe_mapping_table_;
   ArrayDedupeSet<uint8_t> dedupe_vmap_table_;
-  ArrayDedupeSet<uint8_t> dedupe_gc_map_;
   ArrayDedupeSet<uint8_t> dedupe_cfi_info_;
   ArrayDedupeSet<LinkerPatch> dedupe_linker_patches_;
 

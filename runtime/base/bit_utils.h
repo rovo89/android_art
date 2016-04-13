@@ -269,7 +269,7 @@ static constexpr bool IsAbsoluteUint(T value) {
 template <typename T>
 static constexpr T MaxInt(size_t bits) {
   return
-      DCHECK_CONSTEXPR(bits > 0, "bits cannot be zero", 0)
+      DCHECK_CONSTEXPR(std::is_unsigned<T>::value || bits > 0, "bits cannot be zero for signed", 0)
       DCHECK_CONSTEXPR(bits <= BitSizeOf<T>(), "kBits must be < max.", 0)
       bits == BitSizeOf<T>()
           ? std::numeric_limits<T>::max()
@@ -283,7 +283,7 @@ static constexpr T MaxInt(size_t bits) {
 template <typename T>
 static constexpr T MinInt(size_t bits) {
   return
-      DCHECK_CONSTEXPR(bits > 0, "bits cannot be zero", 0)
+      DCHECK_CONSTEXPR(std::is_unsigned<T>::value || bits > 0, "bits cannot be zero for signed", 0)
       DCHECK_CONSTEXPR(bits <= BitSizeOf<T>(), "kBits must be < max.", 0)
       bits == BitSizeOf<T>()
           ? std::numeric_limits<T>::min()

@@ -40,6 +40,7 @@ LIBART_COMPILER_SRC_FILES := \
 	jit/jit_compiler.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
+	optimizing/block_builder.cc \
 	optimizing/bounds_check_elimination.cc \
 	optimizing/builder.cc \
 	optimizing/code_generator.cc \
@@ -53,6 +54,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/induction_var_analysis.cc \
 	optimizing/induction_var_range.cc \
 	optimizing/inliner.cc \
+	optimizing/instruction_builder.cc \
 	optimizing/instruction_simplifier.cc \
 	optimizing/intrinsics.cc \
 	optimizing/licm.cc \

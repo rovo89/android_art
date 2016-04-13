@@ -38,7 +38,6 @@
 #include "dex_instruction.h"
 #include "disassembler.h"
 #include "elf_builder.h"
-#include "gc_map.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -46,7 +45,6 @@
 #include "indenter.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
-#include "mapping_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -62,7 +60,6 @@
 #include "ScopedLocalRef.h"
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
-#include "vmap_table.h"
 #include "well_known_classes.h"
 
 #include <sys/stat.h>
@@ -282,9 +279,7 @@ class OatSymbolizer FINAL {
 
 class OatDumperOptions {
  public:
-  OatDumperOptions(bool dump_raw_mapping_table,
-                   bool dump_raw_gc_map,
-                   bool dump_vmap,
+  OatDumperOptions(bool dump_vmap,
                    bool dump_code_info_stack_maps,
                    bool disassemble_code,
                    bool absolute_addresses,
@@ -297,9 +292,7 @@ class OatDumperOptions {
                    const char* app_image,
                    const char* app_oat,
                    uint32_t addr2instr)
-    : dump_raw_mapping_table_(dump_raw_mapping_table),
-      dump_raw_gc_map_(dump_raw_gc_map),
-      dump_vmap_(dump_vmap),
+    : dump_vmap_(dump_vmap),
       dump_code_info_stack_maps_(dump_code_info_stack_maps),
       disassemble_code_(disassemble_code),
       absolute_addresses_(absolute_addresses),
@@ -314,8 +307,6 @@ class OatDumperOptions {
       addr2instr_(addr2instr),
       class_loader_(nullptr) {}
 
-  const bool dump_raw_mapping_table_;
-  const bool dump_raw_gc_map_;
   const bool dump_vmap_;
   const bool dump_code_info_stack_maps_;
   const bool disassemble_code_;
@@ -572,9 +563,7 @@ class OatDumper {
       code_offset &= ~0x1;
     }
     offsets_.insert(code_offset);
-    offsets_.insert(oat_method.GetMappingTableOffset());
     offsets_.insert(oat_method.GetVmapTableOffset());
-    offsets_.insert(oat_method.GetGcMapOffset());
   }
 
   bool DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
@@ -843,22 +832,6 @@ class OatDumper {
         success = false;
       }
       vios->Stream() << "\n";
-
-      vios->Stream() << "gc_map: ";
-      if (options_.absolute_addresses_) {
-        vios->Stream() << StringPrintf("%p ", oat_method.GetGcMap());
-      }
-      uint32_t gc_map_offset = oat_method.GetGcMapOffset();
-      vios->Stream() << StringPrintf("(offset=0x%08x)\n", gc_map_offset);
-      if (gc_map_offset > oat_file_.Size()) {
-        vios->Stream() << StringPrintf("WARNING: "
-                           "gc map table offset 0x%08x is past end of file 0x%08zx.\n",
-                           gc_map_offset, oat_file_.Size());
-        success = false;
-      } else if (options_.dump_raw_gc_map_) {
-        ScopedIndentation indent3(vios);
-        DumpGcMap(vios->Stream(), oat_method, code_item);
-      }
     }
     {
       vios->Stream() << "OatQuickMethodHeader ";
@@ -879,24 +852,6 @@ class OatDumper {
       }
 
       ScopedIndentation indent2(vios);
-      vios->Stream() << "mapping_table: ";
-      if (options_.absolute_addresses_) {
-        vios->Stream() << StringPrintf("%p ", oat_method.GetMappingTable());
-      }
-      uint32_t mapping_table_offset = oat_method.GetMappingTableOffset();
-      vios->Stream() << StringPrintf("(offset=0x%08x)\n", oat_method.GetMappingTableOffset());
-      if (mapping_table_offset > oat_file_.Size()) {
-        vios->Stream() << StringPrintf("WARNING: "
-                                       "mapping table offset 0x%08x is past end of file 0x%08zx. "
-                                       "mapping table offset was loaded from offset 0x%08x.\n",
-                                       mapping_table_offset, oat_file_.Size(),
-                                       oat_method.GetMappingTableOffsetOffset());
-        success = false;
-      } else if (options_.dump_raw_mapping_table_) {
-        ScopedIndentation indent3(vios);
-        DumpMappingTable(vios, oat_method);
-      }
-
       vios->Stream() << "vmap_table: ";
       if (options_.absolute_addresses_) {
         vios->Stream() << StringPrintf("%p ", oat_method.GetVmapTable());
@@ -973,7 +928,7 @@ class OatDumper {
           success = false;
           if (options_.disassemble_code_) {
             if (code_size_offset + kPrologueBytes <= oat_file_.Size()) {
-              DumpCode(vios, verifier.get(), oat_method, code_item, true, kPrologueBytes);
+              DumpCode(vios, oat_method, code_item, true, kPrologueBytes);
             }
           }
         } else if (code_size > kMaxCodeSize) {
@@ -986,11 +941,11 @@ class OatDumper {
           success = false;
           if (options_.disassemble_code_) {
             if (code_size_offset + kPrologueBytes <= oat_file_.Size()) {
-              DumpCode(vios, verifier.get(), oat_method, code_item, true, kPrologueBytes);
+              DumpCode(vios, oat_method, code_item, true, kPrologueBytes);
             }
           }
         } else if (options_.disassemble_code_) {
-          DumpCode(vios, verifier.get(), oat_method, code_item, !success, 0);
+          DumpCode(vios, oat_method, code_item, !success, 0);
         }
       }
     }
@@ -1040,12 +995,7 @@ class OatDumper {
       ScopedIndentation indent(vios);
       vios->Stream() << "quickened data\n";
     } else {
-      // Otherwise, display the vmap table.
-      const uint8_t* raw_table = oat_method.GetVmapTable();
-      if (raw_table != nullptr) {
-        VmapTable vmap_table(raw_table);
-        DumpVmapTable(vios->Stream(), oat_method, vmap_table);
-      }
+      // Otherwise, there is nothing to display.
     }
   }
 
@@ -1058,32 +1008,6 @@ class OatDumper {
                    oat_method.GetCodeOffset(),
                    code_item.registers_size_,
                    options_.dump_code_info_stack_maps_);
-  }
-
-  // Display a vmap table.
-  void DumpVmapTable(std::ostream& os,
-                     const OatFile::OatMethod& oat_method,
-                     const VmapTable& vmap_table) {
-    bool first = true;
-    bool processing_fp = false;
-    uint32_t spill_mask = oat_method.GetCoreSpillMask();
-    for (size_t i = 0; i < vmap_table.Size(); i++) {
-      uint16_t dex_reg = vmap_table[i];
-      uint32_t cpu_reg = vmap_table.ComputeRegister(spill_mask, i,
-                                                    processing_fp ? kFloatVReg : kIntVReg);
-      os << (first ? "v" : ", v")  << dex_reg;
-      if (!processing_fp) {
-        os << "/r" << cpu_reg;
-      } else {
-        os << "/fr" << cpu_reg;
-      }
-      first = false;
-      if (!processing_fp && dex_reg == 0xFFFF) {
-        processing_fp = true;
-        spill_mask = oat_method.GetFpSpillMask();
-      }
-    }
-    os << "\n";
   }
 
   void DumpVregLocations(std::ostream& os, const OatFile::OatMethod& oat_method,
@@ -1128,207 +1052,6 @@ class OatDumper {
     }
   }
 
-  void DescribeVReg(std::ostream& os, const OatFile::OatMethod& oat_method,
-                    const DexFile::CodeItem* code_item, size_t reg, VRegKind kind) {
-    const uint8_t* raw_table = oat_method.GetVmapTable();
-    if (raw_table != nullptr) {
-      const VmapTable vmap_table(raw_table);
-      uint32_t vmap_offset;
-      if (vmap_table.IsInContext(reg, kind, &vmap_offset)) {
-        bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
-        uint32_t spill_mask = is_float ? oat_method.GetFpSpillMask()
-                                       : oat_method.GetCoreSpillMask();
-        os << (is_float ? "fr" : "r") << vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
-      } else {
-        uint32_t offset = StackVisitor::GetVRegOffsetFromQuickCode(
-            code_item,
-            oat_method.GetCoreSpillMask(),
-            oat_method.GetFpSpillMask(),
-            oat_method.GetFrameSizeInBytes(),
-            reg,
-            GetInstructionSet());
-        os << "[sp + #" << offset << "]";
-      }
-    }
-  }
-
-  void DumpGcMapRegisters(std::ostream& os, const OatFile::OatMethod& oat_method,
-                          const DexFile::CodeItem* code_item,
-                          size_t num_regs, const uint8_t* reg_bitmap) {
-    bool first = true;
-    for (size_t reg = 0; reg < num_regs; reg++) {
-      if (((reg_bitmap[reg / 8] >> (reg % 8)) & 0x01) != 0) {
-        if (first) {
-          os << "  v" << reg << " (";
-          DescribeVReg(os, oat_method, code_item, reg, kReferenceVReg);
-          os << ")";
-          first = false;
-        } else {
-          os << ", v" << reg << " (";
-          DescribeVReg(os, oat_method, code_item, reg, kReferenceVReg);
-          os << ")";
-        }
-      }
-    }
-    if (first) {
-      os << "No registers in GC map\n";
-    } else {
-      os << "\n";
-    }
-  }
-  void DumpGcMap(std::ostream& os, const OatFile::OatMethod& oat_method,
-                 const DexFile::CodeItem* code_item) {
-    const uint8_t* gc_map_raw = oat_method.GetGcMap();
-    if (gc_map_raw == nullptr) {
-      return;  // No GC map.
-    }
-    const void* quick_code = oat_method.GetQuickCode();
-    NativePcOffsetToReferenceMap map(gc_map_raw);
-    for (size_t entry = 0; entry < map.NumEntries(); entry++) {
-      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(quick_code) +
-          map.GetNativePcOffset(entry);
-      os << StringPrintf("%p", native_pc);
-      DumpGcMapRegisters(os, oat_method, code_item, map.RegWidth() * 8, map.GetBitMap(entry));
-    }
-  }
-
-  void DumpMappingTable(VariableIndentationOutputStream* vios,
-                        const OatFile::OatMethod& oat_method) {
-    const void* quick_code = oat_method.GetQuickCode();
-    if (quick_code == nullptr) {
-      return;
-    }
-    MappingTable table(oat_method.GetMappingTable());
-    if (table.TotalSize() != 0) {
-      if (table.PcToDexSize() != 0) {
-        typedef MappingTable::PcToDexIterator It;
-        vios->Stream() << "suspend point mappings {\n";
-        for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
-          ScopedIndentation indent1(vios);
-          vios->Stream() << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
-        }
-        vios->Stream() << "}\n";
-      }
-      if (table.DexToPcSize() != 0) {
-        typedef MappingTable::DexToPcIterator It;
-        vios->Stream() << "catch entry mappings {\n";
-        for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
-          ScopedIndentation indent1(vios);
-          vios->Stream() << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
-        }
-        vios->Stream() << "}\n";
-      }
-    }
-  }
-
-  uint32_t DumpInformationAtOffset(VariableIndentationOutputStream* vios,
-                                   const OatFile::OatMethod& oat_method,
-                                   const DexFile::CodeItem* code_item,
-                                   size_t offset,
-                                   bool suspend_point_mapping) {
-    if (IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
-      if (suspend_point_mapping) {
-        ScopedIndentation indent1(vios);
-        DumpDexRegisterMapAtOffset(vios, oat_method, code_item, offset);
-      }
-      // The return value is not used in the case of a method compiled
-      // with the optimizing compiler.
-      return DexFile::kDexNoIndex;
-    } else {
-      return DumpMappingAtOffset(vios->Stream(), oat_method, offset, suspend_point_mapping);
-    }
-  }
-
-  uint32_t DumpMappingAtOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
-                               size_t offset, bool suspend_point_mapping) {
-    MappingTable table(oat_method.GetMappingTable());
-    if (suspend_point_mapping && table.PcToDexSize() > 0) {
-      typedef MappingTable::PcToDexIterator It;
-      for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
-        if (offset == cur.NativePcOffset()) {
-          os << StringPrintf("suspend point dex PC: 0x%04x\n", cur.DexPc());
-          return cur.DexPc();
-        }
-      }
-    } else if (!suspend_point_mapping && table.DexToPcSize() > 0) {
-      typedef MappingTable::DexToPcIterator It;
-      for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
-        if (offset == cur.NativePcOffset()) {
-          os << StringPrintf("catch entry dex PC: 0x%04x\n", cur.DexPc());
-          return cur.DexPc();
-        }
-      }
-    }
-    return DexFile::kDexNoIndex;
-  }
-
-  void DumpGcMapAtNativePcOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
-                                 const DexFile::CodeItem* code_item, size_t native_pc_offset) {
-    const uint8_t* gc_map_raw = oat_method.GetGcMap();
-    if (gc_map_raw != nullptr) {
-      NativePcOffsetToReferenceMap map(gc_map_raw);
-      if (map.HasEntry(native_pc_offset)) {
-        size_t num_regs = map.RegWidth() * 8;
-        const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
-        bool first = true;
-        for (size_t reg = 0; reg < num_regs; reg++) {
-          if (((reg_bitmap[reg / 8] >> (reg % 8)) & 0x01) != 0) {
-            if (first) {
-              os << "GC map objects:  v" << reg << " (";
-              DescribeVReg(os, oat_method, code_item, reg, kReferenceVReg);
-              os << ")";
-              first = false;
-            } else {
-              os << ", v" << reg << " (";
-              DescribeVReg(os, oat_method, code_item, reg, kReferenceVReg);
-              os << ")";
-            }
-          }
-        }
-        if (!first) {
-          os << "\n";
-        }
-      }
-    }
-  }
-
-  void DumpVRegsAtDexPc(std::ostream& os, verifier::MethodVerifier* verifier,
-                        const OatFile::OatMethod& oat_method,
-                        const DexFile::CodeItem* code_item, uint32_t dex_pc) {
-    DCHECK(verifier != nullptr);
-    std::vector<int32_t> kinds = verifier->DescribeVRegs(dex_pc);
-    bool first = true;
-    for (size_t reg = 0; reg < code_item->registers_size_; reg++) {
-      VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
-      if (kind != kUndefined) {
-        if (first) {
-          os << "VRegs:  v";
-          first = false;
-        } else {
-          os << ", v";
-        }
-        os << reg << " (";
-        switch (kind) {
-          case kImpreciseConstant:
-            os << "Imprecise Constant: " << kinds.at((reg * 2) + 1) << ", ";
-            DescribeVReg(os, oat_method, code_item, reg, kind);
-            break;
-          case kConstant:
-            os << "Constant: " << kinds.at((reg * 2) + 1);
-            break;
-          default:
-            DescribeVReg(os, oat_method, code_item, reg, kind);
-            break;
-        }
-        os << ")";
-      }
-    }
-    if (!first) {
-      os << "\n";
-    }
-  }
-
-
   void DumpDexCode(std::ostream& os, const DexFile& dex_file, const DexFile::CodeItem* code_item) {
     if (code_item != nullptr) {
       size_t i = 0;
@@ -1349,7 +1072,7 @@ class OatDumper {
     // null, then this method has been compiled with the optimizing
     // compiler.
     return oat_method.GetQuickCode() != nullptr &&
-           oat_method.GetGcMap() == nullptr &&
+           oat_method.GetVmapTable() != nullptr &&
            code_item != nullptr;
   }
 
@@ -1363,27 +1086,6 @@ class OatDumper {
     return oat_method.GetQuickCode() == nullptr &&
            oat_method.GetVmapTable() != nullptr &&
            code_item != nullptr;
-  }
-
-  void DumpDexRegisterMapAtOffset(VariableIndentationOutputStream* vios,
-                                  const OatFile::OatMethod& oat_method,
-                                  const DexFile::CodeItem* code_item,
-                                  size_t offset) {
-    // This method is only relevant for oat methods compiled with the
-    // optimizing compiler.
-    DCHECK(IsMethodGeneratedByOptimizingCompiler(oat_method, code_item));
-
-    // The optimizing compiler outputs its CodeInfo data in the vmap table.
-    const void* raw_code_info = oat_method.GetVmapTable();
-    if (raw_code_info != nullptr) {
-      CodeInfo code_info(raw_code_info);
-      StackMapEncoding encoding = code_info.ExtractEncoding();
-      StackMap stack_map = code_info.GetStackMapForNativePcOffset(offset, encoding);
-      if (stack_map.IsValid()) {
-        stack_map.Dump(vios, code_info, encoding, oat_method.GetCodeOffset(),
-                       code_item->registers_size_);
-      }
-    }
   }
 
   verifier::MethodVerifier* DumpVerifier(VariableIndentationOutputStream* vios,
@@ -1408,8 +1110,92 @@ class OatDumper {
     return nullptr;
   }
 
+  // The StackMapsHelper provides the stack maps in the native PC order.
+  // For identical native PCs, the order from the CodeInfo is preserved.
+  class StackMapsHelper {
+   public:
+    explicit StackMapsHelper(const uint8_t* raw_code_info)
+        : code_info_(raw_code_info),
+          encoding_(code_info_.ExtractEncoding()),
+          number_of_stack_maps_(code_info_.GetNumberOfStackMaps(encoding_)),
+          indexes_(),
+          offset_(static_cast<size_t>(-1)),
+          stack_map_index_(0u) {
+      if (number_of_stack_maps_ != 0u) {
+        // Check if native PCs are ordered.
+        bool ordered = true;
+        StackMap last = code_info_.GetStackMapAt(0u, encoding_);
+        for (size_t i = 1; i != number_of_stack_maps_; ++i) {
+          StackMap current = code_info_.GetStackMapAt(i, encoding_);
+          if (last.GetNativePcOffset(encoding_.stack_map_encoding) >
+              current.GetNativePcOffset(encoding_.stack_map_encoding)) {
+            ordered = false;
+            break;
+          }
+          last = current;
+        }
+        if (!ordered) {
+          // Create indirection indexes for access in native PC order. We do not optimize
+          // for the fact that there can currently be only two separately ordered ranges,
+          // namely normal stack maps and catch-point stack maps.
+          indexes_.resize(number_of_stack_maps_);
+          std::iota(indexes_.begin(), indexes_.end(), 0u);
+          std::sort(indexes_.begin(),
+                    indexes_.end(),
+                    [this](size_t lhs, size_t rhs) {
+                      StackMap left = code_info_.GetStackMapAt(lhs, encoding_);
+                      uint32_t left_pc = left.GetNativePcOffset(encoding_.stack_map_encoding);
+                      StackMap right = code_info_.GetStackMapAt(rhs, encoding_);
+                      uint32_t right_pc = right.GetNativePcOffset(encoding_.stack_map_encoding);
+                      // If the PCs are the same, compare indexes to preserve the original order.
+                      return (left_pc < right_pc) || (left_pc == right_pc && lhs < rhs);
+                    });
+        }
+        offset_ = GetStackMapAt(0).GetNativePcOffset(encoding_.stack_map_encoding);
+      }
+    }
+
+    const CodeInfo& GetCodeInfo() const {
+      return code_info_;
+    }
+
+    const CodeInfoEncoding& GetEncoding() const {
+      return encoding_;
+    }
+
+    size_t GetOffset() const {
+      return offset_;
+    }
+
+    StackMap GetStackMap() const {
+      return GetStackMapAt(stack_map_index_);
+    }
+
+    void Next() {
+      ++stack_map_index_;
+      offset_ = (stack_map_index_ == number_of_stack_maps_)
+          ? static_cast<size_t>(-1)
+          : GetStackMapAt(stack_map_index_).GetNativePcOffset(encoding_.stack_map_encoding);
+    }
+
+   private:
+    StackMap GetStackMapAt(size_t i) const {
+      if (!indexes_.empty()) {
+        i = indexes_[i];
+      }
+      DCHECK_LT(i, number_of_stack_maps_);
+      return code_info_.GetStackMapAt(i, encoding_);
+    }
+
+    const CodeInfo code_info_;
+    const CodeInfoEncoding encoding_;
+    const size_t number_of_stack_maps_;
+    dchecked_vector<size_t> indexes_;  // Used if stack map native PCs are not ordered.
+    size_t offset_;
+    size_t stack_map_index_;
+  };
+
   void DumpCode(VariableIndentationOutputStream* vios,
-                verifier::MethodVerifier* verifier,
                 const OatFile::OatMethod& oat_method, const DexFile::CodeItem* code_item,
                 bool bad_input, size_t code_size) {
     const void* quick_code = oat_method.GetQuickCode();
@@ -1420,24 +1206,34 @@ class OatDumper {
     if (code_size == 0 || quick_code == nullptr) {
       vios->Stream() << "NO CODE!\n";
       return;
+    } else if (!bad_input && IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
+      // The optimizing compiler outputs its CodeInfo data in the vmap table.
+      StackMapsHelper helper(oat_method.GetVmapTable());
+      const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
+      size_t offset = 0;
+      while (offset < code_size) {
+        offset += disassembler_->Dump(vios->Stream(), quick_native_pc + offset);
+        if (offset == helper.GetOffset()) {
+          ScopedIndentation indent1(vios);
+          StackMap stack_map = helper.GetStackMap();
+          DCHECK(stack_map.IsValid());
+          stack_map.Dump(vios,
+                         helper.GetCodeInfo(),
+                         helper.GetEncoding(),
+                         oat_method.GetCodeOffset(),
+                         code_item->registers_size_);
+          do {
+            helper.Next();
+            // There may be multiple stack maps at a given PC. We display only the first one.
+          } while (offset == helper.GetOffset());
+        }
+        DCHECK_LT(offset, helper.GetOffset());
+      }
     } else {
       const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
       size_t offset = 0;
       while (offset < code_size) {
-        if (!bad_input) {
-          DumpInformationAtOffset(vios, oat_method, code_item, offset, false);
-        }
         offset += disassembler_->Dump(vios->Stream(), quick_native_pc + offset);
-        if (!bad_input) {
-          uint32_t dex_pc =
-              DumpInformationAtOffset(vios, oat_method, code_item, offset, true);
-          if (dex_pc != DexFile::kDexNoIndex) {
-            DumpGcMapAtNativePcOffset(vios->Stream(), oat_method, code_item, offset);
-            if (verifier != nullptr) {
-              DumpVRegsAtDexPc(vios->Stream(), verifier, oat_method, code_item, dex_pc);
-            }
-          }
-        }
       }
     }
   }
@@ -1986,10 +1782,6 @@ class ImageDumper {
     OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(
         reinterpret_cast<uintptr_t>(quick_oat_code_begin) - sizeof(OatQuickMethodHeader));
     if (method->IsNative()) {
-      if (!Runtime::Current()->GetClassLinker()->IsQuickGenericJniStub(quick_oat_code_begin)) {
-        DCHECK(method_header->GetNativeGcMap() == nullptr) << PrettyMethod(method);
-        DCHECK(method_header->GetMappingTable() == nullptr) << PrettyMethod(method);
-      }
       bool first_occurrence;
       uint32_t quick_oat_code_size = GetQuickOatCodeSize(method);
       ComputeOatSize(quick_oat_code_begin, &first_occurrence);
@@ -2013,17 +1805,6 @@ class ImageDumper {
       stats_.dex_instruction_bytes += dex_instruction_bytes;
 
       bool first_occurrence;
-      size_t gc_map_bytes = ComputeOatSize(method_header->GetNativeGcMap(), &first_occurrence);
-      if (first_occurrence) {
-        stats_.gc_map_bytes += gc_map_bytes;
-      }
-
-      size_t pc_mapping_table_bytes = ComputeOatSize(
-          method_header->GetMappingTable(), &first_occurrence);
-      if (first_occurrence) {
-        stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
-      }
-
       size_t vmap_table_bytes = 0u;
       if (!method_header->IsOptimized()) {
         // Method compiled with the optimizing compiler have no vmap table.
@@ -2052,11 +1833,12 @@ class ImageDumper {
       uint32_t method_access_flags = method->GetAccessFlags();
 
       indent_os << StringPrintf("OAT CODE: %p-%p\n", quick_oat_code_begin, quick_oat_code_end);
-      indent_os << StringPrintf("SIZE: Dex Instructions=%zd GC=%zd Mapping=%zd AccessFlags=0x%x\n",
-                                dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes,
+      indent_os << StringPrintf("SIZE: Dex Instructions=%zd StackMaps=%zd AccessFlags=0x%x\n",
+                                dex_instruction_bytes,
+                                vmap_table_bytes,
                                 method_access_flags);
 
-      size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
+      size_t total_size = dex_instruction_bytes +
           vmap_table_bytes + quick_oat_code_size + ArtMethod::Size(image_header_.GetPointerSize());
 
       double expansion =
@@ -2101,8 +1883,6 @@ class ImageDumper {
     size_t large_initializer_code_bytes;
     size_t large_method_code_bytes;
 
-    size_t gc_map_bytes;
-    size_t pc_mapping_table_bytes;
     size_t vmap_table_bytes;
 
     size_t dex_instruction_bytes;
@@ -2131,8 +1911,6 @@ class ImageDumper {
           class_initializer_code_bytes(0),
           large_initializer_code_bytes(0),
           large_method_code_bytes(0),
-          gc_map_bytes(0),
-          pc_mapping_table_bytes(0),
           vmap_table_bytes(0),
           dex_instruction_bytes(0) {}
 
@@ -2351,11 +2129,7 @@ class ImageDumper {
                            PercentOfOatBytes(oat_dex_file_size.second));
       }
 
-      os << "\n" << StringPrintf("gc_map_bytes           = %7zd (%2.0f%% of oat file bytes)\n"
-                                 "pc_mapping_table_bytes = %7zd (%2.0f%% of oat file bytes)\n"
-                                 "vmap_table_bytes       = %7zd (%2.0f%% of oat file bytes)\n\n",
-                                 gc_map_bytes, PercentOfOatBytes(gc_map_bytes),
-                                 pc_mapping_table_bytes, PercentOfOatBytes(pc_mapping_table_bytes),
+      os << "\n" << StringPrintf("vmap_table_bytes       = %7zd (%2.0f%% of oat file bytes)\n\n",
                                  vmap_table_bytes, PercentOfOatBytes(vmap_table_bytes))
          << std::flush;
 
@@ -2590,10 +2364,6 @@ struct OatdumpArgs : public CmdlineArgs {
       oat_filename_ = option.substr(strlen("--oat-file=")).data();
     } else if (option.starts_with("--image=")) {
       image_location_ = option.substr(strlen("--image=")).data();
-    } else if (option =="--dump:raw_mapping_table") {
-      dump_raw_mapping_table_ = true;
-    } else if (option == "--dump:raw_gc_map") {
-      dump_raw_gc_map_ = true;
     } else if (option == "--no-dump:vmap") {
       dump_vmap_ = false;
     } else if (option =="--dump:code_info_stack_maps") {
@@ -2683,12 +2453,6 @@ struct OatdumpArgs : public CmdlineArgs {
     usage += Base::GetUsage();
 
     usage +=  // Optional.
-        "  --dump:raw_mapping_table enables dumping of the mapping table.\n"
-        "      Example: --dump:raw_mapping_table\n"
-        "\n"
-        "  --dump:raw_gc_map enables dumping of the GC map.\n"
-        "      Example: --dump:raw_gc_map\n"
-        "\n"
         "  --no-dump:vmap may be used to disable vmap dumping.\n"
         "      Example: --no-dump:vmap\n"
         "\n"
@@ -2739,8 +2503,6 @@ struct OatdumpArgs : public CmdlineArgs {
   const char* method_filter_ = "";
   const char* image_location_ = nullptr;
   std::string elf_filename_prefix_;
-  bool dump_raw_mapping_table_ = false;
-  bool dump_raw_gc_map_ = false;
   bool dump_vmap_ = true;
   bool dump_code_info_stack_maps_ = false;
   bool disassemble_code_ = true;
@@ -2763,8 +2525,6 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
     bool absolute_addresses = (args_->oat_filename_ == nullptr);
 
     oat_dumper_options_.reset(new OatDumperOptions(
-        args_->dump_raw_mapping_table_,
-        args_->dump_raw_gc_map_,
         args_->dump_vmap_,
         args_->dump_code_info_stack_maps_,
         args_->disassemble_code_,

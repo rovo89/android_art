@@ -880,9 +880,10 @@ mirror::Class* Class::GetCommonSuperClass(Handle<Class> klass) {
   DCHECK(!IsInterface());
   mirror::Class* common_super_class = this;
   while (!common_super_class->IsAssignableFrom(klass.Get())) {
-    common_super_class = common_super_class->GetSuperClass();
+    mirror::Class* old_common = common_super_class;
+    common_super_class = old_common->GetSuperClass();
+    DCHECK(common_super_class != nullptr) << PrettyClass(old_common);
   }
-  DCHECK(common_super_class != nullptr);
   return common_super_class;
 }
 

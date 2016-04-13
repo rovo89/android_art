@@ -1434,15 +1434,24 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         }
       }
     }
-    if (*out_forward_dex_cache_array) {
-      ScopedTrace timing("Fixup ArtMethod dex cache arrays");
-      FixupArtMethodArrayVisitor visitor(header);
-      header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-          &visitor,
-          space->Begin(),
-          sizeof(void*));
-      Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
-    }
+  }
+  if (*out_forward_dex_cache_array) {
+    ScopedTrace timing("Fixup ArtMethod dex cache arrays");
+    FixupArtMethodArrayVisitor visitor(header);
+    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
+        &visitor,
+        space->Begin(),
+        sizeof(void*));
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
+  }
+  if (kVerifyArtMethodDeclaringClasses) {
+    ScopedTrace timing("Verify declaring classes");
+    ReaderMutexLock rmu(self, *Locks::heap_bitmap_lock_);
+    VerifyDeclaringClassVisitor visitor;
+    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
+        &visitor,
+        space->Begin(),
+        sizeof(void*));
   }
   if (kVerifyArtMethodDeclaringClasses) {
     ScopedTrace timing("Verify declaring classes");
@@ -3786,7 +3795,9 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass, LogSeve
     while (old_status == mirror::Class::kStatusVerifying ||
         old_status == mirror::Class::kStatusVerifyingAtRuntime) {
       lock.WaitIgnoringInterrupts();
-      CHECK_GT(klass->GetStatus(), old_status);
+      CHECK(klass->IsErroneous() || (klass->GetStatus() > old_status))
+          << "Class '" << PrettyClass(klass.Get()) << "' performed an illegal verification state "
+          << "transition from " << old_status << " to " << klass->GetStatus();
       old_status = klass->GetStatus();
     }
 

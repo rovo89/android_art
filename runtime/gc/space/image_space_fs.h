@@ -62,7 +62,7 @@ static void DeleteDirectoryContents(const std::string& dir, bool recurse) {
         if (recurse) {
           DeleteDirectoryContents(file, recurse);
           // Try to rmdir the directory.
-          if (TEMP_FAILURE_RETRY(rmdir(file.c_str())) != 0) {
+          if (rmdir(file.c_str()) != 0) {
             PLOG(ERROR) << "Unable to rmdir " << file;
           }
         }
@@ -71,12 +71,12 @@ static void DeleteDirectoryContents(const std::string& dir, bool recurse) {
       }
     } else {
       // Try to unlink the file.
-      if (TEMP_FAILURE_RETRY(unlink(file.c_str())) != 0) {
+      if (unlink(file.c_str()) != 0) {
         PLOG(ERROR) << "Unable to unlink " << file;
       }
     }
   }
-  CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(c_dir))) << "Unable to close directory.";
+  CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
 }
 
 static bool HasContent(const char* dir) {
@@ -95,10 +95,10 @@ static bool HasContent(const char* dir) {
       continue;
     }
     // Something here.
-    CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(c_dir))) << "Unable to close directory.";
+    CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
     return true;
   }
-  CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(c_dir))) << "Unable to close directory.";
+  CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
   return false;
 }
 
@@ -115,7 +115,7 @@ static void DeleteEmptyDirectoriesUpTo(const std::string& dir, const char* stop_
     }
   }
   if (OS::DirectoryExists(dir.c_str())) {
-    if (TEMP_FAILURE_RETRY(rmdir(dir.c_str())) != 0) {
+    if (rmdir(dir.c_str()) != 0) {
       PLOG(ERROR) << "Unable to rmdir " << dir;
       return;
     }
@@ -136,7 +136,7 @@ static void MoveOTAArtifacts(const char* src, const char* trg) {
     return;
   }
 
-  if (TEMP_FAILURE_RETRY(rename(src, trg)) != 0) {
+  if (rename(src, trg) != 0) {
     PLOG(ERROR) << "Could not rename OTA cache " << src << " to target " << trg;
   }
 }

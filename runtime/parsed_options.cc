@@ -169,6 +169,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xjitosrthreshold:_")
           .WithType<unsigned int>()
           .IntoKey(M::JITOsrThreshold)
+      .Define("-Xjitprithreadweight:_")
+          .WithType<unsigned int>()
+          .IntoKey(M::JITPriorityThreadWeight)
       .Define("-Xjitsaveprofilinginfo")
           .WithValue(true)
           .IntoKey(M::JITSaveProfilingInfo)
@@ -702,6 +705,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xjitmaxsize:N\n");
   UsageMessage(stream, "  -Xjitwarmupthreshold:integervalue\n");
   UsageMessage(stream, "  -Xjitosrthreshold:integervalue\n");
+  UsageMessage(stream, "  -Xjitprithreadweight:integervalue\n");
   UsageMessage(stream, "  -X[no]relocate\n");
   UsageMessage(stream, "  -X[no]dex2oat (Whether to invoke dex2oat on the application)\n");
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");

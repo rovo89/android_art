@@ -72,7 +72,8 @@ The following registers have fixed assignments:
   r6  rSELF     self (Thread) pointer
   r7  rINST     first 16-bit code unit of current instruction
   r8  rIBASE    interpreted instruction base pointer, used for computed goto
-  r11 rREFS	base of object references in shadow frame  (ideally, we'll get rid of this later).
+  r10 rPROFILE  branch profiling countdown
+  r11 rREFS     base of object references in shadow frame  (ideally, we'll get rid of this later).
 
 Macros are provided for common operations.  Each macro MUST emit only
 one instruction to make instruction-counting easier.  They MUST NOT alter
@@ -90,12 +91,13 @@ unspecified registers or condition codes.
 
 /* During bringup, we'll use the shadow frame model instead of rFP */
 /* single-purpose registers, given names for clarity */
-#define rPC     r4
-#define rFP     r5
-#define rSELF   r6
-#define rINST   r7
-#define rIBASE  r8
-#define rREFS   r11
+#define rPC      r4
+#define rFP      r5
+#define rSELF    r6
+#define rINST    r7
+#define rIBASE   r8
+#define rPROFILE r10
+#define rREFS    r11
 
 /*
  * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
@@ -109,7 +111,7 @@ unspecified registers or condition codes.
 #define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
 #define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
+#define OFF_FP_SHADOWFRAME OFF_FP(0)
 
 /*
  * "export" the PC to dex_pc field in the shadow frame, f/b/o future exception objects.  Must

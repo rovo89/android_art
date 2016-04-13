@@ -524,31 +524,14 @@ void UnstartedRuntime::UnstartedThreadLocalGet(
   }
 }
 
-static double ComputeCeil(double in) {
-  double out;
-  // Special cases:
-  // 1) NaN, infinity, +0, -0 -> out := in. All are guaranteed by cmath.
-  // -1 < in < 0 -> out := -0.
-  if (-1.0 < in && in < 0) {
-    out = -0.0;
-  } else {
-    out = ceil(in);
-  }
-  return out;
-}
-
 void UnstartedRuntime::UnstartedMathCeil(
     Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  double in = shadow_frame->GetVRegDouble(arg_offset);
-  result->SetD(ComputeCeil(in));
+  result->SetD(ceil(shadow_frame->GetVRegDouble(arg_offset)));
 }
 
 void UnstartedRuntime::UnstartedMathFloor(
     Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  double in = shadow_frame->GetVRegDouble(arg_offset);
-  // From the JavaDocs:
-  // "Note that the value of Math.ceil(x) is exactly the value of -Math.floor(-x)."
-  result->SetD(-ComputeCeil(-in));
+  result->SetD(floor(shadow_frame->GetVRegDouble(arg_offset)));
 }
 
 void UnstartedRuntime::UnstartedObjectHashCode(

@@ -42,7 +42,6 @@
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
-#include "gc_map.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/allocator/rosalloc.h"
@@ -72,7 +71,6 @@
 #include "utils.h"
 #include "verifier/method_verifier.h"
 #include "verify_object-inl.h"
-#include "vmap_table.h"
 #include "well_known_classes.h"
 #include "interpreter/interpreter.h"
 
@@ -90,6 +88,8 @@ bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
 ConditionVariable* Thread::resume_cond_ = nullptr;
 const size_t Thread::kStackOverflowImplicitCheckSize = GetStackOverflowReservedBytes(kRuntimeISA);
+bool (*Thread::is_sensitive_thread_hook_)() = nullptr;
+
 static constexpr bool kVerifyImageObjectsMarked = kIsDebugBuild;
 
 // For implicit overflow checks we reserve an extra piece of memory at the bottom
@@ -2765,83 +2765,36 @@ class ReferenceMapVisitor : public StackVisitor {
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-      if (method_header->IsOptimized()) {
-        auto* vreg_base = reinterpret_cast<StackReference<mirror::Object>*>(
-            reinterpret_cast<uintptr_t>(cur_quick_frame));
-        uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
-        CodeInfo code_info = method_header->GetOptimizedCodeInfo();
-        StackMapEncoding encoding = code_info.ExtractEncoding();
-        StackMap map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-        DCHECK(map.IsValid());
-        MemoryRegion mask = map.GetStackMask(encoding);
-        // Visit stack entries that hold pointers.
-        for (size_t i = 0; i < mask.size_in_bits(); ++i) {
-          if (mask.LoadBit(i)) {
-            auto* ref_addr = vreg_base + i;
-            mirror::Object* ref = ref_addr->AsMirrorPtr();
-            if (ref != nullptr) {
-              mirror::Object* new_ref = ref;
-              visitor_(&new_ref, -1, this);
-              if (ref != new_ref) {
-                ref_addr->Assign(new_ref);
-              }
+      DCHECK(method_header->IsOptimized());
+      auto* vreg_base = reinterpret_cast<StackReference<mirror::Object>*>(
+          reinterpret_cast<uintptr_t>(cur_quick_frame));
+      uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
+      CodeInfo code_info = method_header->GetOptimizedCodeInfo();
+      CodeInfoEncoding encoding = code_info.ExtractEncoding();
+      StackMap map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
+      DCHECK(map.IsValid());
+      // Visit stack entries that hold pointers.
+      size_t number_of_bits = map.GetNumberOfStackMaskBits(encoding.stack_map_encoding);
+      for (size_t i = 0; i < number_of_bits; ++i) {
+        if (map.GetStackMaskBit(encoding.stack_map_encoding, i)) {
+          auto* ref_addr = vreg_base + i;
+          mirror::Object* ref = ref_addr->AsMirrorPtr();
+          if (ref != nullptr) {
+            mirror::Object* new_ref = ref;
+            visitor_(&new_ref, -1, this);
+            if (ref != new_ref) {
+              ref_addr->Assign(new_ref);
             }
           }
         }
-        // Visit callee-save registers that hold pointers.
-        uint32_t register_mask = map.GetRegisterMask(encoding);
-        for (size_t i = 0; i < BitSizeOf<uint32_t>(); ++i) {
-          if (register_mask & (1 << i)) {
-            mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(i));
-            if (*ref_addr != nullptr) {
-              visitor_(ref_addr, -1, this);
-            }
-          }
-        }
-      } else {
-        const uint8_t* native_gc_map = method_header->GetNativeGcMap();
-        CHECK(native_gc_map != nullptr) << PrettyMethod(m);
-        const DexFile::CodeItem* code_item = m->GetCodeItem();
-        // Can't be null or how would we compile its instructions?
-        DCHECK(code_item != nullptr) << PrettyMethod(m);
-        NativePcOffsetToReferenceMap map(native_gc_map);
-        size_t num_regs = map.RegWidth() * 8;
-        if (num_regs > 0) {
-          uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
-          const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
-          DCHECK(reg_bitmap != nullptr);
-          const VmapTable vmap_table(method_header->GetVmapTable());
-          QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
-          // For all dex registers in the bitmap
-          DCHECK(cur_quick_frame != nullptr);
-          for (size_t reg = 0; reg < num_regs; ++reg) {
-            // Does this register hold a reference?
-            if (TestBitmap(reg, reg_bitmap)) {
-              uint32_t vmap_offset;
-              if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
-                int vmap_reg = vmap_table.ComputeRegister(frame_info.CoreSpillMask(), vmap_offset,
-                                                          kReferenceVReg);
-                // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
-                mirror::Object** ref_addr =
-                    reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
-                if (*ref_addr != nullptr) {
-                  visitor_(ref_addr, reg, this);
-                }
-              } else {
-                StackReference<mirror::Object>* ref_addr =
-                    reinterpret_cast<StackReference<mirror::Object>*>(GetVRegAddrFromQuickCode(
-                        cur_quick_frame, code_item, frame_info.CoreSpillMask(),
-                        frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
-                mirror::Object* ref = ref_addr->AsMirrorPtr();
-                if (ref != nullptr) {
-                  mirror::Object* new_ref = ref;
-                  visitor_(&new_ref, reg, this);
-                  if (ref != new_ref) {
-                    ref_addr->Assign(new_ref);
-                  }
-                }
-              }
-            }
+      }
+      // Visit callee-save registers that hold pointers.
+      uint32_t register_mask = map.GetRegisterMask(encoding.stack_map_encoding);
+      for (size_t i = 0; i < BitSizeOf<uint32_t>(); ++i) {
+        if (register_mask & (1 << i)) {
+          mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(i));
+          if (*ref_addr != nullptr) {
+            visitor_(ref_addr, -1, this);
           }
         }
       }

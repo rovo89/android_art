@@ -163,8 +163,8 @@ TEST_F(SsaTest, CFG3) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [4, 4]\n"
-    "  1: IntConstant 4 [8]\n"
-    "  2: IntConstant 5 [8]\n"
+    "  1: IntConstant 5 [8]\n"
+    "  2: IntConstant 4 [8]\n"
     "  3: Goto\n"
     "BasicBlock 1, pred: 0, succ: 3, 2\n"
     "  4: Equal(0, 0) [5]\n"
@@ -174,7 +174,7 @@ TEST_F(SsaTest, CFG3) {
     "BasicBlock 3, pred: 1, succ: 4\n"
     "  7: Goto\n"
     "BasicBlock 4, pred: 2, 3, succ: 5\n"
-    "  8: Phi(1, 2) [9]\n"
+    "  8: Phi(2, 1) [9]\n"
     "  9: Return(8)\n"
     "BasicBlock 5, pred: 4\n"
     "  10: Exit\n";
@@ -258,19 +258,19 @@ TEST_F(SsaTest, Loop3) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [5]\n"
-    "  1: IntConstant 4 [5]\n"
-    "  2: IntConstant 5 [9]\n"
+    "  1: IntConstant 5 [9]\n"
+    "  2: IntConstant 4 [5]\n"
     "  3: Goto\n"
     "BasicBlock 1, pred: 0, succ: 2\n"
     "  4: Goto\n"
     "BasicBlock 2, pred: 1, 3, succ: 4, 3\n"
-    "  5: Phi(0, 1) [6, 6]\n"
+    "  5: Phi(0, 2) [6, 6]\n"
     "  6: Equal(5, 5) [7]\n"
     "  7: If(6)\n"
     "BasicBlock 3, pred: 2, succ: 2\n"
     "  8: Goto\n"
     "BasicBlock 4, pred: 2, succ: 5\n"
-    "  9: Return(2)\n"
+    "  9: Return(1)\n"
     "BasicBlock 5, pred: 4\n"
     "  10: Exit\n";
 
@@ -326,8 +326,8 @@ TEST_F(SsaTest, Loop5) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [4, 4]\n"
-    "  1: IntConstant 4 [13]\n"
-    "  2: IntConstant 5 [13]\n"
+    "  1: IntConstant 5 [13]\n"
+    "  2: IntConstant 4 [13]\n"
     "  3: Goto\n"
     "BasicBlock 1, pred: 0, succ: 3, 2\n"
     "  4: Equal(0, 0) [5]\n"
@@ -346,7 +346,7 @@ TEST_F(SsaTest, Loop5) {
     "BasicBlock 7, pred: 6\n"
     "  12: Exit\n"
     "BasicBlock 8, pred: 2, 3, succ: 4\n"
-    "  13: Phi(1, 2) [8, 8, 11]\n"
+    "  13: Phi(2, 1) [8, 8, 11]\n"
     "  14: Goto\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
@@ -496,7 +496,7 @@ TEST_F(SsaTest, MultiplePredecessors) {
   // does not update the local.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  0: IntConstant 0 [4, 8, 6, 6, 2, 2, 8, 4]\n"
+    "  0: IntConstant 0 [4, 4, 8, 8, 6, 6, 2, 2]\n"
     "  1: Goto\n"
     "BasicBlock 1, pred: 0, succ: 3, 2\n"
     "  2: Equal(0, 0) [3]\n"

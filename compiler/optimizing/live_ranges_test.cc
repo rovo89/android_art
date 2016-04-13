@@ -211,8 +211,8 @@ TEST_F(LiveRangesTest, Loop1) {
    *
    * Which becomes the following graph (numbered by lifetime position):
    *       2: constant0
-   *       4: constant4
-   *       6: constant5
+   *       4: constant5
+   *       6: constant4
    *       8: goto
    *           |
    *       12: goto
@@ -247,7 +247,7 @@ TEST_F(LiveRangesTest, Loop1) {
   liveness.Analyze();
 
   // Test for the 0 constant.
-  LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
+  LiveInterval* interval = graph->GetIntConstant(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the loop phi so instruction is live until
@@ -256,18 +256,18 @@ TEST_F(LiveRangesTest, Loop1) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 4 constant.
-  interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
+  interval = graph->GetIntConstant(4)->GetLiveInterval();
   range = interval->GetFirstRange();
   // The instruction is live until the end of the loop.
-  ASSERT_EQ(4u, range->GetStart());
+  ASSERT_EQ(6u, range->GetStart());
   ASSERT_EQ(24u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 5 constant.
-  interval = liveness.GetInstructionFromSsaIndex(2)->GetLiveInterval();
+  interval = graph->GetIntConstant(5)->GetLiveInterval();
   range = interval->GetFirstRange();
   // The instruction is live until the return instruction after the loop.
-  ASSERT_EQ(6u, range->GetStart());
+  ASSERT_EQ(4u, range->GetStart());
   ASSERT_EQ(26u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 

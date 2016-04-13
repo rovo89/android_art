@@ -111,22 +111,21 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingNegation) {
 
   std::string expected_before =
       "BasicBlock 0, succ: 1\n"
-      "  2: IntConstant [5]\n"
-      "  10: SuspendCheck\n"
-      "  11: Goto 1\n"
+      "  2: IntConstant [3]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  5: Neg(2) [8]\n"
-      "  8: Return(5)\n"
+      "  3: Neg(2) [4]\n"
+      "  4: Return(3)\n"
       "BasicBlock 2, pred: 1\n"
-      "  9: Exit\n";
+      "  5: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  2: IntConstant [5]\n", "  2: IntConstant\n" },
-    { "  10: SuspendCheck\n",   "  10: SuspendCheck\n"
-                                "  12: IntConstant [8]\n" },
-    { "  5: Neg(2) [8]\n",      removed },
-    { "  8: Return(5)\n",       "  8: Return(12)\n" }
+    { "  2: IntConstant [3]\n", "  2: IntConstant\n"
+                                "  6: IntConstant [4]\n" },
+    { "  3: Neg(2) [4]\n",      removed },
+    { "  4: Return(3)\n",       "  4: Return(6)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -173,22 +172,21 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingNegation) {
 
   std::string expected_before =
       "BasicBlock 0, succ: 1\n"
-      "  4: LongConstant [7]\n"
-      "  12: SuspendCheck\n"
-      "  13: Goto 1\n"
+      "  2: LongConstant [3]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  7: Neg(4) [10]\n"
-      "  10: Return(7)\n"
+      "  3: Neg(2) [4]\n"
+      "  4: Return(3)\n"
       "BasicBlock 2, pred: 1\n"
-      "  11: Exit\n";
+      "  5: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  4: LongConstant [7]\n", "  4: LongConstant\n" },
-    { "  12: SuspendCheck\n",    "  12: SuspendCheck\n"
-                                 "  14: LongConstant [10]\n" },
-    { "  7: Neg(4) [10]\n",      removed },
-    { "  10: Return(7)\n",       "  10: Return(14)\n" }
+    { "  2: LongConstant [3]\n", "  2: LongConstant\n"
+                                 "  6: LongConstant [4]\n" },
+    { "  3: Neg(2) [4]\n",       removed },
+    { "  4: Return(3)\n",        "  4: Return(6)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -201,7 +199,7 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingNegation) {
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
-    { "  4: LongConstant\n", removed },
+    { "  2: LongConstant\n", removed },
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
@@ -232,25 +230,24 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnAddition1) {
     Instruction::RETURN | 2 << 8);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"
-    "  5: IntConstant [9]\n"
-    "  14: SuspendCheck\n"
-    "  15: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 2\n"
-    "  9: Add(3, 5) [12]\n"
-    "  12: Return(9)\n"
-    "BasicBlock 2, pred: 1\n"
-    "  13: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: IntConstant [4]\n"
+      "  3: IntConstant [4]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  4: Add(2, 3) [5]\n"
+      "  5: Return(4)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  6: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  3: IntConstant [9]\n", "  3: IntConstant\n" },
-    { "  5: IntConstant [9]\n", "  5: IntConstant\n" },
-    { "  14: SuspendCheck\n",   "  14: SuspendCheck\n"
-                                "  16: IntConstant [12]\n" },
-    { "  9: Add(3, 5) [12]\n",  removed },
-    { "  12: Return(9)\n",      "  12: Return(16)\n" }
+    { "  2: IntConstant [4]\n", "  2: IntConstant\n" },
+    { "  3: IntConstant [4]\n", "  3: IntConstant\n"
+                                "  7: IntConstant [5]\n" },
+    { "  4: Add(2, 3) [5]\n",   removed },
+    { "  5: Return(4)\n",       "  5: Return(7)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -263,8 +260,8 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnAddition1) {
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
-    { "  3: IntConstant\n", removed },
-    { "  5: IntConstant\n", removed }
+    { "  2: IntConstant\n", removed },
+    { "  3: IntConstant\n", removed }
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
@@ -302,35 +299,34 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnAddition2) {
     Instruction::RETURN | 2 << 8);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"
-    "  5: IntConstant [9]\n"
-    "  11: IntConstant [17]\n"
-    "  13: IntConstant [17]\n"
-    "  26: SuspendCheck\n"
-    "  27: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 2\n"
-    "  9: Add(3, 5) [21]\n"
-    "  17: Add(11, 13) [21]\n"
-    "  21: Add(9, 17) [24]\n"
-    "  24: Return(21)\n"
-    "BasicBlock 2, pred: 1\n"
-    "  25: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: IntConstant [4]\n"
+      "  3: IntConstant [4]\n"
+      "  5: IntConstant [7]\n"
+      "  6: IntConstant [7]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  4: Add(2, 3) [8]\n"
+      "  7: Add(5, 6) [8]\n"
+      "  8: Add(4, 7) [9]\n"
+      "  9: Return(8)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  10: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  3: IntConstant [9]\n",   "  3: IntConstant\n" },
-    { "  5: IntConstant [9]\n",   "  5: IntConstant\n" },
-    { "  11: IntConstant [17]\n", "  11: IntConstant\n" },
-    { "  13: IntConstant [17]\n", "  13: IntConstant\n" },
-    { "  26: SuspendCheck\n",     "  26: SuspendCheck\n"
-                                  "  28: IntConstant\n"
-                                  "  29: IntConstant\n"
-                                  "  30: IntConstant [24]\n" },
-    { "  9: Add(3, 5) [21]\n",    removed },
-    { "  17: Add(11, 13) [21]\n", removed },
-    { "  21: Add(9, 17) [24]\n",  removed  },
-    { "  24: Return(21)\n",       "  24: Return(30)\n" }
+    { "  2: IntConstant [4]\n",  "  2: IntConstant\n" },
+    { "  3: IntConstant [4]\n",  "  3: IntConstant\n" },
+    { "  5: IntConstant [7]\n",  "  5: IntConstant\n" },
+    { "  6: IntConstant [7]\n",  "  6: IntConstant\n"
+                                 "  11: IntConstant\n"
+                                 "  12: IntConstant\n"
+                                 "  13: IntConstant [9]\n" },
+    { "  4: Add(2, 3) [8]\n",    removed },
+    { "  7: Add(5, 6) [8]\n",    removed },
+    { "  8: Add(4, 7) [9]\n",    removed  },
+    { "  9: Return(8)\n",        "  9: Return(13)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -349,12 +345,12 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnAddition2) {
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
+    { "  2: IntConstant\n",  removed },
     { "  3: IntConstant\n",  removed },
     { "  5: IntConstant\n",  removed },
+    { "  6: IntConstant\n",  removed },
     { "  11: IntConstant\n", removed },
-    { "  13: IntConstant\n", removed },
-    { "  28: IntConstant\n", removed },
-    { "  29: IntConstant\n", removed }
+    { "  12: IntConstant\n", removed }
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
@@ -384,25 +380,24 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnSubtraction) {
     Instruction::RETURN | 2 << 8);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"
-    "  5: IntConstant [9]\n"
-    "  14: SuspendCheck\n"
-    "  15: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 2\n"
-    "  9: Sub(3, 5) [12]\n"
-    "  12: Return(9)\n"
-    "BasicBlock 2, pred: 1\n"
-    "  13: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: IntConstant [4]\n"
+      "  3: IntConstant [4]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  4: Sub(2, 3) [5]\n"
+      "  5: Return(4)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  6: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  3: IntConstant [9]\n", "  3: IntConstant\n" },
-    { "  5: IntConstant [9]\n", "  5: IntConstant\n" },
-    { "  14: SuspendCheck\n",   "  14: SuspendCheck\n"
-                                "  16: IntConstant [12]\n" },
-    { "  9: Sub(3, 5) [12]\n",  removed },
-    { "  12: Return(9)\n",      "  12: Return(16)\n" }
+    { "  2: IntConstant [4]\n",  "  2: IntConstant\n" },
+    { "  3: IntConstant [4]\n",  "  3: IntConstant\n"
+                                 "  7: IntConstant [5]\n" },
+    { "  4: Sub(2, 3) [5]\n",    removed },
+    { "  5: Return(4)\n",        "  5: Return(7)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -415,8 +410,8 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnSubtraction) {
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
-    { "  3: IntConstant\n", removed },
-    { "  5: IntConstant\n", removed }
+    { "  2: IntConstant\n", removed },
+    { "  3: IntConstant\n", removed }
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
@@ -448,25 +443,24 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnAddition) {
     Instruction::RETURN_WIDE | 4 << 8);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  6: LongConstant [12]\n"
-    "  8: LongConstant [12]\n"
-    "  17: SuspendCheck\n"
-    "  18: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 2\n"
-    "  12: Add(6, 8) [15]\n"
-    "  15: Return(12)\n"
-    "BasicBlock 2, pred: 1\n"
-    "  16: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: LongConstant [4]\n"
+      "  3: LongConstant [4]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  4: Add(2, 3) [5]\n"
+      "  5: Return(4)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  6: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  6: LongConstant [12]\n", "  6: LongConstant\n" },
-    { "  8: LongConstant [12]\n", "  8: LongConstant\n" },
-    { "  17: SuspendCheck\n",     "  17: SuspendCheck\n"
-                                  "  19: LongConstant [15]\n" },
-    { "  12: Add(6, 8) [15]\n",   removed },
-    { "  15: Return(12)\n",       "  15: Return(19)\n" }
+    { "  2: LongConstant [4]\n",  "  2: LongConstant\n" },
+    { "  3: LongConstant [4]\n",  "  3: LongConstant\n"
+                                  "  7: LongConstant [5]\n" },
+    { "  4: Add(2, 3) [5]\n",     removed },
+    { "  5: Return(4)\n",         "  5: Return(7)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -479,8 +473,8 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnAddition) {
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
-    { "  6: LongConstant\n", removed },
-    { "  8: LongConstant\n", removed }
+    { "  2: LongConstant\n", removed },
+    { "  3: LongConstant\n", removed }
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
@@ -513,25 +507,24 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnSubtraction) {
     Instruction::RETURN_WIDE | 4 << 8);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  6: LongConstant [12]\n"
-    "  8: LongConstant [12]\n"
-    "  17: SuspendCheck\n"
-    "  18: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 2\n"
-    "  12: Sub(6, 8) [15]\n"
-    "  15: Return(12)\n"
-    "BasicBlock 2, pred: 1\n"
-    "  16: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: LongConstant [4]\n"
+      "  3: LongConstant [4]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  4: Sub(2, 3) [5]\n"
+      "  5: Return(4)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  6: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  6: LongConstant [12]\n", "  6: LongConstant\n" },
-    { "  8: LongConstant [12]\n", "  8: LongConstant\n" },
-    { "  17: SuspendCheck\n",     "  17: SuspendCheck\n"
-                                  "  19: LongConstant [15]\n" },
-    { "  12: Sub(6, 8) [15]\n",   removed },
-    { "  15: Return(12)\n",       "  15: Return(19)\n" }
+    { "  2: LongConstant [4]\n",  "  2: LongConstant\n" },
+    { "  3: LongConstant [4]\n",  "  3: LongConstant\n"
+                                  "  7: LongConstant [5]\n" },
+    { "  4: Sub(2, 3) [5]\n",     removed },
+    { "  5: Return(4)\n",         "  5: Return(7)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -544,8 +537,8 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnSubtraction) {
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
-    { "  6: LongConstant\n", removed },
-    { "  8: LongConstant\n", removed }
+    { "  2: LongConstant\n", removed },
+    { "  3: LongConstant\n", removed }
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
@@ -593,46 +586,45 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingAndJumps) {
     Instruction::RETURN | 2 << 8);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"            // v0 <- 1
-    "  5: IntConstant [9]\n"            // v1 <- 2
-    "  13: IntConstant [14]\n"          // const 5
-    "  18: IntConstant [19]\n"          // const 4
-    "  23: IntConstant [24]\n"          // const 8
-    "  29: SuspendCheck\n"
-    "  30: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 3\n"
-    "  9: Add(3, 5) [19]\n"             // v2 <- v0 + v1 = 1 + 2 = 3
-    "  11: Goto 3\n"                    // goto L2
-    "BasicBlock 2, pred: 3, succ: 4\n"  // L1:
-    "  14: Add(19, 13) [24]\n"          // v1 <- v0 + 3 = 7 + 5 = 12
-    "  16: Goto 4\n"                    // goto L3
-    "BasicBlock 3, pred: 1, succ: 2\n"  // L2:
-    "  19: Add(9, 18) [14]\n"           // v0 <- v2 + 2 = 3 + 4 = 7
-    "  21: Goto 2\n"                    // goto L1
-    "BasicBlock 4, pred: 2, succ: 5\n"  // L3:
-    "  24: Add(14, 23) [27]\n"          // v2 <- v1 + 4 = 12 + 8 = 20
-    "  27: Return(24)\n"                // return v2
-    "BasicBlock 5, pred: 4\n"
-    "  28: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: IntConstant [4]\n"             // v0 <- 1
+      "  3: IntConstant [4]\n"             // v1 <- 2
+      "  6: IntConstant [7]\n"             // const 5
+      "  9: IntConstant [10]\n"            // const 4
+      "  12: IntConstant [13]\n"           // const 8
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 3\n"
+      "  4: Add(2, 3) [7]\n"               // v2 <- v0 + v1 = 1 + 2 = 3
+      "  5: Goto 3\n"                      // goto L2
+      "BasicBlock 2, pred: 3, succ: 4\n"   // L1:
+      "  10: Add(7, 9) [13]\n"             // v1 <- v0 + 3 = 7 + 5 = 12
+      "  11: Goto 4\n"                     // goto L3
+      "BasicBlock 3, pred: 1, succ: 2\n"   // L2:
+      "  7: Add(4, 6) [10]\n"              // v0 <- v2 + 2 = 3 + 4 = 7
+      "  8: Goto 2\n"                      // goto L1
+      "BasicBlock 4, pred: 2, succ: 5\n"   // L3:
+      "  13: Add(10, 12) [14]\n"           // v2 <- v1 + 4 = 12 + 8 = 20
+      "  14: Return(13)\n"                 // return v2
+      "BasicBlock 5, pred: 4\n"
+      "  15: Exit\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  3: IntConstant [9]\n",   "  3: IntConstant\n" },
-    { "  5: IntConstant [9]\n",   "  5: IntConstant\n" },
-    { "  13: IntConstant [14]\n", "  13: IntConstant\n" },
-    { "  18: IntConstant [19]\n", "  18: IntConstant\n" },
-    { "  23: IntConstant [24]\n", "  23: IntConstant\n" },
-    { "  29: SuspendCheck\n",     "  29: SuspendCheck\n"
-                                  "  31: IntConstant\n"
-                                  "  32: IntConstant\n"
-                                  "  33: IntConstant\n"
-                                  "  34: IntConstant [27]\n" },
-    { "  9: Add(3, 5) [19]\n",    removed },
-    { "  14: Add(19, 13) [24]\n", removed },
-    { "  19: Add(9, 18) [14]\n",  removed },
-    { "  24: Add(14, 23) [27]\n", removed },
-    { "  27: Return(24)\n",       "  27: Return(34)\n"}
+    { "  2: IntConstant [4]\n",   "  2: IntConstant\n" },
+    { "  3: IntConstant [4]\n",   "  3: IntConstant\n" },
+    { "  6: IntConstant [7]\n",   "  6: IntConstant\n" },
+    { "  9: IntConstant [10]\n",  "  9: IntConstant\n" },
+    { "  12: IntConstant [13]\n", "  12: IntConstant\n"
+                                  "  16: IntConstant\n"
+                                  "  17: IntConstant\n"
+                                  "  18: IntConstant\n"
+                                  "  19: IntConstant [14]\n" },
+    { "  4: Add(2, 3) [7]\n",     removed },
+    { "  10: Add(7, 9) [13]\n",   removed },
+    { "  7: Add(4, 6) [10]\n",    removed },
+    { "  13: Add(10, 12) [14]\n", removed },
+    { "  14: Return(13)\n",       "  14: Return(19)\n"}
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -654,14 +646,14 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingAndJumps) {
 
   // Expected difference after dead code elimination.
   std::string expected_after_dce =
-    "BasicBlock 0, succ: 1\n"
-    "  29: SuspendCheck\n"
-    "  34: IntConstant [27]\n"
-    "  30: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 5\n"
-    "  27: Return(34)\n"
-    "BasicBlock 5, pred: 1\n"
-    "  28: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  19: IntConstant [14]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 5\n"
+      "  14: Return(19)\n"
+      "BasicBlock 5, pred: 1\n"
+      "  15: Exit\n";
 
   TestCode(data,
            expected_before,
@@ -693,31 +685,31 @@ TEST_F(ConstantFoldingTest, ConstantCondition) {
     Instruction::RETURN_VOID);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [15, 22, 8]\n"
-    "  5: IntConstant [22, 8]\n"
-    "  19: SuspendCheck\n"
-    "  20: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 5, 2\n"
-    "  8: GreaterThanOrEqual(3, 5) [9]\n"
-    "  9: If(8)\n"
-    "BasicBlock 2, pred: 1, succ: 3\n"
-    "  12: Goto 3\n"
-    "BasicBlock 3, pred: 5, 2, succ: 4\n"
-    "  22: Phi(5, 3) [15]\n"
-    "  15: Add(22, 3)\n"
-    "  17: ReturnVoid\n"
-    "BasicBlock 4, pred: 3\n"
-    "  18: Exit\n"
-    "BasicBlock 5, pred: 1, succ: 3\n"
-    "  21: Goto 3\n";
+      "BasicBlock 0, succ: 1\n"
+      "  3: IntConstant [9, 8, 5]\n"
+      "  4: IntConstant [8, 5]\n"
+      "  1: SuspendCheck\n"
+      "  2: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 5, 2\n"
+      "  5: GreaterThanOrEqual(3, 4) [6]\n"
+      "  6: If(5)\n"
+      "BasicBlock 2, pred: 1, succ: 3\n"
+      "  7: Goto 3\n"
+      "BasicBlock 3, pred: 5, 2, succ: 4\n"
+      "  8: Phi(4, 3) [9]\n"
+      "  9: Add(8, 3)\n"
+      "  10: ReturnVoid\n"
+      "BasicBlock 4, pred: 3\n"
+      "  11: Exit\n"
+      "BasicBlock 5, pred: 1, succ: 3\n"
+      "  0: Goto 3\n";
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  3: IntConstant [15, 22, 8]\n",      "  3: IntConstant [9, 15, 22]\n" },
-    { "  5: IntConstant [22, 8]\n",          "  5: IntConstant [22]\n" },
-    { "  8: GreaterThanOrEqual(3, 5) [9]\n", removed },
-    { "  9: If(8)\n",                        "  9: If(3)\n" }
+    { "  3: IntConstant [9, 8, 5]\n",        "  3: IntConstant [6, 9, 8]\n" },
+    { "  4: IntConstant [8, 5]\n",           "  4: IntConstant [8]\n" },
+    { "  5: GreaterThanOrEqual(3, 4) [6]\n", removed },
+    { "  6: If(5)\n",                        "  6: If(3)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
@@ -730,13 +722,13 @@ TEST_F(ConstantFoldingTest, ConstantCondition) {
 
   // Expected graph after dead code elimination.
   std::string expected_after_dce =
-    "BasicBlock 0, succ: 1\n"
-    "  19: SuspendCheck\n"
-    "  20: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 4\n"
-    "  17: ReturnVoid\n"
-    "BasicBlock 4, pred: 1\n"
-    "  18: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  1: SuspendCheck\n"
+      "  2: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 4\n"
+      "  10: ReturnVoid\n"
+      "BasicBlock 4, pred: 1\n"
+      "  11: Exit\n";
 
   TestCode(data,
            expected_before,
@@ -766,7 +758,10 @@ TEST_F(ConstantFoldingTest, UnsignedComparisonsWithZero) {
   HInstruction* parameter = new (&allocator_) HParameterValue(
       graph_->GetDexFile(), 0, 0, Primitive::kPrimInt, true);
   entry_block->AddInstruction(parameter);
+  entry_block->AddInstruction(new (&allocator_) HGoto());
+
   HInstruction* zero = graph_->GetIntConstant(0);
+
   HInstruction* last;
   block->AddInstruction(last = new (&allocator_) HAbove(zero, parameter));
   block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
@@ -784,70 +779,70 @@ TEST_F(ConstantFoldingTest, UnsignedComparisonsWithZero) {
   block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
   block->AddInstruction(last = new (&allocator_) HBelowOrEqual(parameter, zero));
   block->AddInstruction(new (&allocator_) HSelect(last, parameter, parameter, 0));
-
-  entry_block->AddInstruction(new (&allocator_) HGoto());
   block->AddInstruction(new (&allocator_) HReturn(zero));
+
   exit_block->AddInstruction(new (&allocator_) HExit());
 
   graph_->BuildDominatorTree();
 
   const std::string expected_before =
       "BasicBlock 0, succ: 1\n"
-      "  0: ParameterValue [17, 17, 16, 15, 15, 14, 13, 13, 12, 11, 11, 10, 9, 9, "
-                           "8, 7, 7, 6, 5, 5, 4, 3, 3, 2]\n"
-      "  1: IntConstant [19, 16, 14, 12, 10, 8, 6, 4, 2]\n"
-      "  18: Goto 1\n"
+      "  0: ParameterValue [18, 18, 17, 16, 16, 15, 14, 14, 13, 12, 12, 11, 10, 10, 9, "
+                            "8, 8, 7, 6, 6, 5, 4, 4, 3]\n"
+      "  2: IntConstant [19, 17, 15, 13, 11, 9, 7, 5, 3]\n"
+      "  1: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  2: Above(1, 0) [3]\n"
-      "  3: Select(0, 0, 2)\n"
-      "  4: Above(0, 1) [5]\n"
-      "  5: Select(0, 0, 4)\n"
-      "  6: AboveOrEqual(1, 0) [7]\n"
-      "  7: Select(0, 0, 6)\n"
-      "  8: AboveOrEqual(0, 1) [9]\n"
-      "  9: Select(0, 0, 8)\n"
-      "  10: Below(1, 0) [11]\n"
-      "  11: Select(0, 0, 10)\n"
-      "  12: Below(0, 1) [13]\n"
-      "  13: Select(0, 0, 12)\n"
-      "  14: BelowOrEqual(1, 0) [15]\n"
-      "  15: Select(0, 0, 14)\n"
-      "  16: BelowOrEqual(0, 1) [17]\n"
-      "  17: Select(0, 0, 16)\n"
-      "  19: Return(1)\n"
+      "  3: Above(2, 0) [4]\n"
+      "  4: Select(0, 0, 3)\n"
+      "  5: Above(0, 2) [6]\n"
+      "  6: Select(0, 0, 5)\n"
+      "  7: AboveOrEqual(2, 0) [8]\n"
+      "  8: Select(0, 0, 7)\n"
+      "  9: AboveOrEqual(0, 2) [10]\n"
+      "  10: Select(0, 0, 9)\n"
+      "  11: Below(2, 0) [12]\n"
+      "  12: Select(0, 0, 11)\n"
+      "  13: Below(0, 2) [14]\n"
+      "  14: Select(0, 0, 13)\n"
+      "  15: BelowOrEqual(2, 0) [16]\n"
+      "  16: Select(0, 0, 15)\n"
+      "  17: BelowOrEqual(0, 2) [18]\n"
+      "  18: Select(0, 0, 17)\n"
+      "  19: Return(2)\n"
       "BasicBlock 2, pred: 1\n"
       "  20: Exit\n";
 
   const std::string expected_after_cf =
       "BasicBlock 0, succ: 1\n"
-      "  0: ParameterValue [17, 17, 16, 15, 15, 13, 13, 11, 11, 10, 9, 9, 7, 7, 6, 5, 5, 4, 3, 3]\n"
-      "  1: IntConstant [13, 3, 19, 16, 10, 6, 4]\n"
-      "  21: IntConstant [15, 9]\n"
-      "  18: Goto 1\n"
+      "  0: ParameterValue [18, 18, 17, 16, 16, 14, 14, 12, 12, 11, 10, 10, "
+                            "8, 8, 7, 6, 6, 5, 4, 4]\n"
+      "  2: IntConstant [14, 4, 19, 17, 11, 7, 5]\n"
+      "  21: IntConstant [16, 10]\n"
+      "  1: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  3: Select(0, 0, 1)\n"
-      "  4: Above(0, 1) [5]\n"
-      "  5: Select(0, 0, 4)\n"
-      "  6: AboveOrEqual(1, 0) [7]\n"
-      "  7: Select(0, 0, 6)\n"
-      "  9: Select(0, 0, 21)\n"
-      "  10: Below(1, 0) [11]\n"
-      "  11: Select(0, 0, 10)\n"
-      "  13: Select(0, 0, 1)\n"
-      "  15: Select(0, 0, 21)\n"
-      "  16: BelowOrEqual(0, 1) [17]\n"
-      "  17: Select(0, 0, 16)\n"
-      "  19: Return(1)\n"
+      "  4: Select(0, 0, 2)\n"
+      "  5: Above(0, 2) [6]\n"
+      "  6: Select(0, 0, 5)\n"
+      "  7: AboveOrEqual(2, 0) [8]\n"
+      "  8: Select(0, 0, 7)\n"
+      "  10: Select(0, 0, 21)\n"
+      "  11: Below(2, 0) [12]\n"
+      "  12: Select(0, 0, 11)\n"
+      "  14: Select(0, 0, 2)\n"
+      "  16: Select(0, 0, 21)\n"
+      "  17: BelowOrEqual(0, 2) [18]\n"
+      "  18: Select(0, 0, 17)\n"
+      "  19: Return(2)\n"
       "BasicBlock 2, pred: 1\n"
       "  20: Exit\n";
 
   const std::string expected_after_dce =
       "BasicBlock 0, succ: 1\n"
       "  0: ParameterValue\n"
-      "  1: IntConstant [19]\n"
-      "  18: Goto 1\n"
+      "  2: IntConstant [19]\n"
+      "  1: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  19: Return(1)\n"
+      "  19: Return(2)\n"
       "BasicBlock 2, pred: 1\n"
       "  20: Exit\n";
 

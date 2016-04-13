@@ -78,30 +78,30 @@ TEST_F(DeadCodeEliminationTest, AdditionAndConditionalJump) {
     Instruction::RETURN_VOID);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [15, 22, 8]\n"
-    "  5: IntConstant [22, 8]\n"
-    "  19: SuspendCheck\n"
-    "  20: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 5, 2\n"
-    "  8: GreaterThanOrEqual(3, 5) [9]\n"
-    "  9: If(8)\n"
-    "BasicBlock 2, pred: 1, succ: 3\n"
-    "  12: Goto 3\n"
-    "BasicBlock 3, pred: 5, 2, succ: 4\n"
-    "  22: Phi(5, 3) [15]\n"
-    "  15: Add(22, 3)\n"
-    "  17: ReturnVoid\n"
-    "BasicBlock 4, pred: 3\n"
-    "  18: Exit\n"
-    "BasicBlock 5, pred: 1, succ: 3\n"
-    "  21: Goto 3\n";
+      "BasicBlock 0, succ: 1\n"
+      "  3: IntConstant [9, 8, 5]\n"
+      "  4: IntConstant [8, 5]\n"
+      "  1: SuspendCheck\n"
+      "  2: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 5, 2\n"
+      "  5: GreaterThanOrEqual(3, 4) [6]\n"
+      "  6: If(5)\n"
+      "BasicBlock 2, pred: 1, succ: 3\n"
+      "  7: Goto 3\n"
+      "BasicBlock 3, pred: 5, 2, succ: 4\n"
+      "  8: Phi(4, 3) [9]\n"
+      "  9: Add(8, 3)\n"
+      "  10: ReturnVoid\n"
+      "BasicBlock 4, pred: 3\n"
+      "  11: Exit\n"
+      "BasicBlock 5, pred: 1, succ: 3\n"
+      "  0: Goto 3\n";
 
   // Expected difference after dead code elimination.
   diff_t expected_diff = {
-    { "  3: IntConstant [15, 22, 8]\n", "  3: IntConstant [22, 8]\n" },
-    { "  22: Phi(5, 3) [15]\n",         "  22: Phi(5, 3)\n" },
-    { "  15: Add(22, 3)\n",             removed }
+    { "  3: IntConstant [9, 8, 5]\n",  "  3: IntConstant [8, 5]\n" },
+    { "  8: Phi(4, 3) [9]\n",          "  8: Phi(4, 3)\n" },
+    { "  9: Add(8, 3)\n",              removed }
   };
   std::string expected_after = Patch(expected_before, expected_diff);
 
@@ -144,37 +144,37 @@ TEST_F(DeadCodeEliminationTest, AdditionsAndInconditionalJumps) {
     Instruction::RETURN_VOID);
 
   std::string expected_before =
-    "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"
-    "  5: IntConstant [9]\n"
-    "  13: IntConstant [14]\n"
-    "  18: IntConstant [19]\n"
-    "  23: IntConstant [24]\n"
-    "  28: SuspendCheck\n"
-    "  29: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 3\n"
-    "  9: Add(3, 5) [19]\n"
-    "  11: Goto 3\n"
-    "BasicBlock 2, pred: 3, succ: 4\n"
-    "  14: Add(19, 13) [24]\n"
-    "  16: Goto 4\n"
-    "BasicBlock 3, pred: 1, succ: 2\n"
-    "  19: Add(9, 18) [14]\n"
-    "  21: Goto 2\n"
-    "BasicBlock 4, pred: 2, succ: 5\n"
-    "  24: Add(14, 23)\n"
-    "  26: ReturnVoid\n"
-    "BasicBlock 5, pred: 4\n"
-    "  27: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  2: IntConstant [4]\n"
+      "  3: IntConstant [4]\n"
+      "  6: IntConstant [7]\n"
+      "  9: IntConstant [10]\n"
+      "  12: IntConstant [13]\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 3\n"
+      "  4: Add(2, 3) [7]\n"
+      "  5: Goto 3\n"
+      "BasicBlock 2, pred: 3, succ: 4\n"
+      "  10: Add(7, 9) [13]\n"
+      "  11: Goto 4\n"
+      "BasicBlock 3, pred: 1, succ: 2\n"
+      "  7: Add(4, 6) [10]\n"
+      "  8: Goto 2\n"
+      "BasicBlock 4, pred: 2, succ: 5\n"
+      "  13: Add(10, 12)\n"
+      "  14: ReturnVoid\n"
+      "BasicBlock 5, pred: 4\n"
+      "  15: Exit\n";
 
   std::string expected_after =
-    "BasicBlock 0, succ: 1\n"
-    "  28: SuspendCheck\n"
-    "  29: Goto 1\n"
-    "BasicBlock 1, pred: 0, succ: 5\n"
-    "  26: ReturnVoid\n"
-    "BasicBlock 5, pred: 1\n"
-    "  27: Exit\n";
+      "BasicBlock 0, succ: 1\n"
+      "  0: SuspendCheck\n"
+      "  1: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 5\n"
+      "  14: ReturnVoid\n"
+      "BasicBlock 5, pred: 1\n"
+      "  15: Exit\n";
 
   TestCode(data, expected_before, expected_after);
 }

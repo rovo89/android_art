@@ -195,9 +195,7 @@ class ScopedCodeCacheWrite : ScopedTrace {
 
 uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   ArtMethod* method,
-                                  const uint8_t* mapping_table,
                                   const uint8_t* vmap_table,
-                                  const uint8_t* gc_map,
                                   size_t frame_size_in_bytes,
                                   size_t core_spill_mask,
                                   size_t fp_spill_mask,
@@ -206,9 +204,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   bool osr) {
   uint8_t* result = CommitCodeInternal(self,
                                        method,
-                                       mapping_table,
                                        vmap_table,
-                                       gc_map,
                                        frame_size_in_bytes,
                                        core_spill_mask,
                                        fp_spill_mask,
@@ -220,9 +216,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
     GarbageCollectCache(self);
     result = CommitCodeInternal(self,
                                 method,
-                                mapping_table,
                                 vmap_table,
-                                gc_map,
                                 frame_size_in_bytes,
                                 core_spill_mask,
                                 fp_spill_mask,
@@ -254,8 +248,6 @@ void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UN
   // It does nothing if we are not using native debugger.
   DeleteJITCodeEntryForAddress(reinterpret_cast<uintptr_t>(code_ptr));
 
-  FreeData(const_cast<uint8_t*>(method_header->GetNativeGcMap()));
-  FreeData(const_cast<uint8_t*>(method_header->GetMappingTable()));
   // Use the offset directly to prevent sanity check that the method is
   // compiled with optimizing.
   // TODO(ngeoffray): Clean up.
@@ -314,9 +306,7 @@ void JitCodeCache::ClearGcRootsInInlineCaches(Thread* self) {
 
 uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           ArtMethod* method,
-                                          const uint8_t* mapping_table,
                                           const uint8_t* vmap_table,
-                                          const uint8_t* gc_map,
                                           size_t frame_size_in_bytes,
                                           size_t core_spill_mask,
                                           size_t fp_spill_mask,
@@ -346,9 +336,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       std::copy(code, code + code_size, code_ptr);
       method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
       new (method_header) OatQuickMethodHeader(
-          (mapping_table == nullptr) ? 0 : code_ptr - mapping_table,
           (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
-          (gc_map == nullptr) ? 0 : code_ptr - gc_map,
           frame_size_in_bytes,
           core_spill_mask,
           fp_spill_mask,
@@ -939,12 +927,12 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
     return false;
   }
 
-  if (info->IsMethodBeingCompiled()) {
+  if (info->IsMethodBeingCompiled(osr)) {
     VLOG(jit) << PrettyMethod(method) << " is already being compiled";
     return false;
   }
 
-  info->SetIsMethodBeingCompiled(true);
+  info->SetIsMethodBeingCompiled(true, osr);
   return true;
 }
 
@@ -964,10 +952,10 @@ void JitCodeCache::DoneCompilerUse(ArtMethod* method, Thread* self) {
   info->DecrementInlineUse();
 }
 
-void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED) {
+void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED, bool osr) {
   ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
-  DCHECK(info->IsMethodBeingCompiled());
-  info->SetIsMethodBeingCompiled(false);
+  DCHECK(info->IsMethodBeingCompiled(osr));
+  info->SetIsMethodBeingCompiled(false, osr);
 }
 
 size_t JitCodeCache::GetMemorySizeOfCodePointer(const void* ptr) {

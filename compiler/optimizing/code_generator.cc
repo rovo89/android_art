@@ -40,21 +40,19 @@
 #include "code_generator_mips64.h"
 #endif
 
+#include "bytecode_utils.h"
 #include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
-#include "gc_map_builder.h"
 #include "graph_visualizer.h"
 #include "intrinsics.h"
 #include "leb128.h"
-#include "mapping_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_reference.h"
 #include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
-#include "vmap_table.h"
 
 namespace art {
 
@@ -295,23 +293,6 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
         + maximum_number_of_live_fpu_registers * GetFloatingPointSpillSlotSize()
         + FrameEntrySpillSize(),
         kStackAlignment));
-  }
-}
-
-int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
-  uint16_t reg_number = local->GetRegNumber();
-  uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
-  if (reg_number >= number_of_locals) {
-    // Local is a parameter of the method. It is stored in the caller's frame.
-    // TODO: Share this logic with StackVisitor::GetVRegOffsetFromQuickCode.
-    return GetFrameSize() + InstructionSetPointerSize(GetInstructionSet())  // ART method
-                          + (reg_number - number_of_locals) * kVRegSize;
-  } else {
-    // Local is a temporary in this method. It is stored in this method's frame.
-    return GetFrameSize() - FrameEntrySpillSize()
-                          - kVRegSize  // filler.
-                          - (number_of_locals * kVRegSize)
-                          + (reg_number * kVRegSize);
   }
 }
 
@@ -571,59 +552,66 @@ void CodeGenerator::MaybeRecordStat(MethodCompilationStat compilation_stat, size
   }
 }
 
-CodeGenerator* CodeGenerator::Create(HGraph* graph,
-                                     InstructionSet instruction_set,
-                                     const InstructionSetFeatures& isa_features,
-                                     const CompilerOptions& compiler_options,
-                                     OptimizingCompilerStats* stats) {
+std::unique_ptr<CodeGenerator> CodeGenerator::Create(HGraph* graph,
+                                                     InstructionSet instruction_set,
+                                                     const InstructionSetFeatures& isa_features,
+                                                     const CompilerOptions& compiler_options,
+                                                     OptimizingCompilerStats* stats) {
+  ArenaAllocator* arena = graph->GetArena();
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2: {
-      return new arm::CodeGeneratorARM(graph,
-                                      *isa_features.AsArmInstructionSetFeatures(),
-                                      compiler_options,
-                                      stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) arm::CodeGeneratorARM(graph,
+                                            *isa_features.AsArmInstructionSetFeatures(),
+                                            compiler_options,
+                                            stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64: {
-      return new arm64::CodeGeneratorARM64(graph,
-                                          *isa_features.AsArm64InstructionSetFeatures(),
-                                          compiler_options,
-                                          stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) arm64::CodeGeneratorARM64(graph,
+                                                *isa_features.AsArm64InstructionSetFeatures(),
+                                                compiler_options,
+                                                stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips: {
-      return new mips::CodeGeneratorMIPS(graph,
-                                         *isa_features.AsMipsInstructionSetFeatures(),
-                                         compiler_options,
-                                         stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) mips::CodeGeneratorMIPS(graph,
+                                              *isa_features.AsMipsInstructionSetFeatures(),
+                                              compiler_options,
+                                              stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64: {
-      return new mips64::CodeGeneratorMIPS64(graph,
-                                            *isa_features.AsMips64InstructionSetFeatures(),
-                                            compiler_options,
-                                            stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) mips64::CodeGeneratorMIPS64(graph,
+                                                  *isa_features.AsMips64InstructionSetFeatures(),
+                                                  compiler_options,
+                                                  stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86: {
-      return new x86::CodeGeneratorX86(graph,
-                                      *isa_features.AsX86InstructionSetFeatures(),
-                                      compiler_options,
-                                      stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) x86::CodeGeneratorX86(graph,
+                                            *isa_features.AsX86InstructionSetFeatures(),
+                                            compiler_options,
+                                            stats));
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64: {
-      return new x86_64::CodeGeneratorX86_64(graph,
-                                            *isa_features.AsX86_64InstructionSetFeatures(),
-                                            compiler_options,
-                                            stats);
+      return std::unique_ptr<CodeGenerator>(
+          new (arena) x86_64::CodeGeneratorX86_64(graph,
+                                                  *isa_features.AsX86_64InstructionSetFeatures(),
+                                                  compiler_options,
+                                                  stats));
     }
 #endif
     default:
@@ -640,7 +628,7 @@ static void CheckCovers(uint32_t dex_pc,
                         const CodeInfo& code_info,
                         const ArenaVector<HSuspendCheck*>& loop_headers,
                         ArenaVector<size_t>* covered) {
-  StackMapEncoding encoding = code_info.ExtractEncoding();
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
   for (size_t i = 0; i < loop_headers.size(); ++i) {
     if (loop_headers[i]->GetDexPc() == dex_pc) {
       if (graph.IsCompilingOsr()) {
@@ -680,7 +668,7 @@ static void CheckLoopEntriesCanBeUsedForOsr(const HGraph& graph,
       uint32_t target = dex_pc + instruction.GetTargetOffset();
       CheckCovers(target, graph, code_info, loop_headers, &covered);
     } else if (instruction.IsSwitch()) {
-      SwitchTable table(instruction, dex_pc, instruction.Opcode() == Instruction::SPARSE_SWITCH);
+      DexSwitchTable table(instruction, dex_pc);
       uint16_t num_entries = table.GetNumEntries();
       size_t offset = table.GetFirstValueIndex();
 

@@ -43,7 +43,8 @@ static void do_checks(jclass cls, const char* method_name) {
   }
 
   CodeInfo info = header->GetOptimizedCodeInfo();
-  CHECK(info.HasInlineInfo());
+  CodeInfoEncoding encoding = info.ExtractEncoding();
+  CHECK(info.HasInlineInfo(encoding));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureJittedAndPolymorphicInline(JNIEnv*, jclass cls) {

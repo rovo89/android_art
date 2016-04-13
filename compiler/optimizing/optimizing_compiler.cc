@@ -597,9 +597,7 @@ CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* arena,
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
       ArrayRef<const SrcMapElem>(),
-      ArrayRef<const uint8_t>(),  // mapping_table.
       ArrayRef<const uint8_t>(stack_map),
-      ArrayRef<const uint8_t>(),  // native_gc_map.
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>(linker_patches));
 
@@ -727,14 +725,20 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                             &dex_compilation_unit,
                             &dex_compilation_unit,
                             &dex_file,
+                            *code_item,
                             compiler_driver,
                             compilation_stats_.get(),
                             interpreter_metadata,
-                            dex_cache);
-      GraphAnalysisResult result = builder.BuildGraph(*code_item, &handles);
+                            dex_cache,
+                            &handles);
+      GraphAnalysisResult result = builder.BuildGraph();
       if (result != kAnalysisSuccess) {
         switch (result) {
+          case kAnalysisSkipped:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledSkipped);
+            break;
           case kAnalysisInvalidBytecode:
+            MaybeRecordStat(MethodCompilationStat::kNotCompiledInvalidBytecode);
             break;
           case kAnalysisFailThrowCatchLoop:
             MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
@@ -910,9 +914,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   const void* code = code_cache->CommitCode(
       self,
       method,
-      nullptr,
       stack_map_data,
-      nullptr,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),

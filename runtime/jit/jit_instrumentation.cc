@@ -80,12 +80,14 @@ class JitCompileTask FINAL : public Task {
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
 };
 
-JitInstrumentationCache::JitInstrumentationCache(size_t hot_method_threshold,
-                                                 size_t warm_method_threshold,
-                                                 size_t osr_method_threshold)
+JitInstrumentationCache::JitInstrumentationCache(uint16_t hot_method_threshold,
+                                                 uint16_t warm_method_threshold,
+                                                 uint16_t osr_method_threshold,
+                                                 uint16_t priority_thread_weight)
     : hot_method_threshold_(hot_method_threshold),
       warm_method_threshold_(warm_method_threshold),
       osr_method_threshold_(osr_method_threshold),
+      priority_thread_weight_(priority_thread_weight),
       listener_(this) {
 }
 
@@ -130,44 +132,66 @@ void JitInstrumentationCache::DeleteThreadPool(Thread* self) {
   }
 }
 
-void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t) {
+void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, uint16_t count) {
   // Since we don't have on-stack replacement, some methods can remain in the interpreter longer
-  // than we want resulting in samples even after the method is compiled.
-  if (method->IsClassInitializer() || method->IsNative()) {
+  // than we want resulting in samples even after the method is compiled.  Also, if the
+  // jit is no longer interested in hotness samples because we're shutting down, just return.
+  if (method->IsClassInitializer() || method->IsNative() || (thread_pool_ == nullptr)) {
+    if (thread_pool_ == nullptr) {
+      // Should only see this when shutting down.
+      DCHECK(Runtime::Current()->IsShuttingDown(self));
+    }
     return;
   }
   DCHECK(thread_pool_ != nullptr);
+  DCHECK_GT(warm_method_threshold_, 0);
+  DCHECK_GT(hot_method_threshold_, warm_method_threshold_);
+  DCHECK_GT(osr_method_threshold_, hot_method_threshold_);
+  DCHECK_GE(priority_thread_weight_, 1);
+  DCHECK_LE(priority_thread_weight_, hot_method_threshold_);
 
-  uint16_t sample_count = method->IncrementCounter();
-  if (sample_count == warm_method_threshold_) {
-    bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
-    if (success) {
-      VLOG(jit) << "Start profiling " << PrettyMethod(method);
+  int32_t starting_count = method->GetCounter();
+  if (Jit::ShouldUsePriorityThreadWeight()) {
+    count *= priority_thread_weight_;
+  }
+  int32_t new_count = starting_count + count;   // int32 here to avoid wrap-around;
+  if (starting_count < warm_method_threshold_) {
+    if (new_count >= warm_method_threshold_) {
+      bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
+      if (success) {
+        VLOG(jit) << "Start profiling " << PrettyMethod(method);
+      }
+
+      if (thread_pool_ == nullptr) {
+        // Calling ProfilingInfo::Create might put us in a suspended state, which could
+        // lead to the thread pool being deleted when we are shutting down.
+        DCHECK(Runtime::Current()->IsShuttingDown(self));
+        return;
+      }
+
+      if (!success) {
+        // We failed allocating. Instead of doing the collection on the Java thread, we push
+        // an allocation to a compiler thread, that will do the collection.
+        thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
+      }
     }
-
-    if (thread_pool_ == nullptr) {
-      // Calling ProfilingInfo::Create might put us in a suspended state, which could
-      // lead to the thread pool being deleted when we are shutting down.
-      DCHECK(Runtime::Current()->IsShuttingDown(self));
-      return;
+    // Avoid jumping more than one state at a time.
+    new_count = std::min(new_count, hot_method_threshold_ - 1);
+  } else if (starting_count < hot_method_threshold_) {
+    if (new_count >= hot_method_threshold_) {
+      DCHECK(thread_pool_ != nullptr);
+      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
     }
-
-    if (!success) {
-      // We failed allocating. Instead of doing the collection on the Java thread, we push
-      // an allocation to a compiler thread, that will do the collection.
-      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
+    // Avoid jumping more than one state at a time.
+    new_count = std::min(new_count, osr_method_threshold_ - 1);
+  } else if (starting_count < osr_method_threshold_) {
+    if (new_count >= osr_method_threshold_) {
+      DCHECK(thread_pool_ != nullptr);
+      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
     }
   }
-
-  if (sample_count == hot_method_threshold_) {
-    DCHECK(thread_pool_ != nullptr);
-    thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
-  }
-
-  if (sample_count == osr_method_threshold_) {
-    DCHECK(thread_pool_ != nullptr);
-    thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
-  }
+  // Update hotness counter
+  method->SetCounter(new_count);
 }
 
 JitInstrumentationListener::JitInstrumentationListener(JitInstrumentationCache* cache)
