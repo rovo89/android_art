@@ -1097,6 +1097,13 @@ class Thread {
     return debug_disallow_read_barrier_;
   }
 
+  static bool IsSensitiveThread() {
+    if (is_sensitive_thread_hook_ != nullptr) {
+      return (*is_sensitive_thread_hook_)();
+    }
+    return false;
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_);
@@ -1172,6 +1179,10 @@ class Thread {
   ALWAYS_INLINE void PassActiveSuspendBarriers()
       REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_);
 
+  static void SetSensitiveThreadHook(bool (*is_sensitive_thread_hook)()) {
+    is_sensitive_thread_hook_ = is_sensitive_thread_hook;
+  }
+
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.
   union PACKED(4) StateAndFlags {
@@ -1213,6 +1224,10 @@ class Thread {
   // Used to notify threads that they should attempt to resume, they will suspend again if
   // their suspend count is > 0.
   static ConditionVariable* resume_cond_ GUARDED_BY(Locks::thread_suspend_count_lock_);
+
+  // Hook passed by framework which returns true
+  // when StrictMode events are traced for the current thread.
+  static bool (*is_sensitive_thread_hook_)();
 
   /***********************************************************************************************/
   // Thread local storage. Fields are grouped by size to enable 32 <-> 64 searching to account for

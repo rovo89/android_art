@@ -82,10 +82,12 @@ class JitCompileTask FINAL : public Task {
 
 JitInstrumentationCache::JitInstrumentationCache(uint16_t hot_method_threshold,
                                                  uint16_t warm_method_threshold,
-                                                 uint16_t osr_method_threshold)
+                                                 uint16_t osr_method_threshold,
+                                                 uint16_t priority_thread_weight)
     : hot_method_threshold_(hot_method_threshold),
       warm_method_threshold_(warm_method_threshold),
       osr_method_threshold_(osr_method_threshold),
+      priority_thread_weight_(priority_thread_weight),
       listener_(this) {
 }
 
@@ -145,8 +147,13 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, uint16
   DCHECK_GT(warm_method_threshold_, 0);
   DCHECK_GT(hot_method_threshold_, warm_method_threshold_);
   DCHECK_GT(osr_method_threshold_, hot_method_threshold_);
+  DCHECK_GE(priority_thread_weight_, 1);
+  DCHECK_LE(priority_thread_weight_, hot_method_threshold_);
 
   int32_t starting_count = method->GetCounter();
+  if (Jit::ShouldUsePriorityThreadWeight()) {
+    count *= priority_thread_weight_;
+  }
   int32_t new_count = starting_count + count;   // int32 here to avoid wrap-around;
   if (starting_count < warm_method_threshold_) {
     if (new_count >= warm_method_threshold_) {
