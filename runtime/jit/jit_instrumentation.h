@@ -99,7 +99,8 @@ class JitInstrumentationCache {
  public:
   JitInstrumentationCache(uint16_t hot_method_threshold,
                           uint16_t warm_method_threshold,
-                          uint16_t osr_method_threshold);
+                          uint16_t osr_method_threshold,
+                          uint16_t priority_thread_weight);
   void AddSamples(Thread* self, ArtMethod* method, uint16_t samples)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateThreadPool();
@@ -117,6 +118,10 @@ class JitInstrumentationCache {
     return warm_method_threshold_;
   }
 
+  size_t PriorityThreadWeight() const {
+    return priority_thread_weight_;
+  }
+
   // Wait until there is no more pending compilation tasks.
   void WaitForCompilationToFinish(Thread* self);
 
@@ -124,6 +129,7 @@ class JitInstrumentationCache {
   uint16_t hot_method_threshold_;
   uint16_t warm_method_threshold_;
   uint16_t osr_method_threshold_;
+  uint16_t priority_thread_weight_;
   JitInstrumentationListener listener_;
   std::unique_ptr<ThreadPool> thread_pool_;
 

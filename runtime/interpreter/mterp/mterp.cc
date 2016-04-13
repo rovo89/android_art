@@ -665,6 +665,10 @@ extern "C" int MterpSetUpHotnessCountdown(ArtMethod* method, ShadowFrame* shadow
     } else {
       countdown_value = jit::kJitCheckForOSR;
     }
+    if (jit::Jit::ShouldUsePriorityThreadWeight()) {
+      int32_t priority_thread_weight = cache->PriorityThreadWeight();
+      countdown_value = std::min(countdown_value, countdown_value / priority_thread_weight);
+    }
   }
   /*
    * The actual hotness threshold may exceed the range of our int16_t countdown value.  This is
