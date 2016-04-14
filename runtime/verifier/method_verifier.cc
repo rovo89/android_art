@@ -4577,8 +4577,17 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
       // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
       // of C1. For resolution to occur the declared class of the field must be compatible with
       // obj_type, we've discovered this wasn't so, so report the field didn't exist.
-      Fail(VERIFY_ERROR_NO_FIELD) << "cannot access instance field " << PrettyField(field)
-                                  << " from object of type " << obj_type;
+      VerifyError type;
+      bool is_aot = Runtime::Current()->IsAotCompiler();
+      if (is_aot && (field_klass.IsUnresolvedTypes() || obj_type.IsUnresolvedTypes())) {
+        // Compiler & unresolved types involved, retry at runtime.
+        type = VerifyError::VERIFY_ERROR_NO_CLASS;
+      } else {
+        // Classes known, or at compile time. This is a hard failure.
+        type = VerifyError::VERIFY_ERROR_BAD_CLASS_HARD;
+      }
+      Fail(type) << "cannot access instance field " << PrettyField(field)
+                 << " from object of type " << obj_type;
       return nullptr;
     } else {
       return field;
