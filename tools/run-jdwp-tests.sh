@@ -114,9 +114,6 @@ if [[ $verbose == "yes" ]]; then
   art_debugee="$art_debugee -verbose:jdwp"
 fi
 
-# Use Jack with "1.8" configuration.
-export JACK_VERSION=`basename prebuilts/sdk/tools/jacks/*ALPHA* | sed 's/^jack-//' | sed 's/.jar$//'`
-
 # Run the tests using vogar.
 vogar $vm_command \
       $vm_args \
