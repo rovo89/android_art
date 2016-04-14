@@ -79,8 +79,15 @@ static void UpdateLoopPhisIn(HEnvironment* environment, HLoopInformation* info) 
 
 void LICM::Run() {
   DCHECK(side_effects_.HasRun());
+
   // Only used during debug.
-  ArenaBitVector visited(graph_->GetArena(), graph_->GetBlocks().size(), false, kArenaAllocLICM);
+  ArenaBitVector* visited = nullptr;
+  if (kIsDebugBuild) {
+    visited = new (graph_->GetArena()) ArenaBitVector(graph_->GetArena(),
+                                                      graph_->GetBlocks().size(),
+                                                      false,
+                                                      kArenaAllocLICM);
+  }
 
   // Post order visit to visit inner loops before outer loops.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
@@ -109,10 +116,12 @@ void LICM::Run() {
       DCHECK(inner->IsInLoop());
       if (inner->GetLoopInformation() != loop_info) {
         // Thanks to post order visit, inner loops were already visited.
-        DCHECK(visited.IsBitSet(inner->GetBlockId()));
+        DCHECK(visited->IsBitSet(inner->GetBlockId()));
         continue;
       }
-      visited.SetBit(inner->GetBlockId());
+      if (kIsDebugBuild) {
+        visited->SetBit(inner->GetBlockId());
+      }
 
       if (contains_irreducible_loop) {
         // We cannot licm in an irreducible loop, or in a natural loop containing an
