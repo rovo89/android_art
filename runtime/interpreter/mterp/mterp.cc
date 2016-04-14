@@ -689,7 +689,7 @@ extern "C" int16_t MterpAddHotnessBatch(ArtMethod* method,
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr) {
     int16_t count = shadow_frame->GetCachedHotnessCountdown() - shadow_frame->GetHotnessCountdown();
-    jit->AddSamples(self, method, count);
+    jit->AddSamples(self, method, count, /*with_backedges*/ true);
   }
   return MterpSetUpHotnessCountdown(method, shadow_frame);
 }
@@ -702,7 +702,7 @@ extern "C" bool  MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int
   uint32_t dex_pc = shadow_frame->GetDexPC();
   jit::Jit* jit = Runtime::Current()->GetJit();
   if ((jit != nullptr) && (offset <= 0)) {
-    jit->AddSamples(self, method, 1);
+    jit->AddSamples(self, method, 1, /*with_backedges*/ true);
   }
   int16_t countdown_value = MterpSetUpHotnessCountdown(method, shadow_frame);
   if (countdown_value == jit::kJitCheckForOSR) {
@@ -722,7 +722,7 @@ extern "C" bool MterpMaybeDoOnStackReplacement(Thread* self,
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (offset <= 0) {
     // Keep updating hotness in case a compilation request was dropped.  Eventually it will retry.
-    jit->AddSamples(self, method, 1);
+    jit->AddSamples(self, method, 1, /*with_backedges*/ true);
   }
   // Assumes caller has already determined that an OSR check is appropriate.
   return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);

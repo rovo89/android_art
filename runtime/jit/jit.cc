@@ -97,8 +97,9 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
       LOG(FATAL) << "Priority thread weight cannot be 0.";
     }
   } else {
-    jit_options->priority_thread_weight_ =
-        std::max(jit_options->compile_threshold_ / 2000, static_cast<size_t>(1));
+    jit_options->priority_thread_weight_ = std::max(
+        jit_options->warmup_threshold_ / Jit::kDefaultPriorityThreadWeightRatio,
+        static_cast<size_t>(1));
   }
 
   return jit_options;
@@ -159,6 +160,8 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   jit->warm_method_threshold_ = options->GetWarmupThreshold();
   jit->osr_method_threshold_ = options->GetOsrThreshold();
   jit->priority_thread_weight_ = options->GetPriorityThreadWeight();
+  jit->transition_weight_ = std::max(
+      jit->warm_method_threshold_ / kDefaultTransitionRatio, static_cast<size_t>(1));
 
   jit->CreateThreadPool();
 
@@ -245,8 +248,17 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
   if (!code_cache_->NotifyCompilationOf(method_to_compile, self, osr)) {
     return false;
   }
+
+  VLOG(jit) << "Compiling method "
+            << PrettyMethod(method_to_compile)
+            << " osr=" << std::boolalpha << osr;
   bool success = jit_compile_method_(jit_compiler_handle_, method_to_compile, self, osr);
   code_cache_->DoneCompiling(method_to_compile, self, osr);
+  if (!success) {
+    VLOG(jit) << "Failed to compile method "
+              << PrettyMethod(method_to_compile)
+              << " osr=" << std::boolalpha << osr;
+  }
   return success;
 }
 
@@ -525,15 +537,9 @@ class JitCompileTask FINAL : public Task {
   void Run(Thread* self) OVERRIDE {
     ScopedObjectAccess soa(self);
     if (kind_ == kCompile) {
-      VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
-      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ false)) {
-        VLOG(jit) << "Failed to compile method " << PrettyMethod(method_);
-      }
+      Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ false);
     } else if (kind_ == kCompileOsr) {
-      VLOG(jit) << "JitCompileTask compiling method osr " << PrettyMethod(method_);
-      if (!Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ true)) {
-        VLOG(jit) << "Failed to compile method osr " << PrettyMethod(method_);
-      }
+      Runtime::Current()->GetJit()->CompileMethod(method_, self, /* osr */ true);
     } else {
       DCHECK(kind_ == kAllocateProfile);
       if (ProfilingInfo::Create(self, method_, /* retry_allocation */ true)) {
@@ -554,7 +560,7 @@ class JitCompileTask FINAL : public Task {
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
 };
 
-void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count) {
+void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_backedges) {
   if (thread_pool_ == nullptr) {
     // Should only see this when shutting down.
     DCHECK(Runtime::Current()->IsShuttingDown(self));
@@ -578,7 +584,8 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count) {
   }
   int32_t new_count = starting_count + count;   // int32 here to avoid wrap-around;
   if (starting_count < warm_method_threshold_) {
-    if (new_count >= warm_method_threshold_) {
+    if ((new_count >= warm_method_threshold_) &&
+        (method->GetProfilingInfo(sizeof(void*)) == nullptr)) {
       bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
       if (success) {
         VLOG(jit) << "Start profiling " << PrettyMethod(method);
@@ -600,14 +607,19 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count) {
     // Avoid jumping more than one state at a time.
     new_count = std::min(new_count, hot_method_threshold_ - 1);
   } else if (starting_count < hot_method_threshold_) {
-    if (new_count >= hot_method_threshold_) {
+    if ((new_count >= hot_method_threshold_) &&
+        !code_cache_->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
       DCHECK(thread_pool_ != nullptr);
       thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
     }
     // Avoid jumping more than one state at a time.
     new_count = std::min(new_count, osr_method_threshold_ - 1);
   } else if (starting_count < osr_method_threshold_) {
-    if (new_count >= osr_method_threshold_) {
+    if (!with_backedges) {
+      // If the samples don't contain any back edge, we don't increment the hotness.
+      return;
+    }
+    if ((new_count >= osr_method_threshold_) &&  !code_cache_->IsOsrCompiled(method)) {
       DCHECK(thread_pool_ != nullptr);
       thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
     }
@@ -635,7 +647,7 @@ void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
       !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
     method->SetEntryPointFromQuickCompiledCode(profiling_info->GetSavedEntryPoint());
   } else {
-    AddSamples(thread, method, 1);
+    AddSamples(thread, method, 1, /* with_backedges */false);
   }
 }
 

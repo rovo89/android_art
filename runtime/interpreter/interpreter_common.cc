@@ -503,6 +503,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
                                 uint32_t vregC) ALWAYS_INLINE;
 
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
+                                        ArtMethod* caller,
                                         const DexFile::CodeItem* code_item,
                                         ShadowFrame* shadow_frame,
                                         JValue* result)
@@ -530,6 +531,10 @@ void ArtInterpreterToCompiledCodeBridge(Thread* self,
   uint16_t arg_offset = (code_item == nullptr)
                             ? 0
                             : code_item->registers_size_ - code_item->ins_size_;
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr && caller != nullptr) {
+    jit->NotifyInterpreterToCompiledCodeTransition(self, caller);
+  }
   method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
                  (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
                  result, method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty());
@@ -726,7 +731,8 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         target->GetEntryPointFromQuickCompiledCode())) {
       ArtInterpreterToInterpreterBridge(self, code_item, new_shadow_frame, result);
     } else {
-      ArtInterpreterToCompiledCodeBridge(self, code_item, new_shadow_frame, result);
+      ArtInterpreterToCompiledCodeBridge(
+          self, shadow_frame.GetMethod(), code_item, new_shadow_frame, result);
     }
   } else {
     UnstartedRuntime::Invoke(self, code_item, new_shadow_frame, result, first_dest_reg);
