@@ -653,8 +653,7 @@ bool ImageWriter::AllocMemory() {
   for (ImageInfo& image_info : image_infos_) {
     ImageSection unused_sections[ImageHeader::kSectionCount];
     const size_t length = RoundUp(
-        image_info.CreateImageSections(target_ptr_size_, unused_sections),
-        kPageSize);
+        image_info.CreateImageSections(unused_sections), kPageSize);
 
     std::string error_msg;
     image_info.image_.reset(MemMap::MapAnonymous("image writer image",
@@ -1214,6 +1213,20 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
           AssignMethodOffset(&m, type, oat_index);
         }
         (any_dirty ? dirty_methods_ : clean_methods_) += num_methods;
+
+        // Assign offsets for all runtime methods in the IMT since these may hold conflict tables
+        // live.
+        if (as_klass->ShouldHaveEmbeddedImtAndVTable()) {
+          for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+            ArtMethod* imt_method = as_klass->GetEmbeddedImTableEntry(i, target_ptr_size_);
+            DCHECK(imt_method != nullptr);
+            if (imt_method->IsRuntimeMethod() &&
+                !IsInBootImage(imt_method) &&
+                !NativeRelocationAssigned(imt_method)) {
+              AssignMethodOffset(imt_method, kNativeObjectRelocationTypeRuntimeMethod, oat_index);
+            }
+          }
+        }
       }
     } else if (h_obj->IsObjectArray()) {
       // Walk elements of an object array.
@@ -1237,13 +1250,37 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
   }
 }
 
+bool ImageWriter::NativeRelocationAssigned(void* ptr) const {
+  return native_object_relocations_.find(ptr) != native_object_relocations_.end();
+}
+
+void ImageWriter::TryAssignConflictTableOffset(ImtConflictTable* table, size_t oat_index) {
+  // No offset, or already assigned.
+  if (table == nullptr || NativeRelocationAssigned(table)) {
+    return;
+  }
+  CHECK(!IsInBootImage(table));
+  // If the method is a conflict method we also want to assign the conflict table offset.
+  ImageInfo& image_info = GetImageInfo(oat_index);
+  const size_t size = table->ComputeSize(target_ptr_size_);
+  native_object_relocations_.emplace(
+      table,
+      NativeObjectRelocation {
+          oat_index,
+          image_info.bin_slot_sizes_[kBinIMTConflictTable],
+          kNativeObjectRelocationTypeIMTConflictTable});
+  image_info.bin_slot_sizes_[kBinIMTConflictTable] += size;
+}
+
 void ImageWriter::AssignMethodOffset(ArtMethod* method,
                                      NativeObjectRelocationType type,
                                      size_t oat_index) {
   DCHECK(!IsInBootImage(method));
-  auto it = native_object_relocations_.find(method);
-  CHECK(it == native_object_relocations_.end()) << "Method " << method << " already assigned "
+  CHECK(!NativeRelocationAssigned(method)) << "Method " << method << " already assigned "
       << PrettyMethod(method);
+  if (method->IsRuntimeMethod()) {
+    TryAssignConflictTableOffset(method->GetImtConflictTable(target_ptr_size_), oat_index);
+  }
   ImageInfo& image_info = GetImageInfo(oat_index);
   size_t& offset = image_info.bin_slot_sizes_[BinTypeForNativeRelocationType(type)];
   native_object_relocations_.emplace(method, NativeObjectRelocation { oat_index, offset, type });
@@ -1292,8 +1329,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // know where image_roots is going to end up
   image_objects_offset_begin_ = RoundUp(sizeof(ImageHeader), kObjectAlignment);  // 64-bit-alignment
 
-  // Clear any pre-existing monitors which may have been in the monitor words, assign bin slots.
-  heap->VisitObjects(WalkFieldsCallback, this);
+  const size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
   // Write the image runtime methods.
   image_methods_[ImageHeader::kResolutionMethod] = runtime->GetResolutionMethod();
   image_methods_[ImageHeader::kImtConflictMethod] = runtime->GetImtConflictMethod();
@@ -1303,31 +1339,19 @@ void ImageWriter::CalculateNewObjectOffsets() {
       runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
   image_methods_[ImageHeader::kRefsAndArgsSaveMethod] =
       runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
-
-  // Add room for fake length prefixed array for holding the image methods.
-  const auto image_method_type = kNativeObjectRelocationTypeArtMethodArrayClean;
-  auto it = native_object_relocations_.find(&image_method_array_);
-  CHECK(it == native_object_relocations_.end());
-  ImageInfo& default_image_info = GetImageInfo(GetDefaultOatIndex());
-  size_t& offset =
-      default_image_info.bin_slot_sizes_[BinTypeForNativeRelocationType(image_method_type)];
-  if (!compile_app_image_) {
-    native_object_relocations_.emplace(&image_method_array_,
-        NativeObjectRelocation { GetDefaultOatIndex(), offset, image_method_type });
-  }
-  size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
-  const size_t array_size = LengthPrefixedArray<ArtMethod>::ComputeSize(
-      0, ArtMethod::Size(target_ptr_size_), method_alignment);
-  CHECK_ALIGNED_PARAM(array_size, method_alignment);
-  offset += array_size;
+  // Visit image methods first to have the main runtime methods in the first image.
   for (auto* m : image_methods_) {
     CHECK(m != nullptr);
     CHECK(m->IsRuntimeMethod());
     DCHECK_EQ(compile_app_image_, IsInBootImage(m)) << "Trampolines should be in boot image";
     if (!IsInBootImage(m)) {
-      AssignMethodOffset(m, kNativeObjectRelocationTypeArtMethodClean, GetDefaultOatIndex());
+      AssignMethodOffset(m, kNativeObjectRelocationTypeRuntimeMethod, GetDefaultOatIndex());
     }
   }
+
+  // Clear any pre-existing monitors which may have been in the monitor words, assign bin slots.
+  heap->VisitObjects(WalkFieldsCallback, this);
+
   // Calculate size of the dex cache arrays slot and prepare offsets.
   PrepareDexCacheArraySlots();
 
@@ -1346,15 +1370,22 @@ void ImageWriter::CalculateNewObjectOffsets() {
   for (ImageInfo& image_info : image_infos_) {
     size_t bin_offset = image_objects_offset_begin_;
     for (size_t i = 0; i != kBinSize; ++i) {
+      switch (i) {
+        case kBinArtMethodClean:
+        case kBinArtMethodDirty: {
+          bin_offset = RoundUp(bin_offset, method_alignment);
+          break;
+        }
+        case kBinIMTConflictTable: {
+          bin_offset = RoundUp(bin_offset, target_ptr_size_);
+          break;
+        }
+        default: {
+          // Normal alignment.
+        }
+      }
       image_info.bin_slot_offsets_[i] = bin_offset;
       bin_offset += image_info.bin_slot_sizes_[i];
-      if (i == kBinArtField) {
-        static_assert(kBinArtField + 1 == kBinArtMethodClean, "Methods follow fields.");
-        static_assert(alignof(ArtField) == 4u, "ArtField alignment is 4.");
-        DCHECK_ALIGNED(bin_offset, 4u);
-        DCHECK(method_alignment == 4u || method_alignment == 8u);
-        bin_offset = RoundUp(bin_offset, method_alignment);
-      }
     }
     // NOTE: There may be additional padding between the bin slots and the intern table.
     DCHECK_EQ(image_info.image_end_,
@@ -1367,9 +1398,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
     image_info.image_begin_ = global_image_begin_ + image_offset;
     image_info.image_offset_ = image_offset;
     ImageSection unused_sections[ImageHeader::kSectionCount];
-    image_info.image_size_ = RoundUp(
-        image_info.CreateImageSections(target_ptr_size_, unused_sections),
-        kPageSize);
+    image_info.image_size_ = RoundUp(image_info.CreateImageSections(unused_sections), kPageSize);
     // There should be no gaps until the next image.
     image_offset += image_info.image_size_;
   }
@@ -1396,42 +1425,52 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // Note that image_info.image_end_ is left at end of used mirror object section.
 }
 
-size_t ImageWriter::ImageInfo::CreateImageSections(size_t target_ptr_size,
-                                                   ImageSection* out_sections) const {
+size_t ImageWriter::ImageInfo::CreateImageSections(ImageSection* out_sections) const {
   DCHECK(out_sections != nullptr);
+
+  // Do not round up any sections here that are represented by the bins since it will break
+  // offsets.
+
   // Objects section
-  auto* objects_section = &out_sections[ImageHeader::kSectionObjects];
+  ImageSection* objects_section = &out_sections[ImageHeader::kSectionObjects];
   *objects_section = ImageSection(0u, image_end_);
-  size_t cur_pos = objects_section->End();
+
   // Add field section.
-  auto* field_section = &out_sections[ImageHeader::kSectionArtFields];
-  *field_section = ImageSection(cur_pos, bin_slot_sizes_[kBinArtField]);
+  ImageSection* field_section = &out_sections[ImageHeader::kSectionArtFields];
+  *field_section = ImageSection(bin_slot_offsets_[kBinArtField], bin_slot_sizes_[kBinArtField]);
   CHECK_EQ(bin_slot_offsets_[kBinArtField], field_section->Offset());
-  cur_pos = field_section->End();
-  // Round up to the alignment the required by the method section.
-  cur_pos = RoundUp(cur_pos, ArtMethod::Alignment(target_ptr_size));
+
   // Add method section.
-  auto* methods_section = &out_sections[ImageHeader::kSectionArtMethods];
-  *methods_section = ImageSection(cur_pos,
-                                  bin_slot_sizes_[kBinArtMethodClean] +
-                                      bin_slot_sizes_[kBinArtMethodDirty]);
-  CHECK_EQ(bin_slot_offsets_[kBinArtMethodClean], methods_section->Offset());
-  cur_pos = methods_section->End();
+  ImageSection* methods_section = &out_sections[ImageHeader::kSectionArtMethods];
+  *methods_section = ImageSection(
+      bin_slot_offsets_[kBinArtMethodClean],
+      bin_slot_sizes_[kBinArtMethodClean] + bin_slot_sizes_[kBinArtMethodDirty]);
+
+  // Conflict tables section.
+  ImageSection* imt_conflict_tables_section = &out_sections[ImageHeader::kSectionIMTConflictTables];
+  *imt_conflict_tables_section = ImageSection(bin_slot_offsets_[kBinIMTConflictTable],
+                                              bin_slot_sizes_[kBinIMTConflictTable]);
+
+  // Runtime methods section.
+  ImageSection* runtime_methods_section = &out_sections[ImageHeader::kSectionRuntimeMethods];
+  *runtime_methods_section = ImageSection(bin_slot_offsets_[kBinRuntimeMethod],
+                                          bin_slot_sizes_[kBinRuntimeMethod]);
+
   // Add dex cache arrays section.
-  auto* dex_cache_arrays_section = &out_sections[ImageHeader::kSectionDexCacheArrays];
-  *dex_cache_arrays_section = ImageSection(cur_pos, bin_slot_sizes_[kBinDexCacheArray]);
-  CHECK_EQ(bin_slot_offsets_[kBinDexCacheArray], dex_cache_arrays_section->Offset());
-  cur_pos = dex_cache_arrays_section->End();
+  ImageSection* dex_cache_arrays_section = &out_sections[ImageHeader::kSectionDexCacheArrays];
+  *dex_cache_arrays_section = ImageSection(bin_slot_offsets_[kBinDexCacheArray],
+                                           bin_slot_sizes_[kBinDexCacheArray]);
+
   // Round up to the alignment the string table expects. See HashSet::WriteToMemory.
-  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
+  size_t cur_pos = RoundUp(dex_cache_arrays_section->End(), sizeof(uint64_t));
   // Calculate the size of the interned strings.
-  auto* interned_strings_section = &out_sections[ImageHeader::kSectionInternedStrings];
+  ImageSection* interned_strings_section = &out_sections[ImageHeader::kSectionInternedStrings];
   *interned_strings_section = ImageSection(cur_pos, intern_table_bytes_);
   cur_pos = interned_strings_section->End();
   // Round up to the alignment the class table expects. See HashSet::WriteToMemory.
   cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
   // Calculate the size of the class table section.
-  auto* class_table_section = &out_sections[ImageHeader::kSectionClassTable];
+  ImageSection* class_table_section = &out_sections[ImageHeader::kSectionClassTable];
   *class_table_section = ImageSection(cur_pos, class_table_bytes_);
   cur_pos = class_table_section->End();
   // Image end goes right before the start of the image bitmap.
@@ -1446,7 +1485,7 @@ void ImageWriter::CreateHeader(size_t oat_index) {
 
   // Create the image sections.
   ImageSection sections[ImageHeader::kSectionCount];
-  const size_t image_end = image_info.CreateImageSections(target_ptr_size_, sections);
+  const size_t image_end = image_info.CreateImageSections(sections);
 
   // Finally bitmap section.
   const size_t bitmap_bytes = image_info.image_bitmap_->Size();
@@ -1531,8 +1570,20 @@ class FixupRootVisitor : public RootVisitor {
   ImageWriter* const image_writer_;
 };
 
+void ImageWriter::CopyAndFixupImtConflictTable(ImtConflictTable* orig, ImtConflictTable* copy) {
+  const size_t count = orig->NumEntries(target_ptr_size_);
+  for (size_t i = 0; i < count; ++i) {
+    ArtMethod* interface_method = orig->GetInterfaceMethod(i, target_ptr_size_);
+    ArtMethod* implementation_method = orig->GetImplementationMethod(i, target_ptr_size_);
+    copy->SetInterfaceMethod(i, target_ptr_size_, NativeLocationInImage(interface_method));
+    copy->SetImplementationMethod(i,
+                                  target_ptr_size_,
+                                  NativeLocationInImage(implementation_method));
+  }
+}
+
 void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
-  ImageInfo& image_info = GetImageInfo(oat_index);
+  const ImageInfo& image_info = GetImageInfo(oat_index);
   // Copy ArtFields and methods to their locations and update the array for convenience.
   for (auto& pair : native_object_relocations_) {
     NativeObjectRelocation& relocation = pair.second;
@@ -1550,6 +1601,7 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
             GetImageAddress(reinterpret_cast<ArtField*>(pair.first)->GetDeclaringClass()));
         break;
       }
+      case kNativeObjectRelocationTypeRuntimeMethod:
       case kNativeObjectRelocationTypeArtMethodClean:
       case kNativeObjectRelocationTypeArtMethodDirty: {
         CopyAndFixupMethod(reinterpret_cast<ArtMethod*>(pair.first),
@@ -1575,26 +1627,22 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
       case kNativeObjectRelocationTypeDexCacheArray:
         // Nothing to copy here, everything is done in FixupDexCache().
         break;
+      case kNativeObjectRelocationTypeIMTConflictTable: {
+        auto* orig_table = reinterpret_cast<ImtConflictTable*>(pair.first);
+        CopyAndFixupImtConflictTable(
+            orig_table,
+            new(dest)ImtConflictTable(orig_table->NumEntries(target_ptr_size_), target_ptr_size_));
+        break;
+      }
     }
   }
   // Fixup the image method roots.
   auto* image_header = reinterpret_cast<ImageHeader*>(image_info.image_->Begin());
-  const ImageSection& methods_section = image_header->GetMethodsSection();
   for (size_t i = 0; i < ImageHeader::kImageMethodsCount; ++i) {
     ArtMethod* method = image_methods_[i];
     CHECK(method != nullptr);
-    // Only place runtime methods in the image of the default oat file.
-    if (method->IsRuntimeMethod() && oat_index != GetDefaultOatIndex()) {
-      continue;
-    }
     if (!IsInBootImage(method)) {
-      auto it = native_object_relocations_.find(method);
-      CHECK(it != native_object_relocations_.end()) << "No forwarding for " << PrettyMethod(method);
-      NativeObjectRelocation& relocation = it->second;
-      CHECK(methods_section.Contains(relocation.offset)) << relocation.offset << " not in "
-          << methods_section;
-      CHECK(relocation.IsArtMethodRelocation()) << relocation.type;
-      method = reinterpret_cast<ArtMethod*>(global_image_begin_ + it->second.offset);
+      method = NativeLocationInImage(method);
     }
     image_header->SetImageMethod(static_cast<ImageHeader::ImageMethod>(i), method);
   }
@@ -2057,24 +2105,28 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
 
   // The resolution method has a special trampoline to call.
   Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(orig == runtime->GetResolutionMethod())) {
-    copy->SetEntryPointFromQuickCompiledCodePtrSize(
-        GetOatAddress(kOatAddressQuickResolutionTrampoline), target_ptr_size_);
-  } else if (UNLIKELY(orig == runtime->GetImtConflictMethod() ||
-                      orig == runtime->GetImtUnimplementedMethod())) {
-    copy->SetEntryPointFromQuickCompiledCodePtrSize(
-        GetOatAddress(kOatAddressQuickIMTConflictTrampoline), target_ptr_size_);
-  } else if (UNLIKELY(orig->IsRuntimeMethod())) {
-    bool found_one = false;
-    for (size_t i = 0; i < static_cast<size_t>(Runtime::kLastCalleeSaveType); ++i) {
-      auto idx = static_cast<Runtime::CalleeSaveType>(i);
-      if (runtime->HasCalleeSaveMethod(idx) && runtime->GetCalleeSaveMethod(idx) == orig) {
-        found_one = true;
-        break;
+  if (orig->IsRuntimeMethod()) {
+    ImtConflictTable* orig_table = orig->GetImtConflictTable(target_ptr_size_);
+    if (orig_table != nullptr) {
+      // Special IMT conflict method, normal IMT conflict method or unimplemented IMT method.
+      copy->SetEntryPointFromQuickCompiledCodePtrSize(
+          GetOatAddress(kOatAddressQuickIMTConflictTrampoline), target_ptr_size_);
+      copy->SetImtConflictTable(NativeLocationInImage(orig_table), target_ptr_size_);
+    } else if (UNLIKELY(orig == runtime->GetResolutionMethod())) {
+      copy->SetEntryPointFromQuickCompiledCodePtrSize(
+          GetOatAddress(kOatAddressQuickResolutionTrampoline), target_ptr_size_);
+    } else {
+      bool found_one = false;
+      for (size_t i = 0; i < static_cast<size_t>(Runtime::kLastCalleeSaveType); ++i) {
+        auto idx = static_cast<Runtime::CalleeSaveType>(i);
+        if (runtime->HasCalleeSaveMethod(idx) && runtime->GetCalleeSaveMethod(idx) == orig) {
+          found_one = true;
+          break;
+        }
       }
+      CHECK(found_one) << "Expected to find callee save method but got " << PrettyMethod(orig);
+      CHECK(copy->IsRuntimeMethod());
     }
-    CHECK(found_one) << "Expected to find callee save method but got " << PrettyMethod(orig);
-    CHECK(copy->IsRuntimeMethod());
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
@@ -2141,6 +2193,10 @@ ImageWriter::Bin ImageWriter::BinTypeForNativeRelocationType(NativeObjectRelocat
       return kBinArtMethodDirty;
     case kNativeObjectRelocationTypeDexCacheArray:
       return kBinDexCacheArray;
+    case kNativeObjectRelocationTypeRuntimeMethod:
+      return kBinRuntimeMethod;
+    case kNativeObjectRelocationTypeIMTConflictTable:
+      return kBinIMTConflictTable;
   }
   UNREACHABLE();
 }
@@ -2242,7 +2298,6 @@ ImageWriter::ImageWriter(
       compile_app_image_(compile_app_image),
       target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
       image_infos_(oat_filenames.size()),
-      image_method_array_(ImageHeader::kImageMethodsCount),
       dirty_methods_(0u),
       clean_methods_(0u),
       image_storage_mode_(image_storage_mode),
