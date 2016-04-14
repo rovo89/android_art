@@ -235,8 +235,11 @@ ifdef dist_goal
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
+# 147-stripped-dex-fallback isn't supported on device because --strip-dex
+# requires the zip command.
 # 569-checker-pattern-replacement tests behaviour present only on host.
 TEST_ART_BROKEN_TARGET_TESTS := \
+  147-stripped-dex-fallback \
   569-checker-pattern-replacement
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
