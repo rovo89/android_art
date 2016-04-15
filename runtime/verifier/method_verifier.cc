@@ -4583,7 +4583,8 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
         // Compiler & unresolved types involved, retry at runtime.
         type = VerifyError::VERIFY_ERROR_NO_CLASS;
       } else {
-        // Classes known, or at compile time. This is a hard failure.
+        // Classes known (resolved; and thus assignability check is precise), or we are at runtime
+        // and still missing classes. This is a hard failure.
         type = VerifyError::VERIFY_ERROR_BAD_CLASS_HARD;
       }
       Fail(type) << "cannot access instance field " << PrettyField(field)
