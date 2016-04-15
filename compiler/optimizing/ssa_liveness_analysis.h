@@ -969,6 +969,38 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     return false;
   }
 
+  bool IsLinearOrderWellFormed(const HGraph& graph) {
+    for (HBasicBlock* header : graph.GetBlocks()) {
+      if (!header->IsLoopHeader()) {
+        continue;
+      }
+
+      HLoopInformation* loop = header->GetLoopInformation();
+      size_t num_blocks = loop->GetBlocks().NumSetBits();
+      size_t found_blocks = 0u;
+
+      for (HLinearOrderIterator it(graph); !it.Done(); it.Advance()) {
+        HBasicBlock* current = it.Current();
+        if (loop->Contains(*current)) {
+          found_blocks++;
+          if (found_blocks == 1u && current != header) {
+            // First block is not the header.
+            return false;
+          } else if (found_blocks == num_blocks && !loop->IsBackEdge(*current)) {
+            // Last block is not a back edge.
+            return false;
+          }
+        } else if (found_blocks != 0u && found_blocks != num_blocks) {
+          // Blocks are not adjacent.
+          return false;
+        }
+      }
+      DCHECK_EQ(found_blocks, num_blocks);
+    }
+
+    return true;
+  }
+
   void AddBackEdgeUses(const HBasicBlock& block_at_use) {
     DCHECK(block_at_use.IsInLoop());
     // Add synthesized uses at the back edge of loops to help the register allocator.
@@ -995,12 +1027,30 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       if ((first_use_ != nullptr) && (first_use_->GetPosition() <= back_edge_use_position)) {
         // There was a use already seen in this loop. Therefore the previous call to `AddUse`
         // already inserted the backedge use. We can stop going outward.
-        DCHECK(HasSynthesizeUseAt(back_edge_use_position));
+        if (kIsDebugBuild) {
+          if (!HasSynthesizeUseAt(back_edge_use_position)) {
+            // There exists a use prior to `back_edge_use_position` but there is
+            // no synthesized use at the back edge. This can happen in the presence
+            // of irreducible loops, when blocks of the loop are not adjacent in
+            // linear order, i.e. when there is an out-of-loop block between
+            // `block_at_use` and `back_edge_position` that uses this interval.
+            DCHECK(block_at_use.GetGraph()->HasIrreducibleLoops());
+            DCHECK(!IsLinearOrderWellFormed(*block_at_use.GetGraph()));
+          }
+        }
         break;
       }
 
-      DCHECK(last_in_new_list == nullptr
-             || back_edge_use_position > last_in_new_list->GetPosition());
+      if (last_in_new_list != nullptr &&
+          back_edge_use_position <= last_in_new_list->GetPosition()) {
+        // Loops are not properly nested in the linear order, i.e. the back edge
+        // of an outer loop preceeds blocks of an inner loop. This can happen
+        // in the presence of irreducible loops.
+        DCHECK(block_at_use.GetGraph()->HasIrreducibleLoops());
+        DCHECK(!IsLinearOrderWellFormed(*block_at_use.GetGraph()));
+        // We must bail out, otherwise we would generate an unsorted use list.
+        break;
+      }
 
       UsePosition* new_use = new (allocator_) UsePosition(
           /* user */ nullptr,
