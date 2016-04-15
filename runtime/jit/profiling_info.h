@@ -170,6 +170,7 @@ class ProfilingInfo {
       : number_of_inline_caches_(entries.size()),
         method_(method),
         is_method_being_compiled_(false),
+        is_osr_method_being_compiled_(false),
         current_inline_uses_(0),
         saved_entry_point_(nullptr) {
     memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
