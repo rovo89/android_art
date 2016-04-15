@@ -32,8 +32,8 @@ namespace arm64 {
 #endif
 
 void Arm64Assembler::FinalizeCode() {
-  for (Arm64Exception* exception : exception_blocks_) {
-    EmitExceptionPoll(exception);
+  for (const std::unique_ptr<Arm64Exception>& exception : exception_blocks_) {
+    EmitExceptionPoll(exception.get());
   }
   ___ FinalizeCode();
 }
@@ -611,10 +611,9 @@ void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
 void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjust) {
   CHECK_ALIGNED(stack_adjust, kStackAlignment);
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  Arm64Exception *current_exception = new Arm64Exception(scratch, stack_adjust);
-  exception_blocks_.push_back(current_exception);
+  exception_blocks_.emplace_back(new Arm64Exception(scratch, stack_adjust));
   LoadFromOffset(scratch.AsXRegister(), TR, Thread::ExceptionOffset<8>().Int32Value());
-  ___ Cbnz(reg_x(scratch.AsXRegister()), current_exception->Entry());
+  ___ Cbnz(reg_x(scratch.AsXRegister()), exception_blocks_.back()->Entry());
 }
 
 void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {

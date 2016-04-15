@@ -899,7 +899,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                     callee_saved_fp_registers.list(),
                     compiler_options,
                     stats),
-      block_labels_(nullptr),
+      block_labels_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
@@ -928,7 +928,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
 #define __ GetVIXLAssembler()->
 
 void CodeGeneratorARM64::EmitJumpTables() {
-  for (auto jump_table : jump_tables_) {
+  for (auto&& jump_table : jump_tables_) {
     jump_table->EmitTable(this);
   }
 }
@@ -4784,8 +4784,7 @@ void InstructionCodeGeneratorARM64::VisitPackedSwitch(HPackedSwitch* switch_inst
       __ B(codegen_->GetLabelOf(default_block));
     }
   } else {
-    JumpTableARM64* jump_table = new (GetGraph()->GetArena()) JumpTableARM64(switch_instr);
-    codegen_->AddJumpTable(jump_table);
+    JumpTableARM64* jump_table = codegen_->CreateJumpTable(switch_instr);
 
     UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
 

@@ -62,7 +62,25 @@ enum StoreOperandType {
   kStoreDWord
 };
 
-class Arm64Exception;
+class Arm64Exception {
+ private:
+  Arm64Exception(Arm64ManagedRegister scratch, size_t stack_adjust)
+      : scratch_(scratch), stack_adjust_(stack_adjust) {
+    }
+
+  vixl::Label* Entry() { return &exception_entry_; }
+
+  // Register used for passing Thread::Current()->exception_ .
+  const Arm64ManagedRegister scratch_;
+
+  // Stack adjust for ExceptionPool.
+  const size_t stack_adjust_;
+
+  vixl::Label exception_entry_;
+
+  friend class Arm64Assembler;
+  DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
+};
 
 class Arm64Assembler FINAL : public Assembler {
  public:
@@ -253,7 +271,7 @@ class Arm64Assembler FINAL : public Assembler {
   void AddConstant(XRegister rd, XRegister rn, int32_t value, vixl::Condition cond = vixl::al);
 
   // List of exception blocks to generate at the end of the code cache.
-  ArenaVector<Arm64Exception*> exception_blocks_;
+  ArenaVector<std::unique_ptr<Arm64Exception>> exception_blocks_;
 
  public:
   // Vixl assembler.
@@ -261,26 +279,6 @@ class Arm64Assembler FINAL : public Assembler {
 
   // Used for testing.
   friend class Arm64ManagedRegister_VixlRegisters_Test;
-};
-
-class Arm64Exception {
- private:
-  Arm64Exception(Arm64ManagedRegister scratch, size_t stack_adjust)
-      : scratch_(scratch), stack_adjust_(stack_adjust) {
-    }
-
-  vixl::Label* Entry() { return &exception_entry_; }
-
-  // Register used for passing Thread::Current()->exception_ .
-  const Arm64ManagedRegister scratch_;
-
-  // Stack adjust for ExceptionPool.
-  const size_t stack_adjust_;
-
-  vixl::Label exception_entry_;
-
-  friend class Arm64Assembler;
-  DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
 };
 
 }  // namespace arm64
