@@ -20,7 +20,7 @@
 #if defined(__cplusplus)
 #include "art_method.h"
 #include "gc/allocator/rosalloc.h"
-#include "jit/jit_instrumentation.h"
+#include "jit/jit.h"
 #include "lock_word.h"
 #include "mirror/class.h"
 #include "mirror/string.h"

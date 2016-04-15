@@ -285,16 +285,19 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
     }
 
     jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr && jit->CanInvokeCompiledCode(method)) {
-      JValue result;
+    if (jit != nullptr) {
+      jit->MethodEntered(self, shadow_frame.GetMethod());
+      if (jit->CanInvokeCompiledCode(method)) {
+        JValue result;
 
-      // Pop the shadow frame before calling into compiled code.
-      self->PopShadowFrame();
-      ArtInterpreterToCompiledCodeBridge(self, code_item, &shadow_frame, &result);
-      // Push the shadow frame back as the caller will expect it.
-      self->PushShadowFrame(&shadow_frame);
+        // Pop the shadow frame before calling into compiled code.
+        self->PopShadowFrame();
+        ArtInterpreterToCompiledCodeBridge(self, code_item, &shadow_frame, &result);
+        // Push the shadow frame back as the caller will expect it.
+        self->PushShadowFrame(&shadow_frame);
 
-      return result;
+        return result;
+      }
     }
   }
 

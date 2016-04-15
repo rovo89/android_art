@@ -22,7 +22,6 @@
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
-#include "jit/jit_instrumentation.h"
 #include "safe_math.h"
 
 #include <memory>  // std::unique_ptr
@@ -67,7 +66,9 @@ namespace interpreter {
 
 #define BRANCH_INSTRUMENTATION(offset)                                                          \
   do {                                                                                          \
-    instrumentation->Branch(self, method, dex_pc, offset);                                      \
+    if (UNLIKELY(instrumentation->HasBranchListeners())) {                                      \
+      instrumentation->Branch(self, method, dex_pc, offset);                                    \
+    }                                                                                           \
     JValue result;                                                                              \
     if (jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, &result)) {           \
       return result;                                                                            \
@@ -76,8 +77,8 @@ namespace interpreter {
 
 #define HOTNESS_UPDATE()                                                                       \
   do {                                                                                         \
-    if (jit_instrumentation_cache != nullptr) {                                                \
-      jit_instrumentation_cache->AddSamples(self, method, 1);                                  \
+    if (jit != nullptr) {                                                                      \
+      jit->AddSamples(self, method, 1);                                                        \
     }                                                                                          \
   } while (false)
 
@@ -195,10 +196,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   const auto* const instrumentation = Runtime::Current()->GetInstrumentation();
   ArtMethod* method = shadow_frame.GetMethod();
   jit::Jit* jit = Runtime::Current()->GetJit();
-  jit::JitInstrumentationCache* jit_instrumentation_cache = nullptr;
-  if (jit != nullptr) {
-    jit_instrumentation_cache = jit->GetInstrumentationCache();
-  }
 
   // Jump to first instruction.
   ADVANCE(0);
