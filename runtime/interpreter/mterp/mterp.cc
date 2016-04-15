@@ -694,7 +694,7 @@ extern "C" int16_t MterpAddHotnessBatch(ArtMethod* method,
   return MterpSetUpHotnessCountdown(method, shadow_frame);
 }
 
-// TUNING: Unused by arm/arm64/x86.  Remove when x86_64/mips/mips64 mterps support batch updates.
+// TUNING: Unused by arm/arm64/x86/x86_64.  Remove when mips/mips64 mterps support batch updates.
 extern "C" bool  MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* method = shadow_frame->GetMethod();
