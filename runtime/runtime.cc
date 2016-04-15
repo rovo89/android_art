@@ -1981,4 +1981,8 @@ void Runtime::UpdateProcessState(ProcessState process_state) {
   GetHeap()->UpdateProcessState(old_process_state, process_state);
 }
 
+void Runtime::RegisterSensitiveThread() const {
+  Thread::SetJitSensitiveThread();
+}
+
 }  // namespace art

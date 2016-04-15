@@ -635,6 +635,8 @@ class Runtime {
     return process_state_ == kProcessStateJankPerceptible;
   }
 
+  void RegisterSensitiveThread() const;
+
   void SetZygoteNoThreadSection(bool val) {
     zygote_no_threads_ = val;
   }

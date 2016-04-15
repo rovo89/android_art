@@ -216,6 +216,10 @@ static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes)
   Runtime::Current()->GetHeap()->RegisterNativeAllocation(env, static_cast<size_t>(bytes));
 }
 
+static void VMRuntime_registerSensitiveThread(JNIEnv*, jobject) {
+  Runtime::Current()->RegisterSensitiveThread();
+}
+
 static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
   if (UNLIKELY(bytes < 0)) {
     ScopedObjectAccess soa(env);
@@ -648,6 +652,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, properties, "()[Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, setTargetSdkVersionNative, "(I)V"),
   NATIVE_METHOD(VMRuntime, registerNativeAllocation, "(I)V"),
+  NATIVE_METHOD(VMRuntime, registerSensitiveThread, "()V"),
   NATIVE_METHOD(VMRuntime, registerNativeFree, "(I)V"),
   NATIVE_METHOD(VMRuntime, requestConcurrentGC, "()V"),
   NATIVE_METHOD(VMRuntime, requestHeapTrim, "()V"),
