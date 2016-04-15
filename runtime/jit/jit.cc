@@ -158,6 +158,7 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   jit->hot_method_threshold_ = options->GetCompileThreshold();
   jit->warm_method_threshold_ = options->GetWarmupThreshold();
   jit->osr_method_threshold_ = options->GetOsrThreshold();
+  jit->priority_thread_weight_ = options->GetPriorityThreadWeight();
 
   jit->CreateThreadPool();
 
