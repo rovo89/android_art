@@ -484,6 +484,101 @@ void UnstartedRuntime::UnstartedSystemGetSecurityManager(
   result->SetL(nullptr);
 }
 
+static constexpr const char* kAndroidHardcodedSystemPropertiesFieldName = "STATIC_PROPERTIES";
+
+static void GetSystemProperty(Thread* self,
+                              ShadowFrame* shadow_frame,
+                              JValue* result,
+                              size_t arg_offset,
+                              bool is_default_version)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  StackHandleScope<4> hs(self);
+  Handle<mirror::String> h_key(
+      hs.NewHandle(reinterpret_cast<mirror::String*>(shadow_frame->GetVRegReference(arg_offset))));
+  if (h_key.Get() == nullptr) {
+    AbortTransactionOrFail(self, "getProperty key was null");
+    return;
+  }
+
+  // This is overall inefficient, but reflecting the values here is not great, either. So
+  // for simplicity, and with the assumption that the number of getProperty calls is not
+  // too great, just iterate each time.
+
+  // Get the storage class.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::Class> h_props_class(hs.NewHandle(
+      class_linker->FindClass(self,
+                              "Ljava/lang/AndroidHardcodedSystemProperties;",
+                              ScopedNullHandle<mirror::ClassLoader>())));
+  if (h_props_class.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Could not find AndroidHardcodedSystemProperties");
+    return;
+  }
+  if (!class_linker->EnsureInitialized(self, h_props_class, true, true)) {
+    AbortTransactionOrFail(self, "Could not initialize AndroidHardcodedSystemProperties");
+    return;
+  }
+
+  // Get the storage array.
+  ArtField* static_properties =
+      h_props_class->FindDeclaredStaticField(kAndroidHardcodedSystemPropertiesFieldName,
+                                             "[[Ljava/lang/String;");
+  if (static_properties == nullptr) {
+    AbortTransactionOrFail(self,
+                           "Could not find %s field",
+                           kAndroidHardcodedSystemPropertiesFieldName);
+    return;
+  }
+  Handle<mirror::ObjectArray<mirror::ObjectArray<mirror::String>>> h_2string_array(
+      hs.NewHandle(reinterpret_cast<mirror::ObjectArray<mirror::ObjectArray<mirror::String>>*>(
+          static_properties->GetObject(h_props_class.Get()))));
+  if (h_2string_array.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Field %s is null", kAndroidHardcodedSystemPropertiesFieldName);
+    return;
+  }
+
+  // Iterate over it.
+  const int32_t prop_count = h_2string_array->GetLength();
+  // Use the third handle as mutable.
+  MutableHandle<mirror::ObjectArray<mirror::String>> h_string_array(
+      hs.NewHandle<mirror::ObjectArray<mirror::String>>(nullptr));
+  for (int32_t i = 0; i < prop_count; ++i) {
+    h_string_array.Assign(h_2string_array->Get(i));
+    if (h_string_array.Get() == nullptr ||
+        h_string_array->GetLength() != 2 ||
+        h_string_array->Get(0) == nullptr) {
+      AbortTransactionOrFail(self,
+                             "Unexpected content of %s",
+                             kAndroidHardcodedSystemPropertiesFieldName);
+      return;
+    }
+    if (h_key->Equals(h_string_array->Get(0))) {
+      // Found a value.
+      if (h_string_array->Get(1) == nullptr && is_default_version) {
+        // Null is being delegated to the default map, and then resolved to the given default value.
+        // As there's no default map, return the given value.
+        result->SetL(shadow_frame->GetVRegReference(arg_offset + 1));
+      } else {
+        result->SetL(h_string_array->Get(1));
+      }
+      return;
+    }
+  }
+
+  // Key is not supported.
+  AbortTransactionOrFail(self, "getProperty key %s not supported", h_key->ToModifiedUtf8().c_str());
+}
+
+void UnstartedRuntime::UnstartedSystemGetProperty(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  GetSystemProperty(self, shadow_frame, result, arg_offset, false);
+}
+
+void UnstartedRuntime::UnstartedSystemGetPropertyWithDefault(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  GetSystemProperty(self, shadow_frame, result, arg_offset, true);
+}
+
 void UnstartedRuntime::UnstartedThreadLocalGet(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
   std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));

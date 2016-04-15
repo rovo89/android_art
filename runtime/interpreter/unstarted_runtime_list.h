@@ -34,6 +34,8 @@
   V(SystemArraycopyChar, "void java.lang.System.arraycopy(char[], int, char[], int, int)") \
   V(SystemArraycopyInt, "void java.lang.System.arraycopy(int[], int, int[], int, int)") \
   V(SystemGetSecurityManager, "java.lang.SecurityManager java.lang.System.getSecurityManager()") \
+  V(SystemGetProperty, "java.lang.String java.lang.System.getProperty(java.lang.String)") \
+  V(SystemGetPropertyWithDefault, "java.lang.String java.lang.System.getProperty(java.lang.String, java.lang.String)") \
   V(ThreadLocalGet, "java.lang.Object java.lang.ThreadLocal.get()") \
   V(MathCeil, "double java.lang.Math.ceil(double)") \
   V(MathFloor, "double java.lang.Math.floor(double)") \
