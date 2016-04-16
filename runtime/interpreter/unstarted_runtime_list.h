@@ -19,6 +19,8 @@
 
 // Methods that intercept available libcore implementations.
 #define UNSTARTED_RUNTIME_DIRECT_LIST(V)    \
+  V(CharacterToLowerCase, "int java.lang.Character.toLowerCase(int)") \
+  V(CharacterToUpperCase, "int java.lang.Character.toUpperCase(int)") \
   V(ClassForName, "java.lang.Class java.lang.Class.forName(java.lang.String)") \
   V(ClassForNameLong, "java.lang.Class java.lang.Class.forName(java.lang.String, boolean, java.lang.ClassLoader)") \
   V(ClassClassForName, "java.lang.Class java.lang.Class.classForName(java.lang.String, boolean, java.lang.ClassLoader)") \
