@@ -215,6 +215,28 @@ void Monitor::SetObject(mirror::Object* object) {
   obj_ = GcRoot<mirror::Object>(object);
 }
 
+std::string Monitor::PrettyContentionInfo(Thread* owner,
+                                          ArtMethod* owners_method,
+                                          uint32_t owners_dex_pc,
+                                          size_t num_waiters) {
+  DCHECK(owner != nullptr);
+  const char* owners_filename;
+  int32_t owners_line_number;
+  std::string name;
+  owner->GetThreadName(name);
+  if (owners_method != nullptr) {
+    TranslateLocation(owners_method, owners_dex_pc, &owners_filename, &owners_line_number);
+  }
+  std::ostringstream oss;
+  oss << "monitor contention with owner " << name << " (" << owner->GetTid() << ")";
+  if (owners_method != nullptr) {
+    oss << " owner method=" << PrettyMethod(owners_method);
+    oss << " from " << owners_filename << ":" << owners_line_number;
+  }
+  oss << " waiters=" << num_waiters;
+  return oss.str();
+}
+
 void Monitor::Lock(Thread* self) {
   MutexLock mu(self, monitor_lock_);
   while (true) {
@@ -245,11 +267,20 @@ void Monitor::Lock(Thread* self) {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       MutexLock mu2(self, monitor_lock_);
-      if (owner_ != nullptr) {  // Did the owner_ give the lock up?
+      Thread* original_owner = owner_;
+      if (original_owner != nullptr) {  // Did the owner_ give the lock up?
         if (ATRACE_ENABLED()) {
-          std::string name;
-          owner_->GetThreadName(name);
-          ATRACE_BEGIN(("Contended on monitor with owner " + name).c_str());
+          std::ostringstream oss;
+          oss << PrettyContentionInfo(original_owner, owners_method, owners_dex_pc, num_waiters);
+          // Add info for contending thread.
+          uint32_t pc;
+          ArtMethod* m = self->GetCurrentMethod(&pc);
+          const char* filename;
+          int32_t line_number;
+          TranslateLocation(m, pc, &filename, &line_number);
+          oss << " blocking from " << (filename != nullptr ? filename : "null")
+              << ":" << line_number;
+          ATRACE_BEGIN(oss.str().c_str());
         }
         monitor_contenders_.Wait(self);  // Still contended so wait.
         // Woken from contention.
@@ -262,15 +293,18 @@ void Monitor::Lock(Thread* self) {
             sample_percent = 100 * wait_ms / lock_profiling_threshold_;
           }
           if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
+            if (wait_ms > kLongWaitMs && owners_method != nullptr) {
+              // TODO: We should maybe check that original_owner is still a live thread.
+              LOG(WARNING) << "Long "
+                  << PrettyContentionInfo(original_owner,
+                                          owners_method,
+                                          owners_dex_pc,
+                                          num_waiters)
+                  << " for " << PrettyDuration(MsToNs(wait_ms));
+            }
             const char* owners_filename;
             int32_t owners_line_number;
             TranslateLocation(owners_method, owners_dex_pc, &owners_filename, &owners_line_number);
-            if (wait_ms > kLongWaitMs && owners_method != nullptr) {
-              LOG(WARNING) << "Long monitor contention event with owner method="
-                  << PrettyMethod(owners_method) << " from " << owners_filename << ":"
-                  << owners_line_number << " waiters=" << num_waiters << " for "
-                  << PrettyDuration(MsToNs(wait_ms));
-            }
             LogContentionEvent(self, wait_ms, sample_percent, owners_filename, owners_line_number);
           }
         }
@@ -1072,8 +1106,10 @@ bool Monitor::IsLocked() SHARED_REQUIRES(Locks::mutator_lock_) {
   return owner_ != nullptr;
 }
 
-void Monitor::TranslateLocation(ArtMethod* method, uint32_t dex_pc,
-                                const char** source_file, int32_t* line_number) const {
+void Monitor::TranslateLocation(ArtMethod* method,
+                                uint32_t dex_pc,
+                                const char** source_file,
+                                int32_t* line_number) {
   // If method is null, location is unknown
   if (method == nullptr) {
     *source_file = "";
