@@ -116,7 +116,12 @@ JNIEXPORT jint JVM_Write(jint fd, char* buf, jint nbytes) {
 
 /* posix lseek() */
 JNIEXPORT jlong JVM_Lseek(jint fd, jlong offset, jint whence) {
-    return TEMP_FAILURE_RETRY(lseek(fd, offset, whence));
+    // NOTE: Using TEMP_FAILURE_RETRY here is busted for LP32 on glibc - the return
+    // value will be coerced into an int32_t.
+    //
+    // lseek64 isn't specified to return EINTR so it shouldn't be necessary
+    // anyway.
+    return lseek64(fd, offset, whence);
 }
 
 /*
