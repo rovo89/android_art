@@ -416,23 +416,27 @@ CompilerDriver::~CompilerDriver() {
                                 type ## _ENTRYPOINT_OFFSET(4, offset)); \
     }
 
-const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
+std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateJniDlsymLookup() const {
   CREATE_TRAMPOLINE(JNI, kJniAbi, pDlsymLookup)
 }
 
-const std::vector<uint8_t>* CompilerDriver::CreateQuickGenericJniTrampoline() const {
+std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateQuickGenericJniTrampoline()
+    const {
   CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickGenericJniTrampoline)
 }
 
-const std::vector<uint8_t>* CompilerDriver::CreateQuickImtConflictTrampoline() const {
+std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateQuickImtConflictTrampoline()
+    const {
   CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickImtConflictTrampoline)
 }
 
-const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
+std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateQuickResolutionTrampoline()
+    const {
   CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickResolutionTrampoline)
 }
 
-const std::vector<uint8_t>* CompilerDriver::CreateQuickToInterpreterBridge() const {
+std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateQuickToInterpreterBridge()
+    const {
   CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickToInterpreterBridge)
 }
 #undef CREATE_TRAMPOLINE

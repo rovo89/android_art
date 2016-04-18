@@ -271,7 +271,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return kMips64DoublewordSize; }
 
-  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+  uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
     return assembler_.GetLabelLocation(GetLabelOf(block));
   }
 

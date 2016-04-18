@@ -187,7 +187,8 @@ class DisassemblyScope {
 
 void CodeGenerator::GenerateSlowPaths() {
   size_t code_start = 0;
-  for (SlowPathCode* slow_path : slow_paths_) {
+  for (const std::unique_ptr<SlowPathCode>& slow_path_unique_ptr : slow_paths_) {
+    SlowPathCode* slow_path = slow_path_unique_ptr.get();
     current_slow_path_ = slow_path;
     if (disasm_info_ != nullptr) {
       code_start = GetAssembler()->CodeSize();

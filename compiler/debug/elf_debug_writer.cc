@@ -110,7 +110,7 @@ std::vector<uint8_t> MakeMiniDebugInfo(
 }
 
 template <typename ElfTypes>
-static ArrayRef<const uint8_t> WriteDebugElfFileForMethodsInternal(
+static std::vector<uint8_t> WriteDebugElfFileForMethodsInternal(
     InstructionSet isa,
     const InstructionSetFeatures* features,
     const ArrayRef<const MethodDebugInfo>& method_infos) {
@@ -126,14 +126,10 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForMethodsInternal(
                  false /* write_oat_patches */);
   builder->End();
   CHECK(builder->Good());
-  // Make a copy of the buffer.  We want to shrink it anyway.
-  uint8_t* result = new uint8_t[buffer.size()];
-  CHECK(result != nullptr);
-  memcpy(result, buffer.data(), buffer.size());
-  return ArrayRef<const uint8_t>(result, buffer.size());
+  return buffer;
 }
 
-ArrayRef<const uint8_t> WriteDebugElfFileForMethods(
+std::vector<uint8_t> WriteDebugElfFileForMethods(
     InstructionSet isa,
     const InstructionSetFeatures* features,
     const ArrayRef<const MethodDebugInfo>& method_infos) {
@@ -145,7 +141,7 @@ ArrayRef<const uint8_t> WriteDebugElfFileForMethods(
 }
 
 template <typename ElfTypes>
-static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
+static std::vector<uint8_t> WriteDebugElfFileForClassesInternal(
     InstructionSet isa,
     const InstructionSetFeatures* features,
     const ArrayRef<mirror::Class*>& types)
@@ -164,16 +160,12 @@ static ArrayRef<const uint8_t> WriteDebugElfFileForClassesInternal(
 
   builder->End();
   CHECK(builder->Good());
-  // Make a copy of the buffer.  We want to shrink it anyway.
-  uint8_t* result = new uint8_t[buffer.size()];
-  CHECK(result != nullptr);
-  memcpy(result, buffer.data(), buffer.size());
-  return ArrayRef<const uint8_t>(result, buffer.size());
+  return buffer;
 }
 
-ArrayRef<const uint8_t> WriteDebugElfFileForClasses(InstructionSet isa,
-                                                    const InstructionSetFeatures* features,
-                                                    const ArrayRef<mirror::Class*>& types) {
+std::vector<uint8_t> WriteDebugElfFileForClasses(InstructionSet isa,
+                                                 const InstructionSetFeatures* features,
+                                                 const ArrayRef<mirror::Class*>& types) {
   if (Is64BitInstructionSet(isa)) {
     return WriteDebugElfFileForClassesInternal<ElfTypes64>(isa, features, types);
   } else {

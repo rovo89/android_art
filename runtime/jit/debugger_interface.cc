@@ -70,15 +70,19 @@ extern "C" {
 
 static Mutex g_jit_debug_mutex("JIT debug interface lock", kJitDebugInterfaceLock);
 
-static JITCodeEntry* CreateJITCodeEntryInternal(
-    std::unique_ptr<const uint8_t[]> symfile_addr,
-    uintptr_t symfile_size)
+static JITCodeEntry* CreateJITCodeEntryInternal(std::vector<uint8_t> symfile)
     REQUIRES(g_jit_debug_mutex) {
-  DCHECK(symfile_addr.get() != nullptr);
+  DCHECK_NE(symfile.size(), 0u);
+
+  // Make a copy of the buffer. We want to shrink it anyway.
+  uint8_t* symfile_copy = new uint8_t[symfile.size()];
+  CHECK(symfile_copy != nullptr);
+  memcpy(symfile_copy, symfile.data(), symfile.size());
 
   JITCodeEntry* entry = new JITCodeEntry;
-  entry->symfile_addr_ = symfile_addr.release();
-  entry->symfile_size_ = symfile_size;
+  CHECK(entry != nullptr);
+  entry->symfile_addr_ = symfile_copy;
+  entry->symfile_size_ = symfile.size();
   entry->prev_ = nullptr;
 
   entry->next_ = __jit_debug_descriptor.first_entry_;
@@ -111,11 +115,10 @@ static void DeleteJITCodeEntryInternal(JITCodeEntry* entry) REQUIRES(g_jit_debug
   delete entry;
 }
 
-JITCodeEntry* CreateJITCodeEntry(std::unique_ptr<const uint8_t[]> symfile_addr,
-                                 uintptr_t symfile_size) {
+JITCodeEntry* CreateJITCodeEntry(std::vector<uint8_t> symfile) {
   Thread* self = Thread::Current();
   MutexLock mu(self, g_jit_debug_mutex);
-  return CreateJITCodeEntryInternal(std::move(symfile_addr), symfile_size);
+  return CreateJITCodeEntryInternal(std::move(symfile));
 }
 
 void DeleteJITCodeEntry(JITCodeEntry* entry) {
@@ -128,14 +131,12 @@ void DeleteJITCodeEntry(JITCodeEntry* entry) {
 // so that the user of the JIT interface does not have to store them.
 static std::unordered_map<uintptr_t, JITCodeEntry*> g_jit_code_entries;
 
-void CreateJITCodeEntryForAddress(uintptr_t address,
-                                  std::unique_ptr<const uint8_t[]> symfile_addr,
-                                  uintptr_t symfile_size) {
+void CreateJITCodeEntryForAddress(uintptr_t address, std::vector<uint8_t> symfile) {
   Thread* self = Thread::Current();
   MutexLock mu(self, g_jit_debug_mutex);
   DCHECK_NE(address, 0u);
   DCHECK(g_jit_code_entries.find(address) == g_jit_code_entries.end());
-  JITCodeEntry* entry = CreateJITCodeEntryInternal(std::move(symfile_addr), symfile_size);
+  JITCodeEntry* entry = CreateJITCodeEntryInternal(std::move(symfile));
   g_jit_code_entries.emplace(address, entry);
 }
 

@@ -346,7 +346,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return &move_resolver_;
   }
 
-  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+  uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
     return GetLabelOf(block)->Position();
   }
 

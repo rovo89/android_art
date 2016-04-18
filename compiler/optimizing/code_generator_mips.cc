@@ -471,7 +471,7 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(HGraph* graph,
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
-      assembler_(&isa_features),
+      assembler_(graph->GetArena(), &isa_features),
       isa_features_(isa_features) {
   // Save RA (containing the return address) to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(RA));

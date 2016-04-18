@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/arena_containers.h"
 #include "base/logging.h"
 #include "constants_arm64.h"
 #include "utils/arm64/managed_register_arm64.h"
@@ -61,13 +62,34 @@ enum StoreOperandType {
   kStoreDWord
 };
 
-class Arm64Exception;
+class Arm64Exception {
+ private:
+  Arm64Exception(Arm64ManagedRegister scratch, size_t stack_adjust)
+      : scratch_(scratch), stack_adjust_(stack_adjust) {
+    }
+
+  vixl::Label* Entry() { return &exception_entry_; }
+
+  // Register used for passing Thread::Current()->exception_ .
+  const Arm64ManagedRegister scratch_;
+
+  // Stack adjust for ExceptionPool.
+  const size_t stack_adjust_;
+
+  vixl::Label exception_entry_;
+
+  friend class Arm64Assembler;
+  DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
+};
 
 class Arm64Assembler FINAL : public Assembler {
  public:
   // We indicate the size of the initial code generation buffer to the VIXL
   // assembler. From there we it will automatically manage the buffer.
-  Arm64Assembler() : vixl_masm_(new vixl::MacroAssembler(kArm64BaseBufferSize)) {}
+  explicit Arm64Assembler(ArenaAllocator* arena)
+      : Assembler(arena),
+        exception_blocks_(arena->Adapter(kArenaAllocAssembler)),
+        vixl_masm_(new vixl::MacroAssembler(kArm64BaseBufferSize)) {}
 
   virtual ~Arm64Assembler() {
     delete vixl_masm_;
@@ -249,7 +271,7 @@ class Arm64Assembler FINAL : public Assembler {
   void AddConstant(XRegister rd, XRegister rn, int32_t value, vixl::Condition cond = vixl::al);
 
   // List of exception blocks to generate at the end of the code cache.
-  std::vector<Arm64Exception*> exception_blocks_;
+  ArenaVector<std::unique_ptr<Arm64Exception>> exception_blocks_;
 
  public:
   // Vixl assembler.
@@ -257,26 +279,6 @@ class Arm64Assembler FINAL : public Assembler {
 
   // Used for testing.
   friend class Arm64ManagedRegister_VixlRegisters_Test;
-};
-
-class Arm64Exception {
- private:
-  Arm64Exception(Arm64ManagedRegister scratch, size_t stack_adjust)
-      : scratch_(scratch), stack_adjust_(stack_adjust) {
-    }
-
-  vixl::Label* Entry() { return &exception_entry_; }
-
-  // Register used for passing Thread::Current()->exception_ .
-  const Arm64ManagedRegister scratch_;
-
-  // Stack adjust for ExceptionPool.
-  const size_t stack_adjust_;
-
-  vixl::Label exception_entry_;
-
-  friend class Arm64Assembler;
-  DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
 };
 
 }  // namespace arm64

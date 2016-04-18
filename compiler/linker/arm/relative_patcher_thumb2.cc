@@ -79,7 +79,9 @@ void Thumb2RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
 std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
   // The thunk just uses the entry point in the ArtMethod. This works even for calls
   // to the generic JNI and interpreter trampolines.
-  arm::Thumb2Assembler assembler;
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  arm::Thumb2Assembler assembler(&arena);
   assembler.LoadFromOffset(
       arm::kLoadWord, arm::PC, arm::R0,
       ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
