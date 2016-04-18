@@ -22,6 +22,7 @@
 #include <fstream>
 
 #include "art_method.h"
+#include "base/arena_allocator.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "calling_convention.h"
@@ -69,13 +70,18 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   InstructionSet instruction_set = driver->GetInstructionSet();
   const InstructionSetFeatures* instruction_set_features = driver->GetInstructionSetFeatures();
   const bool is_64_bit_target = Is64BitInstructionSet(instruction_set);
+
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+
   // Calling conventions used to iterate over parameters to method
   std::unique_ptr<JniCallingConvention> main_jni_conv(
-      JniCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
+      JniCallingConvention::Create(&arena, is_static, is_synchronized, shorty, instruction_set));
   bool reference_return = main_jni_conv->IsReturnAReference();
 
   std::unique_ptr<ManagedRuntimeCallingConvention> mr_conv(
-      ManagedRuntimeCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
+      ManagedRuntimeCallingConvention::Create(
+          &arena, is_static, is_synchronized, shorty, instruction_set));
 
   // Calling conventions to call into JNI method "end" possibly passing a returned reference, the
   //     method and the current thread.
@@ -90,11 +96,12 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     jni_end_shorty = "V";
   }
 
-  std::unique_ptr<JniCallingConvention> end_jni_conv(
-      JniCallingConvention::Create(is_static, is_synchronized, jni_end_shorty, instruction_set));
+  std::unique_ptr<JniCallingConvention> end_jni_conv(JniCallingConvention::Create(
+      &arena, is_static, is_synchronized, jni_end_shorty, instruction_set));
 
   // Assembler that holds generated instructions
-  std::unique_ptr<Assembler> jni_asm(Assembler::Create(instruction_set, instruction_set_features));
+  std::unique_ptr<Assembler> jni_asm(
+      Assembler::Create(&arena, instruction_set, instruction_set_features));
   jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GenerateAnyDebugInfo());
 
   // Offsets into data structures

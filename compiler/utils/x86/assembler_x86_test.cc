@@ -16,13 +16,16 @@
 
 #include "assembler_x86.h"
 
+#include "base/arena_allocator.h"
 #include "base/stl_util.h"
 #include "utils/assembler_test.h"
 
 namespace art {
 
 TEST(AssemblerX86, CreateBuffer) {
-  AssemblerBuffer buffer;
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  AssemblerBuffer buffer(&arena);
   AssemblerBuffer::EnsureCapacity ensured(&buffer);
   buffer.Emit<uint8_t>(0x42);
   ASSERT_EQ(static_cast<size_t>(1), buffer.Size());

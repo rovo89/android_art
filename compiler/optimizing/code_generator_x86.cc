@@ -795,13 +795,16 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
+      assembler_(graph->GetArena()),
       isa_features_(isa_features),
       method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+      constant_area_start_(-1),
+      fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      method_address_offset_(-1) {
   // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }

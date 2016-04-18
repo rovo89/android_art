@@ -845,7 +845,7 @@ void ArmAssembler::GetCurrentThread(FrameOffset offset,
 
 void ArmAssembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_adjust) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  ArmExceptionSlowPath* slow = new ArmExceptionSlowPath(scratch, stack_adjust);
+  ArmExceptionSlowPath* slow = new (GetArena()) ArmExceptionSlowPath(scratch, stack_adjust);
   buffer_.EnqueueSlowPath(slow);
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, Thread::ExceptionOffset<4>().Int32Value());

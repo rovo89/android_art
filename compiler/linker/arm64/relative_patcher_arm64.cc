@@ -247,7 +247,9 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
 std::vector<uint8_t> Arm64RelativePatcher::CompileThunkCode() {
   // The thunk just uses the entry point in the ArtMethod. This works even for calls
   // to the generic JNI and interpreter trampolines.
-  arm64::Arm64Assembler assembler;
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  arm64::Arm64Assembler assembler(&arena);
   Offset offset(ArtMethod::EntryPointFromQuickCompiledCodeOffset(
       kArm64PointerSize).Int32Value());
   assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));

@@ -2379,7 +2379,7 @@ void X86Assembler::GetCurrentThread(FrameOffset offset,
 }
 
 void X86Assembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t stack_adjust) {
-  X86ExceptionSlowPath* slow = new X86ExceptionSlowPath(stack_adjust);
+  X86ExceptionSlowPath* slow = new (GetArena()) X86ExceptionSlowPath(stack_adjust);
   buffer_.EnqueueSlowPath(slow);
   fs()->cmpl(Address::Absolute(Thread::ExceptionOffset<4>()), Immediate(0));
   j(kNotEqual, slow->Entry());
@@ -2402,7 +2402,7 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
 }
 
 void X86Assembler::AddConstantArea() {
-  const std::vector<int32_t>& area = constant_area_.GetBuffer();
+  ArrayRef<const int32_t> area = constant_area_.GetBuffer();
   // Generate the data for the literal area.
   for (size_t i = 0, e = area.size(); i < e; i++) {
     AssemblerBuffer::EnsureCapacity ensured(&buffer_);

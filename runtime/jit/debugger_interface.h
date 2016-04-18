@@ -19,6 +19,7 @@
 
 #include <inttypes.h>
 #include <memory>
+#include <vector>
 
 namespace art {
 
@@ -28,8 +29,7 @@ extern "C" {
 
 // Notify native debugger about new JITed code by passing in-memory ELF.
 // It takes ownership of the in-memory ELF file.
-JITCodeEntry* CreateJITCodeEntry(std::unique_ptr<const uint8_t[]> symfile_addr,
-                                 uintptr_t symfile_size);
+JITCodeEntry* CreateJITCodeEntry(std::vector<uint8_t> symfile);
 
 // Notify native debugger that JITed code has been removed.
 // It also releases the associated in-memory ELF file.
@@ -38,9 +38,7 @@ void DeleteJITCodeEntry(JITCodeEntry* entry);
 // Notify native debugger about new JITed code by passing in-memory ELF.
 // The address is used only to uniquely identify the entry.
 // It takes ownership of the in-memory ELF file.
-void CreateJITCodeEntryForAddress(uintptr_t address,
-                                  std::unique_ptr<const uint8_t[]> symfile_addr,
-                                  uintptr_t symfile_size);
+void CreateJITCodeEntryForAddress(uintptr_t address, std::vector<uint8_t> symfile);
 
 // Notify native debugger that JITed code has been removed.
 // Returns false if entry for the given address was not found.

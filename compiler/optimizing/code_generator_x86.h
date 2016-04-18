@@ -361,7 +361,7 @@ class CodeGeneratorX86 : public CodeGenerator {
     return assembler_;
   }
 
-  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+  uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
     return GetLabelOf(block)->Position();
   }
 

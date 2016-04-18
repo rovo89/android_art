@@ -30,8 +30,7 @@ namespace arm {
 
 class Arm32Assembler FINAL : public ArmAssembler {
  public:
-  Arm32Assembler() {
-  }
+  explicit Arm32Assembler(ArenaAllocator* arena) : ArmAssembler(arena) {}
   virtual ~Arm32Assembler() {}
 
   bool IsThumb() const OVERRIDE {

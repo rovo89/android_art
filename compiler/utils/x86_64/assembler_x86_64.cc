@@ -3144,7 +3144,7 @@ class X86_64ExceptionSlowPath FINAL : public SlowPath {
 };
 
 void X86_64Assembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t stack_adjust) {
-  X86_64ExceptionSlowPath* slow = new X86_64ExceptionSlowPath(stack_adjust);
+  X86_64ExceptionSlowPath* slow = new (GetArena()) X86_64ExceptionSlowPath(stack_adjust);
   buffer_.EnqueueSlowPath(slow);
   gs()->cmpl(Address::Absolute(Thread::ExceptionOffset<8>(), true), Immediate(0));
   j(kNotEqual, slow->Entry());
@@ -3167,7 +3167,7 @@ void X86_64ExceptionSlowPath::Emit(Assembler *sasm) {
 }
 
 void X86_64Assembler::AddConstantArea() {
-  const std::vector<int32_t>& area = constant_area_.GetBuffer();
+  ArrayRef<const int32_t> area = constant_area_.GetBuffer();
   for (size_t i = 0, e = area.size(); i < e; i++) {
     AssemblerBuffer::EnsureCapacity ensured(&buffer_);
     EmitInt32(area[i]);

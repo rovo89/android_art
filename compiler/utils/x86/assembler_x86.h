@@ -18,12 +18,15 @@
 #define ART_COMPILER_UTILS_X86_ASSEMBLER_X86_H_
 
 #include <vector>
+
+#include "base/arena_containers.h"
 #include "base/bit_utils.h"
 #include "base/macros.h"
 #include "constants_x86.h"
 #include "globals.h"
 #include "managed_register_x86.h"
 #include "offsets.h"
+#include "utils/array_ref.h"
 #include "utils/assembler.h"
 
 namespace art {
@@ -260,7 +263,7 @@ class NearLabel : private Label {
  */
 class ConstantArea {
  public:
-  ConstantArea() {}
+  explicit ConstantArea(ArenaAllocator* arena) : buffer_(arena->Adapter(kArenaAllocAssembler)) {}
 
   // Add a double to the constant area, returning the offset into
   // the constant area where the literal resides.
@@ -290,18 +293,18 @@ class ConstantArea {
     return buffer_.size() * elem_size_;
   }
 
-  const std::vector<int32_t>& GetBuffer() const {
-    return buffer_;
+  ArrayRef<const int32_t> GetBuffer() const {
+    return ArrayRef<const int32_t>(buffer_);
   }
 
  private:
   static constexpr size_t elem_size_ = sizeof(int32_t);
-  std::vector<int32_t> buffer_;
+  ArenaVector<int32_t> buffer_;
 };
 
 class X86Assembler FINAL : public Assembler {
  public:
-  X86Assembler() {}
+  explicit X86Assembler(ArenaAllocator* arena) : Assembler(arena), constant_area_(arena) {}
   virtual ~X86Assembler() {}
 
   /*

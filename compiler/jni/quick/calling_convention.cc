@@ -46,37 +46,51 @@ namespace art {
 
 // Managed runtime calling convention
 
-ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
-    bool is_static, bool is_synchronized, const char* shorty, InstructionSet instruction_set) {
+std::unique_ptr<ManagedRuntimeCallingConvention> ManagedRuntimeCallingConvention::Create(
+    ArenaAllocator* arena,
+    bool is_static,
+    bool is_synchronized,
+    const char* shorty,
+    InstructionSet instruction_set) {
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2:
-      return new arm::ArmManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (arena) arm::ArmManagedRuntimeCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
-      return new arm64::Arm64ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (arena) arm64::Arm64ManagedRuntimeCallingConvention(
+              is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
-      return new mips::MipsManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (arena) mips::MipsManagedRuntimeCallingConvention(
+              is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
-      return new mips64::Mips64ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (arena) mips64::Mips64ManagedRuntimeCallingConvention(
+              is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
-      return new x86::X86ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (arena) x86::X86ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
-      return new x86_64::X86_64ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (arena) x86_64::X86_64ManagedRuntimeCallingConvention(
+              is_static, is_synchronized, shorty));
 #endif
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return nullptr;
+      UNREACHABLE();
   }
 }
 
@@ -132,38 +146,46 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamALong() {
 
 // JNI calling convention
 
-JniCallingConvention* JniCallingConvention::Create(bool is_static, bool is_synchronized,
-                                                   const char* shorty,
-                                                   InstructionSet instruction_set) {
+std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocator* arena,
+                                                                   bool is_static,
+                                                                   bool is_synchronized,
+                                                                   const char* shorty,
+                                                                   InstructionSet instruction_set) {
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2:
-      return new arm::ArmJniCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<JniCallingConvention>(
+          new (arena) arm::ArmJniCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
-      return new arm64::Arm64JniCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<JniCallingConvention>(
+          new (arena) arm64::Arm64JniCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
-      return new mips::MipsJniCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<JniCallingConvention>(
+          new (arena) mips::MipsJniCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
-      return new mips64::Mips64JniCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<JniCallingConvention>(
+          new (arena) mips64::Mips64JniCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
-      return new x86::X86JniCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<JniCallingConvention>(
+          new (arena) x86::X86JniCallingConvention(is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
-      return new x86_64::X86_64JniCallingConvention(is_static, is_synchronized, shorty);
+      return std::unique_ptr<JniCallingConvention>(
+          new (arena) x86_64::X86_64JniCallingConvention(is_static, is_synchronized, shorty));
 #endif
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return nullptr;
+      UNREACHABLE();
   }
 }
 
