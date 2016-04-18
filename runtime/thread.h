@@ -1097,6 +1097,12 @@ class Thread {
     return debug_disallow_read_barrier_;
   }
 
+  // Returns true if the current thread is the jit sensitive thread.
+  bool IsJitSensitiveThread() const {
+    return this == jit_sensitive_thread_;
+  }
+
+  // Returns true if StrictMode events are traced for the current thread.
   static bool IsSensitiveThread() {
     if (is_sensitive_thread_hook_ != nullptr) {
       return (*is_sensitive_thread_hook_)();
@@ -1179,6 +1185,16 @@ class Thread {
   ALWAYS_INLINE void PassActiveSuspendBarriers()
       REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_);
 
+  // Registers the current thread as the jit sensitive thread. Should be called just once.
+  static void SetJitSensitiveThread() {
+    if (jit_sensitive_thread_ == nullptr) {
+      jit_sensitive_thread_ = Thread::Current();
+    } else {
+      LOG(WARNING) << "Attempt to set the sensitive thread twice. Tid:"
+          << Thread::Current()->GetTid();
+    }
+  }
+
   static void SetSensitiveThreadHook(bool (*is_sensitive_thread_hook)()) {
     is_sensitive_thread_hook_ = is_sensitive_thread_hook;
   }
@@ -1228,6 +1244,8 @@ class Thread {
   // Hook passed by framework which returns true
   // when StrictMode events are traced for the current thread.
   static bool (*is_sensitive_thread_hook_)();
+  // Stores the jit sensitive thread (which for now is the UI thread).
+  static Thread* jit_sensitive_thread_;
 
   /***********************************************************************************************/
   // Thread local storage. Fields are grouped by size to enable 32 <-> 64 searching to account for

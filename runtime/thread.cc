@@ -89,6 +89,7 @@ pthread_key_t Thread::pthread_key_self_;
 ConditionVariable* Thread::resume_cond_ = nullptr;
 const size_t Thread::kStackOverflowImplicitCheckSize = GetStackOverflowReservedBytes(kRuntimeISA);
 bool (*Thread::is_sensitive_thread_hook_)() = nullptr;
+Thread* Thread::jit_sensitive_thread_ = nullptr;
 
 static constexpr bool kVerifyImageObjectsMarked = kIsDebugBuild;
 

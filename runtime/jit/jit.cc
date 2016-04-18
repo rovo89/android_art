@@ -106,10 +106,8 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
 }
 
 bool Jit::ShouldUsePriorityThreadWeight() {
-  // TODO(calin): verify that IsSensitiveThread covers only the cases we are interested on.
-  // In particular if apps can set StrictMode policies for any of their threads, case in which
-  // we need to find another way to track sensitive threads.
-  return Runtime::Current()->InJankPerceptibleProcessState() && Thread::IsSensitiveThread();
+  return Runtime::Current()->InJankPerceptibleProcessState()
+      && Thread::Current()->IsJitSensitiveThread();
 }
 
 void Jit::DumpInfo(std::ostream& os) {
