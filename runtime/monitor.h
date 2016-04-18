@@ -185,9 +185,12 @@ class Monitor {
                           const char* owner_filename, int32_t owner_line_number)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner,
+  static void FailedUnlock(mirror::Object* obj,
+                           uint32_t expected_owner_thread_id,
+                           uint32_t found_owner_thread_id,
                            Monitor* mon)
-      REQUIRES(!Locks::thread_list_lock_)
+      REQUIRES(!Locks::thread_list_lock_,
+               !monitor_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Lock(Thread* self)

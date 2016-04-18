@@ -89,8 +89,8 @@ class ThreadList {
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
-  // Find an already suspended thread (or self) by its id.
-  Thread* FindThreadByThreadId(uint32_t thin_lock_id);
+  // Find an existing thread (or self) by its thread id (not tid).
+  Thread* FindThreadByThreadId(uint32_t thread_id) REQUIRES(Locks::thread_list_lock_);
 
   // Run a checkpoint on threads, running threads are not suspended but run the checkpoint inside
   // of the suspend check. Returns how many checkpoints that are expected to run, including for

@@ -923,12 +923,9 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id,
   }
 }
 
-Thread* ThreadList::FindThreadByThreadId(uint32_t thin_lock_id) {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, *Locks::thread_list_lock_);
+Thread* ThreadList::FindThreadByThreadId(uint32_t thread_id) {
   for (const auto& thread : list_) {
-    if (thread->GetThreadId() == thin_lock_id) {
-      CHECK(thread == self || thread->IsSuspended());
+    if (thread->GetThreadId() == thread_id) {
       return thread;
     }
   }

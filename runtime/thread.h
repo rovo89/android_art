@@ -312,6 +312,7 @@ class Thread {
    */
   static int GetNativePriority();
 
+  // Guaranteed to be non-zero.
   uint32_t GetThreadId() const {
     return tls32_.thin_lock_thread_id;
   }
