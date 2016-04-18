@@ -292,7 +292,7 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
 
         // Pop the shadow frame before calling into compiled code.
         self->PopShadowFrame();
-        ArtInterpreterToCompiledCodeBridge(self, code_item, &shadow_frame, &result);
+        ArtInterpreterToCompiledCodeBridge(self, nullptr, code_item, &shadow_frame, &result);
         // Push the shadow frame back as the caller will expect it.
         self->PushShadowFrame(&shadow_frame);
 
@@ -535,6 +535,10 @@ JValue EnterInterpreterFromEntryPoint(Thread* self, const DexFile::CodeItem* cod
     return JValue();
   }
 
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit->NotifyCompiledCodeToInterpreterTransition(self, shadow_frame->GetMethod());
+  }
   return Execute(self, code_item, *shadow_frame, JValue());
 }
 

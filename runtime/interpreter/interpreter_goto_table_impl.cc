@@ -78,7 +78,7 @@ namespace interpreter {
 #define HOTNESS_UPDATE()                                                                       \
   do {                                                                                         \
     if (jit != nullptr) {                                                                      \
-      jit->AddSamples(self, method, 1);                                                        \
+      jit->AddSamples(self, method, 1, /*with_backedges*/ true);                               \
     }                                                                                          \
   } while (false)
 

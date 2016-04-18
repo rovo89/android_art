@@ -186,6 +186,8 @@ class JitCodeCache {
 
   void Dump(std::ostream& os) REQUIRES(!lock_);
 
+  bool IsOsrCompiled(ArtMethod* method) REQUIRES(!lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
