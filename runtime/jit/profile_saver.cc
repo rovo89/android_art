@@ -66,11 +66,7 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       total_ns_of_work_(0),
       total_number_of_foreign_dex_marks_(0),
       max_number_of_profile_entries_cached_(0) {
-  AddTrackedLocations(output_filename, code_paths);
-  // We only need to save the resolved classes if the profile file is empty.
-  // Otherwise we must have already save them (we always do it during the first
-  // ever profile save).
-  app_data_dir_ = "";
+  AddTrackedLocations(output_filename, app_data_dir, code_paths);
   if (!app_data_dir.empty()) {
     // The application directory is used to determine which dex files are owned by app.
     // Since it could be a symlink (e.g. /data/data instead of /data/user/0), and we
@@ -78,9 +74,9 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
     // store it's canonical form to be sure we use the same base when comparing.
     UniqueCPtr<const char[]> app_data_dir_real_path(realpath(app_data_dir.c_str(), nullptr));
     if (app_data_dir_real_path != nullptr) {
-      app_data_dir_.assign(app_data_dir_real_path.get());
+      app_data_dirs_.emplace(app_data_dir_real_path.get());
     } else {
-      LOG(WARNING) << "Failed to get the real path for app dir: " << app_data_dir_
+      LOG(WARNING) << "Failed to get the real path for app dir: " << app_data_dir
           << ". The app dir will not be used to determine which dex files belong to the app";
     }
   }
@@ -312,7 +308,7 @@ void ProfileSaver::Start(const std::string& output_filename,
     // apps which share the same runtime).
     DCHECK_EQ(instance_->jit_code_cache_, jit_code_cache);
     // Add the code_paths to the tracked locations.
-    instance_->AddTrackedLocations(output_filename, code_paths);
+    instance_->AddTrackedLocations(output_filename, app_data_dir, code_paths_to_profile);
     return;
   }
 
@@ -383,11 +379,13 @@ bool ProfileSaver::IsStarted() {
 }
 
 void ProfileSaver::AddTrackedLocations(const std::string& output_filename,
+                                       const std::string& app_data_dir,
                                        const std::vector<std::string>& code_paths) {
   auto it = tracked_dex_base_locations_.find(output_filename);
   if (it == tracked_dex_base_locations_.end()) {
     tracked_dex_base_locations_.Put(output_filename,
                                     std::set<std::string>(code_paths.begin(), code_paths.end()));
+    app_data_dirs_.insert(app_data_dir);
   } else {
     it->second.insert(code_paths.begin(), code_paths.end());
   }
@@ -399,7 +397,7 @@ void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
   }
   std::set<std::string> app_code_paths;
   std::string foreign_dex_profile_path;
-  std::string app_data_dir;
+  std::set<std::string> app_data_dirs;
   {
     MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
     if (instance_ == nullptr) {
@@ -410,13 +408,13 @@ void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
       app_code_paths.insert(it.second.begin(), it.second.end());
     }
     foreign_dex_profile_path = instance_->foreign_dex_profile_path_;
-    app_data_dir = instance_->app_data_dir_;
+    app_data_dirs.insert(instance_->app_data_dirs_.begin(), instance_->app_data_dirs_.end());
   }
 
   bool mark_created = MaybeRecordDexUseInternal(dex_location,
                                                 app_code_paths,
                                                 foreign_dex_profile_path,
-                                                app_data_dir);
+                                                app_data_dirs);
   if (mark_created) {
     MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
     if (instance_ != nullptr) {
@@ -429,7 +427,7 @@ bool ProfileSaver::MaybeRecordDexUseInternal(
       const std::string& dex_location,
       const std::set<std::string>& app_code_paths,
       const std::string& foreign_dex_profile_path,
-      const std::string& app_data_dir) {
+      const std::set<std::string>& app_data_dirs) {
   if (dex_location.empty()) {
     LOG(WARNING) << "Asked to record foreign dex use with an empty dex location.";
     return false;
@@ -447,7 +445,7 @@ bool ProfileSaver::MaybeRecordDexUseInternal(
     ? dex_location.c_str()
     : dex_location_real_path.get());
 
-  if (dex_location_real_path_str.compare(0, app_data_dir.length(), app_data_dir) == 0) {
+  if (app_data_dirs.find(dex_location_real_path_str) != app_data_dirs.end()) {
     // The dex location is under the application folder. Nothing to record.
     return false;
   }
