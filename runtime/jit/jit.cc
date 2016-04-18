@@ -638,12 +638,9 @@ void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
   ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
   // Update the entrypoint if the ProfilingInfo has one. The interpreter will call it
   // instead of interpreting the method.
-  // We avoid doing this if exit stubs are installed to not mess with the instrumentation.
-  // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
-  if ((profiling_info != nullptr) &&
-      (profiling_info->GetSavedEntryPoint() != nullptr) &&
-      !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
-    method->SetEntryPointFromQuickCompiledCode(profiling_info->GetSavedEntryPoint());
+  if ((profiling_info != nullptr) && (profiling_info->GetSavedEntryPoint() != nullptr)) {
+    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+        method, profiling_info->GetSavedEntryPoint());
   } else {
     AddSamples(thread, method, 1, /* with_backedges */false);
   }
