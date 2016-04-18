@@ -63,6 +63,9 @@ public class Main {
 
     $noinline$stackOverflow(new Main(), /* isSecondInvocation */ false);
     $noinline$stackOverflow(new SubMain(), /* isSecondInvocation */ true);
+
+    $opt$noinline$testOsrInlineLoop(null);
+    System.out.println("b28210356 passed.");
   }
 
   public static int $noinline$returnInt() {
@@ -70,7 +73,7 @@ public class Main {
     int i = 0;
     for (; i < 100000; ++i) {
     }
-    while (!ensureInOsrCode()) {}
+    while (!isInOsrCode("$noinline$returnInt")) {}
     System.out.println(i);
     return 53;
   }
@@ -80,7 +83,7 @@ public class Main {
     int i = 0;
     for (; i < 200000; ++i) {
     }
-    while (!ensureInOsrCode()) {}
+    while (!isInOsrCode("$noinline$returnFloat")) {}
     System.out.println(i);
     return 42.2f;
   }
@@ -90,7 +93,7 @@ public class Main {
     int i = 0;
     for (; i < 300000; ++i) {
     }
-    while (!ensureInOsrCode()) {}
+    while (!isInOsrCode("$noinline$returnDouble")) {}
     System.out.println(i);
     return Double.longBitsToDouble(0xF000000000001111L);
   }
@@ -100,7 +103,7 @@ public class Main {
     int i = 0;
     for (; i < 400000; ++i) {
     }
-    while (!ensureInOsrCode()) {}
+    while (!isInOsrCode("$noinline$returnLong")) {}
     System.out.println(i);
     return 0xFFFF000000001111L;
   }
@@ -110,14 +113,14 @@ public class Main {
     int i = 0;
     for (; i < 100000; ++i) {
     }
-    while (!ensureInOsrCode()) {}
+    while (!isInOsrCode("$noinline$deopt")) {}
     DeoptimizationController.startDeoptimization();
   }
 
   public static Class $noinline$inlineCache(Main m, boolean isSecondInvocation) {
     // If we are running in non-JIT mode, or were unlucky enough to get this method
     // already JITted, just return the expected value.
-    if (!ensureInInterpreter()) {
+    if (!isInInterpreter("$noinline$inlineCache")) {
       return SubMain.class;
     }
 
@@ -125,7 +128,7 @@ public class Main {
 
     // Ensure that we have OSR code to jump to.
     if (isSecondInvocation) {
-      ensureHasOsrCode();
+      ensureHasOsrCode("$noinline$inlineCache");
     }
 
     // This call will be optimized in the OSR compiled code
@@ -137,7 +140,7 @@ public class Main {
     // code we are jumping to will have wrongly optimize other as being a
     // 'Main'.
     if (isSecondInvocation) {
-      while (!ensureInOsrCode()) {}
+      while (!isInOsrCode("$noinline$inlineCache")) {}
     }
 
     // We used to wrongly optimize this call and assume 'other' was a 'Main'.
@@ -159,7 +162,7 @@ public class Main {
   public static void $noinline$stackOverflow(Main m, boolean isSecondInvocation) {
     // If we are running in non-JIT mode, or were unlucky enough to get this method
     // already JITted, just return the expected value.
-    if (!ensureInInterpreter()) {
+    if (!isInInterpreter("$noinline$stackOverflow")) {
       return;
     }
 
@@ -168,7 +171,7 @@ public class Main {
 
     if (isSecondInvocation) {
       // Ensure we have an OSR code and we jump to it.
-      while (!ensureInOsrCode()) {}
+      while (!isInOsrCode("$noinline$stackOverflow")) {}
     }
 
     for (int i = 0; i < (isSecondInvocation ? 10000000 : 1); ++i) {
@@ -179,10 +182,45 @@ public class Main {
     }
   }
 
-  public static native boolean ensureInInterpreter();
-  public static native boolean ensureInOsrCode();
+  public static void $opt$noinline$testOsrInlineLoop(String[] args) {
+    // Regression test for inlining a method with a loop to a method without a loop in OSR mode.
+    if (doThrow) throw new Error();
+    assertIntEquals(12, $opt$inline$testRemoveSuspendCheck(12, 5));
+    // Since we cannot have a loop directly in this method, we need to force the OSR
+    // compilation from native code.
+    ensureHasOsrCode("$opt$noinline$testOsrInlineLoop");
+  }
+
+  public static int $opt$inline$testRemoveSuspendCheck(int x, int y) {
+    // For this test we need an inlined loop and have DCE re-run loop analysis
+    // after inlining.
+    while (y > 0) {
+      while ($opt$inline$inlineFalse() || !$opt$inline$inlineTrue()) {
+        x++;
+      }
+      y--;
+    }
+    return x;
+  }
+
+  public static boolean $opt$inline$inlineTrue() {
+    return true;
+  }
+
+  public static boolean $opt$inline$inlineFalse() {
+    return false;
+  }
+
+  public static void assertIntEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static native boolean isInOsrCode(String methodName);
+  public static native boolean isInInterpreter(String methodName);
   public static native void ensureHasProfilingInfo();
-  public static native void ensureHasOsrCode();
+  public static native void ensureHasOsrCode(String methodName);
 
   public static boolean doThrow = false;
 }
