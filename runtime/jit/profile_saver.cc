@@ -265,16 +265,20 @@ void* ProfileSaver::RunProfileSaverThread(void* arg) {
 }
 
 static bool ShouldProfileLocation(const std::string& location) {
-  const OatFileManager& oat_manager = Runtime::Current()->GetOatFileManager();
-  const OatFile* oat_file = oat_manager.FindOpenedOatFileFromOatLocation(location);
+  OatFileManager& oat_manager = Runtime::Current()->GetOatFileManager();
+  const OatFile* oat_file = oat_manager.FindOpenedOatFileFromDexLocation(location);
   if (oat_file == nullptr) {
     // This can happen if we fallback to run code directly from the APK.
     // Profile it with the hope that the background dexopt will get us back into
     // a good state.
+    VLOG(profiler) << "Asked to profile a location without an oat file:" << location;
     return true;
   }
   CompilerFilter::Filter filter = oat_file->GetCompilerFilter();
   if (filter == CompilerFilter::kSpeed || CompilerFilter::kEverything) {
+    VLOG(profiler)
+        << "Skip profiling oat file because it's already speed|everything compiled:"
+        << location;
     return false;
   }
   return true;
@@ -294,13 +298,10 @@ void ProfileSaver::Start(const std::string& output_filename,
   for (const std::string& location : code_paths) {
     if (ShouldProfileLocation(location))  {
       code_paths_to_profile.push_back(location);
-    } else {
-      VLOG(profiler)
-        << "Skip profiling oat file because it's already speed|everything compiled:"
-        << location;
     }
   }
   if (code_paths_to_profile.empty()) {
+    VLOG(profiler) << "No code paths should be profiled.";
     return;
   }
 
@@ -316,11 +317,11 @@ void ProfileSaver::Start(const std::string& output_filename,
   }
 
   VLOG(profiler) << "Starting profile saver using output file: " << output_filename
-      << ". Tracking: " << Join(code_paths, ':');
+      << ". Tracking: " << Join(code_paths_to_profile, ':');
 
   instance_ = new ProfileSaver(output_filename,
                                jit_code_cache,
-                               code_paths,
+                               code_paths_to_profile,
                                foreign_dex_profile_path,
                                app_data_dir);
 

@@ -60,6 +60,11 @@ class OatFileManager {
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location) const
       REQUIRES(!Locks::oat_file_manager_lock_);
 
+  // Find the oat file which contains a dex files with the given dex base location,
+  // returns null if there are none.
+  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_base_location) const
+      REQUIRES(!Locks::oat_file_manager_lock_);
+
   // Attempt to reserve a location, returns false if it is already reserved or already in used by
   // an oat file.
   bool RegisterOatFileLocation(const std::string& oat_location)
