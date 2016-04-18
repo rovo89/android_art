@@ -366,7 +366,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     }
     last_update_time_ns_.StoreRelease(NanoTime());
     VLOG(jit)
-        << "JIT added (osr = " << std::boolalpha << osr << std::noboolalpha << ") "
+        << "JIT added (osr=" << std::boolalpha << osr << std::noboolalpha << ") "
         << PrettyMethod(method) << "@" << method
         << " ccache_size=" << PrettySize(CodeCacheSizeLocked()) << ": "
         << " dcache_size=" << PrettySize(DataCacheSizeLocked()) << ": "
@@ -905,15 +905,18 @@ uint64_t JitCodeCache::GetLastUpdateTimeNs() const {
   return last_update_time_ns_.LoadAcquire();
 }
 
+bool JitCodeCache::IsOsrCompiled(ArtMethod* method) {
+  MutexLock mu(Thread::Current(), lock_);
+  return osr_code_map_.find(method) != osr_code_map_.end();
+}
+
 bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr) {
   if (!osr && ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
-    VLOG(jit) << PrettyMethod(method) << " is already compiled";
     return false;
   }
 
   MutexLock mu(self, lock_);
   if (osr && (osr_code_map_.find(method) != osr_code_map_.end())) {
-    VLOG(jit) << PrettyMethod(method) << " is already osr compiled";
     return false;
   }
 
@@ -928,7 +931,6 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
   }
 
   if (info->IsMethodBeingCompiled(osr)) {
-    VLOG(jit) << PrettyMethod(method) << " is already being compiled";
     return false;
   }
 

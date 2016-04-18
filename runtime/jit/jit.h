@@ -43,6 +43,8 @@ class Jit {
  public:
   static constexpr bool kStressMode = kIsDebugBuild;
   static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 10000;
+  static constexpr size_t kDefaultPriorityThreadWeightRatio = 1000;
+  static constexpr size_t kDefaultTransitionRatio = 100;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
@@ -92,7 +94,7 @@ class Jit {
   void MethodEntered(Thread* thread, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void AddSamples(Thread* self, ArtMethod* method, uint16_t samples)
+  void AddSamples(Thread* self, ArtMethod* method, uint16_t samples, bool with_backedges)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void InvokeVirtualOrInterface(Thread* thread,
@@ -101,6 +103,16 @@ class Jit {
                                 uint32_t dex_pc,
                                 ArtMethod* callee)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void NotifyInterpreterToCompiledCodeTransition(Thread* self, ArtMethod* caller)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    AddSamples(self, caller, transition_weight_, false);
+  }
+
+  void NotifyCompiledCodeToInterpreterTransition(Thread* self, ArtMethod* callee)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    AddSamples(self, callee, transition_weight_, false);
+  }
 
   // Starts the profile saver if the config options allow profile recording.
   // The profile will be stored in the specified `filename` and will contain
@@ -173,6 +185,7 @@ class Jit {
   uint16_t warm_method_threshold_;
   uint16_t osr_method_threshold_;
   uint16_t priority_thread_weight_;
+  uint16_t transition_weight_;
   std::unique_ptr<ThreadPool> thread_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(Jit);

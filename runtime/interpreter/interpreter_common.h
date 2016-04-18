@@ -635,7 +635,7 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
         jit->InvokeVirtualOrInterface(
             self, receiver, sf_method, shadow_frame.GetDexPC(), called_method);
       }
-      jit->AddSamples(self, sf_method, 1);
+      jit->AddSamples(self, sf_method, 1, /*with_backedges*/false);
     }
     // TODO: Remove the InvokeVirtualOrInterface instrumentation, as it was only used by the JIT.
     if (type == kVirtual || type == kInterface) {
@@ -681,7 +681,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     if (jit != nullptr) {
       jit->InvokeVirtualOrInterface(
           self, receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
-      jit->AddSamples(self, shadow_frame.GetMethod(), 1);
+      jit->AddSamples(self, shadow_frame.GetMethod(), 1, /*with_backedges*/false);
     }
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     // TODO: Remove the InvokeVirtualOrInterface instrumentation, as it was only used by the JIT.
@@ -1001,8 +1001,11 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
   return branch_offset <= 0;
 }
 
-void ArtInterpreterToCompiledCodeBridge(Thread* self, const DexFile::CodeItem* code_item,
-                                        ShadowFrame* shadow_frame, JValue* result);
+void ArtInterpreterToCompiledCodeBridge(Thread* self,
+                                        ArtMethod* caller,
+                                        const DexFile::CodeItem* code_item,
+                                        ShadowFrame* shadow_frame,
+                                        JValue* result);
 
 // Explicitly instantiate all DoInvoke functions.
 #define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range, _do_check)                      \
