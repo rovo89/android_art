@@ -52,7 +52,6 @@
   V(MemoryPeekByteArray, "void libcore.io.Memory.peekByteArray(long, byte[], int, int)") \
   V(ReferenceGetReferent, "java.lang.Object java.lang.ref.Reference.getReferent()") \
   V(RuntimeAvailableProcessors, "int java.lang.Runtime.availableProcessors()") \
-  V(SecurityGetSecurityPropertiesReader, "java.io.Reader java.security.Security.getSecurityPropertiesReader()") \
   V(StringGetCharsNoCheck, "void java.lang.String.getCharsNoCheck(int, int, char[], int)") \
   V(StringCharAt, "char java.lang.String.charAt(int)") \
   V(StringSetCharAt, "void java.lang.String.setCharAt(int, char)") \
