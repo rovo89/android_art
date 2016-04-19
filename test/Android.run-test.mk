@@ -235,8 +235,11 @@ ifdef dist_goal
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
+# 147-stripped-dex-fallback isn't supported on device because --strip-dex
+# requires the zip command.
 # 569-checker-pattern-replacement tests behaviour present only on host.
 TEST_ART_BROKEN_TARGET_TESTS := \
+  147-stripped-dex-fallback \
   569-checker-pattern-replacement
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
@@ -376,6 +379,7 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREB
 # All these tests check that we have sane behavior if we don't have a patchoat or dex2oat.
 # Therefore we shouldn't run them in situations where we actually don't have these since they
 # explicitly test for them. These all also assume we have an image.
+# 147-stripped-dex-fallback is disabled because it requires --prebuild.
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   116-nodex2oat \
@@ -384,6 +388,7 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   119-noimage-patchoat \
   137-cfi \
   138-duplicate-classes-check2 \
+  147-stripped-dex-fallback \
   554-jit-profile-file
 
 # This test fails without an image.
