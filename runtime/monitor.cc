@@ -215,20 +215,18 @@ void Monitor::SetObject(mirror::Object* object) {
   obj_ = GcRoot<mirror::Object>(object);
 }
 
-std::string Monitor::PrettyContentionInfo(Thread* owner,
+std::string Monitor::PrettyContentionInfo(const std::string& owner_name,
+                                          pid_t owner_tid,
                                           ArtMethod* owners_method,
                                           uint32_t owners_dex_pc,
                                           size_t num_waiters) {
-  DCHECK(owner != nullptr);
   const char* owners_filename;
   int32_t owners_line_number;
-  std::string name;
-  owner->GetThreadName(name);
   if (owners_method != nullptr) {
     TranslateLocation(owners_method, owners_dex_pc, &owners_filename, &owners_line_number);
   }
   std::ostringstream oss;
-  oss << "monitor contention with owner " << name << " (" << owner->GetTid() << ")";
+  oss << "monitor contention with owner " << owner_name << " (" << owner_tid << ")";
   if (owners_method != nullptr) {
     oss << " owner method=" << PrettyMethod(owners_method);
     oss << " from " << owners_filename << ":" << owners_line_number;
@@ -273,7 +271,13 @@ void Monitor::Lock(Thread* self) {
           original_owner_thread_id = owner_->GetThreadId();
           if (ATRACE_ENABLED()) {
             std::ostringstream oss;
-            oss << PrettyContentionInfo(owner_, owners_method, owners_dex_pc, num_waiters);
+            std::string name;
+            owner_->GetThreadName(name);
+            oss << PrettyContentionInfo(name,
+                                        owner_->GetTid(),
+                                        owners_method,
+                                        owners_dex_pc,
+                                        num_waiters);
             // Add info for contending thread.
             uint32_t pc;
             ArtMethod* m = self->GetCurrentMethod(&pc);
@@ -290,11 +294,21 @@ void Monitor::Lock(Thread* self) {
       if (original_owner_thread_id != 0u) {
         // Woken from contention.
         if (log_contention) {
-          MutexLock mu2(Thread::Current(), *Locks::thread_list_lock_);
-          // Re-find the owner in case the thread got killed.
-          Thread* original_owner = Runtime::Current()->GetThreadList()->FindThreadByThreadId(
-              original_owner_thread_id);
-          if (original_owner != nullptr) {
+          uint32_t original_owner_tid = 0;
+          std::string original_owner_name;
+          {
+            MutexLock mu2(Thread::Current(), *Locks::thread_list_lock_);
+            // Re-find the owner in case the thread got killed.
+            Thread* original_owner = Runtime::Current()->GetThreadList()->FindThreadByThreadId(
+                original_owner_thread_id);
+            // Do not do any work that requires the mutator lock.
+            if (original_owner != nullptr) {
+              original_owner_tid = original_owner->GetTid();
+              original_owner->GetThreadName(original_owner_name);
+            }
+          }
+
+          if (original_owner_tid != 0u) {
             uint64_t wait_ms = MilliTime() - wait_start_ms;
             uint32_t sample_percent;
             if (wait_ms >= lock_profiling_threshold_) {
@@ -306,7 +320,8 @@ void Monitor::Lock(Thread* self) {
               if (wait_ms > kLongWaitMs && owners_method != nullptr) {
                 // TODO: We should maybe check that original_owner is still a live thread.
                 LOG(WARNING) << "Long "
-                    << PrettyContentionInfo(original_owner,
+                    << PrettyContentionInfo(original_owner_name,
+                                            original_owner_tid,
                                             owners_method,
                                             owners_dex_pc,
                                             num_waiters)
@@ -433,11 +448,13 @@ void Monitor::FailedUnlock(mirror::Object* o,
 
 bool Monitor::Unlock(Thread* self) {
   DCHECK(self != nullptr);
-  uint32_t owner_thread_id;
+  uint32_t owner_thread_id = 0u;
   {
     MutexLock mu(self, monitor_lock_);
     Thread* owner = owner_;
-    owner_thread_id = owner->GetThreadId();
+    if (owner != nullptr) {
+      owner_thread_id = owner->GetThreadId();
+    }
     if (owner == self) {
       // We own the monitor, so nobody else can be in here.
       if (lock_count_ == 0) {
