@@ -16,11 +16,13 @@
 
 #include "unstarted_runtime.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 
 #include <cmath>
 #include <limits>
+#include <locale>
 #include <unordered_map>
 
 #include "ScopedLocalRef.h"
@@ -68,6 +70,43 @@ static void AbortTransactionOrFail(Thread* self, const char* fmt, ...) {
     LOG(FATAL) << "Trying to abort, but not in transaction mode: " << msg;
     UNREACHABLE();
   }
+}
+
+// Restricted support for character upper case / lower case. Only support ASCII, where
+// it's easy. Abort the transaction otherwise.
+static void CharacterLowerUpper(Thread* self,
+                                ShadowFrame* shadow_frame,
+                                JValue* result,
+                                size_t arg_offset,
+                                bool to_lower_case) SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t int_value = static_cast<uint32_t>(shadow_frame->GetVReg(arg_offset));
+
+  // Only ASCII (7-bit).
+  if (!isascii(int_value)) {
+    AbortTransactionOrFail(self,
+                           "Only support ASCII characters for toLowerCase/toUpperCase: %u",
+                           int_value);
+    return;
+  }
+
+  std::locale c_locale("C");
+  char char_value = static_cast<char>(int_value);
+
+  if (to_lower_case) {
+    result->SetI(std::tolower(char_value, c_locale));
+  } else {
+    result->SetI(std::toupper(char_value, c_locale));
+  }
+}
+
+void UnstartedRuntime::UnstartedCharacterToLowerCase(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  CharacterLowerUpper(self, shadow_frame, result, arg_offset, true);
+}
+
+void UnstartedRuntime::UnstartedCharacterToUpperCase(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  CharacterLowerUpper(self, shadow_frame, result, arg_offset, false);
 }
 
 // Helper function to deal with class loading in an unstarted runtime.
