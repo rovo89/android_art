@@ -971,7 +971,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   bool IsLinearOrderWellFormed(const HGraph& graph) {
     for (HBasicBlock* header : graph.GetBlocks()) {
-      if (!header->IsLoopHeader()) {
+      if (header == nullptr || !header->IsLoopHeader()) {
         continue;
       }
 
