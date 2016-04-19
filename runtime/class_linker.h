@@ -579,7 +579,8 @@ class ClassLinker {
 
   const OatFile* GetInterpretedOnlyOat(const std::string& oat_path,
                                        InstructionSet isa,
-                                       std::string* error_msg);
+                                       std::string* error_msg,
+                                       bool ignore_image_checksum = false);
 
   const OatFile* PatchAndRetrieveOat(const std::string& input, const std::string& output,
                                      const std::string& image_location, InstructionSet isa,

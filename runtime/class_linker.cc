@@ -917,8 +917,9 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
   // 4) If it's not the case (either no oat file or mismatches), regenerate and load.
 
   // Need a checksum, fail else.
+  std::string odex_filename;
   if (!have_checksum) {
-    std::string odex_filename(DexFilenameToOdexFilename(dex_location, kRuntimeISA));
+    odex_filename = DexFilenameToOdexFilename(dex_location, kRuntimeISA);
     if (OS::FileExists(odex_filename.c_str())) {
       error_msgs->clear();
     } else {
@@ -950,6 +951,14 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
     // Create the oat file.
     open_oat_file.reset(CreateOatFileForDexLocation(dex_location, scoped_flock.GetFile()->Fd(),
                                                     oat_location, error_msgs));
+  }
+
+  if (open_oat_file.get() == nullptr && odex_filename != nullptr) {
+    // We have an odex file, but couldn't recompile it. As last resort, try to interpret the contained dex files.
+    LOG(WARNING) << "Falling back to interpreting " << odex_filename;
+    std::string error_msg;
+    open_oat_file.reset(GetInterpretedOnlyOat(odex_filename, kRuntimeISA, &error_msg, true));
+    error_msgs->push_back(error_msg);
   }
 
   // Failed, bail.
@@ -1410,13 +1419,15 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
 
 const OatFile* ClassLinker::GetInterpretedOnlyOat(const std::string& oat_path,
                                                   InstructionSet isa,
-                                                  std::string* error_msg) {
+                                                  std::string* error_msg,
+                                                  bool ignore_image_checksum) {
   // We open it non-executable
   std::unique_ptr<OatFile> output(OatFile::Open(oat_path, oat_path, nullptr, false, error_msg));
   if (output.get() == nullptr) {
     return nullptr;
   }
-  if (!Runtime::Current()->GetHeap()->HasImageSpace() ||
+  if (ignore_image_checksum ||
+      !Runtime::Current()->GetHeap()->HasImageSpace() ||
       VerifyOatImageChecksum(output.get(), isa)) {
     return output.release();
   } else {
