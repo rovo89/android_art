@@ -74,6 +74,20 @@ void OatFileManager::UnRegisterAndDeleteOatFile(const OatFile* oat_file) {
   compare.release();
 }
 
+const OatFile* OatFileManager::FindOpenedOatFileFromDexLocation(
+    const std::string& dex_base_location) const {
+  ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
+  for (const std::unique_ptr<const OatFile>& oat_file : oat_files_) {
+    const std::vector<const OatDexFile*>& oat_dex_files = oat_file->GetOatDexFiles();
+    for (const OatDexFile* oat_dex_file : oat_dex_files) {
+      if (DexFile::GetBaseLocation(oat_dex_file->GetDexFileLocation()) == dex_base_location) {
+        return oat_file.get();
+      }
+    }
+  }
+  return nullptr;
+}
+
 const OatFile* OatFileManager::FindOpenedOatFileFromOatLocation(const std::string& oat_location)
     const {
   ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
