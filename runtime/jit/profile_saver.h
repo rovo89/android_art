@@ -70,6 +70,7 @@ class ProfileSaver {
   bool ShuttingDown(Thread* self) REQUIRES(!Locks::profiler_lock_);
 
   void AddTrackedLocations(const std::string& output_filename,
+                           const std::string& app_data_dir,
                            const std::vector<std::string>& code_paths)
       REQUIRES(Locks::profiler_lock_);
 
@@ -85,7 +86,7 @@ class ProfileSaver {
       const std::string& dex_location,
       const std::set<std::string>& tracked_locations,
       const std::string& foreign_dex_profile_path,
-      const std::string& app_data_dir);
+      const std::set<std::string>& app_data_dirs);
 
   void DumpInfo(std::ostream& os);
 
@@ -95,10 +96,19 @@ class ProfileSaver {
   static pthread_t profiler_pthread_ GUARDED_BY(Locks::profiler_lock_);
 
   jit::JitCodeCache* jit_code_cache_;
+
+  // Collection of code paths that the profiles tracks.
+  // It maps profile locations to code paths (dex base locations).
   SafeMap<std::string, std::set<std::string>> tracked_dex_base_locations_
       GUARDED_BY(Locks::profiler_lock_);
+  // The directory were the we should store the code paths.
   std::string foreign_dex_profile_path_;
-  std::string app_data_dir_;
+
+  // A list of application directories, used to infer if a loaded dex belongs
+  // to the application or not. Multiple application data directories are possible when
+  // different apps share the same runtime.
+  std::set<std::string> app_data_dirs_ GUARDED_BY(Locks::profiler_lock_);
+
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
   uint32_t last_save_number_of_methods_;
   uint32_t last_save_number_of_classes_;
