@@ -17,6 +17,7 @@
 #include "unstarted_runtime.h"
 
 #include <limits>
+#include <locale>
 
 #include "base/casts.h"
 #include "class_linker.h"
@@ -30,6 +31,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
+#include "transaction.h"
 
 namespace art {
 namespace interpreter {
@@ -181,6 +183,16 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
       int64_t expect_int64t = bit_cast<int64_t, double>(test_pairs[i][1]);
       EXPECT_EQ(expect_int64t, result_int64t) << result.GetD() << " vs " << test_pairs[i][1];
     }
+  }
+
+  // Prepare for aborts. Aborts assume that the exception class is already resolved, as the
+  // loading code doesn't work under transactions.
+  void PrepareForAborts() SHARED_REQUIRES(Locks::mutator_lock_) {
+    mirror::Object* result = Runtime::Current()->GetClassLinker()->FindClass(
+        Thread::Current(),
+        Transaction::kAbortExceptionSignature,
+        ScopedNullHandle<mirror::ClassLoader>());
+    CHECK(result != nullptr);
   }
 };
 
@@ -685,6 +697,107 @@ TEST_F(UnstartedRuntimeTest, Floor) {
   };
 
   TestCeilFloor(false /* floor */, self, tmp, test_pairs, arraysize(test_pairs));
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, ToLowerUpper) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  std::locale c_locale("C");
+
+  // Check ASCII.
+  for (uint32_t i = 0; i < 128; ++i) {
+    bool c_upper = std::isupper(static_cast<char>(i), c_locale);
+    bool c_lower = std::islower(static_cast<char>(i), c_locale);
+    EXPECT_FALSE(c_upper && c_lower) << i;
+
+    // Check toLowerCase.
+    {
+      JValue result;
+      tmp->SetVReg(0, static_cast<int32_t>(i));
+      UnstartedCharacterToLowerCase(self, tmp, &result, 0);
+      ASSERT_FALSE(self->IsExceptionPending());
+      uint32_t lower_result = static_cast<uint32_t>(result.GetI());
+      if (c_lower) {
+        EXPECT_EQ(i, lower_result);
+      } else if (c_upper) {
+        EXPECT_EQ(static_cast<uint32_t>(std::tolower(static_cast<char>(i), c_locale)),
+                  lower_result);
+      } else {
+        EXPECT_EQ(i, lower_result);
+      }
+    }
+
+    // Check toUpperCase.
+    {
+      JValue result2;
+      tmp->SetVReg(0, static_cast<int32_t>(i));
+      UnstartedCharacterToUpperCase(self, tmp, &result2, 0);
+      ASSERT_FALSE(self->IsExceptionPending());
+      uint32_t upper_result = static_cast<uint32_t>(result2.GetI());
+      if (c_upper) {
+        EXPECT_EQ(i, upper_result);
+      } else if (c_lower) {
+        EXPECT_EQ(static_cast<uint32_t>(std::toupper(static_cast<char>(i), c_locale)),
+                  upper_result);
+      } else {
+        EXPECT_EQ(i, upper_result);
+      }
+    }
+  }
+
+  // Check abort for other things. Can't test all.
+
+  PrepareForAborts();
+
+  for (uint32_t i = 128; i < 256; ++i) {
+    {
+      JValue result;
+      tmp->SetVReg(0, static_cast<int32_t>(i));
+      Transaction transaction;
+      Runtime::Current()->EnterTransactionMode(&transaction);
+      UnstartedCharacterToLowerCase(self, tmp, &result, 0);
+      Runtime::Current()->ExitTransactionMode();
+      ASSERT_TRUE(self->IsExceptionPending());
+      ASSERT_TRUE(transaction.IsAborted());
+    }
+    {
+      JValue result;
+      tmp->SetVReg(0, static_cast<int32_t>(i));
+      Transaction transaction;
+      Runtime::Current()->EnterTransactionMode(&transaction);
+      UnstartedCharacterToUpperCase(self, tmp, &result, 0);
+      Runtime::Current()->ExitTransactionMode();
+      ASSERT_TRUE(self->IsExceptionPending());
+      ASSERT_TRUE(transaction.IsAborted());
+    }
+  }
+  for (uint64_t i = 256; i <= std::numeric_limits<uint32_t>::max(); i <<= 1) {
+    {
+      JValue result;
+      tmp->SetVReg(0, static_cast<int32_t>(i));
+      Transaction transaction;
+      Runtime::Current()->EnterTransactionMode(&transaction);
+      UnstartedCharacterToLowerCase(self, tmp, &result, 0);
+      Runtime::Current()->ExitTransactionMode();
+      ASSERT_TRUE(self->IsExceptionPending());
+      ASSERT_TRUE(transaction.IsAborted());
+    }
+    {
+      JValue result;
+      tmp->SetVReg(0, static_cast<int32_t>(i));
+      Transaction transaction;
+      Runtime::Current()->EnterTransactionMode(&transaction);
+      UnstartedCharacterToUpperCase(self, tmp, &result, 0);
+      Runtime::Current()->ExitTransactionMode();
+      ASSERT_TRUE(self->IsExceptionPending());
+      ASSERT_TRUE(transaction.IsAborted());
+    }
+  }
 
   ShadowFrame::DeleteDeoptimizedFrame(tmp);
 }
