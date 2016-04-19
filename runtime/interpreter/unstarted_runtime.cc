@@ -834,6 +834,22 @@ void UnstartedRuntime::UnstartedMathFloor(
   result->SetD(floor(shadow_frame->GetVRegDouble(arg_offset)));
 }
 
+void UnstartedRuntime::UnstartedMathSin(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(sin(shadow_frame->GetVRegDouble(arg_offset)));
+}
+
+void UnstartedRuntime::UnstartedMathCos(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(cos(shadow_frame->GetVRegDouble(arg_offset)));
+}
+
+void UnstartedRuntime::UnstartedMathPow(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(pow(shadow_frame->GetVRegDouble(arg_offset),
+                   shadow_frame->GetVRegDouble(arg_offset + 2)));
+}
+
 void UnstartedRuntime::UnstartedObjectHashCode(
     Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);

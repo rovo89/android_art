@@ -43,6 +43,9 @@
   V(ThreadLocalGet, "java.lang.Object java.lang.ThreadLocal.get()") \
   V(MathCeil, "double java.lang.Math.ceil(double)") \
   V(MathFloor, "double java.lang.Math.floor(double)") \
+  V(MathSin, "double java.lang.Math.sin(double)") \
+  V(MathCos, "double java.lang.Math.cos(double)") \
+  V(MathPow, "double java.lang.Math.pow(double, double)") \
   V(ObjectHashCode, "int java.lang.Object.hashCode()") \
   V(DoubleDoubleToRawLongBits, "long java.lang.Double.doubleToRawLongBits(double)") \
   V(DexCacheGetDexNative, "com.android.dex.Dex java.lang.DexCache.getDexNative()") \
