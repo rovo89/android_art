@@ -23,6 +23,17 @@
 
 namespace art {
 
+static inline mirror::DexCache* FindDexCacheWithHint(Thread* self,
+                                                     const DexFile& dex_file,
+                                                     Handle<mirror::DexCache> hint_dex_cache)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (LIKELY(hint_dex_cache->GetDexFile() == &dex_file)) {
+    return hint_dex_cache.Get();
+  } else {
+    return Runtime::Current()->GetClassLinker()->FindDexCache(self, dex_file);
+  }
+}
+
 static inline ReferenceTypeInfo::TypeHandle GetRootHandle(StackHandleScopeCollection* handles,
                                                           ClassLinker::ClassRoot class_root,
                                                           ReferenceTypeInfo::TypeHandle* cache) {
@@ -54,10 +65,12 @@ ReferenceTypeInfo::TypeHandle ReferenceTypePropagation::HandleCache::GetThrowabl
 class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
  public:
   RTPVisitor(HGraph* graph,
+             Handle<mirror::DexCache> hint_dex_cache,
              HandleCache* handle_cache,
              ArenaVector<HInstruction*>* worklist,
              bool is_first_run)
     : HGraphDelegateVisitor(graph),
+      hint_dex_cache_(hint_dex_cache),
       handle_cache_(handle_cache),
       worklist_(worklist),
       is_first_run_(is_first_run) {}
@@ -70,7 +83,8 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
   void VisitNewArray(HNewArray* instr) OVERRIDE;
   void VisitParameterValue(HParameterValue* instr) OVERRIDE;
   void UpdateFieldAccessTypeInfo(HInstruction* instr, const FieldInfo& info);
-  void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact);
+  void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void VisitInstanceFieldGet(HInstanceFieldGet* instr) OVERRIDE;
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* instr) OVERRIDE;
@@ -86,16 +100,19 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
                                bool is_exact);
 
  private:
+  Handle<mirror::DexCache> hint_dex_cache_;
   HandleCache* handle_cache_;
   ArenaVector<HInstruction*>* worklist_;
   const bool is_first_run_;
 };
 
 ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
+                                                   Handle<mirror::DexCache> hint_dex_cache,
                                                    StackHandleScopeCollection* handles,
                                                    bool is_first_run,
                                                    const char* name)
     : HOptimization(graph, name),
+      hint_dex_cache_(hint_dex_cache),
       handle_cache_(handles),
       worklist_(graph->GetArena()->Adapter(kArenaAllocReferenceTypePropagation)),
       is_first_run_(is_first_run) {
@@ -130,7 +147,7 @@ void ReferenceTypePropagation::ValidateTypes() {
 }
 
 void ReferenceTypePropagation::Visit(HInstruction* instruction) {
-  RTPVisitor visitor(graph_, &handle_cache_, &worklist_, is_first_run_);
+  RTPVisitor visitor(graph_, hint_dex_cache_, &handle_cache_, &worklist_, is_first_run_);
   instruction->Accept(&visitor);
 }
 
@@ -149,7 +166,7 @@ void ReferenceTypePropagation::Run() {
 }
 
 void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
-  RTPVisitor visitor(graph_, &handle_cache_, &worklist_, is_first_run_);
+  RTPVisitor visitor(graph_, hint_dex_cache_, &handle_cache_, &worklist_, is_first_run_);
   // Handle Phis first as there might be instructions in the same block who depend on them.
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     VisitPhi(it.Current()->AsPhi());
@@ -362,7 +379,6 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
   HLoadClass* load_class = instanceOf->InputAt(1)->AsLoadClass();
   ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
   {
-    ScopedObjectAccess soa(Thread::Current());
     if (!class_rti.IsValid()) {
       // He have loaded an unresolved class. Don't bother bounding the type.
       return;
@@ -417,10 +433,10 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
     if (kIsDebugBuild) {
       HInvoke* invoke = instr->AsInvoke();
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
-      ScopedObjectAccess soa(Thread::Current());
-      StackHandleScope<2> hs(soa.Self());
+      Thread* self = Thread::Current();
+      StackHandleScope<2> hs(self);
       Handle<mirror::DexCache> dex_cache(
-          hs.NewHandle(cl->FindDexCache(soa.Self(), invoke->GetDexFile(), false)));
+          hs.NewHandle(FindDexCacheWithHint(self, invoke->GetDexFile(), hint_dex_cache_)));
       // Use a null loader. We should probably use the compiling method's class loader,
       // but then we would need to pass it to RTPVisitor just for this debug check. Since
       // the method is from the String class, the null loader is good enough.
@@ -438,7 +454,6 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
     instr->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(handle_cache_->GetStringClassHandle(), /* is_exact */ true));
   } else if (klass != nullptr) {
-    ScopedObjectAccess soa(Thread::Current());
     if (klass->IsErroneous()) {
       // Set inexact object type for erroneous types.
       instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
@@ -459,8 +474,7 @@ void ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction*
   DCHECK_EQ(instr->GetType(), Primitive::kPrimNot);
 
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
-      soa.Self(), dex_file, false);
+  mirror::DexCache* dex_cache = FindDexCacheWithHint(soa.Self(), dex_file, hint_dex_cache_);
   // Get type from dex cache assuming it was populated by the verifier.
   SetClassAsTypeInfo(instr, dex_cache->GetResolvedType(type_idx), is_exact);
 }
@@ -473,24 +487,24 @@ void ReferenceTypePropagation::RTPVisitor::VisitNewArray(HNewArray* instr) {
   UpdateReferenceTypeInfo(instr, instr->GetTypeIndex(), instr->GetDexFile(), /* is_exact */ true);
 }
 
-static mirror::Class* GetClassFromDexCache(Thread* self, const DexFile& dex_file, uint16_t type_idx)
+static mirror::Class* GetClassFromDexCache(Thread* self,
+                                           const DexFile& dex_file,
+                                           uint16_t type_idx,
+                                           Handle<mirror::DexCache> hint_dex_cache)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache =
-      Runtime::Current()->GetClassLinker()->FindDexCache(self, dex_file, /* allow_failure */ true);
-  if (dex_cache == nullptr) {
-    // Dex cache could not be found. This should only happen during gtests.
-    return nullptr;
-  }
+  mirror::DexCache* dex_cache = FindDexCacheWithHint(self, dex_file, hint_dex_cache);
   // Get type from dex cache assuming it was populated by the verifier.
   return dex_cache->GetResolvedType(type_idx);
 }
 
 void ReferenceTypePropagation::RTPVisitor::VisitParameterValue(HParameterValue* instr) {
-  ScopedObjectAccess soa(Thread::Current());
   // We check if the existing type is valid: the inliner may have set it.
   if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
-    mirror::Class* resolved_class =
-        GetClassFromDexCache(soa.Self(), instr->GetDexFile(), instr->GetTypeIndex());
+    ScopedObjectAccess soa(Thread::Current());
+    mirror::Class* resolved_class = GetClassFromDexCache(soa.Self(),
+                                                         instr->GetDexFile(),
+                                                         instr->GetTypeIndex(),
+                                                         hint_dex_cache_);
     SetClassAsTypeInfo(instr, resolved_class, /* is_exact */ false);
   }
 }
@@ -545,8 +559,10 @@ void ReferenceTypePropagation::RTPVisitor::VisitUnresolvedStaticFieldGet(
 void ReferenceTypePropagation::RTPVisitor::VisitLoadClass(HLoadClass* instr) {
   ScopedObjectAccess soa(Thread::Current());
   // Get type from dex cache assuming it was populated by the verifier.
-  mirror::Class* resolved_class =
-      GetClassFromDexCache(soa.Self(), instr->GetDexFile(), instr->GetTypeIndex());
+  mirror::Class* resolved_class = GetClassFromDexCache(soa.Self(),
+                                                       instr->GetDexFile(),
+                                                       instr->GetTypeIndex(),
+                                                       hint_dex_cache_);
   if (resolved_class != nullptr && !resolved_class->IsErroneous()) {
     instr->SetLoadedClassRTI(ReferenceTypeInfo::Create(
         handle_cache_->NewHandle(resolved_class), /* is_exact */ true));
@@ -580,7 +596,6 @@ void ReferenceTypePropagation::RTPVisitor::VisitLoadException(HLoadException* in
 }
 
 void ReferenceTypePropagation::RTPVisitor::VisitNullCheck(HNullCheck* instr) {
-  ScopedObjectAccess soa(Thread::Current());
   ReferenceTypeInfo parent_rti = instr->InputAt(0)->GetReferenceTypeInfo();
   if (parent_rti.IsValid()) {
     instr->SetReferenceTypeInfo(parent_rti);
@@ -588,10 +603,9 @@ void ReferenceTypePropagation::RTPVisitor::VisitNullCheck(HNullCheck* instr) {
 }
 
 void ReferenceTypePropagation::RTPVisitor::VisitBoundType(HBoundType* instr) {
-  ScopedObjectAccess soa(Thread::Current());
-
   ReferenceTypeInfo class_rti = instr->GetUpperBound();
   if (class_rti.IsValid()) {
+    ScopedObjectAccess soa(Thread::Current());
     // Narrow the type as much as possible.
     HInstruction* obj = instr->InputAt(0);
     ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
@@ -622,8 +636,6 @@ void ReferenceTypePropagation::RTPVisitor::VisitBoundType(HBoundType* instr) {
 }
 
 void ReferenceTypePropagation::RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
-  ScopedObjectAccess soa(Thread::Current());
-
   HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
   ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
   HBoundType* bound_type = check_cast->GetNext()->AsBoundType();
@@ -658,7 +670,6 @@ void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
       // point the interpreter jumps to that loop header.
       return;
     }
-    ScopedObjectAccess soa(Thread::Current());
     // Set the initial type for the phi. Use the non back edge input for reaching
     // a fixed point faster.
     HInstruction* first_input = phi->InputAt(0);
@@ -773,7 +784,8 @@ void ReferenceTypePropagation::RTPVisitor::VisitInvoke(HInvoke* instr) {
 
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  mirror::DexCache* dex_cache = cl->FindDexCache(soa.Self(), instr->GetDexFile());
+  mirror::DexCache* dex_cache =
+      FindDexCacheWithHint(soa.Self(), instr->GetDexFile(), hint_dex_cache_);
   size_t pointer_size = cl->GetImagePointerSize();
   ArtMethod* method = dex_cache->GetResolvedMethod(instr->GetDexMethodIndex(), pointer_size);
   mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false, pointer_size);

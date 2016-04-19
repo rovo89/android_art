@@ -503,7 +503,7 @@ GraphAnalysisResult SsaBuilder::BuildSsa() {
 
   // 4) Compute type of reference type instructions. The pass assumes that
   // NullConstant has been fixed up.
-  ReferenceTypePropagation(graph_, handles_, /* is_first_run */ true).Run();
+  ReferenceTypePropagation(graph_, dex_cache_, handles_, /* is_first_run */ true).Run();
 
   // 5) HInstructionBuilder duplicated ArrayGet instructions with ambiguous type
   // (int/float or long/double) and marked ArraySets with ambiguous input type.
