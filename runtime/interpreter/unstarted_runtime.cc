@@ -313,6 +313,162 @@ void UnstartedRuntime::UnstartedClassGetEnclosingClass(
   result->SetL(klass->GetDexFile().GetEnclosingClass(klass));
 }
 
+static std::unique_ptr<MemMap> FindAndExtractEntry(const std::string& jar_file,
+                                                   const char* entry_name,
+                                                   size_t* size,
+                                                   std::string* error_msg) {
+  CHECK(size != nullptr);
+
+  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(jar_file.c_str(), error_msg));
+  if (zip_archive == nullptr) {
+    return nullptr;;
+  }
+  std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(entry_name, error_msg));
+  if (zip_entry == nullptr) {
+    return nullptr;
+  }
+  std::unique_ptr<MemMap> tmp_map(
+      zip_entry->ExtractToMemMap(jar_file.c_str(), entry_name, error_msg));
+  if (tmp_map == nullptr) {
+    return nullptr;
+  }
+
+  // OK, from here everything seems fine.
+  *size = zip_entry->GetUncompressedLength();
+  return tmp_map;
+}
+
+static void GetResourceAsStream(Thread* self,
+                                ShadowFrame* shadow_frame,
+                                JValue* result,
+                                size_t arg_offset) SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* resource_obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  if (resource_obj == nullptr) {
+    AbortTransactionOrFail(self, "null name for getResourceAsStream");
+    return;
+  }
+  CHECK(resource_obj->IsString());
+  mirror::String* resource_name = resource_obj->AsString();
+
+  std::string resource_name_str = resource_name->ToModifiedUtf8();
+  if (resource_name_str.empty() || resource_name_str == "/") {
+    AbortTransactionOrFail(self,
+                           "Unsupported name %s for getResourceAsStream",
+                           resource_name_str.c_str());
+    return;
+  }
+  const char* resource_cstr = resource_name_str.c_str();
+  if (resource_cstr[0] == '/') {
+    resource_cstr++;
+  }
+
+  Runtime* runtime = Runtime::Current();
+
+  std::vector<std::string> split;
+  Split(runtime->GetBootClassPathString(), ':', &split);
+  if (split.empty()) {
+    AbortTransactionOrFail(self,
+                           "Boot classpath not set or split error:: %s",
+                           runtime->GetBootClassPathString().c_str());
+    return;
+  }
+
+  std::unique_ptr<MemMap> mem_map;
+  size_t map_size;
+  std::string last_error_msg;  // Only store the last message (we could concatenate).
+
+  for (const std::string& jar_file : split) {
+    mem_map = FindAndExtractEntry(jar_file, resource_cstr, &map_size, &last_error_msg);
+    if (mem_map != nullptr) {
+      break;
+    }
+  }
+
+  if (mem_map == nullptr) {
+    // Didn't find it. There's a good chance this will be the same at runtime, but still
+    // conservatively abort the transaction here.
+    AbortTransactionOrFail(self,
+                           "Could not find resource %s. Last error was %s.",
+                           resource_name_str.c_str(),
+                           last_error_msg.c_str());
+    return;
+  }
+
+  StackHandleScope<3> hs(self);
+
+  // Create byte array for content.
+  Handle<mirror::ByteArray> h_array(hs.NewHandle(mirror::ByteArray::Alloc(self, map_size)));
+  if (h_array.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Could not find/create byte array class");
+    return;
+  }
+  // Copy in content.
+  memcpy(h_array->GetData(), mem_map->Begin(), map_size);
+  // Be proactive releasing memory.
+  mem_map.release();
+
+  // Create a ByteArrayInputStream.
+  Handle<mirror::Class> h_class(hs.NewHandle(
+      runtime->GetClassLinker()->FindClass(self,
+                                           "Ljava/io/ByteArrayInputStream;",
+                                           ScopedNullHandle<mirror::ClassLoader>())));
+  if (h_class.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Could not find ByteArrayInputStream class");
+    return;
+  }
+  if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
+    AbortTransactionOrFail(self, "Could not initialize ByteArrayInputStream class");
+    return;
+  }
+
+  Handle<mirror::Object> h_obj(hs.NewHandle(h_class->AllocObject(self)));
+  if (h_obj.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Could not allocate ByteArrayInputStream object");
+    return;
+  }
+
+  auto* cl = Runtime::Current()->GetClassLinker();
+  ArtMethod* constructor = h_class->FindDeclaredDirectMethod(
+      "<init>", "([B)V", cl->GetImagePointerSize());
+  if (constructor == nullptr) {
+    AbortTransactionOrFail(self, "Could not find ByteArrayInputStream constructor");
+    return;
+  }
+
+  uint32_t args[1];
+  args[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h_array.Get()));
+  EnterInterpreterFromInvoke(self, constructor, h_obj.Get(), args, nullptr);
+
+  if (self->IsExceptionPending()) {
+    AbortTransactionOrFail(self, "Could not run ByteArrayInputStream constructor");
+    return;
+  }
+
+  result->SetL(h_obj.Get());
+}
+
+void UnstartedRuntime::UnstartedClassLoaderGetResourceAsStream(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  {
+    mirror::Object* this_obj = shadow_frame->GetVRegReference(arg_offset);
+    CHECK(this_obj != nullptr);
+    CHECK(this_obj->IsClassLoader());
+
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> this_classloader_class(hs.NewHandle(this_obj->GetClass()));
+
+    if (self->DecodeJObject(WellKnownClasses::java_lang_BootClassLoader) !=
+            this_classloader_class.Get()) {
+      AbortTransactionOrFail(self,
+                            "Unsupported classloader type %s for getResourceAsStream",
+                            PrettyClass(this_classloader_class.Get()).c_str());
+      return;
+    }
+  }
+
+  GetResourceAsStream(self, shadow_frame, result, arg_offset);
+}
+
 void UnstartedRuntime::UnstartedVmClassLoaderFindLoadedClass(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
