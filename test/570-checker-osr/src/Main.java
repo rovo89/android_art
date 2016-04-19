@@ -124,7 +124,7 @@ public class Main {
       return SubMain.class;
     }
 
-    ensureHasProfilingInfo();
+    ensureHasProfilingInfo("$noinline$inlineCache");
 
     // Ensure that we have OSR code to jump to.
     if (isSecondInvocation) {
@@ -167,7 +167,7 @@ public class Main {
     }
 
     // We need a ProfilingInfo object to populate the 'otherInlineCache' call.
-    ensureHasProfilingInfo();
+    ensureHasProfilingInfo("$noinline$stackOverflow");
 
     if (isSecondInvocation) {
       // Ensure we have an OSR code and we jump to it.
@@ -188,6 +188,7 @@ public class Main {
     assertIntEquals(12, $opt$inline$testRemoveSuspendCheck(12, 5));
     // Since we cannot have a loop directly in this method, we need to force the OSR
     // compilation from native code.
+    ensureHasProfilingInfo("$opt$noinline$testOsrInlineLoop");
     ensureHasOsrCode("$opt$noinline$testOsrInlineLoop");
   }
 
@@ -219,7 +220,7 @@ public class Main {
 
   public static native boolean isInOsrCode(String methodName);
   public static native boolean isInInterpreter(String methodName);
-  public static native void ensureHasProfilingInfo();
+  public static native void ensureHasProfilingInfo(String methodName);
   public static native void ensureHasOsrCode(String methodName);
 
   public static boolean doThrow = false;

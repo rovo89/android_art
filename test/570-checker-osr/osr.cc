@@ -89,35 +89,41 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInInterpreter(JNIEnv* env,
 
 class ProfilingInfoVisitor : public StackVisitor {
  public:
-  explicit ProfilingInfoVisitor(Thread* thread)
+  explicit ProfilingInfoVisitor(Thread* thread, const char* method_name)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        method_name_(method_name) {}
 
   bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     std::string m_name(m->GetName());
 
-    if ((m_name.compare("$noinline$inlineCache") == 0) ||
-        (m_name.compare("$noinline$stackOverflow") == 0)) {
+    if (m_name.compare(method_name_) == 0) {
       ProfilingInfo::Create(Thread::Current(), m, /* retry_allocation */ true);
       return false;
     }
     return true;
   }
+
+  const char* const method_name_;
 };
 
-extern "C" JNIEXPORT void JNICALL Java_Main_ensureHasProfilingInfo(JNIEnv*, jclass) {
+extern "C" JNIEXPORT void JNICALL Java_Main_ensureHasProfilingInfo(JNIEnv* env,
+                                                                   jclass,
+                                                                   jstring method_name) {
   if (!Runtime::Current()->UseJit()) {
     return;
   }
+  ScopedUtfChars chars(env, method_name);
+  CHECK(chars.c_str() != nullptr);
   ScopedObjectAccess soa(Thread::Current());
-  ProfilingInfoVisitor visitor(soa.Self());
+  ProfilingInfoVisitor visitor(soa.Self(), chars.c_str());
   visitor.WalkStack();
 }
 
 class OsrCheckVisitor : public StackVisitor {
  public:
-  OsrCheckVisitor(Thread* thread, const char* const method_name)
+  OsrCheckVisitor(Thread* thread, const char* method_name)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         method_name_(method_name) {}
