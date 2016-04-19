@@ -211,10 +211,12 @@ class Monitor {
       REQUIRES(!monitor_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static std::string PrettyContentionInfo(Thread* owner,
+  static std::string PrettyContentionInfo(const std::string& owner_name,
+                                          pid_t owner_tid,
                                           ArtMethod* owners_method,
                                           uint32_t owners_dex_pc,
                                           size_t num_waiters)
+      REQUIRES(!Locks::thread_list_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Wait on a monitor until timeout, interrupt, or notification.  Used for Object.wait() and
