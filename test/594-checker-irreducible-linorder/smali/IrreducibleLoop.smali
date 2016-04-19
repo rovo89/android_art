@@ -40,6 +40,11 @@
    invoke-static {v0}, Ljava/lang/System;->exit(I)V
    goto :body1
 
+   # Trivially dead code to ensure linear order verification skips removed blocks (b/28252537).
+   :dead_code
+   nop
+   goto :dead_code
+
    :header
    mul-int/2addr p3, p3
    if-eqz p1, :body2
