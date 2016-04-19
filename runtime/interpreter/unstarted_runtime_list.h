@@ -29,6 +29,7 @@
   V(ClassGetDeclaredMethod, "java.lang.reflect.Method java.lang.Class.getDeclaredMethodInternal(java.lang.String, java.lang.Class[])") \
   V(ClassGetDeclaredConstructor, "java.lang.reflect.Constructor java.lang.Class.getDeclaredConstructorInternal(java.lang.Class[])") \
   V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
+  V(ClassGetInnerClassFlags, "int java.lang.Class.getInnerClassFlags(int)") \
   V(ClassLoaderGetResourceAsStream, "java.io.InputStream java.lang.ClassLoader.getResourceAsStream(java.lang.String)") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
@@ -50,6 +51,7 @@
   V(MemoryPeekInt, "int libcore.io.Memory.peekIntNative(long)") \
   V(MemoryPeekLong, "long libcore.io.Memory.peekLongNative(long)") \
   V(MemoryPeekByteArray, "void libcore.io.Memory.peekByteArray(long, byte[], int, int)") \
+  V(MethodInvoke, "java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])") \
   V(ReferenceGetReferent, "java.lang.Object java.lang.ref.Reference.getReferent()") \
   V(RuntimeAvailableProcessors, "int java.lang.Runtime.availableProcessors()") \
   V(SecurityGetSecurityPropertiesReader, "java.io.Reader java.security.Security.getSecurityPropertiesReader()") \
