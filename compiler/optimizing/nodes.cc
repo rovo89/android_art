@@ -1005,28 +1005,33 @@ void HInstruction::RemoveEnvironment() {
 
 void HInstruction::ReplaceWith(HInstruction* other) {
   DCHECK(other != nullptr);
-  for (const HUseListNode<HInstruction*>& use : GetUses()) {
-    HInstruction* user = use.GetUser();
-    size_t input_index = use.GetIndex();
-    user->SetRawInputAt(input_index, other);
-    other->AddUseAt(user, input_index);
-  }
+  // Note: fixup_end remains valid across splice_after().
+  auto fixup_end = other->uses_.empty() ? other->uses_.begin() : ++other->uses_.begin();
+  other->uses_.splice_after(other->uses_.before_begin(), uses_);
+  other->FixUpUserRecordsAfterUseInsertion(fixup_end);
 
-  for (const HUseListNode<HEnvironment*>& use : GetEnvUses()) {
-    HEnvironment* user = use.GetUser();
-    size_t input_index = use.GetIndex();
-    user->SetRawEnvAt(input_index, other);
-    other->AddEnvUseAt(user, input_index);
-  }
+  // Note: env_fixup_end remains valid across splice_after().
+  auto env_fixup_end =
+      other->env_uses_.empty() ? other->env_uses_.begin() : ++other->env_uses_.begin();
+  other->env_uses_.splice_after(other->env_uses_.before_begin(), env_uses_);
+  other->FixUpUserRecordsAfterEnvUseInsertion(env_fixup_end);
 
-  uses_.clear();
-  env_uses_.clear();
+  DCHECK(uses_.empty());
+  DCHECK(env_uses_.empty());
 }
 
 void HInstruction::ReplaceInput(HInstruction* replacement, size_t index) {
-  RemoveAsUserOfInput(index);
-  SetRawInputAt(index, replacement);
-  replacement->AddUseAt(this, index);
+  HUserRecord<HInstruction*> input_use = InputRecordAt(index);
+  HUseList<HInstruction*>::iterator before_use_node = input_use.GetBeforeUseNode();
+  DCHECK(input_use.GetInstruction() != replacement);
+  // Note: fixup_end remains valid across splice_after().
+  auto fixup_end =
+      replacement->uses_.empty() ? replacement->uses_.begin() : ++replacement->uses_.begin();
+  replacement->uses_.splice_after(replacement->uses_.before_begin(),
+                                  input_use.GetInstruction()->uses_,
+                                  before_use_node);
+  replacement->FixUpUserRecordsAfterUseInsertion(fixup_end);
+  input_use.GetInstruction()->FixUpUserRecordsAfterUseRemoval(before_use_node);
 }
 
 size_t HInstruction::EnvironmentSize() const {

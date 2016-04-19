@@ -346,7 +346,7 @@ TEST_F(SsaTest, Loop5) {
     "BasicBlock 7, pred: 6\n"
     "  12: Exit\n"
     "BasicBlock 8, pred: 2, 3, succ: 4\n"
-    "  13: Phi(2, 1) [8, 8, 11]\n"
+    "  13: Phi(2, 1) [11, 8, 8]\n"
     "  14: Goto\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
