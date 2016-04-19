@@ -271,10 +271,10 @@ static bool ShouldProfileLocation(const std::string& location) {
     return true;
   }
   CompilerFilter::Filter filter = oat_file->GetCompilerFilter();
-  if (filter == CompilerFilter::kSpeed || CompilerFilter::kEverything) {
+  if ((filter == CompilerFilter::kSpeed) || (filter == CompilerFilter::kEverything)) {
     VLOG(profiler)
-        << "Skip profiling oat file because it's already speed|everything compiled:"
-        << location;
+        << "Skip profiling oat file because it's already speed|everything compiled: "
+        << location << " oat location: " << oat_file->GetLocation();
     return false;
   }
   return true;
