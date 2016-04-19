@@ -27,6 +27,7 @@
   V(ClassGetDeclaredMethod, "java.lang.reflect.Method java.lang.Class.getDeclaredMethodInternal(java.lang.String, java.lang.Class[])") \
   V(ClassGetDeclaredConstructor, "java.lang.reflect.Constructor java.lang.Class.getDeclaredConstructorInternal(java.lang.Class[])") \
   V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
+  V(ClassLoaderGetResourceAsStream, "java.io.InputStream java.lang.ClassLoader.getResourceAsStream(java.lang.String)") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
   V(SystemArraycopy, "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") \
