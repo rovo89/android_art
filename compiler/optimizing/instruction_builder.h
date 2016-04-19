@@ -97,6 +97,10 @@ class HInstructionBuilder : public ValueObject {
 
   // Returns whether the current method needs access check for the type.
   // Output parameter finalizable is set to whether the type is finalizable.
+  bool NeedsAccessCheck(uint32_t type_index,
+                        Handle<mirror::DexCache> dex_cache,
+                        /*out*/bool* finalizable) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool NeedsAccessCheck(uint32_t type_index, /*out*/bool* finalizable) const;
 
   template<typename T>
