@@ -43,8 +43,8 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
 
       bool keep_alive = (graph_->IsDebuggable() && phi->HasEnvironmentUses());
       if (!keep_alive) {
-        for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
-          if (!use_it.Current()->GetUser()->IsPhi()) {
+        for (const HUseListNode<HInstruction*>& use : phi->GetUses()) {
+          if (!use.GetUser()->IsPhi()) {
             keep_alive = true;
             break;
           }
@@ -94,9 +94,8 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
       if (phi->IsDead()) {
         // Make sure the phi is only used by other dead phis.
         if (kIsDebugBuild) {
-          for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done();
-               use_it.Advance()) {
-            HInstruction* user = use_it.Current()->GetUser();
+          for (const HUseListNode<HInstruction*>& use : phi->GetUses()) {
+            HInstruction* user = use.GetUser();
             DCHECK(user->IsLoopHeaderPhi());
             DCHECK(user->AsPhi()->IsDead());
           }
@@ -106,11 +105,9 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
           phi->RemoveAsUserOfInput(i);
         }
         // Remove the phi from environments that use it.
-        for (HUseIterator<HEnvironment*> use_it(phi->GetEnvUses()); !use_it.Done();
-             use_it.Advance()) {
-          HUseListNode<HEnvironment*>* user_node = use_it.Current();
-          HEnvironment* user = user_node->GetUser();
-          user->SetRawEnvAt(user_node->GetIndex(), nullptr);
+        for (const HUseListNode<HEnvironment*>& use : phi->GetEnvUses()) {
+          HEnvironment* user = use.GetUser();
+          user->SetRawEnvAt(use.GetIndex(), nullptr);
         }
         // Delete it from the instruction list.
         block->RemovePhi(phi, /*ensure_safety=*/ false);
@@ -233,9 +230,8 @@ void SsaRedundantPhiElimination::Run() {
 
       // Because we're updating the users of this phi, we may have new candidates
       // for elimination. Add phis that use this phi to the worklist.
-      for (HUseIterator<HInstruction*> it(current->GetUses()); !it.Done(); it.Advance()) {
-        HUseListNode<HInstruction*>* use = it.Current();
-        HInstruction* user = use->GetUser();
+      for (const HUseListNode<HInstruction*>& use : current->GetUses()) {
+        HInstruction* user = use.GetUser();
         if (user->IsPhi() && !ContainsElement(visited_phis_in_cycle, user->GetId())) {
           worklist_.push_back(user->AsPhi());
         }

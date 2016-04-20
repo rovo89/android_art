@@ -63,8 +63,8 @@ void PrepareForRegisterAllocation::VisitArraySet(HArraySet* instruction) {
 void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
   // Try to find a static invoke or a new-instance from which this check originated.
   HInstruction* implicit_clinit = nullptr;
-  for (HUseIterator<HInstruction*> it(check->GetUses()); !it.Done(); it.Advance()) {
-    HInstruction* user = it.Current()->GetUser();
+  for (const HUseListNode<HInstruction*>& use : check->GetUses()) {
+    HInstruction* user = use.GetUser();
     if ((user->IsInvokeStaticOrDirect() || user->IsNewInstance()) &&
         CanMoveClinitCheck(check, user)) {
       implicit_clinit = user;
@@ -85,11 +85,12 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
   // If we found a static invoke or new-instance for merging, remove the check
   // from dominated static invokes.
   if (implicit_clinit != nullptr) {
-    for (HUseIterator<HInstruction*> it(check->GetUses()); !it.Done(); ) {
-      HInstruction* user = it.Current()->GetUser();
+    const HUseList<HInstruction*>& uses = check->GetUses();
+    for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
+      HInstruction* user = it->GetUser();
       // All other uses must be dominated.
       DCHECK(implicit_clinit->StrictlyDominates(user) || (implicit_clinit == user));
-      it.Advance();  // Advance before we remove the node, reference to the next node is preserved.
+      ++it;  // Advance before we remove the node, reference to the next node is preserved.
       if (user->IsInvokeStaticOrDirect()) {
         user->AsInvokeStaticOrDirect()->RemoveExplicitClinitCheck(
             HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
@@ -159,7 +160,7 @@ bool PrepareForRegisterAllocation::CanEmitConditionAt(HCondition* condition,
 
 void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
   if (condition->HasOnlyOneNonEnvironmentUse()) {
-    HInstruction* user = condition->GetUses().GetFirst()->GetUser();
+    HInstruction* user = condition->GetUses().front().GetUser();
     if (CanEmitConditionAt(condition, user)) {
       condition->MarkEmittedAtUseSite();
     }

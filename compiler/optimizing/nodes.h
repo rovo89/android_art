@@ -36,6 +36,7 @@
 #include "offsets.h"
 #include "primitive.h"
 #include "utils/array_ref.h"
+#include "utils/intrusive_forward_list.h"
 
 namespace art {
 
@@ -1334,127 +1335,31 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
   const H##type* As##type() const { return this; }                      \
   H##type* As##type() { return this; }
 
-template <typename T> class HUseList;
-
 template <typename T>
 class HUseListNode : public ArenaObject<kArenaAllocUseListNode> {
  public:
-  HUseListNode* GetPrevious() const { return prev_; }
-  HUseListNode* GetNext() const { return next_; }
   T GetUser() const { return user_; }
   size_t GetIndex() const { return index_; }
   void SetIndex(size_t index) { index_ = index; }
 
+  // Hook for the IntrusiveForwardList<>.
+  // TODO: Hide this better.
+  IntrusiveForwardListHook hook;
+
  private:
   HUseListNode(T user, size_t index)
-      : user_(user), index_(index), prev_(nullptr), next_(nullptr) {}
+      : user_(user), index_(index) {}
 
   T const user_;
   size_t index_;
-  HUseListNode<T>* prev_;
-  HUseListNode<T>* next_;
 
-  friend class HUseList<T>;
+  friend class HInstruction;
 
   DISALLOW_COPY_AND_ASSIGN(HUseListNode);
 };
 
 template <typename T>
-class HUseList : public ValueObject {
- public:
-  HUseList() : first_(nullptr) {}
-
-  void Clear() {
-    first_ = nullptr;
-  }
-
-  // Adds a new entry at the beginning of the use list and returns
-  // the newly created node.
-  HUseListNode<T>* AddUse(T user, size_t index, ArenaAllocator* arena) {
-    HUseListNode<T>* new_node = new (arena) HUseListNode<T>(user, index);
-    if (IsEmpty()) {
-      first_ = new_node;
-    } else {
-      first_->prev_ = new_node;
-      new_node->next_ = first_;
-      first_ = new_node;
-    }
-    return new_node;
-  }
-
-  HUseListNode<T>* GetFirst() const {
-    return first_;
-  }
-
-  void Remove(HUseListNode<T>* node) {
-    DCHECK(node != nullptr);
-    DCHECK(Contains(node));
-
-    if (node->prev_ != nullptr) {
-      node->prev_->next_ = node->next_;
-    }
-    if (node->next_ != nullptr) {
-      node->next_->prev_ = node->prev_;
-    }
-    if (node == first_) {
-      first_ = node->next_;
-    }
-  }
-
-  bool Contains(const HUseListNode<T>* node) const {
-    if (node == nullptr) {
-      return false;
-    }
-    for (HUseListNode<T>* current = first_; current != nullptr; current = current->GetNext()) {
-      if (current == node) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool IsEmpty() const {
-    return first_ == nullptr;
-  }
-
-  bool HasOnlyOneUse() const {
-    return first_ != nullptr && first_->next_ == nullptr;
-  }
-
-  size_t SizeSlow() const {
-    size_t count = 0;
-    for (HUseListNode<T>* current = first_; current != nullptr; current = current->GetNext()) {
-      ++count;
-    }
-    return count;
-  }
-
- private:
-  HUseListNode<T>* first_;
-};
-
-template<typename T>
-class HUseIterator : public ValueObject {
- public:
-  explicit HUseIterator(const HUseList<T>& uses) : current_(uses.GetFirst()) {}
-
-  bool Done() const { return current_ == nullptr; }
-
-  void Advance() {
-    DCHECK(!Done());
-    current_ = current_->GetNext();
-  }
-
-  HUseListNode<T>* Current() const {
-    DCHECK(!Done());
-    return current_;
-  }
-
- private:
-  HUseListNode<T>* current_;
-
-  friend class HValue;
-};
+using HUseList = IntrusiveForwardList<HUseListNode<T>>;
 
 // This class is used by HEnvironment and HInstruction classes to record the
 // instructions they use and pointers to the corresponding HUseListNodes kept
@@ -1462,25 +1367,26 @@ class HUseIterator : public ValueObject {
 template <typename T>
 class HUserRecord : public ValueObject {
  public:
-  HUserRecord() : instruction_(nullptr), use_node_(nullptr) {}
-  explicit HUserRecord(HInstruction* instruction) : instruction_(instruction), use_node_(nullptr) {}
+  HUserRecord() : instruction_(nullptr), before_use_node_() {}
+  explicit HUserRecord(HInstruction* instruction) : instruction_(instruction), before_use_node_() {}
 
-  HUserRecord(const HUserRecord<T>& old_record, HUseListNode<T>* use_node)
-    : instruction_(old_record.instruction_), use_node_(use_node) {
+  HUserRecord(const HUserRecord<T>& old_record, typename HUseList<T>::iterator before_use_node)
+      : HUserRecord(old_record.instruction_, before_use_node) {}
+  HUserRecord(HInstruction* instruction, typename HUseList<T>::iterator before_use_node)
+      : instruction_(instruction), before_use_node_(before_use_node) {
     DCHECK(instruction_ != nullptr);
-    DCHECK(use_node_ != nullptr);
-    DCHECK(old_record.use_node_ == nullptr);
   }
 
   HInstruction* GetInstruction() const { return instruction_; }
-  HUseListNode<T>* GetUseNode() const { return use_node_; }
+  typename HUseList<T>::iterator GetBeforeUseNode() const { return before_use_node_; }
+  typename HUseList<T>::iterator GetUseNode() const { return ++GetBeforeUseNode(); }
 
  private:
   // Instruction used by the user.
   HInstruction* instruction_;
 
-  // Corresponding entry in the use list kept by 'instruction_'.
-  HUseListNode<T>* use_node_;
+  // Iterator before the corresponding entry in the use list kept by 'instruction_'.
+  typename HUseList<T>::iterator before_use_node_;
 };
 
 /**
@@ -1822,14 +1728,6 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   }
 
  private:
-  // Record instructions' use entries of this environment for constant-time removal.
-  // It should only be called by HInstruction when a new environment use is added.
-  void RecordEnvUse(HUseListNode<HEnvironment*>* env_use) {
-    DCHECK(env_use->GetUser() == this);
-    size_t index = env_use->GetIndex();
-    vregs_[index] = HUserRecord<HEnvironment*>(vregs_[index], env_use);
-  }
-
   ArenaVector<HUserRecord<HEnvironment*>> vregs_;
   ArenaVector<Location> locations_;
   HEnvironment* parent_;
@@ -1938,31 +1836,39 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 
   void AddUseAt(HInstruction* user, size_t index) {
     DCHECK(user != nullptr);
-    HUseListNode<HInstruction*>* use =
-        uses_.AddUse(user, index, GetBlock()->GetGraph()->GetArena());
-    user->SetRawInputRecordAt(index, HUserRecord<HInstruction*>(user->InputRecordAt(index), use));
+    // Note: fixup_end remains valid across push_front().
+    auto fixup_end = uses_.empty() ? uses_.begin() : ++uses_.begin();
+    HUseListNode<HInstruction*>* new_node =
+        new (GetBlock()->GetGraph()->GetArena()) HUseListNode<HInstruction*>(user, index);
+    uses_.push_front(*new_node);
+    FixUpUserRecordsAfterUseInsertion(fixup_end);
   }
 
   void AddEnvUseAt(HEnvironment* user, size_t index) {
     DCHECK(user != nullptr);
-    HUseListNode<HEnvironment*>* env_use =
-        env_uses_.AddUse(user, index, GetBlock()->GetGraph()->GetArena());
-    user->RecordEnvUse(env_use);
+    // Note: env_fixup_end remains valid across push_front().
+    auto env_fixup_end = env_uses_.empty() ? env_uses_.begin() : ++env_uses_.begin();
+    HUseListNode<HEnvironment*>* new_node =
+        new (GetBlock()->GetGraph()->GetArena()) HUseListNode<HEnvironment*>(user, index);
+    env_uses_.push_front(*new_node);
+    FixUpUserRecordsAfterEnvUseInsertion(env_fixup_end);
   }
 
   void RemoveAsUserOfInput(size_t input) {
     HUserRecord<HInstruction*> input_use = InputRecordAt(input);
-    input_use.GetInstruction()->uses_.Remove(input_use.GetUseNode());
+    HUseList<HInstruction*>::iterator before_use_node = input_use.GetBeforeUseNode();
+    input_use.GetInstruction()->uses_.erase_after(before_use_node);
+    input_use.GetInstruction()->FixUpUserRecordsAfterUseRemoval(before_use_node);
   }
 
   const HUseList<HInstruction*>& GetUses() const { return uses_; }
   const HUseList<HEnvironment*>& GetEnvUses() const { return env_uses_; }
 
-  bool HasUses() const { return !uses_.IsEmpty() || !env_uses_.IsEmpty(); }
-  bool HasEnvironmentUses() const { return !env_uses_.IsEmpty(); }
-  bool HasNonEnvironmentUses() const { return !uses_.IsEmpty(); }
+  bool HasUses() const { return !uses_.empty() || !env_uses_.empty(); }
+  bool HasEnvironmentUses() const { return !env_uses_.empty(); }
+  bool HasNonEnvironmentUses() const { return !uses_.empty(); }
   bool HasOnlyOneNonEnvironmentUse() const {
-    return !HasEnvironmentUses() && GetUses().HasOnlyOneUse();
+    return !HasEnvironmentUses() && GetUses().HasExactlyOneElement();
   }
 
   // Does this instruction strictly dominate `other_instruction`?
@@ -2164,7 +2070,45 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   }
 
  private:
-  void RemoveEnvironmentUser(HUseListNode<HEnvironment*>* use_node) { env_uses_.Remove(use_node); }
+  void FixUpUserRecordsAfterUseInsertion(HUseList<HInstruction*>::iterator fixup_end) {
+    auto before_use_node = uses_.before_begin();
+    for (auto use_node = uses_.begin(); use_node != fixup_end; ++use_node) {
+      HInstruction* user = use_node->GetUser();
+      size_t input_index = use_node->GetIndex();
+      user->SetRawInputRecordAt(input_index, HUserRecord<HInstruction*>(this, before_use_node));
+      before_use_node = use_node;
+    }
+  }
+
+  void FixUpUserRecordsAfterUseRemoval(HUseList<HInstruction*>::iterator before_use_node) {
+    auto next = ++HUseList<HInstruction*>::iterator(before_use_node);
+    if (next != uses_.end()) {
+      HInstruction* next_user = next->GetUser();
+      size_t next_index = next->GetIndex();
+      DCHECK(next_user->InputRecordAt(next_index).GetInstruction() == this);
+      next_user->SetRawInputRecordAt(next_index, HUserRecord<HInstruction*>(this, before_use_node));
+    }
+  }
+
+  void FixUpUserRecordsAfterEnvUseInsertion(HUseList<HEnvironment*>::iterator env_fixup_end) {
+    auto before_env_use_node = env_uses_.before_begin();
+    for (auto env_use_node = env_uses_.begin(); env_use_node != env_fixup_end; ++env_use_node) {
+      HEnvironment* user = env_use_node->GetUser();
+      size_t input_index = env_use_node->GetIndex();
+      user->vregs_[input_index] = HUserRecord<HEnvironment*>(this, before_env_use_node);
+      before_env_use_node = env_use_node;
+    }
+  }
+
+  void FixUpUserRecordsAfterEnvUseRemoval(HUseList<HEnvironment*>::iterator before_env_use_node) {
+    auto next = ++HUseList<HEnvironment*>::iterator(before_env_use_node);
+    if (next != env_uses_.end()) {
+      HEnvironment* next_user = next->GetUser();
+      size_t next_index = next->GetIndex();
+      DCHECK(next_user->vregs_[next_index].GetInstruction() == this);
+      next_user->vregs_[next_index] = HUserRecord<HEnvironment*>(this, before_env_use_node);
+    }
+  }
 
   HInstruction* previous_;
   HInstruction* next_;

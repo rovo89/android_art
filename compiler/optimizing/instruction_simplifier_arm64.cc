@@ -140,7 +140,7 @@ bool InstructionSimplifierArm64Visitor::TryMergeIntoShifterOperand(HInstruction*
                                                                  shift_amount,
                                                                  use->GetDexPc());
     use->GetBlock()->ReplaceAndRemoveInstructionWith(use, alu_with_op);
-    if (bitfield_op->GetUses().IsEmpty()) {
+    if (bitfield_op->GetUses().empty()) {
       bitfield_op->GetBlock()->RemoveInstruction(bitfield_op);
     }
     RecordSimplification();
@@ -160,20 +160,22 @@ bool InstructionSimplifierArm64Visitor::TryMergeIntoUsersShifterOperand(HInstruc
   const HUseList<HInstruction*>& uses = bitfield_op->GetUses();
 
   // Check whether we can merge the instruction in all its users' shifter operand.
-  for (HUseIterator<HInstruction*> it_use(uses); !it_use.Done(); it_use.Advance()) {
-    HInstruction* use = it_use.Current()->GetUser();
-    if (!HasShifterOperand(use)) {
+  for (const HUseListNode<HInstruction*>& use : uses) {
+    HInstruction* user = use.GetUser();
+    if (!HasShifterOperand(user)) {
       return false;
     }
-    if (!CanMergeIntoShifterOperand(use, bitfield_op)) {
+    if (!CanMergeIntoShifterOperand(user, bitfield_op)) {
       return false;
     }
   }
 
   // Merge the instruction into its uses.
-  for (HUseIterator<HInstruction*> it_use(uses); !it_use.Done(); it_use.Advance()) {
-    HInstruction* use = it_use.Current()->GetUser();
-    bool merged = MergeIntoShifterOperand(use, bitfield_op);
+  for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
+    HInstruction* user = it->GetUser();
+    // Increment `it` now because `*it` will disappear thanks to MergeIntoShifterOperand().
+    ++it;
+    bool merged = MergeIntoShifterOperand(user, bitfield_op);
     DCHECK(merged);
   }
 

@@ -1206,9 +1206,9 @@ class BCEVisitor : public HGraphVisitor {
           GetGraph()->GetArena()->Adapter(kArenaAllocBoundsCheckElimination));
       ArenaVector<HBoundsCheck*> standby(
           GetGraph()->GetArena()->Adapter(kArenaAllocBoundsCheckElimination));
-      for (HUseIterator<HInstruction*> it2(array_length->GetUses()); !it2.Done(); it2.Advance()) {
+      for (const HUseListNode<HInstruction*>& use : array_length->GetUses()) {
         // Another bounds check in same or dominated block?
-        HInstruction* user = it2.Current()->GetUser();
+        HInstruction* user = use.GetUser();
         HBasicBlock* other_block = user->GetBlock();
         if (user->IsBoundsCheck() && block->Dominates(other_block)) {
           HBoundsCheck* other_bounds_check = user->AsBoundsCheck();
@@ -1635,29 +1635,33 @@ class BCEVisitor : public HGraphVisitor {
         Primitive::Type type = instruction->GetType();
         HPhi* phi = nullptr;
         // Scan all uses of an instruction and replace each later use with a phi node.
-        for (HUseIterator<HInstruction*> it2(instruction->GetUses());
-             !it2.Done();
-             it2.Advance()) {
-          HInstruction* user = it2.Current()->GetUser();
+        const HUseList<HInstruction*>& uses = instruction->GetUses();
+        for (auto it2 = uses.begin(), end2 = uses.end(); it2 != end2; /* ++it2 below */) {
+          HInstruction* user = it2->GetUser();
+          size_t index = it2->GetIndex();
+          // Increment `it2` now because `*it2` may disappear thanks to user->ReplaceInput().
+          ++it2;
           if (user->GetBlock() != true_block) {
             if (phi == nullptr) {
               phi = NewPhi(new_preheader, instruction, type);
             }
-            user->ReplaceInput(phi, it2.Current()->GetIndex());
+            user->ReplaceInput(phi, index);  // Removes the use node from the list.
           }
         }
         // Scan all environment uses of an instruction and replace each later use with a phi node.
-        for (HUseIterator<HEnvironment*> it2(instruction->GetEnvUses());
-             !it2.Done();
-             it2.Advance()) {
-          HEnvironment* user = it2.Current()->GetUser();
+        const HUseList<HEnvironment*>& env_uses = instruction->GetEnvUses();
+        for (auto it2 = env_uses.begin(), end2 = env_uses.end(); it2 != end2; /* ++it2 below */) {
+          HEnvironment* user = it2->GetUser();
+          size_t index = it2->GetIndex();
+          // Increment `it2` now because `*it2` may disappear thanks to user->RemoveAsUserOfInput().
+          ++it2;
           if (user->GetHolder()->GetBlock() != true_block) {
             if (phi == nullptr) {
               phi = NewPhi(new_preheader, instruction, type);
             }
-            user->RemoveAsUserOfInput(it2.Current()->GetIndex());
-            user->SetRawEnvAt(it2.Current()->GetIndex(), phi);
-            phi->AddEnvUseAt(user, it2.Current()->GetIndex());
+            user->RemoveAsUserOfInput(index);
+            user->SetRawEnvAt(index, phi);
+            phi->AddEnvUseAt(user, index);
           }
         }
       }
