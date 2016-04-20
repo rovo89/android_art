@@ -142,6 +142,14 @@ class MethodVerifier {
     kHardFailure,
   };
 
+  static bool CanCompilerHandleVerificationFailure(uint32_t encountered_failure_types) {
+    constexpr uint32_t unresolved_mask = verifier::VerifyError::VERIFY_ERROR_NO_CLASS
+        | verifier::VerifyError::VERIFY_ERROR_ACCESS_CLASS
+        | verifier::VerifyError::VERIFY_ERROR_ACCESS_FIELD
+        | verifier::VerifyError::VERIFY_ERROR_ACCESS_METHOD;
+    return (encountered_failure_types & (~unresolved_mask)) == 0;
+  }
+
   // Verify a class. Returns "kNoFailure" on success.
   static FailureKind VerifyClass(Thread* self,
                                  mirror::Class* klass,

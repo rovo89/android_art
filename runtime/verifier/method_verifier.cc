@@ -396,6 +396,13 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                     << PrettyMethod(method_idx, *dex_file) << "\n");
       }
       result.kind = kSoftFailure;
+      if (method != nullptr &&
+          !CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_)) {
+        method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
+      }
+    }
+    if (method != nullptr && verifier.HasInstructionThatWillThrow()) {
+      method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
     }
   } else {
     // Bad method data.

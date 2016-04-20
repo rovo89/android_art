@@ -769,15 +769,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   return codegen.release();
 }
 
-static bool CanHandleVerificationFailure(const VerifiedMethod* verified_method) {
-  // For access errors the compiler will use the unresolved helpers (e.g. HInvokeUnresolved).
-  uint32_t unresolved_mask = verifier::VerifyError::VERIFY_ERROR_NO_CLASS
-      | verifier::VerifyError::VERIFY_ERROR_ACCESS_CLASS
-      | verifier::VerifyError::VERIFY_ERROR_ACCESS_FIELD
-      | verifier::VerifyError::VERIFY_ERROR_ACCESS_METHOD;
-  return (verified_method->GetEncounteredVerificationFailures() & (~unresolved_mask)) == 0;
-}
-
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint32_t access_flags,
                                             InvokeType invoke_type,
@@ -792,7 +783,8 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
   DCHECK(!verified_method->HasRuntimeThrow());
   if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
-      || CanHandleVerificationFailure(verified_method)) {
+      || verifier::MethodVerifier::CanCompilerHandleVerificationFailure(
+            verified_method->GetEncounteredVerificationFailures())) {
     ArenaAllocator arena(Runtime::Current()->GetArenaPool());
     CodeVectorAllocator code_allocator(&arena);
     std::unique_ptr<CodeGenerator> codegen(
@@ -865,6 +857,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       method->GetDeclaringClass()->GetClassLoader()));
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+  DCHECK(method->IsCompilable());
 
   jobject jclass_loader = class_loader.ToJObject();
   const DexFile* dex_file = method->GetDexFile();
