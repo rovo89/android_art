@@ -16,6 +16,32 @@
 
 public class Main {
 
+  public static boolean doThrow = false;
+
+  /// CHECK-START: void Main.$opt$noinline$testReplaceInputWithItself(int) intrinsics_recognition (after)
+  /// CHECK-DAG:     <<ArgX:i\d+>>   ParameterValue
+  /// CHECK-DAG:     <<Method:[ij]\d+>> CurrentMethod
+  /// CHECK-DAG:     <<Zero:i\d+>>   IntConstant 0
+  /// CHECK-DAG:     <<Cmp:i\d+>>    InvokeStaticOrDirect [<<ArgX>>,<<Zero>>,<<Method>>] intrinsic:IntegerCompare
+  /// CHECK-DAG:                     GreaterThanOrEqual [<<Cmp>>,<<Zero>>]
+
+  /// CHECK-START: void Main.$opt$noinline$testReplaceInputWithItself(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<ArgX:i\d+>>   ParameterValue
+  /// CHECK-DAG:     <<Zero:i\d+>>   IntConstant 0
+  /// CHECK-DAG:                     GreaterThanOrEqual [<<ArgX>>,<<Zero>>]
+
+  public static void $opt$noinline$testReplaceInputWithItself(int x) {
+    if (doThrow) { throw new Error(); }
+
+    // The instruction simplifier first replaces Integer.compare(x, 0) with Compare HIR
+    // and then merges the Compare into the GreaterThanOrEqual. This is a regression
+    // test that to check that it is allowed to replace the second input of the
+    // GreaterThanOrEqual, i.e. <<Zero>>, with the very same instruction.
+    if (Integer.compare(x, 0) < 0) {
+      System.out.println("OOOPS");
+    }
+  }
+
   /// CHECK-START: int Main.compareBooleans(boolean, boolean) intrinsics_recognition (after)
   /// CHECK-DAG:     <<Method:[ij]\d+>> CurrentMethod
   /// CHECK-DAG:     <<Zero:i\d+>>   IntConstant 0
@@ -890,6 +916,8 @@ public class Main {
 
 
   public static void main(String args[]) {
+    $opt$noinline$testReplaceInputWithItself(42);
+
     testCompareBooleans();
     testCompareBytes();
     testCompareShorts();

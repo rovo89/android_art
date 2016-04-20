@@ -369,7 +369,32 @@ TEST(IntrusiveForwardList, SpliceAfter) {
 
   check.assign({8});
   ASSERT_LISTS_EQUAL(check, ifl1);
+
+  // Move the first element of ref1/ifl1 to the beginning of ref1/ifl1 (do nothing).
+  ref1.splice_after(ref1.before_begin(), ref1, ref1.before_begin());
+  ifl1.splice_after(ifl1.before_begin(), ifl1, ifl1.before_begin());
+  ASSERT_LISTS_EQUAL(ref1, ifl1);
+  ASSERT_LISTS_EQUAL(check, ifl1);
+
+  // Move the first element of ref2/ifl2 after itself (do nothing).
+  ref1.splice_after(ref1.begin(), ref1, ref1.before_begin());
+  ifl1.splice_after(ifl1.begin(), ifl1, ifl1.before_begin());
+  ASSERT_LISTS_EQUAL(ref1, ifl1);
+  ASSERT_LISTS_EQUAL(check, ifl1);
+
   check.assign({ 1, 7, 7, 2, 3, 4, 5, 4 });
+  ASSERT_LISTS_EQUAL(check, ifl2);
+
+  // Move the first element of ref2/ifl2 to the beginning of ref2/ifl2 (do nothing).
+  ref2.splice_after(ref2.before_begin(), ref2, ref2.before_begin());
+  ifl2.splice_after(ifl2.before_begin(), ifl2, ifl2.before_begin());
+  ASSERT_LISTS_EQUAL(ref2, ifl2);
+  ASSERT_LISTS_EQUAL(check, ifl2);
+
+  // Move the first element of ref2/ifl2 after itself (do nothing).
+  ref2.splice_after(ref2.begin(), ref2, ref2.before_begin());
+  ifl2.splice_after(ifl2.begin(), ifl2, ifl2.before_begin());
+  ASSERT_LISTS_EQUAL(ref2, ifl2);
   ASSERT_LISTS_EQUAL(check, ifl2);
 }
 
