@@ -318,7 +318,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         for (uint32_t idx : live_in->Indexes()) {
           HInstruction* instruction = GetInstructionFromSsaIndex(idx);
           DCHECK(instruction->GetBlock()->IsEntryBlock()) << instruction->DebugName();
-          DCHECK(!instruction->IsParameterValue()) << instruction->DebugName();
+          DCHECK(!instruction->IsParameterValue());
           DCHECK(instruction->IsCurrentMethod() || instruction->IsConstant())
               << instruction->DebugName();
         }
