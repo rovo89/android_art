@@ -147,6 +147,10 @@ void FaultManager::Shutdown() {
 }
 
 bool FaultManager::HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* context) {
+  if (other_handlers_.empty()) {
+    return false;
+  }
+
   Thread* self = Thread::Current();
 
   DCHECK(self != nullptr);
