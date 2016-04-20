@@ -1165,5 +1165,16 @@ template mirror::Constructor* Class::GetDeclaredConstructorInternal<true>(
     mirror::Class* klass,
     mirror::ObjectArray<mirror::Class>* args);
 
+int32_t Class::GetInnerClassFlags(Handle<Class> h_this, int32_t default_value) {
+  if (h_this->IsProxyClass() || h_this->GetDexCache() == nullptr) {
+    return default_value;
+  }
+  uint32_t flags;
+  if (!h_this->GetDexFile().GetInnerClassFlags(h_this, &flags)) {
+    return default_value;
+  }
+  return flags;
+}
+
 }  // namespace mirror
 }  // namespace art

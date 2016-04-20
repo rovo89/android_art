@@ -29,6 +29,7 @@
   V(ClassGetDeclaredMethod, "java.lang.reflect.Method java.lang.Class.getDeclaredMethodInternal(java.lang.String, java.lang.Class[])") \
   V(ClassGetDeclaredConstructor, "java.lang.reflect.Constructor java.lang.Class.getDeclaredConstructorInternal(java.lang.Class[])") \
   V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
+  V(ClassGetInnerClassFlags, "int java.lang.Class.getInnerClassFlags(int)") \
   V(ClassLoaderGetResourceAsStream, "java.io.InputStream java.lang.ClassLoader.getResourceAsStream(java.lang.String)") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
@@ -42,6 +43,9 @@
   V(ThreadLocalGet, "java.lang.Object java.lang.ThreadLocal.get()") \
   V(MathCeil, "double java.lang.Math.ceil(double)") \
   V(MathFloor, "double java.lang.Math.floor(double)") \
+  V(MathSin, "double java.lang.Math.sin(double)") \
+  V(MathCos, "double java.lang.Math.cos(double)") \
+  V(MathPow, "double java.lang.Math.pow(double, double)") \
   V(ObjectHashCode, "int java.lang.Object.hashCode()") \
   V(DoubleDoubleToRawLongBits, "long java.lang.Double.doubleToRawLongBits(double)") \
   V(DexCacheGetDexNative, "com.android.dex.Dex java.lang.DexCache.getDexNative()") \
@@ -50,6 +54,7 @@
   V(MemoryPeekInt, "int libcore.io.Memory.peekIntNative(long)") \
   V(MemoryPeekLong, "long libcore.io.Memory.peekLongNative(long)") \
   V(MemoryPeekByteArray, "void libcore.io.Memory.peekByteArray(long, byte[], int, int)") \
+  V(MethodInvoke, "java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])") \
   V(ReferenceGetReferent, "java.lang.Object java.lang.ref.Reference.getReferent()") \
   V(RuntimeAvailableProcessors, "int java.lang.Runtime.availableProcessors()") \
   V(StringGetCharsNoCheck, "void java.lang.String.getCharsNoCheck(int, int, char[], int)") \
