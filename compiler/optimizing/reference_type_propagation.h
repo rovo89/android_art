@@ -99,6 +99,8 @@ class ReferenceTypePropagation : public HOptimization {
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
+  friend class ReferenceTypePropagationTest;
+
   DISALLOW_COPY_AND_ASSIGN(ReferenceTypePropagation);
 };
 

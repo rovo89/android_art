@@ -269,6 +269,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/nodes_test.cc \
   compiler/optimizing/parallel_move_test.cc \
   compiler/optimizing/pretty_printer_test.cc \
+  compiler/optimizing/reference_type_propagation_test.cc \
   compiler/optimizing/side_effects_test.cc \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
