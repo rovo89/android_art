@@ -28,9 +28,6 @@
 
 namespace art {
 
-class ArtMethod;
-class DexCacheProfileData;
-
 // TODO: rename file.
 /**
  * Profile information in a format suitable to be queried by the compiler and
@@ -45,7 +42,7 @@ class ProfileCompilationInfo {
   static const uint8_t kProfileVersion[];
 
   // Add the given methods and classes to the current profile object.
-  bool AddMethodsAndClasses(const std::vector<ArtMethod*>& methods,
+  bool AddMethodsAndClasses(const std::vector<MethodReference>& methods,
                             const std::set<DexCacheResolvedClasses>& resolved_classes);
   // Loads profile information from the given file descriptor.
   bool Load(int fd);
@@ -114,8 +111,7 @@ class ProfileCompilationInfo {
   DexFileData* GetOrAddDexFileData(const std::string& dex_location, uint32_t checksum);
   bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
   bool AddClassIndex(const std::string& dex_location, uint32_t checksum, uint16_t class_idx);
-  bool AddResolvedClasses(const DexCacheResolvedClasses& classes)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool AddResolvedClasses(const DexCacheResolvedClasses& classes);
 
   // Parsing functionality.
 

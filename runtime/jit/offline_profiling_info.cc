@@ -56,14 +56,12 @@ std::string ProfileCompilationInfo::GetProfileDexFileKey(const std::string& dex_
 }
 
 bool ProfileCompilationInfo::AddMethodsAndClasses(
-    const std::vector<ArtMethod*>& methods,
+    const std::vector<MethodReference>& methods,
     const std::set<DexCacheResolvedClasses>& resolved_classes) {
-  ScopedObjectAccess soa(Thread::Current());
-  for (ArtMethod* method : methods) {
-    const DexFile* dex_file = method->GetDexFile();
-    if (!AddMethodIndex(GetProfileDexFileKey(dex_file->GetLocation()),
-                        dex_file->GetLocationChecksum(),
-                        method->GetDexMethodIndex())) {
+  for (const MethodReference& method : methods) {
+    if (!AddMethodIndex(GetProfileDexFileKey(method.dex_file->GetLocation()),
+                        method.dex_file->GetLocationChecksum(),
+                        method.dex_method_index)) {
       return false;
     }
   }

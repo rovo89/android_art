@@ -26,6 +26,7 @@
 #include "gc/accounting/bitmap.h"
 #include "gc_root.h"
 #include "jni.h"
+#include "method_reference.h"
 #include "oat_file.h"
 #include "object_callbacks.h"
 #include "safe_map.h"
@@ -165,9 +166,9 @@ class JitCodeCache {
 
   void* MoreCore(const void* mspace, intptr_t increment);
 
-  // Adds to `methods` all the compiled ArtMethods which are part of any of the given dex locations.
-  void GetCompiledArtMethods(const std::set<std::string>& dex_base_locations,
-                             std::vector<ArtMethod*>& methods)
+  // Adds to `methods` all profiled methods which are part of any of the given dex locations.
+  void GetProfiledMethods(const std::set<std::string>& dex_base_locations,
+                          std::vector<MethodReference>& methods)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
