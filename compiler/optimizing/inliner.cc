@@ -1303,11 +1303,12 @@ void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
         DCHECK(return_replacement->IsPhi());
         size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
-        if (cls != nullptr) {
+        if (cls != nullptr && !cls->IsErroneous()) {
           ReferenceTypeInfo::TypeHandle return_handle = handles_->NewHandle(cls);
           return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
               return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
         } else {
+          // Return inexact object type on failures.
           return_replacement->SetReferenceTypeInfo(graph_->GetInexactObjectRti());
         }
       }
