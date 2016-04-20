@@ -256,7 +256,10 @@ void Thumb2Assembler::EmitJumpTables() {
     for (JumpTable& table : jump_tables_) {
       // Bulk ensure capacity, as this may be large.
       size_t orig_size = buffer_.Size();
-      buffer_.ExtendCapacity(orig_size + table.GetSize());
+      size_t required_capacity = orig_size + table.GetSize();
+      if (required_capacity > buffer_.Capacity()) {
+        buffer_.ExtendCapacity(required_capacity);
+      }
 #ifndef NDEBUG
       buffer_.has_ensured_capacity_ = true;
 #endif
