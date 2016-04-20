@@ -517,14 +517,7 @@ static jint Class_getInnerClassFlags(JNIEnv* env, jobject javaThis, jint default
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
-    return defaultValue;
-  }
-  uint32_t flags;
-  if (!klass->GetDexFile().GetInnerClassFlags(klass, &flags)) {
-    return defaultValue;
-  }
-  return flags;
+  return mirror::Class::GetInnerClassFlags(klass, defaultValue);
 }
 
 static jstring Class_getInnerClassName(JNIEnv* env, jobject javaThis) {

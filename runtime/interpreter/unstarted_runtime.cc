@@ -44,6 +44,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "nth_caller_visitor.h"
+#include "reflection.h"
 #include "thread.h"
 #include "transaction.h"
 #include "well_known_classes.h"
@@ -350,6 +351,15 @@ void UnstartedRuntime::UnstartedClassGetEnclosingClass(
     result->SetL(nullptr);
   }
   result->SetL(klass->GetDexFile().GetEnclosingClass(klass));
+}
+
+void UnstartedRuntime::UnstartedClassGetInnerClassFlags(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(hs.NewHandle(
+      reinterpret_cast<mirror::Class*>(shadow_frame->GetVRegReference(arg_offset))));
+  const int32_t default_value = shadow_frame->GetVReg(arg_offset + 1);
+  result->SetI(mirror::Class::GetInnerClassFlags(klass, default_value));
 }
 
 static std::unique_ptr<MemMap> FindAndExtractEntry(const std::string& jar_file,
@@ -822,6 +832,22 @@ void UnstartedRuntime::UnstartedMathCeil(
 void UnstartedRuntime::UnstartedMathFloor(
     Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   result->SetD(floor(shadow_frame->GetVRegDouble(arg_offset)));
+}
+
+void UnstartedRuntime::UnstartedMathSin(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(sin(shadow_frame->GetVRegDouble(arg_offset)));
+}
+
+void UnstartedRuntime::UnstartedMathCos(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(cos(shadow_frame->GetVRegDouble(arg_offset)));
+}
+
+void UnstartedRuntime::UnstartedMathPow(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(pow(shadow_frame->GetVRegDouble(arg_offset),
+                   shadow_frame->GetVRegDouble(arg_offset + 2)));
 }
 
 void UnstartedRuntime::UnstartedObjectHashCode(
@@ -1357,6 +1383,36 @@ void UnstartedRuntime::UnstartedLongParseLong(
   result->SetJ(l);
 }
 
+void UnstartedRuntime::UnstartedMethodInvoke(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  JNIEnvExt* env = self->GetJniEnv();
+  ScopedObjectAccessUnchecked soa(self);
+
+  mirror::Object* java_method_obj = shadow_frame->GetVRegReference(arg_offset);
+  ScopedLocalRef<jobject> java_method(env,
+      java_method_obj == nullptr ? nullptr :env->AddLocalReference<jobject>(java_method_obj));
+
+  mirror::Object* java_receiver_obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  ScopedLocalRef<jobject> java_receiver(env,
+      java_receiver_obj == nullptr ? nullptr : env->AddLocalReference<jobject>(java_receiver_obj));
+
+  mirror::Object* java_args_obj = shadow_frame->GetVRegReference(arg_offset + 2);
+  ScopedLocalRef<jobject> java_args(env,
+      java_args_obj == nullptr ? nullptr : env->AddLocalReference<jobject>(java_args_obj));
+
+  ScopedLocalRef<jobject> result_jobj(env,
+      InvokeMethod(soa, java_method.get(), java_receiver.get(), java_args.get()));
+
+  result->SetL(self->DecodeJObject(result_jobj.get()));
+
+  // Conservatively flag all exceptions as transaction aborts. This way we don't need to unwrap
+  // InvocationTargetExceptions.
+  if (self->IsExceptionPending()) {
+    AbortTransactionOrFail(self, "Failed Method.invoke");
+  }
+}
+
 
 void UnstartedRuntime::UnstartedJNIVMRuntimeNewUnpaddedArray(
     Thread* self, ArtMethod* method ATTRIBUTE_UNUSED, mirror::Object* receiver ATTRIBUTE_UNUSED,
@@ -1640,7 +1696,13 @@ void UnstartedRuntime::Invoke(Thread* self, const DexFile::CodeItem* code_item,
   if (iter != invoke_handlers_.end()) {
     // Clear out the result in case it's not zeroed out.
     result->SetL(0);
+
+    // Push the shadow frame. This is so the failing method can be seen in abort dumps.
+    self->PushShadowFrame(shadow_frame);
+
     (*iter->second)(self, shadow_frame, result, arg_offset);
+
+    self->PopShadowFrame();
   } else {
     // Not special, continue with regular interpreter execution.
     ArtInterpreterToInterpreterBridge(self, code_item, shadow_frame, result);

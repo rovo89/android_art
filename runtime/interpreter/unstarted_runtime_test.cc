@@ -802,5 +802,65 @@ TEST_F(UnstartedRuntimeTest, ToLowerUpper) {
   ShadowFrame::DeleteDeoptimizedFrame(tmp);
 }
 
+TEST_F(UnstartedRuntimeTest, Sin) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  // Test an important value, PI/6. That's the one we see in practice.
+  constexpr uint64_t lvalue = UINT64_C(0x3fe0c152382d7365);
+  tmp->SetVRegLong(0, static_cast<int64_t>(lvalue));
+
+  JValue result;
+  UnstartedMathSin(self, tmp, &result, 0);
+
+  const uint64_t lresult = static_cast<uint64_t>(result.GetJ());
+  EXPECT_EQ(UINT64_C(0x3fdfffffffffffff), lresult);
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, Cos) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  // Test an important value, PI/6. That's the one we see in practice.
+  constexpr uint64_t lvalue = UINT64_C(0x3fe0c152382d7365);
+  tmp->SetVRegLong(0, static_cast<int64_t>(lvalue));
+
+  JValue result;
+  UnstartedMathCos(self, tmp, &result, 0);
+
+  const uint64_t lresult = static_cast<uint64_t>(result.GetJ());
+  EXPECT_EQ(UINT64_C(0x3febb67ae8584cab), lresult);
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, Pow) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  // Test an important pair.
+  constexpr uint64_t lvalue1 = UINT64_C(0x4079000000000000);
+  constexpr uint64_t lvalue2 = UINT64_C(0xbfe6db6dc0000000);
+
+  tmp->SetVRegLong(0, static_cast<int64_t>(lvalue1));
+  tmp->SetVRegLong(2, static_cast<int64_t>(lvalue2));
+
+  JValue result;
+  UnstartedMathPow(self, tmp, &result, 0);
+
+  const uint64_t lresult = static_cast<uint64_t>(result.GetJ());
+  EXPECT_EQ(UINT64_C(0x3f8c5c51326aa7ee), lresult);
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
 }  // namespace interpreter
 }  // namespace art

@@ -1223,6 +1223,9 @@ class MANAGED Class FINAL : public Object {
       Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static int32_t GetInnerClassFlags(Handle<Class> h_this, int32_t default_value)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Used to initialize a class in the allocation code path to ensure it is guarded by a StoreStore
   // fence.
   class InitializeClassVisitor {
