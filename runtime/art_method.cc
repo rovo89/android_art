@@ -276,7 +276,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 
       // Ensure that we won't be accidentally calling quick compiled code when -Xint.
       if (kIsDebugBuild && runtime->GetInstrumentation()->IsForcedInterpretOnly()) {
-        CHECK(!runtime->UseJit());
+        CHECK(!runtime->UseJitCompilation());
         const void* oat_quick_code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(this);
         CHECK(oat_quick_code == nullptr || oat_quick_code != GetEntryPointFromQuickCompiledCode())
             << "Don't call compiled code when -Xint " << PrettyMethod(this);
@@ -481,7 +481,7 @@ void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   // to the JIT code, but this would require taking the JIT code cache lock to notify
   // it, which we do not want at this level.
   Runtime* runtime = Runtime::Current();
-  if (runtime->GetJit() != nullptr) {
+  if (runtime->UseJitCompilation()) {
     if (runtime->GetJit()->GetCodeCache()->ContainsPc(GetEntryPointFromQuickCompiledCode())) {
       SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(), image_pointer_size);
     }

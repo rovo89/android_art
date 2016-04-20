@@ -153,7 +153,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xusejit:_")
           .WithType<bool>()
           .WithValueMap({{"false", false}, {"true", true}})
-          .IntoKey(M::UseJIT)
+          .IntoKey(M::UseJitCompilation)
       .Define("-Xjitinitialsize:_")
           .WithType<MemoryKiB>()
           .IntoKey(M::JITCodeCacheInitialCapacity)

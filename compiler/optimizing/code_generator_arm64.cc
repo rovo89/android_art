@@ -4010,10 +4010,10 @@ HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kBootImageAddress:
       break;
     case HLoadString::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJit());
+      DCHECK(Runtime::Current()->UseJitCompilation());
       break;
     case HLoadString::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJit());
+      DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;

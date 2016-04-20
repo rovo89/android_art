@@ -308,7 +308,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
 
   // Check if we can use an inline cache.
   ArtMethod* caller = graph_->GetArtMethod();
-  if (Runtime::Current()->UseJit()) {
+  if (Runtime::Current()->UseJitCompilation()) {
     // Under JIT, we should always know the caller.
     DCHECK(caller != nullptr);
     ScopedProfilingInfoInlineUse spiis(caller, soa.Self());
@@ -623,7 +623,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
                                                     ArtMethod* resolved_method,
                                                     const InlineCache& ic) {
   // This optimization only works under JIT for now.
-  DCHECK(Runtime::Current()->UseJit());
+  DCHECK(Runtime::Current()->UseJitCompilation());
   if (graph_->GetInstructionSet() == kMips64) {
     // TODO: Support HClassTableGet for mips64.
     return false;
@@ -802,7 +802,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
 
   if (!method->GetDeclaringClass()->IsVerified()) {
     uint16_t class_def_idx = method->GetDeclaringClass()->GetDexClassDefIndex();
-    if (Runtime::Current()->UseJit() ||
+    if (Runtime::Current()->UseJitCompilation() ||
         !compiler_driver_->IsMethodVerifiedWithoutFailures(
             method->GetDexMethodIndex(), class_def_idx, *method->GetDexFile())) {
       VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)

@@ -54,7 +54,8 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
     }
 
     // Only need dequicken info for JIT so far.
-    if (Runtime::Current()->UseJit() && !verified_method->GenerateDequickenMap(method_verifier)) {
+    if (Runtime::Current()->UseJitCompilation() &&
+        !verified_method->GenerateDequickenMap(method_verifier)) {
       return nullptr;
     }
   }
@@ -72,7 +73,7 @@ const MethodReference* VerifiedMethod::GetDevirtTarget(uint32_t dex_pc) const {
 }
 
 const DexFileReference* VerifiedMethod::GetDequickenIndex(uint32_t dex_pc) const {
-  DCHECK(Runtime::Current()->UseJit());
+  DCHECK(Runtime::Current()->UseJitCompilation());
   auto it = dequicken_map_.find(dex_pc);
   return (it != dequicken_map_.end()) ? &it->second : nullptr;
 }

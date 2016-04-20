@@ -75,7 +75,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInOsrCode(JNIEnv* env,
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInInterpreter(JNIEnv* env,
                                                                 jclass,
                                                                 jstring method_name) {
-  if (!Runtime::Current()->UseJit()) {
+  if (!Runtime::Current()->UseJitCompilation()) {
     // The return value is irrelevant if we're not using JIT.
     return false;
   }
@@ -111,7 +111,7 @@ class ProfilingInfoVisitor : public StackVisitor {
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureHasProfilingInfo(JNIEnv* env,
                                                                    jclass,
                                                                    jstring method_name) {
-  if (!Runtime::Current()->UseJit()) {
+  if (!Runtime::Current()->UseJitCompilation()) {
     return;
   }
   ScopedUtfChars chars(env, method_name);
@@ -151,7 +151,7 @@ class OsrCheckVisitor : public StackVisitor {
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureHasOsrCode(JNIEnv* env,
                                                              jclass,
                                                              jstring method_name) {
-  if (!Runtime::Current()->UseJit()) {
+  if (!Runtime::Current()->UseJitCompilation()) {
     return;
   }
   ScopedUtfChars chars(env, method_name);

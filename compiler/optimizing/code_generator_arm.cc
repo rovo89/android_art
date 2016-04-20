@@ -5183,10 +5183,10 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kBootImageAddress:
       break;
     case HLoadString::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJit());
+      DCHECK(Runtime::Current()->UseJitCompilation());
       break;
     case HLoadString::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJit());
+      DCHECK(!Runtime::Current()->UseJitCompilation());
       // We disable pc-relative load when there is an irreducible loop, as the optimization
       // is incompatible with it.
       // TODO: Create as many ArmDexCacheArraysBase instructions as needed for methods

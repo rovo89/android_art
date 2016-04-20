@@ -5975,7 +5975,7 @@ HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
       DCHECK(GetCompilerOptions().GetCompilePic());
       FALLTHROUGH_INTENDED;
     case HLoadString::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJit());  // Note: boot image is also non-JIT.
+      DCHECK(!Runtime::Current()->UseJitCompilation());  // Note: boot image is also non-JIT.
       // We disable pc-relative load when there is an irreducible loop, as the optimization
       // is incompatible with it.
       // TODO: Create as many X86ComputeBaseMethodAddress instructions as needed for methods
@@ -5987,7 +5987,7 @@ HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kBootImageAddress:
       break;
     case HLoadString::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJit());
+      DCHECK(Runtime::Current()->UseJitCompilation());
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;

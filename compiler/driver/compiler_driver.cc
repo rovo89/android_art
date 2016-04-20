@@ -473,7 +473,7 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
     const DexFile& dex_file, const DexFile::ClassDef& class_def)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   auto* const runtime = Runtime::Current();
-  if (runtime->UseJit() || driver.GetCompilerOptions().VerifyAtRuntime()) {
+  if (runtime->UseJitCompilation() || driver.GetCompilerOptions().VerifyAtRuntime()) {
     // Verify at runtime shouldn't dex to dex since we didn't resolve of verify.
     return optimizer::DexToDexCompilationLevel::kDontDexToDexCompile;
   }
@@ -1268,7 +1268,7 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
 bool CompilerDriver::CanAssumeClassIsLoaded(mirror::Class* klass) {
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsAotCompiler()) {
-    DCHECK(runtime->UseJit());
+    DCHECK(runtime->UseJitCompilation());
     // Having the klass reference here implies that the klass is already loaded.
     return true;
   }
@@ -1289,7 +1289,7 @@ bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(Handle<mirror::DexCache> d
   if ((IsBootImage() &&
        IsImageClass(dex_cache->GetDexFile()->StringDataByIdx(
            dex_cache->GetDexFile()->GetTypeId(type_idx).descriptor_idx_))) ||
-      Runtime::Current()->UseJit()) {
+      Runtime::Current()->UseJitCompilation()) {
     mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
     result = (resolved_class != nullptr);
   }
@@ -1307,7 +1307,7 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   // See also Compiler::ResolveDexFile
 
   bool result = false;
-  if (IsBootImage() || Runtime::Current()->UseJit()) {
+  if (IsBootImage() || Runtime::Current()->UseJitCompilation()) {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
@@ -1319,7 +1319,7 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
       result = true;
     } else {
       // Just check whether the dex cache already has the string.
-      DCHECK(Runtime::Current()->UseJit());
+      DCHECK(Runtime::Current()->UseJitCompilation());
       result = (dex_cache->GetResolvedString(string_idx) != nullptr);
     }
   }
@@ -1427,7 +1427,7 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
     } else {
       return false;
     }
-  } else if (runtime->UseJit() && !heap->IsMovableObject(resolved_class)) {
+  } else if (runtime->UseJitCompilation() && !heap->IsMovableObject(resolved_class)) {
     *is_type_initialized = resolved_class->IsInitialized();
     // If the class may move around, then don't embed it as a direct pointer.
     *use_direct_type_ptr = true;
@@ -1604,7 +1604,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       }
     }
   }
-  if (runtime->UseJit()) {
+  if (runtime->UseJitCompilation()) {
     // If we are the JIT, then don't allow a direct call to the interpreter bridge since this will
     // never be updated even after we compile the method.
     if (cl->IsQuickToInterpreterBridge(
@@ -1636,7 +1636,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   bool must_use_direct_pointers = false;
   mirror::DexCache* dex_cache = declaring_class->GetDexCache();
   if (target_method->dex_file == dex_cache->GetDexFile() &&
-    !(runtime->UseJit() && dex_cache->GetResolvedMethod(
+    !(runtime->UseJitCompilation() && dex_cache->GetResolvedMethod(
         method->GetDexMethodIndex(), pointer_size) == nullptr)) {
     target_method->dex_method_index = method->GetDexMethodIndex();
   } else {
@@ -1673,7 +1673,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
         break;
       }
     }
-    if (method_in_image || compiling_boot || runtime->UseJit()) {
+    if (method_in_image || compiling_boot || runtime->UseJitCompilation()) {
       // We know we must be able to get to the method in the image, so use that pointer.
       // In the case where we are the JIT, we can always use direct pointers since we know where
       // the method and its code are / will be. We don't sharpen to interpreter bridge since we

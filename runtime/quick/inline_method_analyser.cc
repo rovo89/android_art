@@ -434,7 +434,7 @@ static_assert(InlineMethodAnalyser::IGetVariant(Instruction::IGET_SHORT) ==
 bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
                                              InlineMethod* result) {
   DCHECK(verifier != nullptr);
-  if (!Runtime::Current()->UseJit()) {
+  if (!Runtime::Current()->UseJitCompilation()) {
     DCHECK_EQ(verifier->CanLoadClasses(), result != nullptr);
   }
 

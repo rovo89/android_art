@@ -87,6 +87,15 @@ class Jit {
     return priority_thread_weight_;
   }
 
+  // Returns false if we only need to save profile information and not compile methods.
+  bool UseJitCompilation() const {
+    return use_jit_compilation_;
+  }
+
+  bool SaveProfilingInfo() const {
+    return save_profiling_info_;
+  }
+
   // Wait until there is no more pending compilation tasks.
   void WaitForCompilationToFinish(Thread* self);
 
@@ -179,6 +188,7 @@ class Jit {
 
   std::unique_ptr<jit::JitCodeCache> code_cache_;
 
+  bool use_jit_compilation_;
   bool save_profiling_info_;
   static bool generate_debug_info_;
   uint16_t hot_method_threshold_;
@@ -218,22 +228,22 @@ class JitOptions {
   bool GetSaveProfilingInfo() const {
     return save_profiling_info_;
   }
-  bool UseJIT() const {
-    return use_jit_;
+  bool UseJitCompilation() const {
+    return use_jit_compilation_;
   }
-  void SetUseJIT(bool b) {
-    use_jit_ = b;
+  void SetUseJitCompilation(bool b) {
+    use_jit_compilation_ = b;
   }
   void SetSaveProfilingInfo(bool b) {
     save_profiling_info_ = b;
   }
   void SetJitAtFirstUse() {
-    use_jit_ = true;
+    use_jit_compilation_ = true;
     compile_threshold_ = 0;
   }
 
  private:
-  bool use_jit_;
+  bool use_jit_compilation_;
   size_t code_cache_initial_capacity_;
   size_t code_cache_max_capacity_;
   size_t compile_threshold_;
@@ -244,7 +254,7 @@ class JitOptions {
   bool save_profiling_info_;
 
   JitOptions()
-      : use_jit_(false),
+      : use_jit_compilation_(false),
         code_cache_initial_capacity_(0),
         code_cache_max_capacity_(0),
         compile_threshold_(0),
