@@ -162,7 +162,7 @@ void ProfileSaver::FetchAndCacheResolvedClasses() {
       }
     }
     ProfileCompilationInfo* info = GetCachedProfiledInfo(filename);
-    info->AddMethodsAndClasses(std::vector<ArtMethod*>(), resolved_classes_for_location);
+    info->AddMethodsAndClasses(std::vector<MethodReference>(), resolved_classes_for_location);
     total_number_of_profile_entries_cached += resolved_classes_for_location.size();
   }
   max_number_of_profile_entries_cached_ = std::max(
@@ -187,10 +187,10 @@ bool ProfileSaver::ProcessProfilingInfo() {
     }
     const std::string& filename = it.first;
     const std::set<std::string>& locations = it.second;
-    std::vector<ArtMethod*> methods;
+    std::vector<MethodReference> methods;
     {
       ScopedObjectAccess soa(Thread::Current());
-      jit_code_cache_->GetCompiledArtMethods(locations, methods);
+      jit_code_cache_->GetProfiledMethods(locations, methods);
       total_number_of_code_cache_queries_++;
     }
 

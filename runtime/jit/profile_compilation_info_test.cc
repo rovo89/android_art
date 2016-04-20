@@ -21,6 +21,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
+#include "method_reference.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "handle_scope-inl.h"
@@ -72,7 +73,12 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       const std::vector<ArtMethod*>& methods,
       const std::set<DexCacheResolvedClasses>& resolved_classes) {
     ProfileCompilationInfo info;
-    if (!info.AddMethodsAndClasses(methods, resolved_classes)) {
+    std::vector<MethodReference> method_refs;
+    ScopedObjectAccess soa(Thread::Current());
+    for (ArtMethod* method : methods) {
+      method_refs.emplace_back(method->GetDexFile(), method->GetDexMethodIndex());
+    }
+    if (!info.AddMethodsAndClasses(method_refs, resolved_classes)) {
       return false;
     }
     return info.MergeAndSave(filename, nullptr, false);

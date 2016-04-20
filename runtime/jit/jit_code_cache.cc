@@ -890,13 +890,15 @@ void* JitCodeCache::MoreCore(const void* mspace, intptr_t increment) NO_THREAD_S
   }
 }
 
-void JitCodeCache::GetCompiledArtMethods(const std::set<std::string>& dex_base_locations,
-                                         std::vector<ArtMethod*>& methods) {
+void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_locations,
+                                      std::vector<MethodReference>& methods) {
   ScopedTrace trace(__FUNCTION__);
   MutexLock mu(Thread::Current(), lock_);
-  for (auto it : method_code_map_) {
-    if (ContainsElement(dex_base_locations, it.second->GetDexFile()->GetBaseLocation())) {
-      methods.push_back(it.second);
+  for (const ProfilingInfo* info : profiling_infos_) {
+    ArtMethod* method = info->GetMethod();
+    const DexFile* dex_file = method->GetDexFile();
+    if (ContainsElement(dex_base_locations, dex_file->GetBaseLocation())) {
+      methods.emplace_back(dex_file,  method->GetDexMethodIndex());
     }
   }
 }
