@@ -103,13 +103,10 @@ bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa) {
       return false;
   }
 
-  HInstruction* use = mul->HasNonEnvironmentUses()
-      ? mul->GetUses().GetFirst()->GetUser()
-      : nullptr;
-
   ArenaAllocator* arena = mul->GetBlock()->GetGraph()->GetArena();
 
   if (mul->HasOnlyOneNonEnvironmentUse()) {
+    HInstruction* use = mul->GetUses().front().GetUser();
     if (use->IsAdd() || use->IsSub()) {
       // Replace code looking like
       //    MUL tmp, x, y

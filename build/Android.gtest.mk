@@ -275,6 +275,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/suspend_check_test.cc \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
+  compiler/utils/intrusive_forward_list_test.cc \
   compiler/utils/swap_space_test.cc \
   compiler/utils/test_dex_file_builder_test.cc \
 

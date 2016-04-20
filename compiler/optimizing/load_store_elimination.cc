@@ -43,31 +43,29 @@ class ReferenceInfo : public ArenaObject<kArenaAllocMisc> {
 
     // Visit all uses to determine if this reference can spread into the heap,
     // a method call, etc.
-    for (HUseIterator<HInstruction*> use_it(reference_->GetUses());
-         !use_it.Done();
-         use_it.Advance()) {
-      HInstruction* use = use_it.Current()->GetUser();
-      DCHECK(!use->IsNullCheck()) << "NullCheck should have been eliminated";
-      if (use->IsBoundType()) {
+    for (const HUseListNode<HInstruction*>& use : reference_->GetUses()) {
+      HInstruction* user = use.GetUser();
+      DCHECK(!user->IsNullCheck()) << "NullCheck should have been eliminated";
+      if (user->IsBoundType()) {
         // BoundType shouldn't normally be necessary for a NewInstance.
         // Just be conservative for the uncommon cases.
         is_singleton_ = false;
         is_singleton_and_not_returned_ = false;
         return;
       }
-      if (use->IsPhi() || use->IsSelect() || use->IsInvoke() ||
-          (use->IsInstanceFieldSet() && (reference_ == use->InputAt(1))) ||
-          (use->IsUnresolvedInstanceFieldSet() && (reference_ == use->InputAt(1))) ||
-          (use->IsStaticFieldSet() && (reference_ == use->InputAt(1))) ||
-          (use->IsUnresolvedStaticFieldSet() && (reference_ == use->InputAt(0))) ||
-          (use->IsArraySet() && (reference_ == use->InputAt(2)))) {
+      if (user->IsPhi() || user->IsSelect() || user->IsInvoke() ||
+          (user->IsInstanceFieldSet() && (reference_ == user->InputAt(1))) ||
+          (user->IsUnresolvedInstanceFieldSet() && (reference_ == user->InputAt(1))) ||
+          (user->IsStaticFieldSet() && (reference_ == user->InputAt(1))) ||
+          (user->IsUnresolvedStaticFieldSet() && (reference_ == user->InputAt(0))) ||
+          (user->IsArraySet() && (reference_ == user->InputAt(2)))) {
         // reference_ is merged to HPhi/HSelect, passed to a callee, or stored to heap.
         // reference_ isn't the only name that can refer to its value anymore.
         is_singleton_ = false;
         is_singleton_and_not_returned_ = false;
         return;
       }
-      if (use->IsReturn()) {
+      if (user->IsReturn()) {
         is_singleton_and_not_returned_ = false;
       }
     }

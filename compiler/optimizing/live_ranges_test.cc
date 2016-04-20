@@ -441,7 +441,7 @@ TEST_F(LiveRangesTest, CFG4) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   HPhi* phi = liveness.GetInstructionFromSsaIndex(4)->AsPhi();
-  ASSERT_TRUE(phi->GetUses().HasOnlyOneUse());
+  ASSERT_TRUE(phi->GetUses().HasExactlyOneElement());
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(26u, range->GetStart());

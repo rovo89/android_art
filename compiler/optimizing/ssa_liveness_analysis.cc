@@ -283,11 +283,9 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       if (current->IsEmittedAtUseSite()) {
         if (kIsDebugBuild) {
           DCHECK(!current->GetLocations()->Out().IsValid());
-          for (HUseIterator<HInstruction*> use_it(current->GetUses());
-               !use_it.Done();
-               use_it.Advance()) {
-            HInstruction* user = use_it.Current()->GetUser();
-            size_t index = use_it.Current()->GetIndex();
+          for (const HUseListNode<HInstruction*>& use : current->GetUses()) {
+            HInstruction* user = use.GetUser();
+            size_t index = use.GetIndex();
             DCHECK(!user->GetLocations()->InAt(index).IsValid());
           }
           DCHECK(!current->HasEnvironmentUses());
