@@ -106,7 +106,6 @@ class PatchOat {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupMethod(ArtMethod* object, ArtMethod* copy)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  bool InHeap(mirror::Object*);
 
   // Patches oat in place, modifying the oat_file given to the constructor.
   bool PatchElf();

@@ -650,12 +650,6 @@ bool PatchOat::PatchImage(bool primary_image) {
   return true;
 }
 
-bool PatchOat::InHeap(mirror::Object* o) {
-  uintptr_t begin = reinterpret_cast<uintptr_t>(heap_->Begin());
-  uintptr_t end = reinterpret_cast<uintptr_t>(heap_->End());
-  uintptr_t obj = reinterpret_cast<uintptr_t>(o);
-  return o == nullptr || (begin <= obj && obj < end);
-}
 
 void PatchOat::PatchVisitor::operator() (mirror::Object* obj, MemberOffset off,
                                          bool is_static_unused ATTRIBUTE_UNUSED) const {
@@ -668,7 +662,8 @@ void PatchOat::PatchVisitor::operator() (mirror::Class* cls ATTRIBUTE_UNUSED,
                                          mirror::Reference* ref) const {
   MemberOffset off = mirror::Reference::ReferentOffset();
   mirror::Object* referent = ref->GetReferent();
-  DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
+  DCHECK(referent == nullptr ||
+         Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(referent)) << referent;
   mirror::Object* moved_object = patcher_->RelocatedAddressOfPointer(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
