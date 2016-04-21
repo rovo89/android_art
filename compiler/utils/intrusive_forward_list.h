@@ -221,6 +221,13 @@ class IntrusiveForwardList {
   }
   // Splice the element after `i`.
   void splice_after(const_iterator position, IntrusiveForwardList& src, const_iterator i) {
+    // The standard specifies that this version does nothing if `position == i`
+    // or `position == ++i`. We must handle the latter here because the overload
+    // `splice_after(position, src, first, last)` does not allow `position` inside
+    // the range `(first, last)`.
+    if (++const_iterator(i) == position) {
+      return;
+    }
     const_iterator last = i;
     std::advance(last, 2);
     splice_after(position, src, i, last);
