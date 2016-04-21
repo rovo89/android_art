@@ -71,6 +71,8 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
 
   // Returns true if `this` has enough buckets so that if `other` is copied into
   // it, the load factor will not cross the upper threshold.
+  // If `exact_match` is set, true is returned only if `this` has the ideal
+  // number of buckets. Larger number of buckets is allowed otherwise.
   bool CanHoldCopyOf(const ValueSet& other, bool exact_match) {
     if (exact_match) {
       return other.IdealBucketCount() == num_buckets_;
@@ -156,6 +158,9 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
   size_t GetNumberOfEntries() const { return num_entries_; }
 
  private:
+  // Copies all entries from `other` to `this`.
+  // If `is_dirty` is set to true, existing data will be wiped first. It is
+  // assumed that `buckets_` and `buckets_owned_` are zero-allocated otherwise.
   void PopulateFromInternal(const ValueSet& other, bool is_dirty) {
     DCHECK_NE(this, &other);
     DCHECK_GE(num_buckets_, other.IdealBucketCount());
@@ -165,6 +170,8 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
       // all buckets_owned_ bits false.
       if (is_dirty) {
         buckets_owned_.ClearAllBits();
+      } else {
+        DCHECK_EQ(buckets_owned_.NumSetBits(), 0u);
       }
       memcpy(buckets_, other.buckets_, num_buckets_ * sizeof(Node*));
     } else {
@@ -172,6 +179,12 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
       // buckets_owned_ bits to true.
       if (is_dirty) {
         memset(buckets_, 0, num_buckets_ * sizeof(Node*));
+      } else {
+        if (kIsDebugBuild) {
+          for (size_t i = 0; i < num_buckets_; ++i) {
+            DCHECK(buckets_[i] == nullptr) << i;
+          }
+        }
       }
       for (size_t i = 0; i < other.num_buckets_; ++i) {
         for (Node* node = other.buckets_[i]; node != nullptr; node = node->GetNext()) {
@@ -405,7 +418,6 @@ void GlobalValueNumberer::Run() {
 
 void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
   ValueSet* set = nullptr;
-  HBasicBlock* skip_predecessor = nullptr;
 
   const ArenaVector<HBasicBlock*>& predecessors = block->GetPredecessors();
   if (predecessors.size() == 0 || predecessors[0]->IsEntryBlock()) {
@@ -423,13 +435,13 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
       DCHECK_EQ(dominator->GetSingleSuccessor(), block);
       AbandonSetFor(dominator);
       set = dominator_set;
-      // Since we took over the dominator's ValueSet, we must not reference it
-      // again. If `dominator` is also one of the predecessors, we skip it.
-      skip_predecessor = dominator;
     } else {
+      // Try to find a basic block which will never be referenced again and whose
+      // ValueSet can therefore be recycled. We will need to copy `dominator_set`
+      // into the recycled set, so we pass `dominator_set` as a reference for size.
       HBasicBlock* recyclable = FindVisitedBlockWithRecyclableSet(block, *dominator_set);
       if (recyclable == nullptr) {
-        // No block with a recyclable ValueSet found. Allocate a new one and
+        // No block with a suitable ValueSet found. Allocate a new one and
         // copy `dominator_set` into it.
         set = new (allocator_) ValueSet(allocator_, *dominator_set);
       } else {
@@ -452,11 +464,9 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
         }
       } else if (predecessors.size() > 1) {
         for (HBasicBlock* predecessor : predecessors) {
-          if (predecessor != skip_predecessor) {
-            set->IntersectWith(FindSetFor(predecessor));
-            if (set->IsEmpty()) {
-              break;
-            }
+          set->IntersectWith(FindSetFor(predecessor));
+          if (set->IsEmpty()) {
+            break;
           }
         }
       }
