@@ -1262,10 +1262,10 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               imm32 = (S << 20) | (J2 << 19) | (J1 << 18) | (imm6 << 12) | (imm11 << 1);
               imm32 = (imm32 << 11) >> 11;  // sign extend 21 bit immediate.
             } else {
-              uint32_t I1 = ~(J1 ^ S);
-              uint32_t I2 = ~(J2 ^ S);
+              uint32_t I1 = (J1 ^ S) ^ 1;
+              uint32_t I2 = (J2 ^ S) ^ 1;
               imm32 = (S << 24) | (I1 << 23) | (I2 << 22) | (imm10 << 12) | (imm11 << 1);
-              imm32 = (imm32 << 8) >> 8;  // sign extend 24 bit immediate.
+              imm32 = (imm32 << 7) >> 7;  // sign extend 25 bit immediate.
             }
             opcode << ".w";
             DumpBranchTarget(args, instr_ptr + 4, imm32);
