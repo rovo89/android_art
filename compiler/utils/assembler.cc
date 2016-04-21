@@ -47,7 +47,7 @@ namespace art {
 AssemblerBuffer::AssemblerBuffer(ArenaAllocator* arena)
     : arena_(arena) {
   static const size_t kInitialBufferCapacity = 4 * KB;
-  contents_ = arena_->AllocArray<uint8_t>(kInitialBufferCapacity);
+  contents_ = arena_->AllocArray<uint8_t>(kInitialBufferCapacity, kArenaAllocAssembler);
   cursor_ = contents_;
   limit_ = ComputeLimit(contents_, kInitialBufferCapacity);
   fixup_ = nullptr;
@@ -94,6 +94,7 @@ void AssemblerBuffer::FinalizeInstructions(const MemoryRegion& instructions) {
 void AssemblerBuffer::ExtendCapacity(size_t min_capacity) {
   size_t old_size = Size();
   size_t old_capacity = Capacity();
+  DCHECK_GT(min_capacity, old_capacity);
   size_t new_capacity = std::min(old_capacity * 2, old_capacity + 1 * MB);
   new_capacity = std::max(new_capacity, min_capacity);
 
