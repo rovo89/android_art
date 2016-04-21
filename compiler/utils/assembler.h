@@ -178,8 +178,8 @@ class AssemblerBuffer {
   class EnsureCapacity {
    public:
     explicit EnsureCapacity(AssemblerBuffer* buffer) {
-      if (buffer->cursor() >= buffer->limit()) {
-        buffer->ExtendCapacity();
+      if (buffer->cursor() > buffer->limit()) {
+        buffer->ExtendCapacity(buffer->Size() + kMinimumGap);
       }
       // In debug mode, we save the assembler buffer along with the gap
       // size before we start emitting to the buffer. This allows us to
@@ -219,7 +219,9 @@ class AssemblerBuffer {
   class EnsureCapacity {
    public:
     explicit EnsureCapacity(AssemblerBuffer* buffer) {
-      if (buffer->cursor() >= buffer->limit()) buffer->ExtendCapacity();
+      if (buffer->cursor() > buffer->limit()) {
+        buffer->ExtendCapacity(buffer->Size() + kMinimumGap);
+      }
     }
   };
 
@@ -233,7 +235,14 @@ class AssemblerBuffer {
   // Returns the position in the instruction stream.
   int GetPosition() { return  cursor_ - contents_; }
 
-  void ExtendCapacity(size_t min_capacity = 0u);
+  size_t Capacity() const {
+    CHECK_GE(limit_, contents_);
+    return (limit_ - contents_) + kMinimumGap;
+  }
+
+  // Unconditionally increase the capacity.
+  // The provided `min_capacity` must be higher than current `Capacity()`.
+  void ExtendCapacity(size_t min_capacity);
 
  private:
   // The limit is set to kMinimumGap bytes before the end of the data area.
@@ -255,10 +264,6 @@ class AssemblerBuffer {
 
   uint8_t* cursor() const { return cursor_; }
   uint8_t* limit() const { return limit_; }
-  size_t Capacity() const {
-    CHECK_GE(limit_, contents_);
-    return (limit_ - contents_) + kMinimumGap;
-  }
 
   // Process the fixup chain starting at the given fixup. The offset is
   // non-zero for fixups in the body if the preamble is non-empty.
