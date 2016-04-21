@@ -32,6 +32,7 @@ namespace art {
 class ReferenceTypePropagation : public HOptimization {
  public:
   ReferenceTypePropagation(HGraph* graph,
+                           Handle<mirror::DexCache> hint_dex_cache,
                            StackHandleScopeCollection* handles,
                            bool is_first_run,
                            const char* name = kReferenceTypePropagationPassName);
@@ -90,6 +91,10 @@ class ReferenceTypePropagation : public HOptimization {
 
   void ValidateTypes();
 
+  // Note: hint_dex_cache_ is usually, but not necessarily, the dex cache associated with
+  // graph_->GetDexFile(). Since we may look up also in other dex files, it's used only
+  // as a hint, to reduce the number of calls to the costly ClassLinker::FindDexCache().
+  Handle<mirror::DexCache> hint_dex_cache_;
   HandleCache handle_cache_;
 
   ArenaVector<HInstruction*> worklist_;
