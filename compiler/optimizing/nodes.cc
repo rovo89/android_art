@@ -1022,8 +1022,11 @@ void HInstruction::ReplaceWith(HInstruction* other) {
 
 void HInstruction::ReplaceInput(HInstruction* replacement, size_t index) {
   HUserRecord<HInstruction*> input_use = InputRecordAt(index);
+  if (input_use.GetInstruction() == replacement) {
+    // Nothing to do.
+    return;
+  }
   HUseList<HInstruction*>::iterator before_use_node = input_use.GetBeforeUseNode();
-  DCHECK(input_use.GetInstruction() != replacement);
   // Note: fixup_end remains valid across splice_after().
   auto fixup_end =
       replacement->uses_.empty() ? replacement->uses_.begin() : ++replacement->uses_.begin();
