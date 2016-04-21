@@ -411,7 +411,10 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
 
   // Run type propagation to get the guard typed, and eventually propagate the
   // type of the receiver.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
+  ReferenceTypePropagation rtp_fixup(graph_,
+                                     outer_compilation_unit_.GetDexCache(),
+                                     handles_,
+                                     /* is_first_run */ false);
   rtp_fixup.Run();
 
   MaybeRecordStat(kInlinedMonomorphicCall);
@@ -532,7 +535,10 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
   MaybeRecordStat(kInlinedPolymorphicCall);
 
   // Run type propagation to get the guards typed.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
+  ReferenceTypePropagation rtp_fixup(graph_,
+                                     outer_compilation_unit_.GetDexCache(),
+                                     handles_,
+                                     /* is_first_run */ false);
   rtp_fixup.Run();
   return true;
 }
@@ -709,7 +715,10 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
 
   // Run type propagation to get the guard typed.
-  ReferenceTypePropagation rtp_fixup(graph_, handles_, /* is_first_run */ false);
+  ReferenceTypePropagation rtp_fixup(graph_,
+                                     outer_compilation_unit_.GetDexCache(),
+                                     handles_,
+                                     /* is_first_run */ false);
   rtp_fixup.Run();
 
   MaybeRecordStat(kInlinedPolymorphicCall);
@@ -971,7 +980,8 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);
   if (iget->GetType() == Primitive::kPrimNot) {
-    ReferenceTypePropagation rtp(graph_, handles_, /* is_first_run */ false);
+    // Use the same dex_cache that we used for field lookup as the hint_dex_cache.
+    ReferenceTypePropagation rtp(graph_, dex_cache, handles_, /* is_first_run */ false);
     rtp.Visit(iget);
   }
   return iget;
@@ -1320,13 +1330,19 @@ void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
         if (invoke_rti.IsStrictSupertypeOf(return_rti)
             || (return_rti.IsExact() && !invoke_rti.IsExact())
             || !return_replacement->CanBeNull()) {
-          ReferenceTypePropagation(graph_, handles_, /* is_first_run */ false).Run();
+          ReferenceTypePropagation(graph_,
+                                   outer_compilation_unit_.GetDexCache(),
+                                   handles_,
+                                   /* is_first_run */ false).Run();
         }
       }
     } else if (return_replacement->IsInstanceOf()) {
       if (do_rtp) {
         // Inlining InstanceOf into an If may put a tighter bound on reference types.
-        ReferenceTypePropagation(graph_, handles_, /* is_first_run */ false).Run();
+        ReferenceTypePropagation(graph_,
+                                 outer_compilation_unit_.GetDexCache(),
+                                 handles_,
+                                 /* is_first_run */ false).Run();
       }
     }
   }

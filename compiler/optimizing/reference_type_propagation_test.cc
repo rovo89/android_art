@@ -37,7 +37,11 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
 
   void SetupPropagation(StackHandleScopeCollection* handles) {
     graph_->InitializeInexactObjectRTI(handles);
-    propagation_ = new (&allocator_) ReferenceTypePropagation(graph_, handles, true, "test_prop");
+    propagation_ = new (&allocator_) ReferenceTypePropagation(graph_,
+                                                              Handle<mirror::DexCache>(),
+                                                              handles,
+                                                              true,
+                                                              "test_prop");
   }
 
   // Relay method to merge type in reference type propagation.

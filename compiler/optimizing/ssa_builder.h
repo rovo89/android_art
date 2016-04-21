@@ -47,8 +47,11 @@ namespace art {
  */
 class SsaBuilder : public ValueObject {
  public:
-  SsaBuilder(HGraph* graph, StackHandleScopeCollection* handles)
+  SsaBuilder(HGraph* graph,
+             Handle<mirror::DexCache> dex_cache,
+             StackHandleScopeCollection* handles)
       : graph_(graph),
+        dex_cache_(dex_cache),
         handles_(handles),
         agets_fixed_(false),
         ambiguous_agets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
@@ -112,6 +115,7 @@ class SsaBuilder : public ValueObject {
   void RemoveRedundantUninitializedStrings();
 
   HGraph* graph_;
+  Handle<mirror::DexCache> dex_cache_;
   StackHandleScopeCollection* const handles_;
 
   // True if types of ambiguous ArrayGets have been resolved.
