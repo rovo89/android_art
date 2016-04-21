@@ -4451,7 +4451,20 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
         // We failed to verify, expect either the klass to be erroneous or verification failed at
         // compile time.
         if (klass->IsErroneous()) {
-          CHECK(self->IsExceptionPending());
+          // The class is erroneous. This may be a verifier error, or another thread attempted
+          // verification and/or initialization and failed. We can distinguish those cases by
+          // whether an exception is already pending.
+          if (self->IsExceptionPending()) {
+            // Check that it's a VerifyError.
+            DCHECK_EQ("java.lang.Class<java.lang.VerifyError>",
+                      PrettyClass(self->GetException()->GetClass()));
+          } else {
+            // Check that another thread attempted initialization.
+            DCHECK_NE(0, klass->GetClinitThreadId());
+            DCHECK_NE(self->GetTid(), klass->GetClinitThreadId());
+            // Need to rethrow the previous failure now.
+            ThrowEarlierClassFailure(klass.Get(), true);
+          }
           VlogClassInitializationFailure(klass);
         } else {
           CHECK(Runtime::Current()->IsAotCompiler());
@@ -4460,6 +4473,14 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
         return false;
       } else {
         self->AssertNoPendingException();
+      }
+
+      // A separate thread could have moved us all the way to initialized. A "simple" example
+      // involves a subclass of the current class being initialized at the same time (which
+      // will implicitly initialize the superclass, if scheduled that way). b/28254258
+      DCHECK_NE(mirror::Class::kStatusError, klass->GetStatus());
+      if (klass->IsInitialized()) {
+        return true;
       }
     }
 
