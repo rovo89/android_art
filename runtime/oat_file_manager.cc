@@ -463,7 +463,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
       if (Runtime::Current()->IsDexFileFallbackEnabled()) {
         if (!DexFile::Open(dex_location, dex_location, /*out*/ &error_msg, &dex_files)) {
           LOG(WARNING) << error_msg;
-          error_msgs->push_back("Failed to open dex files from " + std::string(dex_location));
+          error_msgs->push_back("Failed to open dex files from " + std::string(dex_location)
+                                + " because: " + error_msg);
         }
       } else {
         error_msgs->push_back("Fallback mode disabled, skipping dex files.");
