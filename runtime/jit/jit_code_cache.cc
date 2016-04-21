@@ -354,8 +354,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     if (osr) {
       number_of_osr_compilations_++;
       osr_code_map_.Put(method, code_ptr);
-    } else if (!Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
-      // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
+    } else {
       Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
           method, method_header->GetEntryPoint());
     }
@@ -634,10 +633,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       bool next_collection_will_be_full = ShouldDoFullCollection();
 
       // Start polling the liveness of compiled code to prepare for the next full collection.
-      // We avoid doing this if exit stubs are installed to not mess with the instrumentation.
-      // TODO(ngeoffray): Clean up instrumentation and code cache interactions.
-      if (!Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
-          next_collection_will_be_full) {
+      if (next_collection_will_be_full) {
         // Save the entry point of methods we have compiled, and update the entry
         // point of those methods to the interpreter. If the method is invoked, the
         // interpreter will update its entry point to the compiled code and call it.
@@ -645,7 +641,8 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
           const void* entry_point = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
           if (ContainsPc(entry_point)) {
             info->SetSavedEntryPoint(entry_point);
-            info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+            Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+                info->GetMethod(), GetQuickToInterpreterBridge());
           }
         }
 
