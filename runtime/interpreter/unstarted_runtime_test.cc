@@ -20,6 +20,7 @@
 #include <locale>
 
 #include "base/casts.h"
+#include "base/memory_tool.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_instruction.h"
@@ -841,6 +842,11 @@ TEST_F(UnstartedRuntimeTest, Cos) {
 }
 
 TEST_F(UnstartedRuntimeTest, Pow) {
+  // Valgrind seems to get this wrong, actually. Disable for valgrind.
+  if (RUNNING_ON_MEMORY_TOOL != 0 && kMemoryToolIsValgrind) {
+    return;
+  }
+
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
 
