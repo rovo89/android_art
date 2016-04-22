@@ -552,7 +552,11 @@ class BCEVisitor : public HGraphVisitor {
     DCHECK(!IsAddedBlock(block));
     first_index_bounds_check_map_.clear();
     HGraphVisitor::VisitBasicBlock(block);
-    AddComparesWithDeoptimization(block);
+    // We should never deoptimize from an osr method, otherwise we might wrongly optimize
+    // code dominated by the deoptimization.
+    if (!GetGraph()->IsCompilingOsr()) {
+      AddComparesWithDeoptimization(block);
+    }
   }
 
   void Finish() {
@@ -1356,6 +1360,11 @@ class BCEVisitor : public HGraphVisitor {
       // The loop preheader of an irreducible loop does not dominate all the blocks in
       // the loop. We would need to find the common dominator of all blocks in the loop.
       if (loop->IsIrreducible()) {
+        return false;
+      }
+      // We should never deoptimize from an osr method, otherwise we might wrongly optimize
+      // code dominated by the deoptimization.
+      if (GetGraph()->IsCompilingOsr()) {
         return false;
       }
       // A try boundary preheader is hard to handle.
