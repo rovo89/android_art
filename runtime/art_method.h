@@ -68,6 +68,29 @@ class ImtConflictTable {
     entries_[index + 1].implementation_method = nullptr;
   }
 
+  // num_entries excludes the header.
+  explicit ImtConflictTable(size_t num_entries) {
+    entries_[num_entries].interface_method = nullptr;
+    entries_[num_entries].implementation_method = nullptr;
+  }
+
+  // Set an entry at an index.
+  void SetInterfaceMethod(size_t index, ArtMethod* method) {
+    entries_[index].interface_method = method;
+  }
+
+  void SetImplementationMethod(size_t index, ArtMethod* method) {
+    entries_[index].implementation_method = method;
+  }
+
+  ArtMethod* GetInterfaceMethod(size_t index) const {
+    return entries_[index].interface_method;
+  }
+
+  ArtMethod* GetImplementationMethod(size_t index) const {
+    return entries_[index].implementation_method;
+  }
+
   // Lookup the implementation ArtMethod associated to `interface_method`. Return null
   // if not found.
   ArtMethod* Lookup(ArtMethod* interface_method) const {
@@ -82,22 +105,30 @@ class ImtConflictTable {
     return nullptr;
   }
 
-  // Compute the size in bytes taken by this table.
-  size_t ComputeSize() const {
+  // Compute the number of entries in this table.
+  size_t NumEntries() const {
     uint32_t table_index = 0;
-    size_t total_size = 0;
-    while ((entries_[table_index].interface_method) != nullptr) {
-      total_size += sizeof(Entry);
+    while (entries_[table_index].interface_method != nullptr) {
       table_index++;
     }
+    return table_index;
+  }
+
+  // Compute the size in bytes taken by this table.
+  size_t ComputeSize() const {
     // Add the end marker.
-    return total_size + sizeof(Entry);
+    return ComputeSize(NumEntries());
   }
 
   // Compute the size in bytes needed for copying the given `table` and add
   // one more entry.
   static size_t ComputeSizeWithOneMoreEntry(ImtConflictTable* table) {
     return table->ComputeSize() + sizeof(Entry);
+  }
+
+  // Compute size with a fixed number of entries.
+  static size_t ComputeSize(size_t num_entries) {
+    return (num_entries + 1) * sizeof(Entry);  // Add one for null terminator.
   }
 
   struct Entry {

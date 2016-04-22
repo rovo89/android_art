@@ -610,6 +610,13 @@ class ClassLinker {
       const std::set<DexCacheResolvedClasses>& classes)
       REQUIRES(!dex_lock_);
 
+  ArtMethod* AddMethodToConflictTable(mirror::Class* klass,
+                                      ArtMethod* conflict_method,
+                                      ArtMethod* interface_method,
+                                      ArtMethod* method,
+                                      bool force_new_conflict_method)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
@@ -1056,6 +1063,28 @@ class ClassLinker {
   void CheckSystemClass(Thread* self, Handle<mirror::Class> c1, const char* descriptor)
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Sets imt_ref appropriately for LinkInterfaceMethods.
+  // If there is no method in the imt location of imt_ref it will store the given method there.
+  // Otherwise it will set the conflict method which will figure out which method to use during
+  // runtime.
+  void SetIMTRef(ArtMethod* unimplemented_method,
+                 ArtMethod* imt_conflict_method,
+                 ArtMethod* current_method,
+                 /*out*/ArtMethod** imt_ref) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void ConstructIMTFromIfTable(mirror::IfTable* if_table,
+                               ArtMethod* unimplemented_method,
+                               ArtMethod* imt_conflict_method,
+                               mirror::Class* klass,
+                               bool create_conflict_tables,
+                               bool ignore_copied_methods,
+                               ArtMethod** out_imt) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void FillImtFromSuperClass(Handle<mirror::Class> klass,
+                             ArtMethod* unimplemented_method,
+                             ArtMethod* imt_conflict_method,
+                             ArtMethod** out_imt) SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
   std::vector<std::unique_ptr<const DexFile>> boot_dex_files_;
