@@ -215,6 +215,17 @@ void HInstructionBuilder::InitializeInstruction(HInstruction* instruction) {
   }
 }
 
+HInstruction* HInstructionBuilder::LoadNullCheckedLocal(uint32_t register_index, uint32_t dex_pc) {
+  HInstruction* ref = LoadLocal(register_index, Primitive::kPrimNot);
+  if (!ref->CanBeNull()) {
+    return ref;
+  }
+
+  HNullCheck* null_check = new (arena_) HNullCheck(ref, dex_pc);
+  AppendInstruction(null_check);
+  return null_check;
+}
+
 void HInstructionBuilder::SetLoopHeaderPhiInputs() {
   for (size_t i = loop_headers_.size(); i > 0; --i) {
     HBasicBlock* block = loop_headers_[i - 1];
@@ -1084,10 +1095,9 @@ bool HInstructionBuilder::HandleInvoke(HInvoke* invoke,
   size_t start_index = 0;
   size_t argument_index = 0;
   if (invoke->GetOriginalInvokeType() != InvokeType::kStatic) {  // Instance call.
-    HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot);
-    HNullCheck* null_check = new (arena_) HNullCheck(arg, invoke->GetDexPc());
-    AppendInstruction(null_check);
-    invoke->SetArgumentAt(0, null_check);
+    HInstruction* arg = LoadNullCheckedLocal(is_range ? register_index : args[0],
+                                             invoke->GetDexPc());
+    invoke->SetArgumentAt(0, arg);
     start_index = 1;
     argument_index = 1;
   }
@@ -1193,9 +1203,7 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
       compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa);
 
 
-  HInstruction* object = LoadLocal(obj_reg, Primitive::kPrimNot);
-  HInstruction* null_check = new (arena_) HNullCheck(object, dex_pc);
-  AppendInstruction(null_check);
+  HInstruction* object = LoadNullCheckedLocal(obj_reg, dex_pc);
 
   Primitive::Type field_type = (resolved_field == nullptr)
       ? GetFieldAccessType(*dex_file_, field_index)
@@ -1205,14 +1213,14 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
     HInstruction* field_set = nullptr;
     if (resolved_field == nullptr) {
       MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
-      field_set = new (arena_) HUnresolvedInstanceFieldSet(null_check,
+      field_set = new (arena_) HUnresolvedInstanceFieldSet(object,
                                                            value,
                                                            field_type,
                                                            field_index,
                                                            dex_pc);
     } else {
       uint16_t class_def_index = resolved_field->GetDeclaringClass()->GetDexClassDefIndex();
-      field_set = new (arena_) HInstanceFieldSet(null_check,
+      field_set = new (arena_) HInstanceFieldSet(object,
                                                  value,
                                                  field_type,
                                                  resolved_field->GetOffset(),
@@ -1228,13 +1236,13 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
     HInstruction* field_get = nullptr;
     if (resolved_field == nullptr) {
       MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
-      field_get = new (arena_) HUnresolvedInstanceFieldGet(null_check,
+      field_get = new (arena_) HUnresolvedInstanceFieldGet(object,
                                                            field_type,
                                                            field_index,
                                                            dex_pc);
     } else {
       uint16_t class_def_index = resolved_field->GetDeclaringClass()->GetDexClassDefIndex();
-      field_get = new (arena_) HInstanceFieldGet(null_check,
+      field_get = new (arena_) HInstanceFieldGet(object,
                                                  field_type,
                                                  resolved_field->GetOffset(),
                                                  resolved_field->IsVolatile(),
@@ -1449,10 +1457,7 @@ void HInstructionBuilder::BuildArrayAccess(const Instruction& instruction,
   uint8_t array_reg = instruction.VRegB_23x();
   uint8_t index_reg = instruction.VRegC_23x();
 
-  HInstruction* object = LoadLocal(array_reg, Primitive::kPrimNot);
-  object = new (arena_) HNullCheck(object, dex_pc);
-  AppendInstruction(object);
-
+  HInstruction* object = LoadNullCheckedLocal(array_reg, dex_pc);
   HInstruction* length = new (arena_) HArrayLength(object, dex_pc);
   AppendInstruction(length);
   HInstruction* index = LoadLocal(index_reg, Primitive::kPrimInt);
@@ -1527,11 +1532,8 @@ void HInstructionBuilder::BuildFillArrayData(HInstruction* object,
 }
 
 void HInstructionBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t dex_pc) {
-  HInstruction* array = LoadLocal(instruction.VRegA_31t(), Primitive::kPrimNot);
-  HNullCheck* null_check = new (arena_) HNullCheck(array, dex_pc);
-  AppendInstruction(null_check);
-
-  HInstruction* length = new (arena_) HArrayLength(null_check, dex_pc);
+  HInstruction* array = LoadNullCheckedLocal(instruction.VRegA_31t(), dex_pc);
+  HInstruction* length = new (arena_) HArrayLength(array, dex_pc);
   AppendInstruction(length);
 
   int32_t payload_offset = instruction.VRegB_31t() + dex_pc;
@@ -1547,28 +1549,28 @@ void HInstructionBuilder::BuildFillArrayData(const Instruction& instruction, uin
 
   switch (payload->element_width) {
     case 1:
-      BuildFillArrayData(null_check,
+      BuildFillArrayData(array,
                          reinterpret_cast<const int8_t*>(data),
                          element_count,
                          Primitive::kPrimByte,
                          dex_pc);
       break;
     case 2:
-      BuildFillArrayData(null_check,
+      BuildFillArrayData(array,
                          reinterpret_cast<const int16_t*>(data),
                          element_count,
                          Primitive::kPrimShort,
                          dex_pc);
       break;
     case 4:
-      BuildFillArrayData(null_check,
+      BuildFillArrayData(array,
                          reinterpret_cast<const int32_t*>(data),
                          element_count,
                          Primitive::kPrimInt,
                          dex_pc);
       break;
     case 8:
-      BuildFillWideArrayData(null_check,
+      BuildFillWideArrayData(array,
                              reinterpret_cast<const int64_t*>(data),
                              element_count,
                              dex_pc);
@@ -2575,9 +2577,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     ARRAY_XX(_SHORT, Primitive::kPrimShort);
 
     case Instruction::ARRAY_LENGTH: {
-      HInstruction* object = LoadLocal(instruction.VRegB_12x(), Primitive::kPrimNot);
-      object = new (arena_) HNullCheck(object, dex_pc);
-      AppendInstruction(object);
+      HInstruction* object = LoadNullCheckedLocal(instruction.VRegB_12x(), dex_pc);
       AppendInstruction(new (arena_) HArrayLength(object, dex_pc));
       UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
       break;

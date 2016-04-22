@@ -28,10 +28,6 @@ public class Main {
   }
 
   /// CHECK-START: Main Main.thisTest() builder (after)
-  /// CHECK:         NullCheck
-  /// CHECK:         InvokeStaticOrDirect
-
-  /// CHECK-START: Main Main.thisTest() instruction_simplifier (after)
   /// CHECK-NOT:     NullCheck
   /// CHECK:         InvokeStaticOrDirect
   public Main thisTest() {
@@ -40,12 +36,10 @@ public class Main {
 
   /// CHECK-START: Main Main.newInstanceRemoveTest() builder (after)
   /// CHECK:         NewInstance
-  /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
-  /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
 
-  /// CHECK-START: Main Main.newInstanceRemoveTest() instruction_simplifier (after)
+  /// CHECK-START: Main Main.newInstanceRemoveTest() builder (after)
   /// CHECK-NOT:     NullCheck
   public Main newInstanceRemoveTest() {
     Main m = new Main();
@@ -54,13 +48,10 @@ public class Main {
 
   /// CHECK-START: Main Main.newArrayRemoveTest() builder (after)
   /// CHECK:         NewArray
-  /// CHECK:         NullCheck
   /// CHECK:         ArrayGet
 
-  /// CHECK-START: Main Main.newArrayRemoveTest() instruction_simplifier (after)
-  /// CHECK:         NewArray
+  /// CHECK-START: Main Main.newArrayRemoveTest() builder (after)
   /// CHECK-NOT:     NullCheck
-  /// CHECK:         ArrayGet
   public Main newArrayRemoveTest() {
     Main[] ms = new Main[1];
     return ms[0];
@@ -179,9 +170,6 @@ public class Main {
   }
 
   /// CHECK-START: Main Main.scopeRemoveTest(int, Main) builder (after)
-  /// CHECK:         NullCheck
-
-  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) instruction_simplifier (after)
   /// CHECK-NOT:     NullCheck
   public Main scopeRemoveTest(int count, Main a) {
     Main m = null;
