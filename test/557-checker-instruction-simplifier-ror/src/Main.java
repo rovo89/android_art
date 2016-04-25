@@ -178,7 +178,7 @@ public class Main {
   /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier (before)
   /// CHECK:          <<ArgValue:i\d+>>     ParameterValue
   /// CHECK:          <<Const2:i\d+>>       IntConstant 2
-  /// CHECK:          <<ConstNeg2:i\d+>>    IntConstant -2
+  /// CHECK:          <<ConstNeg2:i\d+>>    IntConstant {{-2|30}}
   /// CHECK-DAG:      <<UShr:i\d+>>         UShr [<<ArgValue>>,<<Const2>>]
   /// CHECK-DAG:      <<Shl:i\d+>>          Shl [<<ArgValue>>,<<ConstNeg2>>]
   /// CHECK:          <<Or:i\d+>>           Or [<<UShr>>,<<Shl>>]
