@@ -795,6 +795,11 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     return false;
   }
 
+  if (!method->IsCompilable()) {
+    VLOG(compiler) << "Method " << PrettyMethod(method)
+                   << " has soft failures un-handled by the compiler, so it cannot be inlined";
+  }
+
   if (!method->GetDeclaringClass()->IsVerified()) {
     uint16_t class_def_idx = method->GetDeclaringClass()->GetDexClassDefIndex();
     if (Runtime::Current()->UseJit() ||

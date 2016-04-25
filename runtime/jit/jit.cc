@@ -565,7 +565,7 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_
     return;
   }
 
-  if (method->IsClassInitializer() || method->IsNative()) {
+  if (method->IsClassInitializer() || method->IsNative() || !method->IsCompilable()) {
     // We do not want to compile such methods.
     return;
   }
