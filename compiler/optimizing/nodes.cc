@@ -2218,6 +2218,7 @@ ReferenceTypeInfo ReferenceTypeInfo::Create(TypeHandle type_handle, bool is_exac
     ScopedObjectAccess soa(Thread::Current());
     DCHECK(IsValidHandle(type_handle));
     DCHECK(!type_handle->IsErroneous());
+    DCHECK(!type_handle->IsArrayClass() || !type_handle->GetComponentType()->IsErroneous());
     if (!is_exact) {
       DCHECK(!type_handle->CannotBeAssignedFromOtherTypes())
           << "Callers of ReferenceTypeInfo::Create should ensure is_exact is properly computed";
