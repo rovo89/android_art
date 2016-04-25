@@ -25,13 +25,11 @@ public class Main {
   /// CHECK-DAG:     <<Const2P19:i\d+>>    IntConstant 524288
   /// CHECK-DAG:     <<ConstM1:i\d+>>      IntConstant -1
   /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<Const2P19>>,<<Method>>]
-  /// CHECK-DAG:     <<NullCheck1:l\d+>>   NullCheck [<<Array>>]
-  /// CHECK-DAG:     <<Length1:i\d+>>      ArrayLength [<<NullCheck1>>]
+  /// CHECK-DAG:     <<Length1:i\d+>>      ArrayLength [<<Array>>]
   /// CHECK-DAG:     <<Index:i\d+>>        Add [<<Length1>>,<<ConstM1>>]
-  /// CHECK-DAG:     <<NullCheck2:l\d+>>   NullCheck [<<Array>>]
-  /// CHECK-DAG:     <<Length2:i\d+>>      ArrayLength [<<NullCheck2>>]
+  /// CHECK-DAG:     <<Length2:i\d+>>      ArrayLength [<<Array>>]
   /// CHECK-DAG:     <<BoundsCheck:i\d+>>  BoundsCheck [<<Index>>,<<Length2>>]
-  /// CHECK-DAG:     <<LastElement:l\d+>>  ArrayGet [<<NullCheck2>>,<<BoundsCheck>>]
+  /// CHECK-DAG:     <<LastElement:l\d+>>  ArrayGet [<<Array>>,<<BoundsCheck>>]
   /// CHECK-DAG:                           Return [<<LastElement>>]
 
 
