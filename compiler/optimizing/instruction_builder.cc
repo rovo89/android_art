@@ -662,6 +662,16 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
   Handle<mirror::Class> compiling_class(hs.NewHandle(GetCompilingClass()));
+  // We fetch the referenced class eagerly (that is, the class pointed by in the MethodId
+  // at method_idx), as `CanAccessResolvedMethod` expects it be be in the dex cache.
+  Handle<mirror::Class> methods_class(hs.NewHandle(class_linker->ResolveReferencedClassOfMethod(
+      method_idx, dex_compilation_unit_->GetDexCache(), class_loader)));
+
+  if (UNLIKELY(methods_class.Get() == nullptr)) {
+    // Clean up any exception left by type resolution.
+    soa.Self()->ClearException();
+    return nullptr;
+  }
 
   ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(
       *dex_compilation_unit_->GetDexFile(),
@@ -700,47 +710,33 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
       DCHECK(Runtime::Current()->IsAotCompiler());
       return nullptr;
     }
-    ArtMethod* current_method = graph_->GetArtMethod();
-    DCHECK(current_method != nullptr);
-    Handle<mirror::Class> methods_class(hs.NewHandle(
-        dex_compilation_unit_->GetClassLinker()->ResolveReferencedClassOfMethod(Thread::Current(),
-                                                                                method_idx,
-                                                                                current_method)));
-    if (methods_class.Get() == nullptr) {
-      // Invoking a super method requires knowing the actual super class. If we did not resolve
-      // the compiling method's declaring class (which only happens for ahead of time
-      // compilation), bail out.
-      DCHECK(Runtime::Current()->IsAotCompiler());
-      return nullptr;
+    ArtMethod* actual_method;
+    if (methods_class->IsInterface()) {
+      actual_method = methods_class->FindVirtualMethodForInterfaceSuper(
+          resolved_method, class_linker->GetImagePointerSize());
     } else {
-      ArtMethod* actual_method;
-      if (methods_class->IsInterface()) {
-        actual_method = methods_class->FindVirtualMethodForInterfaceSuper(
-            resolved_method, class_linker->GetImagePointerSize());
-      } else {
-        uint16_t vtable_index = resolved_method->GetMethodIndex();
-        actual_method = compiling_class->GetSuperClass()->GetVTableEntry(
-            vtable_index, class_linker->GetImagePointerSize());
-      }
-      if (actual_method != resolved_method &&
-          !IsSameDexFile(*actual_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
-        // The back-end code generator relies on this check in order to ensure that it will not
-        // attempt to read the dex_cache with a dex_method_index that is not from the correct
-        // dex_file. If we didn't do this check then the dex_method_index will not be updated in the
-        // builder, which means that the code-generator (and compiler driver during sharpening and
-        // inliner, maybe) might invoke an incorrect method.
-        // TODO: The actual method could still be referenced in the current dex file, so we
-        //       could try locating it.
-        // TODO: Remove the dex_file restriction.
-        return nullptr;
-      }
-      if (!actual_method->IsInvokable()) {
-        // Fail if the actual method cannot be invoked. Otherwise, the runtime resolution stub
-        // could resolve the callee to the wrong method.
-        return nullptr;
-      }
-      resolved_method = actual_method;
+      uint16_t vtable_index = resolved_method->GetMethodIndex();
+      actual_method = compiling_class->GetSuperClass()->GetVTableEntry(
+          vtable_index, class_linker->GetImagePointerSize());
     }
+    if (actual_method != resolved_method &&
+        !IsSameDexFile(*actual_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
+      // The back-end code generator relies on this check in order to ensure that it will not
+      // attempt to read the dex_cache with a dex_method_index that is not from the correct
+      // dex_file. If we didn't do this check then the dex_method_index will not be updated in the
+      // builder, which means that the code-generator (and compiler driver during sharpening and
+      // inliner, maybe) might invoke an incorrect method.
+      // TODO: The actual method could still be referenced in the current dex file, so we
+      //       could try locating it.
+      // TODO: Remove the dex_file restriction.
+      return nullptr;
+    }
+    if (!actual_method->IsInvokable()) {
+      // Fail if the actual method cannot be invoked. Otherwise, the runtime resolution stub
+      // could resolve the callee to the wrong method.
+      return nullptr;
+    }
+    resolved_method = actual_method;
   }
 
   // Check for incompatible class changes. The class linker has a fast path for
