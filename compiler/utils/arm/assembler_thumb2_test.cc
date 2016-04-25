@@ -372,6 +372,31 @@ TEST_F(AssemblerThumb2Test, StoreWordPairToNonThumbOffset) {
   DriverStr(expected, "StoreWordPairToNonThumbOffset");
 }
 
+TEST_F(AssemblerThumb2Test, DistantBackBranch) {
+  Label start, end;
+  __ Bind(&start);
+  constexpr size_t kLdrR0R0Count1 = 256;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ b(&end, arm::EQ);
+  __ b(&start, arm::LT);
+  constexpr size_t kLdrR0R0Count2 = 256;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&end);
+
+  std::string expected =
+      "0:\n" +
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "beq 1f\n"
+      "blt 0b\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "1:\n";
+  DriverStr(expected, "DistantBackBranch");
+}
+
 TEST_F(AssemblerThumb2Test, TwoCbzMaxOffset) {
   Label label0, label1, label2;
   __ cbz(arm::R0, &label1);

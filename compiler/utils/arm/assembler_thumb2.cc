@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <type_traits>
+
 #include "assembler_thumb2.h"
 
 #include "base/bit_utils.h"
@@ -25,6 +27,30 @@
 namespace art {
 namespace arm {
 
+template <typename Function>
+void Thumb2Assembler::Fixup::ForExpandableDependencies(Thumb2Assembler* assembler, Function fn) {
+  static_assert(
+      std::is_same<typename std::result_of<Function(FixupId, FixupId)>::type, void>::value,
+      "Incorrect signature for argument `fn`: expected (FixupId, FixupId) -> void");
+  Fixup* fixups = assembler->fixups_.data();
+  for (FixupId fixup_id = 0u, end_id = assembler->fixups_.size(); fixup_id != end_id; ++fixup_id) {
+    uint32_t target = fixups[fixup_id].target_;
+    if (target > fixups[fixup_id].location_) {
+      for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
+        if (fixups[id].CanExpand()) {
+          fn(id, fixup_id);
+        }
+      }
+    } else {
+      for (FixupId id = fixup_id; id != 0u && fixups[id - 1u].location_ >= target; --id) {
+        if (fixups[id - 1u].CanExpand()) {
+          fn(id - 1u, fixup_id);
+        }
+      }
+    }
+  }
+}
+
 void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
   // For each Fixup, it's easy to find the Fixups that it depends on as they are either
   // the following or the preceding Fixups until we find the target. However, for fixup
@@ -34,24 +60,16 @@ void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
   // index and count. (Instead of having a per-fixup vector.)
 
   // Count the number of dependents of each Fixup.
-  const FixupId end_id = assembler->fixups_.size();
   Fixup* fixups = assembler->fixups_.data();
-  for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
-    uint32_t target = fixups[fixup_id].target_;
-    if (target > fixups[fixup_id].location_) {
-      for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
-        fixups[id].dependents_count_ += 1u;
-      }
-    } else {
-      for (FixupId id = fixup_id; id != 0u && fixups[id - 1u].location_ >= target; --id) {
-        fixups[id - 1u].dependents_count_ += 1u;
-      }
-    }
-  }
+  ForExpandableDependencies(
+      assembler,
+      [fixups](FixupId dependency, FixupId dependent ATTRIBUTE_UNUSED) {
+        fixups[dependency].dependents_count_ += 1u;
+      });
   // Assign index ranges in fixup_dependents_ to individual fixups. Record the end of the
   // range in dependents_start_, we shall later decrement it as we fill in fixup_dependents_.
   uint32_t number_of_dependents = 0u;
-  for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
+  for (FixupId fixup_id = 0u, end_id = assembler->fixups_.size(); fixup_id != end_id; ++fixup_id) {
     number_of_dependents += fixups[fixup_id].dependents_count_;
     fixups[fixup_id].dependents_start_ = number_of_dependents;
   }
@@ -61,20 +79,12 @@ void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
   // Create and fill in the fixup_dependents_.
   assembler->fixup_dependents_.resize(number_of_dependents);
   FixupId* dependents = assembler->fixup_dependents_.data();
-  for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
-    uint32_t target = fixups[fixup_id].target_;
-    if (target > fixups[fixup_id].location_) {
-      for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
-        fixups[id].dependents_start_ -= 1u;
-        dependents[fixups[id].dependents_start_] = fixup_id;
-      }
-    } else {
-      for (FixupId id = fixup_id; id != 0u && fixups[id - 1u].location_ >= target; --id) {
-        fixups[id - 1u].dependents_start_ -= 1u;
-        dependents[fixups[id - 1u].dependents_start_] = fixup_id;
-      }
-    }
-  }
+  ForExpandableDependencies(
+      assembler,
+      [fixups, dependents](FixupId dependency, FixupId dependent) {
+        fixups[dependency].dependents_start_ -= 1u;
+        dependents[fixups[dependency].dependents_start_] = dependent;
+      });
 }
 
 void Thumb2Assembler::BindLabel(Label* label, uint32_t bound_pc) {
@@ -115,6 +125,7 @@ void Thumb2Assembler::AdjustFixupIfNeeded(Fixup* fixup, uint32_t* current_code_s
                                           std::deque<FixupId>* fixups_to_recalculate) {
   uint32_t adjustment = fixup->AdjustSizeIfNeeded(*current_code_size);
   if (adjustment != 0u) {
+    DCHECK(fixup->CanExpand());
     *current_code_size += adjustment;
     for (FixupId dependent_id : fixup->Dependents(*this)) {
       Fixup* dependent = GetFixup(dependent_id);
@@ -2546,9 +2557,19 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
       }
     } else {
       branch_type = Fixup::kUnconditional;             // B.
+      // The T2 encoding offset is `SignExtend(imm11:'0', 32)` and there is a PC adjustment of 4.
+      static constexpr size_t kMaxT2BackwardDistance = (1u << 11) - 4u;
+      if (!use32bit && label->IsBound() && pc - label->Position() > kMaxT2BackwardDistance) {
+        use32bit = true;
+      }
     }
   } else {
     branch_type = Fixup::kConditional;                 // B<cond>.
+    // The T1 encoding offset is `SignExtend(imm8:'0', 32)` and there is a PC adjustment of 4.
+    static constexpr size_t kMaxT1BackwardDistance = (1u << 8) - 4u;
+    if (!use32bit && label->IsBound() && pc - label->Position() > kMaxT1BackwardDistance) {
+      use32bit = true;
+    }
   }
 
   Fixup::Size size = use32bit ? Fixup::kBranch32Bit : Fixup::kBranch16Bit;

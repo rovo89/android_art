@@ -538,6 +538,20 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       return GetType() >= kLoadLiteralNarrow;
     }
 
+    // Returns whether the Fixup can expand from the original size.
+    bool CanExpand() const {
+      switch (GetOriginalSize()) {
+        case kBranch32Bit:
+        case kCbxz48Bit:
+        case kLiteralFar:
+        case kLiteralAddrFar:
+        case kLongOrFPLiteralFar:
+          return false;
+        default:
+          return true;
+      }
+    }
+
     Size GetOriginalSize() const {
       return original_size_;
     }
@@ -611,6 +625,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
           dependents_count_(0u),
           dependents_start_(0u) {
     }
+
     static size_t SizeInBytes(Size size);
 
     // The size of padding added before the literal pool.
@@ -622,6 +637,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     size_t IncreaseSize(Size new_size);
 
     int32_t LoadWideOrFpEncoding(Register rbase, int32_t offset) const;
+
+    template <typename Function>
+    static void ForExpandableDependencies(Thumb2Assembler* assembler, Function fn);
 
     static constexpr uint32_t kUnresolved = 0xffffffff;     // Value for target_ for unresolved.
 
