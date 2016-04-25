@@ -310,9 +310,9 @@ class ClassLinker {
   // This returns the class referred to by GetMethodId(method_idx).class_idx_. This might be
   // different then the declaring class of the resolved method due to copied
   // miranda/default/conflict methods.
-  mirror::Class* ResolveReferencedClassOfMethod(Thread* self,
-                                                uint32_t method_idx,
-                                                ArtMethod* referrer)
+  mirror::Class* ResolveReferencedClassOfMethod(uint32_t method_idx,
+                                                Handle<mirror::DexCache> dex_cache,
+                                                Handle<mirror::ClassLoader> class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
   template <ResolveMode kResolveMode>
