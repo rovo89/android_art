@@ -234,6 +234,8 @@ class Arena {
   friend class ScopedArenaAllocator;
   template <bool kCount> friend class ArenaAllocatorStatsImpl;
 
+  friend class ArenaAllocatorTest;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(Arena);
 };
@@ -303,14 +305,10 @@ class ArenaAllocator
       return AllocWithMemoryTool(bytes, kind);
     }
     bytes = RoundUp(bytes, kAlignment);
-    if (UNLIKELY(ptr_ + bytes > end_)) {
-      // Obtain a new block.
-      ObtainNewArenaForAllocation(bytes);
-      if (UNLIKELY(ptr_ == nullptr)) {
-        return nullptr;
-      }
-    }
     ArenaAllocatorStats::RecordAlloc(bytes, kind);
+    if (UNLIKELY(bytes > static_cast<size_t>(end_ - ptr_))) {
+      return AllocFromNewArena(bytes);
+    }
     uint8_t* ret = ptr_;
     ptr_ += bytes;
     return ret;
@@ -350,10 +348,6 @@ class ArenaAllocator
     return static_cast<T*>(Alloc(length * sizeof(T), kind));
   }
 
-  void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
-
-  void ObtainNewArenaForAllocation(size_t allocation_size);
-
   size_t BytesAllocated() const;
 
   MemStats GetMemStats() const;
@@ -369,6 +363,9 @@ class ArenaAllocator
   bool Contains(const void* ptr) const;
 
  private:
+  void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
+  uint8_t* AllocFromNewArena(size_t bytes);
+
   static constexpr size_t kAlignment = 8;
 
   void UpdateBytesAllocated();
@@ -381,6 +378,8 @@ class ArenaAllocator
 
   template <typename U>
   friend class ArenaAllocatorAdapter;
+
+  friend class ArenaAllocatorTest;
 
   DISALLOW_COPY_AND_ASSIGN(ArenaAllocator);
 };  // ArenaAllocator

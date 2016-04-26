@@ -172,6 +172,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/arch/x86/instruction_set_features_x86_test.cc \
   runtime/arch/x86_64/instruction_set_features_x86_64_test.cc \
   runtime/barrier_test.cc \
+  runtime/base/arena_allocator_test.cc \
   runtime/base/bit_field_test.cc \
   runtime/base/bit_utils_test.cc \
   runtime/base/bit_vector_test.cc \
@@ -274,7 +275,6 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
   compiler/optimizing/suspend_check_test.cc \
-  compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
   compiler/utils/intrusive_forward_list_test.cc \
   compiler/utils/swap_space_test.cc \
