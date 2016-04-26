@@ -500,9 +500,9 @@ public class Main {
     assertIntEquals(a + $noinline$IntShl(b, 16),  a + (b << 16));
     assertIntEquals(a + $noinline$IntShl(b, 30),  a + (b << 30));
     assertIntEquals(a + $noinline$IntShl(b, 31),  a + (b << 31));
-    assertIntEquals(a + $noinline$IntShl(b, 32),  a + (b << 32));
-    assertIntEquals(a + $noinline$IntShl(b, 62),  a + (b << 62));
-    assertIntEquals(a + $noinline$IntShl(b, 63),  a + (b << 63));
+    assertIntEquals(a + $noinline$IntShl(b, 32),  a + (b << $opt$inline$IntConstant32()));
+    assertIntEquals(a + $noinline$IntShl(b, 62),  a + (b << $opt$inline$IntConstant62()));
+    assertIntEquals(a + $noinline$IntShl(b, 63),  a + (b << $opt$inline$IntConstant63()));
 
     assertIntEquals(a - $noinline$IntShr(b, 1),   a - (b >>  1));
     assertIntEquals(a - $noinline$IntShr(b, 6),   a - (b >>  6));
@@ -513,9 +513,9 @@ public class Main {
     assertIntEquals(a - $noinline$IntShr(b, 16),  a - (b >> 16));
     assertIntEquals(a - $noinline$IntShr(b, 30),  a - (b >> 30));
     assertIntEquals(a - $noinline$IntShr(b, 31),  a - (b >> 31));
-    assertIntEquals(a - $noinline$IntShr(b, 32),  a - (b >> 32));
-    assertIntEquals(a - $noinline$IntShr(b, 62),  a - (b >> 62));
-    assertIntEquals(a - $noinline$IntShr(b, 63),  a - (b >> 63));
+    assertIntEquals(a - $noinline$IntShr(b, 32),  a - (b >> $opt$inline$IntConstant32()));
+    assertIntEquals(a - $noinline$IntShr(b, 62),  a - (b >> $opt$inline$IntConstant62()));
+    assertIntEquals(a - $noinline$IntShr(b, 63),  a - (b >> $opt$inline$IntConstant63()));
 
     assertIntEquals(a ^ $noinline$IntUshr(b, 1),   a ^ (b >>>  1));
     assertIntEquals(a ^ $noinline$IntUshr(b, 6),   a ^ (b >>>  6));
@@ -526,10 +526,16 @@ public class Main {
     assertIntEquals(a ^ $noinline$IntUshr(b, 16),  a ^ (b >>> 16));
     assertIntEquals(a ^ $noinline$IntUshr(b, 30),  a ^ (b >>> 30));
     assertIntEquals(a ^ $noinline$IntUshr(b, 31),  a ^ (b >>> 31));
-    assertIntEquals(a ^ $noinline$IntUshr(b, 32),  a ^ (b >>> 32));
-    assertIntEquals(a ^ $noinline$IntUshr(b, 62),  a ^ (b >>> 62));
-    assertIntEquals(a ^ $noinline$IntUshr(b, 63),  a ^ (b >>> 63));
+    assertIntEquals(a ^ $noinline$IntUshr(b, 32),  a ^ (b >>> $opt$inline$IntConstant32()));
+    assertIntEquals(a ^ $noinline$IntUshr(b, 62),  a ^ (b >>> $opt$inline$IntConstant62()));
+    assertIntEquals(a ^ $noinline$IntUshr(b, 63),  a ^ (b >>> $opt$inline$IntConstant63()));
   }
+
+  // Hiding constants outside the range [0, 32) used for int shifts from Jack.
+  // (Jack extracts only the low 5 bits.)
+  public static int $opt$inline$IntConstant32() { return 32; }
+  public static int $opt$inline$IntConstant62() { return 62; }
+  public static int $opt$inline$IntConstant63() { return 63; }
 
 
   static long $noinline$LongShl(long b, long c) {

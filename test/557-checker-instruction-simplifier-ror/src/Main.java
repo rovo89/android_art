@@ -175,27 +175,31 @@ public class Main {
 
   //  (i >>> #distance) | (i << #-distance)
 
-  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier (before)
+  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier_after_bce (before)
   /// CHECK:          <<ArgValue:i\d+>>     ParameterValue
   /// CHECK:          <<Const2:i\d+>>       IntConstant 2
-  /// CHECK:          <<ConstNeg2:i\d+>>    IntConstant {{-2|30}}
+  /// CHECK:          <<ConstNeg2:i\d+>>    IntConstant -2
   /// CHECK-DAG:      <<UShr:i\d+>>         UShr [<<ArgValue>>,<<Const2>>]
   /// CHECK-DAG:      <<Shl:i\d+>>          Shl [<<ArgValue>>,<<ConstNeg2>>]
   /// CHECK:          <<Or:i\d+>>           Or [<<UShr>>,<<Shl>>]
   /// CHECK:                                Return [<<Or>>]
 
-  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier (after)
+  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier_after_bce (after)
   /// CHECK:          <<ArgValue:i\d+>>     ParameterValue
   /// CHECK:          <<Const2:i\d+>>       IntConstant 2
   /// CHECK:          <<Ror:i\d+>>          Ror [<<ArgValue>>,<<Const2>>]
   /// CHECK:                                Return [<<Ror>>]
 
-  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier (after)
+  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier_after_bce (after)
   /// CHECK-NOT:      UShr
   /// CHECK-NOT:      Shl
   public static int ror_int_constant_c_negc(int value) {
-    return (value >>> 2) | (value << -2);
+    return (value >>> 2) | (value << $opt$inline$IntConstantM2());
   }
+
+  // Hiding constants outside the range [0, 32) used for int shifts from Jack.
+  // (Jack extracts only the low 5 bits.)
+  public static int $opt$inline$IntConstantM2() { return -2; }
 
   //  (j >>> #distance) | (j << #-distance)
 
