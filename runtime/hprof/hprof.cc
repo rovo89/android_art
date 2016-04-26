@@ -505,6 +505,7 @@ class Hprof : public SingleRootVisitor {
     // Walk the roots and the heap.
     output_->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
 
+    simple_roots_.clear();
     runtime->VisitRoots(this);
     runtime->VisitImageRoots(this);
     runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, this);
@@ -884,6 +885,14 @@ class Hprof : public SingleRootVisitor {
                      gc::EqAllocRecordTypesPtr<gc::AllocRecordStackTraceElement>> frames_;
   std::unordered_map<const mirror::Object*, const gc::AllocRecordStackTrace*> allocation_records_;
 
+  // Set used to keep track of what simple root records we have already
+  // emitted, to avoid emitting duplicate entries. The simple root records are
+  // those that contain no other information than the root type and the object
+  // id. A pair of root type and object id is packed into a uint64_t, with
+  // the root type in the upper 32 bits and the object id in the lower 32
+  // bits.
+  std::unordered_set<uint64_t> simple_roots_;
+
   friend class GcRootVisitor;
   DISALLOW_COPY_AND_ASSIGN(Hprof);
 };
@@ -962,10 +971,14 @@ void Hprof::MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeap
     case HPROF_ROOT_MONITOR_USED:
     case HPROF_ROOT_INTERNED_STRING:
     case HPROF_ROOT_DEBUGGER:
-    case HPROF_ROOT_VM_INTERNAL:
-      __ AddU1(heap_tag);
-      __ AddObjectId(obj);
+    case HPROF_ROOT_VM_INTERNAL: {
+      uint64_t key = (static_cast<uint64_t>(heap_tag) << 32) | PointerToLowMemUInt32(obj);
+      if (simple_roots_.insert(key).second) {
+        __ AddU1(heap_tag);
+        __ AddObjectId(obj);
+      }
       break;
+    }
 
       // ID: object ID
       // ID: JNI global ref ID
