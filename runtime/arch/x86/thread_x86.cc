@@ -45,16 +45,17 @@ void Thread::InitCpu() {
   MutexLock mu(nullptr, *Locks::modify_ldt_lock_);
 
   const uintptr_t base = reinterpret_cast<uintptr_t>(this);
-  const size_t limit = kPageSize;
+  const size_t limit = sizeof(Thread);
 
   const int contents = MODIFY_LDT_CONTENTS_DATA;
   const int seg_32bit = 1;
   const int read_exec_only = 0;
-  const int limit_in_pages = 0;
+  const int limit_in_pages = 1;
   const int seg_not_present = 0;
   const int useable = 1;
 
-  int entry_number = -1;
+  int entry_number;
+  uint16_t table_indicator;
 
 #if defined(__APPLE__)
   descriptor_table_entry_t entry;
@@ -77,41 +78,52 @@ void Thread::InitCpu() {
   if (entry_number == -1) {
     PLOG(FATAL) << "i386_set_ldt failed";
   }
+
+  table_indicator = 1 << 2;  // LDT
 #else
-  // Read current LDT entries.
-  static_assert(static_cast<size_t>(LDT_ENTRY_SIZE) == sizeof(uint64_t),
-                "LDT_ENTRY_SIZE is different from sizeof(uint64_t).");
-  std::vector<uint64_t> ldt(LDT_ENTRIES);
-  size_t ldt_size(sizeof(uint64_t) * ldt.size());
-  memset(&ldt[0], 0, ldt_size);
-  // TODO: why doesn't this return LDT_ENTRY_SIZE * LDT_ENTRIES for the main thread?
-  syscall(__NR_modify_ldt, 0, &ldt[0], ldt_size);
+  // We use a GDT entry on Linux.
+  user_desc gdt_entry;
+  memset(&gdt_entry, 0, sizeof(gdt_entry));
 
-  // Find the first empty slot.
-  for (entry_number = 0; entry_number < LDT_ENTRIES && ldt[entry_number] != 0; ++entry_number) {
-  }
-  if (entry_number >= LDT_ENTRIES) {
-    LOG(FATAL) << "Failed to find a free LDT slot";
-  }
+  // On Linux, there are 3 TLS GDT entries. We use one of those to to store our segment descriptor
+  // data.
+  //
+  // This entry must be shared, as the kernel only guarantees three TLS entries. For simplicity
+  // (and locality), use this local global, which practically becomes readonly after the first
+  // (startup) thread of the runtime has been initialized (during Runtime::Start()).
+  //
+  // We also share this between all runtimes in the process. This is both for simplicity (one
+  // well-known slot) as well as to avoid the three-slot limitation. Downside is that we cannot
+  // free the slot when it is known that a runtime stops.
+  static unsigned int gdt_entry_number = -1;
 
-  // Update LDT entry.
-  user_desc ldt_entry;
-  memset(&ldt_entry, 0, sizeof(ldt_entry));
-  ldt_entry.entry_number = entry_number;
-  ldt_entry.base_addr = base;
-  ldt_entry.limit = limit;
-  ldt_entry.seg_32bit = seg_32bit;
-  ldt_entry.contents = contents;
-  ldt_entry.read_exec_only = read_exec_only;
-  ldt_entry.limit_in_pages = limit_in_pages;
-  ldt_entry.seg_not_present = seg_not_present;
-  ldt_entry.useable = useable;
-  CHECK_EQ(0, syscall(__NR_modify_ldt, 1, &ldt_entry, sizeof(ldt_entry)));
-  entry_number = ldt_entry.entry_number;
+  if (gdt_entry_number == static_cast<unsigned int>(-1)) {
+    gdt_entry.entry_number = -1;  // Let the kernel choose.
+  } else {
+    gdt_entry.entry_number = gdt_entry_number;
+  }
+  gdt_entry.base_addr = base;
+  gdt_entry.limit = limit;
+  gdt_entry.seg_32bit = seg_32bit;
+  gdt_entry.contents = contents;
+  gdt_entry.read_exec_only = read_exec_only;
+  gdt_entry.limit_in_pages = limit_in_pages;
+  gdt_entry.seg_not_present = seg_not_present;
+  gdt_entry.useable = useable;
+  int rc = syscall(__NR_set_thread_area, &gdt_entry);
+  if (rc != -1) {
+    entry_number = gdt_entry.entry_number;
+    if (gdt_entry_number == static_cast<unsigned int>(-1)) {
+      gdt_entry_number = entry_number;  // Save the kernel-assigned entry number.
+    }
+  } else {
+    PLOG(FATAL) << "set_thread_area failed";
+    UNREACHABLE();
+  }
+  table_indicator = 0;  // GDT
 #endif
 
-  // Change %fs to be new LDT entry.
-  uint16_t table_indicator = 1 << 2;  // LDT
+  // Change %fs to be new DT entry.
   uint16_t rpl = 3;  // Requested privilege level
   uint16_t selector = (entry_number << 3) | table_indicator | rpl;
   __asm__ __volatile__("movw %w0, %%fs"
@@ -163,13 +175,18 @@ void Thread::CleanupCpu() {
   UNUSED(selector);
   // i386_set_ldt(selector >> 3, 0, 1);
 #else
-  user_desc ldt_entry;
-  memset(&ldt_entry, 0, sizeof(ldt_entry));
-  ldt_entry.entry_number = selector >> 3;
-  ldt_entry.contents = MODIFY_LDT_CONTENTS_DATA;
-  ldt_entry.seg_not_present = 1;
-
-  syscall(__NR_modify_ldt, 1, &ldt_entry, sizeof(ldt_entry));
+  // Note if we wanted to clean up the GDT entry, we would do that here, when the *last* thread
+  // is being deleted. But see the comment on gdt_entry_number. Code would look like this:
+  //
+  // user_desc gdt_entry;
+  // memset(&gdt_entry, 0, sizeof(gdt_entry));
+  // gdt_entry.entry_number = selector >> 3;
+  // gdt_entry.contents = MODIFY_LDT_CONTENTS_DATA;
+  // // "Empty" = Delete = seg_not_present==1 && read_exec_only==1.
+  // gdt_entry.seg_not_present = 1;
+  // gdt_entry.read_exec_only = 1;
+  // syscall(__NR_set_thread_area, &gdt_entry);
+  UNUSED(selector);
 #endif
 }
 
