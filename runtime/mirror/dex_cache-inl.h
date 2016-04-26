@@ -148,9 +148,7 @@ inline void DexCache::FixupStrings(GcRoot<mirror::String>* dest, const Visitor& 
   for (size_t i = 0, count = NumStrings(); i < count; ++i) {
     mirror::String* source = src[i].Read<kReadBarrierOption>();
     mirror::String* new_source = visitor(source);
-    if (source != new_source) {
-      dest[i] = GcRoot<mirror::String>(new_source);
-    }
+    dest[i] = GcRoot<mirror::String>(new_source);
   }
 }
 
@@ -160,9 +158,7 @@ inline void DexCache::FixupResolvedTypes(GcRoot<mirror::Class>* dest, const Visi
   for (size_t i = 0, count = NumResolvedTypes(); i < count; ++i) {
     mirror::Class* source = src[i].Read<kReadBarrierOption>();
     mirror::Class* new_source = visitor(source);
-    if (source != new_source) {
-      dest[i] = GcRoot<mirror::Class>(new_source);
-    }
+    dest[i] = GcRoot<mirror::Class>(new_source);
   }
 }
 
