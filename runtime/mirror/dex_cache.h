@@ -23,6 +23,7 @@
 #include "class.h"
 #include "object.h"
 #include "object_array.h"
+#include "utils.h"
 
 namespace art {
 
@@ -42,8 +43,8 @@ class MANAGED DexCache FINAL : public Object {
   static uint32_t ClassSize(size_t pointer_size);
 
   // Size of an instance of java.lang.DexCache not including referenced values.
-  static constexpr uint32_t InstanceSize() {
-    return sizeof(DexCache);
+  static uint32_t InstanceSize() {
+    return sizeof(DexCache) + (IsSamsungROM() ? 8 : 0);
   }
 
   void Init(const DexFile* dex_file, String* location, ObjectArray<String>* strings,
@@ -54,7 +55,11 @@ class MANAGED DexCache FINAL : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   String* GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
+    return GetFieldObject<String>(LocationOffset());
+  }
+
+  static MemberOffset LocationOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, location_) + (IsSamsungROM() ? 4 : 0));
   }
 
   static MemberOffset DexOffset() {
@@ -62,15 +67,23 @@ class MANAGED DexCache FINAL : public Object {
   }
 
   static MemberOffset StringsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(DexCache, strings_);
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, strings_) + (IsSamsungROM() ? 4 : 0));
   }
 
   static MemberOffset ResolvedFieldsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_fields_);
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_fields_) + (IsSamsungROM() ? 4 : 0));
   }
 
   static MemberOffset ResolvedMethodsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_methods_);
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_methods_) + (IsSamsungROM() ? 4 : 0));
+  }
+
+  static MemberOffset ResolvedTypesOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_types_) + (IsSamsungROM() ? 4 : 0));
+  }
+
+  static MemberOffset DexFileOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, dex_file_) + (IsSamsungROM() ? 8 : 0));
   }
 
   size_t NumStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -127,7 +140,7 @@ class MANAGED DexCache FINAL : public Object {
 
   ObjectArray<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<ObjectArray<Class>>(
-        OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_));
+        ResolvedTypesOffset());
   }
 
   PointerArray* GetResolvedMethods() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -139,12 +152,12 @@ class MANAGED DexCache FINAL : public Object {
   }
 
   const DexFile* GetDexFile() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldPtr<const DexFile*>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_));
+    return GetFieldPtr<const DexFile*>(DexFileOffset());
   }
 
   void SetDexFile(const DexFile* dex_file) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       ALWAYS_INLINE {
-    return SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
+    return SetFieldPtr<false>(DexFileOffset(), dex_file);
   }
 
  private:
