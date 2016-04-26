@@ -215,6 +215,85 @@ void Monitor::SetObject(mirror::Object* object) {
   obj_ = GcRoot<mirror::Object>(object);
 }
 
+// Note: Adapted from CurrentMethodVisitor in thread.cc. We must not resolve here.
+
+struct NthCallerWithDexPcVisitor FINAL : public StackVisitor {
+  explicit NthCallerWithDexPcVisitor(Thread* thread, size_t frame)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFramesNoResolve),
+        method_(nullptr),
+        dex_pc_(0),
+        current_frame_number_(0),
+        wanted_frame_number_(frame) {}
+  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    ArtMethod* m = GetMethod();
+    if (m == nullptr || m->IsRuntimeMethod()) {
+      // Runtime method, upcall, or resolution issue. Skip.
+      return true;
+    }
+
+    // Is this the requested frame?
+    if (current_frame_number_ == wanted_frame_number_) {
+      method_ = m;
+      dex_pc_ = GetDexPc(false /* abort_on_error*/);
+      return false;
+    }
+
+    // Look for more.
+    current_frame_number_++;
+    return true;
+  }
+
+  ArtMethod* method_;
+  uint32_t dex_pc_;
+
+ private:
+  size_t current_frame_number_;
+  const size_t wanted_frame_number_;
+};
+
+// This function is inlined and just helps to not have the VLOG and ATRACE check at all the
+// potential tracing points.
+void Monitor::AtraceMonitorLock(Thread* self, mirror::Object* obj, bool is_wait) {
+  if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging) && ATRACE_ENABLED())) {
+    AtraceMonitorLockImpl(self, obj, is_wait);
+  }
+}
+
+void Monitor::AtraceMonitorLockImpl(Thread* self, mirror::Object* obj, bool is_wait) {
+  // Wait() requires a deeper call stack to be useful. Otherwise you'll see "Waiting at
+  // Object.java". Assume that we'll wait a nontrivial amount, so it's OK to do a longer
+  // stack walk than if !is_wait.
+  NthCallerWithDexPcVisitor visitor(self, is_wait ? 1U : 0U);
+  visitor.WalkStack(false);
+  const char* prefix = is_wait ? "Waiting on " : "Locking ";
+
+  const char* filename;
+  int32_t line_number;
+  TranslateLocation(visitor.method_, visitor.dex_pc_, &filename, &line_number);
+
+  // It would be nice to have a stable "ID" for the object here. However, the only stable thing
+  // would be the identity hashcode. But we cannot use IdentityHashcode here: For one, there are
+  // times when it is unsafe to make that call (see stack dumping for an explanation). More
+  // importantly, we would have to give up on thin-locking when adding systrace locks, as the
+  // identity hashcode is stored in the lockword normally (so can't be used with thin-locks).
+  //
+  // Because of thin-locks we also cannot use the monitor id (as there is no monitor). Monitor ids
+  // also do not have to be stable, as the monitor may be deflated.
+  std::string tmp = StringPrintf("%s %d at %s:%d",
+      prefix,
+      (obj == nullptr ? -1 : static_cast<int32_t>(reinterpret_cast<uintptr_t>(obj))),
+      (filename != nullptr ? filename : "null"),
+      line_number);
+  ATRACE_BEGIN(tmp.c_str());
+}
+
+void Monitor::AtraceMonitorUnlock() {
+  if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging))) {
+    ATRACE_END();
+  }
+}
+
 std::string Monitor::PrettyContentionInfo(const std::string& owner_name,
                                           pid_t owner_tid,
                                           ArtMethod* owners_method,
@@ -246,10 +325,10 @@ void Monitor::Lock(Thread* self) {
       if (lock_profiling_threshold_ != 0) {
         locking_method_ = self->GetCurrentMethod(&locking_dex_pc_);
       }
-      return;
+      break;
     } else if (owner_ == self) {  // Recursive.
       lock_count_++;
-      return;
+      break;
     }
     // Contended.
     const bool log_contention = (lock_profiling_threshold_ != 0);
@@ -348,6 +427,8 @@ void Monitor::Lock(Thread* self) {
     monitor_lock_.Lock(self);  // Reacquire locks in order.
     --num_waiters_;
   }
+
+  AtraceMonitorLock(self, GetObject(), false /* is_wait */);
 }
 
 static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
@@ -457,6 +538,7 @@ bool Monitor::Unlock(Thread* self) {
     }
     if (owner == self) {
       // We own the monitor, so nobody else can be in here.
+      AtraceMonitorUnlock();
       if (lock_count_ == 0) {
         owner_ = nullptr;
         locking_method_ = nullptr;
@@ -523,6 +605,11 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   uintptr_t saved_dex_pc = locking_dex_pc_;
   locking_dex_pc_ = 0;
 
+  AtraceMonitorUnlock();  // For the implict Unlock() just above. This will only end the deepest
+                          // nesting, but that is enough for the visualization, and corresponds to
+                          // the single Lock() we do afterwards.
+  AtraceMonitorLock(self, GetObject(), true /* is_wait */);
+
   bool was_interrupted = false;
   {
     // Update thread state. If the GC wakes up, it'll ignore us, knowing
@@ -585,6 +672,8 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
     }
     self->ThrowNewException("Ljava/lang/InterruptedException;", nullptr);
   }
+
+  AtraceMonitorUnlock();  // End Wait().
 
   // Re-acquire the monitor and lock.
   Lock(self);
@@ -775,6 +864,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       case LockWord::kUnlocked: {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0, lock_word.ReadBarrierState()));
         if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
+          AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
           // CasLockWord enforces more than the acquire ordering we need here.
           return h_obj.Get();  // Success!
         }
@@ -790,10 +880,12 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
                                                           lock_word.ReadBarrierState()));
             if (!kUseReadBarrier) {
               h_obj->SetLockWord(thin_locked, true);
+              AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
               return h_obj.Get();  // Success!
             } else {
               // Use CAS to preserve the read barrier state.
               if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
+                AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
                 return h_obj.Get();  // Success!
               }
             }
@@ -830,7 +922,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
         continue;  // Start from the beginning.
       default: {
         LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
-        return h_obj.Get();
+        UNREACHABLE();
       }
     }
   }
@@ -869,11 +961,17 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
           if (!kUseReadBarrier) {
             DCHECK_EQ(new_lw.ReadBarrierState(), 0U);
             h_obj->SetLockWord(new_lw, true);
+            if (ATRACE_ENABLED()) {
+              ATRACE_END();
+            }
             // Success!
             return true;
           } else {
             // Use CAS to preserve the read barrier state.
             if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, new_lw)) {
+              if (ATRACE_ENABLED()) {
+                ATRACE_END();
+              }
               // Success!
               return true;
             }

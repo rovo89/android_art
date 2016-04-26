@@ -59,6 +59,9 @@ extern "C" int64_t __divdi3(int64_t, int64_t);
 extern "C" int64_t __moddi3(int64_t, int64_t);
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
+  // Note: MIPS has asserts checking for the type of entrypoint. Don't move it
+  //       to InitDefaultEntryPoints().
+
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 
@@ -167,9 +170,14 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
                 "Non-direct C stub marked direct.");
 
   // Locks
-  qpoints->pLockObject = art_quick_lock_object;
+  if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging))) {
+    qpoints->pLockObject = art_quick_lock_object_no_inline;
+    qpoints->pUnlockObject = art_quick_unlock_object_no_inline;
+  } else {
+    qpoints->pLockObject = art_quick_lock_object;
+    qpoints->pUnlockObject = art_quick_unlock_object;
+  }
   static_assert(!IsDirectEntrypoint(kQuickLockObject), "Non-direct C stub marked direct.");
-  qpoints->pUnlockObject = art_quick_unlock_object;
   static_assert(!IsDirectEntrypoint(kQuickUnlockObject), "Non-direct C stub marked direct.");
 
   // Math

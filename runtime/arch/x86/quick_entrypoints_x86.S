@@ -960,6 +960,22 @@ DEFINE_FUNCTION art_quick_lock_object
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object
 
+DEFINE_FUNCTION art_quick_lock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
+    // Outgoing argument set up
+    subl LITERAL(8), %esp                 // alignment padding
+    CFI_ADJUST_CFA_OFFSET(8)
+    pushl %fs:THREAD_SELF_OFFSET          // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH eax                              // pass object
+    call SYMBOL(artLockObjectFromCode)    // artLockObjectFromCode(object, Thread*)
+    addl LITERAL(16), %esp                // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RETURN_IF_EAX_ZERO
+END_FUNCTION art_quick_lock_object_no_inline
+
+
 DEFINE_FUNCTION art_quick_unlock_object
     testl %eax, %eax                      // null check object/eax
     jz   .Lslow_unlock
@@ -1014,6 +1030,21 @@ DEFINE_FUNCTION art_quick_unlock_object
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object
+
+DEFINE_FUNCTION art_quick_unlock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
+    // Outgoing argument set up
+    subl LITERAL(8), %esp                 // alignment padding
+    CFI_ADJUST_CFA_OFFSET(8)
+    pushl %fs:THREAD_SELF_OFFSET          // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH eax                              // pass object
+    call SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*)
+    addl LITERAL(16), %esp                // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RETURN_IF_EAX_ZERO
+END_FUNCTION art_quick_unlock_object_no_inline
 
 DEFINE_FUNCTION art_quick_is_assignable
     PUSH eax                              // alignment padding
