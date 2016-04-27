@@ -914,10 +914,26 @@ class FixupArtMethodVisitor : public FixupVisitor, public ArtMethodVisitor {
         pointer_size_(pointer_size) {}
 
   virtual void Visit(ArtMethod* method) NO_THREAD_SAFETY_ANALYSIS {
-    if (fixup_heap_objects_) {
-      method->UpdateObjectsForImageRelocation(ForwardObjectAdapter(this), pointer_size_);
+    // TODO: Separate visitor for runtime vs normal methods.
+    if (UNLIKELY(method->IsRuntimeMethod())) {
+      ImtConflictTable* table = method->GetImtConflictTable(pointer_size_);
+      if (table != nullptr) {
+        ImtConflictTable* new_table = ForwardObject(table);
+        if (table != new_table) {
+          method->SetImtConflictTable(new_table, pointer_size_);
+        }
+      }
+      const void* old_code = method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size_);
+      const void* new_code = ForwardCode(old_code);
+      if (old_code != new_code) {
+        method->SetEntryPointFromQuickCompiledCodePtrSize(new_code, pointer_size_);
+      }
+    } else {
+      if (fixup_heap_objects_) {
+        method->UpdateObjectsForImageRelocation(ForwardObjectAdapter(this), pointer_size_);
+      }
+      method->UpdateEntrypoints<kWithoutReadBarrier>(ForwardCodeAdapter(this), pointer_size_);
     }
-    method->UpdateEntrypoints<kWithoutReadBarrier>(ForwardCodeAdapter(this), pointer_size_);
   }
 
  private:
@@ -1018,6 +1034,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
   const ImageSection& objects_section = image_header.GetImageSection(ImageHeader::kSectionObjects);
   uintptr_t objects_begin = reinterpret_cast<uintptr_t>(target_base + objects_section.Offset());
   uintptr_t objects_end = reinterpret_cast<uintptr_t>(target_base + objects_section.End());
+  FixupObjectAdapter fixup_adapter(boot_image, boot_oat, app_image, app_oat);
   if (fixup_image) {
     // Two pass approach, fix up all classes first, then fix up non class-objects.
     // The visited bitmap is used to ensure that pointer arrays are not forwarded twice.
@@ -1037,7 +1054,6 @@ static bool RelocateInPlace(ImageHeader& image_header,
     ScopedObjectAccess soa(Thread::Current());
     timing.NewTiming("Fixup objects");
     bitmap->VisitMarkedRange(objects_begin, objects_end, fixup_object_visitor);
-    FixupObjectAdapter fixup_adapter(boot_image, boot_oat, app_image, app_oat);
     // Fixup image roots.
     CHECK(app_image.InSource(reinterpret_cast<uintptr_t>(
         image_header.GetImageRoots<kWithoutReadBarrier>())));
@@ -1104,19 +1120,18 @@ static bool RelocateInPlace(ImageHeader& image_header,
                                          boot_oat,
                                          app_image,
                                          app_oat);
-    image_header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &method_visitor,
-        target_base,
-        pointer_size);
+    image_header.VisitPackedArtMethods(&method_visitor, target_base, pointer_size);
   }
   if (fixup_image) {
     {
       // Only touches objects in the app image, no need for mutator lock.
       TimingLogger::ScopedTiming timing("Fixup fields", &logger);
       FixupArtFieldVisitor field_visitor(boot_image, boot_oat, app_image, app_oat);
-      image_header.GetImageSection(ImageHeader::kSectionArtFields).VisitPackedArtFields(
-          &field_visitor,
-          target_base);
+      image_header.VisitPackedArtFields(&field_visitor, target_base);
+    }
+    {
+      TimingLogger::ScopedTiming timing("Fixup conflict tables", &logger);
+      image_header.VisitPackedImtConflictTables(fixup_adapter, target_base, pointer_size);
     }
     // In the app image case, the image methods are actually in the boot image.
     image_header.RelocateImageMethods(boot_image.Delta());

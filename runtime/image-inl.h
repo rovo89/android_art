@@ -19,6 +19,8 @@
 
 #include "image.h"
 
+#include "art_method.h"
+
 namespace art {
 
 template <ReadBarrierOption kReadBarrierOption>
@@ -40,6 +42,20 @@ inline mirror::ObjectArray<mirror::Object>* ImageHeader::GetImageRoots() const {
           &image_roots);
   DCHECK_EQ(image_roots, result);
   return image_roots;
+}
+
+template <typename Visitor>
+inline void ImageHeader::VisitPackedImtConflictTables(const Visitor& visitor,
+                                                      uint8_t* base,
+                                                      size_t pointer_size) const {
+  const ImageSection& section = GetImageSection(kSectionIMTConflictTables);
+  for (size_t pos = 0; pos < section.Size(); ) {
+    auto* table = reinterpret_cast<ImtConflictTable*>(base + section.Offset() + pos);
+    table->Visit([&visitor](const std::pair<ArtMethod*, ArtMethod*>& methods) {
+      return std::make_pair(visitor(methods.first), visitor(methods.second));
+    }, pointer_size);
+    pos += table->ComputeSize(pointer_size);
+  }
 }
 
 }  // namespace art
