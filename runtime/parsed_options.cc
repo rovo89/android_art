@@ -474,6 +474,11 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     LOG(INFO) << "setting boot class path to " << *args.Get(M::BootClassPath);
   }
 
+  if (args.GetOrDefault(M::UseJitCompilation) && args.GetOrDefault(M::Interpret)) {
+    Usage("-Xusejit:true and -Xint cannot be specified together");
+    Exit(0);
+  }
+
   // Set a default boot class path if we didn't get an explicit one via command line.
   if (getenv("BOOTCLASSPATH") != nullptr) {
     args.SetIfMissing(M::BootClassPath, std::string(getenv("BOOTCLASSPATH")));
